@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Headroom — Vessel app icon (export master)</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; }
+  #stage { width: 1024px; height: 1024px; }
+  #stage svg { display: block; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+(function () {
+  "use strict";
+  // macOS 26 (Tahoe) applies its own rounded-rect glass mask + shadow to the icon, so the
+  // artwork is FULL-BLEED: the dark ground fills the whole square and the system rounds it.
+  // (This app is Tahoe-only — LSMinimumSystemVersion 26.0 — so no legacy square-corner risk.)
+
+  // Vessel geometry, sized to sit comfortably inside the rounded tile.
+  const cap = { x: 347, y: 216, w: 330, h: 592, rx: 165, sw: 22 };
+  const inset = 30;
+  const inX = cap.x + inset, inW = cap.w - inset * 2, r = inW / 2;
+  const inTop = cap.y + inset, inBot = cap.y + cap.h - inset;
+  const fill = 0.46;
+  const liquidTop = inBot - (inBot - inTop) * fill;
+  const arcStartY = inBot - r;
+  const liquid = `M${inX} ${liquidTop} H${inX + inW} V${arcStartY} A${r} ${r} 0 0 1 ${inX} ${arcStartY} Z`;
+
+  const svg = `
+  <svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <linearGradient id="bg" x1="0.1" y1="0" x2="0.92" y2="1">
+        <stop offset="0" stop-color="#33404f"/>
+        <stop offset="0.5" stop-color="#1a2330"/>
+        <stop offset="1" stop-color="#0b111a"/>
+      </linearGradient>
+      <linearGradient id="liquid" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#93ffc6"/>
+        <stop offset="0.5" stop-color="#4bdd97"/>
+        <stop offset="1" stop-color="#1fac70"/>
+      </linearGradient>
+      <linearGradient id="topHi" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
+        <stop offset="0.42" stop-color="#ffffff" stop-opacity="0.02"/>
+        <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+      </linearGradient>
+      <linearGradient id="wall" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/>
+        <stop offset="0.5" stop-color="#dfe8e6" stop-opacity="0.86"/>
+        <stop offset="1" stop-color="#b7c4c2" stop-opacity="0.82"/>
+      </linearGradient>
+      <radialGradient id="vig" cx="0.5" cy="0.95" r="0.85">
+        <stop offset="0.5" stop-color="#000000" stop-opacity="0"/>
+        <stop offset="1" stop-color="#000000" stop-opacity="0.30"/>
+      </radialGradient>
+      <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+        <feGaussianBlur stdDeviation="18" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+
+    <!-- full-bleed glass ground (system rounds + adds the rim/shadow on Tahoe) -->
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#bg)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#topHi)"/>
+
+    <!-- liquid with a rounded base + green glow -->
+    <g filter="url(#glow)">
+      <path d="${liquid}" fill="url(#liquid)"/>
+    </g>
+    <!-- meniscus surface line -->
+    <rect x="${inX}" y="${liquidTop - 7}" width="${inW}" height="13" rx="6.5" fill="#eafff4" opacity="0.42"/>
+
+    <!-- glass specular streak hugging the upper-left wall -->
+    <rect x="${cap.x + 52}" y="${cap.y + 62}" width="28" height="182" rx="14" fill="#ffffff" opacity="0.13"/>
+
+    <!-- vessel wall -->
+    <rect x="${cap.x}" y="${cap.y}" width="${cap.w}" height="${cap.h}" rx="${cap.rx}"
+          fill="none" stroke="url(#wall)" stroke-width="${cap.sw}"/>
+
+    <!-- grounding vignette -->
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#vig)"/>
+  </svg>`;
+
+  document.getElementById("stage").innerHTML = svg;
+})();
+</script>
+</body>
+</html>

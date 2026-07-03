@@ -22,7 +22,10 @@ let package = Package(
         .executableTarget(
             name: "HeadroomApp",
             dependencies: ["HeadroomCore"],
-            exclude: ["HeadroomApp.entitlements"],
+            // The app icon catalog is compiled by actool in the xcodegen/xcodebuild app
+            // build only; excluding it keeps `swift build`/`swift test` (a plain CLI
+            // executable, no app bundle) fast and free of asset-catalog processing.
+            exclude: ["HeadroomApp.entitlements", "Resources/Assets.xcassets"],
             resources: [.process("Resources")]
         ),
         .executableTarget(

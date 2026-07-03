@@ -13,6 +13,7 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
+    @State private var menuBarFillSource: MenuBarFillSource = .none
     @State private var widgetsEnabled = true
     @State private var launchAtLogin = false
     @State private var renewalDates: [ProviderID: Date] = [:]
@@ -23,8 +24,6 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text("Settings").font(.title3.bold())
-
             VStack(alignment: .leading, spacing: 2) {
                 Stepper("Refresh every \(intervalMinutes) min", value: $intervalMinutes, in: 2...60)
                     .onChange(of: intervalMinutes) { _, newValue in
@@ -39,6 +38,20 @@ struct SettingsView: View {
                 .onChange(of: showMenuBarPercentage) { _, newValue in
                     store.setShowMenuBarPercentage(newValue)
                 }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Picker("Menu bar fill tracks", selection: $menuBarFillSource) {
+                    ForEach(MenuBarFillSource.allCases, id: \.self) { source in
+                        Text(source.label).tag(source)
+                    }
+                }
+                .onChange(of: menuBarFillSource) { _, newValue in
+                    store.setMenuBarFillSource(newValue)
+                }
+                Text("Drains with the chosen provider's weekly usage; None keeps it static.")
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
             WidgetSettingsSection(widgetsEnabled: $widgetsEnabled)
                 .onChange(of: widgetsEnabled) { _, newValue in
@@ -94,15 +107,24 @@ struct SettingsView: View {
 
             Divider()
 
-            ForEach([ProviderID.claude, .codex], id: \.self) { id in
-                DatePicker(
-                    "\(store.displayNames[id] ?? id.raw) renews",
-                    selection: Binding(
-                        get: { renewalDates[id] ?? Date() },
-                        set: { renewalDates[id] = $0; preferences.setRenewalDate($0, for: id) }
-                    ),
-                    displayedComponents: .date
-                )
+            // Grid so both date fields share a left edge despite the labels
+            // ("Claude renews" / "Codex renews") being different widths.
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
+                ForEach([ProviderID.claude, .codex], id: \.self) { id in
+                    GridRow {
+                        Text("\(store.displayNames[id] ?? id.raw) renews")
+                            .gridColumnAlignment(.leading)
+                        DatePicker(
+                            "",
+                            selection: Binding(
+                                get: { renewalDates[id] ?? Date() },
+                                set: { renewalDates[id] = $0; preferences.setRenewalDate($0, for: id) }
+                            ),
+                            displayedComponents: .date
+                        )
+                        .labelsHidden()
+                    }
+                }
             }
 
             Divider()
@@ -119,6 +141,14 @@ struct SettingsView: View {
         }
         .padding(20)
         .frame(width: 380)
+        // Center the window title. macOS 26 leading-aligns the default window title, so
+        // remove it and supply a centered principal item instead.
+        .toolbar(removing: .title)
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text("Headroom Settings").font(.headline)
+            }
+        }
         .onAppear {
             // Clamp any legacy sub-2-minute interval up to the new floor.
             let saved = max(2, preferences.pollIntervalMinutes)
@@ -128,6 +158,7 @@ struct SettingsView: View {
             }
             intervalMinutes = saved
             showMenuBarPercentage = store.showMenuBarPercentage
+            menuBarFillSource = store.menuBarFillSource
             widgetsEnabled = store.widgetsEnabled
             apiSpendPeriod = store.apiSpendPeriod
             launchAtLogin = launchControl.isEnabled

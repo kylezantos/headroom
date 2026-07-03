@@ -210,6 +210,32 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
     }
 }
 
+/// Which provider's *weekly* usage drives how full the menu-bar vessel is drawn. The
+/// glyph's fill drains as that provider's weekly allotment is consumed. `.none` keeps a
+/// static decorative fill (the identity mark), decoupled from any single provider.
+public enum MenuBarFillSource: String, CaseIterable, Sendable, Codable, Equatable {
+    case none
+    case claude
+    case codex
+
+    /// The provider whose weekly window sets the fill, or nil for the static glyph.
+    public var providerID: ProviderID? {
+        switch self {
+        case .none: return nil
+        case .claude: return .claude
+        case .codex: return .codex
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .none: return "None"
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        }
+    }
+}
+
 /// User-selectable period for API cost reports. The provider converts this into the
 /// endpoint's query shape at fetch time so later periods do not change UI state.
 public enum APISpendPeriod: String, CaseIterable, Sendable, Codable, Equatable {

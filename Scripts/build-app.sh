@@ -86,5 +86,5 @@ sign_path "${APP}" --entitlements Sources/HeadroomApp/HeadroomApp.entitlements
 codesign --verify --deep --strict --verbose=2 "${APP}"
 
 echo "✓ Built ${APP}"
-echo "  Launch:  open ${APP}    (look for the gauge icon in the menu bar)"
+echo "  Launch:  open ${APP}    (look for the vessel icon in the menu bar)"
 echo "  Quit:    click the icon → Quit"

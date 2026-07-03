@@ -95,7 +95,8 @@ struct HeadroomApp: App {
         } label: {
             MenuBarLabel(
                 summary: store.menuBarSummary,
-                showsPercentage: store.showMenuBarPercentage
+                showsPercentage: store.showMenuBarPercentage,
+                fill: store.menuBarFill
             )
         }
         .menuBarExtraStyle(.window)

@@ -27,9 +27,11 @@
 		4EA657309B9F48B811B1C9D5 /* HeadroomTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */; };
 		53F82A4681F8E2F99F11176B /* UsageDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3231CDC5E0AF2C8DE6B924FD /* UsageDTOs.swift */; };
 		56BAE387366F3D2ABFBDBBE1 /* PollingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432AF864130D5870A2FC78CF /* PollingEngine.swift */; };
+		60746FC18E97628B85602E13 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 736B4254D382572E99EA6D1A /* Assets.xcassets */; };
 		60C26D7C155F96DDC45CA804 /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		6A4BC315549D795D299B8596 /* WidgetProviderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153FAF5444C5766DC4BC75BE /* WidgetProviderRow.swift */; };
 		6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87284976C67D36ECE2DD747F /* Countdown.swift */; };
+		728126D0D3BBA60E8D4D9B89 /* VesselGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */; };
 		730A334D25EFB4F97AF1C1D0 /* HeadroomLargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DED341B03E9DB7876BDD8B /* HeadroomLargeWidgetView.swift */; };
 		8B60C92EF3B9A4F66886E2F7 /* CredentialModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12CBFA7FEC91C71F1F13E4A /* CredentialModels.swift */; };
 		93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */; };
@@ -45,6 +47,7 @@
 		AD98038B98D014D9ABB12124 /* ProviderID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */; };
 		ADEFB16F5E7CF386F72C58D8 /* HoverButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */; };
 		B0DA4917ED09B86C95AB2A8E /* ClaudeProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E0D177E83274B5B1344E7AC /* ClaudeProvider.swift */; };
+		B92EA7C9D22387D7A4A9D88F /* VesselMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9574D232CF05C00E2B526408 /* VesselMark.swift */; };
 		C3780A7639B2B5A780402317 /* HeadroomSmallWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0ABF0C454123B6AAF8D2492 /* HeadroomSmallWidgetView.swift */; };
 		C7E68A38A0A0E0D2CDC8A213 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */; };
 		DAFB4F586505C2785C8CE80A /* WidgetSnapshotProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */; };
@@ -122,12 +125,14 @@
 		432AF864130D5870A2FC78CF /* PollingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingEngine.swift; sourceTree = "<group>"; };
 		5B3D491D8D8B855C6182DF43 /* HeadroomWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HeadroomWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		647B97436A2026E1B0F66065 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		736B4254D382572E99EA6D1A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7422AF9B5364DACBD9ED1198 /* SOURCES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SOURCES.md; sourceTree = "<group>"; };
 		85F2D260E777F25434670C48 /* WidgetStatusView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatusView.swift; sourceTree = "<group>"; };
 		864FC2FB47A9E7D44E659809 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		87284976C67D36ECE2DD747F /* Countdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Countdown.swift; sourceTree = "<group>"; };
 		88E5257FBAB9CE287E59153B /* codex-color.svg */ = {isa = PBXFileReference; path = "codex-color.svg"; sourceTree = "<group>"; };
 		8F395690B55C802624547B6D /* HeadroomMediumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomMediumWidgetView.swift; sourceTree = "<group>"; };
+		9574D232CF05C00E2B526408 /* VesselMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VesselMark.swift; sourceTree = "<group>"; };
 		9965B78C8766A7FA857A6F6D /* HeadroomWidgets.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgets.swift; sourceTree = "<group>"; };
 		9BC8195F504F14F4E8C6F5BC /* APISpendSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISpendSectionView.swift; sourceTree = "<group>"; };
 		A43C20FB297B9F64C76EAA8A /* ClaudeUsageParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageParser.swift; sourceTree = "<group>"; };
@@ -152,6 +157,7 @@
 		F0B51A9D5A1F8B1C3217B253 /* HeadroomApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomApp.swift; sourceTree = "<group>"; };
 		F767701AEE449C92A62002E4 /* CodexProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexProvider.swift; sourceTree = "<group>"; };
 		FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotCache.swift; sourceTree = "<group>"; };
+		FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VesselGlyph.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -181,6 +187,7 @@
 				8F395690B55C802624547B6D /* HeadroomMediumWidgetView.swift */,
 				D0ABF0C454123B6AAF8D2492 /* HeadroomSmallWidgetView.swift */,
 				B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */,
+				9574D232CF05C00E2B526408 /* VesselMark.swift */,
 				153FAF5444C5766DC4BC75BE /* WidgetProviderRow.swift */,
 				CC34C34508588C817227112F /* WidgetProviderWeeklyLine.swift */,
 				85F2D260E777F25434670C48 /* WidgetStatusView.swift */,
@@ -274,6 +281,7 @@
 		95E565230752E3D2B2AC8D68 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				736B4254D382572E99EA6D1A /* Assets.xcassets */,
 				B95FC254FAA2172A96AF74F3 /* BrandIcons */,
 			);
 			path = Resources;
@@ -291,6 +299,7 @@
 				271BAABD34D394E2014676BC /* ProviderStyle.swift */,
 				647B97436A2026E1B0F66065 /* SettingsView.swift */,
 				DF2BA56351FD2FA2E4940F33 /* UsageBarView.swift */,
+				FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */,
 				C9D996992FCBD0C9F54F348C /* WidgetSettingsSection.swift */,
 			);
 			path = UI;
@@ -463,6 +472,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				60746FC18E97628B85602E13 /* Assets.xcassets in Resources */,
 				3B642DC39FBAB7604199175E /* SOURCES.md in Resources */,
 				E888F6381D1EF5EEE508FC15 /* claude-color.svg in Resources */,
 				3CF30E86D1DEBD401B0D6CA3 /* codex-color.svg in Resources */,
@@ -535,6 +545,7 @@
 				9D992181780CEEF21E07FEF0 /* ProviderStyle.swift in Sources */,
 				AC30D16374782EE1F93EFB99 /* SettingsView.swift in Sources */,
 				15EEFD226FCB5864E97EAA12 /* UsageBarView.swift in Sources */,
+				728126D0D3BBA60E8D4D9B89 /* VesselGlyph.swift in Sources */,
 				AC0331D17112DB32C3311741 /* WidgetSettingsSection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -550,6 +561,7 @@
 				E51EA57BFB71FB24ABBAD2E0 /* HeadroomWidgetEntry.swift in Sources */,
 				003475AF90FE48BDC8A0142D /* HeadroomWidgetView.swift in Sources */,
 				9B0A49EAC79591A254CAF37D /* HeadroomWidgets.swift in Sources */,
+				B92EA7C9D22387D7A4A9D88F /* VesselMark.swift in Sources */,
 				6A4BC315549D795D299B8596 /* WidgetProviderRow.swift in Sources */,
 				A29F74C130194DF08BC83F74 /* WidgetProviderStyle.swift in Sources */,
 				E220ECA3C7AB61EA07CFB6F1 /* WidgetProviderWeeklyLine.swift in Sources */,

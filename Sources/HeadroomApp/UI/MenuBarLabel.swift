@@ -1,7 +1,7 @@
 import SwiftUI
 import HeadroomCore
 
-/// The always-visible menu bar content (R5, UI-03): the compact gauge icon, with the
+/// The always-visible menu bar content (R5, UI-03): the compact vessel glyph, with the
 /// tightest live window's remaining percent optionally shown beside it. The glyph is
 /// tinted by *severity* (healthy → amber → red), not by brand color, so the menu bar
 /// means "how close am I to running out" at a glance; a small warning dot appears when a
@@ -10,14 +10,15 @@ import HeadroomCore
 struct MenuBarLabel: View {
     let summary: MenuBarSummary
     let showsPercentage: Bool
+    /// 0…1 fill for the vessel (the selected provider's weekly remaining), or nil for
+    /// the static decorative level.
+    var fill: Double? = nil
 
     var body: some View {
         HStack(spacing: 3) {
-            // Sized to sit level with neighboring menu-bar icons: the default
-            // `Image(systemName:)` renders at ~13pt body size and reads noticeably
-            // smaller than system items, which are ~16–18pt.
-            Image(systemName: "gauge.with.dots.needle.bottom.50percent")
-                .font(.system(size: 16, weight: .medium))
+            // A template `NSImage` (not a SwiftUI shape) — menu-bar labels only rasterize
+            // `Text`/`Image`, and the template tints with the severity `foregroundStyle`.
+            Image(nsImage: VesselGlyph.menuBarImage(fill: fill))
                 .overlay(alignment: .topTrailing) {
                     if summary.needsAttention {
                         Circle()

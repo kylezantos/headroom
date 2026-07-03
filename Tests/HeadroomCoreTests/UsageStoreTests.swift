@@ -137,6 +137,66 @@ struct UsageStoreTests {
         #expect(preferences.showMenuBarPercentage)
     }
 
+    @Test func menuBarFillTracksSelectedProviderWeekly() async {
+        let store = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset),   // ignored
+                UsageWindow(kind: .weekly, utilization: 65, resetsAt: reset),     // 35% left
+            ])),
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 5, resetsAt: reset),
+            ])),
+        ])
+        await store.refreshAll()
+        #expect(store.menuBarFill == 0.35)   // Claude weekly, not the tighter Codex or 5h
+    }
+
+    @Test func menuBarFillIsNilWhenSourceIsNone() async {
+        let store = makeStore(source: .none, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 40, resetsAt: reset),
+            ])),
+        ])
+        await store.refreshAll()
+        #expect(store.menuBarFill == nil)    // decoupled → static glyph
+    }
+
+    @Test func menuBarFillIsNilWithoutAWeeklyWindow() async {
+        let store = makeStore(source: .codex, providers: [
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),   // no weekly
+            ])),
+        ])
+        await store.refreshAll()
+        #expect(store.menuBarFill == nil)
+    }
+
+    @Test func menuBarFillSourcePersistsThroughStore() {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        let store = UsageStore(
+            providers: [StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude))],
+            preferences: preferences
+        )
+
+        #expect(store.menuBarFillSource == .none)   // default
+        store.setMenuBarFillSource(.codex)
+        #expect(store.menuBarFillSource == .codex)
+        #expect(preferences.menuBarFillSource == .codex)
+    }
+
+    /// Store whose menu-bar fill source is pre-set, on an isolated defaults suite.
+    private func makeStore(source: MenuBarFillSource, providers: [any UsageProvider]) -> UsageStore {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        preferences.menuBarFillSource = source
+        return UsageStore(providers: providers, preferences: preferences)
+    }
+
     @Test func refreshExportsWidgetSnapshot() async {
         let exporter = SpyWidgetExporter()
         let store = UsageStore(

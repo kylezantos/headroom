@@ -6,8 +6,12 @@ struct WidgetStatusView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: "gauge.with.dots.needle.bottom.50percent")
-                .font(.headline)
+            Label {
+                Text(title)
+            } icon: {
+                VesselMark().frame(width: 12, height: 20)
+            }
+            .font(.headline)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(.secondary)

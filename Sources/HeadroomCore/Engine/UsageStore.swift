@@ -50,6 +50,7 @@ public final class UsageStore {
     public private(set) var snapshots: [ProviderID: UsageSnapshot]
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
+    public private(set) var menuBarFillSource: MenuBarFillSource
     public let displayNames: [ProviderID: String]
     public let apiSpendDisplayNames: [ProviderID: String]
 
@@ -82,6 +83,7 @@ public final class UsageStore {
             ($0.id, .pending(providerID: $0.id, displayName: $0.displayName, periodLabel: preferences.apiSpendPeriod.label))
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
+        self.menuBarFillSource = preferences.menuBarFillSource
     }
 
     public var providerOrder: [ProviderID] {
@@ -117,6 +119,23 @@ public final class UsageStore {
     public func setShowMenuBarPercentage(_ enabled: Bool) {
         preferences.showMenuBarPercentage = enabled
         showMenuBarPercentage = enabled
+    }
+
+    public func setMenuBarFillSource(_ source: MenuBarFillSource) {
+        preferences.menuBarFillSource = source
+        menuBarFillSource = source
+    }
+
+    /// How full to draw the menu-bar vessel, 0…1: the selected provider's *weekly*
+    /// window `percentRemaining`. Reads from the last-known windows regardless of
+    /// freshness, so a transient failure doesn't make the pill jump. Nil when the
+    /// source is `.none` or that provider has no weekly window yet — the label then
+    /// falls back to a static decorative fill.
+    public var menuBarFill: Double? {
+        guard let id = menuBarFillSource.providerID,
+              let weekly = snapshots[id]?.windows.first(where: { $0.kind == .weekly })
+        else { return nil }
+        return weekly.percentRemaining / 100
     }
 
     public var widgetsEnabled: Bool { preferences.widgetsEnabled }

@@ -27,5 +27,7 @@ official `claude` CLI's `/usage` panel instead.
 
 ## Polish
 
-- App icon (`CFBundleIconFile`) — user to provide.
+- ~~App icon — user to provide.~~ Done: Vessel `AppIcon.appiconset` (16–1024, full-bleed
+  for Tahoe's glass mask), wired via `ASSETCATALOG_COMPILER_APPICON_NAME`. Regenerate the
+  master from `design/vessel-icon.html`.
 - `MenuBarLabel` uses a fixed font size (menu bar height is OS-constrained).

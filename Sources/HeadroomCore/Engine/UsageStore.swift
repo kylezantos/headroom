@@ -64,6 +64,7 @@ public final class UsageStore {
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
     public private(set) var menuBarFillSource: MenuBarFillSource
+    public private(set) var enabledSurfaces: Set<UsageSurface>
     public let displayNames: [ProviderID: String]
     public let apiSpendDisplayNames: [ProviderID: String]
 
@@ -101,14 +102,15 @@ public final class UsageStore {
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
         self.menuBarFillSource = preferences.menuBarFillSource
+        self.enabledSurfaces = Set(UsageSurface.allCases.filter { preferences.isSurfaceEnabled($0) })
     }
 
     public var providerOrder: [ProviderID] {
-        providers.map(\.id).filter { preferences.isSurfaceEnabled(subscriptionSurface(for: $0)) }
+        providers.map(\.id).filter { enabledSurfaces.contains(subscriptionSurface(for: $0)) }
     }
 
     public var apiSpendProviderOrder: [ProviderID] {
-        apiSpendProviders.map(\.id).filter { preferences.isSurfaceEnabled(apiSurface(for: $0)) }
+        apiSpendProviders.map(\.id).filter { enabledSurfaces.contains(apiSurface(for: $0)) }
     }
 
     /// Begin polling: an immediate refresh, then the interval loop. Idempotent — a
@@ -130,6 +132,12 @@ public final class UsageStore {
     /// Immediate off-cadence refresh — called on popover open (KTD9).
     public func refreshNow() {
         Task { await refreshAll() }
+    }
+
+    /// Refresh only API spend providers. Settings uses this for spend-only controls so
+    /// a checkbox click doesn't spawn the expensive Claude subscription CLI probe.
+    public func refreshAPISpendNow() {
+        Task { await refreshAPISpendOnly() }
     }
 
     /// Restart the loop so a changed poll interval takes effect now (R14).
@@ -183,11 +191,16 @@ public final class UsageStore {
     }
 
     public func isSurfaceEnabled(_ surface: UsageSurface) -> Bool {
-        preferences.isSurfaceEnabled(surface)
+        enabledSurfaces.contains(surface)
     }
 
     public func setSurfaceEnabled(_ enabled: Bool, for surface: UsageSurface) {
         preferences.setSurfaceEnabled(enabled, for: surface)
+        if enabled {
+            enabledSurfaces.insert(surface)
+        } else {
+            enabledSurfaces.remove(surface)
+        }
         if surface.isSubscription {
             exportWidgetSnapshot()
             exportPhoneSyncSnapshot()
@@ -209,9 +222,21 @@ public final class UsageStore {
         if isRefreshing { return }
         isRefreshing = true
         defer { isRefreshing = false }
+        await refreshSubscriptions()
+        await refreshAPISpend()
+    }
+
+    public func refreshAPISpendOnly() async {
+        if isRefreshing { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        await refreshAPISpend()
+    }
+
+    private func refreshSubscriptions() async {
         let results = await withTaskGroup(of: (ProviderID, UsageSnapshot).self) { group in
             for provider in providers {
-                guard preferences.isSurfaceEnabled(subscriptionSurface(for: provider.id)) else { continue }
+                guard enabledSurfaces.contains(subscriptionSurface(for: provider.id)) else { continue }
                 group.addTask { (provider.id, await provider.fetchSnapshot()) }
             }
             var acc: [(ProviderID, UsageSnapshot)] = []
@@ -221,11 +246,13 @@ public final class UsageStore {
         for (id, fresh) in results { merge(id: id, fresh: fresh) }
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
+    }
 
+    private func refreshAPISpend() async {
         let spendPeriod = preferences.apiSpendPeriod
         let spendResults = await withTaskGroup(of: (ProviderID, APISpendSnapshot).self) { group in
             for provider in apiSpendProviders {
-                guard preferences.isSurfaceEnabled(apiSurface(for: provider.id)) else { continue }
+                guard enabledSurfaces.contains(apiSurface(for: provider.id)) else { continue }
                 group.addTask { (provider.id, await provider.fetchSpend(period: spendPeriod)) }
             }
             var acc: [(ProviderID, APISpendSnapshot)] = []

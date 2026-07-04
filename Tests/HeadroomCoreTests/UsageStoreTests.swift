@@ -412,4 +412,40 @@ struct UsageStoreTests {
         #expect(store.apiSpendProviderOrder == [.codex])
         #expect(store.apiSpendSnapshot(for: .codex).freshness == .live)
     }
+
+    @Test func surfaceToggleUpdatesObservableStateImmediately() {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        let store = UsageStore(providers: [], preferences: preferences)
+
+        #expect(!store.isSurfaceEnabled(.openAIAPI))
+        store.setSurfaceEnabled(true, for: .openAIAPI)
+
+        #expect(store.isSurfaceEnabled(.openAIAPI))
+        #expect(store.enabledSurfaces.contains(.openAIAPI))
+        #expect(preferences.isSurfaceEnabled(.openAIAPI))
+    }
+
+    @Test func apiSpendOnlyRefreshDoesNotFetchSubscriptions() async {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        let subscription = CountingProvider(id: .claude, displayName: "Claude")
+        let spend = CountingSpendProvider(id: .codex, displayName: "OpenAI API")
+        let store = UsageStore(
+            providers: [subscription],
+            apiSpendProviders: [spend],
+            preferences: preferences
+        )
+
+        store.setSurfaceEnabled(true, for: .openAIAPI)
+        await store.refreshAPISpendOnly()
+
+        #expect(subscription.fetchCount == 0)
+        #expect(spend.fetchCount == 1)
+        #expect(store.apiSpendSnapshot(for: .codex).freshness == .live)
+    }
 }

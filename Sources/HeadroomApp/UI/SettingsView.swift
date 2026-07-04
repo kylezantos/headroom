@@ -14,6 +14,7 @@ struct SettingsView: View {
     var onDone: (() -> Void)?
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
     @State private var menuBarFillSource: MenuBarFillSource = .none
@@ -25,6 +26,10 @@ struct SettingsView: View {
     @State private var openAIKey = ""
     @State private var anthropicKey = ""
     @State private var credentialMessage: String?
+
+    /// Fast, no-bounce settle for the API spend period swap. The interaction is occasional
+    /// settings work, so it gets just enough motion to confirm the segment changed.
+    private static let apiSpendPeriodAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.18)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -114,26 +119,15 @@ struct SettingsView: View {
                 .pickerStyle(.segmented)
                 .onChange(of: apiSpendPeriod) { _, newValue in
                     store.setAPISpendPeriod(newValue)
-                    store.refreshNow()
+                    store.refreshAPISpendNow()
                 }
 
-                surfaceToggle(.anthropicAPI)
-                apiKeyRow(
-                    title: "Anthropic admin key",
-                    placeholder: "sk-ant-admin…",
-                    text: $anthropicKey,
-                    provider: .anthropic,
-                    enabled: store.isSurfaceEnabled(.anthropicAPI)
-                )
-
-                surfaceToggle(.openAIAPI)
-                apiKeyRow(
-                    title: "OpenAI admin key",
-                    placeholder: "sk-…",
-                    text: $openAIKey,
-                    provider: .openAI,
-                    enabled: store.isSurfaceEnabled(.openAIAPI)
-                )
+                ZStack(alignment: .topLeading) {
+                    apiSpendControls
+                        .id(apiSpendPeriod)
+                        .transition(.apiSpendPeriodSwap)
+                }
+                .animation(reduceMotion ? nil : Self.apiSpendPeriodAnimation, value: apiSpendPeriod)
 
                 if let credentialMessage {
                     Text(credentialMessage)
@@ -204,12 +198,38 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder private var apiSpendControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            surfaceToggle(.anthropicAPI)
+            apiKeyRow(
+                title: "Anthropic admin key",
+                placeholder: "sk-ant-admin…",
+                text: $anthropicKey,
+                provider: .anthropic,
+                enabled: store.isSurfaceEnabled(.anthropicAPI)
+            )
+
+            surfaceToggle(.openAIAPI)
+            apiKeyRow(
+                title: "OpenAI admin key",
+                placeholder: "sk-…",
+                text: $openAIKey,
+                provider: .openAI,
+                enabled: store.isSurfaceEnabled(.openAIAPI)
+            )
+        }
+    }
+
     private func surfaceToggle(_ surface: UsageSurface) -> some View {
         Toggle(surface.displayName, isOn: Binding(
             get: { store.isSurfaceEnabled(surface) },
             set: { newValue in
                 store.setSurfaceEnabled(newValue, for: surface)
-                store.refreshNow()
+                if surface.isSubscription {
+                    store.refreshNow()
+                } else {
+                    store.refreshAPISpendNow()
+                }
             }
         ))
     }
@@ -276,7 +296,7 @@ struct SettingsView: View {
             switch await credentialStore.saveAPIKey(key, for: provider) {
             case .success:
                 credentialMessage = "\(provider.displayName) API key saved"
-                store.refreshNow()
+                store.refreshAPISpendNow()
             case .failure(let reason):
                 credentialMessage = reason.message
             }
@@ -288,11 +308,34 @@ struct SettingsView: View {
             switch await credentialStore.deleteAPIKey(for: provider) {
             case .success:
                 credentialMessage = "\(provider.displayName) API key removed"
-                store.refreshNow()
+                store.refreshAPISpendNow()
             case .failure(let reason):
                 credentialMessage = reason.message
             }
         }
+    }
+}
+
+private struct APISpendPeriodTransitionModifier: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(active ? 0 : 1)
+            .offset(y: active ? 4 : 0)
+            .blur(radius: active ? 1.5 : 0)
+    }
+}
+
+private extension AnyTransition {
+    static var apiSpendPeriodSwap: AnyTransition {
+        .asymmetric(
+            insertion: .modifier(
+                active: APISpendPeriodTransitionModifier(active: true),
+                identity: APISpendPeriodTransitionModifier(active: false)
+            ),
+            removal: .opacity
+        )
     }
 }
 

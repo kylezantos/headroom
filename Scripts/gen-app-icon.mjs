@@ -111,7 +111,10 @@ const masterPath = join(designDir, "vessel-app-icon.svg");
 writeFileSync(masterPath, svg);
 console.log("wrote", masterPath);
 
-const sizes = [16, 32, 64, 128, 256, 512, 1024];
+const sizes = [
+  16, 20, 29, 32, 40, 58, 60, 64, 76, 80, 87, 120,
+  128, 152, 167, 180, 256, 512, 1024
+];
 for (const px of sizes) {
   const out = join(iconset, `icon_${px}.png`);
   execFileSync("npx", ["--yes", "sharp-cli", "--input", masterPath, "--output", out, "resize", String(px), String(px)],

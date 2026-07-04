@@ -88,6 +88,7 @@ targets:
       - path: Sources/HeadroomIOS
         excludes:
           - HeadroomIOS.entitlements
+      - path: Sources/HeadroomApp/Resources/Assets.xcassets
       - path: Sources/HeadroomCore/Models/Countdown.swift
       - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Widgets
@@ -103,6 +104,7 @@ targets:
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
         GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_ENTITLEMENTS: Sources/HeadroomIOS/HeadroomIOS.entitlements
         INFOPLIST_KEY_CFBundleDisplayName: Headroom
         INFOPLIST_KEY_CFBundleName: Headroom

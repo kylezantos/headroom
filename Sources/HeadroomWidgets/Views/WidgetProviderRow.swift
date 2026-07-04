@@ -9,7 +9,8 @@ struct WidgetProviderRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                Label(provider.displayName, systemImage: WidgetProviderStyle.symbol(for: provider.id))
+                WidgetProviderIcon(providerID: provider.id, size: 16)
+                Text(provider.displayName)
                     .font(.subheadline.bold())
                     .foregroundStyle(WidgetProviderStyle.accent(for: provider.id))
                 Spacer()
@@ -20,8 +21,8 @@ struct WidgetProviderRow: View {
                 }
             }
             HStack(spacing: 8) {
-                WidgetUsageMeter(window: provider.windows.first { $0.kind == .weekly }, fallbackLabel: "Weekly")
-                WidgetUsageMeter(window: provider.windows.first { $0.kind == .fiveHour }, fallbackLabel: "5h")
+                WidgetUsageMeter(window: provider.subscriptionWindows.first { $0.kind == .weekly }, fallbackLabel: "Weekly")
+                WidgetUsageMeter(window: provider.subscriptionWindows.first { $0.kind == .fiveHour }, fallbackLabel: "5h")
             }
             if showsDetails {
                 WidgetProviderDetails(provider: provider, now: now)
@@ -36,7 +37,7 @@ private struct WidgetProviderDetails: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
-            ForEach(provider.windows) { window in
+            ForEach(provider.subscriptionWindows) { window in
                 Text("\(window.label): \(window.resetLabel ?? Countdown.string(to: window.resetsAt, now: now))")
                     .font(.caption)
                     .foregroundStyle(.secondary)

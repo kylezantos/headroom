@@ -34,7 +34,7 @@ public enum WidgetSnapshotProjector {
             displayName: displayName,
             planLabel: snapshot.planLabel,
             freshness: freshness(snapshot.freshness),
-            windows: snapshot.windows.map(windowSummary),
+            windows: snapshot.windows.compactMap(windowSummary),
             renewalDate: renewalDate
         )
     }
@@ -50,9 +50,10 @@ public enum WidgetSnapshotProjector {
         }
     }
 
-    private static func windowSummary(_ window: UsageWindow) -> WidgetWindowSummary {
-        WidgetWindowSummary(
-            kind: widgetKind(window.kind),
+    private static func windowSummary(_ window: UsageWindow) -> WidgetWindowSummary? {
+        guard let kind = widgetKind(window.kind) else { return nil }
+        return WidgetWindowSummary(
+            kind: kind,
             label: window.kind.shortLabel,
             percentRemaining: window.percentRemaining,
             resetsAt: window.resetsAt,
@@ -61,11 +62,11 @@ public enum WidgetSnapshotProjector {
         )
     }
 
-    private static func widgetKind(_ kind: WindowKind) -> WidgetWindowKind {
+    private static func widgetKind(_ kind: WindowKind) -> WidgetWindowKind? {
         switch kind {
         case .fiveHour: .fiveHour
         case .weekly: .weekly
-        case .other(let label): .other(label)
+        case .other: nil
         }
     }
 

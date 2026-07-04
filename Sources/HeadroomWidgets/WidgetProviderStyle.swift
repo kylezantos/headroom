@@ -2,6 +2,14 @@ import HeadroomCore
 import SwiftUI
 
 enum WidgetProviderStyle {
+    static func assetName(for id: String) -> String? {
+        switch id {
+        case ProviderID.claude.raw: "ClaudeBrandIcon"
+        case ProviderID.codex.raw: "CodexBrandIcon"
+        default: nil
+        }
+    }
+
     static func accent(for id: String) -> Color {
         switch id {
         case ProviderID.claude.raw: Color(red: 0.85, green: 0.47, blue: 0.26)

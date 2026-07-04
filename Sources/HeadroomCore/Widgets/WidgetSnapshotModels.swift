@@ -31,7 +31,7 @@ public struct WidgetSnapshotEnvelope: Codable, Equatable, Sendable {
     public var weeklyProviders: [WidgetProviderSummary] {
         providers.map { provider in
             var copy = provider
-            copy.windows = provider.windows.filter { $0.kind == .weekly }
+            copy.windows = provider.subscriptionWindows.filter { $0.kind == .weekly }
             return copy
         }
     }
@@ -67,7 +67,11 @@ public struct WidgetProviderSummary: Codable, Equatable, Sendable, Identifiable 
     }
 
     public var weeklyWindow: WidgetWindowSummary? {
-        windows.first { $0.kind == .weekly }
+        subscriptionWindows.first { $0.kind == .weekly }
+    }
+
+    public var subscriptionWindows: [WidgetWindowSummary] {
+        windows.filter(\.kind.isSubscriptionWindow)
     }
 }
 
@@ -115,6 +119,13 @@ public enum WidgetWindowKind: Codable, Equatable, Sendable {
     case fiveHour
     case weekly
     case other(String)
+
+    public var isSubscriptionWindow: Bool {
+        switch self {
+        case .fiveHour, .weekly: true
+        case .other: false
+        }
+    }
 
     public var id: String {
         switch self {

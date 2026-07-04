@@ -38,9 +38,10 @@ struct HeadroomIOSWidgetView: View {
     }
 
     private func small(_ envelope: WidgetSnapshotEnvelope) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Weekly Left")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 9) {
+            Text("Weekly left")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
             ForEach(envelope.weeklyProviders) { provider in
                 providerWeeklyLine(provider)
             }
@@ -51,8 +52,14 @@ struct HeadroomIOSWidgetView: View {
 
     private func medium(_ envelope: WidgetSnapshotEnvelope) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Headroom")
-                .font(.headline)
+            HStack {
+                Text("Headroom")
+                    .font(.headline)
+                Spacer()
+                Text(Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) ?? "")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             ForEach(envelope.providers) { provider in
                 providerSummary(provider)
             }
@@ -79,10 +86,9 @@ struct HeadroomIOSWidgetView: View {
 
     private func providerWeeklyLine(_ provider: WidgetProviderSummary) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: symbol(for: provider.id))
-                .foregroundStyle(accent(for: provider.id))
+            providerIcon(provider.id, size: 16)
             Text(provider.displayName)
-                .font(.caption)
+                .font(.caption.weight(.medium))
             Spacer()
             Text(percent(provider.weeklyWindow))
                 .font(.headline.monospacedDigit())
@@ -92,16 +98,17 @@ struct HeadroomIOSWidgetView: View {
     private func providerSummary(_ provider: WidgetProviderSummary, showsDetails: Bool = false) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Label(provider.displayName, systemImage: symbol(for: provider.id))
-                    .foregroundStyle(accent(for: provider.id))
+                providerIcon(provider.id, size: 15)
+                Text(provider.displayName)
                     .font(.caption.weight(.semibold))
+                    .foregroundStyle(accent(for: provider.id))
                 Spacer()
                 if provider.freshness.needsAttention {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(.orange)
                 }
             }
-            ForEach(provider.windows) { window in
+            ForEach(provider.subscriptionWindows) { window in
                 HStack {
                     Text(window.label)
                     Spacer()
@@ -110,7 +117,7 @@ struct HeadroomIOSWidgetView: View {
                 }
                 .font(.caption)
             }
-            if showsDetails, let reset = provider.windows.first?.resetLabel {
+            if showsDetails, let reset = provider.subscriptionWindows.first?.resetLabel {
                 Text(reset)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -125,6 +132,32 @@ struct HeadroomIOSWidgetView: View {
 
     private func symbol(for id: String) -> String {
         id == "claude" ? "sparkles" : "terminal"
+    }
+
+    @ViewBuilder
+    private func providerIcon(_ id: String, size: CGFloat) -> some View {
+        if let assetName = assetName(for: id) {
+            Image(assetName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .accessibilityHidden(true)
+        } else {
+            Image(systemName: symbol(for: id))
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .foregroundStyle(accent(for: id))
+                .accessibilityHidden(true)
+        }
+    }
+
+    private func assetName(for id: String) -> String? {
+        switch id {
+        case "claude": "ClaudeBrandIcon"
+        case "codex": "CodexBrandIcon"
+        default: nil
+        }
     }
 
     private func accent(for id: String) -> Color {

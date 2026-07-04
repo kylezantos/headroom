@@ -65,7 +65,7 @@ struct IOSCompanionView: View {
                 Spacer()
                 freshnessLabel(provider.freshness)
             }
-            ForEach(provider.windows) { window in
+            ForEach(provider.subscriptionWindows) { window in
                 HStack {
                     Text(window.label)
                     Spacer()

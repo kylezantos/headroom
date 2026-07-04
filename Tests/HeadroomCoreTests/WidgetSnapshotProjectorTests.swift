@@ -91,10 +91,28 @@ struct WidgetSnapshotProjectorTests {
         #expect(envelope.providers.isEmpty)
     }
 
+    @Test func nonSubscriptionAllowanceWindowsAreFilteredOutOfWidgets() {
+        let envelope = WidgetSnapshotProjector.project(
+            snapshots: [
+                .codex: .live(.codex, windows: [
+                    UsageWindow(kind: .weekly, utilization: 25, resetsAt: reset),
+                    UsageWindow(kind: .other("GPT-5.3"), utilization: 90, resetsAt: reset),
+                ], at: now),
+            ],
+            providerOrder: [.codex],
+            displayNames: [.codex: "Codex"],
+            renewalDate: { _ in nil },
+            widgetsEnabled: true,
+            generatedAt: now
+        )
+
+        #expect(envelope.providers[0].windows.map(\.kind) == [.weekly])
+    }
+
     @Test func unknownProviderRoundTrips() throws {
         let other = ProviderID("other")
         let envelope = WidgetSnapshotProjector.project(
-            snapshots: [other: .live(other, windows: [UsageWindow(kind: .other("daily"), utilization: 20, resetsAt: reset)])],
+            snapshots: [other: .live(other, windows: [UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset)])],
             providerOrder: [other],
             displayNames: [other: "Other"],
             renewalDate: { _ in nil },
@@ -105,6 +123,6 @@ struct WidgetSnapshotProjectorTests {
         let data = try JSONEncoder().encode(envelope)
         let decoded = try JSONDecoder().decode(WidgetSnapshotEnvelope.self, from: data)
         #expect(decoded.providers[0].id == "other")
-        #expect(decoded.providers[0].windows[0].kind == .other("daily"))
+        #expect(decoded.providers[0].windows[0].kind == .weekly)
     }
 }

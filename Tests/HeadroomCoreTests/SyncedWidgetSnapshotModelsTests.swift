@@ -57,6 +57,37 @@ struct SyncedWidgetSnapshotModelsTests {
         #expect(decoded.envelope?.snapshot.providers[0].windows[0].kind == .other("daily"))
     }
 
+    @Test func subscriptionWindowsFilterDecodedLegacyAllowanceWindows() {
+        let provider = WidgetProviderSummary(
+            id: "codex",
+            displayName: "Codex",
+            planLabel: nil,
+            freshness: .live,
+            windows: [
+                WidgetWindowSummary(
+                    kind: .weekly,
+                    label: "Weekly",
+                    percentRemaining: 75,
+                    resetsAt: reset,
+                    resetLabel: nil,
+                    severity: .healthy
+                ),
+                WidgetWindowSummary(
+                    kind: .other("GPT-5.3"),
+                    label: "GPT-5.3",
+                    percentRemaining: 10,
+                    resetsAt: reset,
+                    resetLabel: nil,
+                    severity: .critical
+                ),
+            ],
+            renewalDate: nil
+        )
+
+        #expect(provider.subscriptionWindows.map(\.kind) == [.weekly])
+        #expect(provider.weeklyWindow?.percentRemaining == 75)
+    }
+
     @Test func invalidDataReturnsCorrupt() {
         #expect(SyncedWidgetSnapshotCodec.decode(Data("not-json".utf8)) == .corrupt)
     }

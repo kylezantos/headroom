@@ -6,9 +6,7 @@ struct WidgetProviderWeeklyLine: View {
 
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: WidgetProviderStyle.symbol(for: provider.id))
-                .foregroundStyle(WidgetProviderStyle.accent(for: provider.id))
-                .accessibilityHidden(true)
+            WidgetProviderIcon(providerID: provider.id, size: 15)
             Text(provider.displayName)
                 .font(.caption)
                 .foregroundStyle(.secondary)

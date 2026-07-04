@@ -27,11 +27,7 @@ enum ProviderStyle {
     /// pill; the bar's job is to signal how much is left. No animation: a threshold, not
     /// a pulse, so it honors the standing no-pulsing rule.
     static func severityColor(for severity: UsageSeverity) -> Color {
-        switch severity {
-        case .healthy: return Color(HeadroomSeverityColorValues.healthy)
-        case .low: return Color(HeadroomSeverityColorValues.low)
-        case .critical: return Color(HeadroomSeverityColorValues.critical)
-        }
+        Color(HeadroomSeverityColorValues.color(for: severity))
     }
 
     static func symbol(for id: ProviderID) -> String {

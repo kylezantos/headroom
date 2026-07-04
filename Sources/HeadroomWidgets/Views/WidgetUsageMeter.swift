@@ -31,7 +31,7 @@ struct WidgetUsageMeter: View {
                     .foregroundStyle(WidgetProviderStyle.secondaryText(scheme: scheme))
                     .lineLimit(1)
                 if let resetText {
-                Text("/ \(resetText)")
+                    Text("· \(resetText)")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
                         .lineLimit(1)

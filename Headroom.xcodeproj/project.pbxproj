@@ -51,6 +51,7 @@
 		6A4BC315549D795D299B8596 /* WidgetProviderRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 153FAF5444C5766DC4BC75BE /* WidgetProviderRow.swift */; };
 		6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87284976C67D36ECE2DD747F /* Countdown.swift */; };
 		7053F73F28A1EB28CEA9709A /* iCloudSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286C18406A7E80D0E42D1592 /* iCloudSnapshotSync.swift */; };
+		7137CC26FA0CC28953121570 /* UsageSeverityColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */; };
 		728126D0D3BBA60E8D4D9B89 /* VesselGlyph.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */; };
 		72EF5606C8FA8717D9249DE0 /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		730A334D25EFB4F97AF1C1D0 /* HeadroomLargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DED341B03E9DB7876BDD8B /* HeadroomLargeWidgetView.swift */; };
@@ -217,6 +218,7 @@
 		A43C20FB297B9F64C76EAA8A /* ClaudeUsageParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageParser.swift; sourceTree = "<group>"; };
 		A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISpendProviders.swift; sourceTree = "<group>"; };
 		A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSWidgetTimelineMapping.swift; sourceTree = "<group>"; };
+		A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageSeverityColorValues.swift; sourceTree = "<group>"; };
 		B0C0028BD003CD015FBDD181 /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
 		B25D0ABB800B858F720C7128 /* UsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageModels.swift; sourceTree = "<group>"; };
 		B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetView.swift; sourceTree = "<group>"; };
@@ -478,6 +480,7 @@
 				2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */,
 				B25D0ABB800B858F720C7128 /* UsageModels.swift */,
 				B0C0028BD003CD015FBDD181 /* UsageProvider.swift */,
+				A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -765,6 +768,7 @@
 				335F51D0ECC1A4D0C24EB985 /* UsageHTTPClient.swift in Sources */,
 				2297981DC8A61B98CBA7DBF3 /* UsageModels.swift in Sources */,
 				307D624803DC3ED94BFA429B /* UsageProvider.swift in Sources */,
+				7137CC26FA0CC28953121570 /* UsageSeverityColorValues.swift in Sources */,
 				F2104C132889055EE7F1A3E1 /* UsageStore.swift in Sources */,
 				26694A6035B5631AA476C3B8 /* WidgetSnapshotCache.swift in Sources */,
 				60C26D7C155F96DDC45CA804 /* WidgetSnapshotExporter.swift in Sources */,

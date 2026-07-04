@@ -47,7 +47,7 @@ struct HeadroomIOSWidgetView: View {
             }
             Spacer(minLength: 0)
             if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
-                Text("from Mac / \(updated)")
+                Text("from Mac · \(updated)")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
                     .lineLimit(1)
@@ -252,7 +252,7 @@ private struct IOSWidgetUsageMeter: View {
                     .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
                     .lineLimit(1)
                 if let resetText {
-                    Text("/ \(resetText)")
+                    Text("· \(resetText)")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
                         .lineLimit(1)
@@ -336,11 +336,7 @@ private enum IOSWidgetStyle {
     }
 
     static func severityColor(for severity: WidgetUsageSeverity) -> Color {
-        switch severity {
-        case .healthy: return Color(HeadroomSeverityColorValues.healthy)
-        case .low: return Color(HeadroomSeverityColorValues.low)
-        case .critical: return Color(HeadroomSeverityColorValues.critical)
-        }
+        Color(HeadroomSeverityColorValues.color(for: severity))
     }
 
     static func secondaryText(scheme: ColorScheme) -> Color {

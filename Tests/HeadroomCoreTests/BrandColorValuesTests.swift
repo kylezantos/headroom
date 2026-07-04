@@ -12,4 +12,10 @@ struct BrandColorValuesTests {
         #expect(HeadroomSeverityColorValues.low == HeadroomRGBColor(red: 1.00, green: 0.62, blue: 0.04))
         #expect(HeadroomSeverityColorValues.critical == HeadroomRGBColor(red: 1.00, green: 0.27, blue: 0.23))
     }
+
+    @Test func usageSeverityLookupReturnsCanonicalValues() {
+        #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.healthy) == HeadroomSeverityColorValues.healthy)
+        #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.low) == HeadroomSeverityColorValues.low)
+        #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.critical) == HeadroomSeverityColorValues.critical)
+    }
 }

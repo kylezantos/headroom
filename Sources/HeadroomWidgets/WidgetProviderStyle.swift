@@ -37,11 +37,7 @@ enum WidgetProviderStyle {
     }
 
     static func severityColor(for severity: WidgetUsageSeverity) -> Color {
-        switch severity {
-        case .healthy: return Color(HeadroomSeverityColorValues.healthy)
-        case .low: return Color(HeadroomSeverityColorValues.low)
-        case .critical: return Color(HeadroomSeverityColorValues.critical)
-        }
+        Color(HeadroomSeverityColorValues.color(for: severity))
     }
 
     static func secondaryText(scheme: ColorScheme) -> Color {

@@ -19,6 +19,8 @@ struct ProviderCardView: View {
     let now: Date
     let onOpenSettings: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var accent: Color { ProviderStyle.accent(for: providerID) }
 
     var body: some View {
@@ -28,16 +30,18 @@ struct ProviderCardView: View {
             renewalRow
         }
         .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.primary.opacity(0.05))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+        // Raised tile, concentric with the popover shell (R22, 12pt inset → 10pt). Adapts its
+        // elevation cue per appearance — lit rim in dark, shadow+fill in light (UI-07, R-depth).
+        .raisedTile(cornerRadius: 10)
+        // A refresh replacing the pending skeleton (or a stale card recovering) cross-fades
+        // and springs its height change rather than hard-cutting — the arrival of a poll
+        // cycle, felt not flashed. Snaps instead under Reduce Motion.
+        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: snapshot.freshness)
     }
 
+    /// The per-card "Updated N min ago" was removed here — both providers poll on one
+    /// cycle, so it now reads once in the popover header (PopoverView) instead of twice.
+    /// A provider that's individually stale still says so via its own stale pill below.
     private var header: some View {
         HStack(spacing: 8) {
             ProviderLogoView(providerID: providerID, size: 17)
@@ -50,23 +54,21 @@ struct ProviderCardView: View {
                     .background(accent.opacity(0.18), in: Capsule())
             }
             Spacer(minLength: 6)
-            if let updated = Countdown.updatedLabel(capturedAt: snapshot.capturedAt, now: now) {
-                Text("Updated \(updated)")
-                    .font(.caption2).foregroundStyle(.tertiary)
-                    .lineLimit(1)
-            }
         }
     }
 
     @ViewBuilder private var content: some View {
-        switch snapshot.freshness {
-        case .pending:
-            pendingSkeleton
-        case .live:
-            bars(dimmed: false)
-        case .stale(let reason):
-            staleContent(reason)
+        Group {
+            switch snapshot.freshness {
+            case .pending:
+                pendingSkeleton
+            case .live:
+                bars(dimmed: false)
+            case .stale(let reason):
+                staleContent(reason)
+            }
         }
+        .transition(.opacity)
     }
 
     @ViewBuilder private func staleContent(_ reason: FailureReason) -> some View {
@@ -124,7 +126,7 @@ struct ProviderCardView: View {
                         .foregroundStyle(accent)
                 }
                 .padding(.horizontal, 9).padding(.vertical, 6)
-                .background(Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .background(Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
         }
     }

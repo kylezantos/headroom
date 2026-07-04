@@ -37,50 +37,58 @@ struct SettingsView: View {
             }
             .padding(.bottom, 2)
 
-            VStack(alignment: .leading, spacing: 2) {
-                Stepper("Refresh every \(intervalMinutes) min", value: $intervalMinutes, in: 2...60)
-                    .onChange(of: intervalMinutes) { _, newValue in
-                        preferences.pollIntervalMinutes = newValue
-                        store.reschedulePolling()
+            // The top preferences used to float with no headers while lower sections had
+            // them. Every zone now leads with a section header so the whole window follows
+            // one pattern (labels shortened where the header already carries the context).
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("General")
+                VStack(alignment: .leading, spacing: 2) {
+                    Stepper("Refresh every \(intervalMinutes) min", value: $intervalMinutes, in: 2...60)
+                        .onChange(of: intervalMinutes) { _, newValue in
+                            preferences.pollIntervalMinutes = newValue
+                            store.reschedulePolling()
+                        }
+                    helpText("Each Claude refresh runs a CLI session (~20–30s). Minimum 2 min.")
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("Menu Bar")
+                Toggle("Show percentage", isOn: $showMenuBarPercentage)
+                    .onChange(of: showMenuBarPercentage) { _, newValue in
+                        store.setShowMenuBarPercentage(newValue)
                     }
-                Text("Each Claude refresh runs a CLI session (~20–30s). Minimum 2 min.")
-                    .font(.caption2).foregroundStyle(.secondary)
-            }
-
-            Toggle("Show percentage in menu bar", isOn: $showMenuBarPercentage)
-                .onChange(of: showMenuBarPercentage) { _, newValue in
-                    store.setShowMenuBarPercentage(newValue)
-                }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Picker("Menu bar fill tracks", selection: $menuBarFillSource) {
-                    ForEach(MenuBarFillSource.allCases, id: \.self) { source in
-                        Text(source.label).tag(source)
+                VStack(alignment: .leading, spacing: 2) {
+                    Picker("Fill tracks", selection: $menuBarFillSource) {
+                        ForEach(MenuBarFillSource.allCases, id: \.self) { source in
+                            Text(source.label).tag(source)
+                        }
                     }
+                    .onChange(of: menuBarFillSource) { _, newValue in
+                        store.setMenuBarFillSource(newValue)
+                    }
+                    helpText("Drains with weekly usage; Both shows Claude and Codex side by side.")
                 }
-                .onChange(of: menuBarFillSource) { _, newValue in
-                    store.setMenuBarFillSource(newValue)
-                }
-                Text("Drains with weekly usage; Both shows Claude and Codex side by side.")
-                    .font(.caption2).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
 
-            WidgetSettingsSection(
-                widgetsEnabled: $widgetsEnabled,
-                syncToIPhoneEnabled: $syncToIPhoneEnabled
-            )
-            .onChange(of: widgetsEnabled) { _, newValue in
-                store.setWidgetsEnabled(newValue)
-            }
-            .onChange(of: syncToIPhoneEnabled) { _, newValue in
-                store.setSyncToIPhoneEnabled(newValue)
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("Widgets")
+                WidgetSettingsSection(
+                    widgetsEnabled: $widgetsEnabled,
+                    syncToIPhoneEnabled: $syncToIPhoneEnabled
+                )
+                .onChange(of: widgetsEnabled) { _, newValue in
+                    store.setWidgetsEnabled(newValue)
+                }
+                .onChange(of: syncToIPhoneEnabled) { _, newValue in
+                    store.setSyncToIPhoneEnabled(newValue)
+                }
             }
 
             Divider()
 
             VStack(alignment: .leading, spacing: 8) {
-                Text("Subscription Usage").font(.subheadline.weight(.semibold))
+                sectionHeader("Subscription Usage")
                 surfaceToggle(.claudeSubscription)
                 surfaceToggle(.codexSubscription)
             }
@@ -88,7 +96,7 @@ struct SettingsView: View {
             Divider()
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("API Spend").font(.subheadline.weight(.semibold))
+                sectionHeader("API Spend")
                 Picker("Period", selection: $apiSpendPeriod) {
                     ForEach(APISpendPeriod.allCases, id: \.self) { period in
                         Text(period.label).tag(period)
@@ -105,7 +113,8 @@ struct SettingsView: View {
                     title: "Anthropic admin key",
                     placeholder: "sk-ant-admin…",
                     text: $anthropicKey,
-                    provider: .anthropic
+                    provider: .anthropic,
+                    enabled: store.isSurfaceEnabled(.anthropicAPI)
                 )
 
                 surfaceToggle(.openAIAPI)
@@ -113,12 +122,13 @@ struct SettingsView: View {
                     title: "OpenAI admin key",
                     placeholder: "sk-…",
                     text: $openAIKey,
-                    provider: .openAI
+                    provider: .openAI,
+                    enabled: store.isSurfaceEnabled(.openAIAPI)
                 )
 
                 if let credentialMessage {
                     Text(credentialMessage)
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
@@ -194,11 +204,30 @@ struct SettingsView: View {
         ))
     }
 
+    /// Uniform section header, matching the "Subscription Usage" / "API Spend" style so
+    /// every zone in the window reads the same.
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title).font(.subheadline.weight(.semibold))
+    }
+
+    /// Uniform descriptive caption. Consolidates the former mix of `.caption` and
+    /// `.caption2` fine print into one size so the helper text reads as one system.
+    private func helpText(_ text: String) -> some View {
+        Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// `enabled` gates the key entry behind its "… API spend" toggle (progressive
+    /// disclosure): the field dims and stops taking input until the surface is on, so an
+    /// off feature doesn't present a live, focusable credential field.
     private func apiKeyRow(
         title: String,
         placeholder: String,
         text: Binding<String>,
-        provider: APIKeyProvider
+        provider: APIKeyProvider,
+        enabled: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption).foregroundStyle(.secondary)
@@ -218,6 +247,9 @@ struct SettingsView: View {
                 .foregroundStyle(.secondary)
             }
         }
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.4)
+        .animation(.easeInOut(duration: 0.2), value: enabled)
     }
 
     private func saveKey(_ key: String, for provider: APIKeyProvider) {

@@ -53,6 +53,7 @@
 		730A334D25EFB4F97AF1C1D0 /* HeadroomLargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DED341B03E9DB7876BDD8B /* HeadroomLargeWidgetView.swift */; };
 		77917E6B75DF9DFD17899C30 /* WidgetSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */; };
 		7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
+		7B70A94D4ED756E0FC690874 /* RaisedTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */; };
 		8734D2763F3EA91CBB32E3CE /* IOSWidgetStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2279E17039A179D85F6D0AB8 /* IOSWidgetStatusView.swift */; };
 		8AA5705AC7EA53BA210B5289 /* HeadroomIOSWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E274D961861C31917C337F /* HeadroomIOSWidgetView.swift */; };
 		8B60C92EF3B9A4F66886E2F7 /* CredentialModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12CBFA7FEC91C71F1F13E4A /* CredentialModels.swift */; };
@@ -235,6 +236,7 @@
 		F79F757570AB27C93700E341 /* IOSCompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSCompanionView.swift; sourceTree = "<group>"; };
 		F9ADDC10A509A2B2E5C0F48B /* HeadroomIOSTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSTimelineProvider.swift; sourceTree = "<group>"; };
 		FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotCache.swift; sourceTree = "<group>"; };
+		FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaisedTile.swift; sourceTree = "<group>"; };
 		FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VesselGlyph.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -411,6 +413,7 @@
 				E542DE434B4A2F1EA525110E /* ProviderCardView.swift */,
 				0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */,
 				271BAABD34D394E2014676BC /* ProviderStyle.swift */,
+				FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */,
 				647B97436A2026E1B0F66065 /* SettingsView.swift */,
 				DF2BA56351FD2FA2E4940F33 /* UsageBarView.swift */,
 				FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */,
@@ -782,6 +785,7 @@
 				0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */,
 				AD3E4560009B235BD443F798 /* ProviderLogoView.swift in Sources */,
 				9D992181780CEEF21E07FEF0 /* ProviderStyle.swift in Sources */,
+				7B70A94D4ED756E0FC690874 /* RaisedTile.swift in Sources */,
 				AC30D16374782EE1F93EFB99 /* SettingsView.swift in Sources */,
 				084D12BD03637F092BEC19F5 /* SoftwareUpdateController.swift in Sources */,
 				15EEFD226FCB5864E97EAA12 /* UsageBarView.swift in Sources */,

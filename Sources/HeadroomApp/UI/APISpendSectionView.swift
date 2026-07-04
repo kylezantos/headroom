@@ -9,19 +9,28 @@ struct APISpendSectionView: View {
     var body: some View {
         let ids = store.apiSpendProviderOrder
         if !ids.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
+            // One raised panel with the header inside and hairline-separated rows — mirrors
+            // the settings "API Spend" panel so the two surfaces share one language.
+            VStack(alignment: .leading, spacing: 10) {
                 Text("API Spend")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
                     .tracking(0.4)
 
-                VStack(spacing: 7) {
-                    ForEach(ids, id: \.self) { id in
+                VStack(spacing: 0) {
+                    ForEach(Array(ids.enumerated()), id: \.element) { index, id in
+                        if index > 0 {
+                            Divider().overlay(Color.primary.opacity(0.08))
+                                .padding(.vertical, 4)
+                        }
                         spendRow(store.apiSpendSnapshot(for: id))
+                            .padding(.vertical, 4)
                     }
                 }
             }
+            .padding(12)
+            .raisedTile(cornerRadius: 12)
             .padding(.top, 2)
         }
     }
@@ -42,13 +51,6 @@ struct APISpendSectionView: View {
             Spacer(minLength: 8)
             amountView(snapshot)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-        )
     }
 
     @ViewBuilder private func statusLine(_ snapshot: APISpendSnapshot) -> some View {

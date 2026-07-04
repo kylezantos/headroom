@@ -30,11 +30,17 @@ struct HoverButtonStyle: ButtonStyle {
                 .background(shape.fill(Color.primary.opacity(
                     configuration.isPressed ? 0.16 : (hovering ? 0.09 : 0))))
                 .contentShape(shape)
+                // Tactile press: a subtle 0.96 scale (never below 0.95, which reads as
+                // exaggerated). An interruptible value animation, so releasing mid-press
+                // springs back smoothly rather than snapping — still input-driven, no idle
+                // motion, so it stays inside the no-pulsing rule.
+                .scaleEffect(configuration.isPressed ? 0.96 : 1)
                 .onHover { inside in
                     hovering = inside
                     if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                 }
                 .animation(.easeOut(duration: 0.12), value: hovering)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
         }
     }
 }

@@ -15,9 +15,19 @@ struct UsageBarView: View {
     let now: Date
     var dimmed: Bool = false
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var pct: Int { Int(window.percentRemaining.rounded()) }
     private var fraction: Double { window.percentRemaining / 100 }
     private var severity: UsageSeverity { window.severity }
+
+    /// One spring drives the fill width, its color band, and the rolling percentage so the
+    /// bar and its number describe the same value in lockstep. A no-overshoot spring reads
+    /// as physical and is distance-aware — a 3% change settles faster than a 40% one — where
+    /// the old fixed 450ms `easeOut` felt both slow (Emil: keep UI motion under ~300ms) and
+    /// uniform regardless of distance. Nil'd under Reduce Motion so the value snaps instead.
+    private static let valueSpring = Animation.spring(response: 0.3, dampingFraction: 0.9)
+    private var valueAnimation: Animation? { reduceMotion ? nil : Self.valueSpring }
 
     /// Desaturated grey while stale; the live severity color otherwise.
     private var fillColor: Color {
@@ -25,9 +35,23 @@ struct UsageBarView: View {
     }
 
     /// Prefer the provider's verbatim reset text (Claude) over a computed countdown
-    /// (Codex), so the app can't drift from what the source shows.
+    /// (Codex). Capitalized "Resets in …" so the computed Codex text matches Claude's
+    /// verbatim "Resets …" casing in the same window, and the past-reset edge reads as
+    /// "Resets now" instead of the nonsensical "resets in resets now".
     private var resetText: String {
-        window.resetLabel ?? "resets in \(Countdown.string(to: window.resetsAt, now: now))"
+        if let label = window.resetLabel { return label }
+        if window.resetsAt <= now { return "Resets now" }
+        return "Resets in \(Countdown.string(to: window.resetsAt, now: now))"
+    }
+
+    /// Standard windows carry the reset inline beside the label (2 lines total); the
+    /// long `.other` model labels (Codex's "GPT-5.3-Codex-Spark …") would overflow, so
+    /// theirs drops to its own left-aligned line under the bar.
+    private var resetInline: Bool {
+        switch window.kind {
+        case .fiveHour, .weekly: return true
+        case .other: return false
+        }
     }
 
     var body: some View {
@@ -36,13 +60,24 @@ struct UsageBarView: View {
                 Text(label)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                if resetInline {
+                    Text("· \(resetText)")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
+                Spacer(minLength: 6)
                 if !dimmed, severity == .critical {
                     lowChip
                 }
-                Spacer(minLength: 6)
                 Text("\(pct)%")
                     .font(.system(size: 14, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.primary)
+                    .contentTransition(.numericText())
+                    .animation(valueAnimation, value: pct)
                 Text("left")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
@@ -53,13 +88,17 @@ struct UsageBarView: View {
                     Capsule()
                         .fill(fillColor)
                         .frame(width: max(4, geo.size.width * fraction))
+                        // Width and its severity color ride one spring — a band change only
+                        // ever happens when the fraction changes, so both animate together in
+                        // the same transaction. The visible payoff of a refresh cycle; not a
+                        // loop. (Stale desaturation rides the card's freshness cross-fade.)
+                        .animation(valueAnimation, value: fraction)
                 }
             }
             .frame(height: 7)
-            HStack {
-                Spacer()
+            if !resetInline {
                 Text(resetText)
-                    .font(.caption2)
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
         }
@@ -83,7 +122,18 @@ struct UsageBarView: View {
         switch window.kind {
         case .fiveHour: return "5-hour"
         case .weekly: return "Weekly"
-        case .other(let l): return l
+        case .other(let raw): return Self.normalizeOther(raw)
         }
+    }
+
+    /// Presentation-only tidy of Codex's constructed window labels so their period suffix
+    /// matches the "5-hour"/"Weekly" windows shown above them. The model name is left
+    /// verbatim (KTD6) — only the "5h"/"weekly" suffix the provider appends is normalized,
+    /// with a middot setting it off from the model. Non-matching labels (Claude's
+    /// "Weekly (Fable)") pass through untouched.
+    private static func normalizeOther(_ raw: String) -> String {
+        if raw.hasSuffix(" weekly") { return "\(raw.dropLast(7)) · Weekly" }
+        if raw.hasSuffix(" 5h") { return "\(raw.dropLast(3)) · 5-hour" }
+        return raw
     }
 }

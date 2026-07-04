@@ -18,7 +18,7 @@ struct UsageBarView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var pct: Int { Int(window.percentRemaining.rounded()) }
-    private var fraction: Double { window.percentRemaining / 100 }
+    private var fraction: Double { min(1, max(0, window.percentRemaining / 100)) }
     private var severity: UsageSeverity { window.severity }
 
     /// One spring drives the fill width, its color band, and the rolling percentage so the
@@ -54,6 +54,11 @@ struct UsageBarView: View {
         }
     }
 
+    private func fillWidth(in availableWidth: Double) -> Double {
+        guard fraction > 0 else { return 0 }
+        return max(4, availableWidth * fraction)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -63,7 +68,7 @@ struct UsageBarView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if resetInline {
-                    Text("· \(resetText)")
+                    Text("/ \(resetText)")
                         .font(.caption2.monospacedDigit())
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -87,7 +92,7 @@ struct UsageBarView: View {
                     Capsule().fill(.quaternary)
                     Capsule()
                         .fill(fillColor)
-                        .frame(width: max(4, geo.size.width * fraction))
+                        .frame(width: fillWidth(in: geo.size.width))
                         // Width and its severity color ride one spring — a band change only
                         // ever happens when the fraction changes, so both animate together in
                         // the same transaction. The visible payoff of a refresh cycle; not a

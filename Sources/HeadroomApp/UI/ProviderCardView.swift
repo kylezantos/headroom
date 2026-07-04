@@ -112,7 +112,7 @@ struct ProviderCardView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label(reason.message, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption)
-                .foregroundStyle(.orange)
+                .foregroundStyle(ProviderStyle.severityColor(for: .low))
             if let command = reauthCommand {
                 HStack(spacing: 8) {
                     Text("$ \(command)")

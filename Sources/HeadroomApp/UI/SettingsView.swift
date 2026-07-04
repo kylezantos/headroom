@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import HeadroomCore
 
@@ -30,8 +31,11 @@ struct SettingsView: View {
             // Custom header (the window uses a hidden title bar): the vessel logo anchors
             // the title, drawn just below the floating traffic lights.
             HStack(spacing: 10) {
-                VesselMark()
-                    .frame(width: 17, height: 30)
+                Image(nsImage: NSApplication.shared.applicationIconImage)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 34, height: 34)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 Text("Headroom Settings")
                     .font(.title2.weight(.semibold))
             }
@@ -52,6 +56,8 @@ struct SettingsView: View {
                 }
             }
 
+            insetHairline()
+
             VStack(alignment: .leading, spacing: 8) {
                 sectionHeader("Menu Bar")
                 Toggle("Show percentage", isOn: $showMenuBarPercentage)
@@ -71,6 +77,8 @@ struct SettingsView: View {
                 }
             }
 
+            insetHairline()
+
             VStack(alignment: .leading, spacing: 8) {
                 sectionHeader("Widgets")
                 WidgetSettingsSection(
@@ -85,15 +93,16 @@ struct SettingsView: View {
                 }
             }
 
-            Divider()
+            insetHairline()
 
             VStack(alignment: .leading, spacing: 8) {
                 sectionHeader("Subscription Usage")
                 surfaceToggle(.claudeSubscription)
                 surfaceToggle(.codexSubscription)
             }
+            .settingsPanel()
 
-            Divider()
+            insetHairline()
 
             VStack(alignment: .leading, spacing: 10) {
                 sectionHeader("API Spend")
@@ -133,8 +142,9 @@ struct SettingsView: View {
                         .lineLimit(2)
                 }
             }
+            .settingsPanel()
 
-            Divider()
+            insetHairline()
 
             // Grid so both date fields share a left edge despite the labels
             // ("Claude renews" / "Codex renews") being different widths.
@@ -151,7 +161,7 @@ struct SettingsView: View {
                 }
             }
 
-            Divider()
+            insetHairline()
 
             Toggle("Launch at login", isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
@@ -219,6 +229,15 @@ struct SettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    private func insetHairline() -> some View {
+        Rectangle()
+            .fill(Color(nsColor: .separatorColor).opacity(0.42))
+            .frame(height: 1)
+            .padding(.leading, 6)
+            .padding(.trailing, 2)
+            .padding(.vertical, 2)
+    }
+
     /// `enabled` gates the key entry behind its "… API spend" toggle (progressive
     /// disclosure): the field dims and stops taking input until the surface is on, so an
     /// off feature doesn't present a live, focusable credential field.
@@ -277,6 +296,14 @@ struct SettingsView: View {
     }
 }
 
+private extension View {
+    func settingsPanel() -> some View {
+        self
+            .padding(12)
+            .raisedTile(cornerRadius: 10, surface: .opaque)
+    }
+}
+
 /// Renewal date entry: a tidy bordered label showing the formatted date, opening a calendar
 /// on click. macOS has no compact tap-to-calendar `DatePicker` (that's iOS-only), and the
 /// `.field`/`.stepperField` styles space-pad single digits ("7/ 3/2026"), so we format the
@@ -299,52 +326,6 @@ private struct RenewalDateField: View {
                 .labelsHidden()
                 .padding(12)
                 .frame(width: 260)
-        }
-    }
-}
-
-/// The Headroom identity mark drawn as a crisp vector — a miniature of the app icon: a
-/// capsule vessel filled from the bottom (the empty space on top *is* the headroom), with a
-/// green liquid gradient, a bright meniscus surface line, and a metallic rim. Rendered as a
-/// vector so it stays sharp at header size (the full app-icon PNG turns to mud that small).
-/// The `0.557` frame aspect ratio matches the app-icon capsule (330×592); anything squatter
-/// reads as a blob rather than the vessel.
-private struct VesselMark: View {
-    /// Static fill matching the app icon (`0.46`); the mark is decorative here, not live.
-    var fillFraction: CGFloat = 0.46
-
-    var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width, h = geo.size.height
-            let rim = max(1.3, w * 0.12)
-            ZStack(alignment: .bottom) {
-                // Full-size base so the ZStack fills the frame; without it the ZStack shrinks
-                // to the liquid's height and `.frame` centers it — the "floating pill" bug.
-                Color.clear
-                Rectangle()
-                    .fill(LinearGradient(
-                        colors: [Color(red: 0.58, green: 1.00, blue: 0.78),
-                                 Color(red: 0.29, green: 0.87, blue: 0.59),
-                                 Color(red: 0.12, green: 0.67, blue: 0.44)],
-                        startPoint: .top, endPoint: .bottom))
-                    .frame(height: h * fillFraction)
-                    .overlay(alignment: .top) {
-                        // Bright meniscus line at the liquid surface, like the icon's glow.
-                        Rectangle()
-                            .fill(Color(red: 0.92, green: 1.00, blue: 0.96))
-                            .frame(height: max(1, h * 0.035))
-                            .opacity(0.6)
-                    }
-            }
-            .frame(width: w, height: h)
-            .clipShape(Capsule())
-            // Adaptive rim so it defines the capsule in both light and dark settings windows.
-            .overlay(
-                Capsule().strokeBorder(
-                    LinearGradient(colors: [Color.primary.opacity(0.72), Color.primary.opacity(0.42)],
-                                   startPoint: .top, endPoint: .bottom),
-                    lineWidth: rim)
-            )
         }
     }
 }

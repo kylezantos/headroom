@@ -11,23 +11,31 @@ import SwiftUI
 ///
 /// Content stays a plain tile (never a second `.glassEffect`), so glass-on-glass never muddies
 /// the popover (UI-07); glass is reserved for the shell + controls.
+enum RaisedTileSurface {
+    case glass
+    case opaque
+}
+
 struct RaisedTile: ViewModifier {
     var cornerRadius: CGFloat = 12
+    var surface: RaisedTileSurface = .glass
     @Environment(\.colorScheme) private var scheme
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         let dark = scheme == .dark
+        let fillColors = fillColors(dark: dark)
         content
             .background(
                 shape
                     .fill(LinearGradient(
-                        colors: dark
-                            ? [Color.white.opacity(0.075), Color.white.opacity(0.045)]
-                            : [Color.white.opacity(0.92), Color.white.opacity(0.80)],
+                        colors: fillColors,
                         startPoint: .top, endPoint: .bottom))
-                    .shadow(color: .black.opacity(dark ? 0.42 : 0.12),
-                            radius: dark ? 7 : 5, y: 1)
+                    .shadow(
+                        color: .black.opacity(dark ? 0.42 : (surface == .opaque ? 0.09 : 0.12)),
+                        radius: dark ? 7 : 5,
+                        y: 1
+                    )
             )
             .overlay(
                 // One gradient stroke does both jobs: a lit top edge fading to a faint
@@ -42,11 +50,24 @@ struct RaisedTile: ViewModifier {
                     lineWidth: 1)
             )
     }
+
+    private func fillColors(dark: Bool) -> [Color] {
+        switch (surface, dark) {
+        case (.glass, true):
+            [Color.white.opacity(0.075), Color.white.opacity(0.045)]
+        case (.glass, false):
+            [Color.white.opacity(0.92), Color.white.opacity(0.80)]
+        case (.opaque, true):
+            [Color.white.opacity(0.08), Color.white.opacity(0.05)]
+        case (.opaque, false):
+            [Color(nsColor: .controlBackgroundColor), Color(nsColor: .windowBackgroundColor).opacity(0.96)]
+        }
+    }
 }
 
 extension View {
     /// Elevate a content tile on the popover glass, adapting to light/dark. See `RaisedTile`.
-    func raisedTile(cornerRadius: CGFloat = 12) -> some View {
-        modifier(RaisedTile(cornerRadius: cornerRadius))
+    func raisedTile(cornerRadius: CGFloat = 12, surface: RaisedTileSurface = .glass) -> some View {
+        modifier(RaisedTile(cornerRadius: cornerRadius, surface: surface))
     }
 }

@@ -5,14 +5,15 @@ struct HeadroomSmallWidgetView: View {
     let envelope: WidgetSnapshotEnvelope
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Weekly Left")
-                .font(.headline)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
             ForEach(envelope.weeklyProviders) { provider in
-                WidgetProviderWeeklyLine(provider: provider)
+                WidgetProviderWeeklyLine(provider: provider, compact: true)
             }
             Spacer(minLength: 0)
         }
-        .padding()
+        .padding(12)
     }
 }

@@ -5,6 +5,7 @@ struct WidgetProviderRow: View {
     let provider: WidgetProviderSummary
     let showsDetails: Bool
     let now: Date
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -12,12 +13,12 @@ struct WidgetProviderRow: View {
                 WidgetProviderIcon(providerID: provider.id, size: 16)
                 Text(provider.displayName)
                     .font(.subheadline.bold())
-                    .foregroundStyle(WidgetProviderStyle.accent(for: provider.id))
+                    .foregroundStyle(WidgetProviderStyle.textAccent(for: provider.id, scheme: scheme))
                 Spacer()
                 if provider.freshness.needsAttention {
                     Label("Check", systemImage: "exclamationmark.triangle.fill")
                         .font(.caption)
-                        .foregroundStyle(.orange)
+                        .foregroundStyle(WidgetProviderStyle.severityColor(for: .low))
                 }
             }
             HStack(spacing: 8) {

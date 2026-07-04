@@ -3,6 +3,7 @@ import SwiftUI
 struct WidgetStatusView: View {
     let title: String
     let message: String
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -14,10 +15,10 @@ struct WidgetStatusView: View {
             .font(.headline)
             Text(message)
                 .font(.caption)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(WidgetProviderStyle.secondaryText(scheme: scheme))
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
         }
-        .padding()
+        .padding(12)
     }
 }

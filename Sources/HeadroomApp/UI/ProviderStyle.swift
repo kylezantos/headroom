@@ -15,8 +15,8 @@ enum ProviderStyle {
 
     static func accent(for id: ProviderID) -> Color {
         switch id {
-        case .claude: return Color(red: 0.85, green: 0.47, blue: 0.26) // warm clay
-        case .codex: return Color(red: 0.28, green: 0.34, blue: 1.00)  // Codex blue
+        case .claude: return Color(HeadroomBrandColorValues.claude)
+        case .codex: return Color(HeadroomBrandColorValues.codex)
         default: return .secondary
         }
     }
@@ -28,9 +28,9 @@ enum ProviderStyle {
     /// a pulse, so it honors the standing no-pulsing rule.
     static func severityColor(for severity: UsageSeverity) -> Color {
         switch severity {
-        case .healthy:  return Color(red: 0.20, green: 0.78, blue: 0.35) // system green
-        case .low:      return Color(red: 1.00, green: 0.62, blue: 0.04) // amber
-        case .critical: return Color(red: 1.00, green: 0.27, blue: 0.23) // red
+        case .healthy: return Color(HeadroomSeverityColorValues.healthy)
+        case .low: return Color(HeadroomSeverityColorValues.low)
+        case .critical: return Color(HeadroomSeverityColorValues.critical)
         }
     }
 
@@ -40,5 +40,11 @@ enum ProviderStyle {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         default: return "circle.dashed"
         }
+    }
+}
+
+private extension Color {
+    init(_ rgb: HeadroomRGBColor) {
+        self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 }

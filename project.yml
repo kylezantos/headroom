@@ -89,6 +89,7 @@ targets:
         excludes:
           - HeadroomIOS.entitlements
       - path: Sources/HeadroomCore/Models/Countdown.swift
+      - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift
@@ -118,7 +119,9 @@ targets:
           - HeadroomIOSWidgets.entitlements
           - Info.plist
       - path: Sources/HeadroomSharedResources/BrandIcons.xcassets
+      - path: Sources/HeadroomCore/Models/ProviderID.swift
       - path: Sources/HeadroomCore/Models/Countdown.swift
+      - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift

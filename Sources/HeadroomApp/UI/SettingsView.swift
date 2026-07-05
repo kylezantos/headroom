@@ -34,13 +34,18 @@ struct SettingsView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Custom header (the window uses a hidden title bar): the vessel logo anchors
-            // the title, drawn just below the floating traffic lights.
+            // the title, drawn just below the floating traffic lights. Rendered from the
+            // bundled SVG rather than NSApplication.shared.applicationIconImage — the latter
+            // is a single flattened OS-cached snapshot (not the asset catalog's real
+            // multi-resolution art) and rendered pixelated in this header.
             HStack(spacing: 10) {
-                Image(nsImage: NSApplication.shared.applicationIconImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 34, height: 34)
-                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                if let image = AppIconGlyph.image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 34, height: 34)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
                 Text("Headroom Settings")
                     .font(.title2.weight(.semibold))
             }
@@ -344,6 +349,26 @@ private extension View {
         self
             .padding(12)
             .raisedTile(cornerRadius: 10, surface: .opaque)
+    }
+}
+
+/// Loads the vessel mark straight from its bundled SVG (mirrors `ProviderLogoView`'s
+/// `BrandIconImage` lookup) so the Settings header always renders crisp, resolution-
+/// independent art instead of depending on the OS's cached app-icon snapshot.
+private enum AppIconGlyph {
+    static let image: NSImage? = {
+        guard let url = url(forResource: "vessel-app-icon") else { return nil }
+        return NSImage(contentsOf: url)
+    }()
+
+    private static func url(forResource name: String) -> URL? {
+        if let url = Bundle.main.url(forResource: name, withExtension: "svg") {
+            return url
+        }
+        let swiftPMBundleURL = Bundle.main.bundleURL
+            .appendingPathComponent("Headroom_HeadroomApp.bundle")
+        return Bundle(url: swiftPMBundleURL)?
+            .url(forResource: name, withExtension: "svg")
     }
 }
 

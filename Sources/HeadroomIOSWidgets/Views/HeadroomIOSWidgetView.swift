@@ -39,7 +39,7 @@ struct HeadroomIOSWidgetView: View {
     }
 
     private func small(_ envelope: WidgetSnapshotEnvelope) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Weekly left")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
@@ -54,19 +54,25 @@ struct HeadroomIOSWidgetView: View {
                     .lineLimit(1)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 11)
+        // KTD1: system content margins carry the ~14pt effective outer margin; keep only
+        // a minimal residual. Tune against the widget gallery.
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
     }
 
     private func medium(_ envelope: WidgetSnapshotEnvelope) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack {
-                Text("Headroom")
+            HStack(spacing: 8) {
+                Text("Usage")
                     .font(.headline)
-                Spacer()
-                Text(Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) ?? "")
-                    .font(.caption2)
-                    .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
+                Spacer(minLength: 0)
+                if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
+                    Text(updated)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
+                        .lineLimit(1)
+                }
+                IOSWidgetAppIconMark(size: 18)
             }
             if envelope.providers.count <= 1 {
                 ForEach(envelope.providers) { provider in
@@ -87,13 +93,19 @@ struct HeadroomIOSWidgetView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
+        // KTD1: lean on WidgetKit's default content margins for the ~16pt effective
+        // outer margin; keep only a minimal residual. Tune against the widget gallery.
+        .padding(2)
     }
 
     private func large(_ envelope: WidgetSnapshotEnvelope) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Headroom")
-                .font(.system(size: 19, weight: .semibold))
+            HStack(spacing: 8) {
+                Text("Usage")
+                    .font(.system(size: 19, weight: .semibold))
+                Spacer(minLength: 0)
+                IOSWidgetAppIconMark(size: 20)
+            }
             ForEach(envelope.providers) { provider in
                 largeProviderTile(provider)
             }
@@ -251,6 +263,23 @@ struct HeadroomIOSWidgetView: View {
     @Environment(\.colorScheme) private var scheme
 }
 
+/// Mirror of the macOS `WidgetAppIconMark` (U1) so the medium/large iOS widget headers
+/// carry the same rounded app-icon mark. Source art is the shared `AppIconMark` imageset;
+/// rounding uses the `size * 0.22` continuous-corner recipe from `HeadroomAppIconView` (R2).
+private struct IOSWidgetAppIconMark: View {
+    var size: CGFloat = 18
+
+    var body: some View {
+        Image("AppIconMark")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+            .shadow(color: .black.opacity(0.10), radius: size * 0.16, y: size * 0.06)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct IOSWidgetUsageMeter: View {
     let window: WidgetWindowSummary?
     let fallbackLabel: String
@@ -292,7 +321,7 @@ private struct IOSWidgetUsageMeter: View {
     }
 
     private var labelFont: Font {
-        prominent ? .system(size: 13, weight: .medium) : (compact ? .caption2.weight(.medium) : .caption)
+        prominent ? .system(size: 13, weight: .medium) : (compact ? .system(size: 11, weight: .medium) : .caption)
     }
 
     private var resetFont: Font {
@@ -300,7 +329,8 @@ private struct IOSWidgetUsageMeter: View {
     }
 
     private var percentFont: Font {
-        prominent ? .system(size: 16, weight: .bold).monospacedDigit() : (compact ? Font.caption2 : Font.caption).bold().monospacedDigit()
+        // Medium (compact) percent reads at 14pt bold monospaced per the redesign (R3/KTD4).
+        prominent ? .system(size: 16, weight: .bold).monospacedDigit() : (compact ? .system(size: 14, weight: .bold).monospacedDigit() : Font.caption.bold().monospacedDigit())
     }
 
     private var percentText: String {

@@ -109,6 +109,51 @@ struct WidgetSnapshotProjectorTests {
         #expect(envelope.providers[0].windows.map(\.kind) == [.weekly])
     }
 
+    @Test func codexSparkWindowsCanBeIncludedInWidgetSnapshots() {
+        let envelope = WidgetSnapshotProjector.project(
+            snapshots: [
+                .codex: .live(.codex, windows: [
+                    UsageWindow(kind: .weekly, utilization: 25, resetsAt: reset),
+                    UsageWindow(kind: .other("codex-spark 5h"), utilization: 40, resetsAt: reset),
+                    UsageWindow(kind: .other("codex-spark weekly"), utilization: 60, resetsAt: reset),
+                    UsageWindow(kind: .other("GPT-5.3"), utilization: 90, resetsAt: reset),
+                ], at: now),
+            ],
+            providerOrder: [.codex],
+            displayNames: [.codex: "Codex"],
+            renewalDate: { _ in nil },
+            widgetsEnabled: true,
+            showsCodexSparkCounters: true,
+            generatedAt: now
+        )
+
+        #expect(envelope.providers[0].windows.map(\.kind) == [
+            .weekly,
+            .other("codex-spark 5h"),
+            .other("codex-spark weekly"),
+        ])
+        #expect(envelope.providers[0].extraCounterWindows.count == 2)
+        #expect(envelope.providers[0].weeklyDisplayWindows.map(\.label) == ["weekly", "codex-spark weekly"])
+    }
+
+    @Test func sparkWindowSettingDoesNotExposeNonCodexWindows() {
+        let envelope = WidgetSnapshotProjector.project(
+            snapshots: [
+                .claude: .live(.claude, windows: [
+                    UsageWindow(kind: .other("claude spark weekly"), utilization: 10, resetsAt: reset),
+                ], at: now),
+            ],
+            providerOrder: [.claude],
+            displayNames: [.claude: "Claude"],
+            renewalDate: { _ in nil },
+            widgetsEnabled: true,
+            showsCodexSparkCounters: true,
+            generatedAt: now
+        )
+
+        #expect(envelope.providers[0].windows.isEmpty)
+    }
+
     @Test func unknownProviderRoundTrips() throws {
         let other = ProviderID("other")
         let envelope = WidgetSnapshotProjector.project(

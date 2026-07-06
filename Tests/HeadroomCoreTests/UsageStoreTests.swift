@@ -299,6 +299,32 @@ struct UsageStoreTests {
         #expect(meters[1].fill == nil)
     }
 
+    @Test func appDisplaySnapshotCanHideCodexSparkCountersOnly() async {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        preferences.showCodexSparkCountersInApp = false
+        let store = UsageStore(providers: [
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                UsageWindow(kind: .other("codex-spark 5h"), utilization: 40, resetsAt: reset),
+                UsageWindow(kind: .other("GPT-5.3"), utilization: 50, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+
+        await store.refreshAll()
+
+        #expect(store.snapshot(for: .codex).windows.count == 3)
+        #expect(store.appDisplaySnapshot(for: .codex).windows.map(\.kind) == [
+            .weekly,
+            .other("GPT-5.3"),
+        ])
+
+        store.setShowCodexSparkCountersInApp(true)
+        #expect(store.appDisplaySnapshot(for: .codex).windows.count == 3)
+    }
+
     /// Store whose menu-bar fill source is pre-set, on an isolated defaults suite.
     private func makeStore(source: MenuBarFillSource, providers: [any UsageProvider]) -> UsageStore {
         let suite = "headroom.tests.\(UUID().uuidString)"
@@ -345,6 +371,35 @@ struct UsageStoreTests {
         #expect(!preferences.widgetsEnabled)
         #expect(exporter.exports.last?.status == .disabled)
         #expect(exporter.exports.last?.providers.isEmpty == true)
+    }
+
+    @Test func enablingWidgetSparkCountersReexportsSnapshot() async {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        let exporter = SpyWidgetExporter()
+        let store = UsageStore(
+            providers: [
+                StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                    UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                    UsageWindow(kind: .other("codex-spark weekly"), utilization: 60, resetsAt: reset),
+                ])),
+            ],
+            preferences: preferences,
+            widgetExporter: exporter
+        )
+
+        await store.refreshAll()
+        #expect(exporter.exports.last?.providers.first?.windows.map(\.kind) == [.weekly])
+
+        store.setShowCodexSparkCountersInWidgets(true)
+
+        #expect(preferences.showCodexSparkCountersInWidgets)
+        #expect(exporter.exports.last?.providers.first?.windows.map(\.kind) == [
+            .weekly,
+            .other("codex-spark weekly"),
+        ])
     }
 
     @Test func phoneSyncDefaultsOffAndExportsOnlyWhenEnabled() async {

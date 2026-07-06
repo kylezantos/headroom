@@ -48,6 +48,9 @@ private struct LargeProviderTile: View {
             header
             WidgetUsageMeter(window: window(.weekly), fallbackLabel: "Weekly", now: now, showsResetInline: true, prominent: true)
             WidgetUsageMeter(window: window(.fiveHour), fallbackLabel: "5-hour", now: now, showsResetInline: true, prominent: true)
+            ForEach(provider.extraCounterWindows) { window in
+                WidgetUsageMeter(window: window, fallbackLabel: window.label, now: now, showsResetInline: true, prominent: true)
+            }
         }
         .padding(.horizontal, inset)
         .padding(.vertical, 11)

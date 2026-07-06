@@ -64,6 +64,8 @@ public final class UsageStore {
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
     public private(set) var menuBarFillSource: MenuBarFillSource
+    public private(set) var showCodexSparkCountersInApp: Bool
+    public private(set) var showCodexSparkCountersInWidgets: Bool
     public private(set) var enabledSurfaces: Set<UsageSurface>
     public let displayNames: [ProviderID: String]
     public let apiSpendDisplayNames: [ProviderID: String]
@@ -102,6 +104,8 @@ public final class UsageStore {
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
         self.menuBarFillSource = preferences.menuBarFillSource
+        self.showCodexSparkCountersInApp = preferences.showCodexSparkCountersInApp
+        self.showCodexSparkCountersInWidgets = preferences.showCodexSparkCountersInWidgets
         self.enabledSurfaces = Set(UsageSurface.allCases.filter { preferences.isSurfaceEnabled($0) })
     }
 
@@ -151,6 +155,18 @@ public final class UsageStore {
     public func setMenuBarFillSource(_ source: MenuBarFillSource) {
         preferences.menuBarFillSource = source
         menuBarFillSource = source
+    }
+
+    public func setShowCodexSparkCountersInApp(_ enabled: Bool) {
+        preferences.showCodexSparkCountersInApp = enabled
+        showCodexSparkCountersInApp = enabled
+    }
+
+    public func setShowCodexSparkCountersInWidgets(_ enabled: Bool) {
+        preferences.showCodexSparkCountersInWidgets = enabled
+        showCodexSparkCountersInWidgets = enabled
+        exportWidgetSnapshot()
+        exportPhoneSyncSnapshot()
     }
 
     /// How full to draw the menu-bar vessel, 0…1: the selected provider's *weekly*
@@ -294,6 +310,13 @@ public final class UsageStore {
         snapshots[id] ?? .pending(for: id)
     }
 
+    public func appDisplaySnapshot(for id: ProviderID) -> UsageSnapshot {
+        filterCodexSparkCounters(
+            from: snapshot(for: id),
+            shouldShow: preferences.showCodexSparkCountersInApp
+        )
+    }
+
     public func apiSpendSnapshot(for id: ProviderID) -> APISpendSnapshot {
         apiSpendSnapshots[id] ?? .pending(
             providerID: id,
@@ -319,7 +342,19 @@ public final class UsageStore {
             displayNames: displayNames,
             renewalDate: { [preferences] in preferences.renewalDate(for: $0) },
             widgetsEnabled: widgetsEnabled,
+            showsCodexSparkCounters: preferences.showCodexSparkCountersInWidgets,
             generatedAt: generatedAt
+        )
+    }
+
+    private func filterCodexSparkCounters(from snapshot: UsageSnapshot, shouldShow: Bool) -> UsageSnapshot {
+        guard snapshot.providerID == .codex, !shouldShow else { return snapshot }
+        return UsageSnapshot(
+            providerID: snapshot.providerID,
+            windows: snapshot.windows.filter { !$0.kind.isCodexSparkCounter },
+            planLabel: snapshot.planLabel,
+            capturedAt: snapshot.capturedAt,
+            freshness: snapshot.freshness
         )
     }
 

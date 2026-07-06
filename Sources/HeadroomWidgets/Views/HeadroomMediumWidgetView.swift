@@ -72,6 +72,9 @@ private struct MediumProviderColumn: View {
             }
             WidgetUsageMeter(window: window(.weekly), fallbackLabel: "Weekly", compact: true)
             WidgetUsageMeter(window: window(.fiveHour), fallbackLabel: "5-hour", compact: true)
+            ForEach(provider.extraCounterWindows) { window in
+                WidgetUsageMeter(window: window, fallbackLabel: window.label, compact: true)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

@@ -16,6 +16,14 @@ public enum WindowKind: Sendable, Equatable, Hashable {
         case .other(let label): return label
         }
     }
+
+    /// Codex reports model-specific allowances as additional windows, currently labeled
+    /// with Spark. Keep the check narrow to Codex presentation paths so generic unknown
+    /// windows are not hidden by accident.
+    public var isCodexSparkCounter: Bool {
+        guard case .other(let label) = self else { return false }
+        return label.localizedCaseInsensitiveContains("spark")
+    }
 }
 
 /// One usage window: how much has been consumed and when it resets.

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct WidgetSettingsSection: View {
     @Binding var widgetsEnabled: Bool
+    @Binding var showCodexSparkCountersInWidgets: Bool
     @Binding var syncToIPhoneEnabled: Bool
 
     var body: some View {
@@ -11,6 +12,8 @@ struct WidgetSettingsSection: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Toggle("Show Codex Spark counters in widgets", isOn: $showCodexSparkCountersInWidgets)
 
             Toggle("Sync snapshot to iPhone", isOn: $syncToIPhoneEnabled)
             Text("Sends only the widget-safe usage snapshot through your iCloud account. No provider credentials are synced.")

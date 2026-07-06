@@ -19,6 +19,8 @@ struct SettingsView: View {
     @State private var showMenuBarPercentage = false
     @State private var menuBarFillSource: MenuBarFillSource = .none
     @State private var widgetsEnabled = true
+    @State private var showCodexSparkCountersInApp = true
+    @State private var showCodexSparkCountersInWidgets = false
     @State private var syncToIPhoneEnabled = false
     @State private var launchAtLogin = false
     @State private var renewalDates: [ProviderID: Date] = [:]
@@ -93,10 +95,14 @@ struct SettingsView: View {
                 sectionHeader("Widgets")
                 WidgetSettingsSection(
                     widgetsEnabled: $widgetsEnabled,
+                    showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
                     syncToIPhoneEnabled: $syncToIPhoneEnabled
                 )
                 .onChange(of: widgetsEnabled) { _, newValue in
                     store.setWidgetsEnabled(newValue)
+                }
+                .onChange(of: showCodexSparkCountersInWidgets) { _, newValue in
+                    store.setShowCodexSparkCountersInWidgets(newValue)
                 }
                 .onChange(of: syncToIPhoneEnabled) { _, newValue in
                     store.setSyncToIPhoneEnabled(newValue)
@@ -109,6 +115,10 @@ struct SettingsView: View {
                 sectionHeader("Subscription Usage")
                 surfaceToggle(.claudeSubscription)
                 surfaceToggle(.codexSubscription)
+                Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
+                    .onChange(of: showCodexSparkCountersInApp) { _, newValue in
+                        store.setShowCodexSparkCountersInApp(newValue)
+                    }
             }
             .settingsPanel()
 
@@ -194,6 +204,8 @@ struct SettingsView: View {
             showMenuBarPercentage = store.showMenuBarPercentage
             menuBarFillSource = store.menuBarFillSource
             widgetsEnabled = store.widgetsEnabled
+            showCodexSparkCountersInApp = store.showCodexSparkCountersInApp
+            showCodexSparkCountersInWidgets = store.showCodexSparkCountersInWidgets
             syncToIPhoneEnabled = store.syncToIPhoneEnabled
             apiSpendPeriod = store.apiSpendPeriod
             launchAtLogin = launchControl.isEnabled

@@ -29,7 +29,7 @@ struct PopoverView: View {
                     ProviderCardView(
                         providerID: id,
                         displayName: store.displayNames[id] ?? id.raw,
-                        snapshot: store.snapshot(for: id),
+                        snapshot: store.appDisplaySnapshot(for: id),
                         renewalDate: preferences.renewalDate(for: id),
                         now: context.date,
                         onOpenSettings: openSettingsDismissingPopover

@@ -9,6 +9,7 @@ public enum WidgetSnapshotProjector {
         displayNames: [ProviderID: String],
         renewalDate: (ProviderID) -> Date?,
         widgetsEnabled: Bool,
+        showsCodexSparkCounters: Bool = false,
         generatedAt: Date = .now
     ) -> WidgetSnapshotEnvelope {
         guard widgetsEnabled else { return .disabled(generatedAt: generatedAt) }
@@ -17,7 +18,8 @@ public enum WidgetSnapshotProjector {
                 id: id,
                 snapshot: snapshots[id] ?? .pending(for: id),
                 displayName: displayNames[id] ?? id.raw,
-                renewalDate: renewalDate(id)
+                renewalDate: renewalDate(id),
+                showsCodexSparkCounters: showsCodexSparkCounters
             )
         }
         return WidgetSnapshotEnvelope(generatedAt: generatedAt, status: .enabled, providers: providers)
@@ -27,14 +29,15 @@ public enum WidgetSnapshotProjector {
         id: ProviderID,
         snapshot: UsageSnapshot,
         displayName: String,
-        renewalDate: Date?
+        renewalDate: Date?,
+        showsCodexSparkCounters: Bool
     ) -> WidgetProviderSummary {
         WidgetProviderSummary(
             id: id.raw,
             displayName: displayName,
             planLabel: snapshot.planLabel,
             freshness: freshness(snapshot.freshness),
-            windows: snapshot.windows.compactMap(windowSummary),
+            windows: snapshot.windows.compactMap { windowSummary($0, providerID: id, showsCodexSparkCounters: showsCodexSparkCounters) },
             renewalDate: renewalDate
         )
     }
@@ -50,8 +53,12 @@ public enum WidgetSnapshotProjector {
         }
     }
 
-    private static func windowSummary(_ window: UsageWindow) -> WidgetWindowSummary? {
-        guard let kind = widgetKind(window.kind) else { return nil }
+    private static func windowSummary(
+        _ window: UsageWindow,
+        providerID: ProviderID,
+        showsCodexSparkCounters: Bool
+    ) -> WidgetWindowSummary? {
+        guard let kind = widgetKind(window.kind, providerID: providerID, showsCodexSparkCounters: showsCodexSparkCounters) else { return nil }
         return WidgetWindowSummary(
             kind: kind,
             label: window.kind.shortLabel,
@@ -62,11 +69,16 @@ public enum WidgetSnapshotProjector {
         )
     }
 
-    private static func widgetKind(_ kind: WindowKind) -> WidgetWindowKind? {
+    private static func widgetKind(
+        _ kind: WindowKind,
+        providerID: ProviderID,
+        showsCodexSparkCounters: Bool
+    ) -> WidgetWindowKind? {
         switch kind {
         case .fiveHour: .fiveHour
         case .weekly: .weekly
-        case .other: nil
+        case .other(let label):
+            providerID == .codex && showsCodexSparkCounters && kind.isCodexSparkCounter ? .other(label) : nil
         }
     }
 

@@ -12,6 +12,8 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let showMenuBarPercentage = "showMenuBarPercentage"
         static let menuBarFillSource = "menuBarFillSource"
         static let widgetsEnabled = "widgetsEnabled"
+        static let showCodexSparkCountersInApp = "showCodexSparkCountersInApp"
+        static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
         static let apiSpendPeriod = "apiSpendPeriod"
         static func renewal(_ id: ProviderID) -> String { "renewalDate.\(id.raw)" }
@@ -49,6 +51,19 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return defaults.bool(forKey: Key.widgetsEnabled)
         }
         nonmutating set { defaults.set(newValue, forKey: Key.widgetsEnabled) }
+    }
+
+    public var showCodexSparkCountersInApp: Bool {
+        get {
+            guard defaults.object(forKey: Key.showCodexSparkCountersInApp) != nil else { return true }
+            return defaults.bool(forKey: Key.showCodexSparkCountersInApp)
+        }
+        nonmutating set { defaults.set(newValue, forKey: Key.showCodexSparkCountersInApp) }
+    }
+
+    public var showCodexSparkCountersInWidgets: Bool {
+        get { defaults.bool(forKey: Key.showCodexSparkCountersInWidgets) }
+        nonmutating set { defaults.set(newValue, forKey: Key.showCodexSparkCountersInWidgets) }
     }
 
     public var syncToIPhoneEnabled: Bool {

@@ -73,6 +73,23 @@ public struct WidgetProviderSummary: Codable, Equatable, Sendable, Identifiable 
     public var subscriptionWindows: [WidgetWindowSummary] {
         windows.filter(\.kind.isSubscriptionWindow)
     }
+
+    public var extraCounterWindows: [WidgetWindowSummary] {
+        windows.filter { !$0.kind.isSubscriptionWindow }
+    }
+
+    public var weeklyDisplayWindows: [WidgetWindowSummary] {
+        windows.filter { window in
+            switch window.kind {
+            case .weekly:
+                return true
+            case .fiveHour:
+                return false
+            case .other:
+                return window.label.localizedCaseInsensitiveContains("weekly")
+            }
+        }
+    }
 }
 
 public enum WidgetProviderFreshness: Codable, Equatable, Sendable {

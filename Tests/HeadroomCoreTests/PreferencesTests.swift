@@ -55,6 +55,18 @@ struct PreferencesTests {
         #expect(prefs.widgetsEnabled)
     }
 
+    @Test func codexSparkCountersDefaultBySurfaceAndPersist() {
+        let prefs = Preferences(defaults: freshDefaults())
+        #expect(prefs.showCodexSparkCountersInApp)
+        #expect(!prefs.showCodexSparkCountersInWidgets)
+
+        prefs.showCodexSparkCountersInApp = false
+        prefs.showCodexSparkCountersInWidgets = true
+
+        #expect(!prefs.showCodexSparkCountersInApp)
+        #expect(prefs.showCodexSparkCountersInWidgets)
+    }
+
     @Test func syncToIPhoneDefaultsOffAndPersists() {
         let prefs = Preferences(defaults: freshDefaults())
         #expect(!prefs.syncToIPhoneEnabled)

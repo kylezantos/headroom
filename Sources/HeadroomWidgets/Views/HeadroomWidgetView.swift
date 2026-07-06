@@ -19,7 +19,7 @@ struct HeadroomWidgetView: View {
                 case .systemSmall:
                     HeadroomSmallWidgetView(envelope: envelope)
                 case .systemMedium:
-                    HeadroomMediumWidgetView(envelope: envelope)
+                    HeadroomMediumWidgetView(envelope: envelope, now: entry.date)
                 default:
                     HeadroomLargeWidgetView(envelope: envelope, now: entry.date)
                 }

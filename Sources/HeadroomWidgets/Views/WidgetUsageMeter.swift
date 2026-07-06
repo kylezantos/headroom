@@ -55,7 +55,7 @@ struct WidgetUsageMeter: View {
     }
 
     private var labelFont: Font {
-        prominent ? .system(size: 13, weight: .medium) : (compact ? .caption2.weight(.medium) : .caption)
+        prominent ? .system(size: 13, weight: .medium) : (compact ? .system(size: 11, weight: .medium) : .caption)
     }
 
     private var resetFont: Font {
@@ -63,6 +63,7 @@ struct WidgetUsageMeter: View {
     }
 
     private var percentFont: Font {
-        prominent ? .system(size: 16, weight: .bold).monospacedDigit() : (compact ? Font.caption2 : Font.caption).bold().monospacedDigit()
+        // Medium (compact) percent reads at 14pt bold monospaced per the redesign (R3/KTD4).
+        prominent ? .system(size: 16, weight: .bold).monospacedDigit() : (compact ? .system(size: 14, weight: .bold).monospacedDigit() : Font.caption.bold().monospacedDigit())
     }
 }

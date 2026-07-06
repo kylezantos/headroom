@@ -12,8 +12,12 @@ struct HeadroomLargeWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Headroom")
-                .font(.system(size: 19, weight: .semibold))
+            HStack(spacing: 8) {
+                Text("Usage")
+                    .font(.system(size: 19, weight: .semibold))
+                Spacer(minLength: 0)
+                WidgetAppIconMark(size: 20)
+            }
             ForEach(envelope.providers) { provider in
                 LargeProviderTile(provider: provider, now: now, inset: tileInset)
             }

@@ -3,12 +3,12 @@ import SwiftUI
 
 struct HeadroomMediumWidgetView: View {
     let envelope: WidgetSnapshotEnvelope
+    let now: Date
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
-            Text("Headroom")
-                .font(.headline)
+            header
             if envelope.providers.count <= 1 {
                 ForEach(envelope.providers) { provider in
                     MediumProviderColumn(provider: provider)
@@ -28,7 +28,24 @@ struct HeadroomMediumWidgetView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(12)
+        // KTD1: rely on WidgetKit's default content margins for the ~16pt effective
+        // outer margin; keep only a minimal residual. Tune against the widget gallery.
+        .padding(2)
+    }
+
+    private var header: some View {
+        HStack(spacing: 8) {
+            Text("Usage")
+                .font(.headline)
+            Spacer(minLength: 0)
+            if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
+                Text(updated)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(WidgetProviderStyle.secondaryText(scheme: scheme))
+                    .lineLimit(1)
+            }
+            WidgetAppIconMark(size: 18)
+        }
     }
 }
 

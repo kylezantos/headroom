@@ -5,8 +5,8 @@ struct HeadroomSmallWidgetView: View {
     let envelope: WidgetSnapshotEnvelope
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text("Weekly Left")
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Weekly left")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
             ForEach(envelope.weeklyProviders) { provider in
@@ -14,7 +14,9 @@ struct HeadroomSmallWidgetView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 11)
+        // KTD1: system content margins carry the ~14pt effective outer margin; keep only
+        // a minimal residual. Tune against the widget gallery.
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
     }
 }

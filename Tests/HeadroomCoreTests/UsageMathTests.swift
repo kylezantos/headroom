@@ -37,6 +37,13 @@ struct UsageMathTests {
         #expect(w.kind.shortLabel == "codex-spark")
     }
 
+    @Test func windowKindShortLabelCasing() {
+        // Widgets render `shortLabel` verbatim, so the weekly window must read
+        // "Weekly" (capitalized) at the source (R6/KTD3); "5h" stays lowercase.
+        #expect(WindowKind.weekly.shortLabel == "Weekly")
+        #expect(WindowKind.fiveHour.shortLabel == "5h")
+    }
+
     @Test func pendingSnapshotHasNoCaptureTime() {
         let snap = UsageSnapshot.pending(for: .claude)
         // `.pending` is distinguishable from `.stale` and carries no timestamp,

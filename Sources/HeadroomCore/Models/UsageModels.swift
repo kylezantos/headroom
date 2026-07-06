@@ -7,11 +7,12 @@ public enum WindowKind: Sendable, Equatable, Hashable {
     case weekly
     case other(String)
 
-    /// Short human label used in the menu bar summary and accessibility text.
+    /// Short human label rendered verbatim on widget surfaces (via
+    /// `WidgetSnapshotProjector.windowSummary`, its sole consumer).
     public var shortLabel: String {
         switch self {
         case .fiveHour: return "5h"
-        case .weekly: return "weekly"
+        case .weekly: return "Weekly"
         case .other(let label): return label
         }
     }

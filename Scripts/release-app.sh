@@ -5,6 +5,8 @@ cd "$(dirname "$0")/.."
 
 APP="Headroom.app"
 WIDGET_APPEX="${APP}/Contents/PlugIns/HeadroomWidgets.appex"
+DMG_BACKGROUND_1X="Assets/Release/dmg-background.png"
+DMG_BACKGROUND_2X="Assets/Release/dmg-background@2x.png"
 DIST_DIR="dist"
 WORK_DIR="${DIST_DIR}/release-work"
 APP_ZIP="${WORK_DIR}/Headroom-app-notary.zip"
@@ -106,6 +108,22 @@ create_drag_install_dmg() {
   rm -rf "${DMG_MOUNT_DIR}"
   mkdir -p "${DMG_MOUNT_DIR}"
 
+  echo "→ staging installer window background"
+  local background_ready=0
+  if [[ -f "${DMG_BACKGROUND_1X}" ]]; then
+    mkdir -p "${STAGING_DIR}/.background"
+    if [[ -f "${DMG_BACKGROUND_2X}" ]] && command -v tiffutil >/dev/null 2>&1; then
+      # Combine @1x + @2x into one HiDPI TIFF so Retina Finder renders it crisp.
+      tiffutil -cathidpicheck "${DMG_BACKGROUND_1X}" "${DMG_BACKGROUND_2X}" \
+        -out "${STAGING_DIR}/.background/background.tiff" >/dev/null
+    else
+      cp "${DMG_BACKGROUND_1X}" "${STAGING_DIR}/.background/background.tiff"
+    fi
+    background_ready=1
+  else
+    echo "  ! ${DMG_BACKGROUND_1X} not found — building without a custom background" >&2
+  fi
+
   echo "→ creating writable installer image"
   hdiutil create \
     -volname "Headroom" \
@@ -123,9 +141,16 @@ create_drag_install_dmg() {
     -nobrowse >/dev/null
   trap detach_dmg_mount RETURN
 
-  osascript - "$(cd "${DMG_MOUNT_DIR}" && pwd)" <<'APPLESCRIPT'
+  # Give the mounted volume the Headroom app icon (optional polish; never fatal).
+  if [[ -f "${APP}/Contents/Resources/AppIcon.icns" ]] && command -v SetFile >/dev/null 2>&1; then
+    cp "${APP}/Contents/Resources/AppIcon.icns" "${DMG_MOUNT_DIR}/.VolumeIcon.icns" 2>/dev/null || true
+    SetFile -a C "${DMG_MOUNT_DIR}" 2>/dev/null || true
+  fi
+
+  osascript - "$(cd "${DMG_MOUNT_DIR}" && pwd)" "${background_ready}" <<'APPLESCRIPT'
 on run argv
   set mountPath to item 1 of argv
+  set backgroundReady to item 2 of argv
   tell application "Finder"
     set dmgFolder to POSIX file mountPath as alias
     open dmgFolder
@@ -134,15 +159,20 @@ on run argv
     set current view of container window of dmgFolder to icon view
     set toolbar visible of container window of dmgFolder to false
     set statusbar visible of container window of dmgFolder to false
-    set bounds of container window of dmgFolder to {200, 120, 760, 460}
+    -- 680 x 440 background bitmap + 28px title bar = 468 tall
+    set bounds of container window of dmgFolder to {180, 120, 860, 588}
 
     set viewOptions to icon view options of container window of dmgFolder
     set arrangement of viewOptions to not arranged
-    set icon size of viewOptions to 96
+    set icon size of viewOptions to 128
     set text size of viewOptions to 13
 
-    set position of item "Headroom.app" of dmgFolder to {170, 165}
-    set position of item "Applications" of dmgFolder to {390, 165}
+    if backgroundReady is "1" then
+      set background picture of viewOptions to (POSIX file (mountPath & "/.background/background.tiff") as alias)
+    end if
+
+    set position of item "Headroom.app" of dmgFolder to {196, 240}
+    set position of item "Applications" of dmgFolder to {484, 240}
 
     update dmgFolder without registering applications
     delay 1

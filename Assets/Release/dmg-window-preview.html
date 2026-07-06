@@ -1,0 +1,139 @@
+<!doctype html>
+<!--
+  PREVIEW ONLY — a mock of the finished Headroom.dmg install window:
+  the branded background bitmap (dmg-background.html) with the Finder-drawn
+  Headroom.app icon + Applications folder + labels + a faux title bar composited
+  on top, so we can judge the real result without building/mounting a DMG.
+  This file is NOT used by the release pipeline. Render via make-dmg-preview.sh.
+-->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { width: 780px; height: 560px; background: #232428;
+         display: flex; align-items: center; justify-content: center; }
+  @font-face { font-family: 'TX-02'; font-weight: 400; src: local('TX-02'); }
+  @font-face { font-family: 'TX-02'; font-weight: 500; src: local('TX-02 Medium'), local('TX-02'); }
+
+  .window {
+    width: 680px;
+    height: 468px;               /* 28px title bar + 440 content */
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+    font-family: 'SF Pro Text', -apple-system, sans-serif;
+  }
+
+  .titlebar {
+    height: 28px;
+    background: #17181A;
+    border-bottom: 1px solid #000;
+    display: flex; align-items: center; position: relative;
+    padding: 0 12px;
+  }
+  .lights { display: flex; gap: 8px; }
+  .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .l-close { background: #FF5F57; } .l-min { background: #FEBC2E; } .l-max { background: #28C840; }
+  .title { position: absolute; left: 0; width: 100%; text-align: center;
+           font-size: 13px; font-weight: 500; color: #B9BABD; }
+
+  /* ---- background plate (identical to dmg-background.html) ---- */
+  .plate {
+    position: relative; width: 680px; height: 440px; overflow: hidden;
+    background-color: #0B0B0C;
+    background-image: radial-gradient(130% 100% at 50% -10%, #16161A 0%, #0C0C0E 46%, #09090A 100%);
+    -webkit-font-smoothing: antialiased;
+  }
+  .seat { position: absolute; top: 184px; width: 220px; height: 150px; border-radius: 50%;
+          background: radial-gradient(closest-side, rgba(255,255,255,0.045), rgba(255,255,255,0) 72%); }
+  .seat-left { left: 86px; } .seat-right { left: 374px; }
+  .wordmark { position: absolute; top: 42px; left: 0; width: 680px; display: flex;
+              justify-content: center; align-items: center; gap: 11px; }
+  .wordmark img { width: 24px; height: 24px; border-radius: 6px; }
+  .wordmark span { font-family: 'TX-02'; font-weight: 500; font-size: 15px;
+                   letter-spacing: 0.34em; color: #F4F3EF; padding-left: 0.34em; }
+  .rule { position: absolute; top: 84px; left: 240px; width: 200px; height: 1px;
+          background: linear-gradient(90deg, rgba(46,46,51,0) 0%, #2E2E33 26%, #E3B24E 50%, #2E2E33 74%, rgba(46,46,51,0) 100%); }
+  .arrow { position: absolute; left: 274px; top: 227px; }
+  .instruction { position: absolute; top: 382px; left: 0; width: 680px; display: flex; justify-content: center; }
+  .instruction span { font-family: 'TX-02'; font-weight: 400; font-size: 11px;
+                      letter-spacing: 0.3em; color: #83837E; padding-left: 0.3em; }
+
+  /* ---- Finder-drawn layer (icons + labels), overlaid on top ---- */
+  .icon { position: absolute; top: 176px; width: 200px; display: flex;
+          flex-direction: column; align-items: center; gap: 11px; }
+  .icon-app  { left: 96px; }        /* icon center x = 196 */
+  .icon-apps { left: 384px; }       /* icon center x = 484 */
+  .icon img, .icon svg { filter: drop-shadow(0 10px 18px rgba(0,0,0,0.55)); }
+  .icon .label { font-family: 'SF Pro Text', -apple-system, sans-serif; font-weight: 400;
+                 font-size: 13px; color: #ECECE9; text-shadow: 0 1px 2px rgba(0,0,0,0.6); }
+</style>
+</head>
+<body>
+  <div class="window">
+    <div class="titlebar">
+      <div class="lights"><i class="l-close"></i><i class="l-min"></i><i class="l-max"></i></div>
+      <div class="title">Headroom</div>
+    </div>
+
+    <div class="plate">
+      <div class="seat seat-left"></div>
+      <div class="seat seat-right"></div>
+      <div class="wordmark">
+        <img src="../../Sources/HeadroomApp/Resources/Assets.xcassets/AppIcon.appiconset/icon_1024.png" alt="">
+        <span>HEADROOM</span>
+      </div>
+      <div class="rule"></div>
+      <svg class="arrow" width="132" height="26" viewBox="0 0 132 26" xmlns="http://www.w3.org/2000/svg">
+        <defs><linearGradient id="arrShaft" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stop-color="#E3B24E" stop-opacity="0.15"/>
+          <stop offset="0.22" stop-color="#E3B24E" stop-opacity="0.9"/>
+          <stop offset="1" stop-color="#E3B24E"/></linearGradient></defs>
+        <line x1="2" y1="13" x2="114" y2="13" stroke="url(#arrShaft)" stroke-width="2.5" stroke-linecap="round"/>
+        <path d="M107 5.5 L125 13 L107 20.5" fill="none" stroke="#E3B24E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <div class="instruction"><span>DRAG TO INSTALL</span></div>
+
+      <!-- Finder-drawn icons (representative) -->
+      <div class="icon icon-app">
+        <svg width="128" height="128" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="vbg" x1="0.1" y1="0" x2="0.92" y2="1"><stop offset="0" stop-color="#33404f"/><stop offset="0.5" stop-color="#1a2330"/><stop offset="1" stop-color="#0b111a"/></linearGradient>
+            <linearGradient id="vliquid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93ffc6"/><stop offset="0.5" stop-color="#4bdd97"/><stop offset="1" stop-color="#1fac70"/></linearGradient>
+            <linearGradient id="vtop" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="0.42" stop-color="#ffffff" stop-opacity="0.02"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+            <linearGradient id="vwall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/><stop offset="0.5" stop-color="#dfe8e6" stop-opacity="0.86"/><stop offset="1" stop-color="#b7c4c2" stop-opacity="0.82"/></linearGradient>
+            <radialGradient id="vvig" cx="0.5" cy="0.95" r="0.85"><stop offset="0.5" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.30"/></radialGradient>
+            <filter id="vglow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+            <clipPath id="vtile"><rect x="100" y="100" width="824" height="824" rx="185" ry="185"/></clipPath>
+          </defs>
+          <g clip-path="url(#vtile)">
+            <g transform="translate(100,100) scale(0.8046)">
+              <rect x="0" y="0" width="1024" height="1024" fill="url(#vbg)"/>
+              <rect x="0" y="0" width="1024" height="1024" fill="url(#vtop)"/>
+              <g filter="url(#vglow)"><path d="M376 534.4 H648 V656 A136 136 0 0 1 376 656 Z" fill="url(#vliquid)"/></g>
+              <rect x="376" y="527.4" width="272" height="13" rx="6.5" fill="#eafff4" opacity="0.42"/>
+              <rect x="346" y="202" width="332" height="620" rx="166" fill="none" stroke="url(#vwall)" stroke-width="22"/>
+              <rect x="0" y="0" width="1024" height="1024" fill="url(#vvig)"/>
+            </g>
+          </g>
+        </svg>
+        <span class="label">Headroom</span>
+      </div>
+      <div class="icon icon-apps">
+        <svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="ab" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5AB1F1"/><stop offset="1" stop-color="#2C82E3"/></linearGradient>
+            <linearGradient id="af" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8ACBFC"/><stop offset="1" stop-color="#3C93EE"/></linearGradient>
+          </defs>
+          <path d="M12 44 q0-12 12-12 h26 q6 0 10 4 l7 7 q3 3 8 3 h33 q12 0 12 12 v12 H12 Z" fill="url(#ab)"/>
+          <g stroke="#EFF6FF" stroke-width="7" stroke-linejoin="round" stroke-linecap="round" fill="none"><path d="M64 26 L46 78"/><path d="M64 26 L82 78"/><path d="M53 62 H75"/></g>
+          <path d="M12 62 q0-10 11-10 h82 q11 0 11 10 v34 q0 12 -12 12 H24 q-12 0 -12 -12 Z" fill="url(#af)"/>
+          <path d="M23 53 h82 q10 0 10.5 8" fill="none" stroke="#C7E6FE" stroke-width="1.5" stroke-linecap="round" opacity="0.7"/>
+        </svg>
+        <span class="label">Applications</span>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

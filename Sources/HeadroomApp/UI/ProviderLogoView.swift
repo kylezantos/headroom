@@ -9,11 +9,16 @@ struct ProviderLogoView: View {
     var size: CGFloat = 16
 
     var body: some View {
+        // Per-provider optical-size correction inside a fixed slot (shared with iOS via
+        // HeadroomCore), so Claude's edge-to-edge starburst and Codex's inset blob read as
+        // equal weight across every surface.
+        let scale = CGFloat(HeadroomBrandMark.opticalScale(for: providerID.raw))
         if let image = BrandIconImage.image(for: providerID) {
             Image(nsImage: image)
                 .resizable()
                 .renderingMode(.original)
                 .scaledToFit()
+                .frame(width: size * scale, height: size * scale)
                 .frame(width: size, height: size)
                 .accessibilityHidden(true)
         } else {

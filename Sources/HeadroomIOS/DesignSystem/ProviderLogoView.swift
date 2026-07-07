@@ -6,7 +6,12 @@ struct ProviderLogoView: View {
 
     @Environment(\.colorScheme) private var scheme
 
+    // The raw brand mark, no tinted container — matching the Mac popover. The mark scales
+    // by a per-provider optical factor inside a *fixed* slot, so Claude's edge-to-edge
+    // starburst and Codex's inset blob read as equal-sized while the icon column stays
+    // aligned across rows.
     var body: some View {
+        let slot = size * 1.35
         Group {
             if let assetName {
                 Image(assetName)
@@ -14,19 +19,17 @@ struct ProviderLogoView: View {
                     .scaledToFit()
             } else {
                 Image(systemName: symbolName)
-                    .font(.system(size: size * 0.55, weight: .semibold))
+                    .font(.system(size: size * 0.9, weight: .semibold))
                     .foregroundStyle(HeadroomTheme.providerTextAccent(for: providerID, scheme: scheme))
             }
         }
-        .frame(width: size, height: size)
-        .padding(size * 0.20)
-        // Squircle to match the app-icon language (HeadroomAppIconView's 0.22 superellipse
-        // ratio), applied to the padded badge (size * 1.4) — not a Circle.
-        .background(
-            HeadroomTheme.providerAccent(for: providerID).opacity(scheme == .dark ? 0.18 : 0.13),
-            in: RoundedRectangle(cornerRadius: size * 1.4 * 0.22, style: .continuous)
-        )
+        .frame(width: slot * opticalScale, height: slot * opticalScale)
+        .frame(width: slot, height: slot)
         .accessibilityHidden(true)
+    }
+
+    private var opticalScale: CGFloat {
+        CGFloat(HeadroomBrandMark.opticalScale(for: providerID))
     }
 
     private var assetName: String? {

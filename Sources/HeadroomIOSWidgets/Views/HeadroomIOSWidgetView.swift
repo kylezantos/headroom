@@ -232,16 +232,21 @@ struct HeadroomIOSWidgetView: View {
 
     @ViewBuilder
     private func providerIcon(_ id: String, size: CGFloat) -> some View {
+        // Optical-size correction inside a fixed slot (shared via HeadroomCore) so Claude
+        // and Codex read as equal weight, matching the app.
+        let scale = CGFloat(HeadroomBrandMark.opticalScale(for: id))
         if let assetName = assetName(for: id) {
             Image(assetName)
                 .resizable()
                 .scaledToFit()
+                .frame(width: size * scale, height: size * scale)
                 .frame(width: size, height: size)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: symbol(for: id))
                 .resizable()
                 .scaledToFit()
+                .frame(width: size * scale, height: size * scale)
                 .frame(width: size, height: size)
                 .foregroundStyle(accent(for: id))
                 .accessibilityHidden(true)

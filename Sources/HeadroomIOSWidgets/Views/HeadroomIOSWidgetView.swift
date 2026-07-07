@@ -323,7 +323,6 @@ struct HeadroomIOSWidgetView: View {
                 .layoutPriority(1)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func iosAPISpendLargeSection(_ summaries: [WidgetAPISpendSummary]) -> some View {

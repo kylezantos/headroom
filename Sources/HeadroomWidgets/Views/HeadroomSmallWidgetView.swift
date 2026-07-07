@@ -3,12 +3,13 @@ import SwiftUI
 
 struct HeadroomSmallWidgetView: View {
     let envelope: WidgetSnapshotEnvelope
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Weekly left")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
+                .foregroundStyle(WidgetProviderStyle.secondaryText(scheme: scheme))
             VStack(alignment: .leading, spacing: 8) {
                 ForEach(envelope.providers) { provider in
                     let windows = provider.weeklyDisplayWindows

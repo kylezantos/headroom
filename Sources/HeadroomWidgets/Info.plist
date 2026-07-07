@@ -17,13 +17,13 @@
     <key>CFBundlePackageType</key>
     <string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>$(MARKETING_VERSION)</string>
     <key>CFBundleSupportedPlatforms</key>
     <array>
         <string>MacOSX</string>
     </array>
     <key>CFBundleVersion</key>
-    <string>2</string>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
     <key>HeadroomAppGroupIdentifier</key>
     <string>$(HEADROOM_APP_GROUP_IDENTIFIER)</string>
     <key>LSMinimumSystemVersion</key>

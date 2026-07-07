@@ -6,56 +6,45 @@ struct HeadroomLargeWidgetView: View {
     let now: Date
     @Environment(\.colorScheme) private var scheme
 
-    // Shared by the tiles (their horizontal inset) and the footer (its trailing inset),
-    // so the timestamp lines up with the % column instead of hugging the corner radius.
-    private let tileInset: CGFloat = 12
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text("Usage")
-                    .font(.system(size: 19, weight: .semibold))
-                Spacer(minLength: 0)
-                WidgetAppIconMark(size: 20)
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(envelope.providers.enumerated()), id: \.element.id) { index, provider in
+                LargeProviderSection(provider: provider, now: now)
+                if index < envelope.providers.count - 1 {
+                    Rectangle()
+                        .fill(WidgetProviderStyle.hairline(scheme: scheme))
+                        .frame(height: 1)
+                        .padding(.vertical, 15)
+                }
             }
-            ForEach(envelope.providers) { provider in
-                LargeProviderTile(provider: provider, now: now, inset: tileInset)
-            }
+            Spacer(minLength: 0)
             if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
                 Text("from Mac · \(updated)")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
                     .lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, tileInset)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
+        .padding(.horizontal, 15)
+        .padding(.top, 13)
         .padding(.bottom, 12)
     }
 }
 
-private struct LargeProviderTile: View {
+private struct LargeProviderSection: View {
     let provider: WidgetProviderSummary
     let now: Date
-    var inset: CGFloat = 12
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 9) {
             header
             WidgetUsageMeter(window: window(.weekly), fallbackLabel: "Weekly", now: now, showsResetInline: true, prominent: true)
             WidgetUsageMeter(window: window(.fiveHour), fallbackLabel: "5-hour", now: now, showsResetInline: true, prominent: true)
-            ForEach(provider.extraCounterWindows) { window in
-                WidgetUsageMeter(window: window, fallbackLabel: window.label, now: now, showsResetInline: true, prominent: true)
-            }
         }
-        .padding(.horizontal, inset)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .widgetTile()
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var header: some View {
@@ -80,12 +69,6 @@ private struct LargeProviderTile: View {
                     .labelStyle(.iconOnly)
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(WidgetProviderStyle.severityColor(for: .low))
-            }
-            if let renewalDate = provider.renewalDate {
-                Text("Renews \(renewalDate.formatted(.dateTime.month(.abbreviated).day()))")
-                    .font(.system(size: 11))
-                    .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
-                    .lineLimit(1)
             }
         }
     }

@@ -55,24 +55,6 @@ enum WidgetProviderStyle {
     static func hairline(scheme: ColorScheme) -> Color {
         scheme == .dark ? Color.white.opacity(0.10) : Color.black.opacity(0.09)
     }
-
-    // Elevated tile surface for the large widget's provider cards. Light mode sits the
-    // white card on the white widget background (defined purely by ring + ambient
-    // shadow); dark mode lifts it a step above the near-black container.
-    static func tileSurface(scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(red: 0.14, green: 0.14, blue: 0.15) : .white
-    }
-
-    // The ring layer that replaces a border (KTD/Jakub elevation): a hairline in light,
-    // a faint top-lit glow in dark.
-    static func tileRing(scheme: ColorScheme) -> AnyShapeStyle {
-        scheme == .dark
-            ? AnyShapeStyle(LinearGradient(
-                colors: [.white.opacity(0.14), .white.opacity(0.04)],
-                startPoint: .top,
-                endPoint: .bottom))
-            : AnyShapeStyle(Color.black.opacity(0.05))
-    }
 }
 
 private extension Color {

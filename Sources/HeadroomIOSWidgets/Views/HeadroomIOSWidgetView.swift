@@ -442,24 +442,33 @@ private enum IOSWidgetStyle {
     }
 }
 
-/// Mirror of the macOS `WidgetTileBackground` (KTD/Jakub elevation) so the iOS large
-/// widget's provider tiles carry the same ring-shadow / light-glow surface.
+/// Elevated provider-tile surface for the iOS large widget. In accented/Liquid Glass
+/// rendering, skip the opaque fill so WidgetKit does not flatten the tile into a mask.
 private struct IOSWidgetTile: ViewModifier {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetRenderingMode) private var renderingMode
     var cornerRadius: CGFloat = 14
 
     func body(content: Content) -> some View {
         content
             .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(IOSWidgetStyle.tileSurface(scheme: scheme))
-                    .shadow(color: ambient, radius: scheme == .dark ? 10 : 8, x: 0, y: scheme == .dark ? 8 : 4)
-                    .shadow(color: ambientTight, radius: 2, x: 0, y: 1)
+                if renderingMode == .fullColor {
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                        .fill(IOSWidgetStyle.tileSurface(scheme: scheme))
+                        .shadow(color: ambient, radius: scheme == .dark ? 10 : 8, x: 0, y: scheme == .dark ? 8 : 4)
+                        .shadow(color: ambientTight, radius: 2, x: 0, y: 1)
+                }
             }
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(IOSWidgetStyle.tileRing(scheme: scheme), lineWidth: 1)
+                    .strokeBorder(tileRing, lineWidth: 1)
             }
+    }
+
+    private var tileRing: AnyShapeStyle {
+        renderingMode == .fullColor
+            ? IOSWidgetStyle.tileRing(scheme: scheme)
+            : AnyShapeStyle(IOSWidgetStyle.hairline(scheme: scheme))
     }
 
     private var ambient: Color { scheme == .dark ? .black.opacity(0.38) : .black.opacity(0.05) }

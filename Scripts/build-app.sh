@@ -162,7 +162,13 @@ xcodebuild \
   build
 
 echo "→ assembling ${APP}"
-rm -rf "${APP}"
+if [[ -e "${APP}" ]]; then
+  ARCHIVE_DIR="${DERIVED_DATA}/ArchivedApps"
+  mkdir -p "${ARCHIVE_DIR}"
+  ARCHIVED_APP="${ARCHIVE_DIR}/Headroom.app.$(date +%Y%m%d-%H%M%S)"
+  echo "→ archiving existing ${APP} to ${ARCHIVED_APP}"
+  mv "${APP}" "${ARCHIVED_APP}"
+fi
 ditto "${BUILT_APP}" "${APP}"
 prepare_entitlements
 stamp_app_group_info
@@ -192,6 +198,12 @@ done < <(find "${APP}/Contents/Frameworks" -maxdepth 1 -type d -name '*.framewor
 sign_path "${WIDGET_APPEX}" --entitlements "${WIDGET_ENTITLEMENTS}"
 sign_path "${APP}" --entitlements "${APP_ENTITLEMENTS}"
 codesign --verify --deep --strict --verbose=2 "${APP}"
+
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Versions/Current/Frameworks/LaunchServices.framework/Versions/Current/Support/lsregister"
+if [[ -x "${LSREGISTER}" ]]; then
+  echo "→ registering ${APP} with LaunchServices"
+  "${LSREGISTER}" -f -R -trusted "${APP}"
+fi
 
 echo "✓ Built ${APP}"
 echo "  Launch:  open ${APP}    (look for the vessel icon in the menu bar)"

@@ -7,7 +7,7 @@ struct WidgetUsageMeter: View {
     var now: Date?
     var showsResetInline = false
     var compact = false
-    // Large widget's tiles read as a premium surface, so their meters get bumped type
+    // Large widgets get bumped type
     // and a taller bar than the medium/small families.
     var prominent = false
 

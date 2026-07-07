@@ -133,7 +133,7 @@ struct WidgetSnapshotProjectorTests {
             .other("codex-spark weekly"),
         ])
         #expect(envelope.providers[0].extraCounterWindows.count == 2)
-        #expect(envelope.providers[0].weeklyDisplayWindows.map(\.label) == ["weekly", "codex-spark weekly"])
+        #expect(envelope.providers[0].weeklyDisplayWindows.map(\.label) == ["Weekly", "codex-spark weekly"])
     }
 
     @Test func sparkWindowSettingDoesNotExposeNonCodexWindows() {

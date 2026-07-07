@@ -7,8 +7,7 @@ struct HeadroomMediumWidgetView: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            header
+        VStack(alignment: .leading, spacing: 8) {
             if envelope.providers.count <= 1 {
                 ForEach(envelope.providers) { provider in
                     MediumProviderColumn(provider: provider)
@@ -27,25 +26,18 @@ struct HeadroomMediumWidgetView: View {
                 }
             }
             Spacer(minLength: 0)
-        }
-        // KTD1: rely on WidgetKit's default content margins for the ~16pt effective
-        // outer margin; keep only a minimal residual. Tune against the widget gallery.
-        .padding(2)
-    }
-
-    private var header: some View {
-        HStack(spacing: 8) {
-            Text("Usage")
-                .font(.headline)
-            Spacer(minLength: 0)
             if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
-                Text(updated)
+                Text("from Mac · \(updated)")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(WidgetProviderStyle.secondaryText(scheme: scheme))
+                    .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
                     .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            WidgetAppIconMark(size: 18)
         }
+        // KTD1: rely on WidgetKit's default content margins for the outer margin;
+        // keep only a small residual so the two-column meters do not feel cramped.
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
     }
 }
 
@@ -55,13 +47,15 @@ private struct MediumProviderColumn: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
-                WidgetProviderIcon(providerID: provider.id, size: 15)
+                WidgetProviderIcon(providerID: provider.id, size: 18)
                 Text(provider.displayName)
-                    .font(.caption.weight(.semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(WidgetProviderStyle.textAccent(for: provider.id, scheme: scheme))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
                 Spacer(minLength: 0)
                 if provider.freshness.needsAttention {
                     Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
@@ -72,9 +66,6 @@ private struct MediumProviderColumn: View {
             }
             WidgetUsageMeter(window: window(.weekly), fallbackLabel: "Weekly", compact: true)
             WidgetUsageMeter(window: window(.fiveHour), fallbackLabel: "5-hour", compact: true)
-            ForEach(provider.extraCounterWindows) { window in
-                WidgetUsageMeter(window: window, fallbackLabel: window.label, compact: true)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

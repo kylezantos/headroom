@@ -5,26 +5,29 @@ struct HeadroomSmallWidgetView: View {
     let envelope: WidgetSnapshotEnvelope
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Weekly left")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.secondary)
-            ForEach(envelope.providers) { provider in
-                let windows = provider.weeklyDisplayWindows
-                if windows.isEmpty {
-                    WidgetProviderWeeklyLine(provider: provider, compact: true)
-                } else {
-                    ForEach(windows) { window in
-                        SmallWeeklyWindowLine(provider: provider, window: window)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(envelope.providers) { provider in
+                    let windows = provider.weeklyDisplayWindows
+                    if windows.isEmpty {
+                        WidgetProviderWeeklyLine(provider: provider, compact: true)
+                    } else {
+                        ForEach(windows) { window in
+                            SmallWeeklyWindowLine(provider: provider, window: window)
+                        }
                     }
                 }
             }
+            .padding(.top, 9)
             Spacer(minLength: 0)
         }
-        // KTD1: system content margins carry the ~14pt effective outer margin; keep only
-        // a minimal residual. Tune against the widget gallery.
+        // KTD1: system content margins carry the effective outer margin; keep only
+        // a minimal residual so the small family has room for three weekly lines.
         .padding(.horizontal, 2)
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
     }
 }
 

@@ -29,7 +29,13 @@ struct HoverButtonStyle: ButtonStyle {
                 .padding(.vertical, verticalPadding)
                 .background(shape.fill(Color.primary.opacity(
                     configuration.isPressed ? 0.16 : (hovering ? 0.09 : 0))))
-                .contentShape(shape)
+                // Extend the tap target ~7pt past the visible pill toward the 40pt floor,
+                // then pull that padding back out of layout so neighbouring controls don't
+                // shift — SwiftUI's equivalent of a hit-area pseudo-element. The visible
+                // chip is unchanged; only the invisible interaction region grows.
+                .padding(7)
+                .contentShape(Rectangle())
+                .padding(-7)
                 // Tactile press: a subtle 0.96 scale (never below 0.95, which reads as
                 // exaggerated). An interruptible value animation, so releasing mid-press
                 // springs back smoothly rather than snapping — still input-driven, no idle

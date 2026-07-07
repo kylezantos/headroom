@@ -30,7 +30,9 @@ struct APISpendSectionView: View {
                 }
             }
             .padding(12)
-            .raisedTile(cornerRadius: 12)
+            // Concentric with the R22 popover shell at the same 12pt inset as the provider
+            // cards above it (12 + 10 = 22) — sibling tiles now share one radius.
+            .raisedTile(cornerRadius: 10)
             .padding(.top, 2)
         }
     }
@@ -62,7 +64,7 @@ struct APISpendSectionView: View {
         case .live:
             if let updated = Countdown.updatedLabel(capturedAt: snapshot.capturedAt, now: now) {
                 Text("Updated \(updated)")
-                    .font(.caption2)
+                    .font(.caption2.monospacedDigit())
                     .foregroundStyle(.tertiary)
             }
         case .stale(let reason):

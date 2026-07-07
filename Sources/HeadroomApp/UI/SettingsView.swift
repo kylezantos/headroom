@@ -15,6 +15,7 @@ struct SettingsView: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
     @State private var menuBarFillSource: MenuBarFillSource = .none
@@ -47,6 +48,17 @@ struct SettingsView: View {
                         .scaledToFit()
                         .frame(width: 34, height: 34)
                         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        // Neutral 1pt inset outline defines the icon edge on the window
+                        // surface — pure black in light, pure white in dark, never tinted
+                        // (UI craft: image outlines). `.strokeBorder` insets so it stays
+                        // concentric with the clip and doesn't grow the icon.
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .strokeBorder(
+                                    (colorScheme == .dark ? Color.white : Color.black).opacity(0.10),
+                                    lineWidth: 1
+                                )
+                        )
                 }
                 Text("Headroom Settings")
                     .font(.title2.weight(.semibold))

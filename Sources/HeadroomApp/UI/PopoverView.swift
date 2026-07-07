@@ -86,7 +86,9 @@ struct PopoverView: View {
                 Image(systemName: "gearshape")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .frame(width: 26, height: 26)
+                    // 32pt glyph frame so the glass control reaches the ~40pt hit floor
+                    // while the visible gearshape stays small.
+                    .frame(width: 32, height: 32)
             }
             .buttonStyle(.glass)
             .buttonBorderShape(.circle)

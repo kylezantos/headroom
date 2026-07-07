@@ -1,8 +1,13 @@
 import SwiftUI
 import WidgetKit
 
+/// iPhone Continuity widget. Mirrors the macOS widget composition (small/medium/large in
+/// `Sources/HeadroomWidgets/Views`) so both families read identically (R1/R3); only the
+/// platform-specific WidgetKit chrome — `.containerBackground` and `.widgetURL` — and the
+/// shared color values (via `IOSWidgetStyle`) live on this side.
 struct HeadroomIOSWidgetView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var scheme
     let entry: HeadroomIOSWidgetEntry
 
     var body: some View {
@@ -38,131 +43,265 @@ struct HeadroomIOSWidgetView: View {
         }
     }
 
+    // MARK: - Small
+
+    // Mirrors `HeadroomSmallWidgetView`: a "Weekly left" header over one line per
+    // weekly-style window. Quota-only and footer-free so the small family stays glanceable
+    // and can fit three weekly lines (R3).
     private func small(_ envelope: WidgetSnapshotEnvelope) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             Text("Weekly left")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
-            ForEach(envelope.weeklyProviders) { provider in
-                providerWeeklyLine(provider)
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(envelope.providers) { provider in
+                    let windows = provider.weeklyDisplayWindows
+                    if windows.isEmpty {
+                        providerWeeklyLine(provider)
+                    } else {
+                        ForEach(windows) { window in
+                            smallWeeklyWindowLine(provider, window)
+                        }
+                    }
+                }
             }
+            .padding(.top, 9)
             Spacer(minLength: 0)
-            if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
-                Text("from Mac · \(updated)")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
-                    .lineLimit(1)
-            }
         }
-        // KTD1: system content margins carry the ~14pt effective outer margin; keep only
-        // a minimal residual. Tune against the widget gallery.
+        // KTD1: system content margins carry the effective outer margin; keep only
+        // a minimal residual so the small family has room for three weekly lines.
         .padding(.horizontal, 2)
-        .padding(.vertical, 4)
+        .padding(.vertical, 5)
     }
 
-    private func medium(_ envelope: WidgetSnapshotEnvelope) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 8) {
-                Text("Usage")
-                    .font(.headline)
-                Spacer(minLength: 0)
-                if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
-                    Text(updated)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
-                        .lineLimit(1)
-                }
-                IOSWidgetAppIconMark(size: 18)
+    private func smallLineTitle(_ provider: WidgetProviderSummary, _ window: WidgetWindowSummary) -> String {
+        switch window.kind {
+        case .weekly:
+            return provider.displayName
+        case .fiveHour:
+            return window.label
+        case .other:
+            return window.label.replacingOccurrences(of: " weekly", with: "", options: .caseInsensitive)
+        }
+    }
+
+    private func smallWeeklyWindowLine(_ provider: WidgetProviderSummary, _ window: WidgetWindowSummary) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                providerIcon(provider.id, size: 12)
+                Text(smallLineTitle(provider, window))
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(IOSWidgetStyle.textAccent(for: provider.id, scheme: scheme))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .allowsTightening(true)
+                    .layoutPriority(1)
+                Spacer(minLength: 2)
+                Text("\(Int(window.percentRemaining.rounded()))%")
+                    .font(.system(size: 14).bold().monospacedDigit())
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                    .allowsTightening(true)
+                    .frame(width: 36, alignment: .trailing)
             }
+            IOSWidgetUsageBar(
+                percentRemaining: window.percentRemaining,
+                severity: window.severity
+            )
+        }
+    }
+
+    // Fallback for a provider with no weekly-style window: a compact line that dims when
+    // the window is missing (mirrors macOS `WidgetProviderWeeklyLine`).
+    private func providerWeeklyLine(_ provider: WidgetProviderSummary) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 5) {
+                providerIcon(provider.id, size: 12)
+                Text(provider.displayName)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(IOSWidgetStyle.textAccent(for: provider.id, scheme: scheme))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.82)
+                    .allowsTightening(true)
+                    .layoutPriority(1)
+                Spacer(minLength: 2)
+                Text(percent(provider.weeklyWindow))
+                    .font(.system(size: 14, weight: .bold).monospacedDigit())
+                    .foregroundStyle(provider.weeklyWindow == nil ? IOSWidgetStyle.secondaryText(scheme: scheme) : .primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.78)
+                    .allowsTightening(true)
+                    .frame(width: 36, alignment: .trailing)
+            }
+            IOSWidgetUsageBar(
+                percentRemaining: provider.weeklyWindow?.percentRemaining ?? 0,
+                severity: provider.weeklyWindow?.severity ?? .healthy,
+                dimmed: provider.weeklyWindow == nil
+            )
+        }
+    }
+
+    // MARK: - Medium
+
+    // Mirrors `HeadroomMediumWidgetView`: provider columns as the primary content, an
+    // optional compact API-spend row under a hairline, and a freshness footer. No "Usage"
+    // title or app-icon mark (R3).
+    private func medium(_ envelope: WidgetSnapshotEnvelope) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
             if envelope.apiSpendProviders.isEmpty {
                 Spacer(minLength: 0)
                 mediumProviderColumns(envelope.providers)
                 Spacer(minLength: 0)
+                mediumFooter(generatedAt: envelope.generatedAt, prefix: "from Mac · ")
             } else {
                 mediumProviderColumns(envelope.providers)
                 Spacer(minLength: 6)
                 Rectangle()
                     .fill(IOSWidgetStyle.hairline(scheme: scheme))
                     .frame(height: 1)
-                iosAPISpendCompactRow(envelope.apiSpendProviders)
+                HStack(alignment: .center, spacing: 8) {
+                    iosAPISpendCompactRow(envelope.apiSpendProviders)
+                        .layoutPriority(1)
+                    Spacer(minLength: 4)
+                    mediumFooter(generatedAt: envelope.generatedAt, prefix: "", fillsWidth: false)
+                }
             }
         }
-        // KTD1: lean on WidgetKit's default content margins for the ~16pt effective
-        // outer margin; keep only a minimal residual. Tune against the widget gallery.
-        .padding(2)
+        // KTD1: rely on WidgetKit's default content margins for the outer margin;
+        // keep only a small residual so the two-column meters do not feel cramped.
+        .padding(.horizontal, 3)
+        .padding(.vertical, 2)
     }
 
-    private func large(_ envelope: WidgetSnapshotEnvelope) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text("Usage")
-                    .font(.system(size: 19, weight: .semibold))
-                Spacer(minLength: 0)
-                IOSWidgetAppIconMark(size: 20)
+    @ViewBuilder
+    private func mediumFooter(generatedAt: Date, prefix: String, fillsWidth: Bool = true) -> some View {
+        if let updated = Countdown.updatedLabel(capturedAt: generatedAt, now: entry.date) {
+            Text("\(prefix)\(updated)")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
+                .lineLimit(1)
+                .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .trailing)
+        }
+    }
+
+    @ViewBuilder
+    private func mediumProviderColumns(_ providers: [WidgetProviderSummary]) -> some View {
+        if providers.count <= 1 {
+            ForEach(providers) { provider in
+                providerColumn(provider)
             }
-            ForEach(envelope.providers) { provider in
-                largeProviderTile(provider)
-            }
-            if !envelope.apiSpendProviders.isEmpty {
-                iosAPISpendLargeSection(envelope.apiSpendProviders)
-            }
-            if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
-                Text("from Mac · \(updated)")
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, largeTileInset)
+        } else {
+            HStack(alignment: .top, spacing: 10) {
+                ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
+                    providerColumn(provider)
+                    if index < providers.count - 1 {
+                        Rectangle()
+                            .fill(IOSWidgetStyle.hairline(scheme: scheme))
+                            .frame(width: 1)
+                            .frame(maxHeight: .infinity)
+                    }
+                }
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 14)
-        .padding(.bottom, 12)
     }
 
-    // Shared by the tiles (their horizontal inset) and the footer (its trailing inset),
-    // so the timestamp lines up with the % column instead of hugging the corner radius.
-    private var largeTileInset: CGFloat { 12 }
-
-    private func largeProviderTile(_ provider: WidgetProviderSummary) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
+    private func providerColumn(_ provider: WidgetProviderSummary) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
-                providerIcon(provider.id, size: 20)
+                providerIcon(provider.id, size: 18)
                 Text(provider.displayName)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(IOSWidgetStyle.textAccent(for: provider.id, scheme: scheme))
                     .lineLimit(1)
-                if let planLabel = provider.planLabel {
-                    Text(planLabel)
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
-                        .lineLimit(1)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1)
-                        .background(IOSWidgetStyle.barTrack(scheme: scheme), in: Capsule())
-                }
-                Spacer(minLength: 4)
+                    .minimumScaleFactor(0.9)
+                    .allowsTightening(true)
+                Spacer(minLength: 0)
                 if provider.freshness.needsAttention {
                     Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
                         .labelStyle(.iconOnly)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(IOSWidgetStyle.severityColor(for: .low))
                 }
-                if let renewalDate = provider.renewalDate {
-                    Text("Renews \(renewalDate.formatted(.dateTime.month(.abbreviated).day()))")
-                        .font(.system(size: 11))
-                        .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
-                        .lineLimit(1)
+            }
+            IOSWidgetUsageMeter(window: window(.weekly, in: provider), fallbackLabel: "Weekly", compact: true)
+            IOSWidgetUsageMeter(window: window(.fiveHour, in: provider), fallbackLabel: "5-hour", compact: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Large
+
+    // Mirrors `HeadroomLargeWidgetView`: provider sections separated by hairlines (no tile
+    // cards), an optional API-spend section, and a trailing freshness footer. No "Usage"
+    // title or app-icon mark (R3).
+    private func large(_ envelope: WidgetSnapshotEnvelope) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(envelope.providers.enumerated()), id: \.element.id) { index, provider in
+                largeProviderSection(provider)
+                if index < envelope.providers.count - 1 {
+                    Rectangle()
+                        .fill(IOSWidgetStyle.hairline(scheme: scheme))
+                        .frame(height: 1)
+                        .padding(.vertical, 15)
                 }
             }
+            if !envelope.apiSpendProviders.isEmpty {
+                Rectangle()
+                    .fill(IOSWidgetStyle.hairline(scheme: scheme))
+                    .frame(height: 1)
+                    .padding(.vertical, 13)
+                iosAPISpendLargeSection(envelope.apiSpendProviders)
+            }
+            Spacer(minLength: 0)
+            if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
+                Text("from Mac · \(updated)")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(IOSWidgetStyle.tertiaryText(scheme: scheme))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .padding(.horizontal, 15)
+        .padding(.top, 13)
+        .padding(.bottom, 12)
+    }
+
+    private func largeProviderSection(_ provider: WidgetProviderSummary) -> some View {
+        VStack(alignment: .leading, spacing: 9) {
+            largeSectionHeader(provider)
             IOSWidgetUsageMeter(window: window(.weekly, in: provider), fallbackLabel: "Weekly", now: entry.date, showsResetInline: true, prominent: true)
             IOSWidgetUsageMeter(window: window(.fiveHour, in: provider), fallbackLabel: "5-hour", now: entry.date, showsResetInline: true, prominent: true)
         }
-        .padding(.horizontal, largeTileInset)
-        .padding(.vertical, 11)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .modifier(IOSWidgetTile())
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
+
+    private func largeSectionHeader(_ provider: WidgetProviderSummary) -> some View {
+        HStack(spacing: 6) {
+            providerIcon(provider.id, size: 20)
+            Text(provider.displayName)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(IOSWidgetStyle.textAccent(for: provider.id, scheme: scheme))
+                .lineLimit(1)
+            if let planLabel = provider.planLabel {
+                Text(planLabel)
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(IOSWidgetStyle.secondaryText(scheme: scheme))
+                    .lineLimit(1)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(IOSWidgetStyle.barTrack(scheme: scheme), in: Capsule())
+            }
+            Spacer(minLength: 4)
+            if provider.freshness.needsAttention {
+                Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
+                    .labelStyle(.iconOnly)
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(IOSWidgetStyle.severityColor(for: .low))
+            }
+        }
+    }
+
+    // MARK: - API spend
 
     private func iosAPISpendCompactRow(_ summaries: [WidgetAPISpendSummary]) -> some View {
         HStack(spacing: 6) {
@@ -188,7 +327,7 @@ struct HeadroomIOSWidgetView: View {
     }
 
     private func iosAPISpendLargeSection(_ summaries: [WidgetAPISpendSummary]) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 7) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("API Spend")
                     .font(.system(size: 11, weight: .semibold))
@@ -227,35 +366,6 @@ struct HeadroomIOSWidgetView: View {
                 }
             }
         }
-        .padding(.horizontal, largeTileInset)
-    }
-
-    private func providerWeeklyLine(_ provider: WidgetProviderSummary) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                providerIcon(provider.id, size: 12)
-                Text(provider.displayName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(IOSWidgetStyle.textAccent(for: provider.id, scheme: scheme))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                    .allowsTightening(true)
-                    .layoutPriority(1)
-                Spacer(minLength: 2)
-                Text(percent(provider.weeklyWindow))
-                    .font(.system(size: 14, weight: .bold).monospacedDigit())
-                    .foregroundStyle(provider.weeklyWindow == nil ? IOSWidgetStyle.secondaryText(scheme: scheme) : .primary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                    .allowsTightening(true)
-                    .frame(width: 36, alignment: .trailing)
-            }
-            IOSWidgetUsageBar(
-                percentRemaining: provider.weeklyWindow?.percentRemaining ?? 0,
-                severity: provider.weeklyWindow?.severity ?? .healthy,
-                dimmed: provider.weeklyWindow == nil
-            )
-        }
     }
 
     private func apiSpendDetailText(_ summary: WidgetAPISpendSummary) -> String {
@@ -277,48 +387,7 @@ struct HeadroomIOSWidgetView: View {
             : .primary
     }
 
-    private func providerColumn(_ provider: WidgetProviderSummary) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            HStack(spacing: 6) {
-                providerIcon(provider.id, size: 15)
-                Text(provider.displayName)
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(IOSWidgetStyle.textAccent(for: provider.id, scheme: scheme))
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                if provider.freshness.needsAttention {
-                    Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
-                        .labelStyle(.iconOnly)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(IOSWidgetStyle.severityColor(for: .low))
-                }
-            }
-            IOSWidgetUsageMeter(window: window(.weekly, in: provider), fallbackLabel: "Weekly", compact: true)
-            IOSWidgetUsageMeter(window: window(.fiveHour, in: provider), fallbackLabel: "5-hour", compact: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func mediumProviderColumns(_ providers: [WidgetProviderSummary]) -> some View {
-        if providers.count <= 1 {
-            ForEach(providers) { provider in
-                providerColumn(provider)
-            }
-        } else {
-            HStack(alignment: .top, spacing: 10) {
-                ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
-                    providerColumn(provider)
-                    if index < providers.count - 1 {
-                        Rectangle()
-                            .fill(IOSWidgetStyle.hairline(scheme: scheme))
-                            .frame(width: 1)
-                            .frame(maxHeight: .infinity)
-                    }
-                }
-            }
-        }
-    }
+    // MARK: - Helpers
 
     private func window(_ kind: WidgetWindowKind, in provider: WidgetProviderSummary) -> WidgetWindowSummary? {
         provider.subscriptionWindows.first { $0.kind == kind }
@@ -367,25 +436,6 @@ struct HeadroomIOSWidgetView: View {
     private func accent(for id: String) -> Color {
         IOSWidgetStyle.accent(for: id)
     }
-
-    @Environment(\.colorScheme) private var scheme
-}
-
-/// Mirror of the macOS `WidgetAppIconMark` (U1) so the medium/large iOS widget headers
-/// carry the same rounded app-icon mark. Source art is the shared `AppIconMark` imageset;
-/// rounding uses the `size * 0.22` continuous-corner recipe from `HeadroomAppIconView` (R2).
-private struct IOSWidgetAppIconMark: View {
-    var size: CGFloat = 18
-
-    var body: some View {
-        Image("AppIconMark")
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
-            .shadow(color: .black.opacity(0.10), radius: size * 0.16, y: size * 0.06)
-            .accessibilityHidden(true)
-    }
 }
 
 private struct IOSWidgetUsageMeter: View {
@@ -394,8 +444,8 @@ private struct IOSWidgetUsageMeter: View {
     var now: Date?
     var showsResetInline = false
     var compact = false
-    // The large widget's tiles read as a premium surface, so their meters get bumped
-    // type and a taller bar than the medium/small families.
+    // The large widget's sections read as premium, so their meters get bumped type and a
+    // taller bar than the medium/small families.
     var prominent = false
 
     @Environment(\.colorScheme) private var scheme
@@ -521,57 +571,6 @@ private enum IOSWidgetStyle {
     static func hairline(scheme: ColorScheme) -> Color {
         Color(HeadroomWidgetColorValues.hairline(dark: scheme == .dark))
     }
-
-    // Elevated tile surface for the large widget's provider cards. Light mode sits the
-    // white card on the white widget background (defined purely by ring + ambient
-    // shadow); dark mode lifts it a step above the near-black container.
-    static func tileSurface(scheme: ColorScheme) -> Color {
-        scheme == .dark ? Color(red: 0.14, green: 0.14, blue: 0.15) : .white
-    }
-
-    // The ring layer that replaces a border (KTD/Jakub elevation): a hairline in light,
-    // a faint top-lit glow in dark.
-    static func tileRing(scheme: ColorScheme) -> AnyShapeStyle {
-        scheme == .dark
-            ? AnyShapeStyle(LinearGradient(
-                colors: [.white.opacity(0.14), .white.opacity(0.04)],
-                startPoint: .top,
-                endPoint: .bottom))
-            : AnyShapeStyle(Color.black.opacity(0.05))
-    }
-}
-
-/// Elevated provider-tile surface for the iOS large widget. In accented/Liquid Glass
-/// rendering, skip the opaque fill so WidgetKit does not flatten the tile into a mask.
-private struct IOSWidgetTile: ViewModifier {
-    @Environment(\.colorScheme) private var scheme
-    @Environment(\.widgetRenderingMode) private var renderingMode
-    var cornerRadius: CGFloat = 14
-
-    func body(content: Content) -> some View {
-        content
-            .background {
-                if renderingMode == .fullColor {
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(IOSWidgetStyle.tileSurface(scheme: scheme))
-                        .shadow(color: ambient, radius: scheme == .dark ? 10 : 8, x: 0, y: scheme == .dark ? 8 : 4)
-                        .shadow(color: ambientTight, radius: 2, x: 0, y: 1)
-                }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(tileRing, lineWidth: 1)
-            }
-    }
-
-    private var tileRing: AnyShapeStyle {
-        renderingMode == .fullColor
-            ? IOSWidgetStyle.tileRing(scheme: scheme)
-            : AnyShapeStyle(IOSWidgetStyle.hairline(scheme: scheme))
-    }
-
-    private var ambient: Color { scheme == .dark ? .black.opacity(0.38) : .black.opacity(0.05) }
-    private var ambientTight: Color { scheme == .dark ? .black.opacity(0.20) : .black.opacity(0.06) }
 }
 
 private extension Color {

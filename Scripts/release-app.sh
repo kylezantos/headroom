@@ -127,7 +127,7 @@ create_drag_install_dmg() {
 
   echo "→ creating writable installer image"
   hdiutil create \
-    -volname "Headroom" \
+    -volname "Headroom Installer" \
     -srcfolder "${STAGING_DIR}" \
     -fs HFS+ \
     -format UDRW \
@@ -176,8 +176,8 @@ on run argv
       set background picture of viewOptions to (POSIX file (mountPath & "/.background/background.tiff") as alias)
     end if
 
-    set position of item "Headroom.app" of dmgFolder to {196, 240}
-    set position of item "Applications" of dmgFolder to {484, 240}
+    set position of item "Headroom.app" of dmgFolder to {196, 176}
+    set position of item "Applications" of dmgFolder to {484, 176}
 
     update dmgFolder without registering applications
     delay 1

@@ -1,23 +1,26 @@
 <!doctype html>
 <!--
-  Headroom DMG installer window background — "Instrument" (Option 1).
+  Headroom DMG installer window background — native/minimal.
   Source of truth for Assets/Release/dmg-background.png (@1x 680x440) and
   dmg-background@2x.png (@2x 1360x880). Regenerate with make-dmg-background.sh.
 
-  This bitmap intentionally contains ONLY branding: ground, icon seats, wordmark,
-  hairline, drag arrow, and instruction. The Headroom.app icon, the Applications
-  folder, and their name labels are drawn by Finder on top at run time
-  (see Scripts/release-app.sh -> create_drag_install_dmg). Do not draw icons here.
+  This bitmap intentionally contains ONLY: ground, icon seats, drag arrow, and
+  instruction. No wordmark/logo — the volume icon + name in the Finder title
+  bar already carry branding, so the window content stays plain and native.
+  The Headroom.app icon, the Applications folder, and their name labels are
+  drawn by Finder on top at run time (see Scripts/release-app.sh ->
+  create_drag_install_dmg). Do not draw icons here.
 
   Canvas 680 x 440. Finder icon-view positions (content coords):
-    Headroom.app  center 196,240   |   Applications  center 484,240   |   icon size 128
+    Headroom.app  center 196,176   |   Applications  center 484,176   |   icon size 128
+  Vertically centered: icon+label block and instruction line are balanced around
+  the 440px content height now that there's no header content up top.
 -->
 <html>
 <head>
 <meta charset="utf-8">
 <style>
   html, body { margin: 0; padding: 0; }
-  @font-face { font-family: 'TX-02'; font-weight: 400; src: local('TX-02'); }
   @font-face { font-family: 'TX-02'; font-weight: 500; src: local('TX-02 Medium'), local('TX-02'); }
 
   .plate {
@@ -33,7 +36,7 @@
   /* Soft seats where Finder drops the two icons */
   .seat {
     position: absolute;
-    top: 184px;
+    top: 120px;
     width: 220px;
     height: 150px;
     border-radius: 50%;
@@ -42,31 +45,23 @@
   .seat-left  { left: 86px; }
   .seat-right { left: 374px; }
 
-  .wordmark {
-    position: absolute;
-    top: 42px; left: 0; width: 680px;
-    display: flex; justify-content: center; align-items: center; gap: 11px;
+  .arrow {
+    position: absolute; left: 266px; top: 162px; width: 148px; height: 28px;
+    display: flex; align-items: center; justify-content: center;
   }
-  .wordmark img { width: 24px; height: 24px; border-radius: 6px; }
-  .wordmark span {
-    font-family: 'TX-02'; font-weight: 500; font-size: 15px;
-    letter-spacing: 0.34em; color: #F4F3EF; padding-left: 0.34em;
+  .arrow span {
+    font-family: 'TX-02'; font-weight: 500; font-size: 24px; line-height: 1;
+    letter-spacing: 0.1em; color: #E3B24E; padding-left: 0.1em;
   }
-
-  .rule {
-    position: absolute; top: 84px; left: 240px; width: 200px; height: 1px;
-    background: linear-gradient(90deg, rgba(46,46,51,0) 0%, #2E2E33 26%, #E3B24E 50%, #2E2E33 74%, rgba(46,46,51,0) 100%);
-  }
-
-  .arrow { position: absolute; left: 274px; top: 227px; }
 
   .instruction {
-    position: absolute; top: 382px; left: 0; width: 680px;
+    position: absolute; top: 318px; left: 0; width: 680px;
     display: flex; justify-content: center;
   }
   .instruction span {
-    font-family: 'TX-02'; font-weight: 400; font-size: 11px;
-    letter-spacing: 0.3em; color: #83837E; padding-left: 0.3em;
+    font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+    font-weight: 500; font-size: 12px;
+    letter-spacing: 0.06em; color: #8B8B86;
   }
 </style>
 </head>
@@ -75,24 +70,7 @@
     <div class="seat seat-left"></div>
     <div class="seat seat-right"></div>
 
-    <div class="wordmark">
-      <img src="../../Sources/HeadroomApp/Resources/Assets.xcassets/AppIcon.appiconset/icon_1024.png" alt="">
-      <span>HEADROOM</span>
-    </div>
-
-    <div class="rule"></div>
-
-    <svg class="arrow" width="132" height="26" viewBox="0 0 132 26" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <linearGradient id="arrShaft" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#E3B24E" stop-opacity="0.15"/>
-          <stop offset="0.22" stop-color="#E3B24E" stop-opacity="0.9"/>
-          <stop offset="1" stop-color="#E3B24E"/>
-        </linearGradient>
-      </defs>
-      <line x1="2" y1="13" x2="114" y2="13" stroke="url(#arrShaft)" stroke-width="2.5" stroke-linecap="round"/>
-      <path d="M107 5.5 L125 13 L107 20.5" fill="none" stroke="#E3B24E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
+    <div class="arrow"><span>&gt;&gt;</span></div>
 
     <div class="instruction"><span>DRAG TO INSTALL</span></div>
   </div>

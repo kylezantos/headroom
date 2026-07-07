@@ -29,14 +29,15 @@
     height: 28px;
     background: #17181A;
     border-bottom: 1px solid #000;
-    display: flex; align-items: center; position: relative;
+    display: flex; align-items: center; gap: 10px;
     padding: 0 12px;
   }
-  .lights { display: flex; gap: 8px; }
+  .lights { display: flex; gap: 8px; flex-shrink: 0; }
   .lights i { width: 12px; height: 12px; border-radius: 50%; display: block; }
   .l-close { background: #FF5F57; } .l-min { background: #FEBC2E; } .l-max { background: #28C840; }
-  .title { position: absolute; left: 0; width: 100%; text-align: center;
-           font-size: 13px; font-weight: 500; color: #B9BABD; }
+  .title { display: flex; align-items: center; gap: 6px;
+           font-size: 13px; font-weight: 600; color: #E4E4E1; }
+  .title img { width: 16px; height: 16px; border-radius: 4px; }
 
   /* ---- background plate (identical to dmg-background.html) ---- */
   .plate {
@@ -45,23 +46,20 @@
     background-image: radial-gradient(130% 100% at 50% -10%, #16161A 0%, #0C0C0E 46%, #09090A 100%);
     -webkit-font-smoothing: antialiased;
   }
-  .seat { position: absolute; top: 184px; width: 220px; height: 150px; border-radius: 50%;
+  .seat { position: absolute; top: 120px; width: 220px; height: 150px; border-radius: 50%;
           background: radial-gradient(closest-side, rgba(255,255,255,0.045), rgba(255,255,255,0) 72%); }
   .seat-left { left: 86px; } .seat-right { left: 374px; }
-  .wordmark { position: absolute; top: 42px; left: 0; width: 680px; display: flex;
-              justify-content: center; align-items: center; gap: 11px; }
-  .wordmark img { width: 24px; height: 24px; border-radius: 6px; }
-  .wordmark span { font-family: 'TX-02'; font-weight: 500; font-size: 15px;
-                   letter-spacing: 0.34em; color: #F4F3EF; padding-left: 0.34em; }
-  .rule { position: absolute; top: 84px; left: 240px; width: 200px; height: 1px;
-          background: linear-gradient(90deg, rgba(46,46,51,0) 0%, #2E2E33 26%, #E3B24E 50%, #2E2E33 74%, rgba(46,46,51,0) 100%); }
-  .arrow { position: absolute; left: 274px; top: 227px; }
-  .instruction { position: absolute; top: 382px; left: 0; width: 680px; display: flex; justify-content: center; }
-  .instruction span { font-family: 'TX-02'; font-weight: 400; font-size: 11px;
-                      letter-spacing: 0.3em; color: #83837E; padding-left: 0.3em; }
+  .arrow { position: absolute; left: 266px; top: 162px; width: 148px; height: 28px;
+           display: flex; align-items: center; justify-content: center; }
+  .arrow span { font-family: 'TX-02'; font-weight: 500; font-size: 24px; line-height: 1;
+                letter-spacing: 0.1em; color: #E3B24E; padding-left: 0.1em; }
+  .instruction { position: absolute; top: 318px; left: 0; width: 680px; display: flex; justify-content: center; }
+  .instruction span { font-family: -apple-system, "SF Pro Text", "Helvetica Neue", sans-serif;
+                      font-weight: 500; font-size: 12px;
+                      letter-spacing: 0.06em; color: #8B8B86; }
 
   /* ---- Finder-drawn layer (icons + labels), overlaid on top ---- */
-  .icon { position: absolute; top: 176px; width: 200px; display: flex;
+  .icon { position: absolute; top: 112px; width: 200px; display: flex;
           flex-direction: column; align-items: center; gap: 11px; }
   .icon-app  { left: 96px; }        /* icon center x = 196 */
   .icon-apps { left: 384px; }       /* icon center x = 484 */
@@ -74,25 +72,16 @@
   <div class="window">
     <div class="titlebar">
       <div class="lights"><i class="l-close"></i><i class="l-min"></i><i class="l-max"></i></div>
-      <div class="title">Headroom</div>
+      <div class="title">
+        <img src="../../Sources/HeadroomApp/Resources/Assets.xcassets/AppIcon.appiconset/icon_1024.png" alt="">
+        <span>Headroom Installer</span>
+      </div>
     </div>
 
     <div class="plate">
       <div class="seat seat-left"></div>
       <div class="seat seat-right"></div>
-      <div class="wordmark">
-        <img src="../../Sources/HeadroomApp/Resources/Assets.xcassets/AppIcon.appiconset/icon_1024.png" alt="">
-        <span>HEADROOM</span>
-      </div>
-      <div class="rule"></div>
-      <svg class="arrow" width="132" height="26" viewBox="0 0 132 26" xmlns="http://www.w3.org/2000/svg">
-        <defs><linearGradient id="arrShaft" x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stop-color="#E3B24E" stop-opacity="0.15"/>
-          <stop offset="0.22" stop-color="#E3B24E" stop-opacity="0.9"/>
-          <stop offset="1" stop-color="#E3B24E"/></linearGradient></defs>
-        <line x1="2" y1="13" x2="114" y2="13" stroke="url(#arrShaft)" stroke-width="2.5" stroke-linecap="round"/>
-        <path d="M107 5.5 L125 13 L107 20.5" fill="none" stroke="#E3B24E" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
+      <div class="arrow"><span>&gt;&gt;</span></div>
       <div class="instruction"><span>DRAG TO INSTALL</span></div>
 
       <!-- Finder-drawn icons (representative) -->

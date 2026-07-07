@@ -32,7 +32,7 @@ struct UsageBarView: View {
                     lowChip
                 }
                 Text("\(percent)%")
-                    .font(.system(size: 17, weight: .semibold).monospacedDigit())
+                    .font(.headline.monospacedDigit())
                     .contentTransition(.numericText())
                 Text("left")
                     .font(.caption)

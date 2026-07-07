@@ -5,7 +5,6 @@ struct IOSCompanionView: View {
     @Binding var appearance: AppearanceSetting
     @State private var state: IOSWidgetSnapshotState = .waitingForMac
     @State private var syncInfo: IOSCompanionSyncInfo?
-    @State private var now = Date()
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -31,7 +30,6 @@ struct IOSCompanionView: View {
             MirrorView(
                 envelope: envelope,
                 syncInfo: syncInfo,
-                now: now,
                 appearance: $appearance,
                 onRefresh: refresh
             )
@@ -75,6 +73,17 @@ struct IOSCompanionView: View {
     }
 
     private func refresh() {
+        #if DEBUG
+        if CompanionPreviewSeed.isEnabled {
+            let envelope = CompanionPreviewSeed.envelope(now: Date())
+            state = .content(envelope)
+            // Also seed the widget's app-group cache and reload timelines so the widget
+            // gallery renders the same sample content in the Simulator (iOS visual gate).
+            try? WidgetSnapshotCache.appGroup().write(envelope)
+            WidgetCenter.shared.reloadAllTimelines()
+            return
+        }
+        #endif
         let cache = WidgetSnapshotCache.appGroup()
         let sync = iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore())
         let read = sync.read()
@@ -93,6 +102,5 @@ struct IOSCompanionView: View {
             )
         }
         state = IOSWidgetSnapshotState.from(cacheRead: resolvedCacheRead, syncRead: read)
-        now = Date()
     }
 }

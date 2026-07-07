@@ -32,6 +32,6 @@ struct StatusScreen: View {
         }
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(HeadroomTheme.background(scheme).ignoresSafeArea())
+        .background(HeadroomTheme.backgroundView(scheme).ignoresSafeArea())
     }
 }

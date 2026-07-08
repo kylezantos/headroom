@@ -135,6 +135,6 @@ struct ClaudeProviderTests {
     @Test func trustPromptAsksUserToOpenClaude() async {
         let snap = await provider(.panel("Quick safety check: Is this a project you created or one you trust?")).fetchSnapshot()
         guard case .stale(let reason) = snap.freshness else { Issue.record("expected stale"); return }
-        #expect(reason == .needsReauth("Open Claude and trust the launch folder"))
+        #expect(reason == .needsReauth(ClaudeUsageWorkspace.trustRequiredMessage))
     }
 }

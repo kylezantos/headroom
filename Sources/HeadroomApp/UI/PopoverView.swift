@@ -32,7 +32,8 @@ struct PopoverView: View {
                         snapshot: store.appDisplaySnapshot(for: id),
                         renewalDate: preferences.renewalDate(for: id),
                         now: context.date,
-                        onOpenSettings: openSettingsDismissingPopover
+                        onOpenSettings: openSettingsDismissingPopover,
+                        onRetrySetup: { store.refreshNow() }
                     )
                 }
                 APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)

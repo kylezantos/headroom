@@ -29,6 +29,7 @@ enum Entry {
         Task {
             let path = ClaudeUsageCLIProbe.resolveClaudePath() ?? "(not found)"
             print("claude path: \(path)")
+            print("working directory: \(claudeWorkingDirectory())")
             switch await ClaudeUsageCLIProbe(workingDirectory: claudeWorkingDirectory()).capturePanel() {
             case .cliNotFound:
                 print("RESULT: CLI not found")
@@ -51,11 +52,11 @@ enum Entry {
     }
 
     fileprivate static func claudeWorkingDirectory() -> String {
-        let bundleURL = Bundle.main.bundleURL
-        if bundleURL.pathExtension == "app" {
-            return bundleURL.deletingLastPathComponent().path
+        do {
+            return try ClaudeUsageWorkspace.ensureDefaultDirectory().path
+        } catch {
+            return ClaudeUsageWorkspace.defaultDirectoryURL.path
         }
-        return FileManager.default.currentDirectoryPath
     }
 
     private static func runCodexProbe() {

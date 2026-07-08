@@ -30,7 +30,7 @@ public struct ClaudeProvider: UsageProvider {
             guard !parsed.isEmpty else {
                 if text.localizedCaseInsensitiveContains("Quick safety check")
                     || text.localizedCaseInsensitiveContains("trust this folder") {
-                    return stale(.needsReauth("Open Claude and trust the launch folder"))
+                    return stale(.needsReauth(ClaudeUsageWorkspace.trustRequiredMessage))
                 }
                 // Panel captured but no windows found: most often "not logged in".
                 if text.lowercased().contains("log in") || text.lowercased().contains("login") {

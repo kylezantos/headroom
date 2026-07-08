@@ -7,6 +7,7 @@ import HeadroomCore
 /// closes the menu bar popover behind it.
 struct SettingsView: View {
     let store: UsageStore
+    @Binding var appearancePreference: AppearancePreference
     var softwareUpdates: SoftwareUpdateControlling = DisabledSoftwareUpdateController()
     var preferences = Preferences()
     var credentialStore = CredentialStore()
@@ -35,6 +36,43 @@ struct SettingsView: View {
     private static let apiSpendPeriodAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.18)
 
     var body: some View {
+        VStack(spacing: 0) {
+            ScrollView(.vertical) {
+                settingsContent
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 18)
+                    // Extra top inset clears the traffic lights that float over content when
+                    // the window uses a hidden title bar (set on the Window scene).
+                    .padding(.top, 30)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollIndicators(.automatic)
+
+            insetHairline()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 0)
+
+            HStack(spacing: 12) {
+                Button("Check for Updates...") {
+                    softwareUpdates.checkForUpdates()
+                }
+                .disabled(!softwareUpdates.canCheckForUpdates)
+
+                Spacer()
+
+                Button("Done") { onDone?() ?? dismiss() }.keyboardShortcut(.defaultAction)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(Color(nsColor: .windowBackgroundColor))
+        }
+        .frame(minWidth: 360, idealWidth: 460, maxWidth: 620, minHeight: 420, idealHeight: 700, maxHeight: .infinity)
+        .onAppear {
+            loadPreferences()
+        }
+    }
+
+    private var settingsContent: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Custom header (the window uses a hidden title bar): the vessel logo anchors
             // the title, drawn just below the floating traffic lights. Rendered from the
@@ -77,6 +115,25 @@ struct SettingsView: View {
                             store.reschedulePolling()
                         }
                     helpText("Each Claude refresh runs a CLI session (~20–30s). Minimum 2 min.")
+                }
+            }
+
+            insetHairline()
+
+            VStack(alignment: .leading, spacing: 8) {
+                sectionHeader("Appearance")
+                responsiveControlRow(label: "Theme") {
+                    Picker("Appearance", selection: $appearancePreference) {
+                        ForEach(AppearancePreference.allCases) { preference in
+                            Text(preference.label).tag(preference)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: 280)
+                    .onChange(of: appearancePreference) { _, newValue in
+                        preferences.appearancePreference = newValue
+                    }
                 }
             }
 
@@ -188,42 +245,6 @@ struct SettingsView: View {
                 .onChange(of: launchAtLogin) { _, newValue in
                     try? launchControl.setEnabled(newValue)
                 }
-
-            Button("Check for Updates…") {
-                softwareUpdates.checkForUpdates()
-            }
-            .disabled(!softwareUpdates.canCheckForUpdates)
-
-            HStack {
-                Spacer()
-                Button("Done") { onDone?() ?? dismiss() }.keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(.horizontal, 20)
-        .padding(.bottom, 20)
-        // Extra top inset clears the traffic lights that float over content when the window
-        // uses a hidden title bar (set on the Window scene in `HeadroomApp`).
-        .padding(.top, 30)
-        .frame(width: 380)
-        .onAppear {
-            // Clamp any legacy sub-2-minute interval up to the new floor.
-            let saved = max(2, preferences.pollIntervalMinutes)
-            if saved != preferences.pollIntervalMinutes {
-                preferences.pollIntervalMinutes = saved
-                store.reschedulePolling()
-            }
-            intervalMinutes = saved
-            showMenuBarPercentage = store.showMenuBarPercentage
-            menuBarFillSource = store.menuBarFillSource
-            widgetsEnabled = store.widgetsEnabled
-            showCodexSparkCountersInApp = store.showCodexSparkCountersInApp
-            showCodexSparkCountersInWidgets = store.showCodexSparkCountersInWidgets
-            syncToIPhoneEnabled = store.syncToIPhoneEnabled
-            apiSpendPeriod = store.apiSpendPeriod
-            launchAtLogin = launchControl.isEnabled
-            for id in [ProviderID.claude, .codex] {
-                if let date = preferences.renewalDate(for: id) { renewalDates[id] = date }
-            }
         }
     }
 
@@ -278,6 +299,24 @@ struct SettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
+    private func responsiveControlRow<Content: View>(
+        label: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(label)
+                Spacer(minLength: 12)
+                content()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(label)
+                content()
+            }
+        }
+    }
+
     private func insetHairline() -> some View {
         Rectangle()
             .fill(Color(nsColor: .separatorColor).opacity(0.42))
@@ -299,25 +338,66 @@ struct SettingsView: View {
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.caption).foregroundStyle(.secondary)
-            HStack(spacing: 8) {
-                SecureField(placeholder, text: text)
-                    .textFieldStyle(.roundedBorder)
-                Button("Save") {
-                    saveKey(text.wrappedValue, for: provider)
-                    text.wrappedValue = ""
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) {
+                    apiKeyField(placeholder: placeholder, text: text)
+                    apiKeyButtons(text: text, provider: provider)
                 }
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
-                Button("Remove") {
-                    deleteKey(for: provider)
-                    text.wrappedValue = ""
+
+                VStack(alignment: .leading, spacing: 8) {
+                    apiKeyField(placeholder: placeholder, text: text)
+                    apiKeyButtons(text: text, provider: provider)
                 }
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
-                .foregroundStyle(.secondary)
             }
         }
         .disabled(!enabled)
         .opacity(enabled ? 1 : 0.4)
         .animation(.easeInOut(duration: 0.2), value: enabled)
+    }
+
+    private func apiKeyField(placeholder: String, text: Binding<String>) -> some View {
+        SecureField(placeholder, text: text)
+            .textFieldStyle(.roundedBorder)
+            .frame(minWidth: 160)
+    }
+
+    private func apiKeyButtons(text: Binding<String>, provider: APIKeyProvider) -> some View {
+        HStack(spacing: 8) {
+            Button("Save") {
+                saveKey(text.wrappedValue, for: provider)
+                text.wrappedValue = ""
+            }
+            .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
+
+            Button("Remove") {
+                deleteKey(for: provider)
+                text.wrappedValue = ""
+            }
+            .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    private func loadPreferences() {
+        // Clamp any legacy sub-2-minute interval up to the new floor.
+        let saved = max(2, preferences.pollIntervalMinutes)
+        if saved != preferences.pollIntervalMinutes {
+            preferences.pollIntervalMinutes = saved
+            store.reschedulePolling()
+        }
+        intervalMinutes = saved
+        appearancePreference = preferences.appearancePreference
+        showMenuBarPercentage = store.showMenuBarPercentage
+        menuBarFillSource = store.menuBarFillSource
+        widgetsEnabled = store.widgetsEnabled
+        showCodexSparkCountersInApp = store.showCodexSparkCountersInApp
+        showCodexSparkCountersInWidgets = store.showCodexSparkCountersInWidgets
+        syncToIPhoneEnabled = store.syncToIPhoneEnabled
+        apiSpendPeriod = store.apiSpendPeriod
+        launchAtLogin = launchControl.isEnabled
+        for id in [ProviderID.claude, .codex] {
+            if let date = preferences.renewalDate(for: id) { renewalDates[id] = date }
+        }
     }
 
     private func saveKey(_ key: String, for provider: APIKeyProvider) {

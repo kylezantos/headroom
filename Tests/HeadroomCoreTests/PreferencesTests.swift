@@ -32,6 +32,18 @@ struct PreferencesTests {
         #expect(prefs.pollIntervalMinutes >= 1)
     }
 
+    @Test func appearancePreferenceDefaultsPersistsAndIgnoresUnknownValues() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.appearancePreference == .system)
+
+        prefs.appearancePreference = .dark
+        #expect(prefs.appearancePreference == .dark)
+
+        defaults.set("sepia", forKey: "appearancePreference")
+        #expect(prefs.appearancePreference == .system)
+    }
+
     @Test func menuBarPercentageDefaultsOffAndPersists() {
         let prefs = Preferences(defaults: freshDefaults())
         #expect(!prefs.showMenuBarPercentage)

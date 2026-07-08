@@ -131,14 +131,19 @@ enum Entry {
 /// Xcode app target's Info.plist when finalizing the bundle (U1/KTD8).
 struct HeadroomApp: App {
     @State private var store: UsageStore
+    @State private var appearancePreference: AppearancePreference
     @StateObject private var softwareUpdates = SoftwareUpdateController()
     @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    private let preferences: Preferences
 
     @MainActor
     init() {
-        let store = AppComposition.store()
+        let preferences = Preferences()
+        let store = AppComposition.store(preferences: preferences)
+        self.preferences = preferences
         _store = State(initialValue: store)
+        _appearancePreference = State(initialValue: preferences.appearancePreference)
         AppDelegate.startUsageStore = { Task { await store.start() } }
     }
 
@@ -147,24 +152,33 @@ struct HeadroomApp: App {
             PopoverView(store: store) {
                 openSettings()
             }
+                .preferredColorScheme(appearancePreference.colorScheme)
                 .task { await store.start() }
         } label: {
             MenuBarLabel(
                 meters: store.menuBarMeters,
                 showsPercentage: store.showMenuBarPercentage
             )
+            .preferredColorScheme(appearancePreference.colorScheme)
             .task { await store.start() }
         }
         .menuBarExtraStyle(.window)
 
         Window("Headroom Settings", id: "settings") {
-            SettingsView(store: store, softwareUpdates: softwareUpdates)
+            SettingsView(
+                store: store,
+                appearancePreference: $appearancePreference,
+                softwareUpdates: softwareUpdates,
+                preferences: preferences
+            )
+            .preferredColorScheme(appearancePreference.colorScheme)
         }
         // Hidden title bar: the settings window draws its own header (logo + title) in
         // content, so traffic lights float on a transparent strip. Avoids Tahoe wrapping a
         // toolbar item in a Liquid Glass container. (Standard modern-macOS utility pattern.)
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        .windowResizability(.contentMinSize)
+        .defaultSize(width: 460, height: 700)
         .defaultPosition(.center)
     }
 
@@ -196,7 +210,7 @@ struct HeadroomApp: App {
 
         if window.isVisible, activeScreen.frame.intersects(window.frame) { return }
 
-        // Force the layout pass so `.contentSize` has resized the window to its final width
+        // Force the layout pass so SwiftUI has applied the Settings content's preferred size
         // before we read it. At open the window is briefly wider than its content, and reading
         // that transient frame centers ~50px off.
         window.layoutIfNeeded()
@@ -209,6 +223,16 @@ struct HeadroomApp: App {
             y: visible.midY - size.height / 2 + size.height * 0.05
         )
         window.setFrameOrigin(origin)
+    }
+}
+
+private extension AppearancePreference {
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: nil
+        case .light: .light
+        case .dark: .dark
+        }
     }
 }
 

@@ -9,6 +9,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
 
     private enum Key {
         static let interval = "pollIntervalMinutes"
+        static let appearancePreference = "appearancePreference"
         static let showMenuBarPercentage = "showMenuBarPercentage"
         static let menuBarFillSource = "menuBarFillSource"
         static let widgetsEnabled = "widgetsEnabled"
@@ -28,6 +29,16 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return v > 0 ? v : Self.defaultIntervalMinutes
         }
         nonmutating set { defaults.set(max(1, newValue), forKey: Key.interval) }
+    }
+
+    public var appearancePreference: AppearancePreference {
+        get {
+            guard let raw = defaults.string(forKey: Key.appearancePreference),
+                  let preference = AppearancePreference(rawValue: raw)
+            else { return .system }
+            return preference
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.appearancePreference) }
     }
 
     public var showMenuBarPercentage: Bool {
@@ -103,6 +114,22 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             defaults.set(date.timeIntervalSince1970, forKey: Key.renewal(id))
         } else {
             defaults.removeObject(forKey: Key.renewal(id))
+        }
+    }
+}
+
+public enum AppearancePreference: String, CaseIterable, Identifiable, Sendable {
+    case system
+    case light
+    case dark
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .system: "System"
+        case .light: "Light"
+        case .dark: "Dark"
         }
     }
 }

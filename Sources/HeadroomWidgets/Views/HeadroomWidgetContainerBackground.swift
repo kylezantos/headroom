@@ -7,34 +7,24 @@ struct HeadroomWidgetContainerBackground: View {
     private var isDark: Bool { scheme == .dark }
 
     var body: some View {
+        // The companion's full-screen gradient + top glow is tuned for a tall scroll view. Crushed
+        // into a small widget, that bright glow lands right behind the top provider card, so an
+        // identical card reads lighter/darker purely by vertical position (the provider cards are
+        // byte-for-byte the same fill — the surround is what differed). Keep the widget surround a
+        // calm, near-uniform dark that stays darker than the tile fill everywhere, so every provider
+        // card sits on the same background and reads identically.
         LinearGradient(
-            stops: [
-                .init(color: color(HeadroomWidgetColorValues.containerBackgroundTop(dark: isDark)), location: 0),
-                .init(color: color(HeadroomWidgetColorValues.containerBackgroundMiddle(dark: isDark)), location: 0.52),
-                .init(color: color(HeadroomWidgetColorValues.containerBackgroundBottom(dark: isDark)), location: 1),
+            colors: [
+                color(HeadroomWidgetColorValues.containerBackgroundTop(dark: isDark)),
+                color(HeadroomWidgetColorValues.containerBackgroundMiddle(dark: isDark)),
             ],
             startPoint: .top,
             endPoint: .bottom
         )
-        .overlay {
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    color(HeadroomWidgetColorValues.containerBackgroundGlow(dark: isDark)),
-                    .clear
-                ]),
-                center: UnitPoint(x: 0.5, y: -0.05),
-                startRadius: 0,
-                endRadius: 260
-            )
-        }
     }
 
     private func color(_ rgb: HeadroomRGBColor) -> Color {
         Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
-    }
-
-    private func color(_ tint: HeadroomTint) -> Color {
-        color(tint.color).opacity(tint.opacity)
     }
 
 }

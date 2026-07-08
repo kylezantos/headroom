@@ -29,6 +29,12 @@ HEADROOM_CODESIGN_OPTIONS="${HEADROOM_CODESIGN_OPTIONS:---timestamp=none}"
 HEADROOM_APP_GROUP_IDENTIFIER="${HEADROOM_APP_GROUP_IDENTIFIER:-group.com.kylezantos.headroom}"
 HEADROOM_ENABLE_ICLOUD_ENTITLEMENT="${HEADROOM_ENABLE_ICLOUD_ENTITLEMENT:-0}"
 HEADROOM_TEAM_IDENTIFIER="${HEADROOM_TEAM_IDENTIFIER:-}"
+# Path to a macOS development provisioning profile that authorizes the iCloud
+# Key-Value store capability for com.kylezantos.headroom. REQUIRED alongside
+# HEADROOM_ENABLE_ICLOUD_ENTITLEMENT=1: the ubiquity-kvstore entitlement is
+# restricted, so without an embedded profile the OS SIGKILLs the app at launch
+# (exit 137). Get one from Xcode's managed signing or developer.apple.com.
+HEADROOM_PROVISIONING_PROFILE="${HEADROOM_PROVISIONING_PROFILE:-}"
 HEADROOM_SPARKLE_FEED_URL="${HEADROOM_SPARKLE_FEED_URL:-}"
 HEADROOM_SPARKLE_PUBLIC_ED_KEY="${HEADROOM_SPARKLE_PUBLIC_ED_KEY:-VkSwNYbBn5WJUbqYFyhewIFZt4DIfCwiWmTNiGGDorM=}"
 read -r -a CODESIGN_OPTIONS <<< "${HEADROOM_CODESIGN_OPTIONS}"
@@ -136,6 +142,28 @@ stamp_sparkle_info() {
     || /usr/libexec/PlistBuddy -c "Add :SUAllowsAutomaticUpdates bool false" "${plist}"
 }
 
+embed_provisioning_profile() {
+  # Only relevant when the restricted iCloud KVS entitlement is on. A local codesign
+  # can't grant it on its own; the app needs an embedded provisioning profile.
+  if [[ "${HEADROOM_ENABLE_ICLOUD_ENTITLEMENT}" != "1" ]]; then
+    return
+  fi
+  if [[ -n "${HEADROOM_PROVISIONING_PROFILE}" ]]; then
+    if [[ ! -f "${HEADROOM_PROVISIONING_PROFILE}" ]]; then
+      echo "HEADROOM_PROVISIONING_PROFILE not found: ${HEADROOM_PROVISIONING_PROFILE}" >&2
+      exit 66
+    fi
+    echo "→ embedding provisioning profile: ${HEADROOM_PROVISIONING_PROFILE}"
+    cp "${HEADROOM_PROVISIONING_PROFILE}" "${APP}/Contents/embedded.provisionprofile"
+  else
+    echo "⚠️  iCloud KVS entitlement is ON but no HEADROOM_PROVISIONING_PROFILE was provided." >&2
+    echo "    The ubiquity-kvstore entitlement is restricted, so macOS will SIGKILL this app" >&2
+    echo "    at launch (exit 137) without an embedded profile. Either set" >&2
+    echo "    HEADROOM_PROVISIONING_PROFILE=/path/to/*.provisionprofile, or build/run the app" >&2
+    echo "    from Xcode (managed signing embeds the profile automatically)." >&2
+  fi
+}
+
 if ! command -v xcodegen >/dev/null 2>&1; then
   echo "xcodegen is required to build the WidgetKit-discoverable app bundle." >&2
   echo "Install with: brew install xcodegen" >&2
@@ -173,6 +201,7 @@ ditto "${BUILT_APP}" "${APP}"
 prepare_entitlements
 stamp_app_group_info
 stamp_sparkle_info
+embed_provisioning_profile
 
 # Interrupted codesign runs can leave temporary files inside the bundle. Remove them
 # before sealing, or codesign treats the temp file as a malformed nested component.

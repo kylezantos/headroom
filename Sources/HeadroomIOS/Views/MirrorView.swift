@@ -3,6 +3,7 @@ import SwiftUI
 struct MirrorView: View {
     let envelope: WidgetSnapshotEnvelope
     let syncInfo: IOSCompanionSyncInfo?
+    var diagnostics: IOSSyncDiagnostics? = nil
     @Binding var appearance: AppearanceSetting
     var onRefresh: () -> Void
 
@@ -55,7 +56,12 @@ struct MirrorView: View {
                 }
             }
             .sheet(isPresented: $showSettings) {
-                SettingsSheetView(envelope: envelope, syncInfo: syncInfo, appearance: $appearance)
+                SettingsSheetView(
+                    envelope: envelope,
+                    syncInfo: syncInfo,
+                    diagnostics: diagnostics,
+                    appearance: $appearance
+                )
             }
         }
     }

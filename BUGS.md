@@ -34,6 +34,29 @@ official `claude` CLI's `/usage` panel instead.
   `design/vessel-app-icon.svg`).
 - `MenuBarLabel` uses a fixed font size (menu bar height is OS-constrained).
 
+## iPhone sync — Mac needs the iCloud-KVS entitlement (provisioning-gated)
+
+- **Confirmed root cause of "iPhone shows a stale snapshot".** The installed standalone
+  `Headroom.app` publishes phone snapshots through `NSUbiquitousKeyValueStore`, which is inert
+  without the `com.apple.developer.ubiquity-kvstore-identifier` entitlement. `Scripts/build-app.sh`
+  **strips** that entitlement unless `HEADROOM_ENABLE_ICLOUD_ENTITLEMENT=1`, so a default-built
+  app can't publish at all — `iCloudSnapshotPublisher.export` swallows the failure (`try?`) and
+  the iPhone freezes on the last snapshot that propagated while a properly-provisioned build ran.
+  Verify with `Headroom.app/Contents/MacOS/Headroom --dump-phone-sync` (run from the **signed
+  bundle**, not `swift run` — a bare CLI has no bundle id/entitlement and always reads empty).
+- **The entitlement is provisioning-gated.** `HEADROOM_ENABLE_ICLOUD_ENTITLEMENT=1` alone isn't
+  enough: the restricted entitlement needs an embedded provisioning profile, or macOS SIGKILLs
+  the app at launch (exit 137, verified). `build-app.sh` now accepts
+  `HEADROOM_PROVISIONING_PROFILE=/path/to/*.provisionprofile` to embed one, and warns when the
+  entitlement is on without a profile.
+- **Fix path (needs the Apple Developer account — interactive):** enable the iCloud Key-Value
+  storage capability for `com.kylezantos.headroom` (team `8D42S4MS38`), then either run/archive
+  the macOS target from Xcode with managed signing (embeds the profile automatically) and install
+  that build, or download a macOS development profile and rebuild with
+  `HEADROOM_ENABLE_ICLOUD_ENTITLEMENT=1 HEADROOM_PROVISIONING_PROFILE=… ./Scripts/build-app.sh`.
+  The iOS host/widget entitlements already declare the key and are signed via Xcode, so the phone
+  read side is fine — only the Mac publisher is blocked.
+
 ## Companion platforms
 
 - **watchOS companion is deferred.** It should probably reuse the iCloud snapshot contract,

@@ -5,6 +5,7 @@ struct IOSCompanionView: View {
     @Binding var appearance: AppearanceSetting
     @State private var state: IOSWidgetSnapshotState = .waitingForMac
     @State private var syncInfo: IOSCompanionSyncInfo?
+    @State private var diagnostics: IOSSyncDiagnostics?
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
@@ -30,6 +31,7 @@ struct IOSCompanionView: View {
             MirrorView(
                 envelope: envelope,
                 syncInfo: syncInfo,
+                diagnostics: diagnostics,
                 appearance: $appearance,
                 onRefresh: refresh
             )
@@ -90,7 +92,11 @@ struct IOSCompanionView: View {
         let cacheRead = cache.read()
         var resolvedCacheRead = cacheRead
         if case .snapshot(let envelope) = read {
-            if cacheRead.envelope != envelope.snapshot {
+            // Adopt the remote snapshot into the shared cache so the widget process reads the
+            // same content — but only when it is genuinely newer (or the cache lacks it), so a
+            // newer local cache is never clobbered by an older remote and WidgetKit isn't
+            // reloaded needlessly.
+            if adoptable(remote: envelope.snapshot, into: cacheRead) {
                 try? cache.write(envelope.snapshot)
                 WidgetCenter.shared.reloadAllTimelines()
                 resolvedCacheRead = cache.read()
@@ -100,7 +106,23 @@ struct IOSCompanionView: View {
                 sourceID: envelope.sourceID,
                 sourcePlatform: envelope.sourcePlatform
             )
+        } else {
+            syncInfo = nil
         }
-        state = IOSWidgetSnapshotState.from(cacheRead: resolvedCacheRead, syncRead: read)
+        let resolution = IOSWidgetSnapshotState.resolve(cacheRead: resolvedCacheRead, syncRead: read)
+        state = resolution.state
+        diagnostics = IOSSyncDiagnostics(
+            cacheGeneratedAt: resolvedCacheRead.envelope?.generatedAt,
+            syncRead: read,
+            origin: resolution.origin
+        )
+    }
+
+    /// A remote snapshot is worth writing to the local cache when the cache holds nothing,
+    /// or when the remote is strictly newer than (or a different payload from) what's cached.
+    private func adoptable(remote: WidgetSnapshotEnvelope, into cacheRead: WidgetSnapshotCacheRead) -> Bool {
+        guard let cached = cacheRead.envelope else { return true }
+        if remote.generatedAt > cached.generatedAt { return true }
+        return remote.generatedAt == cached.generatedAt && remote != cached
     }
 }

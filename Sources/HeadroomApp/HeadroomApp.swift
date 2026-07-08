@@ -3,9 +3,9 @@ import AppKit
 import WidgetKit
 import HeadroomCore
 
-/// Entry point. Supports a hidden `--probe-claude` diagnostic that runs the real
-/// PTY capture once and prints the parsed windows — used to verify the Claude CLI
-/// path works on this machine without launching the menu bar UI.
+/// Entry point. Supports hidden diagnostics: `--probe-claude` / `--probe-codex` run the real
+/// provider capture once and print parsed windows; `--dump-phone-sync` decodes the iCloud KVS
+/// payload the Mac published for the iPhone. All run without launching the menu bar UI.
 @main
 enum Entry {
     static func main() {
@@ -15,6 +15,10 @@ enum Entry {
         }
         if CommandLine.arguments.contains("--probe-codex") {
             runCodexProbe()
+            return
+        }
+        if CommandLine.arguments.contains("--dump-phone-sync") {
+            runPhoneSyncDump()
             return
         }
         HeadroomApp.main()
@@ -75,6 +79,50 @@ enum Entry {
             semaphore.signal()
         }
         semaphore.wait()
+    }
+
+    /// Decode and print the widget-safe snapshot the Mac last published to iCloud KVS for the
+    /// iPhone. Answers the stale-sync question directly: is the "Sync snapshot to iPhone"
+    /// toggle on, and is a *fresh* payload actually sitting in the key-value store. The
+    /// snapshot model is redaction-safe (display-ready usage only — no credentials/paths).
+    private static func runPhoneSyncDump() {
+        // The reading is only meaningful from the signed .app bundle: `swift run` has no bundle
+        // identifier (so UserDefaults resolves a different domain) and no iCloud-KVS entitlement
+        // (so the store is inert). Surface the bundle id so an empty result from a bare CLI run
+        // is never mistaken for the real app's state.
+        print("bundle id: \(Bundle.main.bundleIdentifier ?? "(none — running outside an .app; readings are not the installed app's state)")")
+
+        let preferences = Preferences()
+        print("syncToIPhoneEnabled: \(preferences.syncToIPhoneEnabled)")
+
+        let store = UbiquitousKeyValueSyncStore()
+        _ = store.synchronize()
+        let data = store.data(forKey: iCloudSnapshotSync.snapshotKey)
+        print("KVS key:   \(iCloudSnapshotSync.snapshotKey)")
+        print("KVS bytes: \(data?.count ?? 0)")
+
+        switch SyncedWidgetSnapshotCodec.decode(data) {
+        case .missing:
+            print("RESULT: no payload in iCloud KVS (missing) — the Mac has not published, or the store is empty on this account.")
+        case .corrupt:
+            print("RESULT: payload present but undecodable (corrupt).")
+        case .incompatibleSchema:
+            print("RESULT: payload schema incompatible with this build.")
+        case .snapshot(let envelope):
+            let formatter = ISO8601DateFormatter()
+            print("RESULT: snapshot present")
+            print("  publishedAt:          \(formatter.string(from: envelope.publishedAt))")
+            print("  snapshot.generatedAt: \(formatter.string(from: envelope.snapshot.generatedAt))")
+            print("  sourceID:             \(envelope.sourceID)")
+            print("  sourcePlatform:       \(envelope.sourcePlatform.rawValue)")
+            print("  status:               \(envelope.snapshot.status.rawValue)")
+            print("  envelope.schema:      \(envelope.schemaVersion)")
+            print("  snapshot.schema:      \(envelope.snapshot.schemaVersion)")
+            let providers = envelope.snapshot.providers.map(\.id).joined(separator: ", ")
+            print("  providers:            \(providers.isEmpty ? "(none)" : providers)")
+            let apiSpend = envelope.snapshot.apiSpendProviders.map(\.id).joined(separator: ", ")
+            print("  apiSpendProviders:    \(apiSpend.isEmpty ? "(none)" : apiSpend)")
+        }
     }
 }
 

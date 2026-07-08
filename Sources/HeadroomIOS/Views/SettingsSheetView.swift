@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsSheetView: View {
     let envelope: WidgetSnapshotEnvelope?
     let syncInfo: IOSCompanionSyncInfo?
+    var diagnostics: IOSSyncDiagnostics? = nil
     @Binding var appearance: AppearanceSetting
 
     @Environment(\.dismiss) private var dismiss
@@ -43,6 +44,10 @@ struct SettingsSheetView: View {
                     Section("App") {
                         row("Version", value: versionText)
                     }
+
+                    #if DEBUG
+                    diagnosticsSection(now: context.date)
+                    #endif
                 }
                 .navigationTitle("Settings")
                 .navigationBarTitleDisplayMode(.inline)
@@ -55,6 +60,28 @@ struct SettingsSheetView: View {
         }
         .presentationDetents([.medium, .large])
     }
+
+    #if DEBUG
+    // Debug-only sync diagnostics (plan 2026-07-07-003): tells at a glance whether the phone
+    // has no fresh iCloud payload or is choosing old cache over newer sync. DEBUG-gated so it
+    // never ships in a Release build. Physical-device installs use the Debug config, so it's
+    // visible where it's needed to diagnose stale sync.
+    @ViewBuilder
+    private func diagnosticsSection(now: Date) -> some View {
+        Section("Sync Diagnostics") {
+            row("Showing", value: diagnostics?.originText ?? "—")
+            row("Cache updated", value: relative(diagnostics?.cacheGeneratedAt, now: now))
+            row("iCloud state", value: diagnostics?.syncStateText ?? "—")
+            row("iCloud published", value: relative(diagnostics?.syncPublishedAt, now: now))
+            row("iCloud source", value: diagnostics?.syncSourceText ?? "—")
+        }
+    }
+
+    private func relative(_ date: Date?, now: Date) -> String {
+        guard let date else { return "—" }
+        return Countdown.updatedLabel(capturedAt: date, now: now) ?? "just now"
+    }
+    #endif
 
     private var appHeader: some View {
         HStack(spacing: 14) {
@@ -113,5 +140,41 @@ struct IOSCompanionSyncInfo: Equatable {
         case (nil, _):
             "Mac snapshot"
         }
+    }
+}
+
+/// Raw sync state captured on each companion refresh, for the DEBUG diagnostics section.
+/// Distinguishes "iCloud has no fresh payload" from "phone is choosing old cache over newer
+/// sync" — the exact ambiguity the stale-sync investigation needs to resolve.
+struct IOSSyncDiagnostics: Equatable {
+    let cacheGeneratedAt: Date?
+    let syncRead: iCloudSnapshotSyncRead
+    let origin: IOSWidgetContentOrigin?
+
+    var originText: String {
+        switch origin {
+        case .cache: "Local cache"
+        case .sync: "iCloud sync"
+        case nil: "No content"
+        }
+    }
+
+    var syncStateText: String {
+        switch syncRead {
+        case .unavailable: "Unavailable"
+        case .missing: "No payload"
+        case .corrupt: "Corrupt"
+        case .incompatibleSchema: "Schema mismatch"
+        case .snapshot: "Snapshot"
+        }
+    }
+
+    var syncPublishedAt: Date? {
+        syncRead.envelope?.publishedAt
+    }
+
+    var syncSourceText: String {
+        guard let envelope = syncRead.envelope else { return "—" }
+        return "\(envelope.sourceID) (\(envelope.sourcePlatform.rawValue))"
     }
 }

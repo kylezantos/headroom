@@ -60,15 +60,59 @@ public enum HeadroomWidgetColorValues {
     }
 
     public static func tertiaryText(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: darkNeutral, opacity: 0.44) : HeadroomTint(color: lightNeutral, opacity: 0.55)
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.56) : HeadroomTint(color: lightNeutral, opacity: 0.54)
     }
 
     public static func barTrack(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: .white, opacity: 0.16) : HeadroomTint(color: .black, opacity: 0.14)
+        dark ? HeadroomTint(color: .white, opacity: 0.14) : HeadroomTint(color: .black, opacity: 0.12)
     }
 
     public static func hairline(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: .white, opacity: 0.10) : HeadroomTint(color: .black, opacity: 0.09)
+        dark ? HeadroomTint(color: .white, opacity: 0.10) : HeadroomTint(color: .black, opacity: 0.07)
+    }
+
+    public static func containerBackgroundTop(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 0.082, green: 0.090, blue: 0.114) : HeadroomRGBColor(red: 0.965, green: 0.969, blue: 0.976)
+    }
+
+    public static func containerBackgroundMiddle(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 0.061, green: 0.070, blue: 0.091) : HeadroomRGBColor(red: 0.945, green: 0.951, blue: 0.963)
+    }
+
+    public static func containerBackgroundBottom(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 0.043, green: 0.051, blue: 0.067) : HeadroomRGBColor(red: 0.925, green: 0.933, blue: 0.949)
+    }
+
+    public static func containerBackgroundGlow(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: HeadroomRGBColor(red: 0.431, green: 0.475, blue: 1.0), opacity: dark ? 0.10 : 0.08)
+    }
+
+    public static func tileFillTop(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 0.145, green: 0.152, blue: 0.176) : .white
+    }
+
+    public static func tileFillBottom(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 0.098, green: 0.106, blue: 0.129) : HeadroomRGBColor(red: 0.984, green: 0.984, blue: 0.988)
+    }
+
+    public static func tileRing(dark: Bool) -> HeadroomTint {
+        dark ? HeadroomTint(color: .white, opacity: 0.065) : HeadroomTint(color: .black, opacity: 0.05)
+    }
+
+    public static func tileTopRim(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .white, opacity: dark ? 0.07 : 0)
+    }
+
+    public static func tileCloseShadow(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0.28 : 0.06)
+    }
+
+    public static func tileAmbientShadow(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0.40 : 0.05)
+    }
+
+    public static func tileLongShadow(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0 : 0.05)
     }
 }
 

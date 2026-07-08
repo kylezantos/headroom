@@ -25,6 +25,8 @@ struct HeadroomWidgetView: View {
                 }
             }
         }
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            HeadroomWidgetContainerBackground()
+        }
     }
 }

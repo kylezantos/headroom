@@ -23,14 +23,14 @@ struct HeadroomTileModifier: ViewModifier {
             .background {
                 shape
                     .fill(HeadroomTheme.tileFill(scheme))
-                    .shadow(color: .black.opacity(dark ? 0.28 : 0.06), radius: 1.5, y: 1)
-                    .shadow(color: .black.opacity(dark ? 0.40 : 0.05), radius: dark ? 11 : 6, y: dark ? 9 : 3)
-                    .shadow(color: .black.opacity(dark ? 0 : 0.05), radius: 13, y: 9)
+                    .shadow(color: Color(HeadroomWidgetColorValues.tileCloseShadow(dark: dark)), radius: 1.5, y: 1)
+                    .shadow(color: Color(HeadroomWidgetColorValues.tileAmbientShadow(dark: dark)), radius: dark ? 11 : 6, y: dark ? 9 : 3)
+                    .shadow(color: Color(HeadroomWidgetColorValues.tileLongShadow(dark: dark)), radius: 13, y: 9)
             }
             // The ring — a faint hairline that replaces the border (not a hard outline).
             .overlay {
                 shape.strokeBorder(
-                    dark ? Color.white.opacity(0.065) : Color.black.opacity(0.05),
+                    Color(HeadroomWidgetColorValues.tileRing(dark: dark)),
                     lineWidth: 1
                 )
             }
@@ -38,7 +38,7 @@ struct HeadroomTileModifier: ViewModifier {
             // would vanish on the light card, so it's dark-only.
             .overlay(alignment: .top) {
                 shape
-                    .fill(Color.white.opacity(dark ? 0.07 : 0))
+                    .fill(Color(HeadroomWidgetColorValues.tileTopRim(dark: dark)))
                     .frame(height: 1)
                     .padding(.horizontal, 9)
                     .allowsHitTesting(false)

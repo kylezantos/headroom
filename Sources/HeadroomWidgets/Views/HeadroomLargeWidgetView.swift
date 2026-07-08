@@ -8,14 +8,11 @@ struct HeadroomLargeWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(envelope.providers.enumerated()), id: \.element.id) { index, provider in
-                LargeProviderSection(provider: provider, now: now)
-                if index < envelope.providers.count - 1 {
-                    Rectangle()
-                        .fill(WidgetProviderStyle.hairline(scheme: scheme))
-                        .frame(height: 1)
-                        .padding(.vertical, 15)
-                    }
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(envelope.providers) { provider in
+                    LargeProviderSection(provider: provider, now: now)
+                        .largeProviderCard()
+                }
             }
             if !envelope.apiSpendProviders.isEmpty {
                 Rectangle()
@@ -33,7 +30,7 @@ struct HeadroomLargeWidgetView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .padding(.horizontal, 15)
+        .padding(.horizontal, 8)
         .padding(.top, 13)
         .padding(.bottom, 12)
     }
@@ -82,5 +79,41 @@ private struct LargeProviderSection: View {
 
     private func window(_ kind: WidgetWindowKind) -> WidgetWindowSummary? {
         provider.subscriptionWindows.first { $0.kind == kind }
+    }
+}
+
+private struct LargeProviderCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .background(cardShape)
+    }
+
+    private var cardShape: some View {
+        RoundedRectangle(cornerRadius: 13, style: .continuous)
+            .fill(WidgetProviderStyle.cardFill(scheme: scheme))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(WidgetProviderStyle.cardRing(scheme: scheme), lineWidth: 1)
+            }
+            .overlay(alignment: .top) {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(WidgetProviderStyle.cardTopRim(scheme: scheme))
+                    .frame(height: 1)
+                    .padding(.horizontal, 7)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: WidgetProviderStyle.cardEdgeShadow(scheme: scheme), radius: 1.5, x: 0, y: 1)
+            .shadow(color: WidgetProviderStyle.cardCloseShadow(scheme: scheme), radius: scheme == .dark ? 11 : 6, x: 0, y: scheme == .dark ? 9 : 3)
+            .shadow(color: WidgetProviderStyle.cardAmbientShadow(scheme: scheme), radius: 13, x: 0, y: 9)
+    }
+}
+
+private extension View {
+    func largeProviderCard() -> some View {
+        modifier(LargeProviderCardModifier())
     }
 }

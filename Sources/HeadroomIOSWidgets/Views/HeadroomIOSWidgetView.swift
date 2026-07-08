@@ -27,7 +27,9 @@ struct HeadroomIOSWidgetView: View {
                 IOSWidgetStatusView(title: "Update Needed", message: "Update Headroom on both devices.")
             }
         }
-        .containerBackground(.background, for: .widget)
+        .containerBackground(for: .widget) {
+            HeadroomWidgetContainerBackground()
+        }
         .widgetURL(URL(string: "headroom://usage"))
     }
 
@@ -231,18 +233,15 @@ struct HeadroomIOSWidgetView: View {
 
     // MARK: - Large
 
-    // Mirrors `HeadroomLargeWidgetView`: provider sections separated by hairlines (no tile
-    // cards), an optional API-spend section, and a trailing freshness footer. No "Usage"
+    // Mirrors `HeadroomLargeWidgetView`: provider cards, an optional API-spend section,
+    // and a trailing freshness footer. No "Usage"
     // title or app-icon mark (R3).
     private func large(_ envelope: WidgetSnapshotEnvelope) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(envelope.providers.enumerated()), id: \.element.id) { index, provider in
-                largeProviderSection(provider)
-                if index < envelope.providers.count - 1 {
-                    Rectangle()
-                        .fill(IOSWidgetStyle.hairline(scheme: scheme))
-                        .frame(height: 1)
-                        .padding(.vertical, 15)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(envelope.providers) { provider in
+                    largeProviderSection(provider)
+                        .largeProviderCard()
                 }
             }
             if !envelope.apiSpendProviders.isEmpty {
@@ -261,7 +260,7 @@ struct HeadroomIOSWidgetView: View {
                     .frame(maxWidth: .infinity, alignment: .trailing)
             }
         }
-        .padding(.horizontal, 15)
+        .padding(.horizontal, 8)
         .padding(.top, 13)
         .padding(.bottom, 12)
     }
@@ -398,7 +397,11 @@ struct HeadroomIOSWidgetView: View {
     }
 
     private func symbol(for id: String) -> String {
-        id == ProviderID.claude.raw ? "sparkles" : "terminal"
+        switch id {
+        case ProviderID.claude.raw: "sparkle"
+        case ProviderID.codex.raw: "chevron.left.forwardslash.chevron.right"
+        default: "circle.dashed"
+        }
     }
 
     @ViewBuilder
@@ -570,6 +573,38 @@ private enum IOSWidgetStyle {
     static func hairline(scheme: ColorScheme) -> Color {
         Color(HeadroomWidgetColorValues.hairline(dark: scheme == .dark))
     }
+
+    static func cardFill(scheme: ColorScheme) -> LinearGradient {
+        let dark = scheme == .dark
+        return LinearGradient(
+            colors: [
+                Color(HeadroomWidgetColorValues.tileFillTop(dark: dark)),
+                Color(HeadroomWidgetColorValues.tileFillBottom(dark: dark))
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    static func cardRing(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileRing(dark: scheme == .dark))
+    }
+
+    static func cardTopRim(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileTopRim(dark: scheme == .dark))
+    }
+
+    static func cardEdgeShadow(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileCloseShadow(dark: scheme == .dark))
+    }
+
+    static func cardCloseShadow(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileAmbientShadow(dark: scheme == .dark))
+    }
+
+    static func cardAmbientShadow(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileLongShadow(dark: scheme == .dark))
+    }
 }
 
 private extension Color {
@@ -579,5 +614,41 @@ private extension Color {
 
     init(_ tint: HeadroomTint) {
         self = Color(tint.color).opacity(tint.opacity)
+    }
+}
+
+private struct IOSLargeProviderCardModifier: ViewModifier {
+    @Environment(\.colorScheme) private var scheme
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
+            .background(cardShape)
+    }
+
+    private var cardShape: some View {
+        RoundedRectangle(cornerRadius: 13, style: .continuous)
+            .fill(IOSWidgetStyle.cardFill(scheme: scheme))
+            .overlay {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .strokeBorder(IOSWidgetStyle.cardRing(scheme: scheme), lineWidth: 1)
+            }
+            .overlay(alignment: .top) {
+                RoundedRectangle(cornerRadius: 13, style: .continuous)
+                    .fill(IOSWidgetStyle.cardTopRim(scheme: scheme))
+                    .frame(height: 1)
+                    .padding(.horizontal, 7)
+                    .allowsHitTesting(false)
+            }
+            .shadow(color: IOSWidgetStyle.cardEdgeShadow(scheme: scheme), radius: 1.5, x: 0, y: 1)
+            .shadow(color: IOSWidgetStyle.cardCloseShadow(scheme: scheme), radius: scheme == .dark ? 11 : 6, x: 0, y: scheme == .dark ? 9 : 3)
+            .shadow(color: IOSWidgetStyle.cardAmbientShadow(scheme: scheme), radius: 13, x: 0, y: 9)
+    }
+}
+
+private extension View {
+    func largeProviderCard() -> some View {
+        modifier(IOSLargeProviderCardModifier())
     }
 }

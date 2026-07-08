@@ -51,6 +51,38 @@ enum WidgetProviderStyle {
     static func hairline(scheme: ColorScheme) -> Color {
         Color(HeadroomWidgetColorValues.hairline(dark: scheme == .dark))
     }
+
+    static func cardFill(scheme: ColorScheme) -> LinearGradient {
+        let dark = scheme == .dark
+        return LinearGradient(
+            colors: [
+                Color(HeadroomWidgetColorValues.tileFillTop(dark: dark)),
+                Color(HeadroomWidgetColorValues.tileFillBottom(dark: dark))
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    static func cardRing(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileRing(dark: scheme == .dark))
+    }
+
+    static func cardTopRim(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileTopRim(dark: scheme == .dark))
+    }
+
+    static func cardEdgeShadow(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileCloseShadow(dark: scheme == .dark))
+    }
+
+    static func cardCloseShadow(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileAmbientShadow(dark: scheme == .dark))
+    }
+
+    static func cardAmbientShadow(scheme: ColorScheme) -> Color {
+        Color(HeadroomWidgetColorValues.tileLongShadow(dark: scheme == .dark))
+    }
 }
 
 private extension Color {

@@ -24,6 +24,7 @@
 		1CC6767039DF2A0E63E12719 /* HeadroomIOSWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2297981DC8A61B98CBA7DBF3 /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
 		2437241F091A895D5EDDFC26 /* CodexAuthReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08AE77A399A208C20733351 /* CodexAuthReader.swift */; };
+		258D60A36D7318D7FCEE3D37 /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
 		26694A6035B5631AA476C3B8 /* WidgetSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */; };
 		27C1E430A061869E4CE5B144 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */; };
 		286DFC6129C0CB8BBC1D93DD /* StatusScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1516F991C6C196F0CDF676CC /* StatusScreen.swift */; };
@@ -47,11 +48,13 @@
 		47AE2B7AF00367702C3276B3 /* HeadroomMediumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F395690B55C802624547B6D /* HeadroomMediumWidgetView.swift */; };
 		4BF249D4C7CEAE5DA58A40ED /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		4C74D9785A50808312C82760 /* SettingsSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F5ABC5B118F15694A358806 /* SettingsSheetView.swift */; };
+		4D0D895D05AFE5E6263B5179 /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
 		4DEC566AFA3E1C14AEFC4D92 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */; };
 		4EA657309B9F48B811B1C9D5 /* HeadroomTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */; };
 		5272B3EA7F8B4ED5D53400F9 /* HeadroomIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */; };
 		53F82A4681F8E2F99F11176B /* UsageDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3231CDC5E0AF2C8DE6B924FD /* UsageDTOs.swift */; };
 		56BAE387366F3D2ABFBDBBE1 /* PollingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432AF864130D5870A2FC78CF /* PollingEngine.swift */; };
+		5AEA213A9A00A042EED6986D /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
 		5B66665B700965FBCFC93DBE /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
 		5E5D6B8244F9AECF48B5C00E /* HeadroomIOSTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9ADDC10A509A2B2E5C0F48B /* HeadroomIOSTimelineProvider.swift */; };
 		60746FC18E97628B85602E13 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 736B4254D382572E99EA6D1A /* Assets.xcassets */; };
@@ -69,6 +72,7 @@
 		7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		7B70A94D4ED756E0FC690874 /* RaisedTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */; };
 		7D53C5FE0A37FF614973C232 /* APISpendPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5CD411FF3CB3B7B9B5465F /* APISpendPresentation.swift */; };
+		80916D058A17FA99064557F0 /* DemoFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65084FF4FFAFB83B11B7601E /* DemoFixture.swift */; };
 		84BF1E0A9D00D681D45F2959 /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
 		8734D2763F3EA91CBB32E3CE /* IOSWidgetStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2279E17039A179D85F6D0AB8 /* IOSWidgetStatusView.swift */; };
 		898AC9E2DA72AE3F4FFF0FE8 /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */; };
@@ -235,11 +239,13 @@
 		5B3D491D8D8B855C6182DF43 /* HeadroomWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HeadroomWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		6378187F940FD56B1A363971 /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
 		647B97436A2026E1B0F66065 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		65084FF4FFAFB83B11B7601E /* DemoFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoFixture.swift; sourceTree = "<group>"; };
 		6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSApp.swift; sourceTree = "<group>"; };
 		702E83E9BC8385F802D31257 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		736B4254D382572E99EA6D1A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		73E274D961861C31917C337F /* HeadroomIOSWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSWidgetView.swift; sourceTree = "<group>"; };
 		7422AF9B5364DACBD9ED1198 /* SOURCES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SOURCES.md; sourceTree = "<group>"; };
+		77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScreenshotData.swift; sourceTree = "<group>"; };
 		78B924E019B9A132CE8FA1FB /* WidgetAPISpendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAPISpendView.swift; sourceTree = "<group>"; };
 		7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandColorValues.swift; sourceTree = "<group>"; };
 		8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedWidgetSnapshotModels.swift; sourceTree = "<group>"; };
@@ -361,6 +367,7 @@
 		30C34E7BF44CE4B6E89A2C29 /* HeadroomCore */ = {
 			isa = PBXGroup;
 			children = (
+				65084FF4FFAFB83B11B7601E /* DemoFixture.swift */,
 				D36B90AC39047EDCF8F202A5 /* Credentials */,
 				528535290D07A3E62C48991B /* Engine */,
 				D23D24818D4CBFADF3D622BD /* Models */,
@@ -465,6 +472,7 @@
 			isa = PBXGroup;
 			children = (
 				3C5CD411FF3CB3B7B9B5465F /* APISpendPresentation.swift */,
+				77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */,
 				E25CC17492F28F0E69876941 /* MirrorPresentation.swift */,
 				FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */,
 				099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */,
@@ -844,6 +852,8 @@
 				6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */,
 				8B60C92EF3B9A4F66886E2F7 /* CredentialModels.swift in Sources */,
 				F774EA8D4BD1E7D73A49AF80 /* CredentialStore.swift in Sources */,
+				80916D058A17FA99064557F0 /* DemoFixture.swift in Sources */,
+				4D0D895D05AFE5E6263B5179 /* DemoScreenshotData.swift in Sources */,
 				D4487583EBB5122570323276 /* IOSWidgetTimelineMapping.swift in Sources */,
 				C7E68A38A0A0E0D2CDC8A213 /* LaunchAtLogin.swift in Sources */,
 				84BF1E0A9D00D681D45F2959 /* MirrorPresentation.swift in Sources */,
@@ -873,6 +883,7 @@
 				70434629D911B9F410378109 /* APISpendPresentation.swift in Sources */,
 				D68163551E31D133ED32CA8F /* BrandColorValues.swift in Sources */,
 				4050D3B78E0AD7AC09CF5314 /* Countdown.swift in Sources */,
+				5AEA213A9A00A042EED6986D /* DemoScreenshotData.swift in Sources */,
 				5E5D6B8244F9AECF48B5C00E /* HeadroomIOSTimelineProvider.swift in Sources */,
 				36608F62A9E13ABAD0F755B8 /* HeadroomIOSWidgetEntry.swift in Sources */,
 				8AA5705AC7EA53BA210B5289 /* HeadroomIOSWidgetView.swift in Sources */,
@@ -945,6 +956,7 @@
 				C52BF60996ACE1F4000874B1 /* BrandColorValues.swift in Sources */,
 				B2C10E922C19A9F4D624BE54 /* CompanionPreviewSeed.swift in Sources */,
 				CD29C4379A86CAC8A03AF46A /* Countdown.swift in Sources */,
+				258D60A36D7318D7FCEE3D37 /* DemoScreenshotData.swift in Sources */,
 				04F8A1034625A64E10FE2179 /* Elevation.swift in Sources */,
 				F1EC50355289B641B2B0A74F /* HeadroomAppIconView.swift in Sources */,
 				5272B3EA7F8B4ED5D53400F9 /* HeadroomIOSApp.swift in Sources */,
@@ -999,7 +1011,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomWidgets/HeadroomWidgets.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -1035,7 +1047,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOS/HeadroomIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 12;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1055,7 +1067,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomApp/HeadroomApp.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 10;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle\"",
@@ -1154,7 +1166,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomApp/HeadroomApp.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 10;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle\"",
@@ -1204,7 +1216,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOS/HeadroomIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 12;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -1222,7 +1234,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOSWidgets/HeadroomIOSWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 12;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOSWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -1314,7 +1326,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomWidgets/HeadroomWidgets.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 7;
+				CURRENT_PROJECT_VERSION = 10;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -1333,7 +1345,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOSWidgets/HeadroomIOSWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 8;
+				CURRENT_PROJECT_VERSION = 12;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOSWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";

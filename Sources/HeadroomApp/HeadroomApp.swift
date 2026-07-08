@@ -232,11 +232,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 enum AppComposition {
     @MainActor
     static func store(preferences: Preferences = Preferences()) -> UsageStore {
+        if DemoFixture.isEnabled { return demoStore() }
         let credentials = CredentialStore()
         return UsageStore(
             providers: providers(credentials: credentials),
             apiSpendProviders: apiSpendProviders(credentials: credentials),
             preferences: preferences,
+            widgetExporter: widgetExporter(),
+            phoneSyncExporter: phoneSyncExporter()
+        )
+    }
+
+    /// Screenshot demo mode (`--demo`): fixed sample data wired into the real UI across
+    /// every surface. Preferences live in a private UserDefaults suite so demo runs never
+    /// touch the user's real settings. Keeps the real widget + iCloud exporters, so the
+    /// macOS widgets and the iPhone mirror pick up the same fixed numbers.
+    @MainActor
+    private static func demoStore() -> UsageStore {
+        let prefs = Preferences(defaults: UserDefaults(suiteName: "co.zantos.headroom.demo") ?? .standard)
+        prefs.showMenuBarPercentage = true
+        prefs.menuBarFillSource = .claude          // Claude weekly (38%) drives the menu-bar number
+        prefs.widgetsEnabled = true
+        prefs.syncToIPhoneEnabled = true
+        prefs.setSurfaceEnabled(true, for: .anthropicAPI)   // API spend surfaces are off by default
+        prefs.setSurfaceEnabled(true, for: .openAIAPI)
+        prefs.setRenewalDate(DemoFixture.renewalDate(for: .claude), for: .claude)
+        prefs.setRenewalDate(DemoFixture.renewalDate(for: .codex), for: .codex)
+        return UsageStore(
+            providers: [
+                DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: DemoFixture.claudeSnapshot),
+                DemoUsageProvider(id: .codex, displayName: "Codex", snapshot: DemoFixture.codexSnapshot),
+            ],
+            apiSpendProviders: [
+                DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),
+                DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
+            ],
+            preferences: prefs,
             widgetExporter: widgetExporter(),
             phoneSyncExporter: phoneSyncExporter()
         )

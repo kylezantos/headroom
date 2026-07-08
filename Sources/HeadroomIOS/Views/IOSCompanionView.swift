@@ -86,6 +86,12 @@ struct IOSCompanionView: View {
             return
         }
         #endif
+        if DemoScreenshotData.isEnabled {
+            // Screenshot demo mode: show the fixed mirror snapshot directly, no iCloud round-trip.
+            state = .content(DemoScreenshotData.envelope)
+            syncInfo = IOSCompanionSyncInfo(publishedAt: Date(), sourceID: "Headroom", sourcePlatform: .macOS)
+            return
+        }
         let cache = WidgetSnapshotCache.appGroup()
         let sync = iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore())
         let read = sync.read()

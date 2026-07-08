@@ -15,7 +15,7 @@ enum HeadroomTheme {
 
     static func providerTextAccent(for id: String, scheme: ColorScheme) -> Color {
         switch (id, scheme) {
-        case (ProviderID.claude.raw, .light): Color(red: 0.74, green: 0.36, blue: 0.13)
+        case (ProviderID.claude.raw, .light): Color(red: 0.70, green: 0.33, blue: 0.11)
         case (ProviderID.claude.raw, .dark): Color(red: 0.91, green: 0.56, blue: 0.41)
         case (ProviderID.codex.raw, .light): Color(red: 0.20, green: 0.25, blue: 0.84)
         case (ProviderID.codex.raw, .dark): Color(red: 0.59, green: 0.63, blue: 1.00)
@@ -23,8 +23,8 @@ enum HeadroomTheme {
         }
     }
 
-    static func severityColor(for severity: WidgetUsageSeverity) -> Color {
-        Color(HeadroomSeverityColorValues.color(for: severity))
+    static func severityColor(for severity: WidgetUsageSeverity, scheme: ColorScheme) -> Color {
+        Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
     /// The screen background — a lifted vertical gradient (gray at top → near-black at
@@ -68,8 +68,9 @@ enum HeadroomTheme {
     }
 
     static func tertiaryText(_ scheme: ColorScheme) -> Color {
-        // Dark bumped 0.46 → 0.56 so the small caption text (reset labels, "left") clears
-        // WCAG AA on the card fill; light already passes.
+        // Both schemes tuned so the small caption text (reset labels, "left") clears
+        // WCAG AA (≥4.5:1) on the tile fill — dark at 0.56, light at 0.74 opacity; the
+        // rationale lives with the values in HeadroomWidgetColorValues.
         Color(HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark))
     }
 

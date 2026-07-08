@@ -16,6 +16,7 @@ struct UsageBarView: View {
     var dimmed: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
 
     private var pct: Int { Int(window.percentRemaining.rounded()) }
     private var fraction: Double { min(1, max(0, window.percentRemaining / 100)) }
@@ -31,7 +32,7 @@ struct UsageBarView: View {
 
     /// Desaturated grey while stale; the live severity color otherwise.
     private var fillColor: Color {
-        dimmed ? Color.secondary.opacity(0.55) : ProviderStyle.severityColor(for: severity)
+        dimmed ? Color.secondary.opacity(0.55) : ProviderStyle.severityColor(for: severity, scheme: scheme)
     }
 
     /// Prefer the provider's verbatim reset text (Claude) over a computed countdown
@@ -118,9 +119,9 @@ struct UsageBarView: View {
     private var lowChip: some View {
         Text("Low")
             .font(.system(size: 9.5, weight: .bold))
-            .foregroundStyle(ProviderStyle.severityColor(for: severity))
+            .foregroundStyle(ProviderStyle.severityColor(for: severity, scheme: scheme))
             .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(ProviderStyle.severityColor(for: severity).opacity(0.16), in: Capsule())
+            .background(ProviderStyle.severityColor(for: severity, scheme: scheme).opacity(0.16), in: Capsule())
     }
 
     private var label: String {

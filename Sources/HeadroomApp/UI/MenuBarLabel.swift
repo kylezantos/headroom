@@ -150,13 +150,13 @@ enum MenuBarLabelRenderer {
     }
 
     private static func severityColor(for severity: UsageSeverity) -> NSColor {
-        switch severity {
-        case .healthy:
-            return NSColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1.0)
-        case .low:
-            return NSColor(red: 1.00, green: 0.62, blue: 0.04, alpha: 1.0)
-        case .critical:
-            return NSColor(red: 1.00, green: 0.27, blue: 0.23, alpha: 1.0)
+        // Dynamic so the status-item text re-resolves with the menu bar's own appearance
+        // (which follows the wallpaper/system, not the app), picking the scheme-tuned
+        // value from the shared severity palette.
+        NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let rgb = HeadroomSeverityColorValues.color(for: severity, dark: dark)
+            return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1.0)
         }
     }
 }

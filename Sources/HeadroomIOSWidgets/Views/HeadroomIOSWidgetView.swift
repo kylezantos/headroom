@@ -8,29 +8,50 @@ import WidgetKit
 struct HeadroomIOSWidgetView: View {
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.widgetContentMargins) private var contentMargins
+    @Environment(\.showsWidgetContainerBackground) private var showsContainerBackground
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let entry: HeadroomIOSWidgetEntry
 
     var body: some View {
-        Group {
-            switch entry.state {
-            case .content(let envelope):
-                content(envelope)
-            case .disabled:
-                IOSWidgetStatusView(title: "Sync Paused", message: "Enable iPhone sync on your Mac.")
-            case .setupNeeded:
-                IOSWidgetStatusView(title: "iCloud Needed", message: "Enable iCloud for Headroom.")
-            case .waitingForMac:
-                IOSWidgetStatusView(title: "Waiting for Mac", message: "Open Headroom on your Mac.")
-            case .corrupt:
-                IOSWidgetStatusView(title: "Unreadable Data", message: "Refresh Headroom on your Mac.")
-            case .incompatibleSchema:
-                IOSWidgetStatusView(title: "Update Needed", message: "Update Headroom on both devices.")
+        ZStack {
+            // The OS 26 Liquid Glass presentation composites a translucent sheen over the
+            // `containerBackground` layer (bright at the widget's top edge, fading by
+            // mid-tile — measured ~+28 RGB at top on both platforms), which made the top
+            // provider card sit on a lighter surround than the bottom one. Content is not
+            // veiled, so the background is drawn here in the content layer instead —
+            // `contentMarginsDisabled` lets it bleed to the container edges, and the
+            // system's own margins are re-applied around the actual content below. The
+            // `containerBackground` copy remains for accented rendering and contexts that
+            // strip backgrounds (StandBy / lock screen), where the system look should win.
+            if showsContainerBackground && renderingMode == .fullColor {
+                HeadroomWidgetContainerBackground()
             }
+            stateContent
+                .padding(contentMargins)
         }
         .containerBackground(for: .widget) {
             HeadroomWidgetContainerBackground()
         }
         .widgetURL(URL(string: "headroom://usage"))
+    }
+
+    @ViewBuilder
+    private var stateContent: some View {
+        switch entry.state {
+        case .content(let envelope):
+            content(envelope)
+        case .disabled:
+            IOSWidgetStatusView(title: "Sync Paused", message: "Enable iPhone sync on your Mac.")
+        case .setupNeeded:
+            IOSWidgetStatusView(title: "iCloud Needed", message: "Enable iCloud for Headroom.")
+        case .waitingForMac:
+            IOSWidgetStatusView(title: "Waiting for Mac", message: "Open Headroom on your Mac.")
+        case .corrupt:
+            IOSWidgetStatusView(title: "Unreadable Data", message: "Refresh Headroom on your Mac.")
+        case .incompatibleSchema:
+            IOSWidgetStatusView(title: "Update Needed", message: "Update Headroom on both devices.")
+        }
     }
 
     @ViewBuilder
@@ -222,7 +243,7 @@ struct HeadroomIOSWidgetView: View {
                     Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
                         .labelStyle(.iconOnly)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(IOSWidgetStyle.severityColor(for: .low))
+                        .foregroundStyle(IOSWidgetStyle.severityColor(for: .low, scheme: scheme))
                 }
             }
             IOSWidgetUsageMeter(window: window(.weekly, in: provider), fallbackLabel: "Weekly", compact: true)
@@ -295,7 +316,7 @@ struct HeadroomIOSWidgetView: View {
                 Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
                     .labelStyle(.iconOnly)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(IOSWidgetStyle.severityColor(for: .low))
+                    .foregroundStyle(IOSWidgetStyle.severityColor(for: .low, scheme: scheme))
             }
         }
     }
@@ -316,7 +337,7 @@ struct HeadroomIOSWidgetView: View {
                     if summary.freshness.needsAttention {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(IOSWidgetStyle.severityColor(for: .low))
+                            .foregroundStyle(IOSWidgetStyle.severityColor(for: .low, scheme: scheme))
                     }
                 }
                 .layoutPriority(1)
@@ -530,7 +551,7 @@ private struct IOSWidgetUsageBar: View {
                 Capsule()
                     .fill(IOSWidgetStyle.barTrack(scheme: scheme))
                 Capsule()
-                    .fill(dimmed ? IOSWidgetStyle.secondaryText(scheme: scheme) : IOSWidgetStyle.severityColor(for: severity))
+                    .fill(dimmed ? IOSWidgetStyle.secondaryText(scheme: scheme) : IOSWidgetStyle.severityColor(for: severity, scheme: scheme))
                     .frame(width: fillWidth(in: geo.size.width))
             }
         }
@@ -554,8 +575,8 @@ private enum IOSWidgetStyle {
         return Color(rgb)
     }
 
-    static func severityColor(for severity: WidgetUsageSeverity) -> Color {
-        Color(HeadroomSeverityColorValues.color(for: severity))
+    static func severityColor(for severity: WidgetUsageSeverity, scheme: ColorScheme) -> Color {
+        Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
     static func secondaryText(scheme: ColorScheme) -> Color {

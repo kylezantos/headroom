@@ -8,15 +8,24 @@ struct BrandColorValuesTests {
     }
 
     @Test func usageSeverityColorsMatchCanonicalSpec() {
-        #expect(HeadroomSeverityColorValues.healthy == HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35))
-        #expect(HeadroomSeverityColorValues.low == HeadroomRGBColor(red: 1.00, green: 0.62, blue: 0.04))
-        #expect(HeadroomSeverityColorValues.critical == HeadroomRGBColor(red: 1.00, green: 0.27, blue: 0.23))
+        // Dark: vivid originals (critical nudged 0.27 → 0.34 green for the 3:1 bar-vs-track
+        // floor). Light: darkened along the same hues so bars clear WCAG 1.4.11 on the
+        // light track and read ≥4:1 as chip text on white.
+        #expect(HeadroomSeverityColorValues.healthy(dark: true) == HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35))
+        #expect(HeadroomSeverityColorValues.low(dark: true) == HeadroomRGBColor(red: 1.00, green: 0.62, blue: 0.04))
+        #expect(HeadroomSeverityColorValues.critical(dark: true) == HeadroomRGBColor(red: 1.00, green: 0.34, blue: 0.29))
+        #expect(HeadroomSeverityColorValues.healthy(dark: false) == HeadroomRGBColor(red: 0.09, green: 0.52, blue: 0.22))
+        #expect(HeadroomSeverityColorValues.low(dark: false) == HeadroomRGBColor(red: 0.70, green: 0.41, blue: 0.00))
+        #expect(HeadroomSeverityColorValues.critical(dark: false) == HeadroomRGBColor(red: 0.85, green: 0.16, blue: 0.13))
     }
 
     @Test func usageSeverityLookupReturnsCanonicalValues() {
-        #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.healthy) == HeadroomSeverityColorValues.healthy)
-        #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.low) == HeadroomSeverityColorValues.low)
-        #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.critical) == HeadroomSeverityColorValues.critical)
+        for dark in [true, false] {
+            #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.healthy, dark: dark) == HeadroomSeverityColorValues.healthy(dark: dark))
+            #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.low, dark: dark) == HeadroomSeverityColorValues.low(dark: dark))
+            #expect(HeadroomSeverityColorValues.color(for: UsageSeverity.critical, dark: dark) == HeadroomSeverityColorValues.critical(dark: dark))
+            #expect(HeadroomSeverityColorValues.color(for: WidgetUsageSeverity.healthy, dark: dark) == HeadroomSeverityColorValues.healthy(dark: dark))
+        }
     }
 
     @Test func widgetContainerBackgroundMatchesCanonicalSpec() {

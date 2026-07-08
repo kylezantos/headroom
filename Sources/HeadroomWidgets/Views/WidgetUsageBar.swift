@@ -24,7 +24,7 @@ struct WidgetUsageBar: View {
                 Capsule()
                     .fill(WidgetProviderStyle.barTrack(scheme: scheme))
                 Capsule()
-                    .fill(dimmed ? WidgetProviderStyle.secondaryText(scheme: scheme) : WidgetProviderStyle.severityColor(for: severity))
+                    .fill(dimmed ? WidgetProviderStyle.secondaryText(scheme: scheme) : WidgetProviderStyle.severityColor(for: severity, scheme: scheme))
                     .frame(width: fillWidth(in: geo.size.width))
             }
         }

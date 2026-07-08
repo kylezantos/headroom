@@ -115,7 +115,7 @@ struct APISpendMirrorView: View {
         case .live:
             HeadroomTheme.tertiaryText(scheme)
         case .stale(_, let needsAttention):
-            needsAttention ? HeadroomTheme.severityColor(for: .low) : HeadroomTheme.secondaryText(scheme)
+            needsAttention ? HeadroomTheme.severityColor(for: .low, scheme: scheme) : HeadroomTheme.secondaryText(scheme)
         }
     }
 }

@@ -20,6 +20,7 @@ struct ProviderCardView: View {
     let onOpenSettings: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
 
     private var accent: Color { ProviderStyle.accent(for: providerID) }
 
@@ -112,7 +113,7 @@ struct ProviderCardView: View {
         VStack(alignment: .leading, spacing: 8) {
             Label(reason.message, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption)
-                .foregroundStyle(ProviderStyle.severityColor(for: .low))
+                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
             if let command = reauthCommand {
                 HStack(spacing: 8) {
                     Text("$ \(command)")

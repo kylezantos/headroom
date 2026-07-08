@@ -69,11 +69,11 @@ struct ProviderTileView: View {
         if let noticeText = treatment.noticeText {
             Label(noticeText, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(HeadroomTheme.severityColor(for: .low))
+                .foregroundStyle(HeadroomTheme.severityColor(for: .low, scheme: scheme))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(HeadroomTheme.severityColor(for: .low).opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+                .background(HeadroomTheme.severityColor(for: .low, scheme: scheme).opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
     }
 

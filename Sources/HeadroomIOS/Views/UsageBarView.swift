@@ -13,7 +13,7 @@ struct UsageBarView: View {
     private var fraction: Double { min(1, max(0, window.percentRemaining / 100)) }
     private var animatedFraction: Double { reduceMotion || appeared ? fraction : 0 }
     private var fillColor: Color {
-        dimmed ? Color.secondary.opacity(0.48) : HeadroomTheme.severityColor(for: window.severity)
+        dimmed ? Color.secondary.opacity(0.48) : HeadroomTheme.severityColor(for: window.severity, scheme: scheme)
     }
 
     var body: some View {
@@ -70,10 +70,10 @@ struct UsageBarView: View {
     private var lowChip: some View {
         Text("Low")
             .font(.caption2.weight(.bold))
-            .foregroundStyle(HeadroomTheme.severityColor(for: window.severity))
+            .foregroundStyle(HeadroomTheme.severityColor(for: window.severity, scheme: scheme))
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
-            .background(HeadroomTheme.severityColor(for: window.severity).opacity(0.15), in: Capsule())
+            .background(HeadroomTheme.severityColor(for: window.severity, scheme: scheme).opacity(0.15), in: Capsule())
     }
 
     private var displayLabel: String {

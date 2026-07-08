@@ -72,7 +72,7 @@ private struct LargeProviderSection: View {
                 Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
                     .labelStyle(.iconOnly)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(WidgetProviderStyle.severityColor(for: .low))
+                    .foregroundStyle(WidgetProviderStyle.severityColor(for: .low, scheme: scheme))
             }
         }
     }

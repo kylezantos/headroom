@@ -84,7 +84,7 @@ private struct MediumProviderColumn: View {
                     Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
                         .labelStyle(.iconOnly)
                         .font(.caption2.weight(.semibold))
-                        .foregroundStyle(WidgetProviderStyle.severityColor(for: .low))
+                        .foregroundStyle(WidgetProviderStyle.severityColor(for: .low, scheme: scheme))
                 }
             }
             WidgetUsageMeter(window: window(.weekly), fallbackLabel: "Weekly", compact: true)

@@ -27,7 +27,7 @@ struct WidgetAPISpendCompactRow: View {
             if summary.freshness.needsAttention {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(WidgetProviderStyle.severityColor(for: .low))
+                    .foregroundStyle(WidgetProviderStyle.severityColor(for: .low, scheme: scheme))
             }
         }
         .layoutPriority(1)

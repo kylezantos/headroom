@@ -1,3 +1,4 @@
+
 import SwiftUI
 
 struct HeadroomWidgetContainerBackground: View {
@@ -6,16 +7,17 @@ struct HeadroomWidgetContainerBackground: View {
     private var isDark: Bool { scheme == .dark }
 
     var body: some View {
-        // The companion's full-screen gradient + top glow is tuned for a tall scroll view. Crushed
-        // into a small widget, that bright glow lands right behind the top provider card, so an
-        // identical card reads lighter/darker purely by vertical position (the provider cards are
-        // byte-for-byte the same fill — the surround is what differed). Keep the widget surround a
-        // calm, near-uniform dark that stays darker than the tile fill everywhere, so every provider
-        // card sits on the same background and reads identically.
+        // Companion parity: the same top → middle → bottom falloff as the iOS companion's
+        // screen background (HeadroomTheme.backgroundView), minus its radial top glow — at
+        // widget scale the glow's bright center would land behind the top provider card,
+        // while at phone scale it sits above the content entirely. Measured beside the
+        // companion's cards the surround runs ~(20 → 13); this 3-stop ramp reproduces that,
+        // staying darker than the tile fill everywhere so both cards read identically.
         LinearGradient(
             colors: [
                 color(HeadroomWidgetColorValues.containerBackgroundTop(dark: isDark)),
                 color(HeadroomWidgetColorValues.containerBackgroundMiddle(dark: isDark)),
+                color(HeadroomWidgetColorValues.containerBackgroundBottom(dark: isDark)),
             ],
             startPoint: .top,
             endPoint: .bottom

@@ -2,6 +2,7 @@ import SwiftUI
 import HeadroomCore
 
 struct APISpendSectionView: View {
+    @Environment(\.colorScheme) private var scheme
     var store: UsageStore
     let now: Date
     let onOpenSettings: () -> Void
@@ -71,7 +72,7 @@ struct APISpendSectionView: View {
             HStack(spacing: 6) {
                 Text(reason.isPermanent ? "Needs setup" : "Stale")
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(reason.isPermanent ? ProviderStyle.severityColor(for: .low) : .secondary)
+                    .foregroundStyle(reason.isPermanent ? ProviderStyle.severityColor(for: .low, scheme: scheme) : .secondary)
                 Text(reason.message)
                     .font(.caption2)
                     .foregroundStyle(.secondary)

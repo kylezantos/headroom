@@ -44,7 +44,10 @@ public enum HeadroomWidgetColorValues {
     /// Returns `nil` for unknown providers so the caller can fall back to `.secondary`.
     public static func textAccent(for providerID: String, dark: Bool) -> HeadroomRGBColor? {
         switch (providerID, dark) {
-        case (ProviderID.claude.raw, false): HeadroomRGBColor(red: 0.74, green: 0.36, blue: 0.13)
+        // Light Claude sits at 4.17:1 on the widget's light container top at its smallest
+        // usage (12pt semibold, small-widget provider rows); this darker step clears
+        // WCAG AA small-text (≥4.5:1) on every light surface it appears on.
+        case (ProviderID.claude.raw, false): HeadroomRGBColor(red: 0.70, green: 0.33, blue: 0.11)
         case (ProviderID.claude.raw, true): HeadroomRGBColor(red: 0.91, green: 0.56, blue: 0.41)
         case (ProviderID.codex.raw, false): HeadroomRGBColor(red: 0.20, green: 0.25, blue: 0.84)
         case (ProviderID.codex.raw, true): HeadroomRGBColor(red: 0.59, green: 0.63, blue: 1.00)
@@ -55,12 +58,17 @@ public enum HeadroomWidgetColorValues {
     private static let darkNeutral = HeadroomRGBColor(red: 0.92, green: 0.92, blue: 0.96)
     private static let lightNeutral = HeadroomRGBColor(red: 0.24, green: 0.24, blue: 0.26)
 
+    // Light opacities are set by WCAG AA small-text (≥4.5:1) on the lightest surfaces each
+    // role sits on: tertiary needs 0.74 to clear the white tile fill (4.96) and the light
+    // container bottom where the widget footer lives (4.56); secondary steps to 0.84 so the
+    // two-level gray hierarchy survives the tertiary bump (6.63 on white, 5.44 on the plan
+    // capsule's bar-track). Dark passes at the existing values (worst case 4.99).
     public static func secondaryText(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: darkNeutral, opacity: 0.66) : HeadroomTint(color: lightNeutral, opacity: 0.74)
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.66) : HeadroomTint(color: lightNeutral, opacity: 0.84)
     }
 
     public static func tertiaryText(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: darkNeutral, opacity: 0.56) : HeadroomTint(color: lightNeutral, opacity: 0.54)
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.56) : HeadroomTint(color: lightNeutral, opacity: 0.74)
     }
 
     public static func barTrack(dark: Bool) -> HeadroomTint {
@@ -130,16 +138,29 @@ public enum HeadroomBrandMark {
     }
 }
 
+/// Severity colors are scheme-aware: the dark values are the vivid originals (tuned for
+/// dark cards), while the light values are darkened along the same hues so bar fills clear
+/// WCAG 1.4.11 (≥3:1) against the light bar track (the originals sat at 1.6–2.6:1) and read
+/// ≥4:1 as chip text on white. Dark critical is nudged (0.27 → 0.34 green) for the same
+/// 3:1 bar-vs-track floor; dark healthy/low already passed and are untouched.
 public enum HeadroomSeverityColorValues {
-    public static let healthy = HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35)
-    public static let low = HeadroomRGBColor(red: 1.00, green: 0.62, blue: 0.04)
-    public static let critical = HeadroomRGBColor(red: 1.00, green: 0.27, blue: 0.23)
+    public static func healthy(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35) : HeadroomRGBColor(red: 0.09, green: 0.52, blue: 0.22)
+    }
 
-    public static func color(for severity: WidgetUsageSeverity) -> HeadroomRGBColor {
+    public static func low(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 1.00, green: 0.62, blue: 0.04) : HeadroomRGBColor(red: 0.70, green: 0.41, blue: 0.00)
+    }
+
+    public static func critical(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomRGBColor(red: 1.00, green: 0.34, blue: 0.29) : HeadroomRGBColor(red: 0.85, green: 0.16, blue: 0.13)
+    }
+
+    public static func color(for severity: WidgetUsageSeverity, dark: Bool) -> HeadroomRGBColor {
         switch severity {
-        case .healthy: healthy
-        case .low: low
-        case .critical: critical
+        case .healthy: healthy(dark: dark)
+        case .low: low(dark: dark)
+        case .critical: critical(dark: dark)
         }
     }
 }

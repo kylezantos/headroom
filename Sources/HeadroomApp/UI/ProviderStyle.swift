@@ -26,8 +26,8 @@ enum ProviderStyle {
     /// too close to amber to read as "warning". Brand identity stays in the logo + plan
     /// pill; the bar's job is to signal how much is left. No animation: a threshold, not
     /// a pulse, so it honors the standing no-pulsing rule.
-    static func severityColor(for severity: UsageSeverity) -> Color {
-        Color(HeadroomSeverityColorValues.color(for: severity))
+    static func severityColor(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
+        Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
     static func symbol(for id: ProviderID) -> String {

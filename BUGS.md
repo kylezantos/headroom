@@ -57,6 +57,18 @@ official `claude` CLI's `/usage` panel instead.
   The iOS host/widget entitlements already declare the key and are signed via Xcode, so the phone
   read side is fine — only the Mac publisher is blocked.
 
+## Contrast — severity bar colors in light mode (pre-existing, shared tokens)
+
+- `HeadroomSeverityColorValues` has one value per severity used in both schemes. As bar fills
+  in **light** mode they miss WCAG 1.4.11 non-text contrast (≥3:1) against the composited
+  bar track on a white card: healthy 1.69:1, low 1.57:1, critical 2.59:1; the track itself
+  is only 1.32:1 against the card. In **dark**, critical is marginal at 2.81:1 (healthy 4.31,
+  low 4.63 pass). Mitigating: the adjacent percent text (AA-passing) carries the same value,
+  so the bars are reinforcement, not the sole indicator. Fix would be scheme-aware severity
+  variants (darker greens/ambers/reds for light), which touches the popover, companion, and
+  widgets together — do it as one deliberate pass, not a widget-only patch. Found during the
+  2026-07-08 widget contrast audit; text tokens were fixed in that pass, bars deferred.
+
 ## Companion platforms
 
 - **watchOS companion is deferred.** It should probably reuse the iCloud snapshot contract,

@@ -20,6 +20,11 @@ redaction-safe snapshot synced from the Mac through iCloud Key-Value Store.
   official reset windows.
 - **Codex/ChatGPT** — reads `~/.codex/auth.json` and calls the `wham/usage` endpoint
   (the same data Codex's `/status` shows).
+
+> **First launch:** macOS asks "Headroom would like to access data from other apps" —
+> that's Headroom reading the Codex CLI's local `auth.json` (and driving the `claude`
+> CLI). Click **Allow**; if you click Don't Allow, Codex usage will never appear and the
+> app will sit idle. Re-grant later in System Settings → Privacy & Security if needed.
 - **API spend** — optional and off by default. When enabled in Settings, Headroom stores
   provider admin/reporting keys in the macOS Keychain and reads official cost-report
   endpoints for the selected period: OpenAI organization costs and Anthropic organization
@@ -68,6 +73,14 @@ Headroom includes one WidgetKit extension with size-specific layouts:
 - **Small** — weekly percentage left for Claude and Codex, provider-by-provider.
 - **Medium** — weekly and 5-hour usage for both providers.
 - **Large** — adds reset, freshness, and renewal-date context.
+
+The widgets share the iPhone companion's card and background system (same tokens, same
+ring-shadow elevation), and all text and bar colors meet WCAG AA contrast in both light
+and dark. One rendering note: OS 26 composites a Liquid Glass sheen over the widget
+`containerBackground` layer, which unevenly brightens the top of small tiles — Headroom
+draws its background in the content layer instead (with system content margins re-applied)
+so both provider cards sit on an identical surround. See the comment in
+`HeadroomWidgetView` before changing that structure.
 
 Enable or pause widget data in Headroom Settings with **Share data with widgets**. Add,
 remove, and resize widgets from macOS itself; Settings controls data export, not OS
@@ -236,9 +249,9 @@ read the app's exported cache.
 ## iOS distribution
 
 The iPhone companion app and iOS widgets are distributed through Apple's normal iOS
-channels, not through Sparkle, DMG packaging, or Developer ID notarization. Use TestFlight
-for beta builds while the desktop release is getting polished, then submit the same app
-record through App Store review for public distribution. Ad Hoc builds are only for
+channels, not through Sparkle, DMG packaging, or Developer ID notarization: TestFlight
+for betas, then the **App Store** (the public distribution channel) via the same
+`com.kylezantos.headroom.ios` App Store Connect app record. Ad Hoc builds are only for
 registered-device testing and are not the update mechanism for users.
 
 Build a local App Store Connect export:
@@ -272,5 +285,8 @@ Working end-to-end: live Claude 5h/weekly windows via the CLI probe (verified ag
 real account and from a bare launch environment), Codex via its endpoint, optional
 OpenAI/Anthropic API spend rows, manual renewal dates, launch-at-login, the Tahoe popover,
 widget cache export, app icon, the bundled macOS widget extension, and the iPhone
-companion/widget targets. Remaining release polish is Developer ID notarization plus
-visual/VoiceOver smoke on the running app and widgets.
+companion/widget targets with live Mac → iPhone iCloud sync. Widget design parity with the
+companion is pixel-verified on device in both appearances, and text/bar colors pass a
+numeric WCAG AA contrast audit in both schemes (macOS build 10, iOS build 12). Remaining:
+App Store submission for the iOS companion (TestFlight record exists) and the next
+notarized DMG cut for the Mac download page.

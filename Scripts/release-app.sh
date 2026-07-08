@@ -142,17 +142,12 @@ create_drag_install_dmg() {
     -nobrowse >/dev/null
   trap detach_dmg_mount RETURN
 
-  # Give the mounted volume the Headroom app icon (optional polish; never fatal).
-  if [[ -f "${APP}/Contents/Resources/AppIcon.icns" ]] && command -v SetFile >/dev/null 2>&1; then
-    cp "${APP}/Contents/Resources/AppIcon.icns" "${DMG_MOUNT_DIR}/.VolumeIcon.icns" 2>/dev/null || true
-    SetFile -a C "${DMG_MOUNT_DIR}" 2>/dev/null || true
-  fi
-
   osascript - "$(cd "${DMG_MOUNT_DIR}" && pwd)" "${background_ready}" <<'APPLESCRIPT'
 on run argv
   set mountPath to item 1 of argv
   set backgroundReady to item 2 of argv
   tell application "Finder"
+    activate
     set dmgFolder to POSIX file mountPath as alias
     open dmgFolder
     delay 1
@@ -178,13 +173,53 @@ on run argv
 
     set position of item "Headroom.app" of dmgFolder to {196, 176}
     set position of item "Applications" of dmgFolder to {484, 176}
+  end tell
 
+  -- Tahoe Finder ignores the toolbar/statusbar AppleScript properties for DMG windows
+  -- and instead shows a tab bar + path bar + status bar. Their View-menu toggles are the
+  -- only working switch, and the hidden state persists into the DMG's .DS_Store (verified
+  -- across remounts). Menu items read "Hide …" only when the bar is visible, so this is
+  -- naturally idempotent. Needs Accessibility access for the calling terminal; tolerated
+  -- (with a warning) when unavailable so CI-ish runs still produce a usable DMG.
+  tell application "System Events"
+    tell process "Finder"
+      repeat with itemName in {"Hide Tab Bar", "Hide Path Bar", "Hide Status Bar"}
+        try
+          click menu item (itemName as text) of menu "View" of menu bar 1
+          delay 0.4
+        on error errMsg
+          log "  chrome toggle skipped (" & itemName & "): " & errMsg
+        end try
+      end repeat
+    end tell
+  end tell
+
+  tell application "Finder"
+    -- Re-assert the frame after the chrome collapse so the saved window size matches
+    -- the 680x440 background exactly.
+    set bounds of container window of dmgFolder to {180, 120, 860, 588}
     update dmgFolder without registering applications
     delay 1
     close container window of dmgFolder
   end tell
 end run
 APPLESCRIPT
+
+  # Give the mounted volume the Headroom app icon — it doubles as the window's title-bar
+  # proxy icon. This must run AFTER the Finder styling pass: Finder's background/update
+  # writes were observed clobbering a pre-staged .VolumeIcon.icns (file gone after
+  # detach), while staging it last survives remounts.
+  if [[ -f "${APP}/Contents/Resources/AppIcon.icns" ]] && command -v SetFile >/dev/null 2>&1; then
+    if cp "${APP}/Contents/Resources/AppIcon.icns" "${DMG_MOUNT_DIR}/.VolumeIcon.icns" \
+        && SetFile -a C "${DMG_MOUNT_DIR}" \
+        && SetFile -a V "${DMG_MOUNT_DIR}/.VolumeIcon.icns"; then
+      echo "  ✓ volume icon staged (title-bar proxy icon)"
+    else
+      echo "  ! volume icon staging failed — DMG will show the generic disk icon" >&2
+    fi
+  else
+    echo "  ! AppIcon.icns or SetFile unavailable — skipping volume icon" >&2
+  fi
 
   sync
   detach_dmg_mount

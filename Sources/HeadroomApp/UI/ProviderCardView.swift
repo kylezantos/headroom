@@ -55,7 +55,7 @@ struct ProviderCardView: View {
         // A refresh replacing the pending skeleton (or a stale card recovering) cross-fades
         // and springs its height change rather than hard-cutting — the arrival of a poll
         // cycle, felt not flashed. Snaps instead under Reduce Motion.
-        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: snapshot.freshness)
+        .animation(reduceMotion ? nil : HeadroomMotion.valueSpring, value: snapshot.freshness)
         .onAppear { evaluateConnectedPayoff() }
         .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
     }
@@ -69,10 +69,10 @@ struct ProviderCardView: View {
               ClaudeSetupSession.openedSetupAt != nil else { return }
         ClaudeSetupSession.cancelRetries()
         guard !showsConnectedChip else { return }
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { showsConnectedChip = true }
+        withAnimation(reduceMotion ? nil : HeadroomMotion.valueSpring) { showsConnectedChip = true }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
-            withAnimation(reduceMotion ? nil : .smooth(duration: 0.4)) { showsConnectedChip = false }
+            withAnimation(reduceMotion ? nil : HeadroomMotion.settle) { showsConnectedChip = false }
             ClaudeSetupSession.openedSetupAt = nil
         }
     }
@@ -162,12 +162,22 @@ struct ProviderCardView: View {
     /// skeleton previews the true shape rather than reading as "broken". The wait names
     /// the ~20–30s first Claude poll so the delay feels intentional, not hung.
     private var pendingSkeleton: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 150, height: 6)
-            RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(height: 7)
-            RoundedRectangle(cornerRadius: 4).fill(.quaternary).frame(width: 96, height: 6)
+        VStack(alignment: .leading, spacing: 9) {
+            skeletonMeter(labelWidth: 72, valueWidth: 42)
+            skeletonMeter(labelWidth: 86, valueWidth: 36)
             Text("Fetching usage…")
                 .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func skeletonMeter(labelWidth: CGFloat, valueWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                RoundedRectangle(cornerRadius: 4).fill(ProviderStyle.barTrack(scheme: scheme)).frame(width: labelWidth, height: 13)
+                Spacer(minLength: 6)
+                RoundedRectangle(cornerRadius: 4).fill(ProviderStyle.barTrack(scheme: scheme)).frame(width: valueWidth, height: 13)
+            }
+            Capsule().fill(ProviderStyle.barTrack(scheme: scheme)).frame(height: 8)
         }
     }
 

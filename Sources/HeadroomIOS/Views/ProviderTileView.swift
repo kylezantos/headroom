@@ -55,11 +55,11 @@ struct ProviderTileView: View {
             if let planLabel = provider.planLabel, !planLabel.isEmpty {
                 Text(planLabel.capitalized)
                     .font(.caption.weight(.semibold))
-                    .foregroundStyle(HeadroomTheme.providerTextAccent(for: provider.id, scheme: scheme))
+                    .foregroundStyle(HeadroomTheme.secondaryText(scheme))
                     .lineLimit(1)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
-                    .background(HeadroomTheme.providerAccent(for: provider.id).opacity(scheme == .dark ? 0.20 : 0.13), in: Capsule())
+                    .background(HeadroomTheme.barTrack(scheme), in: Capsule())
             }
         }
     }

@@ -64,6 +64,7 @@ targets:
     type: app-extension
     platform: macOS
     sources:
+      - path: Sources/HeadroomWidgetSharedUI
       - path: Sources/HeadroomWidgets
         excludes:
           - HeadroomWidgets.entitlements
@@ -115,6 +116,7 @@ targets:
     type: app-extension
     platform: iOS
     sources:
+      - path: Sources/HeadroomWidgetSharedUI
       - path: Sources/HeadroomIOSWidgets
         excludes:
           - HeadroomIOSWidgets.entitlements

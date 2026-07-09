@@ -96,6 +96,7 @@ struct APISpendMirrorView: View {
             Text(amount)
                 .font(.title3.weight(.semibold).monospacedDigit())
                 .foregroundStyle(summary.freshness == .live ? .primary : HeadroomTheme.secondaryText(scheme))
+                .privacySensitive()
                 .lineLimit(1)
                 .minimumScaleFactor(0.76)
                 .allowsTightening(true)

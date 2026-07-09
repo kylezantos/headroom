@@ -16,7 +16,7 @@ struct HeadroomSmallWidgetView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Weekly left")
-                .font(.system(size: 11, weight: .medium))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(WidgetProviderStyle.secondaryText(scheme: scheme))
             ForEach(envelope.providers) { provider in
                 let windows = provider.weeklyDisplayWindows
@@ -60,15 +60,17 @@ private struct SmallWeeklyWindowLine: View {
             HStack(spacing: 5) {
                 WidgetProviderIcon(providerID: provider.id, size: 16)
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(WidgetProviderStyle.textAccent(for: provider.id, scheme: scheme))
+                    .widgetAccentable()
                     .lineLimit(1)
                     .minimumScaleFactor(0.82)
                     .allowsTightening(true)
                     .layoutPriority(1)
                 Spacer(minLength: 2)
                 Text("\(Int(window.percentRemaining.rounded()))%")
-                    .font(.system(size: 16, weight: .bold).monospacedDigit())
+                    .font(.title3.bold().monospacedDigit())
+                    .widgetAccentable()
                     .lineLimit(1)
                     .minimumScaleFactor(0.78)
                     .allowsTightening(true)

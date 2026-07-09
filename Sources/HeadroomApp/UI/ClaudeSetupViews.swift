@@ -113,8 +113,11 @@ enum ClaudeSetupStyle {
     static func stepBorder(dark: Bool) -> Color {
         dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
     }
-    static func codeBackground(dark: Bool) -> Color {
+    static func wellBackground(dark: Bool) -> Color {
         dark ? Color.black.opacity(0.32) : Color.black.opacity(0.05)
+    }
+    static func codeBackground(dark: Bool) -> Color {
+        wellBackground(dark: dark)
     }
     static func hairline(dark: Bool) -> Color {
         dark ? Color.white.opacity(0.10) : Color.black.opacity(0.08)
@@ -271,7 +274,7 @@ struct ClaudeManualCommandDisclosure: View {
         let dark = scheme == .dark
         VStack(alignment: .leading, spacing: 9) {
             Button {
-                withAnimation(reduceMotion ? nil : .smooth(duration: 0.2)) { open.toggle() }
+                withAnimation(reduceMotion ? nil : HeadroomMotion.settle) { open.toggle() }
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "chevron.right")
@@ -309,7 +312,7 @@ struct ClaudeManualCommandDisclosure: View {
 }
 
 /// Full-width clay gradient primary — the card's one unmistakable action. Hover
-/// brightens, press settles 0.995; both input-driven (no idle motion).
+/// brightens, press settles 0.98; both input-driven (no idle motion).
 struct ClaudePrimaryButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var scheme
 
@@ -336,14 +339,11 @@ struct ClaudePrimaryButtonStyle: ButtonStyle {
                 )
                 .overlay(shape.strokeBorder(Color.white.opacity(0.22), lineWidth: 1).blendMode(.plusLighter).opacity(0.6))
                 .shadow(color: .black.opacity(0.20), radius: 1, y: 1)
-                .brightness(hovering ? 0.04 : 0)
-                .scaleEffect(configuration.isPressed ? 0.995 : 1)
-                .onHover { inside in
-                    hovering = inside
-                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
-                .animation(.easeOut(duration: 0.12), value: hovering)
-                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+                .brightness(configuration.isPressed ? -0.03 : (hovering ? 0.04 : 0))
+                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                .onHover { hovering = $0 }
+                .animation(HeadroomMotion.press, value: hovering)
+                .animation(HeadroomMotion.press, value: configuration.isPressed)
         }
     }
 }
@@ -372,12 +372,9 @@ struct SetupChipButtonStyle: ButtonStyle {
                 .overlay(shape.strokeBorder(dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 1))
                 .shadow(color: .black.opacity(dark ? 0 : 0.10), radius: 1, y: 1)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1)
-                .onHover { inside in
-                    hovering = inside
-                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
-                .animation(.easeOut(duration: 0.12), value: hovering)
-                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+                .onHover { hovering = $0 }
+                .animation(HeadroomMotion.press, value: hovering)
+                .animation(HeadroomMotion.press, value: configuration.isPressed)
         }
     }
 }

@@ -14,13 +14,8 @@ enum HeadroomTheme {
     }
 
     static func providerTextAccent(for id: String, scheme: ColorScheme) -> Color {
-        switch (id, scheme) {
-        case (ProviderID.claude.raw, .light): Color(red: 0.70, green: 0.33, blue: 0.11)
-        case (ProviderID.claude.raw, .dark): Color(red: 0.91, green: 0.56, blue: 0.41)
-        case (ProviderID.codex.raw, .light): Color(red: 0.20, green: 0.25, blue: 0.84)
-        case (ProviderID.codex.raw, .dark): Color(red: 0.59, green: 0.63, blue: 1.00)
-        default: .secondary
-        }
+        guard let rgb = HeadroomWidgetColorValues.textAccent(for: id, dark: scheme == .dark) else { return .secondary }
+        return Color(rgb)
     }
 
     static func severityColor(for severity: WidgetUsageSeverity, scheme: ColorScheme) -> Color {

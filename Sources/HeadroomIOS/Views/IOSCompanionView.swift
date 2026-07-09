@@ -6,21 +6,40 @@ struct IOSCompanionView: View {
     @State private var state: IOSWidgetSnapshotState = .waitingForMac
     @State private var syncInfo: IOSCompanionSyncInfo?
     @State private var diagnostics: IOSSyncDiagnostics?
+    @State private var showSettings = false
     @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
             content
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            showSettings = true
+                        } label: {
+                            Image(systemName: "gearshape")
+                        }
+                        .accessibilityLabel("Settings")
+                    }
+                }
+                .sheet(isPresented: $showSettings) {
+                    SettingsSheetView(
+                        envelope: currentEnvelope,
+                        syncInfo: syncInfo,
+                        diagnostics: diagnostics,
+                        appearance: $appearance
+                    )
+                }
         }
-        .onAppear { refresh() }
+        .onAppear { Task { await refresh() } }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { refresh() }
+            if phase == .active { Task { await refresh() } }
         }
         .onOpenURL { _ in
-            refresh()
+            Task { await refresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSUbiquitousKeyValueStore.didChangeExternallyNotification)) { _ in
-            refresh()
+            Task { await refresh() }
         }
     }
 
@@ -74,7 +93,14 @@ struct IOSCompanionView: View {
         }
     }
 
-    private func refresh() {
+    private var currentEnvelope: WidgetSnapshotEnvelope? {
+        if case .content(let envelope) = state { envelope } else { nil }
+    }
+
+    private func refresh() async {
+        let floor = Task {
+            try? await Task.sleep(for: .milliseconds(550))
+        }
         #if DEBUG
         if CompanionPreviewSeed.isEnabled {
             let envelope = CompanionPreviewSeed.envelope(now: Date())
@@ -83,6 +109,7 @@ struct IOSCompanionView: View {
             // gallery renders the same sample content in the Simulator (iOS visual gate).
             try? WidgetSnapshotCache.appGroup().write(envelope)
             WidgetCenter.shared.reloadAllTimelines()
+            await floor.value
             return
         }
         #endif
@@ -90,6 +117,7 @@ struct IOSCompanionView: View {
             // Screenshot demo mode: show the fixed mirror snapshot directly, no iCloud round-trip.
             state = .content(DemoScreenshotData.envelope)
             syncInfo = IOSCompanionSyncInfo(publishedAt: Date(), sourceID: "Headroom", sourcePlatform: .macOS)
+            await floor.value
             return
         }
         let cache = WidgetSnapshotCache.appGroup()
@@ -122,6 +150,7 @@ struct IOSCompanionView: View {
             syncRead: read,
             origin: resolution.origin
         )
+        await floor.value
     }
 
     /// A remote snapshot is worth writing to the local cache when the cache holds nothing,

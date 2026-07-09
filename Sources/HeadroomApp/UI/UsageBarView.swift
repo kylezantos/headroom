@@ -27,8 +27,7 @@ struct UsageBarView: View {
     /// as physical and is distance-aware — a 3% change settles faster than a 40% one — where
     /// the old fixed 450ms `easeOut` felt both slow (Emil: keep UI motion under ~300ms) and
     /// uniform regardless of distance. Nil'd under Reduce Motion so the value snaps instead.
-    private static let valueSpring = Animation.spring(response: 0.3, dampingFraction: 0.9)
-    private var valueAnimation: Animation? { reduceMotion ? nil : Self.valueSpring }
+    private var valueAnimation: Animation? { reduceMotion ? nil : HeadroomMotion.valueSpring }
 
     /// Desaturated grey while stale; the live severity color otherwise.
     private var fillColor: Color {
@@ -57,7 +56,7 @@ struct UsageBarView: View {
 
     private func fillWidth(in availableWidth: Double) -> Double {
         guard fraction > 0 else { return 0 }
-        return max(4, availableWidth * fraction)
+        return max(8, availableWidth * fraction)
     }
 
     var body: some View {
@@ -82,6 +81,7 @@ struct UsageBarView: View {
                 Spacer(minLength: 6)
                 if !dimmed, severity == .critical {
                     lowChip
+                        .transition(.opacity)
                 }
                 Text("\(pct)%")
                     // Semibold, matching the widgets' bold numerals — the glance payload
@@ -96,7 +96,7 @@ struct UsageBarView: View {
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.quaternary)
+                    Capsule().fill(ProviderStyle.barTrack(scheme: scheme))
                     Capsule()
                         .fill(fillColor)
                         .frame(width: fillWidth(in: geo.size.width))
@@ -117,6 +117,7 @@ struct UsageBarView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label) usage")
         .accessibilityValue("\(pct) percent remaining, \(resetText)")
+        .animation(valueAnimation, value: severity)
     }
 
     /// Small static "Low" flag shown only for the critical band (≤15% left) — a word
@@ -124,7 +125,8 @@ struct UsageBarView: View {
     /// the color alone is the right amount of signal.
     private var lowChip: some View {
         Text("Low")
-            .font(.system(size: 9.5, weight: .bold))
+            .font(.system(size: 10.5, weight: .semibold))
+            .kerning(0.2)
             .foregroundStyle(ProviderStyle.severityColor(for: severity, scheme: scheme))
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(ProviderStyle.severityColor(for: severity, scheme: scheme).opacity(0.16), in: Capsule())

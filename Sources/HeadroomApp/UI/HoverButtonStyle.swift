@@ -3,9 +3,8 @@ import SwiftUI
 /// A quiet button style that finally makes the popover's controls *feel* clickable
 /// (UI-06). The stock `.plain` text buttons had no hover, no pressed state, and no
 /// pointer cursor, so gear/Refresh/Quit/Copy read as static labels. This adds a subtle
-/// rounded highlight on hover, a deeper one while pressed, and the pointing-hand cursor —
-/// the minimum a macOS control needs to announce itself. Purely input-driven (no idle
-/// motion), so it stays inside the no-pulsing rule.
+/// rounded highlight on hover and a deeper one while pressed. Purely input-driven
+/// (no idle motion), so it stays inside the no-pulsing rule.
 struct HoverButtonStyle: ButtonStyle {
     var horizontalPadding: CGFloat = 8
     var verticalPadding: CGFloat = 3
@@ -42,12 +41,9 @@ struct HoverButtonStyle: ButtonStyle {
                 // springs back smoothly rather than snapping — still input-driven, no idle
                 // motion, so it stays inside the no-pulsing rule.
                 .scaleEffect(configuration.isPressed ? 0.96 : 1)
-                .onHover { inside in
-                    hovering = inside
-                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
-                .animation(.easeOut(duration: 0.12), value: hovering)
-                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
+                .onHover { hovering = $0 }
+                .animation(HeadroomMotion.press, value: hovering)
+                .animation(HeadroomMotion.press, value: configuration.isPressed)
         }
     }
 }

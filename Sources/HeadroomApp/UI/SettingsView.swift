@@ -44,7 +44,7 @@ struct SettingsView: View {
     /// Fast, no-bounce settle shared by the credential-row reveals and result messages.
     /// The interaction is occasional settings work, so it gets just enough motion to
     /// confirm the state change.
-    private static let settleAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.18)
+    private static let settleAnimation = HeadroomMotion.settle
 
     /// One trailing-control width for every segmented picker (Theme / Limit window /
     /// Period). The old window ran three widths (280 / 200 / unconstrained), so the
@@ -170,7 +170,7 @@ struct SettingsView: View {
                             .monospacedDigit()
                             .contentTransition(.numericText(value: Double(intervalMinutes)))
                     }
-                    .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: intervalMinutes)
+                    .animation(reduceMotion ? nil : HeadroomMotion.press, value: intervalMinutes)
                     .onChange(of: intervalMinutes) { _, newValue in
                         preferences.pollIntervalMinutes = newValue
                         store.reschedulePolling()
@@ -250,7 +250,7 @@ struct SettingsView: View {
             .padding(.horizontal, 9)
             .padding(.vertical, 6)
             .background(
-                ClaudeSetupStyle.codeBackground(dark: colorScheme == .dark),
+                ClaudeSetupStyle.wellBackground(dark: colorScheme == .dark),
                 in: RoundedRectangle(cornerRadius: 7, style: .continuous)
             )
 
@@ -486,22 +486,26 @@ struct SettingsView: View {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
-                    apiKeyField(placeholder: placeholder, text: text)
+                    apiKeyField(provider: provider, placeholder: placeholder, text: text)
                     apiKeyButtons(provider: provider, saved: saved, text: text)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
-                    apiKeyField(placeholder: placeholder, text: text)
+                    apiKeyField(provider: provider, placeholder: placeholder, text: text)
                     apiKeyButtons(provider: provider, saved: saved, text: text)
                 }
             }
         }
     }
 
-    private func apiKeyField(placeholder: String, text: Binding<String>) -> some View {
+    private func apiKeyField(provider: APIKeyProvider, placeholder: String, text: Binding<String>) -> some View {
         SecureField(placeholder, text: text)
             .textFieldStyle(.roundedBorder)
             .frame(minWidth: 160)
+            .onChange(of: text.wrappedValue) {
+                credentialMessages[provider] = nil
+                messageDismissals[provider]?.cancel()
+            }
     }
 
     /// Native bordered commit action — one button vocabulary with the footer,
@@ -597,10 +601,10 @@ struct SettingsView: View {
                 // Clear only on success — a Keychain failure must not eat a pasted key.
                 clearField(for: provider)
                 savedKeyProviders.insert(provider)
-                showCredentialMessage("\(provider.displayName) API key saved", for: provider)
+                showCredentialMessage("\(provider.displayName) API key saved", for: provider, autoDismiss: true)
                 store.refreshAPISpendNow()
             case .failure(let reason):
-                showCredentialMessage(reason.message, for: provider)
+                showCredentialMessage(reason.message, for: provider, autoDismiss: false)
             }
         }
     }
@@ -611,10 +615,10 @@ struct SettingsView: View {
             case .success:
                 clearField(for: provider)
                 savedKeyProviders.remove(provider)
-                showCredentialMessage("\(provider.displayName) API key removed", for: provider)
+                showCredentialMessage("\(provider.displayName) API key removed", for: provider, autoDismiss: true)
                 store.refreshAPISpendNow()
             case .failure(let reason):
-                showCredentialMessage(reason.message, for: provider)
+                showCredentialMessage(reason.message, for: provider, autoDismiss: false)
             }
         }
     }
@@ -626,13 +630,13 @@ struct SettingsView: View {
         }
     }
 
-    /// Result feedback auto-dismisses on the popover's Connected-chip cadence (4s)
-    /// and is spoken to VoiceOver — the old shared message line never cleared and
-    /// was silent to assistive tech.
-    private func showCredentialMessage(_ message: String, for provider: APIKeyProvider) {
+    /// Success feedback auto-dismisses on the popover's Connected-chip cadence (4s).
+    /// Failures stay until the next edit or retry so a Keychain problem is not hidden.
+    private func showCredentialMessage(_ message: String, for provider: APIKeyProvider, autoDismiss: Bool) {
         credentialMessages[provider] = message
         AccessibilityNotification.Announcement(message).post()
         messageDismissals[provider]?.cancel()
+        guard autoDismiss else { return }
         messageDismissals[provider] = Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled else { return }

@@ -14,11 +14,16 @@ let package = Package(
     platforms: [.macOS("26.0"), .iOS("26.0")],
     products: [
         .library(name: "HeadroomCore", targets: ["HeadroomCore"]),
+        .library(name: "HeadroomWidgetSharedUI", targets: ["HeadroomWidgetSharedUI"]),
         .executable(name: "Headroom", targets: ["HeadroomApp"]),
         .executable(name: "HeadroomWidgets", targets: ["HeadroomWidgets"]),
     ],
     targets: [
         .target(name: "HeadroomCore"),
+        .target(
+            name: "HeadroomWidgetSharedUI",
+            dependencies: ["HeadroomCore"]
+        ),
         .executableTarget(
             name: "HeadroomApp",
             dependencies: ["HeadroomCore"],
@@ -30,7 +35,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "HeadroomWidgets",
-            dependencies: ["HeadroomCore"],
+            dependencies: ["HeadroomCore", "HeadroomWidgetSharedUI"],
             exclude: ["HeadroomWidgets.entitlements", "Info.plist"]
         ),
         .testTarget(

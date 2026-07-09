@@ -4,9 +4,10 @@ struct StatusScreen: View {
     let title: String
     let message: String
     var isWaiting = false
-    var onRefresh: () -> Void
+    var onRefresh: () async -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @State private var isRefreshing = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -23,15 +24,33 @@ struct StatusScreen: View {
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Button(action: onRefresh) {
-                Label("Refresh", systemImage: "arrow.clockwise")
+            Button {
+                Task { await refresh() }
+            } label: {
+                if isRefreshing {
+                    Label {
+                        Text("Checking…")
+                    } icon: {
+                        ProgressView()
+                    }
+                } else {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.regular)
+            .disabled(isRefreshing)
             Spacer(minLength: 36)
         }
         .padding(.horizontal, 32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HeadroomTheme.backgroundView(scheme).ignoresSafeArea())
+    }
+
+    private func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        await onRefresh()
+        isRefreshing = false
     }
 }

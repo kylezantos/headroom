@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// A raised content tile that reads as elevated on the Liquid Glass popover in **both**
@@ -20,11 +21,13 @@ struct RaisedTile: ViewModifier {
     var cornerRadius: CGFloat = 12
     var surface: RaisedTileSurface = .glass
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         let dark = scheme == .dark
-        let fillColors = fillColors(dark: dark)
+        let highLegibility = reduceTransparency || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+        let fillColors = highLegibility ? solidFillColors : fillColors(dark: dark)
         content
             .background(
                 shape
@@ -42,13 +45,19 @@ struct RaisedTile: ViewModifier {
                 // side/bottom rim (dark), or a bright top highlight fading to a hairline
                 // bottom shadow line (light).
                 shape.strokeBorder(
-                    LinearGradient(
-                        colors: dark
-                            ? [Color.white.opacity(0.20), Color.white.opacity(0.06)]
-                            : [Color.white.opacity(0.90), Color.black.opacity(0.07)],
-                        startPoint: .top, endPoint: .bottom),
-                    lineWidth: 1)
+                    highLegibility
+                        ? LinearGradient(colors: [Color(nsColor: .separatorColor), Color(nsColor: .separatorColor)], startPoint: .top, endPoint: .bottom)
+                        : LinearGradient(
+                            colors: dark
+                                ? [Color.white.opacity(0.20), Color.white.opacity(0.06)]
+                                : [Color.white.opacity(0.90), Color.black.opacity(0.07)],
+                            startPoint: .top, endPoint: .bottom),
+                    lineWidth: highLegibility ? 1.2 : 1)
             )
+    }
+
+    private var solidFillColors: [Color] {
+        [Color(nsColor: .controlBackgroundColor), Color(nsColor: .controlBackgroundColor)]
     }
 
     private func fillColors(dark: Bool) -> [Color] {

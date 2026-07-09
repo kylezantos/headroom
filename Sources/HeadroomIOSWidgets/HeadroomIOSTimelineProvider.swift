@@ -3,7 +3,7 @@ import WidgetKit
 
 struct HeadroomIOSTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> HeadroomIOSWidgetEntry {
-        HeadroomIOSWidgetEntry(date: .now, state: .waitingForMac)
+        HeadroomIOSWidgetEntry(date: .now, state: .content(DemoScreenshotData.envelope))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HeadroomIOSWidgetEntry) -> Void) {
@@ -12,10 +12,18 @@ struct HeadroomIOSTimelineProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HeadroomIOSWidgetEntry>) -> Void) {
         let now = Date.now
-        completion(Timeline(entries: [entry(date: now)], policy: .after(now.addingTimeInterval(5 * 60))))
+        let state = resolvedState()
+        let entries = (0..<15).map { offset in
+            HeadroomIOSWidgetEntry(date: now.addingTimeInterval(Double(offset) * 60), state: state)
+        }
+        completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60))))
     }
 
     private func entry(date: Date) -> HeadroomIOSWidgetEntry {
+        HeadroomIOSWidgetEntry(date: date, state: resolvedState())
+    }
+
+    private func resolvedState() -> IOSWidgetSnapshotState {
         let cache = WidgetSnapshotCache.appGroup()
         let sync = iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore())
         let syncRead = sync.read()
@@ -27,10 +35,7 @@ struct HeadroomIOSTimelineProvider: TimelineProvider {
            adoptable(remote: envelope.snapshot, into: cacheRead) {
             try? cache.write(envelope.snapshot)
         }
-        return HeadroomIOSWidgetEntry(
-            date: date,
-            state: .from(cacheRead: cache.read(), syncRead: syncRead)
-        )
+        return .from(cacheRead: cache.read(), syncRead: syncRead)
     }
 
     private func adoptable(remote: WidgetSnapshotEnvelope, into cacheRead: WidgetSnapshotCacheRead) -> Bool {

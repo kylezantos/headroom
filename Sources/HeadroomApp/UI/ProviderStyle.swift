@@ -44,6 +44,11 @@ enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
+    static func barTrack(scheme: ColorScheme) -> Color {
+        let tint = HeadroomWidgetColorValues.barTrack(dark: scheme == .dark)
+        return Color(tint.color).opacity(tint.opacity)
+    }
+
     /// Semantic fill for a usage bar by health band (UI-01). A static three-stop ramp —
     /// green → amber → red — chosen over the brand accent because Claude's warm clay is
     /// too close to amber to read as "warning". Brand identity stays in the logo + plan

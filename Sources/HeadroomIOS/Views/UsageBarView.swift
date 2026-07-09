@@ -79,7 +79,7 @@ struct UsageBarView: View {
     private var displayLabel: String {
         switch window.kind {
         case .fiveHour:
-            "Session"
+            "5-hour"
         case .weekly:
             "Weekly"
         case .other(let label):
@@ -89,6 +89,6 @@ struct UsageBarView: View {
 
     private func fillWidth(in availableWidth: CGFloat) -> CGFloat {
         guard animatedFraction > 0 else { return 0 }
-        return max(4, availableWidth * animatedFraction)
+        return max(9, availableWidth * animatedFraction)
     }
 }

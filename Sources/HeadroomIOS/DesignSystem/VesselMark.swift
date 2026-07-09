@@ -29,7 +29,7 @@ struct VesselMark: View {
                     .padding(.leading, 15)
             }
         }
-        .shadow(color: HeadroomTheme.providerAccent(for: ProviderID.codex.raw).opacity(scheme == .dark ? 0.18 : 0.10), radius: 18, y: 8)
+        .shadow(color: Color.accentColor.opacity(scheme == .dark ? 0.20 : 0.12), radius: 18, y: 8)
         .accessibilityHidden(true)
     }
 
@@ -57,12 +57,9 @@ struct VesselMark: View {
             AnyShapeStyle(HeadroomTheme.barTrack(scheme))
         } else {
             AnyShapeStyle(LinearGradient(
-                colors: [
-                    HeadroomTheme.providerAccent(for: ProviderID.codex.raw),
-                    HeadroomTheme.providerAccent(for: ProviderID.claude.raw)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                colors: [Color.accentColor.opacity(0.72), Color.accentColor],
+                startPoint: .top,
+                endPoint: .bottom
             ))
         }
     }

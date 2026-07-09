@@ -7,7 +7,7 @@ private let widgetTimelineLogger = Logger(subsystem: "com.kylezantos.headroom.wi
 
 struct HeadroomTimelineProvider: TimelineProvider {
     func placeholder(in context: Context) -> HeadroomWidgetEntry {
-        HeadroomWidgetEntry(date: .now, state: .pending)
+        HeadroomWidgetEntry(date: .now, state: .content(DemoScreenshotData.envelope))
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HeadroomWidgetEntry) -> Void) {
@@ -16,13 +16,21 @@ struct HeadroomTimelineProvider: TimelineProvider {
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HeadroomWidgetEntry>) -> Void) {
         let now = Date.now
-        completion(Timeline(entries: [entry(date: now)], policy: .after(now.addingTimeInterval(5 * 60))))
+        let state = resolvedState()
+        let entries = (0..<15).map { offset in
+            HeadroomWidgetEntry(date: now.addingTimeInterval(Double(offset) * 60), state: state)
+        }
+        completion(Timeline(entries: entries, policy: .after(now.addingTimeInterval(15 * 60))))
     }
 
     private func entry(date: Date) -> HeadroomWidgetEntry {
+        HeadroomWidgetEntry(date: date, state: resolvedState())
+    }
+
+    private func resolvedState() -> HeadroomWidgetState {
         let read = WidgetSnapshotCache.appGroup().read()
         log(read)
-        return HeadroomWidgetEntry(date: date, state: .from(read))
+        return .from(read)
     }
 
     private func log(_ read: WidgetSnapshotCacheRead) {

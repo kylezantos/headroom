@@ -24,7 +24,7 @@ enum CompanionPreviewSeed {
                     windows: [
                         WidgetWindowSummary(
                             kind: .fiveHour,
-                            label: "Session",
+                            label: "5h",
                             percentRemaining: 100,
                             resetsAt: now.addingTimeInterval(3 * 3600),
                             resetLabel: "Resets 3:09am",
@@ -49,7 +49,7 @@ enum CompanionPreviewSeed {
                     windows: [
                         WidgetWindowSummary(
                             kind: .fiveHour,
-                            label: "Session",
+                            label: "5h",
                             percentRemaining: 39,
                             resetsAt: now.addingTimeInterval(115 * 60),
                             resetLabel: nil,

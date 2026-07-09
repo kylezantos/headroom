@@ -85,6 +85,7 @@ struct APISpendSectionView: View {
             Text(amount)
                 .font(.callout.weight(.semibold).monospacedDigit())
                 .foregroundStyle(snapshot.freshness == .live ? .primary : .secondary)
+                .privacySensitive()
         } else {
             Button("Add key", action: onOpenSettings)
                 .buttonStyle(HoverButtonStyle(horizontalPadding: 7, verticalPadding: 3))

@@ -56,7 +56,7 @@ struct HeadroomMediumWidgetView: View {
     @ViewBuilder private func footerText(prefix: String, fillsWidth: Bool = true) -> some View {
         if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
             Text("\(prefix)\(updated)")
-                .font(.system(size: 11, weight: .medium))
+                .font(.caption.weight(.medium))
                 .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
                 .lineLimit(1)
                 .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .trailing)
@@ -74,8 +74,9 @@ private struct MediumProviderColumn: View {
             HStack(spacing: 6) {
                 WidgetProviderIcon(providerID: provider.id, size: 18)
                 Text(provider.displayName)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.subheadline.weight(.semibold))
                     .foregroundStyle(WidgetProviderStyle.textAccent(for: provider.id, scheme: scheme))
+                    .widgetAccentable()
                     .lineLimit(1)
                     .minimumScaleFactor(0.9)
                     .allowsTightening(true)

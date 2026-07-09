@@ -5,11 +5,10 @@ struct MirrorView: View {
     let syncInfo: IOSCompanionSyncInfo?
     var diagnostics: IOSSyncDiagnostics? = nil
     @Binding var appearance: AppearanceSetting
-    var onRefresh: () -> Void
+    var onRefresh: () async -> Void
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var showSettings = false
 
     var body: some View {
         // A per-minute `now` so "Updated N min ago" and the reset countdowns tick without a
@@ -38,31 +37,13 @@ struct MirrorView: View {
             }
             .background(HeadroomTheme.backgroundView(scheme).ignoresSafeArea())
             .scrollContentBackground(.hidden)
-            .refreshable { onRefresh() }
+            .refreshable { await onRefresh() }
             // Native large title + subtitle (iOS 26): "Usage" is the screen title and
             // collapses into the bar on scroll; the freshness stamp rides along as the
             // subtitle instead of a hand-built header.
             .navigationTitle("Usage")
             .navigationSubtitle(updatedText(now: context.date))
             .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showSettings = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                    .accessibilityLabel("Settings")
-                }
-            }
-            .sheet(isPresented: $showSettings) {
-                SettingsSheetView(
-                    envelope: envelope,
-                    syncInfo: syncInfo,
-                    diagnostics: diagnostics,
-                    appearance: $appearance
-                )
-            }
         }
     }
 

@@ -28,6 +28,7 @@ struct HeadroomWidgetView: View {
         .containerBackground(for: .widget) {
             HeadroomWidgetContainerBackground()
         }
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
     @ViewBuilder

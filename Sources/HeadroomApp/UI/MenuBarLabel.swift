@@ -32,12 +32,6 @@ struct MenuBarLabelRenderResult {
     let image: NSImage
     let accessibilityLabel: String
     let tooltip: String
-    let regions: [MenuBarLabelTooltipRegion]
-}
-
-struct MenuBarLabelTooltipRegion {
-    let rect: NSRect
-    let tooltip: String
 }
 
 @MainActor
@@ -47,7 +41,7 @@ enum MenuBarLabelRenderer {
     private static let vesselTextGap: CGFloat = 7
     private static let meterGapWithPercentage: CGFloat = 16
     private static let meterGapIconOnly: CGFloat = 8
-    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 13.5, weight: .medium)
 
     static func render(meters: [MenuBarMeter], showsPercentage: Bool) -> MenuBarLabelRenderResult {
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
@@ -61,7 +55,6 @@ enum MenuBarLabelRenderer {
             let gap = total > 0 ? meterGap : 0
             return total + gap + vesselWidth + textWidth
         }
-        let regions = tooltipRegions(for: measured, meterGap: meterGap, imageWidth: max(vesselWidth, ceil(width)))
         let image = NSImage(size: NSSize(width: max(vesselWidth, ceil(width)), height: height), flipped: false) { bounds in
             var x = bounds.minX
             for item in measured {
@@ -100,8 +93,7 @@ enum MenuBarLabelRenderer {
         return MenuBarLabelRenderResult(
             image: image,
             accessibilityLabel: accessibilityLabel,
-            tooltip: accessibilityLabel,
-            regions: regions
+            tooltip: accessibilityLabel
         )
     }
 
@@ -124,27 +116,6 @@ enum MenuBarLabelRenderer {
         (text as NSString).size(withAttributes: [.font: font])
     }
 
-    private static func tooltipRegions(
-        for measured: [(meter: MenuBarMeter, textSize: NSSize?)],
-        meterGap: CGFloat,
-        imageWidth: CGFloat
-    ) -> [MenuBarLabelTooltipRegion] {
-        guard !measured.isEmpty else { return [] }
-        var x: CGFloat = 0
-        return measured.map { item in
-            if x > 0 { x += meterGap }
-            let start = x
-            x += vesselWidth
-            if let textSize = item.textSize {
-                x += vesselTextGap + ceil(textSize.width)
-            }
-            return MenuBarLabelTooltipRegion(
-                rect: NSRect(x: start, y: 0, width: min(imageWidth - start, x - start), height: height),
-                tooltip: tooltip(for: item.meter.summary)
-            )
-        }
-    }
-
     private static func accessibilityLabel(for meters: [MenuBarMeter]) -> String {
         if meters.count == 1, let summary = meters.first?.summary, summary.needsAttention, summary.isNeutral {
             return "AI usage — a provider needs sign-in"
@@ -165,7 +136,7 @@ enum MenuBarLabelRenderer {
     }
 
     private static func textColor(for summary: MenuBarSummary) -> NSColor {
-        if !summary.isNeutral {
+        if !summary.isNeutral, summary.severity != .healthy {
             return severityColor(for: summary.severity)
         }
         return summary.needsAttention ? severityColor(for: .critical) : .labelColor

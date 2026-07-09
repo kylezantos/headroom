@@ -12,13 +12,13 @@ struct PopoverView: View {
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    // Drives the one-shot content fade. The popover is recreated on each menu-bar click, so
-    // this resets to false and the quiet settle replays on every open.
+    // Drives the first-session open fade. Subsequent menu-bar opens are instant because
+    // SwiftUI recreates this view per open; replaying motion there reads as latency.
     @State private var appeared = false
+    @State private var animatesEntrance = false
 
-    /// One fast, custom ease-out settle for the whole popover content on open (Emil flags
-    /// built-in `ease`/`easeOut` as lacking strength; this curve is a strong ease-out).
-    private static let entrance = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.22)
+    private static let titleFont = NSFont.systemFont(ofSize: 20, weight: .bold)
+    private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -40,23 +40,27 @@ struct PopoverView: View {
                 APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)
                 footer
             }
-            // One quiet content fade on open — no per-row stagger. Emil's frequency rule:
-            // this popover is opened often, so a cascading entrance that replays every time
-            // fights the "don't make me wait" expectation. Content-only, so the glass stays
-            // put; snaps in instantly under Reduce Motion.
+            // One quick content fade on open — no per-row stagger or vertical travel.
             .opacity(appeared ? 1 : 0)
-            .offset(y: appeared ? 0 : 4)
-            .animation(reduceMotion ? nil : Self.entrance, value: appeared)
+            .animation(reduceMotion || !animatesEntrance ? nil : HeadroomMotion.quickSettle, value: appeared)
             // 19pt inset / 20pt tile gap / 384pt overall — tuned in the onboarding HTML
             // mockup (Jul 2026); roomier than the original concentric 12pt scheme.
             .padding(19)
             .frame(width: 384)
             // One clean glass layer: the `.glassEffect` already supplies the material, so the
             // redundant `.ultraThinMaterial` stacked underneath is gone — more native, less muddy.
-            .glassEffect(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .modifier(PopoverSurfaceModifier(cornerRadius: 22))
             // Capture the popover's hosting window so opening Settings can dismiss it.
-            .background(WindowAccessor { popoverWindow = $0 })
-            .onAppear { appeared = true }
+            .background(WindowAccessor { configurePopoverWindow($0) })
+            .onAppear {
+                guard !PopoverEntranceAnimation.hasAnimatedThisSession else {
+                    appeared = true
+                    return
+                }
+                animatesEntrance = true
+                appeared = true
+                PopoverEntranceAnimation.hasAnimatedThisSession = true
+            }
         }
     }
 
@@ -68,18 +72,29 @@ struct PopoverView: View {
         onOpenSettings()
     }
 
+    private func configurePopoverWindow(_ window: NSWindow?) {
+        popoverWindow = window
+        guard let window else { return }
+        // HR-33: keep the custom content glass radius, but clear the MenuBarExtra host
+        // backing so the popover has exactly one material layer at the rounded edge.
+        window.isOpaque = false
+        window.backgroundColor = .clear
+    }
+
     /// The page title now outweighs the 16pt card titles so hierarchy reads top-down,
     /// and the right slot carries one contextual status: the consolidated "Updated"
     /// stamp, or the Claude first-run stage ("Set up Claude to begin" / "Watching for
     /// approval…"). The gear's visible glyph stays small but its hit area is padded out
     /// to the 40×40 floor.
     private func header(now: Date) -> some View {
+        let statusBaselineOffset = Self.baselineOffsetMatchingTitle(for: Self.statusFont)
+        let gearBaselineOffset = Self.inkCenterAboveBaseline(Self.titleFont)
         // All three elements align on one *ink-center* axis (measured against real
         // renders): pure `.center` leaves the title ~2pt low (descender + line box),
         // pure baseline leaves the 11pt status visibly low. So: baseline row, with the
         // status raised 2pt (its ink center then matches the title's) and the gear
         // centered 5pt above the baseline (the title's ink center).
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Usage")
                 .font(.system(size: 20, weight: .bold))
                 .kerning(-0.2)
@@ -89,7 +104,9 @@ struct PopoverView: View {
                     .font(.system(size: 11).monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
-                    .alignmentGuide(.firstTextBaseline) { d in d[.firstTextBaseline] + 2 }
+                    .alignmentGuide(.firstTextBaseline) { d in
+                        d[.firstTextBaseline] + statusBaselineOffset
+                    }
             }
             // Native glass control. Its circular boundary sits flush at the content margin —
             // matching "Usage" on the left edge — which fixes the old alignment (a bare glyph
@@ -107,10 +124,18 @@ struct PopoverView: View {
             // pointer cursor, press state — via HoverButtonStyle.
             .buttonStyle(HoverButtonStyle(horizontalPadding: 0, verticalPadding: 0))
             .accessibilityLabel("Settings")
-            // Circle center on the title's ink center: ≈5pt above the baseline for
-            // 20pt SF bold (cap 14pt up, descender ~4pt down → mass center −5).
-            .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 5 }
+            .alignmentGuide(.firstTextBaseline) { d in
+                d[VerticalAlignment.center] + gearBaselineOffset
+            }
         }
+    }
+
+    private static func inkCenterAboveBaseline(_ font: NSFont) -> CGFloat {
+        (font.capHeight + font.descender) / 2
+    }
+
+    private static func baselineOffsetMatchingTitle(for font: NSFont) -> CGFloat {
+        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font)
     }
 
     /// Single status for the whole popover. During Claude's first-run setup it narrates
@@ -161,12 +186,33 @@ struct PopoverView: View {
                         .transition(.opacity)
                 }
             }
-            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.isRefreshing)
+            .animation(reduceMotion ? nil : HeadroomMotion.settle, value: store.isRefreshing)
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
                 .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+@MainActor
+private enum PopoverEntranceAnimation {
+    static var hasAnimatedThisSession = false
+}
+
+private struct PopoverSurfaceModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if reduceTransparency || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
+            content
+                .background(Color(nsColor: .windowBackgroundColor), in: shape)
+                .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
+        } else {
+            content.glassEffect(in: shape)
         }
     }
 }

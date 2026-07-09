@@ -7,8 +7,13 @@ struct IOSWidgetStatusView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.headline)
+            Label {
+                Text(title)
+            } icon: {
+                VesselMark()
+                    .frame(width: 12, height: 20)
+            }
+            .font(.headline)
             Text(message)
                 .font(.caption)
                 .foregroundStyle(secondaryText)
@@ -19,6 +24,31 @@ struct IOSWidgetStatusView: View {
     }
 
     private var secondaryText: Color {
-        scheme == .dark ? Color(red: 0.92, green: 0.92, blue: 0.96).opacity(0.66) : Color(red: 0.24, green: 0.24, blue: 0.26).opacity(0.74)
+        Color(HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark))
+    }
+}
+
+private struct VesselMark: View {
+    var body: some View {
+        Capsule(style: .continuous)
+            .fill(.primary.opacity(0.9))
+            .overlay(alignment: .topLeading) {
+                Capsule(style: .continuous)
+                    .fill(.white.opacity(0.28))
+                    .frame(width: 2.5)
+                    .padding(.leading, 3)
+                    .padding(.vertical, 3)
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+private extension Color {
+    init(_ tint: HeadroomTint) {
+        self = Color(tint.color).opacity(tint.opacity)
+    }
+
+    init(_ rgb: HeadroomRGBColor) {
+        self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 }

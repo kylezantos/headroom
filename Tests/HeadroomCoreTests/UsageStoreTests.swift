@@ -325,6 +325,28 @@ struct UsageStoreTests {
         #expect(store.appDisplaySnapshot(for: .codex).windows.count == 3)
     }
 
+    @Test func appDisplaySnapshotOrdersWeeklyFirst() async {
+        // Providers emit 5-hour first; the popover shows weekly first to match the
+        // widgets. Unknown windows keep their provider-given order after the pair.
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),
+                UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                UsageWindow(kind: .other("Weekly (Fable)"), utilization: 40, resetsAt: reset),
+            ])),
+        ])
+
+        await store.refreshAll()
+
+        #expect(store.appDisplaySnapshot(for: .claude).windows.map(\.kind) == [
+            .weekly,
+            .fiveHour,
+            .other("Weekly (Fable)"),
+        ])
+        // The raw snapshot (widget export, menu bar) is untouched.
+        #expect(store.snapshot(for: .claude).windows.first?.kind == .fiveHour)
+    }
+
     /// Store whose menu-bar fill source is pre-set, on an isolated defaults suite.
     private func makeStore(source: MenuBarFillSource, providers: [any UsageProvider]) -> UsageStore {
         let suite = "headroom.tests.\(UUID().uuidString)"

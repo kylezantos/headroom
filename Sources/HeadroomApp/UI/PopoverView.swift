@@ -96,7 +96,7 @@ struct PopoverView: View {
             // whose hit-area padding floated it ~9pt inside the edge).
             Button(action: openSettingsDismissingPopover) {
                 Image(systemName: "gearshape")
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: 15, weight: .medium))
                     .foregroundStyle(.secondary)
                     // 32pt glyph frame so the glass control reaches the ~40pt hit floor
                     // while the visible gearshape stays small.

@@ -32,7 +32,7 @@ struct APISpendSectionView: View {
             }
             // Padding matches the provider cards above, so sibling tiles share one
             // padding and radius.
-            .padding(16)
+            .padding(13)
             .raisedTile(cornerRadius: 10)
         }
     }

@@ -201,15 +201,26 @@ struct SettingsView: View {
                 .frame(maxWidth: Self.segmentedMaxWidth)
                 .onChange(of: appearancePreference) { _, newValue in
                     preferences.appearancePreference = newValue
+                    // Repaint the AppKit windows (this Settings window + the popover panel);
+                    // `preferredColorScheme` alone doesn't reach their chrome. (See HeadroomApp.)
+                    NSApp.appearance = newValue.nsAppearance
                 }
             }
         }
     }
 
+    /// Pins the preview pill to the settings window's appearance (not the system's) so it
+    /// shows the same light/dark render as the window it sits in — including when the Theme
+    /// toggle forces an appearance that differs from the OS.
+    private var previewAppearance: NSAppearance? {
+        NSAppearance(named: colorScheme == .dark ? .darkAqua : .aqua)
+    }
+
     /// Keys the preview pill's cross-fade to the preference changes that re-render it
-    /// (live data ticks don't need choreography).
+    /// (live data ticks don't need choreography). Includes `colorScheme` so switching theme
+    /// re-bakes the specimen.
     private var menuBarPreviewKey: String {
-        "\(store.showMenuBarPercentage)-\(store.menuBarFillSource.rawValue)-\(store.menuBarWindowSource.rawValue)"
+        "\(store.showMenuBarPercentage)-\(store.menuBarFillSource.rawValue)-\(store.menuBarWindowSource.rawValue)-\(colorScheme)"
     }
 
     private var menuBarTile: some View {
@@ -222,11 +233,11 @@ struct SettingsView: View {
                     // Invisible percentage-on twin reserves the slot at its widest
                     // state, so toggling the percentage never reflows the caption or
                     // changes the strip height — the swap happens inside a fixed box.
-                    MenuBarLabel(meters: store.menuBarMeters, showsPercentage: true)
+                    MenuBarLabel(meters: store.menuBarMeters, showsPercentage: true, bakeAppearance: previewAppearance)
                         .hidden()
                     // `.id` swap: the outgoing and incoming pills overlap leading-
                     // aligned and dissolve, instead of the NSImage hard-cutting.
-                    MenuBarLabel(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
+                    MenuBarLabel(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage, bakeAppearance: previewAppearance)
                         .id(menuBarPreviewKey)
                         .transition(.opacity)
                 }

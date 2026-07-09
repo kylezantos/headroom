@@ -152,6 +152,13 @@ struct HeadroomApp: App {
         _store = State(initialValue: store)
         _appearancePreference = State(initialValue: preferences.appearancePreference)
         AppDelegate.startUsageStore = { Task { await store.start() } }
+        // SwiftUI's `preferredColorScheme` doesn't reach the `MenuBarExtra(.window)`
+        // popover panel or the Settings window's AppKit chrome — both are NSWindows whose
+        // appearance follows the process. Drive `NSApp.appearance` so the theme toggle
+        // actually repaints every surface (popover + settings), not just SwiftUI content.
+        // Applied at `applicationDidFinishLaunching` (below), not here: `NSApp` is still nil
+        // during `App.init()`, so touching it now traps.
+        AppDelegate.startupAppearance = preferences.appearancePreference.nsAppearance
     }
 
     var body: some Scene {
@@ -160,6 +167,9 @@ struct HeadroomApp: App {
                 openSettings()
             }
                 .preferredColorScheme(appearancePreference.colorScheme)
+                .onChange(of: appearancePreference) { _, newValue in
+                    NSApp.appearance = newValue.nsAppearance
+                }
                 .task { await store.start() }
         } label: {
             MenuBarLabel(
@@ -233,12 +243,22 @@ struct HeadroomApp: App {
     }
 }
 
-private extension AppearancePreference {
+extension AppearancePreference {
     var colorScheme: ColorScheme? {
         switch self {
         case .system: nil
         case .light: .light
         case .dark: .dark
+        }
+    }
+
+    /// `nil` on `.system` lets `NSApp` fall back to the OS appearance (and keep tracking
+    /// system light/dark changes); the explicit cases pin every window to one appearance.
+    var nsAppearance: NSAppearance? {
+        switch self {
+        case .system: nil
+        case .light: NSAppearance(named: .aqua)
+        case .dark: NSAppearance(named: .darkAqua)
         }
     }
 }
@@ -251,9 +271,15 @@ private extension AppearancePreference {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var startUsageStore: (() -> Void)?
+    /// Set from `HeadroomApp.init()`; applied here once `NSApp` exists (`.some(nil)` means
+    /// "System" — leave `NSApp.appearance` at its default so it tracks the OS).
+    static var startupAppearance: NSAppearance??
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if case let .some(appearance) = Self.startupAppearance {
+            NSApp.appearance = appearance
+        }
         Self.startUsageStore?()
     }
 }

@@ -82,13 +82,14 @@ enum VesselGlyph {
 
     private static func fillColor(for severity: UsageSeverity, isNeutral: Bool) -> NSColor {
         guard !isNeutral else { return NSColor.labelColor.withAlphaComponent(0.62) }
-        switch severity {
-        case .healthy:
-            return NSColor(red: 0.20, green: 0.78, blue: 0.35, alpha: 1.0)
-        case .low:
-            return NSColor(red: 1.00, green: 0.62, blue: 0.04, alpha: 1.0)
-        case .critical:
-            return NSColor(red: 1.00, green: 0.27, blue: 0.23, alpha: 1.0)
+        // Dynamic so the glyph re-resolves with the menu bar's own appearance (which
+        // follows the wallpaper/system) — the vivid dark values are ~1.9:1 on a light menu
+        // bar, so on light backgrounds we draw the darkened, WCAG-tuned light variants from
+        // the shared severity palette (matching the percentage text in MenuBarLabelRenderer).
+        return NSColor(name: nil) { appearance in
+            let dark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let rgb = HeadroomSeverityColorValues.color(for: severity, dark: dark)
+            return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1.0)
         }
     }
 

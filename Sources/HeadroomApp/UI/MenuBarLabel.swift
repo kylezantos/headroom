@@ -11,10 +11,17 @@ import HeadroomCore
 struct MenuBarLabel: View {
     let meters: [MenuBarMeter]
     let showsPercentage: Bool
+    /// Set only by the Settings *preview* to pin the render to the settings window's own
+    /// appearance. The real status item leaves this nil so its dynamic colors resolve
+    /// against the live menu bar (which follows the wallpaper/system) — but SwiftUI
+    /// rasterizes `Image(nsImage:)` against the *system* appearance, not the enclosing
+    /// window's, so a forced-theme window would otherwise show the wrong-scheme pill.
+    var bakeAppearance: NSAppearance? = nil
 
     var body: some View {
         let result = MenuBarLabelRenderer.render(meters: meters, showsPercentage: showsPercentage)
-        Image(nsImage: result.image)
+        let image = bakeAppearance.map { MenuBarLabelRenderer.baked(result.image, in: $0) } ?? result.image
+        Image(nsImage: image)
             .accessibilityLabel(result.accessibilityLabel)
             .help(result.tooltip)
     }
@@ -96,6 +103,21 @@ enum MenuBarLabelRenderer {
             tooltip: accessibilityLabel,
             regions: regions
         )
+    }
+
+    /// Flattens the dynamic-color label into a static bitmap resolved against `appearance`.
+    /// Re-runs the image's drawing handlers with that appearance current, so every dynamic
+    /// NSColor (severity fills, `labelColor` strokes) bakes to its light/dark value — the
+    /// Settings preview then matches its window instead of the system appearance.
+    static func baked(_ image: NSImage, in appearance: NSAppearance) -> NSImage {
+        let baked = NSImage(size: image.size)
+        baked.lockFocus()
+        appearance.performAsCurrentDrawingAppearance {
+            image.draw(in: NSRect(origin: .zero, size: image.size))
+        }
+        baked.unlockFocus()
+        baked.isTemplate = false
+        return baked
     }
 
     private static func textSize(for text: String) -> NSSize {

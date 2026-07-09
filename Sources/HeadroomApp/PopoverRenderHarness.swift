@@ -130,8 +130,9 @@ enum PopoverRenderHarness {
         return true
     }
 
-    /// Settings window, demo store, fixed 460×760 — verifies the shared type hierarchy
-    /// (20pt title / 13pt section heads / 11pt fine print) across both windows.
+    /// Settings window, demo store, fixed 460×1240 — verifies the shared type hierarchy
+    /// (22pt title / 15pt tile heads / 13pt controls / 11pt fine print) and the
+    /// all-tiles material system across both windows.
     private static func renderSettings(dark: Bool, to url: URL) async {
         NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         let store = UsageStore(
@@ -142,12 +143,12 @@ enum PopoverRenderHarness {
             preferences: Preferences(defaults: UserDefaults(suiteName: "co.zantos.headroom.render") ?? .standard)
         )
         let root = SettingsView(store: store, appearancePreference: .constant(dark ? .dark : .light))
-            .frame(width: 460, height: 760)
+            .frame(width: 460, height: 1240)
             .environment(\.colorScheme, dark ? .dark : .light)
 
         let hosting = NSHostingView(rootView: root)
         hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        hosting.frame = NSRect(x: 0, y: 0, width: 460, height: 760)
+        hosting.frame = NSRect(x: 0, y: 0, width: 460, height: 1240)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.contentView = hosting

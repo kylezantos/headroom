@@ -30,9 +30,9 @@ struct APISpendSectionView: View {
                     }
                 }
             }
-            // 20pt padding matches the provider cards above (mockup-tuned), so sibling
-            // tiles share one padding and radius.
-            .padding(20)
+            // Padding matches the provider cards above, so sibling tiles share one
+            // padding and radius.
+            .padding(16)
             .raisedTile(cornerRadius: 10)
         }
     }

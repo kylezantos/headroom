@@ -84,7 +84,9 @@ struct UsageBarView: View {
                     lowChip
                 }
                 Text("\(pct)%")
-                    .font(.system(size: 18, weight: .medium).monospacedDigit())
+                    // Semibold, matching the widgets' bold numerals — the glance payload
+                    // leads the row.
+                    .font(.system(size: 18, weight: .semibold).monospacedDigit())
                     .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .animation(valueAnimation, value: pct)

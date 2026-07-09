@@ -41,13 +41,15 @@ struct ProviderCardView: View {
                     )
                 }
             } else {
-                VStack(alignment: .leading, spacing: 14) {
+                VStack(alignment: .leading, spacing: 11) {
                     header
                     content
                 }
             }
         }
-        .padding(20)
+        // 16pt pad / 11pt rhythm — squeezed toward the large widget's density
+        // (10/9 at smaller type) from the earlier 20/14.
+        .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .raisedTile(cornerRadius: 10)
         // A refresh replacing the pending skeleton (or a stale card recovering) cross-fades
@@ -148,7 +150,7 @@ struct ProviderCardView: View {
         if snapshot.windows.isEmpty {
             Text("No usage data").font(.caption).foregroundStyle(.secondary)
         } else {
-            VStack(spacing: 14) {
+            VStack(spacing: 11) {
                 ForEach(Array(snapshot.windows.enumerated()), id: \.offset) { _, window in
                     UsageBarView(window: window, now: now, dimmed: dimmed)
                 }

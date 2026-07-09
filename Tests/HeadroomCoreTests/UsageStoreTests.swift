@@ -325,6 +325,26 @@ struct UsageStoreTests {
         #expect(store.appDisplaySnapshot(for: .codex).windows.count == 3)
     }
 
+    @Test func menuBarFollowsSelectedWindowSource() async {
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),   // 80% left
+                UsageWindow(kind: .weekly, utilization: 70, resetsAt: reset),     // 30% left
+            ])),
+        ])
+
+        await store.refreshAll()
+
+        // Default: weekly drives the number and tooltip.
+        #expect(store.menuBarSummary.text == "30%")
+        #expect(store.menuBarSummary.detail == "Claude weekly")
+
+        store.setMenuBarWindowSource(.fiveHour)
+        #expect(store.menuBarWindowSource == .fiveHour)
+        #expect(store.menuBarSummary.text == "80%")
+        #expect(store.menuBarSummary.detail == "Claude 5h")
+    }
+
     @Test func appDisplaySnapshotOrdersWeeklyFirst() async {
         // Providers emit 5-hour first; the popover shows weekly first to match the
         // widgets. Unknown windows keep their provider-given order after the pair.

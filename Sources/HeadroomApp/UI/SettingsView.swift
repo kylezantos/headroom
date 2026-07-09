@@ -20,6 +20,7 @@ struct SettingsView: View {
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
     @State private var menuBarFillSource: MenuBarFillSource = .none
+    @State private var menuBarWindowSource: MenuBarWindowSource = .weekly
     @State private var widgetsEnabled = true
     @State private var showCodexSparkCountersInApp = true
     @State private var showCodexSparkCountersInWidgets = false
@@ -148,6 +149,22 @@ struct SettingsView: View {
                         store.setShowMenuBarPercentage(newValue)
                     }
                 VStack(alignment: .leading, spacing: 2) {
+                    responsiveControlRow(label: "Window") {
+                        Picker("Window", selection: $menuBarWindowSource) {
+                            ForEach(MenuBarWindowSource.allCases, id: \.self) { source in
+                                Text(source.label).tag(source)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(maxWidth: 200)
+                        .onChange(of: menuBarWindowSource) { _, newValue in
+                            store.setMenuBarWindowSource(newValue)
+                        }
+                    }
+                    helpText("The percentage, fill, and color follow this limit window.")
+                }
+                VStack(alignment: .leading, spacing: 2) {
                     Picker("Fill tracks", selection: $menuBarFillSource) {
                         ForEach(MenuBarFillSource.allCases, id: \.self) { source in
                             Text(source.label).tag(source)
@@ -156,7 +173,7 @@ struct SettingsView: View {
                     .onChange(of: menuBarFillSource) { _, newValue in
                         store.setMenuBarFillSource(newValue)
                     }
-                    helpText("Drains with weekly usage; Both shows Claude and Codex side by side.")
+                    helpText("Drains with the window above; Both shows Claude and Codex side by side.")
                 }
             }
 
@@ -375,6 +392,7 @@ struct SettingsView: View {
         appearancePreference = preferences.appearancePreference
         showMenuBarPercentage = store.showMenuBarPercentage
         menuBarFillSource = store.menuBarFillSource
+        menuBarWindowSource = store.menuBarWindowSource
         widgetsEnabled = store.widgetsEnabled
         showCodexSparkCountersInApp = store.showCodexSparkCountersInApp
         showCodexSparkCountersInWidgets = store.showCodexSparkCountersInWidgets

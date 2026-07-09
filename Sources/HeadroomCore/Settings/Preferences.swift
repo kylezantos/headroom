@@ -12,6 +12,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let appearancePreference = "appearancePreference"
         static let showMenuBarPercentage = "showMenuBarPercentage"
         static let menuBarFillSource = "menuBarFillSource"
+        static let menuBarWindowSource = "menuBarWindowSource"
         static let widgetsEnabled = "widgetsEnabled"
         static let showCodexSparkCountersInApp = "showCodexSparkCountersInApp"
         static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
@@ -54,6 +55,17 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return source
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.menuBarFillSource) }
+    }
+
+    /// Which limit window the menu bar reports (percentage, fill, tint). Default weekly.
+    public var menuBarWindowSource: MenuBarWindowSource {
+        get {
+            guard let raw = defaults.string(forKey: Key.menuBarWindowSource),
+                  let source = MenuBarWindowSource(rawValue: raw)
+            else { return .weekly }
+            return source
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.menuBarWindowSource) }
     }
 
     public var widgetsEnabled: Bool {

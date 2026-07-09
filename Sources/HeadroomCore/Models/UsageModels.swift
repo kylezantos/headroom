@@ -247,6 +247,35 @@ public enum MenuBarFillSource: String, CaseIterable, Sendable, Codable, Equatabl
     }
 }
 
+/// Which limit window the menu bar reports — percentage text, vessel fill, and severity
+/// tint all follow one window so the glyph always means one thing.
+public enum MenuBarWindowSource: String, CaseIterable, Sendable, Codable, Equatable {
+    case weekly
+    case fiveHour
+
+    public var kind: WindowKind {
+        switch self {
+        case .weekly: return .weekly
+        case .fiveHour: return .fiveHour
+        }
+    }
+
+    public var label: String {
+        switch self {
+        case .weekly: return "Weekly"
+        case .fiveHour: return "5-hour"
+        }
+    }
+
+    /// Short form used in tooltips/accessibility ("Claude weekly", "Claude 5h").
+    public var shortLabel: String {
+        switch self {
+        case .weekly: return "weekly"
+        case .fiveHour: return "5h"
+        }
+    }
+}
+
 /// User-selectable period for API cost reports. The provider converts this into the
 /// endpoint's query shape at fetch time so later periods do not change UI state.
 public enum APISpendPeriod: String, CaseIterable, Sendable, Codable, Equatable {

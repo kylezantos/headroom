@@ -21,6 +21,12 @@ enum Entry {
             runPhoneSyncDump()
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-popover") {
+            let outDir = CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : "popover-shots"
+            MainActor.assumeIsolated { PopoverRenderHarness.run(outputDirectory: outDir) }
+            return
+        }
         HeadroomApp.main()
     }
 

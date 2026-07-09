@@ -8,7 +8,6 @@ import HeadroomCore
 /// "updated N min ago" tick without a data poll.
 struct PopoverView: View {
     var store: UsageStore
-    var preferences = Preferences()
     var onOpenSettings: () -> Void
 
     @State private var popoverWindow: NSWindow?
@@ -23,16 +22,18 @@ struct PopoverView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
-            VStack(spacing: 10) {
+            VStack(spacing: 20) {
                 header(now: context.date)
+                    // Header sits 14pt above the first card (vs the 20pt tile gap) — the
+                    // title belongs to the content below it more than cards belong to
+                    // each other.
+                    .padding(.bottom, -6)
                 ForEach(Array(store.providerOrder.enumerated()), id: \.element) { _, id in
                     ProviderCardView(
                         providerID: id,
                         displayName: store.displayNames[id] ?? id.raw,
                         snapshot: store.appDisplaySnapshot(for: id),
-                        renewalDate: preferences.renewalDate(for: id),
                         now: context.date,
-                        onOpenSettings: openSettingsDismissingPopover,
                         onRetrySetup: { store.refreshNow() }
                     )
                 }
@@ -46,9 +47,10 @@ struct PopoverView: View {
             .opacity(appeared ? 1 : 0)
             .offset(y: appeared ? 0 : 4)
             .animation(reduceMotion ? nil : Self.entrance, value: appeared)
-            // 12pt inset is concentric with the R22 shell → R10 cards (12 + 10 = 22).
-            .padding(12)
-            .frame(width: 360)
+            // 19pt inset / 20pt tile gap / 384pt overall — tuned in the onboarding HTML
+            // mockup (Jul 2026); roomier than the original concentric 12pt scheme.
+            .padding(19)
+            .frame(width: 384)
             // One clean glass layer: the `.glassEffect` already supplies the material, so the
             // redundant `.ultraThinMaterial` stacked underneath is gone — more native, less muddy.
             .glassEffect(in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -66,19 +68,28 @@ struct PopoverView: View {
         onOpenSettings()
     }
 
-    /// The page title now outweighs the card titles (they're `.headline`) so hierarchy
-    /// reads top-down, and it carries the single consolidated "Updated" stamp. The gear's
-    /// visible glyph stays small but its hit area is padded out to the 40×40 floor.
+    /// The page title now outweighs the 16pt card titles so hierarchy reads top-down,
+    /// and the right slot carries one contextual status: the consolidated "Updated"
+    /// stamp, or the Claude first-run stage ("Set up Claude to begin" / "Watching for
+    /// approval…"). The gear's visible glyph stays small but its hit area is padded out
+    /// to the 40×40 floor.
     private func header(now: Date) -> some View {
-        HStack(spacing: 8) {
+        // All three elements align on one *ink-center* axis (measured against real
+        // renders): pure `.center` leaves the title ~2pt low (descender + line box),
+        // pure baseline leaves the 11pt status visibly low. So: baseline row, with the
+        // status raised 2pt (its ink center then matches the title's) and the gear
+        // centered 5pt above the baseline (the title's ink center).
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Usage")
-                .font(.system(size: 15, weight: .bold))
+                .font(.system(size: 20, weight: .bold))
+                .kerning(-0.2)
             Spacer(minLength: 8)
-            if let updated = headerUpdatedLabel(now: now) {
-                Text("Updated \(updated)")
-                    .font(.caption2.monospacedDigit())
+            if let status = headerStatus(now: now) {
+                Text(status)
+                    .font(.system(size: 11).monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
+                    .alignmentGuide(.firstTextBaseline) { d in d[.firstTextBaseline] + 2 }
             }
             // Native glass control. Its circular boundary sits flush at the content margin —
             // matching "Usage" on the left edge — which fixes the old alignment (a bare glyph
@@ -91,23 +102,38 @@ struct PopoverView: View {
                     // while the visible gearshape stays small.
                     .frame(width: 32, height: 32)
             }
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
+            // Bare glyph, no container: resting containers are the *cards'* language
+            // (non-clickable). Clickability announces itself on approach — hover pill,
+            // pointer cursor, press state — via HoverButtonStyle.
+            .buttonStyle(HoverButtonStyle(horizontalPadding: 0, verticalPadding: 0))
             .accessibilityLabel("Settings")
+            // Circle center on the title's ink center: ≈5pt above the baseline for
+            // 20pt SF bold (cap 14pt up, descender ~4pt down → mass center −5).
+            .alignmentGuide(.firstTextBaseline) { d in d[VerticalAlignment.center] + 5 }
         }
     }
 
-    /// Single "Updated N min ago" for the whole popover, taken from the *oldest* live
-    /// snapshot so it never claims data is fresher than the least-fresh provider. Stale
-    /// providers are excluded (their own stale pill carries that story); nil on first run
-    /// when nothing is live yet, so the header simply omits it.
-    private func headerUpdatedLabel(now: Date) -> String? {
+    /// Single status for the whole popover. During Claude's first-run setup it narrates
+    /// the stage; otherwise it's "Updated N min ago" from the *oldest* live snapshot so
+    /// it never claims data is fresher than the least-fresh provider. Stale providers
+    /// are excluded (their own stale pill carries that story); nil on first run when
+    /// nothing is live yet, so the header simply omits it.
+    private func headerStatus(now: Date) -> String? {
+        if claudeNeedsTrustSetup {
+            return ClaudeSetupSession.openedSetupAt != nil ? "Watching for approval…" : "Set up Claude to begin"
+        }
         let liveCaptures = store.providerOrder.compactMap { id -> Date? in
             guard case .live = store.snapshot(for: id).freshness else { return nil }
             return store.snapshot(for: id).capturedAt
         }
         guard let oldest = liveCaptures.min() else { return nil }
-        return Countdown.updatedLabel(capturedAt: oldest, now: now)
+        return Countdown.updatedLabel(capturedAt: oldest, now: now).map { "Updated \($0)" }
+    }
+
+    private var claudeNeedsTrustSetup: Bool {
+        guard store.providerOrder.contains(.claude),
+              case .stale(let reason) = store.appDisplaySnapshot(for: .claude).freshness else { return false }
+        return reason.isPermanent && reason.message == ClaudeUsageWorkspace.trustRequiredMessage
     }
 
     /// Left slot shows a live "Refreshing…" state while a cycle is in flight (UI-02) —
@@ -121,22 +147,25 @@ struct PopoverView: View {
                 if store.isRefreshing {
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.small)
-                        Text("Refreshing…").font(.caption).foregroundStyle(.secondary)
+                        Text("Refreshing…").font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                     .transition(.opacity)
                     .accessibilityLabel("Refreshing usage")
                 } else {
+                    // Quiet bare-text controls (no chip): resting containers belong to
+                    // the cards; hover/press/cursor carry the affordance.
                     Button("Refresh") { store.refreshNow() }
-                        .buttonStyle(.glass)
-                        .font(.caption)
+                        .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundStyle(.secondary)
                         .transition(.opacity)
                 }
             }
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: store.isRefreshing)
             Spacer()
             Button("Quit") { NSApplication.shared.terminate(nil) }
-                .buttonStyle(.glass)
-                .font(.caption)
+                .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
+                .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.secondary)
         }
     }

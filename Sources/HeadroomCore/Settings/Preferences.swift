@@ -64,11 +64,11 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         nonmutating set { defaults.set(newValue, forKey: Key.widgetsEnabled) }
     }
 
+    /// Default **off**, matching widgets (Jul 2026 density audit): the Spark model
+    /// counters are usually pinned at 100% and doubled the Codex card's height. The
+    /// Settings toggle opts back in.
     public var showCodexSparkCountersInApp: Bool {
-        get {
-            guard defaults.object(forKey: Key.showCodexSparkCountersInApp) != nil else { return true }
-            return defaults.bool(forKey: Key.showCodexSparkCountersInApp)
-        }
+        get { defaults.bool(forKey: Key.showCodexSparkCountersInApp) }
         nonmutating set { defaults.set(newValue, forKey: Key.showCodexSparkCountersInApp) }
     }
 

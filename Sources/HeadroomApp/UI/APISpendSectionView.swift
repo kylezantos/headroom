@@ -30,11 +30,10 @@ struct APISpendSectionView: View {
                     }
                 }
             }
-            .padding(12)
-            // Concentric with the R22 popover shell at the same 12pt inset as the provider
-            // cards above it (12 + 10 = 22) — sibling tiles now share one radius.
+            // 20pt padding matches the provider cards above (mockup-tuned), so sibling
+            // tiles share one padding and radius.
+            .padding(20)
             .raisedTile(cornerRadius: 10)
-            .padding(.top, 2)
         }
     }
 

@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import HeadroomCore
 
-/// Settings pane (U8): poll interval, per-provider renewal dates (R4), and
+/// Settings pane (U8): poll interval, appearance, surfaces, API keys, and
 /// launch-at-login (R15). Presented in its own window so dismissing settings never
 /// closes the menu bar popover behind it.
 struct SettingsView: View {
@@ -25,7 +25,6 @@ struct SettingsView: View {
     @State private var showCodexSparkCountersInWidgets = false
     @State private var syncToIPhoneEnabled = false
     @State private var launchAtLogin = false
-    @State private var renewalDates: [ProviderID: Date] = [:]
     @State private var apiSpendPeriod: APISpendPeriod = .currentMonth
     @State private var openAIKey = ""
     @State private var anthropicKey = ""
@@ -99,7 +98,10 @@ struct SettingsView: View {
                         )
                 }
                 Text("Headroom Settings")
-                    .font(.title2.weight(.semibold))
+                    // Same step as the popover's "Usage" page title (20pt bold), so the
+                    // two windows share one hierarchy.
+                    .font(.system(size: 20, weight: .bold))
+                    .kerning(-0.2)
             }
             .padding(.bottom, 2)
 
@@ -215,29 +217,12 @@ struct SettingsView: View {
 
                 if let credentialMessage {
                     Text(credentialMessage)
-                        .font(.caption)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                 }
             }
             .settingsPanel()
-
-            insetHairline()
-
-            // Grid so both date fields share a left edge despite the labels
-            // ("Claude renews" / "Codex renews") being different widths.
-            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 10) {
-                ForEach([ProviderID.claude, .codex], id: \.self) { id in
-                    GridRow {
-                        Text("\(store.displayNames[id] ?? id.raw) renews")
-                            .gridColumnAlignment(.leading)
-                        RenewalDateField(date: Binding(
-                            get: { renewalDates[id] ?? Date() },
-                            set: { renewalDates[id] = $0; preferences.setRenewalDate($0, for: id) }
-                        ))
-                    }
-                }
-            }
 
             insetHairline()
 
@@ -284,17 +269,18 @@ struct SettingsView: View {
         ))
     }
 
-    /// Uniform section header, matching the "Subscription Usage" / "API Spend" style so
-    /// every zone in the window reads the same.
+    /// Uniform section header. 13pt semibold — the settings-scale echo of the popover's
+    /// 16pt card titles (eight sections at full card weight would shout), one clear step
+    /// above the 13pt controls under it.
     private func sectionHeader(_ title: String) -> some View {
-        Text(title).font(.subheadline.weight(.semibold))
+        Text(title).font(.system(size: 13, weight: .semibold))
     }
 
-    /// Uniform descriptive caption. Consolidates the former mix of `.caption` and
-    /// `.caption2` fine print into one size so the helper text reads as one system.
+    /// Uniform descriptive fine print — 11pt secondary, the same step the popover uses
+    /// for reset countdowns and the reassurance line.
     private func helpText(_ text: String) -> some View {
         Text(text)
-            .font(.caption)
+            .font(.system(size: 11))
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
@@ -337,7 +323,7 @@ struct SettingsView: View {
         enabled: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.caption).foregroundStyle(.secondary)
+            Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
                     apiKeyField(placeholder: placeholder, text: text)
@@ -395,9 +381,6 @@ struct SettingsView: View {
         syncToIPhoneEnabled = store.syncToIPhoneEnabled
         apiSpendPeriod = store.apiSpendPeriod
         launchAtLogin = launchControl.isEnabled
-        for id in [ProviderID.claude, .codex] {
-            if let date = preferences.renewalDate(for: id) { renewalDates[id] = date }
-        }
     }
 
     private func saveKey(_ key: String, for provider: APIKeyProvider) {
@@ -476,28 +459,5 @@ private enum AppIconGlyph {
     }
 }
 
-/// Renewal date entry: a tidy bordered label showing the formatted date, opening a calendar
-/// on click. macOS has no compact tap-to-calendar `DatePicker` (that's iOS-only), and the
-/// `.field`/`.stepperField` styles space-pad single digits ("7/ 3/2026"), so we format the
-/// label ourselves ("Jul 3, 2026") and pop a `.graphical` picker for editing.
-private struct RenewalDateField: View {
-    @Binding var date: Date
-    @State private var isEditing = false
-
-    var body: some View {
-        Button {
-            isEditing.toggle()
-        } label: {
-            Text(date.formatted(.dateTime.month(.abbreviated).day().year()))
-                .monospacedDigit()
-        }
-        .buttonStyle(.bordered)
-        .popover(isPresented: $isEditing, arrowEdge: .bottom) {
-            DatePicker("", selection: $date, displayedComponents: .date)
-                .datePickerStyle(.graphical)
-                .labelsHidden()
-                .padding(12)
-                .frame(width: 260)
-        }
-    }
-}
+// (RenewalDateField removed — plan-renewal dates were cut from all UI in the
+// Jul 2026 density audit; `Preferences.renewalDate` remains for stored data.)

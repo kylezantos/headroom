@@ -18,7 +18,6 @@ struct ProviderTileView: View {
             header
             notice
             bars
-            renewalRow
         }
         .padding(17)
         .headroomTile()
@@ -85,20 +84,5 @@ struct ProviderTileView: View {
         }
     }
 
-    private var renewalRow: some View {
-        HStack {
-            Text("Plan renews")
-                .font(.caption)
-                .foregroundStyle(HeadroomTheme.tertiaryText(scheme))
-            Spacer()
-            Text(renewalText)
-                .font(.caption.weight(.medium))
-                .foregroundStyle(HeadroomTheme.secondaryText(scheme))
-        }
-        .padding(.top, 2)
-    }
-
-    private var renewalText: String {
-        provider.renewalDate?.formatted(date: .abbreviated, time: .omitted) ?? "Managed on Mac"
-    }
+    // (Plan-renews row removed — Jul 2026 density audit cut renewal dates from all UI.)
 }

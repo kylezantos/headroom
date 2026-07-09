@@ -21,6 +21,29 @@ enum ProviderStyle {
         }
     }
 
+    /// Brand-tinted provider *title* color, shared with the widgets
+    /// (`HeadroomWidgetColorValues.textAccent` — WCAG-tuned per scheme) so the popover
+    /// and widget headers read as one system (Jul 2026 widget-alignment pass).
+    static func textAccent(for id: ProviderID, scheme: ColorScheme) -> Color {
+        guard let rgb = HeadroomWidgetColorValues.textAccent(for: id.raw, dark: scheme == .dark) else {
+            return .primary
+        }
+        return Color(rgb)
+    }
+
+    /// Widget-tuned label grays (WCAG-checked in `HeadroomWidgetColorValues`), adopted
+    /// over the system `.secondary`/`.tertiary` — system tertiary sat at ~2.3:1 on the
+    /// dark tile; the shared token reaches ~4.2:1 and keeps all surfaces in step.
+    static func secondaryText(scheme: ColorScheme) -> Color {
+        let tint = HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark)
+        return Color(tint.color).opacity(tint.opacity)
+    }
+
+    static func tertiaryText(scheme: ColorScheme) -> Color {
+        let tint = HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark)
+        return Color(tint.color).opacity(tint.opacity)
+    }
+
     /// Semantic fill for a usage bar by health band (UI-01). A static three-stop ramp —
     /// green → amber → red — chosen over the brand accent because Claude's warm clay is
     /// too close to amber to read as "warning". Brand identity stays in the logo + plan

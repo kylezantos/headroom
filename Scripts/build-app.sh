@@ -115,8 +115,16 @@ prepare_entitlements() {
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier ${team_identifier}.com.kylezantos.headroom" "${APP_ENTITLEMENTS}"
     /usr/libexec/PlistBuddy -c "Set :com.apple.developer.ubiquity-kvstore-identifier ${team_identifier}.com.kylezantos.headroom" "${WIDGET_ENTITLEMENTS}"
   else
-    /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.ubiquity-kvstore-identifier" "${APP_ENTITLEMENTS}" 2>/dev/null || true
-    /usr/libexec/PlistBuddy -c "Delete :com.apple.developer.ubiquity-kvstore-identifier" "${WIDGET_ENTITLEMENTS}" 2>/dev/null || true
+    # Delete BOTH restricted iCloud keys. `icloud-container-identifiers` counts as a
+    # restricted entitlement even as an empty array — leaving it in an ad-hoc
+    # signature gets the app SIGKILLed at spawn (exit 137) just like the KVS key.
+    for key in \
+      "com.apple.developer.ubiquity-kvstore-identifier" \
+      "com.apple.developer.icloud-container-identifiers"
+    do
+      /usr/libexec/PlistBuddy -c "Delete :${key}" "${APP_ENTITLEMENTS}" 2>/dev/null || true
+      /usr/libexec/PlistBuddy -c "Delete :${key}" "${WIDGET_ENTITLEMENTS}" 2>/dev/null || true
+    done
   fi
 }
 

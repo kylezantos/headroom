@@ -67,15 +67,16 @@ struct PreferencesTests {
         #expect(prefs.widgetsEnabled)
     }
 
-    @Test func codexSparkCountersDefaultBySurfaceAndPersist() {
+    @Test func codexSparkCountersDefaultOffOnBothSurfacesAndPersist() {
         let prefs = Preferences(defaults: freshDefaults())
-        #expect(prefs.showCodexSparkCountersInApp)
+        // Both surfaces default off (Jul 2026 density audit); Settings opts back in.
+        #expect(!prefs.showCodexSparkCountersInApp)
         #expect(!prefs.showCodexSparkCountersInWidgets)
 
-        prefs.showCodexSparkCountersInApp = false
+        prefs.showCodexSparkCountersInApp = true
         prefs.showCodexSparkCountersInWidgets = true
 
-        #expect(!prefs.showCodexSparkCountersInApp)
+        #expect(prefs.showCodexSparkCountersInApp)
         #expect(prefs.showCodexSparkCountersInWidgets)
     }
 

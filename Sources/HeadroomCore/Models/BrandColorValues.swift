@@ -128,11 +128,13 @@ public enum HeadroomWidgetColorValues {
 /// iOS app + widget, and the Mac popover + widget — so they stay visually identical.
 public enum HeadroomBrandMark {
     /// Per-provider optical-size correction. Claude's starburst radiates to the edges of
-    /// its viewBox, so at an equal frame it reads ~13% larger than Codex's inset blob;
+    /// its viewBox, so at an equal frame it reads larger than Codex's inset blob;
     /// scaling it down inside a fixed slot makes the two read as equal weight.
+    /// (0.87 → 0.84, Jul 2026: at the larger 19–20pt card-header size the starburst
+    /// still read slightly bigger.)
     public static func opticalScale(for providerID: String) -> Double {
         switch providerID {
-        case ProviderID.claude.raw: 0.87
+        case ProviderID.claude.raw: 0.84
         default: 1.0
         }
     }

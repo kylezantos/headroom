@@ -2,11 +2,16 @@ import SwiftUI
 import AppKit
 import HeadroomCore
 
-/// One provider's card (U7). Renders the four explicit states from the design review
-/// off `snapshot.freshness`: `.pending` first-run skeleton, `.live`, transient stale
-/// (last data kept, marked with a "Stale" pill), and permanent needs-reauth/scope (an
-/// actionable message with a one-tap command to copy). Shows the plan-renewal date or a
-/// tappable "add date" affordance.
+/// One provider's card (U7). Renders the explicit states off `snapshot.freshness`:
+/// `.pending` first-run skeleton, `.live`, transient stale (last data kept, marked with
+/// a "Stale" pill), permanent needs-reauth (actionable command), and — for Claude's
+/// trust-required first run — the guided Connect/Waiting onboarding cards
+/// (`ClaudeSetupViews`, transferred from the HTML mockup Jul 2026).
+///
+/// Type + spacing were tuned in the mockup: 16pt bold card titles, 14pt vertical rhythm
+/// between rows, 20pt card padding. Plan pills and the "Plan renews" row were removed
+/// in the density audit (too much detail for the glance payload); the plan pill is kept
+/// commented for easy restore.
 ///
 /// UI craft (audit): the card is a single lighter translucent layer instead of a second
 /// `.regularMaterial` stacked on the popover's glass, so Tahoe's Liquid Glass reads
@@ -15,48 +20,104 @@ struct ProviderCardView: View {
     let providerID: ProviderID
     let displayName: String
     let snapshot: UsageSnapshot
-    let renewalDate: Date?
     let now: Date
-    let onOpenSettings: () -> Void
     let onRetrySetup: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
-
-    private var accent: Color { ProviderStyle.accent(for: providerID) }
+    @State private var showsConnectedChip = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            header
-            content
-            renewalRow
+        Group {
+            if isClaudeTrustSetup {
+                if ClaudeSetupSession.openedSetupAt != nil {
+                    ClaudeWaitingCard(
+                        onCheckNow: onRetrySetup,
+                        onReopen: { ClaudeSetupSession.openSetup(onRetry: onRetrySetup) }
+                    )
+                } else {
+                    ClaudeConnectCard(
+                        onOpenSetup: { ClaudeSetupSession.openSetup(onRetry: onRetrySetup) }
+                    )
+                }
+            } else {
+                VStack(alignment: .leading, spacing: 14) {
+                    header
+                    content
+                }
+            }
         }
-        .padding(12)
-        // Raised tile, concentric with the popover shell (R22, 12pt inset → 10pt). Adapts its
-        // elevation cue per appearance — lit rim in dark, shadow+fill in light (UI-07, R-depth).
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .raisedTile(cornerRadius: 10)
         // A refresh replacing the pending skeleton (or a stale card recovering) cross-fades
         // and springs its height change rather than hard-cutting — the arrival of a poll
         // cycle, felt not flashed. Snaps instead under Reduce Motion.
         .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: snapshot.freshness)
+        .onAppear { evaluateConnectedPayoff() }
+        .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
+    }
+
+    /// The guided-setup payoff: when Claude goes live after the user opened setup, stop
+    /// the pending auto-retries (each spawns a 20–30s CLI cycle — without this the
+    /// footer reads "Refreshing…" for minutes after success) and show the "Connected"
+    /// chip briefly. One-shot: the session flag clears with the dismissal.
+    private func evaluateConnectedPayoff() {
+        guard providerID == .claude, case .live = snapshot.freshness,
+              ClaudeSetupSession.openedSetupAt != nil else { return }
+        ClaudeSetupSession.cancelRetries()
+        guard !showsConnectedChip else { return }
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.3)) { showsConnectedChip = true }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation(reduceMotion ? nil : .smooth(duration: 0.4)) { showsConnectedChip = false }
+            ClaudeSetupSession.openedSetupAt = nil
+        }
+    }
+
+    /// Claude's folder-trust first run — the one failure that gets the guided flow.
+    private var isClaudeTrustSetup: Bool {
+        guard providerID == .claude, case .stale(let reason) = snapshot.freshness else { return false }
+        return reason.isPermanent && reason.message == ClaudeUsageWorkspace.trustRequiredMessage
     }
 
     /// The per-card "Updated N min ago" was removed here — both providers poll on one
-    /// cycle, so it now reads once in the popover header (PopoverView) instead of twice.
-    /// A provider that's individually stale still says so via its own stale pill below.
+    /// cycle, so it reads once in the popover header (PopoverView) instead of twice.
+    /// Header mirrors the large widget's recipe (icon ≈ 1.33× the title size, title in
+    /// the shared brand text-accent) so popover and widgets read as one family.
     private var header: some View {
-        HStack(spacing: 8) {
-            ProviderLogoView(providerID: providerID, size: 17)
-            Text(displayName).font(.headline)
-            if let plan = snapshot.planLabel {
-                Text(plan.capitalized)
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(accent.opacity(0.18), in: Capsule())
-            }
+        HStack(spacing: 6) {
+            ProviderLogoView(providerID: providerID, size: 21)
+            Text(displayName)
+                .font(.system(size: 16, weight: .semibold))
+                .kerning(-0.2)
+                .foregroundStyle(ProviderStyle.textAccent(for: providerID, scheme: scheme))
+            // Plan tag omitted (density audit — unnecessary in this version):
+            // if let plan = snapshot.planLabel {
+            //     Text(plan.capitalized)
+            //         .font(.caption2)
+            //         .lineLimit(1)
+            //         .padding(.horizontal, 6).padding(.vertical, 2)
+            //         .background(ProviderStyle.accent(for: providerID).opacity(0.18), in: Capsule())
+            // }
             Spacer(minLength: 6)
+            if showsConnectedChip {
+                connectedChip
+                    .transition(.opacity)
+            }
         }
+    }
+
+    private var connectedChip: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+            Text("Connected")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
+        .padding(.horizontal, 8).padding(.vertical, 2.5)
+        .background(ClaudeSetupStyle.connectedBackground(dark: scheme == .dark), in: Capsule())
     }
 
     @ViewBuilder private var content: some View {
@@ -87,7 +148,7 @@ struct ProviderCardView: View {
         if snapshot.windows.isEmpty {
             Text("No usage data").font(.caption).foregroundStyle(.secondary)
         } else {
-            VStack(spacing: 10) {
+            VStack(spacing: 14) {
                 ForEach(Array(snapshot.windows.enumerated()), id: \.offset) { _, window in
                     UsageBarView(window: window, now: now, dimmed: dimmed)
                 }
@@ -108,60 +169,20 @@ struct ProviderCardView: View {
         }
     }
 
-    /// Permanent failure the user can fix (UI-05): make the guided setup path primary
-    /// and keep the command as a compact fallback.
+    /// Permanent failure the user can fix (UI-05) that is *not* the guided Claude setup
+    /// (that one renders the Connect/Waiting cards): message + compact copyable command.
     @ViewBuilder private func actionable(_ reason: FailureReason) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(reason.message, systemImage: "exclamationmark.triangle.fill")
                 .font(.caption)
                 .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
-            if shouldOfferClaudeSetup(for: reason) {
-                claudeSetupRecovery(reason)
-            } else if let command = recoveryCommand(for: reason) {
-                commandRecovery(command: command, reason: reason)
-            }
-        }
-    }
-
-    private func claudeSetupRecovery(_ reason: FailureReason) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Open setup, approve Claude's trust prompt, then return here. Headroom will retry automatically.")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                Button(action: openClaudeSetup) {
-                    Label("Open Setup", systemImage: "terminal")
-                }
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 8, verticalPadding: 4))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(accent)
-
-                Spacer(minLength: 6)
-
-                Button(action: { copyCommand(for: reason) }) {
-                    Image(systemName: "doc.on.doc")
-                        .frame(width: 22, height: 22)
-                }
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 4, verticalPadding: 4))
-                .foregroundStyle(.secondary)
-                .help("Copy manual setup command")
-                .accessibilityLabel("Copy manual setup command")
-            }
             if let command = recoveryCommand(for: reason) {
-                Text("$ \(command)")
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(2)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+                commandRecovery(command: command)
             }
         }
-        .padding(.horizontal, 9).padding(.vertical, 7)
-        .background(Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
-    private func commandRecovery(command: String, reason: FailureReason) -> some View {
+    private func commandRecovery(command: String) -> some View {
         HStack(spacing: 8) {
             Text("$ \(command)")
                 .font(.caption.monospaced())
@@ -170,7 +191,7 @@ struct ProviderCardView: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-            Button(action: { copyCommand(for: reason) }) {
+            Button(action: { copyCommand(command) }) {
                 Image(systemName: "doc.on.doc")
                     .frame(width: 22, height: 22)
             }
@@ -180,7 +201,7 @@ struct ProviderCardView: View {
             .accessibilityLabel("Copy command")
         }
         .padding(.horizontal, 9).padding(.vertical, 6)
-        .background(Color.black.opacity(0.22), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+        .background(ClaudeSetupStyle.codeBackground(dark: scheme == .dark), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
     /// Small "Stale" flag + the transient reason, so a network blip is explicit rather
@@ -197,88 +218,17 @@ struct ProviderCardView: View {
         }
     }
 
-    private var renewalRow: some View {
-        HStack {
-            Text("Plan renews").font(.caption2).foregroundStyle(.tertiary)
-            Spacer()
-            if let renewalDate {
-                Text(renewalDate.formatted(date: .abbreviated, time: .omitted))
-                    .font(.caption2).foregroundStyle(.secondary)
-            } else {
-                Button("Add date", action: onOpenSettings)
-                    .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 2))
-                    .font(.caption2)
-                    .foregroundStyle(accent)
-            }
-        }
-    }
-
     /// The CLI command that recovers each provider (nil for unknown providers).
     private func recoveryCommand(for reason: FailureReason) -> String? {
         switch providerID {
-        case .claude:
-            if shouldOfferClaudeSetup(for: reason) {
-                return "cd \(shellQuoted(ClaudeUsageWorkspace.defaultDirectoryURL.path)) && claude"
-            }
-            return "claude"
+        case .claude: return "claude"
         case .codex: return "codex login"
         default: return nil
         }
     }
 
-    private func shouldOfferClaudeSetup(for reason: FailureReason) -> Bool {
-        providerID == .claude && reason.message == ClaudeUsageWorkspace.trustRequiredMessage
-    }
-
-    private func copyCommand(for reason: FailureReason) {
-        guard let command = recoveryCommand(for: reason) else { return }
+    private func copyCommand(_ command: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(command, forType: .string)
-    }
-
-    private func openClaudeSetup() {
-        do {
-            let workspace = try ClaudeUsageWorkspace.ensureDefaultDirectory()
-            let scriptURL = workspace.deletingLastPathComponent()
-                .appendingPathComponent("Open Claude Setup.command")
-            let script = """
-            #!/bin/zsh
-            clear
-            export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
-            cd \(shellQuoted(workspace.path)) || exit 1
-            echo "Headroom needs Claude Code to trust this empty folder before it can read /usage."
-            echo
-            echo "When Claude asks, choose: Yes, I trust this folder"
-            echo "After approving, return to Headroom. It will retry automatically."
-            echo
-            if ! command -v claude >/dev/null 2>&1; then
-              echo "Claude Code CLI was not found. Install Claude Code, then reopen Headroom."
-              echo
-              echo "Press any key to close this window."
-              read -k 1
-              exit 127
-            fi
-            exec claude
-            """
-            try script.write(to: scriptURL, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
-            NSWorkspace.shared.open(scriptURL)
-            scheduleSetupRetries()
-        } catch {
-            copyCommand(for: .needsReauth(ClaudeUsageWorkspace.trustRequiredMessage))
-        }
-    }
-
-    private func scheduleSetupRetries() {
-        for delay in [12.0, 35.0, 75.0] {
-            Task { @MainActor in
-                try? await Task.sleep(for: .seconds(delay))
-                onRetrySetup()
-            }
-        }
-    }
-
-    private func shellQuoted(_ value: String) -> String {
-        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }

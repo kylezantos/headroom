@@ -62,16 +62,20 @@ struct UsageBarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            // Row recipe aligned with the large widget's meter (Jul 2026): 13pt medium
+            // label + "· reset" in the shared WCAG-tuned widget grays (system .tertiary
+            // sat at ~2.3:1 on the dark tile). Percent stays 18pt medium — the popover's
+            // larger canvas earns the bigger numeral; weight ladder 400/500/600/700.
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Text(label)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if resetInline {
-                    Text("/ \(resetText)")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.tertiary)
+                    Text("· \(resetText)")
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
                         .lineLimit(1)
                         .layoutPriority(-1)
                 }
@@ -80,13 +84,13 @@ struct UsageBarView: View {
                     lowChip
                 }
                 Text("\(pct)%")
-                    .font(.system(size: 14, weight: .semibold).monospacedDigit())
+                    .font(.system(size: 18, weight: .medium).monospacedDigit())
                     .foregroundStyle(.primary)
                     .contentTransition(.numericText())
                     .animation(valueAnimation, value: pct)
                 Text("left")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 11))
+                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -101,11 +105,11 @@ struct UsageBarView: View {
                         .animation(valueAnimation, value: fraction)
                 }
             }
-            .frame(height: 7)
+            .frame(height: 8)
             if !resetInline {
                 Text(resetText)
-                    .font(.caption2.monospacedDigit())
-                    .foregroundStyle(.tertiary)
+                    .font(.system(size: 11).monospacedDigit())
+                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
             }
         }
         .accessibilityElement(children: .ignore)

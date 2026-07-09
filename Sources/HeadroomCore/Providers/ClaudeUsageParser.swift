@@ -83,15 +83,16 @@ public enum ClaudeUsageParser {
         return nil
     }
 
-    /// Extracts "N% used" -> N (Double), tolerant of surrounding bar characters.
+    /// Extracts "N% used" -> N (Double), tolerant of surrounding bar characters and
+    /// occasional TUI repaint gaps like "89% us d".
     static func percentUsed(in line: String) -> Double? {
-        guard let m = line.firstMatch(of: /(\d{1,3})\s*%\s*used/) else { return nil }
+        guard let m = line.firstMatch(of: /(\d{1,3})\s*%\s*u\s*s\s*e?\s*d/) else { return nil }
         return Double(m.1)
     }
 
     /// Extracts the "Resets …" text, dropping a trailing timezone parenthetical.
     static func resetText(in line: String) -> String? {
-        guard let m = line.firstMatch(of: /[Rr]esets?\s+(.+)/) else { return nil }
+        guard let m = line.firstMatch(of: /[Rr]\s*e?sets?\s+(.+)/) else { return nil }
         var value = String(m.1).trimmingCharacters(in: .whitespaces)
         // Drop a trailing "(America/Los_Angeles)" for brevity.
         if let paren = value.range(of: " (") { value = String(value[..<paren.lowerBound]) }

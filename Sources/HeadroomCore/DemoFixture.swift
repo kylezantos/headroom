@@ -21,6 +21,7 @@ public enum DemoFixture {
             windows: [
                 UsageWindow(kind: .fiveHour, utilization: 28, resetsAt: soon(hours: 5), resetLabel: "Resets 2:15pm"),
                 UsageWindow(kind: .weekly, utilization: 62, resetsAt: soon(days: 3), resetLabel: "Resets Jul 9"),
+                UsageWindow(kind: .other("Weekly (Fable)"), utilization: 62, resetsAt: soon(days: 3), resetLabel: "Resets Jul 9"),
             ],
             planLabel: "Max",
             capturedAt: Date(),

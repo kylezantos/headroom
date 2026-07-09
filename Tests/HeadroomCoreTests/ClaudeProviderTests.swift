@@ -72,6 +72,18 @@ struct ClaudeUsageParserTests {
         #expect(ClaudeUsageParser.parse(text).first?.resetLabel == "Resets Jul 9 at 10am")
     }
 
+    @Test func toleratesDroppedLettersFromTUIRepaint() {
+        let text = """
+        Current week (Fable)
+        ████████████████████████████████████████████▌ 89% us d
+        R sets Jul 9 at 9:59am (America/Los_Angeles)
+        """
+        let window = ClaudeUsageParser.parse(text).first
+        #expect(window?.kind == .other("Weekly (Fable)"))
+        #expect(window?.percentUsed == 89)
+        #expect(window?.resetLabel == "Resets Jul 9 at 9:59am")
+    }
+
     @Test func extractsPlanTierFromHeader() {
         // The tier appears in the panel header line, e.g. "… · Claude Max".
         #expect(ClaudeUsageParser.plan(in: "Fable 5 with high effort · Claude Max  ~/dir") == "Max")

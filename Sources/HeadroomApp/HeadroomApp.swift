@@ -49,8 +49,13 @@ enum Entry {
                 }
                 // Always dump the raw panel so we can see fields the parser doesn't yet
                 // extract (e.g. the subscription tier for the plan pill).
-                print("--- RAW PANEL (first 1500 chars) ---")
-                print(String(text.prefix(1500)))
+                if CommandLine.arguments.contains("--full") {
+                    print("--- RAW PANEL (full) ---")
+                    print(text)
+                } else {
+                    print("--- RAW PANEL (first 1500 chars) ---")
+                    print(String(text.prefix(1500)))
+                }
             }
             semaphore.signal()
         }

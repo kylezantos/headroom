@@ -9,7 +9,7 @@ struct UsageStoreTests {
     private let reset = Date(timeIntervalSince1970: 2_000_000)
 
     @Test func refreshPopulatesAllProviders() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude",
                          snapshot: .live(.claude, windows: [UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset)])),
             StubProvider(id: .codex, displayName: "Codex",
@@ -21,7 +21,7 @@ struct UsageStoreTests {
     }
 
     @Test func startsPendingBeforeAnyFetch() {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
         ])
         #expect(store.snapshot(for: .claude).freshness == .pending)
@@ -29,7 +29,7 @@ struct UsageStoreTests {
     }
 
     @Test func oneProviderFailureDoesNotAffectOther() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude",
                          snapshot: .live(.claude, windows: [UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset)])),
             StubProvider(id: .codex, displayName: "Codex",
@@ -45,7 +45,7 @@ struct UsageStoreTests {
         // Continuity (KTD7): a later failure keeps the prior windows shown, dimmed.
         let provider = MutableStubProvider(id: .claude, displayName: "Claude",
             snapshot: .live(.claude, windows: [UsageWindow(kind: .fiveHour, utilization: 40, resetsAt: reset)]))
-        let store = UsageStore(providers: [provider])
+        let store = makeStore(providers: [provider])
         await store.refreshAll()
         #expect(store.snapshot(for: .claude).windows.count == 1)
 
@@ -61,7 +61,7 @@ struct UsageStoreTests {
         // A second start() (e.g. the popover re-appearing) must not re-fetch or restart
         // the loop — the guard keeps exactly one initial refresh.
         let provider = CountingProvider(id: .claude)
-        let store = UsageStore(providers: [provider])
+        let store = makeStore(providers: [provider])
         await store.start()
         await store.start()
         #expect(provider.fetchCount == 1)
@@ -69,7 +69,7 @@ struct UsageStoreTests {
 
     @Test func concurrentStartCoalescesInitialRefresh() async {
         let provider = SlowCountingProvider(id: .claude)
-        let store = UsageStore(providers: [provider])
+        let store = makeStore(providers: [provider])
 
         let firstStart = Task { await store.start() }
         await provider.waitUntilFetchStarts()
@@ -103,7 +103,7 @@ struct UsageStoreTests {
     }
 
     @Test func menuBarSummaryDefaultsToLowestWeeklyWithIdentity() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .fiveHour, utilization: 95, resetsAt: reset),     // ignored: 5h
                 UsageWindow(kind: .weekly, utilization: 70, resetsAt: reset),       // 30% left
@@ -142,7 +142,7 @@ struct UsageStoreTests {
     }
 
     @Test func menuBarSummaryCarriesSeverityOfWeeklyWindow() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .fiveHour, utilization: 95, resetsAt: reset),   // ignored: 5h
                 UsageWindow(kind: .weekly, utilization: 88, resetsAt: reset),     // 12% left -> critical
@@ -154,7 +154,7 @@ struct UsageStoreTests {
 
     @Test func menuBarSummaryFlagsPermanentFailureEvenWhenNeutral() async {
         // A logged-out provider with no live data still surfaces attention in the bar.
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .codex, displayName: "Codex",
                          snapshot: .stale(for: .codex, reason: .needsReauth("Run `codex login`"))),
         ])
@@ -165,7 +165,7 @@ struct UsageStoreTests {
     }
 
     @Test func transientFailureDoesNotFlagAttention() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset),
             ])),
@@ -243,7 +243,7 @@ struct UsageStoreTests {
     }
 
     @Test func menuBarMetersDefaultToSingleSummary() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset),
             ])),
@@ -326,7 +326,7 @@ struct UsageStoreTests {
     }
 
     @Test func menuBarFollowsSelectedWindowSource() async {
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),   // 80% left
                 UsageWindow(kind: .weekly, utilization: 70, resetsAt: reset),     // 30% left
@@ -348,7 +348,7 @@ struct UsageStoreTests {
     @Test func appDisplaySnapshotOrdersWeeklyFirst() async {
         // Providers emit 5-hour first; the popover shows weekly first to match the
         // widgets. Unknown windows keep their provider-given order after the pair.
-        let store = UsageStore(providers: [
+        let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),
                 UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
@@ -367,12 +367,24 @@ struct UsageStoreTests {
         #expect(store.snapshot(for: .claude).windows.first?.kind == .fiveHour)
     }
 
-    /// Store whose menu-bar fill source is pre-set, on an isolated defaults suite.
-    private func makeStore(source: MenuBarFillSource, providers: [any UsageProvider]) -> UsageStore {
+    /// Fresh-suite preferences so tests never read the developer's real UserDefaults —
+    /// a persisted menu-bar window source from actually using the app was leaking into
+    /// the default-behavior expectations.
+    private func freshPreferences() -> Preferences {
         let suite = "headroom.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
-        let preferences = Preferences(defaults: defaults)
+        return Preferences(defaults: defaults)
+    }
+
+    /// Default-behavior store: stub providers on isolated (all-default) preferences.
+    private func makeStore(providers: [any UsageProvider]) -> UsageStore {
+        UsageStore(providers: providers, preferences: freshPreferences())
+    }
+
+    /// Store whose menu-bar fill source is pre-set, on an isolated defaults suite.
+    private func makeStore(source: MenuBarFillSource, providers: [any UsageProvider]) -> UsageStore {
+        let preferences = freshPreferences()
         preferences.menuBarFillSource = source
         return UsageStore(providers: providers, preferences: preferences)
     }

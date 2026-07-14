@@ -8,14 +8,14 @@ struct HeadroomMediumWidgetView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            // The two-column region flexes to fill the tile so the center rule reads as a
+            // true column separator (full height, small symmetric inset) rather than a stub
+            // tied to the text block. The footer / API-spend row sit below it either way.
             if envelope.apiSpendProviders.isEmpty {
-                Spacer(minLength: 0)
                 providerColumns
-                Spacer(minLength: 0)
                 footerText(prefix: "from Mac · ")
             } else {
                 providerColumns
-                Spacer(minLength: 6)
                 Rectangle()
                     .fill(WidgetProviderStyle.hairline(scheme: scheme))
                     .frame(height: 1)
@@ -39,15 +39,25 @@ struct HeadroomMediumWidgetView: View {
                 MediumProviderColumn(provider: provider)
             }
         } else {
-            HStack(alignment: .top, spacing: 10) {
-                ForEach(Array(envelope.providers.enumerated()), id: \.element.id) { index, provider in
+            HStack(alignment: .top, spacing: 12) {
+                ForEach(envelope.providers) { provider in
                     MediumProviderColumn(provider: provider)
-                    if index < envelope.providers.count - 1 {
-                        Rectangle()
-                            .fill(WidgetProviderStyle.hairline(scheme: scheme))
-                            .frame(width: 1)
-                            .frame(maxHeight: .infinity)
-                    }
+                }
+            }
+            .frame(maxHeight: .infinity)
+            .overlay {
+                // The column rule is drawn as a full-height overlay rather than an inline
+                // sibling so it spans the entire two-column band — headers included — and
+                // isn't pulled short by how each column's content distributes vertically.
+                // Two equal-width columns with a symmetric gap put the tile's horizontal
+                // centre inside that gap, so a centred 1pt rule lands cleanly between them.
+                // Guarded to the 2-provider layout, which is the app's invariant.
+                if envelope.providers.count == 2 {
+                    Rectangle()
+                        .fill(WidgetProviderStyle.hairline(scheme: scheme))
+                        .frame(width: 1)
+                        .frame(maxHeight: .infinity)
+                        .padding(.vertical, 6)
                 }
             }
         }
@@ -91,7 +101,7 @@ private struct MediumProviderColumn: View {
             WidgetUsageMeter(window: window(.weekly), fallbackLabel: "Weekly", compact: true)
             WidgetUsageMeter(window: window(.fiveHour), fallbackLabel: "5-hour", compact: true)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private func window(_ kind: WidgetWindowKind) -> WidgetWindowSummary? {

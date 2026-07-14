@@ -199,7 +199,10 @@ public struct HeadroomWidgetUsageMeter: View {
     }
 
     private var percentFont: Font {
-        prominent ? .title3.bold().monospacedDigit() : (compact ? .subheadline.bold().monospacedDigit() : .caption.bold().monospacedDigit())
+        // The percentage is the glance value, so it outsizes its label. compact (the medium
+        // widgets) was too timid at .subheadline — bump to .title3 so it reads at arm's length
+        // without crowding the "left" suffix or the bar. prominent/default left as-is.
+        prominent ? .title3.bold().monospacedDigit() : (compact ? .title3.bold().monospacedDigit() : .caption.bold().monospacedDigit())
     }
 
     private var percentText: String {

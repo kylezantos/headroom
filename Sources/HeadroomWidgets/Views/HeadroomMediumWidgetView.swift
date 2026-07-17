@@ -16,15 +16,13 @@ struct HeadroomMediumWidgetView: View {
                 footerText(prefix: "from Mac · ")
             } else {
                 providerColumns
-                Rectangle()
-                    .fill(WidgetProviderStyle.hairline(scheme: scheme))
-                    .frame(height: 1)
-                HStack(alignment: .center, spacing: 8) {
-                    WidgetAPISpendCompactRow(summaries: envelope.apiSpendProviders, now: now)
-                        .layoutPriority(1)
-                    Spacer(minLength: 4)
-                    footerText(prefix: "", fillsWidth: false)
-                }
+                // Same shared strip as the large widget; the footer drops its "from Mac"
+                // prefix here because the medium tile's width carries icons + amounts too.
+                WidgetAPISpendStrip(
+                    summaries: envelope.apiSpendProviders,
+                    now: now,
+                    footerText: Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now)
+                )
             }
         }
         // KTD1: rely on WidgetKit's default content margins for the outer margin;
@@ -63,13 +61,13 @@ struct HeadroomMediumWidgetView: View {
         }
     }
 
-    @ViewBuilder private func footerText(prefix: String, fillsWidth: Bool = true) -> some View {
+    @ViewBuilder private func footerText(prefix: String) -> some View {
         if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
             Text("\(prefix)\(updated)")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
                 .lineLimit(1)
-                .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 }

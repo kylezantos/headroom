@@ -169,15 +169,13 @@ struct HeadroomIOSWidgetView: View {
             } else {
                 mediumProviderColumns(envelope.providers)
                 Spacer(minLength: 6)
-                Rectangle()
-                    .fill(HeadroomWidgetStyle.hairline(scheme: scheme))
-                    .frame(height: 1)
-                HStack(alignment: .center, spacing: 8) {
-                    HeadroomWidgetAPISpendCompactRow(summaries: envelope.apiSpendProviders, now: entry.date)
-                        .layoutPriority(1)
-                    Spacer(minLength: 4)
-                    mediumFooter(generatedAt: envelope.generatedAt, prefix: "", fillsWidth: false)
-                }
+                // Same shared strip as the large widget; the footer drops its freshness
+                // prefix here because the medium tile's width carries icons + amounts too.
+                HeadroomWidgetAPISpendStrip(
+                    summaries: envelope.apiSpendProviders,
+                    now: entry.date,
+                    footerText: Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date)
+                )
             }
         }
         // KTD1: rely on WidgetKit's default content margins for the outer margin;
@@ -187,13 +185,13 @@ struct HeadroomIOSWidgetView: View {
     }
 
     @ViewBuilder
-    private func mediumFooter(generatedAt: Date, prefix: String, fillsWidth: Bool = true) -> some View {
+    private func mediumFooter(generatedAt: Date, prefix: String) -> some View {
         if let updated = Countdown.updatedLabel(capturedAt: generatedAt, now: entry.date) {
             Text("\(prefix)\(updated)")
                 .font(.caption.weight(.medium))
                 .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
                 .lineLimit(1)
-                .frame(maxWidth: fillsWidth ? .infinity : nil, alignment: .trailing)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
@@ -258,26 +256,35 @@ struct HeadroomIOSWidgetView: View {
                         .headroomWidgetLargeProviderCard()
                 }
             }
-            if !envelope.apiSpendProviders.isEmpty {
-                Rectangle()
-                    .fill(HeadroomWidgetStyle.hairline(scheme: scheme))
-                    .frame(height: 1)
-                    .padding(.vertical, 13)
-                HeadroomWidgetAPISpendSection(summaries: envelope.apiSpendProviders, now: entry.date)
-            }
             Spacer(minLength: 0)
-            if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date) {
-                Text("\(freshnessPrefix)\(updated)")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, 8)
+            // The full spend section (title + named rows) overflows the large tile with two
+            // provider cards above it, so spend gets the same one-line strip the medium
+            // widget uses; the companion app carries names, period, and status detail.
+            if envelope.apiSpendProviders.isEmpty {
+                if let updated = largeFooterText(envelope) {
+                    Text(updated)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.top, 8)
+                }
+            } else {
+                HeadroomWidgetAPISpendStrip(
+                    summaries: envelope.apiSpendProviders,
+                    now: entry.date,
+                    footerText: largeFooterText(envelope)
+                )
+                .padding(.top, 12)
             }
         }
         .padding(.horizontal, 8)
         .padding(.top, 13)
         .padding(.bottom, 12)
+    }
+
+    private func largeFooterText(_ envelope: WidgetSnapshotEnvelope) -> String? {
+        Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: entry.date).map { "\(freshnessPrefix)\($0)" }
     }
 
     private func largeProviderSection(_ provider: WidgetProviderSummary) -> some View {

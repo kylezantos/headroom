@@ -14,26 +14,31 @@ struct HeadroomLargeWidgetView: View {
                         .largeProviderCard()
                 }
             }
-            if !envelope.apiSpendProviders.isEmpty {
-                Rectangle()
-                    .fill(WidgetProviderStyle.hairline(scheme: scheme))
-                    .frame(height: 1)
-                    .padding(.vertical, 13)
-                WidgetAPISpendSection(summaries: envelope.apiSpendProviders, now: now)
-            }
             Spacer(minLength: 0)
-            if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
-                Text("from Mac · \(updated)")
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
-                    .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.top, 8)
+            // The full spend section (title + named rows) overflows the 360pt tile with two
+            // provider cards above it, so spend gets the same one-line strip the medium
+            // widget uses; the popover carries names, period, and status detail.
+            if envelope.apiSpendProviders.isEmpty {
+                if let updated {
+                    Text(updated)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(WidgetProviderStyle.tertiaryText(scheme: scheme))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .padding(.top, 8)
+                }
+            } else {
+                WidgetAPISpendStrip(summaries: envelope.apiSpendProviders, now: now, footerText: updated)
+                    .padding(.top, 12)
             }
         }
         .padding(.horizontal, 8)
         .padding(.top, 13)
         .padding(.bottom, 12)
+    }
+
+    private var updated: String? {
+        Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now).map { "from Mac · \($0)" }
     }
 }
 

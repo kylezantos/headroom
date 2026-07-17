@@ -309,6 +309,16 @@ public struct HeadroomWidgetAPISpendCompactRow: View {
             }
         }
         .layoutPriority(1)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText(summary))
+    }
+
+    private func accessibilityText(_ summary: WidgetAPISpendSummary) -> String {
+        var parts = [summary.displayName, APISpendPresentation.amountText(summary) ?? "no amount"]
+        if summary.freshness.needsAttention {
+            parts.append("needs attention")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func amountColor(_ summary: WidgetAPISpendSummary) -> Color {
@@ -318,74 +328,47 @@ public struct HeadroomWidgetAPISpendCompactRow: View {
     }
 }
 
-public struct HeadroomWidgetAPISpendSection: View {
+/// The widget families' shared API-spend treatment: a hairline, an "API" prefix that keeps
+/// the dollar amounts from reading as subscription cost, the compact per-provider amounts,
+/// and the freshness footer fused onto the same line. Spend is a single glance scalar per
+/// provider, so it never gets a titled section in a widget — the popover (and a future
+/// dedicated spend widget) carry names, period, and status detail.
+public struct HeadroomWidgetAPISpendStrip: View {
     private let summaries: [WidgetAPISpendSummary]
     private let now: Date
+    private let footerText: String?
 
     @Environment(\.colorScheme) private var scheme
 
-    public init(summaries: [WidgetAPISpendSummary], now: Date) {
+    public init(summaries: [WidgetAPISpendSummary], now: Date, footerText: String?) {
         self.summaries = summaries
         self.now = now
+        self.footerText = footerText
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 9) {
+            Rectangle()
+                .fill(HeadroomWidgetStyle.hairline(scheme: scheme))
+                .frame(height: 1)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text("API Spend")
+                Text("API")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
                     .textCase(.uppercase)
                     .tracking(0.4)
+                    .accessibilityLabel("API spend")
+                HeadroomWidgetAPISpendCompactRow(summaries: summaries, now: now)
+                    .layoutPriority(1)
                 Spacer(minLength: 8)
-                if let periodLabel = summaries.first?.periodLabel {
-                    Text(periodLabel)
-                        .font(.caption2.weight(.medium))
+                if let footerText {
+                    Text(footerText)
+                        .font(.caption.weight(.medium))
                         .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
                         .lineLimit(1)
                 }
             }
-            ForEach(summaries) { summary in
-                HStack(spacing: 7) {
-                    HeadroomWidgetProviderIcon(providerID: summary.id, size: 15)
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(summary.displayName)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(HeadroomWidgetStyle.textAccent(for: summary.id, scheme: scheme))
-                            .lineLimit(1)
-                        if !detailText(summary).isEmpty {
-                            Text(detailText(summary))
-                                .font(.caption2.weight(.medium))
-                                .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
-                                .lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 6)
-                    Text(APISpendPresentation.amountText(summary) ?? "—")
-                        .font(.subheadline.bold().monospacedDigit())
-                        .foregroundStyle(amountColor(summary))
-                        .privacySensitive()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-                        .allowsTightening(true)
-                }
-            }
         }
-    }
-
-    private func detailText(_ summary: WidgetAPISpendSummary) -> String {
-        switch summary.freshness {
-        case .pending, .stale:
-            return APISpendPresentation.statusText(freshness: summary.freshness, capturedAt: summary.capturedAt, now: now) ?? ""
-        case .live:
-            return ""
-        }
-    }
-
-    private func amountColor(_ summary: WidgetAPISpendSummary) -> Color {
-        APISpendPresentation.amountText(summary) == nil || summary.freshness != .live
-            ? HeadroomWidgetStyle.secondaryText(scheme: scheme)
-            : .primary
     }
 }
 

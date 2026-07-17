@@ -2,5 +2,4 @@
 import HeadroomWidgetSharedUI
 #endif
 
-typealias WidgetAPISpendCompactRow = HeadroomWidgetAPISpendCompactRow
-typealias WidgetAPISpendSection = HeadroomWidgetAPISpendSection
+typealias WidgetAPISpendStrip = HeadroomWidgetAPISpendStrip

@@ -1,0 +1,15 @@
+# TerminalGraph owns these machine-local workspace files.
+/state.json
+/hooks/
+/worktrees/
+
+# The hub tracks code, synthetic fixtures, manifests, and validated portable exports.
+# Configuration, source projections, operator evidence, and runtime output stay local.
+/headroom-hub/config.json
+/headroom-hub/data/
+/headroom-hub/evidence/
+/headroom-hub/logs/
+/headroom-hub/screenshots/
+/headroom-hub/tmp/
+/headroom-hub/*.log
+/blueprints/*.local.*

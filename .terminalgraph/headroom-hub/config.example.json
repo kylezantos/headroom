@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "github": {
+    "repositories": [
+      "kylezantos/headroom",
+      "kylezantos/kz-portfolio"
+    ]
+  },
+  "website": {
+    "baseUrl": "https://headroom.zantos.co"
+  },
+  "posthog": {
+    "host": "https://us.posthog.com",
+    "projectId": "",
+    "insightIds": {
+      "pageViews": "",
+      "downloads": ""
+    }
+  },
+  "appStoreConnect": {
+    "appId": "",
+    "analyticsReportRequestId": ""
+  },
+  "refresh": {
+    "staleAfterSeconds": 900,
+    "cacheMaxAgeSeconds": 86400
+  }
+}

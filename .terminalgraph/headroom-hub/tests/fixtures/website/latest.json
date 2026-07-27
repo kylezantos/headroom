@@ -1,0 +1,11 @@
+{
+  "name": "Headroom",
+  "version": "1.2.0",
+  "build": "30",
+  "publishedAt": "2026-07-27T17:00:00Z",
+  "downloadUrl": "https://headroom.zantos.co/Headroom.dmg",
+  "versionedDownloadUrl": "https://headroom.zantos.co/Headroom-1.2.0-30.dmg",
+  "appcastUrl": "https://headroom.zantos.co/appcast.xml",
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "size": 7000000
+}

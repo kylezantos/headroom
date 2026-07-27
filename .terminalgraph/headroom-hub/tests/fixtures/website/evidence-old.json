@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-06-01T12:00:00Z",
+  "sourceReference": "docs/release/release-operations.md",
+  "stages": {
+    "sparkleAccepted": {
+      "status": "accepted",
+      "evidenceAt": "2026-06-01T11:30:00Z"
+    }
+  }
+}

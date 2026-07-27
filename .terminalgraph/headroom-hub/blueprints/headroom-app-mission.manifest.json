@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "kind": "terminalgraph-recreation-manifest",
+  "name": "Headroom App Mission",
+  "scope": "disposable-mission",
+  "portability": {
+    "trackedBlueprint": false,
+    "reason": "The local TerminalGraph capture contains its instantiated worktree path. Recreate from this tokenized manifest."
+  },
+  "parameters": {
+    "WORKTREE": "Fresh Headroom git worktree selected explicitly for this mission",
+    "MISSION_BRIEF": "Operator-reviewed mission text"
+  },
+  "project": "headroom",
+  "worktree": {
+    "required": true,
+    "mustBeFresh": true,
+    "fallbackToRepositoryRoot": false
+  },
+  "group": {
+    "layout": "split_tree",
+    "durability": "explicit-closeout"
+  },
+  "nodes": [
+    {
+      "ref": "agent",
+      "type": "terminal",
+      "project": "headroom",
+      "workingDirectory": "${WORKTREE}",
+      "initialInput": "${MISSION_BRIEF}"
+    },
+    {
+      "ref": "diagnostics",
+      "type": "terminal",
+      "project": "headroom",
+      "workingDirectory": "${WORKTREE}",
+      "command": "terminalgraph run -o /bin/zsh -lic 'git status --short --branch; command -v swift >/dev/null && swift --version | head -1; command -v xcodebuild >/dev/null && xcodebuild -version | head -1'"
+    },
+    {
+      "ref": "instructions",
+      "type": "editor",
+      "project": "headroom",
+      "filePath": "${WORKTREE}/AGENTS.md"
+    },
+    {
+      "ref": "verification",
+      "type": "browser",
+      "project": "headroom",
+      "url": "https://headroom.zantos.co/"
+    },
+    {
+      "ref": "evidence",
+      "type": "note",
+      "project": "headroom",
+      "purpose": "Commands, results, screenshots, failures, and operator handoffs"
+    }
+  ],
+  "closeout": {
+    "evidenceReviewRequired": true,
+    "allowedActions": [
+      "retain",
+      "detach",
+      "delete-with-explicit-confirmation"
+    ],
+    "implicitBranchOrWorktreeDeletion": false
+  }
+}

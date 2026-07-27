@@ -12,7 +12,8 @@ support material.
 - `brainstorms/` defines what the TerminalGraph workspace should do.
 - `plans/` defines how the TerminalGraph workspace and its supporting local tools
   should be built.
-- Future operating notes specific to this workspace belong under this directory.
+- `operations.md` is the source-setup, recovery, delegation, mission, and closeout
+  runbook.
 - TerminalGraph runtime assets and persisted canvas state belong under
   `.terminalgraph/`, following TerminalGraph's project conventions.
 
@@ -30,6 +31,11 @@ The hub is read-only with respect to GitHub, PostHog, the public website, App St
 Connect, and release systems. It does not add analytics to either Headroom app and
 does not merge, deploy, publish, create Apple analytics report requests, or submit
 builds for review.
+
+Portable recreation manifests live under
+`.terminalgraph/headroom-hub/blueprints/`. TerminalGraph's current local captures
+retain machine-specific worktree paths, so no exported `.blueprint` is tracked. See
+`operations.md` for the portability gate and recreation steps.
 
 ## MCP registration
 

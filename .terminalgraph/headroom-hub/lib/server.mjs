@@ -170,7 +170,7 @@ async function main() {
     port,
     webhookURL: process.env.HEADROOM_HUB_WEBHOOK_URL ?? null,
   });
-  process.stdout.write(`HEADROOM_HUB_URL=${running.url}\n`);
+  process.stdout.write(`${running.url}\n`);
 }
 
 if (

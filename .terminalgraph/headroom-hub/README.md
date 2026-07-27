@@ -16,6 +16,17 @@ Generated snapshots live in the ignored `data/` directory. Operator-supplied rel
 evidence lives in the ignored `evidence/` directory. TerminalGraph-owned
 `../state.json`, hooks, worktrees, logs, and screenshots also remain local.
 
+The tokenized recreation contracts are:
+
+- `blueprints/headroom-control-room.manifest.json`
+- `blueprints/headroom-app-mission.manifest.json`
+- `blueprints/headroom-site-mission.manifest.json`
+
+TerminalGraph's local captures are useful on this machine but are not tracked because
+the installed beta retains absolute working directories and does not expose an
+inspectable export payload. Never hand-author TerminalGraph-owned blueprint or canvas
+JSON to work around that portability gate.
+
 ## Credential boundaries
 
 - GitHub reads use the authenticated `gh` CLI and never copy its token.
@@ -38,3 +49,8 @@ node --test .terminalgraph/headroom-hub/tests/*.test.mjs
 ```
 
 Tests use synthetic fixtures and must not contact live services.
+
+## Operations
+
+See `docs/terminalgraph/operations.md` for source setup, the state matrix, reviewed
+delegation, mission creation and closeout, recovery, and live verification.

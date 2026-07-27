@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "kind": "terminalgraph-recreation-manifest",
+  "name": "Headroom Control Room",
+  "scope": "permanent",
+  "portability": {
+    "trackedBlueprint": false,
+    "reason": "The installed TerminalGraph beta captures machine-specific working directories and does not expose an inspectable export payload. Keep its captured blueprint local."
+  },
+  "parameters": {
+    "HEADROOM_REPOSITORY": "Absolute path selected by the operator at recreation time",
+    "AGENT_COMMAND": "Agent command that replaces the persistent terminal shell"
+  },
+  "projects": [
+    {
+      "ref": "headroom",
+      "label": "headroom",
+      "root": "${HEADROOM_REPOSITORY}"
+    },
+    {
+      "ref": "portfolio",
+      "label": "kz-portfolio",
+      "root": "${PORTFOLIO_REPOSITORY}"
+    }
+  ],
+  "group": {
+    "layout": "freeform",
+    "durability": "permanent"
+  },
+  "nodes": [
+    {
+      "ref": "agent",
+      "type": "terminal",
+      "project": "headroom",
+      "workingDirectory": "${HEADROOM_REPOSITORY}",
+      "restoreCommand": "${AGENT_COMMAND}"
+    },
+    {
+      "ref": "review-webhook",
+      "type": "webhook",
+      "path": "/headroom-mission-brief",
+      "includeEnvelope": false
+    },
+    {
+      "ref": "server",
+      "type": "terminal",
+      "project": "headroom",
+      "workingDirectory": "${HEADROOM_REPOSITORY}",
+      "command": "terminalgraph run -o /bin/zsh -lic 'node .terminalgraph/headroom-hub/lib/server.mjs'"
+    },
+    {
+      "ref": "dashboard",
+      "type": "browser",
+      "project": "headroom",
+      "urlSource": "server-url"
+    },
+    {
+      "ref": "public-site",
+      "type": "browser",
+      "project": "headroom",
+      "url": "https://headroom.zantos.co/"
+    },
+    {
+      "ref": "review-note",
+      "type": "note",
+      "project": "headroom",
+      "purpose": "Editable, quoted mission draft"
+    },
+    {
+      "ref": "refresh-status",
+      "type": "note",
+      "project": "headroom",
+      "purpose": "Redacted refresh result"
+    },
+    {
+      "ref": "refresh-trigger",
+      "type": "trigger",
+      "intervalMilliseconds": 300000
+    },
+    {
+      "ref": "server-url",
+      "type": "collect",
+      "delimiter": "newline"
+    },
+    {
+      "ref": "review-gate",
+      "type": "gate",
+      "initiallyOpen": false
+    },
+    {
+      "ref": "github",
+      "type": "browser",
+      "project": "headroom",
+      "url": "https://github.com/kylezantos/headroom/pulls"
+    },
+    {
+      "ref": "posthog",
+      "type": "browser",
+      "project": "headroom",
+      "url": "https://us.posthog.com/"
+    },
+    {
+      "ref": "app-store-connect",
+      "type": "browser",
+      "project": "headroom",
+      "url": "https://appstoreconnect.apple.com/"
+    },
+    {
+      "ref": "refresh",
+      "type": "run",
+      "workingDirectory": "${HEADROOM_REPOSITORY}",
+      "command": "/bin/zsh -lic 'node .terminalgraph/headroom-hub/lib/collect.mjs'"
+    }
+  ],
+  "connections": [
+    {
+      "from": "server.stdout",
+      "to": "server-url.input",
+      "dataType": "stream"
+    },
+    {
+      "from": "server-url.latest",
+      "to": "dashboard.navigate",
+      "dataType": "state"
+    },
+    {
+      "from": "review-webhook.output",
+      "to": "review-note.write",
+      "dataType": "signal"
+    },
+    {
+      "from": "review-note.save-content",
+      "to": "review-gate.input",
+      "dataType": "signal"
+    },
+    {
+      "from": "review-gate.output",
+      "to": "agent.text",
+      "dataType": "signal"
+    },
+    {
+      "from": "agent.exit",
+      "to": "review-gate.close",
+      "dataType": "signal"
+    },
+    {
+      "from": "refresh-trigger.trigger",
+      "to": "refresh.input",
+      "dataType": "signal"
+    },
+    {
+      "from": "refresh.exit",
+      "to": "dashboard.reload",
+      "dataType": "signal"
+    },
+    {
+      "from": "refresh.output",
+      "to": "refresh-status.write",
+      "dataType": "signal"
+    },
+    {
+      "from": "refresh.error",
+      "to": "refresh-status.write",
+      "dataType": "signal"
+    }
+  ],
+  "security": {
+    "loopbackOnly": true,
+    "privateBrowsersUserOpened": true,
+    "credentialMaterialAllowed": false,
+    "sourceMutationsAllowed": false,
+    "reviewRequiredBeforeAgentInput": true
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "schemaVersion": 1,
+  "kind": "terminalgraph-recreation-manifest",
+  "name": "Headroom Site Mission",
+  "scope": "disposable-mission",
+  "portability": {
+    "trackedBlueprint": false,
+    "reason": "The local TerminalGraph capture contains its instantiated worktree path. Recreate from this tokenized manifest."
+  },
+  "parameters": {
+    "WORKTREE": "Fresh kz-portfolio git worktree selected explicitly for this mission",
+    "MISSION_BRIEF": "Operator-reviewed mission text",
+    "PREVIEW_URL": "Background local preview URL when dependencies are already available"
+  },
+  "project": "kz-portfolio",
+  "worktree": {
+    "required": true,
+    "mustBeFresh": true,
+    "fallbackToRepositoryRoot": false
+  },
+  "group": {
+    "layout": "split_tree",
+    "durability": "explicit-closeout"
+  },
+  "nodes": [
+    {
+      "ref": "agent",
+      "type": "terminal",
+      "project": "kz-portfolio",
+      "workingDirectory": "${WORKTREE}",
+      "initialInput": "${MISSION_BRIEF}"
+    },
+    {
+      "ref": "diagnostics",
+      "type": "terminal",
+      "project": "kz-portfolio",
+      "workingDirectory": "${WORKTREE}",
+      "command": "terminalgraph run -o /bin/zsh -lic 'git status --short --branch; command -v pnpm >/dev/null && pnpm --version; test -d node_modules && echo dependencies=present || echo dependencies=missing'"
+    },
+    {
+      "ref": "instructions",
+      "type": "editor",
+      "project": "kz-portfolio",
+      "filePath": "${WORKTREE}/AGENTS.md"
+    },
+    {
+      "ref": "preview",
+      "type": "browser",
+      "project": "kz-portfolio",
+      "url": "${PREVIEW_URL}"
+    },
+    {
+      "ref": "live-site",
+      "type": "browser",
+      "project": "kz-portfolio",
+      "url": "https://headroom.zantos.co/"
+    },
+    {
+      "ref": "evidence",
+      "type": "note",
+      "project": "kz-portfolio",
+      "purpose": "Commands, preview links, screenshots, failures, and operator handoffs"
+    }
+  ],
+  "closeout": {
+    "evidenceReviewRequired": true,
+    "allowedActions": [
+      "retain",
+      "detach",
+      "delete-with-explicit-confirmation"
+    ],
+    "implicitBranchOrWorktreeDeletion": false
+  }
+}

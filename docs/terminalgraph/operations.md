@@ -12,6 +12,9 @@ dashboard does not merge, deploy, publish, upload, submit, or change provider st
    and source browsers.
 3. If the server is stopped, run its configured `terminalgraph run -o` command. Its
    only output is the selected loopback URL, which feeds the dashboard browser.
+   The server terminal is the sole process owner: check its announced `/healthz`
+   endpoint first, and stop only that exact process before restarting it. Do not
+   create a second listener or use broad process termination.
 4. Run the refresh node once. A successful collection prints only
    `HEADROOM_HUB_REFRESH=<status> sources=<count>`.
 5. Treat `partial`, `unknown`, `stale`, and `not-configured` as real states. Do not
@@ -84,6 +87,17 @@ The dashboard never accepts caller-supplied prompt text, and the Webhook can wri
 to the review Note. Free-form work remains available directly in the persistent agent
 console.
 
+### Agent-facing control-room primitives
+
+An agent in the repository can inspect the same redacted projection with
+`.terminalgraph/headroom-hub/data/snapshot.json`, run a read-only refresh with
+`node .terminalgraph/headroom-hub/lib/collect.mjs`, and inspect the instantiated node,
+connection, group, and project contract through TerminalGraph MCP. The snapshot is
+generated data, not authority; source links and the release runbooks remain the truth.
+Agents may create or inspect mission groups through MCP and write verification to the
+mission's evidence Note. They may only propose closeout: worktree/branch deletion and
+evidence acceptance stay explicit operator actions.
+
 ## Create a mission workbench
 
 Use the tracked manifests in
@@ -101,7 +115,9 @@ For either mission:
 3. Read that worktree's agent instructions before doing work.
 4. Run the diagnostic command. It reports versions, branch state, and missing setup;
    it does not install dependencies, regenerate projects, or modify tracked files.
-5. Start the agent only after the worktree and reviewed mission are correct.
+5. Start the configured agent process so it replaces the terminal shell. Deliver the
+   reviewed mission only after the agent is visibly ready; never inject it into a
+   fallback shell.
 6. Record verification evidence and user-only auth/device handoffs in the evidence
    Note without credentials or personal data.
 
@@ -145,6 +161,9 @@ If a later TerminalGraph version supports inspectable export:
   cards remain `not-configured`.
 - PostHog or Apple rate limits: keep prior data only within the configured cache bound,
   mark it stale, and avoid rapid retries.
+- Apple analytics reads stop after 80 requests or 60 seconds per refresh, whichever
+  comes first. The release lanes remain visible while analytics reports a typed
+  unavailable state.
 - GitHub auth unavailable: reauthenticate `gh` outside the canvas; never copy its token.
 - App Store analytics missing or threshold-suppressed: show `not-configured` or
   insufficient data, never zero.

@@ -10,7 +10,7 @@ const replacements = [
     `Authorization: ${REDACTED}`,
   ],
   [
-    /\b(?:access_token|api_key|authorization|password|refresh_token|token)\s*[=:]\s*["']?[^"'\s,;]+["']?/giu,
+    /\b(?:access_token|api_key|authorization|password|refresh_token|token)\b["']?\s*[=:]\s*["']?[^"'\s,;}]+["']?/giu,
     REDACTED,
   ],
   [

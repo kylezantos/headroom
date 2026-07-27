@@ -11,7 +11,6 @@ const REQUIRED_ENVIRONMENT_KEYS = [
   "HEADROOM_ASC_ISSUER_ID",
 ];
 const SUBMITTED_STATES = new Set([
-  "DEVELOPER_REJECTED",
   "IN_REVIEW",
   "PENDING_APPLE_RELEASE",
   "PENDING_DEVELOPER_RELEASE",
@@ -20,6 +19,16 @@ const SUBMITTED_STATES = new Set([
   "READY_FOR_SALE",
   "WAITING_FOR_REVIEW",
 ]);
+const REJECTED_APP_STORE_STATES = new Set([
+  "DEVELOPER_REJECTED",
+  "INVALID_BINARY",
+  "METADATA_REJECTED",
+  "REJECTED",
+]);
+const FAILED_BUILD_STATES = new Set(["FAILED", "INVALID"]);
+const PROCESSING_BUILD_STATES = new Set(["PROCESSING"]);
+const DEFAULT_ANALYTICS_REQUEST_LIMIT = 80;
+const DEFAULT_ANALYTICS_DEADLINE_MS = 60_000;
 const ANALYTICS_COLUMNS = new Map([
   ["Sessions", "sessions"],
   ["Total Downloads", "total-downloads"],
@@ -96,7 +105,11 @@ function safeAPIURL(value) {
 
 export async function defaultAppStoreRequest(
   url,
-  { token, method = "GET" } = {},
+  {
+    token,
+    method = "GET",
+    signal = AbortSignal.timeout(15_000),
+  } = {},
 ) {
   if (method !== "GET") {
     throw new TypeError("App Store Connect collector permits GET only");
@@ -108,7 +121,7 @@ export async function defaultAppStoreRequest(
       Authorization: `Bearer ${token}`,
     },
     redirect: "error",
-    signal: AbortSignal.timeout(15_000),
+    signal,
   });
   if (!response.ok) {
     const error = new Error("App Store Connect read failed");
@@ -134,11 +147,14 @@ function safeSegmentURL(value) {
   return url;
 }
 
-export async function defaultDownloadText(url) {
+export async function defaultDownloadText(
+  url,
+  { signal = AbortSignal.timeout(15_000) } = {},
+) {
   const response = await fetch(safeSegmentURL(url), {
     method: "GET",
     redirect: "error",
-    signal: AbortSignal.timeout(15_000),
+    signal,
   });
   if (!response.ok) {
     throw new Error("analytics report segment download failed");
@@ -146,15 +162,63 @@ export async function defaultDownloadText(url) {
   return response.text();
 }
 
-async function listAll(path, { request, token }) {
+function budgetFailure() {
+  const error = new Error("App Store Connect analytics request budget exhausted");
+  error.code = "ANALYTICS_REQUEST_BUDGET_EXHAUSTED";
+  return error;
+}
+
+function consumeBudget(budget) {
+  if (!budget) {
+    return null;
+  }
+  const remainingMilliseconds = budget.deadlineAt - budget.now();
+  if (budget.remaining <= 0 || remainingMilliseconds <= 0) {
+    throw budgetFailure();
+  }
+  budget.remaining -= 1;
+  return AbortSignal.timeout(Math.max(1, Math.min(15_000, remainingMilliseconds)));
+}
+
+async function withBudget(budget, operation) {
+  if (!budget) {
+    return operation(undefined);
+  }
+  const signal = consumeBudget(budget);
+  try {
+    const result = await operation(signal);
+    if (budget.now() >= budget.deadlineAt) {
+      throw budgetFailure();
+    }
+    return result;
+  } catch (error) {
+    if (budget.now() >= budget.deadlineAt) {
+      throw budgetFailure();
+    }
+    throw error;
+  }
+}
+
+async function listAll(
+  path,
+  {
+    request,
+    token,
+    budget = null,
+    maxItems = Number.POSITIVE_INFINITY,
+  },
+) {
   const data = [];
   let next = safeAPIURL(path).toString();
   let pageCount = 0;
-  while (next) {
+  while (next && data.length < maxItems) {
     if (pageCount >= 20) {
       throw new Error("App Store Connect pagination exceeded its safety bound");
     }
-    const page = await request(next, { token, method: "GET" });
+    const page = await withBudget(
+      budget,
+      (signal) => request(next, { token, method: "GET", signal }),
+    );
     if (!Array.isArray(page?.data)) {
       throw new TypeError("App Store Connect list response is invalid");
     }
@@ -162,7 +226,7 @@ async function listAll(path, { request, token }) {
     next = page.links?.next ? safeAPIURL(page.links.next).toString() : null;
     pageCount += 1;
   }
-  return data;
+  return data.slice(0, maxItems);
 }
 
 function parseAnalyticsTSV(value) {
@@ -216,93 +280,120 @@ async function collectAnalytics({
   request,
   token,
   downloadText,
+  requestLimit = DEFAULT_ANALYTICS_REQUEST_LIMIT,
+  deadlineMilliseconds = DEFAULT_ANALYTICS_DEADLINE_MS,
+  clock = Date.now,
 }) {
-  const reportRequests = await listAll(
-    `/v1/apps/${encodeURIComponent(appId)}/analyticsReportRequests`,
-    { request, token },
-  );
-  const reportRequest = requestedReportID
-    ? reportRequests.find(({ id }) => id === requestedReportID)
-    : reportRequests.find(
-        ({ attributes }) =>
-          attributes?.accessType === "ONGOING"
-          && attributes?.stoppedDueToInactivity !== true,
-      );
-  if (!reportRequest) {
-    return [
-      {
-        id: "analytics.configuration",
-        label: "App analytics reports",
-        value: null,
-        status: "not-configured",
-        detail: "operator-report-request-required",
-      },
-    ];
-  }
-
-  const reports = await listAll(
-    `/v1/analyticsReportRequests/${encodeURIComponent(reportRequest.id)}/reports?limit=200`,
-    { request, token },
-  );
-  const selectedReports = reports
-    .filter(({ attributes }) =>
-      /session|download|usage|installation/iu.test(
-        `${attributes?.name ?? ""} ${attributes?.category ?? ""}`,
-      ),
-    )
-    .slice(0, 8);
-  const aggregate = new Map();
-  for (const report of selectedReports) {
-    const instances = await listAll(
-      `/v1/analyticsReports/${encodeURIComponent(report.id)}/instances?limit=31`,
-      { request, token },
+  const budget = {
+    remaining: requestLimit,
+    deadlineAt: clock() + deadlineMilliseconds,
+    now: clock,
+  };
+  try {
+    const reportRequests = await listAll(
+      `/v1/apps/${encodeURIComponent(appId)}/analyticsReportRequests`,
+      { request, token, budget },
     );
-    for (const instance of instances.slice(0, 31)) {
-      const segments = await listAll(
-        `/v1/analyticsReportInstances/${encodeURIComponent(instance.id)}/segments`,
-        { request, token },
-      );
-      for (const segment of segments.slice(0, 4)) {
-        const parsed = parseAnalyticsTSV(
-          await downloadText(safeSegmentURL(segment.attributes?.url)),
+    const reportRequest = requestedReportID
+      ? reportRequests.find(({ id }) => id === requestedReportID)
+      : reportRequests.find(
+          ({ attributes }) =>
+            attributes?.accessType === "ONGOING"
+            && attributes?.stoppedDueToInactivity !== true,
         );
-        for (const [id, metric] of parsed) {
-          const existing = aggregate.get(id) ?? {
-            ...metric,
-            total: 0,
-            numericCount: 0,
-            suppressed: false,
-          };
-          existing.total += metric.total;
-          existing.numericCount += metric.numericCount;
-          existing.suppressed ||= metric.suppressed;
-          aggregate.set(id, existing);
+    if (!reportRequest) {
+      return [
+        {
+          id: "analytics.configuration",
+          label: "App analytics reports",
+          value: null,
+          status: "not-configured",
+          detail: "operator-report-request-required",
+        },
+      ];
+    }
+
+    const reports = await listAll(
+      `/v1/analyticsReportRequests/${encodeURIComponent(reportRequest.id)}/reports?limit=200`,
+      { request, token, budget, maxItems: 200 },
+    );
+    const selectedReports = reports
+      .filter(({ attributes }) =>
+        /session|download|usage|installation/iu.test(
+          `${attributes?.name ?? ""} ${attributes?.category ?? ""}`,
+        ),
+      )
+      .slice(0, 8);
+    const aggregate = new Map();
+    for (const report of selectedReports) {
+      const instances = await listAll(
+        `/v1/analyticsReports/${encodeURIComponent(report.id)}/instances?limit=31`,
+        { request, token, budget, maxItems: 31 },
+      );
+      for (const instance of instances) {
+        const segments = await listAll(
+          `/v1/analyticsReportInstances/${encodeURIComponent(instance.id)}/segments`,
+          { request, token, budget, maxItems: 4 },
+        );
+        for (const segment of segments) {
+          const parsed = parseAnalyticsTSV(
+            await withBudget(
+              budget,
+              (signal) =>
+                downloadText(
+                  safeSegmentURL(segment.attributes?.url),
+                  { signal },
+                ),
+            ),
+          );
+          for (const [id, metric] of parsed) {
+            const existing = aggregate.get(id) ?? {
+              ...metric,
+              total: 0,
+              numericCount: 0,
+              suppressed: false,
+            };
+            existing.total += metric.total;
+            existing.numericCount += metric.numericCount;
+            existing.suppressed ||= metric.suppressed;
+            aggregate.set(id, existing);
+          }
         }
       }
     }
-  }
-  if (aggregate.size === 0) {
+    if (aggregate.size === 0) {
+      return [
+        {
+          id: "analytics.availability",
+          label: "App analytics",
+          value: null,
+          status: "insufficient-data",
+          detail: "no-generated-aggregate-data",
+        },
+      ];
+    }
+    return [...aggregate.values()].map((metric) => ({
+      id: `analytics.${metric.id}`,
+      label: metric.label,
+      value: metric.suppressed ? null : metric.total,
+      unit: "aggregate events",
+      status: metric.suppressed ? "insufficient-data" : "complete",
+      detail:
+        metric.suppressed ? "privacy-threshold-suppressed" : null,
+    }));
+  } catch (error) {
     return [
       {
         id: "analytics.availability",
         label: "App analytics",
         value: null,
-        status: "insufficient-data",
-        detail: "no-generated-aggregate-data",
+        status: "unavailable",
+        detail: error?.code === "ANALYTICS_REQUEST_BUDGET_EXHAUSTED"
+          ? "request-budget-exhausted"
+          : "analytics-read-failed",
       },
     ];
   }
-  return [...aggregate.values()].map((metric) => ({
-    id: `analytics.${metric.id}`,
-    label: metric.label,
-    value: metric.numericCount > 0 ? metric.total : null,
-    unit: "aggregate events",
-    status: metric.numericCount > 0 ? "complete" : "insufficient-data",
-    detail:
-      metric.numericCount === 0 && metric.suppressed
-        ? "privacy-threshold-suppressed"
-        : null,
-  }));
 }
 
 function acceptedEvidence(evidence, now) {
@@ -334,6 +425,9 @@ export async function collectAppStoreConnect({
   downloadText = defaultDownloadText,
   readEvidence = async () => null,
   now = new Date(),
+  analyticsRequestLimit = DEFAULT_ANALYTICS_REQUEST_LIMIT,
+  analyticsDeadlineMilliseconds = DEFAULT_ANALYTICS_DEADLINE_MS,
+  analyticsClock = Date.now,
 }) {
   if (!config.appId) {
     return {
@@ -381,31 +475,84 @@ export async function collectAppStoreConnect({
     request,
     token,
     downloadText,
+    requestLimit: analyticsRequestLimit,
+    deadlineMilliseconds: analyticsDeadlineMilliseconds,
+    clock: analyticsClock,
   });
   const processingState = build?.attributes?.processingState ?? "UNKNOWN";
+  const buildFailed = FAILED_BUILD_STATES.has(processingState);
+  const processing = PROCESSING_BUILD_STATES.has(processingState);
+  const buildStateUnknown =
+    Boolean(build) && !buildFailed && !processing && processingState !== "VALID";
   const buildAvailable = processingState === "VALID" && betaGroups.length > 0;
   const version = appStoreVersions[0] ?? null;
   const appStoreState = version?.attributes?.appStoreState ?? "UNKNOWN";
+  const appStoreRejected = REJECTED_APP_STORE_STATES.has(appStoreState);
   const testflightAcceptance = acceptedEvidence(evidence, now);
-  const processing = Boolean(build) && processingState !== "VALID";
-  const signals = processing
-    ? [
-        {
-          id: "app-store-connect:testflight-processing",
-          severity: "info",
-          title: "TestFlight build processing",
-          summary: `Build ${build.attributes?.version ?? "unknown"} is still processing`,
-          sourceUrl: APP_STORE_SOURCE,
-        },
-      ]
-    : [];
+  const analyticsUnavailable = analyticsMetrics.some(
+    ({ status }) => status === "unavailable",
+  );
+  const signals = [];
+  if (processing) {
+    signals.push({
+      id: "app-store-connect:testflight-processing",
+      severity: "info",
+      title: "TestFlight build processing",
+      summary: `Build ${build.attributes?.version ?? "unknown"} is still processing`,
+      sourceUrl: APP_STORE_SOURCE,
+    });
+  }
+  if (buildFailed) {
+    signals.push({
+      id: "app-store-connect:testflight-rejected",
+      severity: "critical",
+      title: "TestFlight build rejected",
+      summary: "The latest build did not pass App Store Connect processing",
+      sourceUrl: APP_STORE_SOURCE,
+    });
+  }
+  if (buildStateUnknown) {
+    signals.push({
+      id: "app-store-connect:testflight-state-unknown",
+      severity: "attention",
+      title: "TestFlight build state is unknown",
+      summary: "The latest build returned an unrecognized processing state",
+      sourceUrl: APP_STORE_SOURCE,
+    });
+  }
+  if (appStoreRejected) {
+    signals.push({
+      id: "app-store-connect:app-review-rejected",
+      severity: "critical",
+      title: "App Store submission rejected",
+      summary: "The current App Store version is in a rejected state",
+      sourceUrl: APP_STORE_SOURCE,
+    });
+  }
+  if (analyticsUnavailable) {
+    signals.push({
+      id: "app-store-connect:analytics-unavailable",
+      severity: "attention",
+      title: "App analytics unavailable",
+      summary: "Analytics could not be refreshed within the safe read boundary",
+      sourceUrl: APP_STORE_SOURCE,
+    });
+  }
 
   return {
     source: {
       id: "app-store-connect",
       label: "App Store Connect",
     },
-    status: processing || !build ? "attention" : "healthy",
+    status:
+      processing
+      || buildFailed
+      || buildStateUnknown
+      || appStoreRejected
+      || analyticsUnavailable
+      || !build
+        ? "attention"
+        : "healthy",
     summary: build
       ? `Latest iOS build ${build.attributes?.version ?? "unknown"} is ${processingState.toLowerCase()}`
       : "No App Store Connect build is available",
@@ -427,9 +574,13 @@ export async function collectAppStoreConnect({
         value: betaGroups.length,
         status: buildAvailable
           ? "complete"
-          : processing
-            ? "processing"
-            : "pending",
+          : buildFailed
+            ? "rejected"
+            : processing
+              ? "processing"
+              : buildStateUnknown
+                ? "unknown"
+                : "pending",
       },
       {
         id: "app-store-version",
@@ -450,11 +601,15 @@ export async function collectAppStoreConnect({
       {
         id: "testflight-available",
         label: "TestFlight available",
-        status: processing
-          ? "processing"
-          : buildAvailable
-            ? "complete"
-            : "pending",
+        status: buildAvailable
+          ? "complete"
+          : buildFailed
+            ? "rejected"
+            : processing
+              ? "processing"
+              : buildStateUnknown
+                ? "unknown"
+                : "pending",
         evidenceAt: buildAvailable ? build.attributes?.uploadedDate : null,
       },
       {
@@ -466,7 +621,11 @@ export async function collectAppStoreConnect({
       {
         id: "app-store-submitted",
         label: "App Store submitted",
-        status: SUBMITTED_STATES.has(appStoreState) ? "submitted" : "pending",
+        status: appStoreRejected
+          ? "rejected"
+          : SUBMITTED_STATES.has(appStoreState)
+            ? "submitted"
+            : "pending",
         evidenceAt: version?.attributes?.createdDate ?? null,
         detail: appStoreState,
       },

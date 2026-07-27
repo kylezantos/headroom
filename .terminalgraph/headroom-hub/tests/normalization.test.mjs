@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  ageSnapshot,
   normalizeResult,
   normalizeSnapshot,
 } from "../lib/normalize.mjs";
@@ -68,6 +69,59 @@ test("one failed source makes the snapshot partial without hiding healthy source
     snapshot.sources.map(({ status }) => status),
     ["healthy", "unavailable", "healthy"],
   );
+});
+
+test("attention counts actionable signals without double-counting their source", () => {
+  const snapshot = normalizeSnapshot(
+    [
+      healthyResult("github", {
+        status: "attention",
+        signals: [
+          {
+            id: "github:required-check",
+            severity: "attention",
+            title: "Required check failed",
+            summary: "swift test failed",
+          },
+          {
+            id: "github:release-blocker",
+            severity: "critical",
+            title: "Release blocked",
+            summary: "A required release state is missing",
+          },
+        ],
+      }),
+      healthyResult("website", { status: "attention" }),
+    ],
+    { now },
+  );
+
+  assert.equal(snapshot.overall.attentionCount, 3);
+});
+
+test("a stopped refresh ages current data to stale and then unknown", () => {
+  const snapshot = normalizeSnapshot(
+    [healthyResult("github"), healthyResult("website")],
+    { now },
+  );
+  const stale = ageSnapshot(snapshot, {
+    now: new Date(now.valueOf() + 901_000),
+    staleAfterSeconds: 900,
+    cacheMaxAgeSeconds: 3600,
+  });
+
+  assert.equal(stale.overall.status, "partial");
+  assert.ok(stale.sources.every(({ status }) => status === "stale"));
+  assert.ok(stale.sources.every(({ signals }) => signals.length === 0));
+  assert.match(stale.sources[0].summary, /Refresh overdue/u);
+
+  const expired = ageSnapshot(snapshot, {
+    now: new Date(now.valueOf() + 3601_000),
+    staleAfterSeconds: 900,
+    cacheMaxAgeSeconds: 3600,
+  });
+  assert.ok(expired.sources.every(({ status }) => status === "unknown"));
+  assert.ok(expired.sources.every(({ metrics }) => metrics.length === 0));
 });
 
 test("a source that has never succeeded is unknown or not configured, never stale", () => {

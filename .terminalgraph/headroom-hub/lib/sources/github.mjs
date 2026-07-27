@@ -16,6 +16,7 @@ const FAILURE_CHECK_STATES = new Set([
   "FAILURE",
   "TIMED_OUT",
 ]);
+const PULL_REQUEST_LIMIT = 100;
 
 function parseJSON(value, label) {
   try {
@@ -82,7 +83,7 @@ async function readRepository(repository, runGh, now) {
       "--state",
       "open",
       "--limit",
-      "50",
+      String(PULL_REQUEST_LIMIT),
       "--json",
       "number,title,url,isDraft,reviewDecision,statusCheckRollup,updatedAt",
     ]),
@@ -153,6 +154,8 @@ async function readRepository(repository, runGh, now) {
     runs,
     failedRuns,
     releases,
+    pullRequestResultsMayBeTruncated:
+      pullRequests.length >= PULL_REQUEST_LIMIT,
   };
 }
 
@@ -171,6 +174,16 @@ export async function collectGitHub({
   for (const result of repositoryResults) {
     const id = repositoryID(result.repository);
     const failedChecks = [];
+    if (result.pullRequestResultsMayBeTruncated) {
+      signals.push({
+        id: `github:${id}:open-pr-result-limit`,
+        severity: "attention",
+        title: `${result.repository}: open PR result limit reached`,
+        summary: `At least ${PULL_REQUEST_LIMIT} open pull requests; the total may be higher`,
+        sourceUrl: `https://github.com/${result.repository}/pulls`,
+        repository: result.repository,
+      });
+    }
     for (const pullRequest of result.pullRequests) {
       evidenceTimestamps.push(pullRequest.updatedAt);
       const checks = result.checksByPullRequest.get(pullRequest.number) ?? [];
@@ -275,4 +288,3 @@ export function createGitHubAdapter({ config, runGh = defaultRunGh, now }) {
       }),
   };
 }
-

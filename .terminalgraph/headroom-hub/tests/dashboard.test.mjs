@@ -1,15 +1,20 @@
 import assert from "node:assert/strict";
-import { createServer as createHTTPServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import {
+  createServer as createHTTPServer,
+  get as httpGet,
+} from "node:http";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  createMissionBrief,
-  renderDashboard,
-} from "../lib/render.mjs";
-import { startServer } from "../lib/server.mjs";
+  findRunningServerURL,
+  startServer,
+} from "../lib/server.mjs";
+import { createMissionBrief, renderDashboard } from "../lib/render.mjs";
+import { writeSnapshot } from "../lib/collect.mjs";
 
 const testRoot = dirname(fileURLToPath(import.meta.url));
 
@@ -89,6 +94,18 @@ test("server binds to loopback and does not expose local project files", async (
     dashboard.headers.get("content-security-policy"),
     /default-src 'none'/u,
   );
+  const foreignHostStatus = await new Promise((resolve, reject) => {
+    const request = httpGet(
+      running.url,
+      { headers: { Host: "attacker.example" } },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode);
+      },
+    );
+    request.on("error", reject);
+  });
+  assert.equal(foreignHostStatus, 421);
   for (const path of [
     "config.json",
     "state.json",
@@ -97,6 +114,28 @@ test("server binds to loopback and does not expose local project files", async (
   ]) {
     assert.equal((await fetch(new URL(path, running.url))).status, 404);
   }
+});
+
+test("server startup discovers the existing owned listener instead of duplicating it", async (context) => {
+  const directory = await mkdtemp(join(tmpdir(), "headroom-server-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const statePath = join(directory, "server.json");
+  const running = await startServer({
+    snapshotProvider: () => fixture("healthy.json"),
+    port: 0,
+  });
+  context.after(() => running.server.listening ? running.close() : undefined);
+  await writeSnapshot(statePath, {
+    schemaVersion: 1,
+    url: running.url,
+  });
+
+  assert.equal(
+    await findRunningServerURL({ statePath }),
+    running.url,
+  );
+  await running.close();
+  assert.equal(await findRunningServerURL({ statePath }), null);
 });
 
 test("delegation accepts only a known signal from the dashboard origin", async (context) => {

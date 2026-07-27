@@ -9,7 +9,9 @@
   },
   "parameters": {
     "HEADROOM_REPOSITORY": "Absolute path selected by the operator at recreation time",
-    "AGENT_COMMAND": "Agent command that replaces the persistent terminal shell"
+    "PORTFOLIO_REPOSITORY": "Absolute path to the portfolio repository selected by the operator at recreation time",
+    "AGENT_COMMAND": "Agent command that replaces the persistent terminal shell",
+    "REVIEW_WEBHOOK_URL": "Loopback URL shown by the recreated review-webhook node"
   },
   "projects": [
     {
@@ -46,7 +48,7 @@
       "type": "terminal",
       "project": "headroom",
       "workingDirectory": "${HEADROOM_REPOSITORY}",
-      "command": "terminalgraph run -o /bin/zsh -lic 'node .terminalgraph/headroom-hub/lib/server.mjs'"
+      "command": "terminalgraph run -o /bin/zsh -lic 'HEADROOM_HUB_WEBHOOK_URL=${REVIEW_WEBHOOK_URL} node .terminalgraph/headroom-hub/lib/server.mjs'"
     },
     {
       "ref": "dashboard",

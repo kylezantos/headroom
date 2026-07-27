@@ -10,6 +10,7 @@
   "parameters": {
     "WORKTREE": "Fresh kz-portfolio git worktree selected explicitly for this mission",
     "MISSION_BRIEF": "Operator-reviewed mission text",
+    "AGENT_COMMAND": "Agent command that replaces the mission terminal shell",
     "PREVIEW_URL": "Background local preview URL when dependencies are already available"
   },
   "project": "kz-portfolio",
@@ -28,7 +29,11 @@
       "type": "terminal",
       "project": "kz-portfolio",
       "workingDirectory": "${WORKTREE}",
-      "initialInput": "${MISSION_BRIEF}"
+      "command": "${AGENT_COMMAND}",
+      "handoff": {
+        "content": "${MISSION_BRIEF}",
+        "requiresVisibleAgentReadiness": true
+      }
     },
     {
       "ref": "diagnostics",
@@ -62,6 +67,12 @@
       "purpose": "Commands, preview links, screenshots, failures, and operator handoffs"
     }
   ],
+  "agentCapabilities": {
+    "readInstructions": "${WORKTREE}/AGENTS.md",
+    "writeEvidenceTo": "evidence",
+    "inspectThroughMCP": true,
+    "closeoutIsProposalOnly": true
+  },
   "closeout": {
     "evidenceReviewRequired": true,
     "allowedActions": [

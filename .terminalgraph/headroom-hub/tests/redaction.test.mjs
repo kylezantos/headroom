@@ -38,8 +38,9 @@ test("redacts tokens, authorization headers, email addresses, and private key pa
   const input = [
     "Authorization: Bearer phx_abcdefghijklmnopqrstuvwxyz0123456789",
     "token=sk-proj-abcdefghijklmnopqrstuvwxyz0123456789",
+    "{\"access_token\":\"synthetic-short-secret\"}",
     "operator@example.com",
-    "HEADROOM_ASC_KEY_PATH=/Users/operator/Secrets/AuthKey_ABC123.p8",
+    "HEADROOM_ASC_KEY_PATH=/synthetic/Secrets/AuthKey_ABC123.p8",
     "-----BEGIN PRIVATE KEY-----",
     "not-real-private-key-material",
     "-----END PRIVATE KEY-----",
@@ -50,8 +51,9 @@ test("redacts tokens, authorization headers, email addresses, and private key pa
   assert.match(output, new RegExp(REDACTED, "u"));
   assert.doesNotMatch(output, /phx_/u);
   assert.doesNotMatch(output, /sk-proj-/u);
+  assert.doesNotMatch(output, /synthetic-short-secret/u);
   assert.doesNotMatch(output, /operator@example\.com/u);
-  assert.doesNotMatch(output, /\/Users\/operator/u);
+  assert.doesNotMatch(output, /\/synthetic\/Secrets/u);
   assert.doesNotMatch(output, /BEGIN PRIVATE KEY/u);
 });
 

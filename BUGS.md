@@ -51,6 +51,14 @@ official `claude` CLI's `/usage` panel instead.
 - **No backoff on repeated failures.** Both providers retry every cycle at the fixed
   interval. Exponential backoff on consecutive transient failures would be gentler on a
   down endpoint. Design choice — deferred.
+- **The locked Codex demo fixture and its parity tests disagree.** `DemoFixture.codexSnapshot`
+  still includes a 5-hour window with 91% remaining, while
+  `DemoFixtureTests.codexDemoMatchesCurrentReality` and
+  `DemoScenarioParityTests.iOSDemoCoversCurrentMacScenario` require the July 2026
+  weekly-only scenario. The full `swift test` suite therefore fails at those two
+  assertions. Decide which demo reality is authoritative and update the fixture plus
+  any matching screenshot data together. Found during the 2026-07-27 TerminalGraph
+  control-room verification; no product/demo files were changed by that tooling work.
 
 ## Polish
 

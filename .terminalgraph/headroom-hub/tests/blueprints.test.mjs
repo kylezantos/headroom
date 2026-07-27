@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import test from "node:test";
 
 const manifestDirectory = new URL("../blueprints/", import.meta.url);
@@ -32,6 +32,26 @@ function assertPortable(manifest) {
     /\b(?:curl\s+-X\s+(?:POST|DELETE|PATCH)|git\s+push|gh\s+pr\s+merge|rm\s+-rf|pnpm\s+install|npm\s+install)\b/iu,
   );
 }
+
+test("every manifest token is declared as a parameter", async () => {
+  const files = await readdir(manifestDirectory);
+  const manifestFiles = files.filter((file) => file.endsWith(".manifest.json"));
+
+  for (const file of manifestFiles) {
+    const manifest = JSON.parse(
+      await readFile(new URL(file, manifestDirectory), "utf8"),
+    );
+    const tokens = JSON.stringify(manifest).match(/\$\{([A-Z0-9_]+)\}/gu) ?? [];
+    const declaredParameters = new Set(Object.keys(manifest.parameters ?? {}));
+
+    for (const token of tokens) {
+      assert.ok(
+        declaredParameters.has(token.slice(2, -1)),
+        `${file} must declare ${token}`,
+      );
+    }
+  }
+});
 
 test("control room has one reviewed delegation path and a closed gate", async () => {
   const manifest = await readManifest("headroom-control-room");

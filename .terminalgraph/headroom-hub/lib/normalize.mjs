@@ -141,6 +141,34 @@ function emptySource(source, status, summary, reasonCode, nowISO, sourceUrl) {
   };
 }
 
+function summarizeSources(sources) {
+  const complete = sources.every(
+    (source) =>
+      source.freshness.kind === "current"
+      && CURRENT_STATUSES.has(source.status),
+  );
+  const attentionCount = sources.reduce(
+    (count, source) => {
+      const actionableSignalCount = source.signals.filter(
+        ({ severity }) => severity === "attention" || severity === "critical",
+      ).length;
+      return count
+        + actionableSignalCount
+        + (source.status === "attention" && actionableSignalCount === 0 ? 1 : 0);
+    },
+    0,
+  );
+  return {
+    status: attentionCount > 0
+      ? "attention"
+      : complete
+        ? "healthy"
+        : "partial",
+    completeness: complete ? "complete" : "partial",
+    attentionCount,
+  };
+}
+
 export function normalizeResult(
   result,
   {
@@ -267,34 +295,87 @@ export function normalizeSnapshot(
       cacheMaxAgeSeconds,
     }),
   );
-  const complete = sources.every(
-    (source) =>
-      source.freshness.kind === "current"
-      && CURRENT_STATUSES.has(source.status),
-  );
-  const attentionCount = sources.reduce(
-    (count, source) =>
-      count
-      + (source.status === "attention" ? 1 : 0)
-      + source.signals.filter(
-        ({ severity }) => severity === "attention" || severity === "critical",
-      ).length,
-    0,
-  );
 
   return {
     schemaVersion: 1,
     collectedAt: asISODate(now),
-    overall: {
-      status: attentionCount > 0
-        ? "attention"
-        : complete
-          ? "healthy"
-          : "partial",
-      completeness: complete ? "complete" : "partial",
-      attentionCount,
-    },
+    overall: summarizeSources(sources),
     sources,
   };
 }
 
+export function ageSnapshot(
+  snapshot,
+  {
+    now = new Date(),
+    staleAfterSeconds = 900,
+    cacheMaxAgeSeconds = 86_400,
+  } = {},
+) {
+  if (!snapshot || !Array.isArray(snapshot.sources)) {
+    return snapshot;
+  }
+  const nowISO = asISODate(now);
+  if (!nowISO) {
+    throw new TypeError("now must be a valid date");
+  }
+  const nowValue = new Date(nowISO).valueOf();
+  const sources = snapshot.sources.map((source) => {
+    const lastSuccessAt = asISODate(source.freshness?.lastSuccessAt);
+    if (!lastSuccessAt) {
+      return source;
+    }
+    const staleAgeSeconds = Math.max(
+      0,
+      Math.floor((nowValue - new Date(lastSuccessAt).valueOf()) / 1000),
+    );
+    if (
+      source.freshness.kind === "current"
+      && staleAgeSeconds <= staleAfterSeconds
+    ) {
+      return source;
+    }
+    if (staleAgeSeconds > cacheMaxAgeSeconds) {
+      return {
+        ...source,
+        status: "unknown",
+        retainedStatus: null,
+        summary: "Cached source data expired",
+        detail: null,
+        diagnostic: "cache-expired",
+        freshness: {
+          ...source.freshness,
+          kind: "unknown",
+          staleAgeSeconds,
+        },
+        metrics: [],
+        stages: [],
+        signals: [],
+      };
+    }
+    return {
+      ...source,
+      status: "stale",
+      retainedStatus:
+        source.status === "stale" ? source.retainedStatus : source.status,
+      summary: source.status === "stale"
+        ? source.summary
+        : "Refresh overdue; last known result retained",
+      diagnostic:
+        source.status === "stale"
+          ? source.diagnostic
+          : "refresh-overdue",
+      freshness: {
+        ...source.freshness,
+        kind: "retained",
+        staleAgeSeconds,
+      },
+      signals: [],
+    };
+  });
+  return {
+    ...snapshot,
+    overall: summarizeSources(sources),
+    sources,
+  };
+}

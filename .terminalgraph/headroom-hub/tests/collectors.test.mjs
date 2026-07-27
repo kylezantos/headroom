@@ -110,6 +110,8 @@ async function postHogRequester({ missingInsight = null, failureStatus = null } 
 async function appStoreRequester({
   processing = false,
   emptyReportRequests = false,
+  processingState = null,
+  appStoreState = null,
 } = {}) {
   const calls = [];
   const build = await jsonFixture(
@@ -121,6 +123,12 @@ async function appStoreRequester({
   const versions = await jsonFixture(
     "app-store-connect/app-store-versions.json",
   );
+  if (processingState) {
+    build.data[0].attributes.processingState = processingState;
+  }
+  if (appStoreState) {
+    versions.data[0].attributes.appStoreState = appStoreState;
+  }
   const firstRequestsPage = await jsonFixture(
     emptyReportRequests
       ? "app-store-connect/report-requests-empty.json"
@@ -210,6 +218,34 @@ test("a failed required PR check becomes an actionable source-linked signal", as
     "https://github.com/kylezantos/headroom/pull/42",
   );
   assert.match(result.signals[0].summary, /swift-test/u);
+});
+
+test("GitHub reports when the open PR result set may be truncated", async () => {
+  const githubData = await jsonFixture("github/healthy.json");
+  const template = githubData["kylezantos/headroom"].prs[0] ?? {
+    title: "Synthetic open PR",
+    url: "https://github.com/kylezantos/headroom/pull/1",
+    updatedAt: now.toISOString(),
+  };
+  githubData["kylezantos/headroom"].prs = Array.from(
+    { length: 100 },
+    (_, index) => ({
+      ...template,
+      number: index + 1,
+      url: `https://github.com/kylezantos/headroom/pull/${index + 1}`,
+    }),
+  );
+
+  const result = await collectGitHub({
+    repositories,
+    runGh: githubRunner(githubData),
+    now,
+  });
+
+  assert.equal(result.status, "attention");
+  assert.ok(
+    result.signals.some(({ id }) => id.endsWith("open-pr-result-limit")),
+  );
 });
 
 test("repositories without workflow history are not configured, not failing", async () => {
@@ -496,6 +532,153 @@ test("a processing build is uploaded but not yet available", async () => {
   assert.equal(result.stages[1].status, "processing");
 });
 
+test("failed Apple processing and rejected review are not labeled processing or submitted", async () => {
+  const requester = await appStoreRequester({
+    processingState: "FAILED",
+    appStoreState: "DEVELOPER_REJECTED",
+  });
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () =>
+      fixture("app-store-connect/analytics.tsv"),
+    readEvidence: async () => null,
+    now,
+  });
+
+  assert.equal(result.status, "attention");
+  assert.equal(result.stages[1].status, "rejected");
+  assert.equal(result.stages[3].status, "rejected");
+  assert.ok(
+    result.signals.some(
+      ({ id }) => id === "app-store-connect:testflight-rejected",
+    ),
+  );
+  assert.ok(
+    result.signals.some(
+      ({ id }) => id === "app-store-connect:app-review-rejected",
+    ),
+  );
+});
+
+test("Apple analytics stops at its read budget without hiding release state", async () => {
+  const requester = await appStoreRequester();
+  let downloadCount = 0;
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () => {
+      downloadCount += 1;
+      return fixture("app-store-connect/analytics.tsv");
+    },
+    readEvidence: async () => null,
+    now,
+    analyticsRequestLimit: 1,
+  });
+
+  assert.equal(result.status, "attention");
+  assert.equal(result.stages[1].status, "complete");
+  assert.equal(
+    result.metrics.find(({ id }) => id === "analytics.availability").detail,
+    "request-budget-exhausted",
+  );
+  assert.equal(downloadCount, 0);
+  assert.equal(requester.calls.length, 4);
+});
+
+test("Apple analytics stops at its refresh deadline", async () => {
+  const requester = await appStoreRequester();
+  let clock = 0;
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: async (...arguments_) => {
+      const response = await requester.request(...arguments_);
+      clock += 60;
+      return response;
+    },
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () =>
+      fixture("app-store-connect/analytics.tsv"),
+    readEvidence: async () => null,
+    now,
+    analyticsDeadlineMilliseconds: 100,
+    analyticsClock: () => clock,
+  });
+
+  assert.equal(result.status, "attention");
+  assert.equal(result.stages[1].status, "complete");
+  assert.equal(
+    result.metrics.find(({ id }) => id === "analytics.availability").detail,
+    "request-budget-exhausted",
+  );
+});
+
+test("App Store Connect refresh failure retains only the prior normalized state", async () => {
+  const requester = await appStoreRequester();
+  const previous = await collectAll({
+    adapters: [
+      {
+        id: "app-store-connect",
+        label: "App Store Connect",
+        collect: () =>
+          collectAppStoreConnect({
+            config: {
+              appId: "123456789",
+              analyticsReportRequestId: "request-1",
+            },
+            request: requester.request,
+            tokenProvider: async () => "synthetic-jwt",
+            downloadText: async () =>
+              fixture("app-store-connect/analytics.tsv"),
+            now: new Date("2026-07-27T17:55:00.000Z"),
+          }),
+      },
+    ],
+    now: new Date("2026-07-27T17:55:00.000Z"),
+  });
+  const current = await collectAll({
+    adapters: [
+      {
+        id: "app-store-connect",
+        label: "App Store Connect",
+        sourceUrl: "https://appstoreconnect.apple.com",
+        collect: () =>
+          collectAppStoreConnect({
+            config: {
+              appId: "123456789",
+              analyticsReportRequestId: "request-1",
+            },
+            request: async () => {
+              throw new Error("Authorization: Bearer synthetic-provider-body");
+            },
+            tokenProvider: async () => "synthetic-jwt",
+            now,
+          }),
+      },
+    ],
+    previousSnapshot: previous,
+    now,
+    cacheMaxAgeSeconds: 600,
+  });
+
+  assert.equal(current.sources[0].status, "stale");
+  assert.doesNotMatch(
+    JSON.stringify(current),
+    /synthetic-provider-body|Authorization|Bearer/u,
+  );
+});
+
 test("threshold-suppressed Apple analytics are insufficient data, not zero", async () => {
   const requester = await appStoreRequester();
   const result = await collectAppStoreConnect({
@@ -518,6 +701,40 @@ test("threshold-suppressed Apple analytics are insufficient data, not zero", asy
   assert.ok(analytics.every(({ value }) => value === null));
   assert.ok(
     analytics.every(({ status }) => status === "insufficient-data"),
+  );
+  assert.ok(
+    analytics.every(({ detail }) => detail === "privacy-threshold-suppressed"),
+  );
+});
+
+test("a privacy-suppressed analytics row invalidates an otherwise numeric aggregate", async () => {
+  const requester = await appStoreRequester();
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () => [
+      "Date\tApp Name\tSessions\tTotal Downloads",
+      "2026-07-26\tHeadroom\t12\t4",
+      "2026-07-27\tHeadroom\tLow Data\tLow Data",
+    ].join("\n"),
+    readEvidence: async () => null,
+    now,
+  });
+
+  const analytics = result.metrics.filter(({ id }) =>
+    id.startsWith("analytics."),
+  );
+  assert.ok(analytics.length > 0);
+  assert.ok(analytics.every(({ value }) => value === null));
+  assert.ok(
+    analytics.every(({ status }) => status === "insufficient-data"),
+  );
+  assert.ok(
+    analytics.every(({ detail }) => detail === "privacy-threshold-suppressed"),
   );
 });
 

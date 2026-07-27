@@ -1,7 +1,7 @@
 ---
 title: "feat: Build the Headroom TerminalGraph control room"
 type: feat
-status: active
+status: completed
 date: 2026-07-27
 origin: docs/terminalgraph/brainstorms/2026-07-27-headroom-control-room-requirements.md
 deepened: 2026-07-27

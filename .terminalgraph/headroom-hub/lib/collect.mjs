@@ -50,7 +50,10 @@ export async function loadConfig({
   let config;
   try {
     config = await readJSON(localConfigPath);
-  } catch {
+  } catch (error) {
+    if (error?.code !== "ENOENT") {
+      throw error;
+    }
     config = await readJSON(exampleConfigPath);
   }
   return validateConfig(config);

@@ -1,0 +1,112 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-07-27T18:00:00Z",
+  "overall": {
+    "status": "healthy",
+    "completeness": "complete",
+    "attentionCount": 0
+  },
+  "sources": [
+    {
+      "id": "github",
+      "label": "GitHub",
+      "status": "healthy",
+      "summary": "No blocked pull requests or recent workflow failures",
+      "sourceUrl": "https://github.com/kylezantos/headroom",
+      "freshness": {
+        "kind": "current",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": "2026-07-27T17:58:00Z",
+        "lastSuccessAt": "2026-07-27T18:00:00Z",
+        "staleAgeSeconds": 0
+      },
+      "metrics": [
+        {
+          "id": "headroom.open-prs",
+          "label": "headroom open PRs",
+          "value": 0,
+          "unit": "pull requests",
+          "status": "complete",
+          "detail": null
+        }
+      ],
+      "stages": [],
+      "signals": []
+    },
+    {
+      "id": "website",
+      "label": "Website + Sparkle",
+      "status": "healthy",
+      "summary": "Headroom 1.2.0 (30) is publicly consistent",
+      "sourceUrl": "https://headroom.zantos.co/",
+      "freshness": {
+        "kind": "current",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": "2026-07-27T17:00:00Z",
+        "lastSuccessAt": "2026-07-27T18:00:00Z",
+        "staleAgeSeconds": 0
+      },
+      "metrics": [
+        {
+          "id": "macos-version",
+          "label": "Public macOS version",
+          "value": "1.2.0",
+          "unit": null,
+          "status": "complete",
+          "detail": "build 30"
+        }
+      ],
+      "stages": [
+        {
+          "id": "macos-published",
+          "label": "macOS published",
+          "status": "complete",
+          "evidenceAt": "2026-07-27T17:00:00Z",
+          "detail": null
+        },
+        {
+          "id": "sparkle-accepted",
+          "label": "Sparkle accepted",
+          "status": "accepted",
+          "evidenceAt": "2026-07-27T17:30:00Z",
+          "detail": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "id": "posthog",
+      "label": "PostHog",
+      "status": "healthy",
+      "summary": "Configured aggregate website insights are current",
+      "sourceUrl": "https://us.posthog.com/project/12345",
+      "freshness": {
+        "kind": "current",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": "2026-07-27T17:45:00Z",
+        "lastSuccessAt": "2026-07-27T18:00:00Z",
+        "staleAgeSeconds": 0
+      },
+      "metrics": [
+        {
+          "id": "page-views-7d",
+          "label": "Page views 7 days",
+          "value": 120,
+          "unit": "views",
+          "status": "complete",
+          "detail": null
+        },
+        {
+          "id": "downloads-7d",
+          "label": "Downloads 7 days",
+          "value": 8,
+          "unit": "downloads",
+          "status": "complete",
+          "detail": null
+        }
+      ],
+      "stages": [],
+      "signals": []
+    }
+  ]
+}

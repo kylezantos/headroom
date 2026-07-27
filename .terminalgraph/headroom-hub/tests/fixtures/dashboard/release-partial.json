@@ -1,0 +1,98 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-07-27T18:00:00Z",
+  "overall": {
+    "status": "attention",
+    "completeness": "complete",
+    "attentionCount": 1
+  },
+  "sources": [
+    {
+      "id": "website",
+      "label": "Website + Sparkle",
+      "status": "attention",
+      "summary": "macOS publication is ahead of installed-update acceptance",
+      "sourceUrl": "https://headroom.zantos.co/",
+      "freshness": {
+        "kind": "current",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": "2026-07-27T17:00:00Z",
+        "lastSuccessAt": "2026-07-27T18:00:00Z",
+        "staleAgeSeconds": 0
+      },
+      "metrics": [],
+      "stages": [
+        {
+          "id": "macos-published",
+          "label": "macOS published",
+          "status": "complete",
+          "evidenceAt": "2026-07-27T17:00:00Z",
+          "detail": null
+        },
+        {
+          "id": "sparkle-accepted",
+          "label": "Sparkle accepted",
+          "status": "pending",
+          "evidenceAt": null,
+          "detail": null
+        }
+      ],
+      "signals": []
+    },
+    {
+      "id": "app-store-connect",
+      "label": "App Store Connect",
+      "status": "attention",
+      "summary": "Latest iOS build 31 is processing",
+      "sourceUrl": "https://appstoreconnect.apple.com/",
+      "freshness": {
+        "kind": "current",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": "2026-07-27T17:30:00Z",
+        "lastSuccessAt": "2026-07-27T18:00:00Z",
+        "staleAgeSeconds": 0
+      },
+      "metrics": [],
+      "stages": [
+        {
+          "id": "testflight-uploaded",
+          "label": "TestFlight uploaded",
+          "status": "complete",
+          "evidenceAt": "2026-07-27T17:30:00Z",
+          "detail": null
+        },
+        {
+          "id": "testflight-available",
+          "label": "TestFlight available",
+          "status": "processing",
+          "evidenceAt": null,
+          "detail": null
+        },
+        {
+          "id": "testflight-accepted",
+          "label": "TestFlight accepted",
+          "status": "unknown",
+          "evidenceAt": null,
+          "detail": null
+        },
+        {
+          "id": "app-store-submitted",
+          "label": "App Store submitted",
+          "status": "pending",
+          "evidenceAt": null,
+          "detail": "READY_FOR_REVIEW"
+        }
+      ],
+      "signals": [
+        {
+          "id": "app-store-connect:testflight-processing",
+          "severity": "attention",
+          "title": "TestFlight build processing",
+          "summary": "Build 31 is still processing",
+          "sourceUrl": "https://appstoreconnect.apple.com/",
+          "repository": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-07-27T18:00:00Z",
+  "overall": {
+    "status": "partial",
+    "completeness": "partial",
+    "attentionCount": 0
+  },
+  "sources": [
+    {
+      "id": "website",
+      "label": "Website + Sparkle",
+      "status": "healthy",
+      "summary": "Public release surfaces are current",
+      "sourceUrl": "https://headroom.zantos.co/",
+      "freshness": {
+        "kind": "current",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": "2026-07-27T17:00:00Z",
+        "lastSuccessAt": "2026-07-27T18:00:00Z",
+        "staleAgeSeconds": 0
+      },
+      "metrics": [],
+      "stages": [],
+      "signals": []
+    },
+    {
+      "id": "posthog",
+      "label": "PostHog",
+      "status": "unavailable",
+      "summary": "PostHog could not be refreshed",
+      "diagnostic": "collector-failed",
+      "sourceUrl": "https://us.posthog.com/",
+      "freshness": {
+        "kind": "unknown",
+        "collectedAt": "2026-07-27T18:00:00Z",
+        "evidenceAt": null,
+        "lastSuccessAt": null,
+        "staleAgeSeconds": null
+      },
+      "metrics": [
+        {
+          "id": "page-views-7d",
+          "label": "Page views 7 days",
+          "value": null,
+          "unit": "views",
+          "status": "insufficient-data",
+          "detail": "privacy-threshold-suppressed"
+        }
+      ],
+      "stages": [],
+      "signals": []
+    }
+  ]
+}

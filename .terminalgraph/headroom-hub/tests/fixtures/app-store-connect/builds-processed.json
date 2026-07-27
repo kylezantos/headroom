@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "type": "builds",
+      "id": "build-30",
+      "attributes": {
+        "version": "30",
+        "uploadedDate": "2026-07-27T16:00:00Z",
+        "processingState": "VALID"
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

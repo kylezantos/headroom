@@ -1,0 +1,17 @@
+{
+  "id": 103,
+  "name": "Headroom downloads — 7 days",
+  "last_refresh": "2026-07-27T17:43:00Z",
+  "result": [
+    {
+      "label": "Website",
+      "count": 5,
+      "data": [5]
+    },
+    {
+      "label": "Direct",
+      "count": 3,
+      "data": [3]
+    }
+  ]
+}

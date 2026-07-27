@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "type": "appStoreVersions",
+      "id": "version-1.2",
+      "attributes": {
+        "versionString": "1.2",
+        "appStoreState": "READY_FOR_REVIEW",
+        "createdDate": "2026-07-27T15:00:00Z"
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

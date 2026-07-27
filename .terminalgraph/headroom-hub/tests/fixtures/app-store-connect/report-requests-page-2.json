@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "type": "analyticsReportRequests",
+      "id": "request-1",
+      "attributes": {
+        "accessType": "ONGOING",
+        "stoppedDueToInactivity": false
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

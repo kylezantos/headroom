@@ -13,8 +13,10 @@
     "host": "https://us.posthog.com",
     "projectId": "",
     "insightIds": {
-      "pageViews": "",
-      "downloads": ""
+      "pageViews7d": "",
+      "pageViews30d": "",
+      "downloads7d": "",
+      "downloads30d": ""
     }
   },
   "appStoreConnect": {

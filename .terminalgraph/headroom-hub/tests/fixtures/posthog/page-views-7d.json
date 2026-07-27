@@ -1,0 +1,12 @@
+{
+  "id": 101,
+  "name": "Headroom page views — 7 days",
+  "last_refresh": "2026-07-27T17:45:00Z",
+  "result": [
+    {
+      "label": "$pageview",
+      "count": 120,
+      "data": [12, 15, 18, 20, 17, 19, 19]
+    }
+  ]
+}

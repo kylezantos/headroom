@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "type": "betaGroups",
+      "id": "internal-group",
+      "attributes": {
+        "name": "Headroom Internal",
+        "isInternalGroup": true
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

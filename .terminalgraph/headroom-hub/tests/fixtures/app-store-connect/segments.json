@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "type": "analyticsReportSegments",
+      "id": "segment-1",
+      "attributes": {
+        "url": "https://reports.s3.us-west-2.amazonaws.com/synthetic-headroom.tsv",
+        "sizeInBytes": 128,
+        "checksum": "synthetic"
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

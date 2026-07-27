@@ -1,0 +1,15 @@
+{
+  "data": [
+    {
+      "type": "analyticsReports",
+      "id": "report-sessions",
+      "attributes": {
+        "name": "App Sessions Standard",
+        "category": "APP_USAGE"
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

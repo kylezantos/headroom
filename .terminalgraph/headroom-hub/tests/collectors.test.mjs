@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
+import { generateKeyPairSync } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { collectAll } from "../lib/collect.mjs";
+import {
+  collectAppStoreConnect,
+  createAppStoreConnectToken,
+  createAppStoreConnectAdapter,
+} from "../lib/sources/app-store-connect.mjs";
 import { collectGitHub } from "../lib/sources/github.mjs";
+import { collectPostHog } from "../lib/sources/posthog.mjs";
 import { collectWebsite } from "../lib/sources/website.mjs";
 
 const fixturesRoot = join(
@@ -74,6 +81,89 @@ async function websiteRequester({ mismatch = false } = {}) {
       throw new Error("unexpected synthetic website URL");
     }
     return response;
+  };
+}
+
+async function postHogRequester({ missingInsight = null, failureStatus = null } = {}) {
+  const responses = new Map([
+    ["page-views-7d", await jsonFixture("posthog/page-views-7d.json")],
+    ["page-views-30d", await jsonFixture("posthog/page-views-30d.json")],
+    ["downloads-7d", await jsonFixture("posthog/downloads-7d.json")],
+    ["downloads-30d", await jsonFixture("posthog/downloads-30d.json")],
+  ]);
+  return async (url, options) => {
+    assert.equal(options.method, "GET");
+    const insightID = new URL(url).pathname.split("/").filter(Boolean).at(-1);
+    if (failureStatus) {
+      throw Object.assign(new Error("synthetic provider body must not survive"), {
+        status: failureStatus,
+        body: "Authorization: Bearer phx_secret-provider-body",
+      });
+    }
+    if (insightID === missingInsight) {
+      throw Object.assign(new Error("synthetic missing insight"), { status: 404 });
+    }
+    return responses.get(insightID);
+  };
+}
+
+async function appStoreRequester({
+  processing = false,
+  emptyReportRequests = false,
+} = {}) {
+  const calls = [];
+  const build = await jsonFixture(
+    processing
+      ? "app-store-connect/builds-processing.json"
+      : "app-store-connect/builds-processed.json",
+  );
+  const betaGroups = await jsonFixture("app-store-connect/beta-groups.json");
+  const versions = await jsonFixture(
+    "app-store-connect/app-store-versions.json",
+  );
+  const firstRequestsPage = await jsonFixture(
+    emptyReportRequests
+      ? "app-store-connect/report-requests-empty.json"
+      : "app-store-connect/report-requests-page-1.json",
+  );
+  const secondRequestsPage = await jsonFixture(
+    "app-store-connect/report-requests-page-2.json",
+  );
+  const reports = await jsonFixture("app-store-connect/reports.json");
+  const instances = await jsonFixture("app-store-connect/instances.json");
+  const segments = await jsonFixture("app-store-connect/segments.json");
+
+  return {
+    calls,
+    request: async (url, options) => {
+      calls.push({ url, method: options.method });
+      assert.equal(options.method, "GET");
+      const parsed = new URL(url);
+      if (parsed.pathname === "/v1/builds") {
+        return build;
+      }
+      if (parsed.pathname.endsWith("/betaGroups")) {
+        return betaGroups;
+      }
+      if (parsed.pathname.endsWith("/appStoreVersions")) {
+        return versions;
+      }
+      if (parsed.pathname.endsWith("/analyticsReportRequests")) {
+        return parsed.searchParams.get("cursor") === "next"
+          ? secondRequestsPage
+          : firstRequestsPage;
+      }
+      if (parsed.pathname.endsWith("/reports")) {
+        return reports;
+      }
+      if (parsed.pathname.endsWith("/instances")) {
+        return instances;
+      }
+      if (parsed.pathname.endsWith("/segments")) {
+        return segments;
+      }
+      throw new Error(`unexpected synthetic App Store Connect path: ${parsed.pathname}`);
+    },
   };
 }
 
@@ -244,4 +334,275 @@ test("expired operator evidence is ignored with a typed diagnostic", async () =>
     result.stages.find(({ id }) => id === "sparkle-accepted").status,
     "unknown",
   );
+});
+
+test("PostHog returns aggregate page-view and download windows", async () => {
+  const result = await collectPostHog({
+    config: {
+      host: "https://us.posthog.com",
+      projectId: "12345",
+      insightIds: {
+        pageViews7d: "page-views-7d",
+        pageViews30d: "page-views-30d",
+        downloads7d: "downloads-7d",
+        downloads30d: "downloads-30d",
+      },
+    },
+    apiKey: "phx_synthetic-secret",
+    request: await postHogRequester(),
+    now,
+  });
+
+  assert.equal(result.status, "healthy");
+  assert.deepEqual(
+    result.metrics.map(({ id, value }) => [id, value]),
+    [
+      ["page-views-7d", 120],
+      ["page-views-30d", 480],
+      ["downloads-7d", 8],
+      ["downloads-30d", 25],
+    ],
+  );
+  assert.doesNotMatch(JSON.stringify(result), /phx_synthetic/u);
+});
+
+test("one missing PostHog insight does not erase the remaining metrics", async () => {
+  const result = await collectPostHog({
+    config: {
+      host: "https://us.posthog.com",
+      projectId: "12345",
+      insightIds: {
+        pageViews7d: "page-views-7d",
+        downloads7d: "missing-downloads",
+      },
+    },
+    apiKey: "phx_synthetic-secret",
+    request: await postHogRequester({ missingInsight: "missing-downloads" }),
+    now,
+  });
+
+  assert.equal(result.status, "attention");
+  assert.equal(result.metrics[0].value, 120);
+  assert.equal(result.metrics[1].status, "unavailable");
+  assert.equal(result.signals.length, 1);
+});
+
+test("PostHog rate-limit failure becomes stale without retaining response text", async () => {
+  const config = {
+    host: "https://us.posthog.com",
+    projectId: "12345",
+    insightIds: { pageViews7d: "page-views-7d" },
+  };
+  const successfulRequest = await postHogRequester();
+  const previous = await collectAll({
+    adapters: [
+      {
+        id: "posthog",
+        label: "PostHog",
+        collect: () =>
+          collectPostHog({
+            config,
+            apiKey: "phx_synthetic-secret",
+            request: successfulRequest,
+            now: new Date("2026-07-27T17:55:00.000Z"),
+          }),
+      },
+    ],
+    now: new Date("2026-07-27T17:55:00.000Z"),
+  });
+  const failedRequest = await postHogRequester({ failureStatus: 429 });
+  const current = await collectAll({
+    adapters: [
+      {
+        id: "posthog",
+        label: "PostHog",
+        collect: () =>
+          collectPostHog({
+            config,
+            apiKey: "phx_synthetic-secret",
+            request: failedRequest,
+            now,
+          }),
+      },
+    ],
+    previousSnapshot: previous,
+    now,
+    cacheMaxAgeSeconds: 600,
+  });
+
+  assert.equal(current.sources[0].status, "stale");
+  assert.doesNotMatch(
+    JSON.stringify(current),
+    /secret-provider-body|Authorization|phx_/u,
+  );
+});
+
+test("App Store Connect keeps upload, availability, acceptance, and review states distinct", async () => {
+  const requester = await appStoreRequester();
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () =>
+      fixture("app-store-connect/analytics.tsv"),
+    readEvidence: async () => null,
+    now,
+  });
+
+  assert.equal(result.status, "healthy");
+  assert.deepEqual(
+    result.stages.map(({ id, status }) => [id, status]),
+    [
+      ["testflight-uploaded", "complete"],
+      ["testflight-available", "complete"],
+      ["testflight-accepted", "unknown"],
+      ["app-store-submitted", "pending"],
+    ],
+  );
+  assert.equal(
+    result.metrics.find(({ id }) => id === "analytics.sessions").value,
+    12,
+  );
+  assert.equal(
+    result.metrics.find(({ id }) => id === "analytics.total-downloads").value,
+    4,
+  );
+  assert.ok(
+    requester.calls.some(({ url }) => new URL(url).searchParams.get("cursor") === "next"),
+  );
+  assert.ok(requester.calls.every(({ method }) => method === "GET"));
+});
+
+test("a processing build is uploaded but not yet available", async () => {
+  const requester = await appStoreRequester({ processing: true });
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () =>
+      fixture("app-store-connect/analytics.tsv"),
+    readEvidence: async () => null,
+    now,
+  });
+
+  assert.equal(result.status, "attention");
+  assert.equal(result.stages[0].status, "complete");
+  assert.equal(result.stages[1].status, "processing");
+});
+
+test("threshold-suppressed Apple analytics are insufficient data, not zero", async () => {
+  const requester = await appStoreRequester();
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "request-1",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () =>
+      fixture("app-store-connect/analytics-suppressed.tsv"),
+    readEvidence: async () => null,
+    now,
+  });
+
+  const analytics = result.metrics.filter(({ id }) =>
+    id.startsWith("analytics."),
+  );
+  assert.ok(analytics.length > 0);
+  assert.ok(analytics.every(({ value }) => value === null));
+  assert.ok(
+    analytics.every(({ status }) => status === "insufficient-data"),
+  );
+});
+
+test("no analytics report request is not configured and performs no write method", async () => {
+  const requester = await appStoreRequester({ emptyReportRequests: true });
+  const result = await collectAppStoreConnect({
+    config: {
+      appId: "123456789",
+      analyticsReportRequestId: "",
+    },
+    request: requester.request,
+    tokenProvider: async () => "synthetic-jwt",
+    downloadText: async () => {
+      throw new Error("segments must not be requested");
+    },
+    readEvidence: async () => null,
+    now,
+  });
+
+  assert.equal(
+    result.metrics.find(({ id }) => id === "analytics.configuration").status,
+    "not-configured",
+  );
+  assert.ok(requester.calls.every(({ method }) => method === "GET"));
+  assert.equal(
+    requester.calls.some(({ url }) => new URL(url).pathname.endsWith("/reports")),
+    false,
+  );
+});
+
+test("missing App Store Connect credentials produce setup state without making a request", async () => {
+  let requestCount = 0;
+  const adapter = createAppStoreConnectAdapter({
+    config: {
+      appStoreConnect: {
+        appId: "123456789",
+        analyticsReportRequestId: "",
+      },
+    },
+    environment: {},
+    request: async () => {
+      requestCount += 1;
+      throw new Error("request must not run");
+    },
+  });
+  const result = await adapter.collect();
+
+  assert.equal(result.status, "not-configured");
+  assert.equal(result.reasonCode, "missing-credential");
+  assert.equal(requestCount, 0);
+  assert.doesNotMatch(JSON.stringify(result), /KEY_PATH|ISSUER_ID|JWT/u);
+});
+
+test("App Store Connect authentication creates a short-lived ES256 token without logging key material", async () => {
+  const { privateKey } = generateKeyPairSync("ec", {
+    namedCurve: "P-256",
+  });
+  const privateKeyPEM = privateKey.export({
+    format: "pem",
+    type: "pkcs8",
+  });
+  const token = await createAppStoreConnectToken({
+    environment: {
+      HEADROOM_ASC_KEY_PATH: "/synthetic/AuthKey_TEST.p8",
+      HEADROOM_ASC_KEY_ID: "TESTKEY",
+      HEADROOM_ASC_ISSUER_ID: "00000000-0000-0000-0000-000000000000",
+    },
+    now,
+    readFileImpl: async () => privateKeyPEM,
+  });
+  const [encodedHeader, encodedPayload, signature] = token.split(".");
+  const header = JSON.parse(
+    Buffer.from(encodedHeader, "base64url").toString("utf8"),
+  );
+  const payload = JSON.parse(
+    Buffer.from(encodedPayload, "base64url").toString("utf8"),
+  );
+
+  assert.deepEqual(header, {
+    alg: "ES256",
+    kid: "TESTKEY",
+    typ: "JWT",
+  });
+  assert.equal(payload.aud, "appstoreconnect-v1");
+  assert.equal(payload.exp - payload.iat, 600);
+  assert.ok(signature.length > 0);
+  assert.doesNotMatch(token, /PRIVATE KEY|synthetic\/AuthKey/u);
 });

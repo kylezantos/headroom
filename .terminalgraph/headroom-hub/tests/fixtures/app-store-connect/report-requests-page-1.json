@@ -1,0 +1,6 @@
+{
+  "data": [],
+  "links": {
+    "next": "https://api.appstoreconnect.apple.com/v1/apps/123456789/analyticsReportRequests?cursor=next"
+  }
+}

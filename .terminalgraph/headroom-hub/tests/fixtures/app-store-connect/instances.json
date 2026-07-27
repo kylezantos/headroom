@@ -1,0 +1,16 @@
+{
+  "data": [
+    {
+      "type": "analyticsReportInstances",
+      "id": "instance-1",
+      "attributes": {
+        "granularity": "DAILY",
+        "processingDate": "2026-07-27",
+        "reportDate": "2026-07-26"
+      }
+    }
+  ],
+  "links": {
+    "next": null
+  }
+}

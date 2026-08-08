@@ -43,6 +43,7 @@ enum SetupSessions {
     private static var coordinator: SetupSessionCoordinator?
     private static var preparedScripts: [AccountKey: PreparedScript] = [:]
     private static var completionTasks: [AccountKey: Task<Void, Never>] = [:]
+    private static var checkNowTasks: [AccountKey: Task<Void, Never>] = [:]
     private static var announcedFailures: [AccountKey: SetupSessionFailure] = [:]
     private static var capabilityAnnouncementDedupe = CapabilityAnnouncementDedupe()
     private static var claudeExecutableLocator: any CLIExecutableLocating = CLIExecutableLocator.claude()
@@ -127,11 +128,15 @@ enum SetupSessions {
         case .copyManualCommand(let mode):
             Task { _ = await copyManualCommand(for: account.key, mode: mode) }
         case .checkNow:
-            Task {
-                if account.providerID == .claude {
-                    _ = await claudeExecutableLocator.locate(forceRefresh: true)
+            guard checkNowTasks[account.key] == nil else { return }
+            checkNowTasks[account.key] = Task {
+                defer { checkNowTasks[account.key] = nil }
+                await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+                    if account.providerID == .claude {
+                        _ = await claudeExecutableLocator.locate(forceRefresh: true)
+                    }
+                    onRetry()
                 }
-                onRetry()
             }
         }
     }

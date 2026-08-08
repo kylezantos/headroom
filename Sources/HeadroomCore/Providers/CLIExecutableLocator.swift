@@ -207,6 +207,10 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
             }
         }
 
+        return await startDiscovery(refreshGeneration: refreshGeneration)
+    }
+
+    private func startDiscovery(refreshGeneration: UUID?) async -> CLIExecutableLocation {
         if let inFlight { return await finish(inFlight) }
 
         let id = UUID()
@@ -254,7 +258,7 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
     private func finish(_ flight: InFlight) async -> CLIExecutableLocation {
         let result = await flight.task.value
         guard epoch == flight.epoch else {
-            return await locate(forceRefresh: false)
+            return await resultAfterStaleCompletion()
         }
         let ownsCompletion = inFlight?.id == flight.id
         if ownsCompletion { inFlight = nil }
@@ -282,6 +286,17 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
         }
         if ownsCompletion { record(result.diagnosticCategory) }
         return result
+    }
+
+    private func resultAfterStaleCompletion() async -> CLIExecutableLocation {
+        if let inFlight { return await finish(inFlight) }
+        if let cachedPath, validate(cachedPath) == .executable {
+            return .available(path: cachedPath, source: .memoryHint)
+        }
+        if let negativeMemo, negativeMemo.epoch == epoch {
+            return negativeMemo.result
+        }
+        return await startDiscovery(refreshGeneration: observedRefreshGeneration)
     }
 
     private func invalidateHintLocally(issue: CLIExecutableDiscoveryIssue) {

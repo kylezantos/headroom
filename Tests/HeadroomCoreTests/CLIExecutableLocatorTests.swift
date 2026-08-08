@@ -161,6 +161,42 @@ struct CLIExecutableLocatorTests {
         #expect(await shell.count == 2)
     }
 
+    @Test func staleGenerationCompletionJoinsReplacementWithoutStartingThirdSearch() async {
+        let shell = CrossGenerationForceRaceShellSearch()
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: TestExecutableHintStore(),
+            shellSearch: { await shell.search() },
+            validate: { $0 == "/new/claude" ? .executable : .missing }
+        )
+        let stale = Task {
+            await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+                await locator.locate()
+            }
+        }
+        while await shell.count < 1 { await Task.yield() }
+
+        let replacement = Task {
+            await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+                await locator.locate(forceRefresh: true)
+            }
+        }
+        while await shell.count < 2 { await Task.yield() }
+        await shell.resumeSearch(1, with: .completed(candidates: []))
+        for _ in 0..<20 { await Task.yield() }
+
+        let countBeforeReplacementCompletes = await shell.count
+        #expect(countBeforeReplacementCompletes == 2)
+        if countBeforeReplacementCompletes > 2 {
+            await shell.resumeSearch(3, with: .completed(candidates: ["/new/claude"]))
+        }
+        await shell.resumeSearch(2, with: .completed(candidates: ["/new/claude"]))
+        #expect(await stale.value == .available(path: "/new/claude", source: .loginShell))
+        #expect(await replacement.value == .available(path: "/new/claude", source: .loginShell))
+        #expect(await shell.count == 2)
+    }
+
     @Test func launchRaceAppliesToEverySearchStartedInInvalidationGeneration() async {
         let shell = LaunchRaceStraddleShellSearch()
         let locator = CLIExecutableLocator(
@@ -439,6 +475,21 @@ private actor ForceRaceShellSearch {
     func resumeStaleSearch() {
         staleContinuation?.resume(returning: .completed(candidates: []))
         staleContinuation = nil
+    }
+}
+
+private actor CrossGenerationForceRaceShellSearch {
+    private(set) var count = 0
+    private var continuations: [Int: CheckedContinuation<CLIExecutableShellResult, Never>] = [:]
+
+    func search() async -> CLIExecutableShellResult {
+        count += 1
+        let search = count
+        return await withCheckedContinuation { continuations[search] = $0 }
+    }
+
+    func resumeSearch(_ search: Int, with result: CLIExecutableShellResult) {
+        continuations.removeValue(forKey: search)?.resume(returning: result)
     }
 }
 

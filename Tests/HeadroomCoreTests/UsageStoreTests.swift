@@ -660,7 +660,7 @@ struct UsageStoreTests {
 
         let retained = cache.load()[key]
         #expect(retained?.capturedAt == capture)
-        #expect(retained?.windows.first?.freshness == .stale(observedAt: capture))
+        #expect(retained?.windows.first?.freshness == .live)
 
         let relaunched = UsageStore(
             providers: [unavailable],
@@ -679,7 +679,7 @@ struct UsageStoreTests {
             accountID: .primary,
             displayName: "Claude",
             result: UsageProviderFetchResult(
-                snapshot: .stale(for: .claude, reason: .transient("Claude capability unavailable")),
+                snapshot: .pending(for: .claude),
                 capability: .confirmedAbsent
             )
         )
@@ -689,6 +689,43 @@ struct UsageStoreTests {
 
         #expect(store.snapshot(for: .claude).windows.isEmpty)
         #expect(store.snapshot(for: .claude).freshness == .pending)
+        #expect(store.providerCapabilities[.claude]?.state == .confirmedAbsent)
+    }
+
+    @Test func confirmedClaudeAbsencePreservesRetainedUsage() async {
+        let capture = Date(timeIntervalSince1970: 2_000_000)
+        let refresh = capture.addingTimeInterval(300)
+        let key = AccountKey(providerID: .claude, accountID: .primary)
+        let defaults = freshContinuityDefaults()
+        let cache = UsageContinuityCache(defaults: defaults)
+        cache.save(
+            .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 25, resetsAt: .distantFuture),
+            ], at: capture),
+            for: key
+        )
+        let provider = CapabilityStubProvider(
+            id: .claude,
+            accountID: .primary,
+            displayName: "Claude",
+            result: UsageProviderFetchResult(
+                snapshot: .pending(for: .claude),
+                capability: .confirmedAbsent
+            )
+        )
+        let store = UsageStore(
+            providers: [provider],
+            preferences: freshPreferences(),
+            continuityCache: cache,
+            now: { refresh }
+        )
+
+        await store.refreshAll()
+
+        let retained = store.snapshot(for: key)
+        #expect(retained.capturedAt == capture)
+        #expect(retained.windows.first?.utilization == 25)
+        #expect(retained.windows.first?.freshness == .stale(observedAt: capture))
         #expect(store.providerCapabilities[.claude]?.state == .confirmedAbsent)
     }
 

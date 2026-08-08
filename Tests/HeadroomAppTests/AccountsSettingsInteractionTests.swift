@@ -248,6 +248,44 @@ struct AccountsSettingsInteractionTests {
         #expect(await locator.forceRefreshes == [true])
     }
 
+    @Test func repeatedCheckNowSharesForcedDiscoveryWithSelectedAccountRefresh() async {
+        let suiteName = "co.zantos.headroom.check-now-generation.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let shell = GatedCheckNowShellSearch()
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: TestCheckNowHintStore(),
+            shellSearch: { await shell.search() },
+            validate: { _ in .missing }
+        )
+        let fetches = CheckNowFetchRecorder()
+        let account = ProviderAccount.builtIn(for: .claude)
+        let store = UsageStore(
+            providers: [CheckNowUsageProvider(locator: locator, fetches: fetches)],
+            preferences: Preferences(defaults: defaults),
+            accounts: [account]
+        )
+        SetupSessions.configure(store: store, claudeExecutableLocator: locator)
+
+        for _ in 0..<2 {
+            SetupSessions.performRecovery(
+                .checkNow,
+                for: account,
+                onRetry: { store.refreshAccountNow(account.key) }
+            )
+        }
+        while await shell.count < 1 { await Task.yield() }
+        for _ in 0..<20 { await Task.yield() }
+        await shell.release()
+        while await fetches.count < 1 { await Task.yield() }
+        while store.isRefreshing { await Task.yield() }
+
+        #expect(await fetches.count == 1)
+        #expect(await shell.count == 1)
+    }
+
     @Test func providerCapabilityRecoveryTargetsAndRefreshesPrimaryOnly() {
         let fixture = makeFixture()
         defer { fixture.cleanup() }
@@ -432,6 +470,51 @@ private actor RecordingExecutableLocator: CLIExecutableLocating {
     }
 }
 
+private struct CheckNowUsageProvider: UsageProvider {
+    let id = ProviderID.claude
+    let displayName = "Claude"
+    let locator: any CLIExecutableLocating
+    let fetches: CheckNowFetchRecorder
+
+    func fetchSnapshot() async -> UsageSnapshot {
+        await fetches.record()
+        _ = await locator.locate()
+        return .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))
+    }
+}
+
+private actor CheckNowFetchRecorder {
+    private(set) var count = 0
+
+    func record() { count += 1 }
+}
+
+private actor GatedCheckNowShellSearch {
+    private(set) var count = 0
+    private var isReleased = false
+    private var continuations: [CheckedContinuation<CLIExecutableShellResult, Never>] = []
+
+    func search() async -> CLIExecutableShellResult {
+        count += 1
+        if isReleased { return .completed(candidates: []) }
+        return await withCheckedContinuation { continuations.append($0) }
+    }
+
+    func release() {
+        isReleased = true
+        let pending = continuations
+        continuations.removeAll()
+        for continuation in pending {
+            continuation.resume(returning: .completed(candidates: []))
+        }
+    }
+}
+
+private final class TestCheckNowHintStore: CLIExecutableHintStoring, @unchecked Sendable {
+    func hint(for executableName: String) -> String? { nil }
+    func setHint(_ path: String?, for executableName: String) {}
+}
+
 @MainActor
 private struct InteractionFixture {
     let store: UsageStore
@@ -572,6 +655,44 @@ private final class GrokDeviceCodeSetupHarness {
 }
 
 @Suite struct ProviderCardCapabilityTests {
+    @MainActor @Test func capabilityRefusalEndsWhenWrapperClosesAndVerificationBegins() async {
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+        let entries = [ProviderAccountEntry(account: account, snapshot: .pending(for: .claude))]
+        let coordinator = SetupSessionCoordinator(
+            retryDelays: [.seconds(60)],
+            prepare: { account, mode in
+                .success(PreparedSetupHandoff(accountKey: account.key, mode: mode))
+            },
+            open: { _ in .success(()) },
+            accountExists: { $0 == account.key },
+            requestRefresh: { _ in }
+        )
+
+        coordinator.begin(for: account)
+        for _ in 0..<20 { await Task.yield() }
+
+        #expect(coordinator.state(for: account.key) == .waiting(attempt: 0))
+        let hasActiveWrapper = providerCardHasActiveSetupSession(
+            entries: entries,
+            hasActiveHandoff: { coordinator.hasActiveHandoff(for: $0.key) }
+        )
+        #expect(hasActiveWrapper)
+
+        coordinator.handoffDidEnd(account.key)
+
+        #expect(coordinator.state(for: account.key) == .verifying)
+        let hasPostWrapperHandoff = providerCardHasActiveSetupSession(
+            entries: entries,
+            hasActiveHandoff: { coordinator.hasActiveHandoff(for: $0.key) }
+        )
+        #expect(!hasPostWrapperHandoff)
+    }
+
     @MainActor @Test func activeSetupSessionKeepsCapabilityRecoveryVisibleWithRefusalState() {
         #expect(capabilityRecoveryPresentation(
             state: .inconclusive(.shellTimeout),
@@ -598,6 +719,35 @@ private final class GrokDeviceCodeSetupHarness {
 
         #expect(active?.state(for: .installClaudeCLI) == .enabled)
         #expect(active?.state(for: .copyManualCommand) == .enabled)
+    }
+}
+
+@Suite struct OpenHandoffRefusalPresentationTests {
+    @MainActor @Test func blockedRowsExposeRefusalCopyWithoutRecoveryActions() {
+        let account = ProviderAccount.builtIn(for: .codex)
+        let snapshot = UsageSnapshot.stale(
+            for: .codex,
+            reason: .providerSetup(.codexAuthAbsent)
+        )
+        let setupState = SetupSessionState.blockedByOpenHandoff
+        let recoveryActions = settingsRecoveryActions(
+            snapshot: snapshot,
+            account: account,
+            setupState: setupState
+        )
+        let status = AccountsSettingsTile.AccountStatus(
+            snapshot: snapshot,
+            waiting: false,
+            blocked: false,
+            blockedByOpenHandoff: true,
+            setupFailed: false,
+            removalState: nil
+        )
+
+        #expect(setupHandoffRefusalMessage(for: setupState) == "Close setup, then retry")
+        #expect(recoveryActions == nil)
+        #expect(!status.needsRecovery)
+        #expect(setupHandoffRefusalMessage(for: .verifying) == nil)
     }
 }
 

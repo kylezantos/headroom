@@ -692,7 +692,8 @@ public final class UsageStore {
               enabledSurfaces.contains(surface)
         else { return }
         let capabilityCycle = beginCapabilityRefresh(for: [provider])
-        let result = await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+        let executableRefreshGeneration = CLIExecutableRefreshContext.generation ?? UUID()
+        let result = await CLIExecutableRefreshContext.$generation.withValue(executableRefreshGeneration) {
             await provider.fetchResult()
         }
         let notifiesSetup = result.capability == nil || result.capability == .available
@@ -723,9 +724,9 @@ public final class UsageStore {
         notifiesSetup: Bool
     ) -> Bool {
         let isCapabilityFailure = result.capability.map { $0 != .available } == true
-        if isCapabilityFailure, snapshots[key]?.windows.isEmpty != false {
+        if isCapabilityFailure {
             // A provider-wide discovery failure says nothing about this account. Keep a
-            // pending row neutral and preserve any prior login/trust setup state.
+            // pending row neutral and preserve any prior usage or login/trust setup state.
             return acceptsResult(for: key)
         }
         return merge(key: key, fresh: result.snapshot, notifiesSetup: notifiesSetup)

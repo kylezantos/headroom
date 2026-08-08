@@ -9,6 +9,18 @@ struct ProviderAccountEntry: Identifiable {
     var id: AccountID { account.id }
 }
 
+@MainActor
+func providerCardHasActiveSetupSession(
+    entries: [ProviderAccountEntry],
+    hasActiveHandoff: @MainActor (ProviderAccount) -> Bool = SetupSessions.hasActiveHandoff(for:)
+) -> Bool {
+    entries.contains { hasActiveHandoff($0.account) }
+}
+
+func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
+    state == .blockedByOpenHandoff ? "Close setup, then retry" : nil
+}
+
 /// One provider's card (U7). Renders the explicit states off `snapshot.freshness`:
 /// `.pending` first-run skeleton, `.live`, transient stale (last data kept, marked with
 /// a "Stale" pill), permanent needs-reauth (actionable command), and — for Claude's
@@ -56,7 +68,7 @@ struct ProviderCardView: View {
         primaryEntry?.account ?? .builtIn(for: providerID)
     }
     private var hasActiveSetupSession: Bool {
-        entries.contains { SetupSessions.isWaiting(for: $0.account) }
+        providerCardHasActiveSetupSession(entries: entries)
     }
 
     var body: some View {
@@ -698,8 +710,19 @@ private struct AccountSectionView: View {
     /// real-progress spinner (bound to the retry cycle, not decorative).
     @ViewBuilder private func signInContent(_ reason: FailureReason) -> some View {
         let recoveryPresentation = reason.providerSetupOutcome?.recoveryPresentation
+        let setupState = SetupSessions.state(for: account)
         VStack(alignment: .leading, spacing: 7) {
-            if case .blockedByProviderLogin = SetupSessions.state(for: account) {
+            if let refusalMessage = setupHandoffRefusalMessage(for: setupState) {
+                HStack(spacing: 7) {
+                    Image(systemName: "terminal")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                    Text(refusalMessage)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
+                    Spacer(minLength: 6)
+                }
+            } else if case .blockedByProviderLogin = setupState {
                 HStack(spacing: 7) {
                     Image(systemName: "terminal")
                         .font(.system(size: 11, weight: .semibold))

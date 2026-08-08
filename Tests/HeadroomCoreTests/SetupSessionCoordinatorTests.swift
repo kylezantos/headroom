@@ -261,6 +261,185 @@ import Testing
         #expect(coordinator.state(for: key) == .failed(.provider(.codexStorageMismatch)))
     }
 
+    @Test func confirmedAbsentDuringFinalRefreshFailsImmediately() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key, completion: .succeeded)
+
+        coordinator.receiveCapabilityFailure(.confirmedAbsent, for: .claude)
+
+        #expect(coordinator.state(for: account.key) == .failed(.providerCapability(.confirmedAbsent)))
+        #expect(harness.scheduler.pendingCount == 0)
+        coordinator.receive(.stale(for: .claude, reason: .transient("redacted")), for: account.key)
+        #expect(coordinator.state(for: account.key) == .failed(.providerCapability(.confirmedAbsent)))
+    }
+
+    @Test func inconclusiveCapabilityWaitsForLiveResultBeforeStopLoss() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator(verificationStopLoss: .seconds(100))
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key)
+        coordinator.receiveCapabilityFailure(.inconclusive(.shellTimeout), for: .claude)
+
+        #expect(coordinator.state(for: account.key) == .verifying)
+        #expect(harness.scheduler.pendingDelays == [.seconds(100)])
+
+        coordinator.receive(.live(.claude, windows: []), for: account.key)
+
+        #expect(coordinator.state(for: account.key) == .connected)
+        #expect(harness.scheduler.pendingCount == 0)
+    }
+
+    @Test func inconclusiveCapabilityBecomesTypedFailureAtStopLoss() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator(verificationStopLoss: .seconds(100))
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key)
+        coordinator.receiveCapabilityFailure(.inconclusive(.shellTimeout), for: .claude)
+
+        harness.scheduler.fireNext()
+
+        #expect(
+            coordinator.state(for: account.key)
+                == .failed(.providerCapability(.inconclusive(.shellTimeout)))
+        )
+    }
+
+    @Test func confirmedAbsentFansOutOnlyAcrossMatchingProviderSessions() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let first = ProviderAccount(id: AccountID("claude-one"), providerID: .claude, label: "One")
+        let second = ProviderAccount(id: AccountID("claude-two"), providerID: .claude, label: "Two")
+        let codex = ProviderAccount(id: AccountID("codex-one"), providerID: .codex, label: "Codex")
+
+        for account in [first, second, codex] {
+            coordinator.begin(for: account)
+        }
+        await settleTasks()
+        for account in [first, second, codex] {
+            coordinator.handoffDidEnd(account.key)
+        }
+
+        coordinator.receiveCapabilityFailure(.confirmedAbsent, for: .claude)
+
+        #expect(coordinator.state(for: first.key) == .failed(.providerCapability(.confirmedAbsent)))
+        #expect(coordinator.state(for: second.key) == .failed(.providerCapability(.confirmedAbsent)))
+        #expect(coordinator.state(for: codex.key) == .verifying)
+    }
+
+    @Test func silentFinalRefreshStopsAndCanRestartCleanly() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator(verificationStopLoss: .seconds(100))
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key)
+
+        harness.scheduler.fireNext()
+        #expect(coordinator.state(for: account.key) == .failed(.retryExhausted))
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        #expect(harness.prepareCalls.count == 2)
+        #expect(coordinator.state(for: account.key) == .waiting(attempt: 0))
+    }
+
+    @Test func finalVerificationUsesSerialLaneBoundNotRetryLadderScale() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator(
+            retryDelays: [.seconds(3), .seconds(7), .seconds(15), .seconds(30)]
+        )
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key)
+
+        #expect(harness.scheduler.pendingDelays == [.seconds(240)])
+        coordinator.receive(.live(.claude, windows: []), for: account.key)
+        #expect(coordinator.state(for: account.key) == .connected)
+        #expect(harness.scheduler.pendingCount == 0)
+    }
+
+    @Test func liveResultReconnectsAfterPriorCapabilityFailure() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key)
+        coordinator.receiveCapabilityFailure(.confirmedAbsent, for: .claude)
+        #expect(coordinator.state(for: account.key) == .failed(.providerCapability(.confirmedAbsent)))
+
+        coordinator.receive(.live(.claude, windows: []), for: account.key)
+
+        #expect(coordinator.state(for: account.key) == .connected)
+        #expect(harness.scheduler.pendingCount == 0)
+    }
+
+    @Test func cancelledStopLossCannotSettleRemovedSession() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key)
+        coordinator.receiveCapabilityFailure(.inconclusive(.shellTimeout), for: .claude)
+        coordinator.markRemoved(account.key)
+
+        harness.scheduler.fireLastIncludingCancelled()
+
+        #expect(coordinator.state(for: account.key) == .removed)
+    }
+
     @Test func removalCancelsRetryAndPreventsLateSettlement() async {
         let harness = SetupCoordinatorHarness()
         let coordinator = harness.makeCoordinator()
@@ -297,10 +476,14 @@ private final class SetupCoordinatorHarness {
     var openResult: SetupOpenResult = .success(())
     private var preparationContinuation: CheckedContinuation<SetupPreparationResult, Never>?
 
-    func makeCoordinator(retryDelays: [Duration] = [.seconds(1)]) -> SetupSessionCoordinator {
+    func makeCoordinator(
+        retryDelays: [Duration] = [.seconds(1)],
+        verificationStopLoss: Duration = .seconds(240)
+    ) -> SetupSessionCoordinator {
         SetupSessionCoordinator(
             scheduler: scheduler,
             retryDelays: retryDelays,
+            verificationStopLoss: verificationStopLoss,
             prepare: { [weak self] account, mode in
                 guard let self else { return .failure(.stagingFailed) }
                 self.prepareCalls.append(.init(key: account.key, mode: mode))
@@ -333,16 +516,21 @@ private final class SetupCoordinatorHarness {
 private final class ManualSetupScheduler: SetupRetryScheduling {
     private final class Entry: SetupRetryCancellation {
         var isCancelled = false
+        let delay: Duration
         let operation: @MainActor @Sendable () -> Void
-        init(operation: @escaping @MainActor @Sendable () -> Void) { self.operation = operation }
+        init(delay: Duration, operation: @escaping @MainActor @Sendable () -> Void) {
+            self.delay = delay
+            self.operation = operation
+        }
         func cancel() { isCancelled = true }
     }
 
     private var entries: [Entry] = []
     var pendingCount: Int { entries.filter { !$0.isCancelled }.count }
+    var pendingDelays: [Duration] { entries.filter { !$0.isCancelled }.map(\.delay) }
 
-    func schedule(after _: Duration, operation: @escaping @MainActor @Sendable () -> Void) -> any SetupRetryCancellation {
-        let entry = Entry(operation: operation)
+    func schedule(after delay: Duration, operation: @escaping @MainActor @Sendable () -> Void) -> any SetupRetryCancellation {
+        let entry = Entry(delay: delay, operation: operation)
         entries.append(entry)
         return entry
     }
@@ -351,5 +539,10 @@ private final class ManualSetupScheduler: SetupRetryScheduling {
         guard let index = entries.firstIndex(where: { !$0.isCancelled }) else { return }
         let entry = entries.remove(at: index)
         entry.operation()
+    }
+
+    func fireLastIncludingCancelled() {
+        guard !entries.isEmpty else { return }
+        entries.removeLast().operation()
     }
 }

@@ -791,6 +791,12 @@ public final class UsageStore {
     ) {
         guard let generation, capabilityGenerations[providerID] == generation else { return }
         providerCapabilities[providerID] = ProviderCapabilityStatus(state: state, observedAt: now())
+        switch state {
+        case .inconclusive, .confirmedAbsent:
+            setupCoordinator?.receiveCapabilityFailure(state, for: providerID)
+        case .unknown, .discovering, .available:
+            break
+        }
     }
 
     private func mergeSpend(id: ProviderID, fresh: APISpendSnapshot) {

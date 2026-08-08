@@ -9,22 +9,35 @@ private struct AccountStubProvider: UsageProvider {
     let displayName: String
     let snapshot: UsageSnapshot
     let accountCapacity: Int
+    let reportsProviderCapability: Bool
+    let capability: ProviderCapabilityState
 
     init(
         id: ProviderID,
         accountID: AccountID,
         displayName: String,
         snapshot: UsageSnapshot,
-        accountCapacity: Int = AccountRegistry.maxPerProvider
+        accountCapacity: Int = AccountRegistry.maxPerProvider,
+        reportsProviderCapability: Bool = false,
+        capability: ProviderCapabilityState = .available
     ) {
         self.id = id
         self.accountID = accountID
         self.displayName = displayName
         self.snapshot = snapshot
         self.accountCapacity = accountCapacity
+        self.reportsProviderCapability = reportsProviderCapability
+        self.capability = capability
     }
 
     func fetchSnapshot() async -> UsageSnapshot { snapshot }
+
+    func fetchResult() async -> UsageProviderFetchResult {
+        UsageProviderFetchResult(
+            snapshot: snapshot,
+            capability: reportsProviderCapability ? capability : nil
+        )
+    }
 }
 
 private func freshDefaults() -> UserDefaults {
@@ -169,6 +182,20 @@ private final class SuspendedAccountProvider: UsageProvider, @unchecked Sendable
     }
 }
 
+@MainActor
+private final class IgnoringSetupScheduler: SetupRetryScheduling {
+    private final class Cancellation: SetupRetryCancellation {
+        func cancel() {}
+    }
+
+    func schedule(
+        after _: Duration,
+        operation _: @escaping @MainActor @Sendable () -> Void
+    ) -> any SetupRetryCancellation {
+        Cancellation()
+    }
+}
+
 // MARK: - Registry
 
 @Suite struct AccountRegistryTests {
@@ -262,6 +289,72 @@ private final class SuspendedAccountProvider: UsageProvider, @unchecked Sendable
 
 @MainActor
 @Suite struct MultiAccountStoreTests {
+    @MainActor
+    @Test func storeForwardsConfirmedCapabilityFailureToVerifyingCoordinator() async {
+        let account = ProviderAccount.builtIn(for: .claude)
+        let store = UsageStore(
+            providers: [
+                AccountStubProvider(
+                    id: .claude,
+                    accountID: .primary,
+                    displayName: "Claude",
+                    snapshot: .stale(for: .claude, reason: .transient("capability unavailable")),
+                    reportsProviderCapability: true,
+                    capability: .confirmedAbsent
+                ),
+            ],
+            preferences: Preferences(defaults: freshDefaults())
+        )
+        let coordinator = SetupSessionCoordinator(
+            scheduler: IgnoringSetupScheduler(),
+            prepare: { account, mode in
+                .success(PreparedSetupHandoff(accountKey: account.key, mode: mode))
+            },
+            open: { _ in .success(()) },
+            accountExists: { _ in true },
+            requestRefresh: { _ in }
+        )
+        store.attachSetupCoordinator(coordinator)
+        coordinator.handoffDidEnd(account.key)
+
+        await store.refreshAll()
+
+        #expect(coordinator.state(for: account.key) == .failed(.providerCapability(.confirmedAbsent)))
+        #expect(store.snapshot(for: account.key).freshness == .pending)
+    }
+
+    @Test func accountRefreshForwardsInconclusiveCapabilityWithoutSettlingEarly() async {
+        let account = ProviderAccount.builtIn(for: .claude)
+        let store = UsageStore(
+            providers: [
+                AccountStubProvider(
+                    id: .claude,
+                    accountID: .primary,
+                    displayName: "Claude",
+                    snapshot: .stale(for: .claude, reason: .transient("capability unavailable")),
+                    reportsProviderCapability: true,
+                    capability: .inconclusive(.shellTimeout)
+                ),
+            ],
+            preferences: Preferences(defaults: freshDefaults())
+        )
+        let coordinator = SetupSessionCoordinator(
+            scheduler: IgnoringSetupScheduler(),
+            prepare: { account, mode in
+                .success(PreparedSetupHandoff(accountKey: account.key, mode: mode))
+            },
+            open: { _ in .success(()) },
+            accountExists: { _ in true },
+            requestRefresh: { _ in }
+        )
+        store.attachSetupCoordinator(coordinator)
+        coordinator.handoffDidEnd(account.key)
+
+        await store.refreshAccount(account.key)
+
+        #expect(coordinator.state(for: account.key) == .verifying)
+        #expect(store.providerCapabilities[.claude]?.state == .inconclusive(.shellTimeout))
+    }
     @Test func sharedClaudeCapabilityKeepsAccountRecoveryIndependent() async {
         let work = AccountID("work")
         let store = UsageStore(

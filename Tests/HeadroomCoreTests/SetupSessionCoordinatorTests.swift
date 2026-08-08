@@ -18,6 +18,63 @@ import Testing
         #expect(coordinator.state(for: account.key) == .waiting(attempt: 0))
     }
 
+    @Test func beginWhileWrapperIsOpenExposesRefusalThenRetriesAfterHandoffEnds() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount(
+            id: AccountID("codex-extra"),
+            providerID: .codex,
+            label: "Work",
+            isBuiltIn: false
+        )
+        coordinator.begin(for: account)
+        await settleTasks()
+
+        #expect(coordinator.hasActiveHandoff(for: account.key))
+        coordinator.begin(for: account, mode: .deviceCode)
+
+        #expect(coordinator.state(for: account.key) == .blockedByOpenHandoff)
+        #expect(coordinator.sessionMode(for: account.key) == .standard)
+        #expect(harness.prepareCalls == [.init(key: account.key, mode: .standard)])
+        #expect(harness.scheduler.pendingCount == 0)
+
+        coordinator.handoffDidEnd(account.key, completion: .failed)
+
+        #expect(!coordinator.hasActiveHandoff(for: account.key))
+        #expect(coordinator.state(for: account.key) == .verifying)
+        coordinator.receive(
+            .stale(for: .codex, reason: .providerSetup(.codexAuthAbsent)),
+            for: account.key
+        )
+        coordinator.begin(for: account)
+        await settleTasks()
+
+        #expect(harness.prepareCalls == [
+            .init(key: account.key, mode: .standard),
+            .init(key: account.key, mode: .standard),
+        ])
+    }
+
+    @Test func postWrapperVerificationDoesNotReportAnActiveHandoff() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount(
+            id: AccountID("claude-extra"),
+            providerID: .claude,
+            label: "Work",
+            isBuiltIn: false
+        )
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        #expect(coordinator.hasActiveHandoff(for: account.key))
+
+        coordinator.handoffDidEnd(account.key)
+
+        #expect(coordinator.state(for: account.key) == .verifying)
+        #expect(!coordinator.hasActiveHandoff(for: account.key))
+    }
+
     @Test func cancellationDuringSuspendedPreparationNeverOpensTerminal() async {
         let harness = SetupCoordinatorHarness()
         harness.suspendPreparation = true

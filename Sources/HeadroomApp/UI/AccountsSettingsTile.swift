@@ -91,7 +91,7 @@ struct AccountsSettingsTile: View {
         let capabilityState = store.providerCapabilities[providerID]?.state
         let capability = capabilityRecoveryPresentation(
             state: capabilityState,
-            hasActiveSetupSession: accounts.contains(where: { SetupSessions.isWaiting(for: $0) })
+            hasActiveSetupSession: accounts.contains(where: { SetupSessions.hasActiveHandoff(for: $0) })
         )
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
@@ -171,10 +171,10 @@ struct AccountsSettingsTile: View {
             snapshot: snapshot,
             capability: capability
         )
-        let recoveryPresentation: ProviderRecoveryPresentation? = {
-            guard case .stale(let reason) = snapshot.freshness else { return nil }
-            return reason.providerSetupOutcome?.recoveryPresentation
-        }()
+        let recoveryActions = AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: snapshot,
+            account: account
+        )
         let status = AccountStatus(
             snapshot: snapshot,
             waiting: isWaitingForSetup(account),
@@ -182,13 +182,80 @@ struct AccountsSettingsTile: View {
                 if case .blockedByProviderLogin = setupState { return true }
                 return false
             }(),
+            blockedByOpenHandoff: setupState == .blockedByOpenHandoff,
             setupFailed: setupFailure != nil,
             removalState: removalState
         )
         let isEditingLabel = focusedLabel == account.key || hoveredLabel == account.key
         let email = accountEmail(from: snapshot)
-        return HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 1) {
+        let usesSecondLine = capability == nil
+            && removalState == nil
+            && recoveryActions?.usesSecondLine == true
+        return VStack(alignment: .leading, spacing: usesSecondLine ? 5 : 1) {
+            HStack(spacing: 8) {
+                accountIdentity(account, email: email, isEditingLabel: isEditingLabel)
+                if account.isBuiltIn {
+                    Text("CLI login")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5).padding(.vertical, 1)
+                        .background(ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark), in: Capsule())
+                        .help("Uses the account your CLI is signed into")
+                }
+                Spacer(minLength: 8)
+                if !usesSecondLine {
+                    accountStatus(
+                        capabilityRow,
+                        snapshot: snapshot,
+                        status: status,
+                        setupFailure: setupFailure,
+                        account: account
+                    )
+                    if capability == nil, removalState == nil {
+                        recoveryButtons(
+                            for: account,
+                            status: status,
+                            recoveryActions: recoveryActions
+                        )
+                    }
+                }
+                removalActions(for: account, removalState: removalState)
+            }
+            if usesSecondLine {
+                HStack(spacing: 8) {
+                    accountStatus(
+                        capabilityRow,
+                        snapshot: snapshot,
+                        status: status,
+                        setupFailure: setupFailure,
+                        account: account
+                    )
+                    Spacer(minLength: 8)
+                    recoveryButtons(
+                        for: account,
+                        status: status,
+                        recoveryActions: recoveryActions
+                    )
+                }
+                .padding(.leading, 6)
+            }
+        }
+        // 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-
+        // name alignment axis.
+        .padding(.leading, 16)
+        .disabled(removalState == .removing)
+        .onAppear { SetupSessions.announceFailureIfNeeded(for: account) }
+        .onChange(of: setupState) {
+            SetupSessions.announceFailureIfNeeded(for: account)
+        }
+    }
+
+    @ViewBuilder private func accountIdentity(
+        _ account: ProviderAccount,
+        email: String?,
+        isEditingLabel: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
                 // Quiet at rest, but the affordance reveals on approach: a hover/focus fill
                 // marks the label as editable (impeccable audit P1 — a plain field that
                 // renders identically to static text hides the rename feature entirely).
@@ -224,49 +291,80 @@ struct AccountsSettingsTile: View {
                         .help(email)
                         .accessibilityLabel("Signed in as \(email)")
                 }
-            }
-            if account.isBuiltIn {
-                Text("CLI login")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark), in: Capsule())
-                    .help("Uses the account your CLI is signed into")
-            }
-            Spacer(minLength: 8)
-            capabilityStatusLabel(
-                capabilityRow,
-                snapshot: snapshot,
-                fallbackStatus: status,
-                setupFailure: setupFailure,
-                setupMode: SetupSessions.mode(for: account),
-                providerDisplayName: store.displayNames[account.providerID]
-                    ?? account.providerID.raw.capitalized
-            )
-            if capability == nil,
-               (status.needsRecovery || recoveryPresentation != nil),
-               removalState == nil {
-                Button(status == .blocked
-                       ? "Continue…"
-                       : (recoveryPresentation?.primaryLabel
-                          ?? (status == .setupFailed ? "Retry…" : "Sign In…"))) {
-                    if status == .blocked {
-                        SetupSessions.continueSetup(for: account)
-                    } else if let recoveryPresentation {
-                        SetupSessions.performRecovery(
-                            recoveryPresentation.primaryAction,
-                            for: account,
-                            onRetry: { store.refreshAccountNow(account.key) }
-                        )
-                    } else {
-                        openSetup(for: account)
-                    }
+        }
+    }
+
+    @ViewBuilder private func accountStatus(
+        _ capabilityRow: AccountsSettingsInteractions.CapabilityRowPresentation,
+        snapshot: UsageSnapshot,
+        status: AccountStatus,
+        setupFailure: String?,
+        account: ProviderAccount
+    ) -> some View {
+        capabilityStatusLabel(
+            capabilityRow,
+            snapshot: snapshot,
+            fallbackStatus: status,
+            setupFailure: setupFailure,
+            setupMode: SetupSessions.mode(for: account),
+            providerDisplayName: store.displayNames[account.providerID]
+                ?? account.providerID.raw.capitalized
+        )
+    }
+
+    @ViewBuilder private func recoveryButtons(
+        for account: ProviderAccount,
+        status: AccountStatus,
+        recoveryActions: AccountsSettingsInteractions.RecoveryRowActions?
+    ) -> some View {
+        if status.needsRecovery || recoveryActions != nil {
+            Button(status == .blocked
+                   ? "Continue…"
+                   : (recoveryActions?.primaryLabel
+                      ?? (status == .setupFailed ? "Retry…" : "Sign In…"))) {
+                if status == .blocked {
+                    SetupSessions.continueSetup(for: account)
+                } else if let recoveryActions {
+                    SetupSessions.performRecovery(
+                        recoveryActions.primaryAction,
+                        for: account,
+                        onRetry: { store.refreshAccountNow(account.key) }
+                    )
+                } else {
+                    openSetup(for: account)
                 }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
             }
-            // The trash slot is always laid out — hidden (not absent) on built-in rows —
-            // so status text shares one right anchor down the whole list (audit P2).
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityLabel(
+                recoveryActions?.primaryAccessibilityLabel
+                    ?? "\(status == .blocked ? "Continue setup" : "Sign in") for \(account.label)"
+            )
+            if let secondaryLabel = recoveryActions?.secondaryLabel,
+               let secondaryAction = recoveryActions?.secondaryAction {
+                Button(secondaryLabel) {
+                    SetupSessions.performRecovery(
+                        secondaryAction,
+                        for: account,
+                        onRetry: { store.refreshAccountNow(account.key) }
+                    )
+                }
+                .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
+                .controlSize(.small)
+                .accessibilityLabel(
+                    recoveryActions?.secondaryAccessibilityLabel
+                        ?? "\(secondaryLabel) for \(account.label)"
+                )
+            }
+        }
+    }
+
+    @ViewBuilder private func removalActions(
+        for account: ProviderAccount,
+        removalState: AccountRemovalState?
+    ) -> some View {
+        // The trash slot is always laid out — hidden (not absent) on built-in rows —
+        // so status text shares one right anchor down the whole list (audit P2).
             if removalState == .failed || removalState == .setupActive {
                 Button("Retry") {
                     Task { @MainActor in
@@ -303,15 +401,6 @@ struct AccountsSettingsTile: View {
                 .accessibilityHidden(account.isBuiltIn)
                 .focused($focusedRemovalAction, equals: account.key)
             }
-        }
-        // 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-
-        // name alignment axis.
-        .padding(.leading, 16)
-        .disabled(removalState == .removing)
-        .onAppear { SetupSessions.announceFailureIfNeeded(for: account) }
-        .onChange(of: setupState) {
-            SetupSessions.announceFailureIfNeeded(for: account)
-        }
     }
 
     /// Nil for an account with no known address yet — a row can render before its first
@@ -432,6 +521,7 @@ struct AccountsSettingsTile: View {
             snapshot: UsageSnapshot,
             waiting: Bool,
             blocked: Bool,
+            blockedByOpenHandoff: Bool,
             setupFailed: Bool,
             removalState: AccountRemovalState?
         ) {
@@ -441,6 +531,7 @@ struct AccountsSettingsTile: View {
             case .failed: self = .removalFailed; return
             case nil: break
             }
+            if blockedByOpenHandoff { self = .setupActive; return }
             if blocked { self = .blocked; return }
             if setupFailed { self = .setupFailed; return }
             switch snapshot.freshness {
@@ -458,7 +549,7 @@ struct AccountsSettingsTile: View {
         }
 
         var needsRecovery: Bool {
-            self == .needsSignIn || self == .blocked || self == .setupFailed
+            self == .needsSignIn || self == .blocked || self == .setupFailed || self == .setupActive
         }
     }
 

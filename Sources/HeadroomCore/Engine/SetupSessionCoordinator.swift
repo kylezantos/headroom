@@ -30,6 +30,7 @@ public enum SetupSessionState: Sendable, Equatable {
     case preparing
     case waiting(attempt: Int)
     case verifying
+    case blockedByOpenHandoff
     case blockedByProviderLogin(providerID: ProviderID, active: AccountKey)
     case connected
     case failed(SetupSessionFailure)
@@ -159,6 +160,10 @@ public final class SetupSessionCoordinator {
         sessionModes[key]
     }
 
+    public func hasActiveHandoff(for key: AccountKey) -> Bool {
+        activeHandoffs.contains(key)
+    }
+
     public func begin(for account: ProviderAccount, mode: SetupHandoffMode = .standard) {
         start(account, mode: mode, allowBlocked: false)
     }
@@ -171,6 +176,14 @@ public final class SetupSessionCoordinator {
 
     private func start(_ account: ProviderAccount, mode: SetupHandoffMode, allowBlocked: Bool) {
         let key = account.key
+        // The Terminal wrapper can outlive the retry ladder. Make a second start
+        // observable instead of silently ignoring it, while preserving the original
+        // handoff and completion marker until the wrapper exits.
+        if activeHandoffs.contains(key) {
+            retryTasks.removeValue(forKey: key)?.cancel()
+            states[key] = .blockedByOpenHandoff
+            return
+        }
         switch state(for: key) {
         case .preparing, .waiting, .verifying, .connected, .removing, .removed:
             return
@@ -179,11 +192,6 @@ public final class SetupSessionCoordinator {
         default:
             break
         }
-        // A wrapper can outlive the bounded verification window. Do not stage a
-        // second command over its completion marker or start a competing callback;
-        // the user can check again until the first handoff exits.
-        guard !activeHandoffs.contains(key) else { return }
-
         if Self.requiresExclusiveLoginSlot(account.providerID),
            let activeLogin = activeLogins[account.providerID],
            activeLogin != key {
@@ -280,7 +288,7 @@ public final class SetupSessionCoordinator {
         activeHandoffs.remove(key)
         if activeLogins[key.providerID] == key { activeLogins.removeValue(forKey: key.providerID) }
         switch state(for: key) {
-        case .idle, .waiting, .failed(.retryExhausted):
+        case .idle, .waiting, .blockedByOpenHandoff, .failed(.retryExhausted):
             invalidateWork(for: key, finalState: nil, releaseLoginSlot: false)
             handoffsAwaitingFinalRefresh[key] = completion
             states[key] = .verifying

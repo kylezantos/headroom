@@ -176,6 +176,11 @@ enum SetupSessions {
         return SetupSessionActivity.shared.openedAt(for: account.key) != nil
     }
 
+    static func hasActiveHandoff(for account: ProviderAccount) -> Bool {
+        coordinator?.hasActiveHandoff(for: account.key)
+            ?? (SetupSessionActivity.shared.openedAt(for: account.key) != nil)
+    }
+
     static func state(for account: ProviderAccount) -> SetupSessionState {
         coordinator?.state(for: account.key)
             ?? (isWaiting(for: account) ? .waiting(attempt: 0) : .idle)

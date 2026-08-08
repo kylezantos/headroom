@@ -272,6 +272,49 @@ struct AccountsSettingsInteractionTests {
         #expect(extra?.key != primary)
     }
 
+    @Test func inconclusiveCapabilityOffersBothProviderScopedSettingsActions() {
+        let presentation = capabilityRecoveryPresentation(
+            state: .inconclusive(.shellTimeout),
+            hasActiveSetupSession: false
+        )
+
+        #expect(presentation?.recovery.primaryLabel == "Check Again")
+        #expect(presentation?.recovery.primaryAction == .checkNow)
+        #expect(presentation?.recovery.secondaryLabel == "Open Guided Setup")
+        #expect(presentation?.recovery.secondaryAction == .openClaudeSetup)
+    }
+
+    @Test func codexDeviceCodeIsAnAccountScopedSecondarySettingsAction() {
+        let account = ProviderAccount(
+            id: AccountID("codex-work"),
+            providerID: .codex,
+            label: "Work",
+            isBuiltIn: false
+        )
+        let actions = AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: .stale(for: .codex, reason: .providerSetup(.codexAuthAbsent)),
+            account: account
+        )
+
+        #expect(actions?.usesSecondLine == true)
+        #expect(actions?.secondaryLabel == "Use Device Code")
+        #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for Work")
+        #expect(actions?.secondaryAction == .connectCodexDeviceCode)
+        #expect(actions?.secondaryAction.map(SetupSessions.recoveryRoute(for:)) == .setup(.deviceCode))
+    }
+
+    @Test func oneActionRecoveryStaysSingleLine() {
+        let account = ProviderAccount.builtIn(for: .codex)
+        let actions = AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: .stale(for: .codex, reason: .providerSetup(.codexCredentialIO)),
+            account: account
+        )
+
+        #expect(actions?.usesSecondLine == false)
+        #expect(actions?.primaryLabel == "Check Again")
+        #expect(actions?.secondaryAction == nil)
+    }
+
     private func makeFixture(
         storage: InteractionStorage = InteractionStorage()
     ) -> InteractionFixture {

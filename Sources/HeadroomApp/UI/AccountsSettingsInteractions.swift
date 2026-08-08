@@ -53,6 +53,23 @@ struct CapabilityAnnouncementDedupe {
 /// official-CLI handoff, while persistence and cleanup stay owned by `UsageStore`.
 @MainActor
 enum AccountsSettingsInteractions {
+    struct RecoveryRowActions: Equatable {
+        let presentation: ProviderRecoveryPresentation
+        let accountLabel: String
+
+        var primaryLabel: String { presentation.primaryLabel }
+        var primaryAction: SetupRecoveryAction { presentation.primaryAction }
+        var primaryAccessibilityLabel: String { "\(primaryLabel) for \(accountLabel)" }
+        var secondaryLabel: String? { presentation.secondaryLabel }
+        var secondaryAction: SetupRecoveryAction? { presentation.secondaryAction }
+        var secondaryAccessibilityLabel: String? {
+            secondaryLabel.map { "\($0) for \(accountLabel)" }
+        }
+        var usesSecondLine: Bool {
+            secondaryLabel != nil && secondaryAction != nil
+        }
+    }
+
     enum CapabilityRowPresentation: Equatable {
         case standard
         case waitingForClaudeCode
@@ -65,6 +82,16 @@ enum AccountsSettingsInteractions {
     ) -> CapabilityRowPresentation {
         guard capability != nil else { return .standard }
         return snapshot.windows.isEmpty ? .waitingForClaudeCode : .retainedUsage
+    }
+
+    nonisolated static func recoveryRowActions(
+        snapshot: UsageSnapshot,
+        account: ProviderAccount
+    ) -> RecoveryRowActions? {
+        guard case .stale(let reason) = snapshot.freshness,
+              let presentation = reason.providerSetupOutcome?.recoveryPresentation
+        else { return nil }
+        return RecoveryRowActions(presentation: presentation, accountLabel: account.label)
     }
 
     @discardableResult

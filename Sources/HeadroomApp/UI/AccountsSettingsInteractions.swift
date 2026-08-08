@@ -137,8 +137,7 @@ enum AccountsSettingsInteractions {
         },
         refresh: ((AccountKey) -> Void)? = nil
     ) -> Bool {
-        let accounts = store.accounts(for: providerID)
-        guard let primary = accounts.first(where: \.isBuiltIn) ?? accounts.first else { return false }
+        guard let primary = store.primaryAccount(for: providerID) else { return false }
         perform(action, primary) {
             (refresh ?? store.refreshAccountNow)(primary.key)
         }

@@ -244,6 +244,28 @@ extension DemoFixture {
         return (account, DemoUsageProvider(id: providerID, displayName: providerID.displayName, snapshot: snapshot, accountID: .primary))
     }
 
+    private static func capabilityFailurePair(
+        id: String,
+        label: String,
+        builtIn: Bool
+    ) -> (account: ProviderAccount, provider: any UsageProvider) {
+        let accountID: AccountID = builtIn ? .primary : AccountID(id)
+        let account = ProviderAccount(
+            id: accountID,
+            providerID: .claude,
+            label: label,
+            isBuiltIn: builtIn
+        )
+        let provider = DemoUsageProvider(
+            id: .claude,
+            displayName: ProviderID.claude.displayName,
+            snapshot: .pending(for: .claude),
+            accountID: accountID,
+            capability: .confirmedAbsent
+        )
+        return (account, provider)
+    }
+
     public static func multiFixture(for scenario: MultiAccountScenario) -> MultiAccountFixture {
         var pairs: [(account: ProviderAccount, provider: any UsageProvider)] = []
         switch scenario {
@@ -283,29 +305,15 @@ extension DemoFixture {
             ]
         case .capabilityFailure:
             pairs = [
-                demoAccount(
-                    provider: .claude,
+                capabilityFailurePair(
                     id: "personal",
                     label: "Personal",
-                    plan: "Max",
-                    fiveHour: 28,
-                    weekly: 62,
-                    // The provider verdict drives the dimming on this deterministic pose;
-                    // a live-shaped fixture ensures the store has values to retain on its
-                    // first and only demo refresh (there is no continuity cache in demo mode).
-                    freshness: .live,
-                    builtIn: true,
-                    capability: .confirmedAbsent
+                    builtIn: true
                 ),
-                demoAccount(
-                    provider: .claude,
+                capabilityFailurePair(
                     id: "work",
                     label: "Work",
-                    plan: "Pro",
-                    fiveHour: 0,
-                    weekly: 0,
-                    freshness: .stale(.notLoggedIn(UsageStore.finishSignInMessage)),
-                    capability: .confirmedAbsent
+                    builtIn: false
                 ),
             ]
         case .multiProviders:

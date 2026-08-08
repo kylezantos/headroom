@@ -160,6 +160,9 @@ extension DemoFixture {
         case multiThree = "multi-3"
         case multiFive = "multi-5"
         case multiMixed = "multi-mixed"
+        /// Two Claude accounts under a provider-wide missing-CLI verdict: one retains
+        /// last-known meters and one has never produced usage. Exercises U3 recovery UI.
+        case capabilityFailure = "capability-failure"
         // All four providers, one built-in account each — the four-provider screenshot/QA
         // scenario (U12). Shows Claude/Codex's rolling windows beside Grok/Cursor's
         // billing-period meters, exercising every brand mark and window shape at once.
@@ -175,6 +178,9 @@ extension DemoFixture {
     public struct MultiAccountFixture: Sendable {
         public let accounts: [ProviderAccount]
         public let providers: [any UsageProvider]
+        /// Optional last-known values posed before the first demo refresh. Capability
+        /// failures intentionally withhold account snapshots, exactly like production.
+        public let continuitySnapshots: [AccountKey: UsageSnapshot]
     }
 
     /// One deterministic account fixture: label + plan + varied utilizations so the
@@ -187,7 +193,8 @@ extension DemoFixture {
         fiveHour: Double,
         weekly: Double,
         freshness: Freshness = .live,
-        builtIn: Bool = false
+        builtIn: Bool = false,
+        capability: ProviderCapabilityState? = nil
     ) -> (account: ProviderAccount, provider: any UsageProvider) {
         let accountID: AccountID = builtIn ? .primary : AccountID(id)
         let account = ProviderAccount(id: accountID, providerID: providerID, label: label, isBuiltIn: builtIn)
@@ -214,7 +221,16 @@ extension DemoFixture {
             capturedAt: Date().addingTimeInterval(-135),
             freshness: freshness
         )
-        return (account, DemoUsageProvider(id: providerID, displayName: providerID.displayName, snapshot: snapshot, accountID: accountID))
+        return (
+            account,
+            DemoUsageProvider(
+                id: providerID,
+                displayName: providerID.displayName,
+                snapshot: snapshot,
+                accountID: accountID,
+                capability: capability
+            )
+        )
     }
 
     /// A single built-in account posed from a ready-made snapshot — used for the
@@ -265,6 +281,33 @@ extension DemoFixture {
                 demoAccount(provider: .codex, id: "codex-work", label: "Work", plan: "Pro", fiveHour: 54, weekly: 79,
                             freshness: .stale(.transient("Couldn't reach Codex — will retry"))),
             ]
+        case .capabilityFailure:
+            pairs = [
+                demoAccount(
+                    provider: .claude,
+                    id: "personal",
+                    label: "Personal",
+                    plan: "Max",
+                    fiveHour: 28,
+                    weekly: 62,
+                    // The provider verdict drives the dimming on this deterministic pose;
+                    // a live-shaped fixture ensures the store has values to retain on its
+                    // first and only demo refresh (there is no continuity cache in demo mode).
+                    freshness: .live,
+                    builtIn: true,
+                    capability: .confirmedAbsent
+                ),
+                demoAccount(
+                    provider: .claude,
+                    id: "work",
+                    label: "Work",
+                    plan: "Pro",
+                    fiveHour: 0,
+                    weekly: 0,
+                    freshness: .stale(.notLoggedIn(UsageStore.finishSignInMessage)),
+                    capability: .confirmedAbsent
+                ),
+            ]
         case .multiProviders:
             pairs = [
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
@@ -273,7 +316,16 @@ extension DemoFixture {
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
             ]
         }
-        return MultiAccountFixture(accounts: pairs.map(\.account), providers: pairs.map(\.provider))
+        let continuitySnapshots: [AccountKey: UsageSnapshot] = if scenario == .capabilityFailure {
+            [AccountKey(providerID: .claude, accountID: .primary): claudeSnapshot]
+        } else {
+            [:]
+        }
+        return MultiAccountFixture(
+            accounts: pairs.map(\.account),
+            providers: pairs.map(\.provider),
+            continuitySnapshots: continuitySnapshots
+        )
     }
 
     /// What `--demo` asked for (demo mode, Jul 2026). A bare `--demo` keeps the existing
@@ -306,15 +358,27 @@ public struct DemoUsageProvider: UsageProvider {
     public let accountID: AccountID
     public let displayName: String
     private let snapshot: UsageSnapshot
+    private let capability: ProviderCapabilityState?
+    public var reportsProviderCapability: Bool { capability != nil }
 
-    public init(id: ProviderID, displayName: String, snapshot: UsageSnapshot, accountID: AccountID = .primary) {
+    public init(
+        id: ProviderID,
+        displayName: String,
+        snapshot: UsageSnapshot,
+        accountID: AccountID = .primary,
+        capability: ProviderCapabilityState? = nil
+    ) {
         self.id = id
         self.accountID = accountID
         self.displayName = displayName
         self.snapshot = snapshot
+        self.capability = capability
     }
 
     public func fetchSnapshot() async -> UsageSnapshot { snapshot }
+    public func fetchResult() async -> UsageProviderFetchResult {
+        UsageProviderFetchResult(snapshot: snapshot, capability: capability)
+    }
 }
 
 /// An `APISpendProvider` that returns a fixed spend snapshot — screenshot demo mode only.

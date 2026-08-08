@@ -88,6 +88,11 @@ struct AccountsSettingsTile: View {
     @ViewBuilder private func providerGroup(_ providerID: ProviderID) -> some View {
         let accounts = store.accounts(for: providerID)
         let capacity = store.accountCapacity(for: providerID)
+        let capabilityState = store.providerCapabilities[providerID]?.state
+        let capability = capabilityRecoveryPresentation(
+            state: capabilityState,
+            hasActiveSetupSession: accounts.contains(where: { SetupSessions.isWaiting(for: $0) })
+        )
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
@@ -110,8 +115,30 @@ struct AccountsSettingsTile: View {
                     Spacer(minLength: 12)
                 }
             }
+            if let capability, !accounts.isEmpty {
+                ProviderCapabilityRecoveryView(
+                    presentation: capability,
+                    onPrimaryAction: {
+                        AccountsSettingsInteractions.performCapabilityRecovery(
+                            capability.recovery.primaryAction,
+                            for: providerID,
+                            in: store
+                        )
+                    },
+                    onSecondaryAction: capability.recovery.secondaryAction.map { action in
+                        {
+                            AccountsSettingsInteractions.performCapabilityRecovery(
+                                action,
+                                for: providerID,
+                                in: store
+                            )
+                        }
+                    }
+                )
+                .padding(.leading, 16)
+            }
             ForEach(accounts) { account in
-                accountRow(account)
+                accountRow(account, capability: capability)
             }
             if let surface = UsageSurface.subscription(for: providerID),
                !store.isSurfaceEnabled(surface) {
@@ -122,15 +149,28 @@ struct AccountsSettingsTile: View {
             }
         }
         .animation(reduceMotion ? nil : HeadroomMotion.settle, value: accounts.map(\.id))
+        .onAppear {
+            SetupSessions.announceCapabilityIfNeeded(capabilityState, for: providerID)
+        }
+        .onChange(of: capabilityState) {
+            SetupSessions.announceCapabilityIfNeeded(capabilityState, for: providerID)
+        }
     }
 
     // MARK: - Account row
 
-    private func accountRow(_ account: ProviderAccount) -> some View {
+    private func accountRow(
+        _ account: ProviderAccount,
+        capability: CapabilityRecoveryPresentation?
+    ) -> some View {
         let snapshot = store.snapshot(for: account.key)
         let removalState = store.accountRemovalStates[account.key]
         let setupState = SetupSessions.state(for: account)
         let setupFailure = SetupSessions.failureMessage(for: account)
+        let capabilityRow = AccountsSettingsInteractions.capabilityRowPresentation(
+            snapshot: snapshot,
+            capability: capability
+        )
         let recoveryPresentation: ProviderRecoveryPresentation? = {
             guard case .stale(let reason) = snapshot.freshness else { return nil }
             return reason.providerSetupOutcome?.recoveryPresentation
@@ -194,14 +234,18 @@ struct AccountsSettingsTile: View {
                     .help("Uses the account your CLI is signed into")
             }
             Spacer(minLength: 8)
-            statusLabel(
-                status,
+            capabilityStatusLabel(
+                capabilityRow,
+                snapshot: snapshot,
+                fallbackStatus: status,
                 setupFailure: setupFailure,
                 setupMode: SetupSessions.mode(for: account),
                 providerDisplayName: store.displayNames[account.providerID]
                     ?? account.providerID.raw.capitalized
             )
-            if (status.needsRecovery || recoveryPresentation != nil), removalState == nil {
+            if capability == nil,
+               (status.needsRecovery || recoveryPresentation != nil),
+               removalState == nil {
                 Button(status == .blocked
                        ? "Continue…"
                        : (recoveryPresentation?.primaryLabel
@@ -277,6 +321,43 @@ struct AccountsSettingsTile: View {
     private func accountEmail(from snapshot: UsageSnapshot) -> String? {
         guard let email = snapshot.accountEmail, !email.isEmpty else { return nil }
         return email
+    }
+
+    @ViewBuilder private func capabilityStatusLabel(
+        _ presentation: AccountsSettingsInteractions.CapabilityRowPresentation,
+        snapshot: UsageSnapshot,
+        fallbackStatus: AccountStatus,
+        setupFailure: String?,
+        setupMode: SetupHandoffMode,
+        providerDisplayName: String
+    ) -> some View {
+        switch presentation {
+        case .standard:
+            statusLabel(
+                fallbackStatus,
+                setupFailure: setupFailure,
+                setupMode: setupMode,
+                providerDisplayName: providerDisplayName
+            )
+        case .waitingForClaudeCode:
+            Text("Waiting for Claude Code")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+        case .retainedUsage:
+            HStack(spacing: 7) {
+                ForEach(Array(snapshot.windows.prefix(2).enumerated()), id: \.offset) { _, window in
+                    Text("\(window.kind.shortLabel) \(store.usagePercentageMode.roundedPercentage(for: window))%")
+                }
+            }
+            .font(.system(size: 11).monospacedDigit())
+            .foregroundStyle(.secondary)
+            .opacity(0.68)
+            .accessibilityLabel(
+                "Last known usage. " + snapshot.windows.prefix(2).map {
+                    "\($0.kind.shortLabel) \(store.usagePercentageMode.roundedPercentage(for: $0)) percent \(store.usagePercentageMode.term)"
+                }.joined(separator: ", ")
+            )
+        }
     }
 
     @ViewBuilder private func statusLabel(

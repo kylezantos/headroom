@@ -44,6 +44,7 @@ enum SetupSessions {
     private static var preparedScripts: [AccountKey: PreparedScript] = [:]
     private static var completionTasks: [AccountKey: Task<Void, Never>] = [:]
     private static var announcedFailures: [AccountKey: SetupSessionFailure] = [:]
+    private static var capabilityAnnouncementDedupe = CapabilityAnnouncementDedupe()
     private static var claudeExecutableLocator: any CLIExecutableLocating = CLIExecutableLocator.claude()
 
     static func configure(
@@ -232,6 +233,24 @@ enum SetupSessions {
             notification: .announcementRequested,
             userInfo: [
                 .announcement: "Setup failed. \(message)",
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
+    }
+
+    static func announceCapabilityIfNeeded(
+        _ state: ProviderCapabilityState?,
+        for providerID: ProviderID
+    ) {
+        guard let message = capabilityAnnouncementDedupe.announcement(
+            for: providerID,
+            state: state
+        ) else { return }
+        NSAccessibility.post(
+            element: NSApplication.shared,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
                 .priority: NSAccessibilityPriorityLevel.high.rawValue,
             ]
         )

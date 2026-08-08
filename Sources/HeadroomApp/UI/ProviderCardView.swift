@@ -59,17 +59,9 @@ struct ProviderCardView: View {
         entries.contains { SetupSessions.isWaiting(for: $0.account) }
     }
 
-    static func capabilityRecoveryPresentation(
-        state: ProviderCapabilityState?,
-        hasActiveSetupSession: Bool
-    ) -> ProviderRecoveryPresentation? {
-        guard !hasActiveSetupSession else { return nil }
-        return state?.recoveryPresentation
-    }
-
     var body: some View {
         Group {
-            if let presentation = Self.capabilityRecoveryPresentation(
+            if let presentation = capabilityRecoveryPresentation(
                    state: capabilityStatus?.state,
                    hasActiveSetupSession: hasActiveSetupSession
                ) {
@@ -92,28 +84,38 @@ struct ProviderCardView: View {
         .onAppear {
             evaluateConnectedPayoff()
             SetupSessions.announceFailureIfNeeded(for: primaryAccount)
+            SetupSessions.announceCapabilityIfNeeded(
+                capabilityStatus?.state,
+                for: providerID
+            )
         }
         .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
         .onChange(of: SetupSessions.state(for: primaryAccount)) {
             SetupSessions.announceFailureIfNeeded(for: primaryAccount)
         }
+        .onChange(of: capabilityStatus?.state) {
+            SetupSessions.announceCapabilityIfNeeded(
+                capabilityStatus?.state,
+                for: providerID
+            )
+        }
     }
 
     // MARK: - Single account (unchanged pre-multi-account layout)
 
-    private func capabilityBody(_ presentation: ProviderRecoveryPresentation) -> some View {
+    private func capabilityBody(_ presentation: CapabilityRecoveryPresentation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             header
             ProviderCapabilityRecoveryView(
                 presentation: presentation,
                 onPrimaryAction: {
                     performRecovery(
-                        presentation.primaryAction,
+                        presentation.recovery.primaryAction,
                         for: primaryAccount,
                         onRetry: onRetrySetup
                     )
                 },
-                onSecondaryAction: presentation.secondaryAction.map { action in
+                onSecondaryAction: presentation.recovery.secondaryAction.map { action in
                     {
                         performRecovery(action, for: primaryAccount, onRetry: onRetrySetup)
                     }
@@ -493,28 +495,48 @@ private struct ProviderSetupRecoveryCard: View {
     }
 }
 
-private struct ProviderCapabilityRecoveryView: View {
-    let presentation: ProviderRecoveryPresentation
+struct ProviderCapabilityRecoveryView: View {
+    let presentation: CapabilityRecoveryPresentation
     let onPrimaryAction: () -> Void
     let onSecondaryAction: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(presentation.status, systemImage: "exclamationmark.triangle.fill")
+            Label(presentation.recovery.status, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Claude Code availability. \(presentation.status)")
+                .accessibilityLabel("Claude Code availability. \(presentation.recovery.status)")
             HStack(spacing: 10) {
-                Button(presentation.primaryLabel, action: onPrimaryAction)
-                    .buttonStyle(SetupChipButtonStyle())
-                if let secondaryLabel = presentation.secondaryLabel, let onSecondaryAction {
+                if presentation.state(for: presentation.recovery.primaryAction) == .enabled {
+                    Button(presentation.recovery.primaryLabel, action: onPrimaryAction)
+                        .buttonStyle(SetupChipButtonStyle())
+                }
+                if let secondaryLabel = presentation.recovery.secondaryLabel,
+                   let secondaryAction = presentation.recovery.secondaryAction,
+                   presentation.state(for: secondaryAction) == .enabled,
+                   let onSecondaryAction {
                     Button(secondaryLabel, action: onSecondaryAction)
                         .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
                 }
             }
+            if let refusalMessage {
+                Text(refusalMessage)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel(refusalMessage)
+            }
         }
+    }
+
+    private var refusalMessage: String? {
+        let actions = [presentation.recovery.primaryAction, presentation.recovery.secondaryAction]
+            .compactMap { $0 }
+        for action in actions {
+            if case .refused(let message) = presentation.state(for: action) { return message }
+        }
+        return nil
     }
 }
 

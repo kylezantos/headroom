@@ -695,6 +695,10 @@ enum AppComposition {
         // below) so the preview never publishes to the widget App Group or iCloud KVS.
 
         let fixture = DemoFixture.multiFixture(for: scenario)
+        let continuityCache = UsageContinuityCache(defaults: prefsDefaults)
+        for (key, snapshot) in fixture.continuitySnapshots {
+            continuityCache.save(snapshot, for: key)
+        }
         // Enable the subscription surface for every provider present in the scenario. Grok and
         // Cursor default OFF (upgrade-safety), so the four-provider scenario would otherwise
         // render only the Claude/Codex cards even though all four fixtures are wired.
@@ -731,7 +735,8 @@ enum AppComposition {
             preferences: prefs,
             accounts: fixture.accounts,
             accountRegistry: registry,
-            providerFactory: factory
+            providerFactory: factory,
+            continuityCache: continuityCache
         )
     }
 

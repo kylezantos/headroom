@@ -242,6 +242,36 @@ struct AccountsSettingsInteractionTests {
         #expect(await locator.forceRefreshes == [true])
     }
 
+    @Test func providerCapabilityRecoveryTargetsAndRefreshesPrimaryOnly() {
+        let fixture = makeFixture()
+        defer { fixture.cleanup() }
+        let extra = AccountsSettingsInteractions.addAccount(
+            for: .claude,
+            to: fixture.store,
+            openSetup: { _ in }
+        )
+        var performedFor: [AccountKey] = []
+        var refreshed: [AccountKey] = []
+
+        let routed = AccountsSettingsInteractions.performCapabilityRecovery(
+            .checkNow,
+            for: .claude,
+            in: fixture.store,
+            perform: { action, account, retry in
+                #expect(SetupSessions.recoveryRoute(for: action) == .checkNow)
+                performedFor.append(account.key)
+                retry()
+            },
+            refresh: { refreshed.append($0) }
+        )
+
+        let primary = AccountKey(providerID: .claude, accountID: .primary)
+        #expect(routed)
+        #expect(performedFor == [primary])
+        #expect(refreshed == [primary])
+        #expect(extra?.key != primary)
+    }
+
     private func makeFixture(
         storage: InteractionStorage = InteractionStorage()
     ) -> InteractionFixture {
@@ -400,18 +430,132 @@ private final class AppSetupHarness {
 }
 
 @Suite struct ProviderCardCapabilityTests {
-    @MainActor @Test func activeSetupSessionTakesPrecedenceOverCapabilityRecovery() {
-        #expect(ProviderCardView.capabilityRecoveryPresentation(
+    @MainActor @Test func activeSetupSessionKeepsCapabilityRecoveryVisibleWithRefusalState() {
+        #expect(capabilityRecoveryPresentation(
             state: .inconclusive(.shellTimeout),
             hasActiveSetupSession: false
         ) != nil)
-        #expect(ProviderCardView.capabilityRecoveryPresentation(
+        let active = capabilityRecoveryPresentation(
             state: .inconclusive(.shellTimeout),
             hasActiveSetupSession: true
-        ) == nil)
-        #expect(ProviderCardView.capabilityRecoveryPresentation(
+        )
+        #expect(active != nil)
+        #expect(active?.state(for: .checkNow) == .refused("Close setup, then retry"))
+        #expect(active?.state(for: .openClaudeSetup) == .refused("Close setup, then retry"))
+        #expect(capabilityRecoveryPresentation(
             state: .available,
             hasActiveSetupSession: false
         ) == nil)
+    }
+
+    @MainActor @Test func installActionsRemainAvailableWhileSetupIsOpen() {
+        let active = capabilityRecoveryPresentation(
+            state: .confirmedAbsent,
+            hasActiveSetupSession: true
+        )
+
+        #expect(active?.state(for: .installClaudeCLI) == .enabled)
+        #expect(active?.state(for: .copyManualCommand) == .enabled)
+    }
+}
+
+@Suite struct AccountsCapabilityPresentationTests {
+    @MainActor @Test func capabilityFailureDemoDrivesStoreNoticeWithRetainedAndBareRows() async {
+        let fixture = DemoFixture.multiFixture(for: .capabilityFailure)
+        let suiteName = "co.zantos.headroom.capability-demo.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let continuityCache = UsageContinuityCache(defaults: defaults)
+        for (key, snapshot) in fixture.continuitySnapshots {
+            continuityCache.save(snapshot, for: key)
+        }
+        let store = UsageStore(
+            providers: fixture.providers,
+            preferences: Preferences(defaults: defaults),
+            accounts: fixture.accounts,
+            continuityCache: continuityCache
+        )
+
+        await store.refreshAll()
+        let snapshots = fixture.accounts.map { store.snapshot(for: $0.key) }
+
+        #expect(fixture.accounts.count == 2)
+        #expect(store.providerCapabilities[.claude]?.state == .confirmedAbsent)
+        #expect(snapshots.contains { !$0.windows.isEmpty })
+        #expect(snapshots.contains { $0.windows.isEmpty })
+        let notice = capabilityRecoveryPresentation(
+            state: store.providerCapabilities[.claude]?.state,
+            hasActiveSetupSession: false
+        )
+        #expect(snapshots.map {
+            AccountsSettingsInteractions.capabilityRowPresentation(
+                snapshot: $0,
+                capability: notice
+            )
+        }.contains(.retainedUsage))
+        #expect(snapshots.map {
+            AccountsSettingsInteractions.capabilityRowPresentation(
+                snapshot: $0,
+                capability: notice
+            )
+        }.contains(.waitingForClaudeCode))
+    }
+
+    @Test func capabilityFailureDerivesBareAndRetainedRowsWithoutMutatingSnapshots() {
+        let pending = UsageSnapshot.pending(for: .claude)
+        let retained = UsageSnapshot(
+            providerID: .claude,
+            windows: [UsageWindow(kind: .weekly, utilization: 62, resetsAt: Date(timeIntervalSince1970: 20))],
+            planLabel: "Max",
+            capturedAt: Date(timeIntervalSince1970: 10),
+            freshness: .stale(.transient("will retry"))
+        )
+        let notice = capabilityRecoveryPresentation(
+            state: .confirmedAbsent,
+            hasActiveSetupSession: false
+        )
+
+        #expect(AccountsSettingsInteractions.capabilityRowPresentation(
+            snapshot: pending,
+            capability: notice
+        ) == .waitingForClaudeCode)
+        #expect(AccountsSettingsInteractions.capabilityRowPresentation(
+            snapshot: retained,
+            capability: notice
+        ) == .retainedUsage)
+        #expect(retained.windows.first?.utilization == 62)
+        #expect(retained.capturedAt == Date(timeIntervalSince1970: 10))
+    }
+
+    @Test func nonFailureCapabilityStatesLeaveRowsUnchanged() {
+        for state in [
+            ProviderCapabilityState.unknown,
+            .discovering,
+            .available,
+        ] {
+            #expect(AccountsSettingsInteractions.capabilityRowPresentation(
+                snapshot: .pending(for: .claude),
+                capability: capabilityRecoveryPresentation(
+                    state: state,
+                    hasActiveSetupSession: false
+                )
+            ) == .standard)
+        }
+    }
+
+    @Test func capabilityAnnouncementFiresOncePerFailureTransition() {
+        var dedupe = CapabilityAnnouncementDedupe()
+
+        #expect(dedupe.announcement(
+            for: .claude,
+            state: .confirmedAbsent
+        ) == "Claude Code availability. Install Claude Code to show usage")
+        #expect(dedupe.announcement(for: .claude, state: .confirmedAbsent) == nil)
+        #expect(dedupe.announcement(for: .claude, state: .available) == nil)
+        #expect(dedupe.announcement(
+            for: .claude,
+            state: .inconclusive(.shellTimeout)
+        ) == "Claude Code availability. Claude Code location couldn't be confirmed — usage will retry")
+        #expect(dedupe.announcement(for: .claude, state: .inconclusive(.shellTimeout)) == nil)
     }
 }

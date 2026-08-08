@@ -683,6 +683,27 @@ struct SettingsView: View {
         text: Binding<String>,
         replacing: Bool
     ) -> some View {
+        let guidance: (text: String, linkLabel: String, url: URL) = switch provider {
+        case .anthropic:
+            (
+                "A regular API key cannot read organization spend. Use a dedicated admin key so you can revoke it independently. Spend retrieval currently has a known request-format issue.",
+                "Open Anthropic Console",
+                URL(string: "https://platform.claude.com/settings/admin-keys")!
+            )
+        case .openAI:
+            (
+                "A regular API key cannot read organization spend. Use a dedicated admin key with the narrowest access available so you can revoke it independently. Spend retrieval has not been live-verified.",
+                "Open OpenAI Platform",
+                URL(string: "https://platform.openai.com/settings/organization/admin-keys")!
+            )
+        case .xAI:
+            (
+                "A regular API key cannot read team spend. Use a dedicated management key with only the required ACLs so you can revoke it independently.",
+                "Open xAI Console",
+                URL(string: "https://console.x.ai/team/default/settings/management-keys")!
+            )
+        }
+
         return VStack(alignment: .leading, spacing: 6) {
             Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
@@ -695,6 +716,11 @@ struct SettingsView: View {
                     apiKeyField(provider: provider, placeholder: placeholder, text: text)
                     apiKeyEditorButtons(provider: provider, replacing: replacing, text: text)
                 }
+            }
+            VStack(alignment: .leading, spacing: 3) {
+                SettingsHelpText(text: guidance.text)
+                Link(guidance.linkLabel, destination: guidance.url)
+                    .font(.system(size: 11))
             }
         }
     }

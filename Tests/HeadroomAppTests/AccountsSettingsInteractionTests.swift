@@ -62,6 +62,27 @@ struct AccountsSettingsInteractionTests {
         #expect(result == .failure(.providerCapability(.inconclusive(.shellTimeout))))
     }
 
+    @Test func guidedSetupForcesFreshClaudeDiscoveryBeforePreparingScript() async {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-setup-forced-discovery-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: workspace) }
+        let locator = RecordingExecutableLocator(location: .available(path: "/usr/bin/true", source: .loginShell))
+
+        let result = await SetupSessions.prepareHandoff(
+            for: .builtIn(for: .claude),
+            mode: .standard,
+            builtInClaudeWorkspace: workspace,
+            claudeExecutableLocator: locator
+        )
+
+        guard case .success(let handoff) = result else {
+            Issue.record("Expected setup preparation to succeed")
+            return
+        }
+        await SetupSessions.discardPreparedHandoff(handoff)
+        #expect(await locator.forceRefreshes == [true])
+    }
+
     @Test func addFlowReachesPreparingWaitingAndLiveForEachProviderWithoutMountedViews() async {
         for providerID in [ProviderID.claude, .codex] {
             let fixture = makeFixture()
@@ -191,9 +212,11 @@ struct AccountsSettingsInteractionTests {
         }
     }
 
-    @Test func checkNowRefreshesOnlyTheSelectedAccount() {
+    @Test func checkNowForcesClaudeDiscoveryBeforeRefreshingOnlyTheSelectedAccount() async {
         let fixture = makeFixture()
         defer { fixture.cleanup() }
+        let locator = RecordingExecutableLocator(location: .confirmedAbsent)
+        SetupSessions.configure(store: fixture.store, claudeExecutableLocator: locator)
         let accounts = fixture.store.accounts(for: .claude)
         guard let selected = AccountsSettingsInteractions.addAccount(
             for: .claude,
@@ -204,6 +227,7 @@ struct AccountsSettingsInteractionTests {
             return
         }
         var refreshed: [AccountKey] = []
+        await locator.setLocation(.available(path: "/installed/claude", source: .loginShell))
 
         SetupSessions.performRecovery(
             .checkNow,
@@ -211,8 +235,11 @@ struct AccountsSettingsInteractionTests {
             onRetry: { refreshed.append(selected.key) }
         )
 
+        while refreshed.isEmpty { await Task.yield() }
+
         #expect(refreshed == [selected.key])
         #expect(!accounts.contains(where: { refreshed.contains($0.key) }))
+        #expect(await locator.forceRefreshes == [true])
     }
 
     private func makeFixture(
@@ -263,6 +290,24 @@ private struct FixedExecutableLocator: CLIExecutableLocating {
     }
 
     func invalidate(path: String, reason: CLIExecutableInvalidationReason) async {}
+}
+
+private actor RecordingExecutableLocator: CLIExecutableLocating {
+    private var location: CLIExecutableLocation
+    private(set) var forceRefreshes: [Bool] = []
+
+    init(location: CLIExecutableLocation) { self.location = location }
+
+    func locate(forceRefresh: Bool) async -> CLIExecutableLocation {
+        forceRefreshes.append(forceRefresh)
+        return location
+    }
+
+    func invalidate(path: String, reason: CLIExecutableInvalidationReason) async {}
+
+    func setLocation(_ location: CLIExecutableLocation) {
+        self.location = location
+    }
 }
 
 @MainActor

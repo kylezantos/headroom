@@ -46,7 +46,7 @@ struct CLIExecutableLocatorTests {
         ])
     }
 
-    @Test func invalidatedHintIsInconclusiveForOneCycleThenCanConfirmAbsence() async {
+    @Test func invalidatedHintIsInconclusiveForOneGenerationThenCanConfirmAbsence() async {
         let hints = TestExecutableHintStore(["claude": "/moved/claude"])
         let shell = ShellSearchRecorder(result: .completed(candidates: []))
         let locator = CLIExecutableLocator(
@@ -57,9 +57,143 @@ struct CLIExecutableLocatorTests {
             validate: { _ in .missing }
         )
 
-        #expect(await locator.locate() == .inconclusive(.invalidatedHint))
+        let firstGeneration = UUID()
+        let secondGeneration = UUID()
+        #expect(await CLIExecutableRefreshContext.$generation.withValue(firstGeneration) {
+            await locator.locate()
+        } == .inconclusive(.invalidatedHint))
+        #expect(await CLIExecutableRefreshContext.$generation.withValue(firstGeneration) {
+            await locator.locate()
+        } == .inconclusive(.invalidatedHint))
+        #expect(await CLIExecutableRefreshContext.$generation.withValue(secondGeneration) {
+            await locator.locate()
+        } == .confirmedAbsent)
+        #expect(await shell.count == 2)
+    }
+
+    @Test func sequentialNegativeLookupsShareOneSearchWithinRefreshGenerationEvenAboveAccountCap() async {
+        let shell = ShellSearchRecorder(result: .completed(candidates: []))
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: TestExecutableHintStore(),
+            shellSearch: { await shell.search() },
+            validate: { _ in .missing }
+        )
+        let generation = UUID()
+
+        for _ in 0..<7 {
+            #expect(await CLIExecutableRefreshContext.$generation.withValue(generation) {
+                await locator.locate()
+            } == .confirmedAbsent)
+        }
+
+        #expect(await shell.count == 1)
+    }
+
+    @Test func adjacentRefreshGenerationsSearchAgainRegardlessOfElapsedTime() async {
+        let shell = ShellSearchRecorder(result: .completed(candidates: []))
+        let clock = MutableLocatorClock(Date(timeIntervalSince1970: 1_000))
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: TestExecutableHintStore(),
+            shellSearch: { await shell.search() },
+            validate: { _ in .missing },
+            now: { clock.now }
+        )
+
+        #expect(await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+            await locator.locate()
+        } == .confirmedAbsent)
+        clock.advance(by: 60 * 60)
+        #expect(await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+            await locator.locate()
+        } == .confirmedAbsent)
+
+        #expect(await shell.count == 2)
+    }
+
+    @Test func unscopedNegativeLookupsDoNotPersistWithoutARefreshGeneration() async {
+        let shell = ShellSearchRecorder(result: .completed(candidates: []))
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: TestExecutableHintStore(),
+            shellSearch: { await shell.search() },
+            validate: { _ in .missing }
+        )
+
+        #expect(await locator.locate() == .confirmedAbsent)
         #expect(await locator.locate() == .confirmedAbsent)
         #expect(await shell.count == 2)
+    }
+
+    @Test func forceRefreshFindsNewInstallAndRejectsOlderNegativePublish() async {
+        let shell = ForceRaceShellSearch()
+        let hints = TestExecutableHintStore()
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: hints,
+            shellSearch: { await shell.search() },
+            validate: { $0 == "/new/claude" ? .executable : .missing }
+        )
+        let generation = UUID()
+        let stale = Task {
+            await CLIExecutableRefreshContext.$generation.withValue(generation) {
+                await locator.locate()
+            }
+        }
+        while await shell.count == 0 { await Task.yield() }
+
+        let forced = await CLIExecutableRefreshContext.$generation.withValue(generation) {
+            await locator.locate(forceRefresh: true)
+        }
+        await shell.resumeStaleSearch()
+
+        #expect(forced == .available(path: "/new/claude", source: .loginShell))
+        #expect(await stale.value == .available(path: "/new/claude", source: .memoryHint))
+        #expect(hints.hint(for: "claude") == "/new/claude")
+        #expect(await CLIExecutableRefreshContext.$generation.withValue(generation) {
+            await locator.locate()
+        } == .available(path: "/new/claude", source: .memoryHint))
+        #expect(await shell.count == 2)
+    }
+
+    @Test func launchRaceAppliesToEverySearchStartedInInvalidationGeneration() async {
+        let shell = LaunchRaceStraddleShellSearch()
+        let locator = CLIExecutableLocator(
+            executableName: "claude",
+            fallbackPaths: [],
+            hintStore: TestExecutableHintStore(),
+            shellSearch: { await shell.search() },
+            validate: { $0 == "/old/claude" ? .executable : .missing }
+        )
+        let initialGeneration = UUID()
+        let started = await CLIExecutableRefreshContext.$generation.withValue(initialGeneration) {
+            let initial = await locator.locate()
+            await locator.invalidate(path: "/old/claude", reason: .launchNotFound)
+            let first = await locator.locate()
+            let straddling = Task {
+                await locator.locate()
+            }
+            while await shell.count < 3 { await Task.yield() }
+            return (initial, first, straddling)
+        }
+        let laterGeneration = Task {
+            await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+                await locator.locate()
+            }
+        }
+        for _ in 0..<20 { await Task.yield() }
+        await shell.resumeSearch(3)
+
+        #expect(started.0 == .available(path: "/old/claude", source: .loginShell))
+        #expect(started.1 == .inconclusive(.launchRace))
+        #expect(await started.2.value == .inconclusive(.launchRace))
+        #expect(await laterGeneration.value == .confirmedAbsent)
+        #expect(await shell.count == 4)
     }
 
     @Test func onlyCompletedSearchWithoutCandidatesConfirmsAbsence() async {
@@ -287,6 +421,60 @@ private actor InvalidationRaceShellSearch {
     func resumeStaleSearch() {
         staleContinuation?.resume(returning: .completed(candidates: ["/old/claude"]))
         staleContinuation = nil
+    }
+}
+
+private actor ForceRaceShellSearch {
+    private(set) var count = 0
+    private var staleContinuation: CheckedContinuation<CLIExecutableShellResult, Never>?
+
+    func search() async -> CLIExecutableShellResult {
+        count += 1
+        if count == 1 {
+            return await withCheckedContinuation { staleContinuation = $0 }
+        }
+        return .completed(candidates: ["/new/claude"])
+    }
+
+    func resumeStaleSearch() {
+        staleContinuation?.resume(returning: .completed(candidates: []))
+        staleContinuation = nil
+    }
+}
+
+private actor LaunchRaceStraddleShellSearch {
+    private(set) var count = 0
+    private var continuations: [Int: CheckedContinuation<CLIExecutableShellResult, Never>] = [:]
+
+    func search() async -> CLIExecutableShellResult {
+        count += 1
+        switch count {
+        case 1:
+            return .completed(candidates: ["/old/claude"])
+        case 2:
+            return .completed(candidates: [])
+        case 3:
+            return await withCheckedContinuation { continuations[3] = $0 }
+        default:
+            return .completed(candidates: [])
+        }
+    }
+
+    func resumeSearch(_ search: Int) {
+        continuations.removeValue(forKey: search)?.resume(returning: .completed(candidates: []))
+    }
+}
+
+private final class MutableLocatorClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+
+    init(_ value: Date) { self.value = value }
+
+    var now: Date { lock.withLock { value } }
+
+    func advance(by interval: TimeInterval) {
+        lock.withLock { value = value.addingTimeInterval(interval) }
     }
 }
 

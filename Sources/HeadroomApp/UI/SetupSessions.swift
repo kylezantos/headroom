@@ -126,7 +126,12 @@ enum SetupSessions {
         case .copyManualCommand(let mode):
             Task { _ = await copyManualCommand(for: account.key, mode: mode) }
         case .checkNow:
-            onRetry()
+            Task {
+                if account.providerID == .claude {
+                    _ = await claudeExecutableLocator.locate(forceRefresh: true)
+                }
+                onRetry()
+            }
         }
     }
 
@@ -292,7 +297,7 @@ enum SetupSessions {
                 let manualCommand: String
                 switch account.providerID {
                 case .claude:
-                    let location = await claudeExecutableLocator.locate()
+                    let location = await claudeExecutableLocator.locate(forceRefresh: true)
                     guard let executable = location.path else {
                         switch location {
                         case .confirmedAbsent:

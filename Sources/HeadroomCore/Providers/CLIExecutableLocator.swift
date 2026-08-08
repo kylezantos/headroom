@@ -112,6 +112,13 @@ public extension CLIExecutableLocating {
     func recentDiagnosticEvents() async -> [CLIExecutableDiagnosticEvent] { [] }
 }
 
+/// Identifies one store-owned polling cycle without adding refresh parameters to every
+/// provider. All Claude probes in the serial lane inherit the same value, so a negative
+/// discovery is reused exactly within that cycle and nowhere else.
+public enum CLIExecutableRefreshContext {
+    @TaskLocal public static var generation: UUID?
+}
+
 /// Provider-scoped executable discovery. Paths are hints, not identity: every cached
 /// value is revalidated, launch failures invalidate it, and later cycles can discover
 /// a replacement without relaunching Headroom.
@@ -122,8 +129,15 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
 
     private struct InFlight: Sendable {
         let id: UUID
-        let generation: UInt64
+        let epoch: UInt64
+        let refreshGeneration: UUID?
         let task: Task<CLIExecutableLocation, Never>
+    }
+
+    private struct NegativeMemo: Sendable {
+        let epoch: UInt64
+        let refreshGeneration: UUID?
+        let result: CLIExecutableLocation
     }
 
     private let executableName: String
@@ -134,8 +148,12 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
     private let now: Now
     private var cachedPath: String?
     private var inFlight: InFlight?
-    private var generation: UInt64 = 0
+    private var epoch: UInt64 = 0
+    private var observedRefreshGeneration: UUID?
+    private var hasObservedRefreshGeneration = false
+    private var negativeMemo: NegativeMemo?
     private var pendingInvalidation: CLIExecutableDiscoveryIssue?
+    private var invalidationRefreshGeneration: UUID?
     private var diagnosticEvents: [CLIExecutableDiagnosticEvent] = []
 
     public init(
@@ -158,6 +176,14 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
     }
 
     public func locate(forceRefresh: Bool = false) async -> CLIExecutableLocation {
+        let refreshGeneration = CLIExecutableRefreshContext.generation
+        observe(refreshGeneration: refreshGeneration)
+        if forceRefresh {
+            advanceEpoch()
+            pendingInvalidation = nil
+            invalidationRefreshGeneration = nil
+        }
+
         if !forceRefresh {
             if let cachedPath, validate(cachedPath) == .executable {
                 record(.memoryHintValidated)
@@ -173,16 +199,24 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
                 }
                 invalidateHintLocally(issue: .invalidatedHint)
             }
+
+            if let negativeMemo,
+               negativeMemo.epoch == epoch,
+               negativeMemo.refreshGeneration == refreshGeneration {
+                return negativeMemo.result
+            }
         }
 
         if let inFlight { return await finish(inFlight) }
 
         let id = UUID()
-        let discoveryGeneration = generation
+        let discoveryEpoch = epoch
         let shellSearch = self.shellSearch
         let fallbackPaths = self.fallbackPaths
         let validate = self.validate
-        let invalidation = pendingInvalidation
+        let invalidation = invalidationRefreshGeneration == refreshGeneration
+            ? pendingInvalidation
+            : nil
         let task = Task.detached(priority: .utility) {
             let shell = await shellSearch()
             return Self.discover(
@@ -192,7 +226,12 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
                 priorInvalidation: invalidation
             )
         }
-        let flight = InFlight(id: id, generation: discoveryGeneration, task: task)
+        let flight = InFlight(
+            id: id,
+            epoch: discoveryEpoch,
+            refreshGeneration: refreshGeneration,
+            task: task
+        )
         inFlight = flight
         return await finish(flight)
     }
@@ -200,12 +239,12 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
     public func invalidate(path: String, reason: CLIExecutableInvalidationReason) async {
         let persistedPath = hintStore.hint(for: executableName)
         guard cachedPath == path || persistedPath == path else { return }
-        generation &+= 1
+        advanceEpoch()
         cachedPath = nil
         hintStore.setHint(nil, for: executableName)
         pendingInvalidation = reason == .launchNotFound ? .launchRace : .invalidatedHint
+        invalidationRefreshGeneration = CLIExecutableRefreshContext.generation
         record(reason == .launchNotFound ? .launchRace : .hintInvalidated)
-        inFlight = nil
     }
 
     public func recentDiagnosticEvents() async -> [CLIExecutableDiagnosticEvent] {
@@ -214,8 +253,8 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
 
     private func finish(_ flight: InFlight) async -> CLIExecutableLocation {
         let result = await flight.task.value
-        guard generation == flight.generation else {
-            return await locate(forceRefresh: true)
+        guard epoch == flight.epoch else {
+            return await locate(forceRefresh: false)
         }
         let ownsCompletion = inFlight?.id == flight.id
         if ownsCompletion { inFlight = nil }
@@ -224,14 +263,21 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
             case .available(let path, _):
                 cachedPath = path
                 hintStore.setHint(path, for: executableName)
+                negativeMemo = nil
                 pendingInvalidation = nil
-            case .inconclusive(.invalidatedHint), .inconclusive(.launchRace):
-                // The invalidation is a one-cycle stop-loss: it prevents a transient
-                // path change from becoming a false install notice, but a later
-                // complete search is allowed to confirm that the CLI is absent.
-                pendingInvalidation = nil
-            default:
+                invalidationRefreshGeneration = nil
+            case .inconclusive(.launchRace):
+                // Every search started in this invalidation generation remains
+                // inconclusive, and launch-race verdicts are never memoized.
                 break
+            default:
+                if flight.refreshGeneration != nil {
+                    negativeMemo = NegativeMemo(
+                        epoch: flight.epoch,
+                        refreshGeneration: flight.refreshGeneration,
+                        result: result
+                    )
+                }
             }
         }
         if ownsCompletion { record(result.diagnosticCategory) }
@@ -239,10 +285,32 @@ public actor CLIExecutableLocator: CLIExecutableLocating {
     }
 
     private func invalidateHintLocally(issue: CLIExecutableDiscoveryIssue) {
+        advanceEpoch()
         cachedPath = nil
         hintStore.setHint(nil, for: executableName)
         pendingInvalidation = issue
+        invalidationRefreshGeneration = CLIExecutableRefreshContext.generation
         record(.hintInvalidated)
+    }
+
+    private func observe(refreshGeneration: UUID?) {
+        guard !hasObservedRefreshGeneration || observedRefreshGeneration != refreshGeneration else { return }
+        hasObservedRefreshGeneration = true
+        observedRefreshGeneration = refreshGeneration
+        negativeMemo = nil
+        // A search already in flight keeps its start-generation verdict for its
+        // original callers, while the newly started generation gets its own search.
+        inFlight = nil
+        if invalidationRefreshGeneration != refreshGeneration {
+            pendingInvalidation = nil
+            invalidationRefreshGeneration = nil
+        }
+    }
+
+    private func advanceEpoch() {
+        epoch &+= 1
+        negativeMemo = nil
+        inFlight = nil
     }
 
     private func record(_ category: CLIExecutableDiagnosticCategory) {

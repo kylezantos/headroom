@@ -80,7 +80,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
 
     public func capturePanel() async -> ClaudePanelResult {
         for attempt in 0...1 {
-            let location = await locator.locate(forceRefresh: attempt > 0)
+            let location = await locator.locate()
             switch location {
             case .confirmedAbsent:
                 return .cliNotFound

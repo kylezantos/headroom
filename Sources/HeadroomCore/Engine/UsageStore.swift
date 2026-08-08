@@ -585,6 +585,7 @@ public final class UsageStore {
             return enabledSurfaces.contains(surface) && !shouldSkipOnTimer(provider: provider, source: source)
         }
         let capabilityCycle = beginCapabilityRefresh(for: candidates)
+        let executableRefreshGeneration = UUID()
         let (stream, continuation) = AsyncStream.makeStream(
             of: (AccountKey, UsageProviderFetchResult).self,
             bufferingPolicy: .unbounded
@@ -606,8 +607,10 @@ public final class UsageStore {
             }
             for lane in serialLanes.values {
                 group.addTask {
-                    for provider in lane {
-                        continuation.yield((provider.accountKey, await provider.fetchResult()))
+                    await CLIExecutableRefreshContext.$generation.withValue(executableRefreshGeneration) {
+                        for provider in lane {
+                            continuation.yield((provider.accountKey, await provider.fetchResult()))
+                        }
                     }
                 }
             }
@@ -689,7 +692,9 @@ public final class UsageStore {
               enabledSurfaces.contains(surface)
         else { return }
         let capabilityCycle = beginCapabilityRefresh(for: [provider])
-        let result = await provider.fetchResult()
+        let result = await CLIExecutableRefreshContext.$generation.withValue(UUID()) {
+            await provider.fetchResult()
+        }
         let notifiesSetup = result.capability == nil || result.capability == .available
         if mergeResult(key: key, result: result, notifiesSetup: notifiesSetup),
            let capability = result.capability {

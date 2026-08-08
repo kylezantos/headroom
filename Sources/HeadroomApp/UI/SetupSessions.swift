@@ -149,7 +149,7 @@ enum SetupSessions {
             .setup(.standard)
         case .installCodexCLI:
             .documentation(URL(string: "https://developers.openai.com/codex/cli/")!)
-        case .connectCodexDeviceCode:
+        case .connectCodexDeviceCode, .connectGrokDeviceCode:
             .setup(.deviceCode)
         case .installGrokCLI:
             .documentation(URL(string: "https://x.ai/news/grok-build")!)

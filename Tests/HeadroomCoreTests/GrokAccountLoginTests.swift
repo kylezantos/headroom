@@ -30,6 +30,40 @@ import Testing
         #expect(script.contains("device-code instructions"))
     }
 
+    @Test func twoDeviceCodeScriptsRemainBoundToDistinctCredentialHomes() throws {
+        let accountsBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-grok-device-code-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: accountsBase) }
+        let accounts = [
+            ProviderAccount(id: AccountID("grok-personal"), providerID: .grok, label: "Personal", isBuiltIn: false),
+            ProviderAccount(id: AccountID("grok-work"), providerID: .grok, label: "Work", isBuiltIn: false),
+        ]
+
+        let bindings = try accounts.map { account in
+            let home = try AccountStorage.ensureDirectories(for: account, baseDirectoryURL: accountsBase)
+            let configuredHome = ProviderAccountConfiguration.make(
+                for: account,
+                accountsBase: accountsBase
+            ).grokHomeDirectory
+            let script = GrokCLI.loginScript(
+                executablePath: "/opt/homebrew/bin/grok",
+                grokHome: configuredHome?.path,
+                mode: .deviceCode
+            )
+            return (home, configuredHome, script)
+        }
+
+        #expect(bindings[0].0 != bindings[1].0)
+        for binding in bindings {
+            #expect(binding.0 == binding.1)
+            #expect(FileManager.default.fileExists(atPath: binding.0.path))
+            #expect(binding.2.contains("export GROK_HOME='\(binding.0.path)'"))
+            #expect(binding.2.contains("exec '/opt/homebrew/bin/grok' login --device-auth"))
+        }
+        #expect(!bindings[0].2.contains(bindings[1].0.path))
+        #expect(!bindings[1].2.contains(bindings[0].0.path))
+    }
+
     @Test func generatedScriptIsRedactedAndParsesAsZsh() throws {
         let sensitiveSentinel = "credential-material-must-never-appear"
         let script = GrokCLI.loginScript(

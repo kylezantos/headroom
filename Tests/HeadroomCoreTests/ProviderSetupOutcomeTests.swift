@@ -25,7 +25,7 @@ import Testing
             (.codexStorageMismatch, .resolveCodexStorage, .checkNow, .none),
             (.codexCallbackIncomplete, .reconnectCodex, .connectCodexDeviceCode, .none),
             (.grokCLIMissing, .installGrokCLI, nil, .none),
-            (.grokAuthAbsent, .connectGrok, .checkNow, .boundedChecksAfterHandoff),
+            (.grokAuthAbsent, .connectGrok, .connectGrokDeviceCode, .boundedChecksAfterHandoff),
             (.grokPermissionDenied, .showPrivacyGuidance, .checkNow, .none),
             (.grokUnsafePermissions, .reconnectGrok, .checkNow, .boundedChecksAfterHandoff),
             (.grokMalformedAuth, .reconnectGrok, .checkNow, .boundedChecksAfterHandoff),

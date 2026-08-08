@@ -202,6 +202,12 @@ struct AccountsSettingsInteractionTests {
             (.connectCodex, .setup(.standard)),
             (.connectCodexDeviceCode, .setup(.deviceCode)),
             (.reconnectCodex, .setup(.standard)),
+            (.installGrokCLI, .documentation(URL(string: "https://x.ai/news/grok-build")!)),
+            (.connectGrok, .setup(.standard)),
+            (.connectGrokDeviceCode, .setup(.deviceCode)),
+            (.reconnectGrok, .setup(.standard)),
+            (.installCursorAgent, .documentation(URL(string: "https://docs.cursor.com/en/cli/installation")!)),
+            (.connectCursor, .setup(.standard)),
             (.showPrivacyGuidance, .privacyGuidance(URL(string: "https://support.apple.com/guide/mac-help/control-access-to-files-and-folders-on-mac-mchld5a35146/mac")!)),
             (.resolveCodexStorage, .setup(.standard)),
             (.checkNow, .checkNow),
@@ -301,6 +307,49 @@ struct AccountsSettingsInteractionTests {
         #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for Work")
         #expect(actions?.secondaryAction == .connectCodexDeviceCode)
         #expect(actions?.secondaryAction.map(SetupSessions.recoveryRoute(for:)) == .setup(.deviceCode))
+    }
+
+    @Test func grokDeviceCodeSettingsActionsLaunchConcurrentAccountBoundSessions() async throws {
+        let accountsBase = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-grok-settings-device-code-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: accountsBase) }
+        let accounts = [
+            ProviderAccount(id: AccountID("grok-personal"), providerID: .grok, label: "Personal", isBuiltIn: false),
+            ProviderAccount(id: AccountID("grok-work"), providerID: .grok, label: "Work", isBuiltIn: false),
+        ]
+        let harness = GrokDeviceCodeSetupHarness(accounts: accounts, accountsBase: accountsBase)
+        let coordinator = harness.makeCoordinator()
+
+        for account in accounts {
+            let actions = AccountsSettingsInteractions.recoveryRowActions(
+                snapshot: .stale(for: .grok, reason: .providerSetup(.grokAuthAbsent)),
+                account: account
+            )
+            #expect(actions?.primaryLabel == "Connect Grok")
+            #expect(actions?.secondaryLabel == "Use Device Code")
+            #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for \(account.label)")
+            #expect(actions?.secondaryAction == .connectGrokDeviceCode)
+            guard let action = actions?.secondaryAction,
+                  case .setup(let mode) = SetupSessions.recoveryRoute(for: action)
+            else {
+                Issue.record("Expected the Grok settings secondary action to route to setup")
+                continue
+            }
+            coordinator.begin(for: account, mode: mode)
+        }
+
+        await settleTasks()
+
+        #expect(harness.bindings.count == 2)
+        #expect(accounts.allSatisfy { coordinator.state(for: $0.key) == .waiting(attempt: 0) })
+        #expect(accounts.allSatisfy { coordinator.sessionMode(for: $0.key) == .deviceCode })
+        let first = try #require(harness.bindings[accounts[0].key])
+        let second = try #require(harness.bindings[accounts[1].key])
+        #expect(first.home != second.home)
+        #expect(first.script.contains("export GROK_HOME='\(first.home.path)'"))
+        #expect(second.script.contains("export GROK_HOME='\(second.home.path)'"))
+        #expect(!first.script.contains(second.home.path))
+        #expect(!second.script.contains(first.home.path))
     }
 
     @Test func oneActionRecoveryStaysSingleLine() {
@@ -447,6 +496,56 @@ private final class AppSetupHarness {
             requestRefresh: { [weak self] key in
                 self?.refreshedKeys.append(key)
             }
+        )
+    }
+}
+
+@MainActor
+private final class GrokDeviceCodeSetupHarness {
+    struct Binding {
+        let home: URL
+        let script: String
+    }
+
+    let accounts: [ProviderAccount]
+    let accountsBase: URL
+    var bindings: [AccountKey: Binding] = [:]
+
+    init(accounts: [ProviderAccount], accountsBase: URL) {
+        self.accounts = accounts
+        self.accountsBase = accountsBase
+    }
+
+    func makeCoordinator() -> SetupSessionCoordinator {
+        SetupSessionCoordinator(
+            retryDelays: [.seconds(60)],
+            prepare: { [weak self] account, mode in
+                guard let self else { return .failure(.stagingFailed) }
+                do {
+                    guard let home = ProviderAccountConfiguration.make(
+                        for: account,
+                        accountsBase: self.accountsBase
+                    ).grokHomeDirectory else { return .failure(.stagingFailed) }
+                    try FileManager.default.createDirectory(
+                        at: home,
+                        withIntermediateDirectories: true,
+                        attributes: [.posixPermissions: 0o700]
+                    )
+                    let script = GrokCLI.loginScript(
+                        executablePath: "/opt/homebrew/bin/grok",
+                        grokHome: home.path,
+                        mode: mode
+                    )
+                    self.bindings[account.key] = Binding(home: home, script: script)
+                    await Task.yield()
+                    return .success(PreparedSetupHandoff(accountKey: account.key, mode: mode))
+                } catch {
+                    return .failure(.stagingFailed)
+                }
+            },
+            open: { _ in .success(()) },
+            accountExists: { [accounts] key in accounts.contains(where: { $0.key == key }) },
+            requestRefresh: { _ in }
         )
     }
 }

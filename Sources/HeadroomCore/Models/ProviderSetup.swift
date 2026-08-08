@@ -124,7 +124,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
             .init(status: message, primaryLabel: "Install Grok Build", primaryAction: .installGrokCLI)
         case .grokAuthAbsent:
             .init(status: message, primaryLabel: "Connect Grok", primaryAction: .connectGrok,
-                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  secondaryLabel: "Use Device Code", secondaryAction: .connectGrokDeviceCode,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .grokPermissionDenied:
             .init(status: message, primaryLabel: "Privacy & Security Help", primaryAction: .showPrivacyGuidance,
@@ -158,6 +158,7 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case reconnectCodex
     case installGrokCLI
     case connectGrok
+    case connectGrokDeviceCode
     case reconnectGrok
     case installCursorAgent
     case connectCursor

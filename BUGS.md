@@ -112,6 +112,13 @@ official `claude` CLI's `/usage` panel instead.
   called while a view was already being laid out. No failure or production symptom was observed;
   isolate the responsible test-host/view initialization before a future AppKit release turns the
   warning into an error.
+- **The offscreen popover render harness produces invalid appearance captures on Xcode 26.5.**
+  Reproduced 2026-08-08 with `swift run Headroom --render-popover <dir>`: the command exits 0 and
+  writes every expected PNG, but repeatedly logs `could not create image from window`; light-mode
+  captures are blank/transparent and dark-mode captures render light-mode semantic ink over the
+  dark surface. Runtime fixture tests still pass, so this blocks trustworthy visual evidence rather
+  than app behavior. Re-characterize `NSWindow` capture and effective `NSAppearance` propagation
+  on the current SDK before relying on these PNGs for design acceptance.
 
 ## iPhone sync — Mac needs the iCloud-KVS entitlement (provisioning-gated)
 

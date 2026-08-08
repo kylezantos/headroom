@@ -51,14 +51,17 @@ merges with continuity → menu bar label + popover bind to the `@Observable` st
 
 ### Multi-account (Jul 2026)
 
-One provider can carry up to 5 signed-in accounts. Snapshots are keyed by `AccountKey`
-(provider + account); one `UsageProvider` instance exists per account. The **built-in**
-`.primary` account reads the CLI's default config (`~/.claude`, `~/.codex`) exactly as
-before — zero migration for existing installs. **Extra** accounts get Headroom-owned
-config homes under `~/Library/Application Support/Headroom/Accounts/…` and route the
-same compliant paths there: the Claude probe runs with `CLAUDE_CONFIG_DIR` set, and
+Claude, Codex, and Grok can each carry up to 5 signed-in accounts; Cursor is deliberately
+single-account because its CLI exposes no isolated config-home mechanism. Snapshots are keyed
+by `AccountKey` (provider + account); one `UsageProvider` instance exists per account. The
+**built-in** `.primary` account reads the CLI's default config (`~/.claude`, `~/.codex`,
+`~/.grok`) exactly as before — zero migration for existing installs. **Extra** accounts get
+Headroom-owned config homes under `~/Library/Application Support/Headroom/Accounts/…` and
+route the same compliant paths there: the Claude probe runs with `CLAUDE_CONFIG_DIR` set,
 Codex reads the `auth.json` that official `codex login` wrote under that account's
-`CODEX_HOME`. Sign-in is always a Terminal handoff to the official CLI
+`CODEX_HOME`, and Grok reads the `auth.json` that `grok login` wrote under `GROK_HOME`.
+Codex and Grok offer account-scoped device-code handoffs as well as standard login. Sign-in
+is always a Terminal handoff to the official CLI
 through the account-scoped `SetupSessionCoordinator` — the OAuth
 constraint above applies to every account. The menu bar and widgets follow each
 provider's primary account; the popover shows all accounts at the regular meter scale and
@@ -164,8 +167,24 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   Codex/network work can overlap; the account cap and enforced 2-min interval floor bound cost.
 - **Per-account isolation is env-var based and verified**: a fresh `CLAUDE_CONFIG_DIR`
   reports "Not logged in · Please run /login" and a fresh `CODEX_HOME` reports "Not
-  logged in" — the CLIs never fall back to the default login. Don't "simplify" account
+  logged in"; a fresh `GROK_HOME` is isolated the same way. The CLIs never fall back to
+  the default login. Don't "simplify" account
   probes by dropping the env override; that would silently read the wrong account.
+- **Provider capability stays separate from account login state.** `UsageStore` withholds
+  capability-failure snapshots from the ordinary account-completion path and instead sends
+  `ProviderCapabilityState` through the typed `receiveCapabilityFailure(_:for:)` coordinator
+  channel. `confirmedAbsent` immediately fails only sessions awaiting final verification;
+  `inconclusive` remains verifying until a live result or the scheduler-driven stop-loss.
+  Don't re-enable snapshot notifications or translate capability failures into generic retry
+  exhaustion; that loses provider scope and Codex's typed completion outcomes.
+- **Claude executable discovery is refresh-generation/epoch scoped.** Timer probes in one
+  store refresh generation share one negative search. A user action (`Check Now`, provider
+  `Check Again`, opening setup, or adding an account) advances the locator epoch and forces a
+  fresh search at the app boundary. Results may publish hints, negative memo state, or
+  launch-race state only while their starting epoch is current, and every search started in
+  an invalidation generation stays inconclusive even if it completes after that generation.
+  Keep this in-memory and Claude-only; do not replace it with a wall-clock TTL or extend it
+  to Grok/Cursor without the characterization fixtures tracked in BUGS.md.
 - **Grok billing is ACP-first with an HTTP fallback (transport swap, not a parser fix).**
   `GrokFallbackUsageSource` tries the `grok agent stdio` ACP `x.ai/billing` method, then
   the CLI billing HTTP path (some CLI versions return JSON-RPC `-32601` for the method).

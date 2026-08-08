@@ -57,8 +57,10 @@ official `claude` CLI's `/usage` panel instead.
   easy to spot. Add a version check / update the fixture if the panel changes.
 - **Each poll spawns a full `claude` process (print path ~3–5s; PTY fallback ~20–30s).**
   Claude accounts still run in one serial lane and the interval has an enforced 2-minute
-  floor. Caching or adaptive cadence could still reduce cost for users who configure
-  several accounts.
+  floor. **Partially discharged 2026-08-08:** all accounts in one timer refresh generation
+  now share a negative executable-discovery verdict, so a missing CLI triggers at most one
+  full path search per cycle. Successful `/usage` probes still run once per configured
+  account; result caching or adaptive cadence could reduce that remaining cost.
 - **No live integration test for the PTY probe.** Provider tests use a fixture panel +
   mock source (fast, deterministic). The real `ClaudeUsageCLIProbe` is verified manually
   via `--probe-claude`; a machine-dependent integration test would need the CLI logged in.
@@ -79,6 +81,23 @@ official `claude` CLI's `/usage` panel instead.
 - **No backoff on repeated failures.** Both providers retry every cycle at the fixed
   interval. Exponential backoff on consecutive transient failures would be gentler on a
   down endpoint. Design choice — deferred.
+
+- **Menu bar stays silent when a CLI is dead.** Provider capability failures are transient
+  reasons, so `MenuBarLabel.needsAttention` does not light up for a missing or undiscoverable
+  CLI. This is an explicit current product decision: recovery remains in the popover and
+  Settings rather than adding persistent menu-bar attention. Revisit only with a deliberate
+  cross-surface attention design.
+
+- **Grok can report success before readable auth appears.** Codex maps this wrapper-success /
+  auth-absent case to the typed `codexStorageMismatch` recovery. Grok has no equivalent typed
+  storage-mismatch diagnosis yet, so the user can fall back to generic reconnect/check behavior.
+  Add the analog only after characterizing where supported Grok CLI versions store credentials
+  under both the built-in home and an isolated `GROK_HOME`.
+
+- **In-app troubleshooting sheet is deferred.** The README matrix is the shipping self-serve
+  path for the four providers. A discoverable interactive sheet spanning setup states, probes,
+  privacy guidance, and account isolation needs its own information-design and accessibility
+  pass rather than being folded into recovery-state hardening.
 
 ## Polish
 

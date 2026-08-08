@@ -2,11 +2,11 @@
 
 A macOS menu bar app that shows how much of your AI-subscription usage remains — the
 5-hour and weekly windows, when each resets, and a manually-entered monthly renewal
-date — for **Anthropic Claude** and **ChatGPT/Codex**, side by side. It can also show
-optional API dollar spend in a separate section for users who use metered OpenAI or
-Anthropic APIs, bundles macOS widgets for small, medium, and large glanceable desktop /
-Notification Center views, and includes an iPhone/iPad companion app + widgets that read a
-redaction-safe snapshot synced from the Mac through iCloud Key-Value Store.
+date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, and **Cursor**, side by side.
+It can also show optional API dollar spend in a separate section for users who use
+metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium, and large
+glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +
+widgets that read a redaction-safe snapshot synced from the Mac through iCloud Key-Value Store.
 
 ## How it gets the data (and why this way)
 
@@ -23,30 +23,81 @@ redaction-safe snapshot synced from the Mac through iCloud Key-Value Store.
   Headroom shows a guided **Connect/Reconnect Codex** action that opens Terminal and runs
   the official `codex login` flow. Sign-in stays in the Codex CLI and browser; Headroom
   never receives passwords, browser callbacks, or tokens from the flow.
+- **Grok** — asks the official `grok` CLI for billing-period usage, preferring its ACP
+  billing method and falling back to the CLI's billing HTTP transport. Sign-in remains in
+  `grok login`; Headroom only reads the CLI-owned auth and redacted usage result.
+- **Cursor** — drives the official `cursor-agent` `/usage` panel in a pseudo-terminal and
+  parses its included-usage period. Headroom does not read Cursor's app database or reuse
+  private dashboard sessions.
 
 > **First launch:** macOS asks "Headroom would like to access data from other apps" —
-> that's Headroom reading the Codex CLI's local `auth.json` (and driving the `claude`
-> CLI). Click **Allow**; if you click Don't Allow, Codex usage will never appear and the
-> app will sit idle. Re-grant later in System Settings → Privacy & Security if needed.
+> that's Headroom reading CLI-owned files and driving the official status surfaces. Click
+> **Allow**; if you click Don't Allow, affected usage will not appear. Re-grant later in
+> System Settings → Privacy & Security if needed.
+
 - **API spend** — optional and off by default. When enabled in Settings, Headroom stores
   provider admin/reporting keys in the macOS Keychain and reads official cost-report
-  endpoints for the selected period: OpenAI organization costs and Anthropic organization
-  cost reports. These keys are separate from CLI subscription login, and Headroom never
+  endpoints: OpenAI organization costs, Anthropic organization cost reports, and xAI team
+  billing/balance. These keys are separate from CLI subscription login, and Headroom never
   uses Claude subscription OAuth credentials for API spend.
 
 ## Multiple subscription accounts
 
-Headroom 1.1 can show up to five Claude and five Codex subscriptions side by side. The
-built-in account keeps using the CLI's normal `~/.claude` or `~/.codex` home, so existing
-installs need no migration. Additional accounts use Headroom-owned, owner-only config homes
+Headroom can show up to five Claude, five Codex, and five Grok subscriptions side by side.
+The built-in account keeps using the CLI's normal `~/.claude`, `~/.codex`, or `~/.grok`
+home, so existing installs need no migration. Additional accounts use Headroom-owned,
+owner-only config homes selected with `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or `GROK_HOME`
 and sign in through the same official CLIs in Terminal; Headroom never copies one account's
-credentials into another home.
+credentials into another home. Codex and Grok also offer device-code sign-in for each
+account. Cursor is deliberately single-account because Cursor Agent has no equivalent
+isolated config-home mechanism.
 
 Add, rename, or remove accounts in **Settings → Accounts**. Removing an additional account
 deletes only that Headroom-owned local CLI home; it does not touch the subscription, built-in
 CLI login, or sibling accounts. The popover shows every account and becomes scrollable at
 higher counts. The menu bar, macOS widgets, and iPhone/iPad snapshot intentionally continue
 to follow each provider's built-in account so compact surfaces keep one stable meaning.
+
+## Troubleshooting provider setup
+
+Headroom delegates subscription sign-in to each provider's official CLI. For extra
+accounts, start the flow from **Settings → Accounts** so Headroom supplies the correct
+isolated home; running a plain command yourself targets the built-in account.
+
+| Provider | Official CLI and login | Extra-account isolation | Diagnostic |
+|---|---|---|---|
+| Claude | [Install Claude Code](https://docs.anthropic.com/en/docs/claude-code/getting-started). Run `claude`, then `/login` when needed. There is no device-code flow. | `CLAUDE_CONFIG_DIR` | `swift run Headroom --probe-claude` |
+| Codex | [Install Codex CLI](https://developers.openai.com/codex/cli/). Standard: `codex login`. Device code: `codex -c cli_auth_credentials_store=file login --device-auth` (Headroom also uses file-backed CLI auth for standard sign-in). | `CODEX_HOME` | `swift run Headroom --probe-codex` |
+| Grok | [Install Grok Build](https://x.ai/news/grok-build). Standard: `grok login`. Device code: `grok login --device-auth`. | `GROK_HOME` | `swift run Headroom --probe-grok` |
+| Cursor | [Install Cursor Agent](https://docs.cursor.com/en/cli/installation). Run `cursor-agent login`. Device-code and additional-account flows are unavailable. | None; one account only | `swift run Headroom --probe-cursor` |
+
+The setup and recovery messages map to these actions:
+
+| What Headroom says | What to do |
+|---|---|
+| CLI not found, location unconfirmed, or waiting for the CLI | Use the provider's install action or link and finish installation. If Headroom shows **Check Again** or an account-level **Check Now**, use it afterward. For Claude, provider-level Check Again bypasses the held negative discovery result, searches again, and refreshes the built-in account without sweeping all five accounts. |
+| Not logged in, expired, malformed, or unsafe sign-in | Use **Connect**, **Reconnect**, or **Open Setup** for that account. Codex and Grok also offer **Use Device Code**. Claude may instead ask you to approve Headroom's CLI workspace. |
+| Couldn't prepare the handoff / Terminal didn't open | Try again. If Headroom copied the official CLI command, open Terminal and paste it; if copying also failed, retry from Headroom. |
+| Setup window still open | Close the Terminal/setup window, then retry. Headroom refuses the action with “Close setup, then retry” instead of silently opening a competing handoff. |
+| Privacy denial / sign-in file cannot be read | Choose **Privacy & Security Help**, allow Headroom access in macOS System Settings, then choose **Check Now**. Codex can also offer **Resolve Storage** when its CLI saved credentials somewhere Headroom cannot read. |
+| Couldn't read usage / unrecognized CLI screen | Choose **Check Again**. If it persists, run that provider's probe above; probes print redacted classifications and parsed usage, not credentials. |
+| Sign-in wasn't confirmed / verification timed out | Choose **Check Now** or reopen setup. Verification has a bounded stop-loss (about four minutes in the worst five-Claude-account serial lane), so it settles to a typed failure instead of spinning forever. |
+
+## Troubleshooting API spend
+
+Subscription login cannot authorize organization spend. Add a separate reporting key in
+Settings; use a dedicated key with the narrowest access the provider console offers so it
+can be revoked independently.
+
+| Spend provider | Required key and where to get it | Known limitation |
+|---|---|---|
+| Anthropic | [Anthropic admin key](https://platform.claude.com/settings/admin-keys) | The live request currently returns HTTP 400, likely because of the request date format. |
+| OpenAI | [OpenAI organization admin key](https://platform.openai.com/settings/organization/admin-keys) | The spend request has not yet been live-verified with a real admin key. |
+| xAI | [xAI management key](https://console.x.ai/team/default/settings/management-keys) with only the required ACLs | Validated for one team; multi-team/multi-organization reporting is not supported. |
+
+Headroom stores one key per provider in the macOS Keychain; multiple organizations or keys
+per provider are not supported. Diagnose a configured path with
+`swift run Headroom --probe-spend <openai|anthropic|xai> [--key-file <path>]`.
 
 ## Build & test
 
@@ -67,17 +118,14 @@ surface. A macOS 15 Apple-silicon runtime smoke remains the release gate before 
 advertised as supported. Intel slices may be present in generic Xcode artifacts, but Intel
 runtime support is not currently validated or advertised. The app bundle build also requires
 `xcodegen` because macOS widget discovery expects a real Xcode app-extension target:
-`brew install xcodegen`. Claude usage requires the `claude` CLI installed and logged in.
-Codex subscription usage requires the Codex CLI; Headroom can open `codex login` when its
-CLI-managed `~/.codex/auth.json` session is absent or rejected. API spend rows require the
-relevant OpenAI/Anthropic admin keys entered in Settings. Diagnostic:
-`swift run Headroom --probe-claude` prints only a redacted classification and parsed window
-summary so you can confirm the Claude path without exposing panel, account, or path contents.
+`brew install xcodegen`. Subscription usage requires the corresponding official CLI installed
+and logged in. API spend rows require the relevant admin or management key entered in Settings.
+See the troubleshooting tables above for commands, diagnostics, and current limitations.
 
 ## Structure
 
-- `Sources/HeadroomCore` — testable logic: domain model, the Claude `/usage` PTY probe
-  (`ClaudeUsageCLIProbe`) + parser (`ClaudeUsageParser`), the Codex provider, optional API
+- `Sources/HeadroomCore` — testable logic: domain model, subscription providers and their
+  CLI probes/parsers, optional API
   spend providers, the polling engine/`@Observable` store, widget cache/export models,
   credentials, and preferences.
 - `Sources/HeadroomApp` — the SwiftUI `MenuBarExtra` shell with Liquid Glass on Tahoe and
@@ -94,8 +142,8 @@ summary so you can confirm the Claude path without exposing panel, account, or p
 
 Headroom includes one WidgetKit extension with size-specific layouts:
 
-- **Small** — weekly percentage left for Claude and Codex, provider-by-provider.
-- **Medium** — weekly and 5-hour usage for both providers.
+- **Small** — the primary subscription meter for each enabled provider.
+- **Medium** — the available rolling or billing-period meters, provider-by-provider.
 - **Large** — adds reset, freshness, and renewal-date context.
 
 The widgets share the iPhone companion's card and background system (same tokens, same
@@ -123,7 +171,7 @@ being finished.
 Enable **Sync snapshot to iPhone** in Headroom Settings to publish the same widget-safe
 summary through iCloud Key-Value Store. The synced payload contains provider names,
 window labels, percentages, reset labels, freshness, and update time; it does not include
-Claude/Codex credentials, API keys, raw auth files, or provider endpoints. The iPhone/iPad
+CLI credentials, API keys, raw auth files, or provider endpoints. The iPhone/iPad
 app and widgets are read-only views over that snapshot. The companion app mirrors the
 Mac popover with provider tiles, session/weekly bars, stale/attention treatments, and a
 small Settings sheet for sync status and device-local appearance. A production **Explore
@@ -318,9 +366,9 @@ HEADROOM_IOS_UPLOAD=1 \
 
 ## Status
 
-Working end-to-end: live Claude 5h/weekly windows via the CLI probe (verified against a
-real account and from a bare launch environment), Codex via its endpoint, optional
-OpenAI/Anthropic API spend rows, manual renewal dates, launch-at-login, the adaptive macOS popover,
+Working end-to-end: live Claude, Codex, Grok, and Cursor subscription usage through their
+documented provider paths, optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
+launch-at-login, the adaptive macOS popover,
 widget cache export, app icon, the bundled macOS widget extension, and the iPhone
 companion/widget targets with live Mac → iPhone iCloud sync. Widget design parity with the
 companion is pixel-verified on device in both appearances, and text/bar colors pass a

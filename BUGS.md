@@ -4,18 +4,16 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
-## API-spend cost requests unverified against real keys (Anthropic 400, OpenAI untested)
+## OpenAI API-spend request remains unverified against a real key
 
-- **Found 2026-08-01 via `--probe-spend anthropic`.** With a real Anthropic admin key in the
-  Keychain, `AnthropicAPISpendProvider` hits `api.anthropic.com/v1/organizations/cost_report`
-  and gets **HTTP 400** (not 401/403 — the key is accepted; the request is malformed). Leading
-  hypothesis: it sends `starting_at`/`ending_at` as bare dates (`DateFormatting.apiDate` →
-  `yyyy-MM-dd`), but the endpoint expects RFC-3339 datetimes at a UTC-day boundary
-  (`2026-08-01T00:00:00Z`). The API-spend request shapes were coded from docs and never
-  verified against a live key. **Next step:** capture the raw 400 body (Anthropic names the
-  bad param) via `--probe-spend anthropic`, fix the request format, re-verify. `OpenAIAPISpendProvider`
-  (`/v1/organization/costs`, `start_time` epoch + `bucket_width=1d`) is **also unverified** —
-  no OpenAI admin key was available on 2026-08-01. xAI validated separately. Diagnostic:
+- **Anthropic resolved 2026-08-10.** The real-key `HTTP 400` was caused by sending bare dates
+  where the cost-report endpoint requires RFC 3339 timestamps. The provider now sends explicit
+  UTC timestamps, requests daily buckets, follows `has_more` / `next_page` pagination without
+  publishing partial totals, converts Anthropic's fractional cents to dollars, and returns a
+  live current-month total through
+  `--probe-spend anthropic`. `OpenAIAPISpendProvider` (`/v1/organization/costs`, `start_time`
+  epoch + `bucket_width=1d`) is still unverified because no OpenAI admin key was available.
+  xAI validated separately. Diagnostic:
   `swift run Headroom --probe-spend <openai|anthropic|xai> [--key-file <path>]`.
 
 ## Claude CLI probe

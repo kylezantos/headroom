@@ -35,24 +35,123 @@ struct APISpendProviderTests {
         #expect(fetcher.lastURL?.query?.contains("bucket_width=1d") == true)
     }
 
-    @Test func anthropicSumsCostReportRows() async {
+    @Test func anthropicConvertsFractionalCentsToDollars() async {
         let json = """
         { "data": [
           { "results": [
-            { "cost": { "amount": 2.5, "currency": "usd" } },
-            { "amount": { "value": "0.50", "currency": "usd" } }
+            { "amount": "123.45", "currency": "USD" }
           ]}
-        ] }
+        ], "has_more": false }
         """
         let fetcher = MockFetcher(status: 200, body: json)
         let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
         let snap = await provider.fetchSpend(period: .rolling30Days)
         #expect(snap.freshness == .live)
-        #expect(snap.amount == 3.0)
-        #expect(snap.currency == "usd")
+        #expect(snap.amount == 1.2345)
+        #expect(snap.currency == "USD")
         #expect(fetcher.lastHeaders["x-api-key"] == "key")
         #expect(fetcher.lastHeaders["anthropic-version"] == "2023-06-01")
         #expect(fetcher.lastURL?.query?.contains("starting_at=") == true)
+    }
+
+    @Test func anthropicSendsRFC3339CostReportBounds() async {
+        let fetcher = MockFetcher(status: 200, body: #"{"data":[],"has_more":false}"#)
+        let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
+
+        _ = await provider.fetchSpend(period: .rolling30Days)
+
+        let components = fetcher.lastURL.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }
+        let query = Dictionary(uniqueKeysWithValues: (components?.queryItems ?? []).compactMap { item in
+            item.value.map { (item.name, $0) }
+        })
+        #expect(query["starting_at"] == "2026-12-16T08:00:00Z")
+        #expect(query["ending_at"] == "2027-01-15T08:00:00Z")
+        #expect(query["bucket_width"] == "1d")
+        #expect(query["limit"] == "31")
+    }
+
+    @Test func anthropicSumsEveryCostReportPage() async {
+        let firstPage = #"{"data":[{"results":[{"amount":"100.00","currency":"USD"}]}],"has_more":true,"next_page":"page-2"}"#
+        let secondPage = #"{"data":[{"results":[{"amount":"200.00","currency":"USD"}]}],"has_more":false,"next_page":null}"#
+        let fetcher = MockFetcher([
+            .success(HTTPResult(status: 200, body: Data(firstPage.utf8))),
+            .success(HTTPResult(status: 200, body: Data(secondPage.utf8))),
+        ])
+        let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
+
+        let snapshot = await provider.fetchSpend(period: .currentMonth)
+
+        #expect(snapshot.freshness == .live)
+        #expect(snapshot.amount == 3)
+        #expect(fetcher.requestCount == 2)
+        let queries = fetcher.requestedURLs.map { url in
+            Dictionary(uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []).compactMap { item in
+                item.value.map { (item.name, $0) }
+            })
+        }
+        #expect(queries[1]["page"] == "page-2")
+        #expect(queries[1]["starting_at"] == queries[0]["starting_at"])
+        #expect(queries[1]["ending_at"] == queries[0]["ending_at"])
+        #expect(queries[1]["bucket_width"] == queries[0]["bucket_width"])
+        #expect(queries[1]["limit"] == queries[0]["limit"])
+    }
+
+    @Test func anthropicFailsClosedWhenPaginationTokenIsMissing() async {
+        let body = #"{"data":[{"results":[{"amount":"100.00","currency":"USD"}]}],"has_more":true}"#
+        let fetcher = MockFetcher(status: 200, body: body)
+        let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
+
+        let snapshot = await provider.fetchSpend(period: .currentMonth)
+
+        #expect(snapshot.freshness == .stale(.decode("Couldn't read Anthropic cost response")))
+        #expect(snapshot.amount == nil)
+        #expect(fetcher.requestCount == 1)
+    }
+
+    @Test func anthropicFailsClosedWhenHasMoreIsMissing() async {
+        let body = #"{"data":[{"results":[{"amount":"100.00","currency":"USD"}]}]}"#
+        let fetcher = MockFetcher(status: 200, body: body)
+        let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
+
+        let snapshot = await provider.fetchSpend(period: .currentMonth)
+
+        #expect(snapshot.freshness == .stale(.decode("Couldn't read Anthropic cost response")))
+        #expect(snapshot.amount == nil)
+        #expect(fetcher.requestCount == 1)
+    }
+
+    @Test(arguments: [
+        #"{"has_more":false}"#,
+        #"{"data":{},"has_more":false}"#,
+    ])
+    func anthropicDoesNotPublishPartialSpendWhenLaterPageDataIsMissingOrMalformed(secondPage: String) async {
+        let firstPage = #"{"data":[{"results":[{"amount":"100.00","currency":"USD"}]}],"has_more":true,"next_page":"page-2"}"#
+        let fetcher = MockFetcher([
+            .success(HTTPResult(status: 200, body: Data(firstPage.utf8))),
+            .success(HTTPResult(status: 200, body: Data(secondPage.utf8))),
+        ])
+        let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
+
+        let snapshot = await provider.fetchSpend(period: .currentMonth)
+
+        #expect(snapshot.freshness == .stale(.decode("Couldn't read Anthropic cost response")))
+        #expect(snapshot.amount == nil)
+        #expect(fetcher.requestCount == 2)
+    }
+
+    @Test func anthropicDoesNotPublishPartialSpendWhenLaterPageFails() async {
+        let firstPage = #"{"data":[{"results":[{"amount":"100.00","currency":"USD"}]}],"has_more":true,"next_page":"page-2"}"#
+        let fetcher = MockFetcher([
+            .success(HTTPResult(status: 200, body: Data(firstPage.utf8))),
+            .failure(.transient("Network unavailable")),
+        ])
+        let provider = AnthropicAPISpendProvider(credentials: store(.anthropic), http: fetcher, now: { now })
+
+        let snapshot = await provider.fetchSpend(period: .currentMonth)
+
+        #expect(snapshot.freshness == .stale(.transient("Network unavailable")))
+        #expect(snapshot.amount == nil)
+        #expect(fetcher.requestCount == 2)
     }
 
     @Test func missingAPIKeyIsPermanentStale() async {
@@ -73,7 +172,7 @@ struct APISpendProviderTests {
         )
         let anthropic = AnthropicAPISpendProvider(
             credentials: store(.anthropic),
-            http: MockFetcher(status: 200, body: #"{"data":[]}"#),
+            http: MockFetcher(status: 200, body: #"{"data":[],"has_more":false}"#),
             now: { now }
         )
 

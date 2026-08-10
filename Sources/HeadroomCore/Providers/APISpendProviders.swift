@@ -94,13 +94,36 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
                 "x-api-key": key,
                 "anthropic-version": "2023-06-01",
             ]
-            switch await http.get(url: Self.endpoint.withAnthropicCostQuery(range), headers: headers) {
+            return await fetchReport(range: range, headers: headers)
+        }
+    }
+
+    private func fetchReport(range: APISpendRange, headers: [String: String]) async -> APISpendSnapshot {
+        var url = Self.endpoint.withAnthropicCostQuery(range)
+        var results: [CostResultDTO] = []
+        var seenPageTokens: Set<String> = []
+
+        for _ in 0..<3 {
+            guard !Task.isCancelled else {
+                return stale(range, .transient("Anthropic cost report cancelled"))
+            }
+            switch await http.get(url: url, headers: headers) {
             case .failure(let reason):
                 return stale(range, reason)
             case .success(let result):
                 switch result.status {
                 case 200:
-                    return decode(result.body, range: range)
+                    guard let dto = try? JSONDecoder().decode(AnthropicCostReportDTO.self, from: result.body)
+                    else { return stale(range, .decode("Couldn't read Anthropic cost response")) }
+                    results.append(contentsOf: dto.data.flatMap(\.results))
+                    guard dto.hasMore else {
+                        return snapshot(from: results, range: range)
+                    }
+                    guard let nextPage = dto.nextPage?.trimmingCharacters(in: .whitespacesAndNewlines),
+                          !nextPage.isEmpty,
+                          seenPageTokens.insert(nextPage).inserted
+                    else { return stale(range, .decode("Couldn't read Anthropic cost response")) }
+                    url = url.withAnthropicPage(nextPage)
                 case 401:
                     return stale(range, .needsReauth("Anthropic admin key rejected"))
                 case 403:
@@ -110,16 +133,20 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
                 }
             }
         }
+
+        return stale(range, .decode("Couldn't read Anthropic cost response"))
     }
 
-    private func decode(_ body: Data, range: APISpendRange) -> APISpendSnapshot {
-        guard let dto = try? JSONDecoder().decode(AnthropicCostReportDTO.self, from: body),
-              let total = CostAccumulator.total(from: dto.costResults, emptyIsZero: dto.hasCostContainer)
+    private func snapshot(
+        from results: [CostResultDTO],
+        range: APISpendRange
+    ) -> APISpendSnapshot {
+        guard let total = CostAccumulator.total(from: results, emptyIsZero: true)
         else { return stale(range, .decode("Couldn't read Anthropic cost response")) }
         return APISpendSnapshot(
             providerID: id,
             displayName: displayName,
-            amount: total.amount,
+            amount: total.amount / 100,
             currency: total.currency,
             periodLabel: range.label,
             capturedAt: now(),
@@ -377,19 +404,27 @@ private extension URL {
     func withAnthropicCostQuery(_ range: APISpendRange) -> URL {
         var components = URLComponents(url: self, resolvingAgainstBaseURL: false)!
         components.queryItems = [
-            URLQueryItem(name: "starting_at", value: DateFormatting.apiDate(range.start)),
-            URLQueryItem(name: "ending_at", value: DateFormatting.apiDate(range.end)),
+            URLQueryItem(name: "starting_at", value: DateFormatting.apiTimestamp(range.start)),
+            URLQueryItem(name: "ending_at", value: DateFormatting.apiTimestamp(range.end)),
+            URLQueryItem(name: "bucket_width", value: "1d"),
+            URLQueryItem(name: "limit", value: "31"),
         ]
+        return components.url ?? self
+    }
+
+    func withAnthropicPage(_ page: String) -> URL {
+        var components = URLComponents(url: self, resolvingAgainstBaseURL: false)!
+        components.queryItems?.removeAll { $0.name == "page" }
+        components.queryItems?.append(URLQueryItem(name: "page", value: page))
         return components.url ?? self
     }
 }
 
 private enum DateFormatting {
-    static func apiDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
+    static func apiTimestamp(_ date: Date) -> String {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
         formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "yyyy-MM-dd"
         return formatter.string(from: date)
     }
 }

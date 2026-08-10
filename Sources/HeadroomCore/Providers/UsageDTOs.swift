@@ -115,23 +115,19 @@ struct OpenAICostsDTO: Decodable {
 }
 
 struct AnthropicCostReportDTO: Decodable {
-    let data: [CostBucketDTO]?
-    let results: [CostResultDTO]?
-    let buckets: [CostBucketDTO]?
-    let cost: FlexibleAmountDTO?
-    let amount: FlexibleAmountDTO?
-    let currency: String?
+    let data: [AnthropicCostBucketDTO]
+    let hasMore: Bool
+    let nextPage: String?
 
-    var costResults: [CostResultDTO] {
-        var all = (data ?? []).flatMap(\.results) + (buckets ?? []).flatMap(\.results) + (results ?? [])
-        if let cost { all.append(CostResultDTO(amount: cost, currency: currency)) }
-        if let amount { all.append(CostResultDTO(amount: amount, currency: currency)) }
-        return all
+    enum CodingKeys: String, CodingKey {
+        case data
+        case hasMore = "has_more"
+        case nextPage = "next_page"
     }
+}
 
-    var hasCostContainer: Bool {
-        data != nil || buckets != nil || results != nil || cost != nil || amount != nil
-    }
+struct AnthropicCostBucketDTO: Decodable {
+    let results: [CostResultDTO]
 }
 
 struct CostBucketDTO: Decodable {

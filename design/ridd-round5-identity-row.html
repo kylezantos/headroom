@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headroom · Identity row — round 5 (interactive)</title>
+<style>
+  :root {
+    /* Real tokens from BrandColorValues.swift (dark scheme) */
+    --page-bg: #0a0b0e;
+    --popover-bg: #1d1f23;
+    --tile-top: #25272d;
+    --tile-bottom: #191b21;
+    --ring: rgba(255,255,255,0.065);
+    --track: rgba(255,255,255,0.14);
+    --hairline: rgba(255,255,255,0.10);
+    --text-primary: #f2f2f7;
+    --text-secondary: rgba(235,235,245,0.66);
+    --text-tertiary: rgba(235,235,245,0.56);
+    --label-90: rgba(235,235,245,0.90);   /* round-4 landed: brighter window labels */
+    --reset-dim1: rgba(235,235,245,0.53); /* round-4 landed: bare countdown at D2 */
+    --sev-h: #33c759;
+    --sev-l: #ff9e0a;
+    --sev-c: #ff5749;
+    --critical-text: #ff6659;
+    --claude-accent: #e88f69;
+    --codex-accent: #96a1ff;
+    /* Grok/Cursor are monochrome brands — near-primary neutral accents from
+       HeadroomWidgetColorValues.textAccent (grok cooler, cursor pure) */
+    --grok-accent: #c7ccd6;
+    --cursor-accent: #cfcfd4;
+    --mono-mark: #f5f5f7;   /* fill of the shipping grok-dark/cursor-dark SVGs */
+    --pill-bg: rgba(255,255,255,0.09);
+    /* round-4 audited scheme-specific material tokens */
+    --glass-a: rgba(255,255,255,0.22);
+    --glass-b: rgba(255,255,255,0.11);
+    --glass-rim: rgba(255,255,255,0.25);
+    --ramp-neutral: rgba(235,235,245,0.18);
+    --tick-off: rgba(255,255,255,0.09);
+    --tick-glass: rgba(255,255,255,0.26);
+    --tick-glass-cap: rgba(255,255,255,0.52);
+    --well-bg: #0f1114;
+    --well-shadow: inset 0 1px 2.5px rgba(0,0,0,0.65), inset 0 -0.5px 0 rgba(255,255,255,0.05), 0 0.5px 0 rgba(255,255,255,0.045);
+    --tick: rgba(255,255,255,0.06);
+    --tick-mid: rgba(255,255,255,0.11);
+    --plate-bg: #101216;
+    --plate-shadow: inset 0 1px 1.5px rgba(0,0,0,0.5), 0 0.5px 0 rgba(255,255,255,0.05);
+  }
+  /* light scheme — round-4 audited tokens from BrandColorValues.swift + the rev-3 light fills */
+  .light {
+    --popover-bg: #f1f3f6;
+    --tile-top: #ffffff;
+    --tile-bottom: #fbfbfc;
+    --ring: rgba(0,0,0,0.05);
+    --track: rgba(0,0,0,0.12);
+    --hairline: rgba(0,0,0,0.09);
+    --text-primary: #1d1f24;
+    --text-secondary: rgba(61,61,66,0.84);
+    --text-tertiary: rgba(61,61,66,0.74);
+    --label-90: rgba(29,31,36,0.92);
+    --reset-dim1: rgba(61,61,66,0.72);
+    --sev-h: #20913e;
+    --sev-l: #bb6a1d;
+    --sev-c: #f42a24;
+    --critical-text: #d1241c;
+    --claude-accent: #b2541c;
+    --codex-accent: #3340d6;
+    --grok-accent: #333840;
+    --cursor-accent: #2b2b2e;
+    --mono-mark: #0d0d0f;   /* fill of the shipping grok-light/cursor-light SVGs */
+    --pill-bg: rgba(0,0,0,0.06);
+    --glass-a: #757c86;   /* light glass is cool steel, not black-alpha gray */
+    --glass-b: #666c75;
+    --glass-rim: rgba(255,255,255,0.30);
+    --ramp-neutral: #a6abb2;
+    --tick-off: rgba(0,0,0,0.08);
+    --tick-glass: #6b727b;
+    --tick-glass-cap: #474e57;
+    --well-bg: #dfe2e7;
+    --well-shadow: inset 0 1px 2px rgba(0,0,0,0.20), inset 0 -0.5px 0 rgba(255,255,255,0.72), 0 0.5px 0 rgba(255,255,255,0.62);
+    --tick: rgba(0,0,0,0.08);
+    --tick-mid: rgba(0,0,0,0.14);
+    --plate-bg: #e3e6eb;
+    --plate-shadow: inset 0 1px 1.5px rgba(0,0,0,0.16), 0 0.5px 0 rgba(255,255,255,0.6);
+    color: var(--text-primary);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    background: var(--page-bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  .page { max-width: 1120px; margin: 0 auto; padding: 64px 32px 120px; }
+
+  header.masthead { margin-bottom: 20px; }
+  .eyebrow {
+    font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase;
+    color: var(--text-tertiary); margin-bottom: 10px;
+  }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .lede { font-size: 15px; color: var(--text-secondary); max-width: 680px; margin-bottom: 8px; }
+  .lede strong { color: var(--text-primary); font-weight: 600; }
+  section { margin-bottom: 72px; }
+  h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 8px; }
+  .section-head { max-width: 720px; margin-bottom: 24px; }
+  .section-head p { font-size: 14px; color: var(--text-secondary); }
+  .section-head strong { color: var(--text-primary); font-weight: 600; }
+
+  /* inherited-decisions strip */
+  .decisions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; max-width: 900px; }
+  @media (max-width: 900px) { .decisions { grid-template-columns: 1fr; } }
+  .decision { display: flex; gap: 10px; align-items: flex-start; }
+  .decision p { font-size: 13px; color: var(--text-secondary); }
+  .decision strong { color: var(--text-primary); font-weight: 600; }
+  .d-mark {
+    font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px; border-radius: 5px;
+    padding: 2px 7px; flex-shrink: 0; transform: translateY(3px);
+  }
+  .d-lock { background: rgba(51,199,89,0.14); color: #7ee8a2; }
+
+  /* ---------- explorer layout ---------- */
+  .explorer { display: grid; grid-template-columns: 316px 1fr; gap: 28px; align-items: start; margin-top: 36px; }
+  @media (max-width: 940px) { .explorer { grid-template-columns: 1fr; } }
+
+  .rail {
+    position: sticky; top: 24px;
+    background: rgba(255,255,255,0.025);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    border-radius: 18px; padding: 20px;
+    display: flex; flex-direction: column; gap: 18px;
+    max-height: calc(100vh - 48px); overflow-y: auto;
+  }
+  .ctl { display: flex; flex-direction: column; gap: 7px; }
+  .ctl-label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-tertiary); }
+  .ctl-hint { font-size: 11px; color: var(--text-tertiary); line-height: 1.45; }
+  .seg-group { display: flex; flex-wrap: wrap; gap: 5px; }
+  .seg-btn {
+    font: inherit; font-size: 12px; font-weight: 500; color: var(--text-secondary);
+    background: rgba(255,255,255,0.05); border: none; border-radius: 8px;
+    padding: 4.5px 10px; cursor: pointer; transition: background .12s, color .12s;
+  }
+  .seg-btn:hover { background: rgba(255,255,255,0.09); }
+  .seg-btn.sel { background: rgba(255,255,255,0.14); color: var(--text-primary); font-weight: 600; }
+  .rail-rule { height: 1px; background: var(--hairline); }
+
+  .stagecol { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .presets .p-label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-tertiary); margin-right: 4px; }
+  .preset-btn {
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07);
+    border: none; border-radius: 99px; padding: 5px 13px; cursor: pointer; transition: background .12s;
+  }
+  .preset-btn:hover { background: rgba(255,255,255,0.10); color: var(--text-primary); }
+  .preset-note { font-size: 12.5px; color: var(--text-tertiary); min-height: 18px; }
+  .preset-note strong { color: var(--text-secondary); font-weight: 600; }
+
+  .stage {
+    background: var(--popover-bg);
+    border-radius: 16px;
+    padding: 30px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .stage-tools { display: flex; gap: 8px; justify-content: flex-end; }
+  .tool-btn {
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    background: rgba(255,255,255,0.06); border: none; border-radius: 8px;
+    padding: 6px 14px; cursor: pointer;
+  }
+  .tool-btn:hover { background: rgba(255,255,255,0.11); color: var(--text-primary); }
+
+  /* ---------- popover mock ---------- */
+  .popover-full {
+    width: 388px; max-width: 100%;
+    background: var(--popover-bg); border-radius: 18px; padding: 22px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 24px 60px rgba(0,0,0,0.5);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .pop-head { display: flex; align-items: center; padding: 2px 2px 4px; }
+  .pop-title { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; }
+  .pop-updated { margin-left: auto; font-size: 12px; color: var(--text-tertiary); }
+  .pop-gear { margin-left: 12px; color: var(--text-secondary); font-size: 15px; }
+  .pop-foot { display: flex; justify-content: space-between; padding: 4px 2px 0; }
+  .pop-foot span { font-size: 13px; font-weight: 600; color: var(--text-secondary); }
+
+  .card {
+    width: 100%;
+    background: linear-gradient(180deg, var(--tile-top), var(--tile-bottom));
+    box-shadow: inset 0 0 0 1px var(--ring), 0 6px 18px rgba(0,0,0,0.38);
+    border-radius: 10px; padding: 13px;
+  }
+  .light .card { box-shadow: inset 0 0 0 1px var(--ring), 0 4px 14px rgba(0,0,0,0.08); }
+  /* one card per provider; the card list inherits the popover's 14px gap */
+  .cards { display: flex; flex-direction: column; gap: 12px; }
+  /* settled frame: accounts inside a card chunk by gap, no hairline */
+  .acct-block + .acct-block { margin-top: 16px; }
+
+  /* light backdrop behind light previews so the surface reads */
+  .stage.stage-light, .shelf-stage.stage-light { background: #dee2e8; }
+
+  /* ---------- identity rows ---------- */
+  .acct-row { display: flex; align-items: center; gap: 6px; margin-bottom: 8px; min-width: 0; }
+  .acct-icon-slot { width: 14px; height: 14px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .acct-icon-slot svg { width: 12.5px; height: 12.5px; }
+  .acct-icon-slot.failed, .prov-icon-slot.failed { filter: grayscale(1); opacity: 0.45; }
+
+  /* classic provider header — single-account providers keep this treatment */
+  .prov-icon-slot { width: 21px; height: 21px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .prov-icon-slot svg { width: 18px; height: 18px; }
+  .prov-name { font-size: 16px; font-weight: 600; letter-spacing: -0.2px; }
+  .prov-name.p-claude { color: var(--claude-accent); }
+  .prov-name.p-codex { color: var(--codex-accent); }
+  .prov-name.p-grok { color: var(--grok-accent); }
+  .prov-name.p-cursor { color: var(--cursor-accent); }
+  /* monochrome marks ship as light/dark pairs → currentColor + per-scheme ink */
+  .p-mono { color: var(--mono-mark); }
+
+  /* account-name treatments (multi-account mode) — sentence case throughout,
+     sized a step above the 13px window labels so the hierarchy reads */
+  .acct-name { color: var(--text-primary); white-space: nowrap; }
+  .n-settled .acct-name { font-size: 14px; font-weight: 600; letter-spacing: -0.1px; }
+  .n-nativemed .acct-name { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
+  .n-plate .acct-name { font-size: 11.5px; font-weight: 600; letter-spacing: 0.3px; color: var(--text-secondary); }
+  .n-legacy .acct-name { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+  .nameplate {
+    display: inline-flex; align-items: center; padding: 2.5px 8px; border-radius: 5px;
+    background: var(--plate-bg);
+    box-shadow: var(--plate-shadow);
+  }
+  .nameplate .acct-name { font-size: 11.5px; font-weight: 600; letter-spacing: 0.3px; color: var(--text-secondary); }
+  /* brand ink */
+  .ink-brand .acct-name.p-claude { color: var(--claude-accent); }
+  .ink-brand .acct-name.p-codex { color: var(--codex-accent); }
+  .ink-brand .acct-name.p-grok { color: var(--grok-accent); }
+  .ink-brand .acct-name.p-cursor { color: var(--cursor-accent); }
+  /* monochrome-tint modes for the two neutral brands */
+  .mono-split { --grok-accent: #b7c4de; --cursor-accent: #d8d1c6; }        /* grok cool steel · cursor warm gray */
+  .light.mono-split { --grok-accent: #2e3a4f; --cursor-accent: #3f382e; }
+  .mono-plain .acct-name.p-grok, .mono-plain .acct-name.p-cursor,
+  .mono-plain .prov-name.p-grok, .mono-plain .prov-name.p-cursor { color: var(--text-primary); }
+
+  .plan-pill {
+    font-size: 9.5px; font-weight: 500; color: var(--text-tertiary);
+    background: var(--pill-bg); border-radius: 99px; padding: 1px 6px; flex-shrink: 0;
+  }
+  .plan-inline { font-size: 11px; font-weight: 400; color: var(--text-tertiary); flex-shrink: 0; }
+
+  .same-login {
+    font-size: 9.5px; font-weight: 500; color: var(--text-tertiary);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10);
+    border-radius: 99px; padding: 1px 7px; flex-shrink: 0; white-space: nowrap;
+  }
+
+  .main-dot { width: 4.5px; height: 4.5px; border-radius: 50%; background: var(--text-tertiary); flex-shrink: 0; }
+  .mb-mark { width: 12px; height: 10px; border: 1.2px solid var(--text-secondary); border-radius: 2.5px; position: relative; opacity: 0.85; flex-shrink: 0; }
+  .mb-mark::before { content:""; position:absolute; top:1px; left:1px; right:1px; height:2px; background: var(--text-secondary); border-radius:1px; }
+
+  .acct-email {
+    margin-left: auto; font-size: 10px; color: var(--text-tertiary);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; padding-left: 8px;
+  }
+  .acct-email.email-hover { opacity: 0; transition: opacity .18s ease; }
+  .acct-block:hover .acct-email.email-hover { opacity: 1; }
+
+  /* failure row */
+  .fail-copy { font-size: 12px; color: var(--text-tertiary); }
+  .fail-action { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+
+  /* ---------- meters: carved well + round-4 landed frame ---------- */
+  .meters { display: flex; flex-direction: column; gap: 9px; }
+  .meter { display: flex; flex-direction: column; gap: 5px; }
+  .meter-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .m-label { font-size: 13px; font-weight: 500; color: var(--label-90); white-space: nowrap; }
+  .m-reset { font-size: 11px; color: var(--reset-dim1); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .m-spacer { flex: 1; }
+  .m-pct { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .m-pct.crit { color: var(--critical-text); }
+  .m-term { font-size: 11px; color: var(--text-tertiary); }
+
+  .itrack {
+    height: 8px; border-radius: 4.5px; background: var(--well-bg); position: relative; overflow: visible;
+    box-shadow: var(--well-shadow);
+  }
+  .itrack .tick { position: absolute; top: 2px; bottom: 2px; width: 1px; background: var(--tick); }
+  .itrack .tick.mid { background: var(--tick-mid); }
+  .ifill {
+    position: absolute; top: 1.5px; bottom: 1.5px; left: 1.5px;
+    border-radius: 3px; min-width: 6px;
+    box-shadow: inset 0 0.5px 0 var(--glass-rim);
+  }
+  /* Solid — V's lit tube, full color (the loud end of the landed axis) */
+  .f-solid .ifill.sev-h { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-h) 82%, white), var(--sev-h)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 6px 0 14px -2px color-mix(in srgb, var(--sev-h) 50%, transparent); }
+  .f-solid .ifill.sev-l { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-l) 82%, white), var(--sev-l)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 6px 0 14px -2px color-mix(in srgb, var(--sev-l) 50%, transparent); }
+  .f-solid .ifill.sev-c { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-c) 82%, white), var(--sev-c)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 6px 0 14px -2px color-mix(in srgb, var(--sev-c) 55%, transparent); }
+  /* Glass + cap — S's glass fill (cool steel in light), severity compressed into the bright cap */
+  .f-glass .ifill { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); }
+  .f-glass .cap { position: absolute; right: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px; }
+  .f-glass .cap.sev-h { background: var(--sev-h); box-shadow: 0 0 7px color-mix(in srgb, var(--sev-h) 55%, transparent); }
+  .f-glass .cap.sev-l { background: var(--sev-l); box-shadow: 0 0 7px color-mix(in srgb, var(--sev-l) 55%, transparent); }
+  .f-glass .cap.sev-c { background: var(--sev-c); box-shadow: 0 0 7px color-mix(in srgb, var(--sev-c) 60%, transparent); }
+  /* Color as event — T: healthy is colorless machinery (landed default) */
+  .f-event .ifill.sev-h { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); }
+  .f-event .ifill.sev-l { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-l) 62%, transparent), color-mix(in srgb, var(--sev-l) 34%, transparent)); }
+  .f-event .ifill.sev-c { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-c) 88%, transparent), color-mix(in srgb, var(--sev-c) 54%, transparent)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 5px 0 12px -4px color-mix(in srgb, var(--sev-c) 48%, transparent); }
+  .light .f-event .ifill.sev-l { background: linear-gradient(180deg, var(--sev-l), color-mix(in srgb, var(--sev-l) 74%, white)); }
+  .light .f-event .ifill.sev-c { background: linear-gradient(180deg, var(--sev-c), color-mix(in srgb, var(--sev-c) 74%, white)); }
+  /* Hue travel — H/W: neutral resolving to color at the reading edge */
+  .f-hue .ifill.sev-h { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-h)); }
+  .f-hue .ifill.sev-l { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-l)); }
+  .f-hue .ifill.sev-c { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-c)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 5px 0 12px -3px color-mix(in srgb, var(--sev-c) 45%, transparent); }
+  /* Ghost + cap — I: the region whispers in severity tint, the edge speaks at full color */
+  .f-ghost .ifill { box-shadow: none; }
+  .f-ghost .ifill.sev-h { background: color-mix(in srgb, var(--sev-h) 18%, transparent); }
+  .f-ghost .ifill.sev-l { background: color-mix(in srgb, var(--sev-l) 18%, transparent); }
+  .f-ghost .ifill.sev-c { background: color-mix(in srgb, var(--sev-c) 22%, transparent); }
+  .light .f-ghost .ifill.sev-h { background: color-mix(in srgb, var(--sev-h) 30%, white); }
+  .light .f-ghost .ifill.sev-l { background: color-mix(in srgb, var(--sev-l) 30%, white); }
+  .light .f-ghost .ifill.sev-c { background: color-mix(in srgb, var(--sev-c) 34%, white); }
+  .f-ghost .cap { position: absolute; right: 0; top: 0; bottom: 0; width: 3.5px; border-radius: 99px; }
+  .f-ghost .cap.sev-h { background: var(--sev-h); }
+  .f-ghost .cap.sev-l { background: var(--sev-l); }
+  .f-ghost .cap.sev-c { background: var(--sev-c); }
+  /* Segmented — J: console ticks, fractional ink (replaces the well; 20 segments) */
+  .segs { display: flex; gap: 2.5px; height: 7px; }
+  .seg { flex: 1; border-radius: 2px; background: var(--tick-off); }
+  .seg.on-h { background: color-mix(in srgb, var(--sev-h) 38%, transparent); }
+  .seg.on-l { background: color-mix(in srgb, var(--sev-l) 38%, transparent); }
+  .seg.on-c { background: color-mix(in srgb, var(--sev-c) 45%, transparent); }
+  .light .seg.on-h { background: color-mix(in srgb, var(--sev-h) 45%, white); }
+  .light .seg.on-l { background: color-mix(in srgb, var(--sev-l) 45%, white); }
+  .light .seg.on-c { background: color-mix(in srgb, var(--sev-c) 55%, white); }
+  .seg.tip-h { background: var(--sev-h); }
+  .seg.tip-l { background: var(--sev-l); }
+  .seg.tip-c { background: var(--sev-c); }
+
+  /* ---------- micro-gauge mode: round-4 landed shapes, same fill axis ---------- */
+  .meters.micro-mode { gap: 12px; }
+  .mrow .meter-top { align-items: center; }
+  .m-lab { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .m-num { display: inline-flex; align-items: baseline; gap: 5px; }
+
+  /* chip — 32×5 capsule on the plain track */
+  .micro { width: 32px; height: 5px; border-radius: 99px; background: var(--track); position: relative; overflow: hidden; flex-shrink: 0; align-self: center; }
+  .micro .mfill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 99px; min-width: 3px; }
+  .mfill.sev-h { background: color-mix(in srgb, var(--sev-h) 85%, transparent); }
+  .mfill.sev-l { background: color-mix(in srgb, var(--sev-l) 85%, transparent); }
+  .mfill.sev-c { background: color-mix(in srgb, var(--sev-c) 95%, transparent); }
+  /* light fills are opaque — dark's 85% alpha over the light track drains chroma */
+  .light .mfill.sev-h { background: var(--sev-h); }
+  .light .mfill.sev-l { background: var(--sev-l); }
+  .light .mfill.sev-c { background: var(--sev-c); }
+  .mfill.glass { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .mfill.ramp-h { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-h)); }
+  .mfill.ramp-l { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-l)); }
+  .mfill.ramp-c { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-c)); }
+  .micro.capped, .micro.capped .mfill { overflow: visible; }
+  .mcap { position: absolute; right: -0.5px; top: -0.5px; bottom: -0.5px; width: 2.5px; border-radius: 2px; }
+  .mcap.sev-h { background: var(--sev-h); }
+  .mcap.sev-l { background: var(--sev-l); }
+  .mcap.sev-c { background: var(--sev-c); }
+
+  /* machined — the carved well at micro scale */
+  .micro.mwell { height: 6px; border-radius: 3.5px; background: var(--well-bg); overflow: visible; box-shadow: var(--well-shadow); }
+  .micro.mwell .mfill { top: 1px; bottom: 1px; left: 1px; border-radius: 2.5px; box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .mfill.wsev-h { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-h) 80%, transparent), color-mix(in srgb, var(--sev-h) 48%, transparent)); }
+  .mfill.wsev-l { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-l) 80%, transparent), color-mix(in srgb, var(--sev-l) 48%, transparent)); }
+  .mfill.wsev-c { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-c) 88%, transparent), color-mix(in srgb, var(--sev-c) 55%, transparent)); }
+  .light .mfill.wsev-h { background: linear-gradient(180deg, var(--sev-h), color-mix(in srgb, var(--sev-h) 74%, white)); }
+  .light .mfill.wsev-l { background: linear-gradient(180deg, var(--sev-l), color-mix(in srgb, var(--sev-l) 74%, white)); }
+  .light .mfill.wsev-c { background: linear-gradient(180deg, var(--sev-c), color-mix(in srgb, var(--sev-c) 74%, white)); }
+
+  /* ticks — five discrete segments */
+  .g-ticks { display: inline-flex; gap: 2px; align-self: center; flex-shrink: 0; }
+  .gt { width: 6px; height: 5px; border-radius: 1.5px; background: var(--tick-off); }
+  .gt.on.sev-h { background: color-mix(in srgb, var(--sev-h) 45%, transparent); }
+  .gt.on.sev-l { background: color-mix(in srgb, var(--sev-l) 45%, transparent); }
+  .gt.on.sev-c { background: color-mix(in srgb, var(--sev-c) 55%, transparent); }
+  .light .gt.on.sev-h { background: color-mix(in srgb, var(--sev-h) 45%, white); }
+  .light .gt.on.sev-l { background: color-mix(in srgb, var(--sev-l) 45%, white); }
+  .light .gt.on.sev-c { background: color-mix(in srgb, var(--sev-c) 55%, white); }
+  .gt.tcap.sev-h { background: var(--sev-h); }
+  .gt.tcap.sev-l { background: var(--sev-l); }
+  .gt.tcap.sev-c { background: var(--sev-c); }
+  .gt.on.tglass { background: var(--tick-glass); }
+  .gt.tcap.tglass { background: var(--tick-glass-cap); }
+
+  /* tube — vertical liquid level */
+  .g-vert { width: 5px; height: 16px; border-radius: 99px; background: var(--track); position: relative; overflow: hidden; flex-shrink: 0; align-self: center; }
+  .gv-fill { position: absolute; left: 0; right: 0; bottom: 0; min-height: 3px; }
+  .gv-fill.sev-h { background: color-mix(in srgb, var(--sev-h) 85%, transparent); }
+  .gv-fill.sev-l { background: color-mix(in srgb, var(--sev-l) 85%, transparent); }
+  .gv-fill.sev-c { background: color-mix(in srgb, var(--sev-c) 95%, transparent); }
+  .light .gv-fill.sev-h { background: var(--sev-h); }
+  .light .gv-fill.sev-l { background: var(--sev-l); }
+  .light .gv-fill.sev-c { background: var(--sev-c); }
+  .gv-fill.glass { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .gv-fill.ramp-h { background: linear-gradient(to top, var(--ramp-neutral), var(--sev-h)); }
+  .gv-fill.ramp-l { background: linear-gradient(to top, var(--ramp-neutral), var(--sev-l)); }
+  .gv-fill.ramp-c { background: linear-gradient(to top, var(--ramp-neutral), var(--sev-c)); }
+  .gv-cap { position: absolute; top: 0; left: 0; right: 0; height: 2.5px; border-radius: 1px; }
+  .gv-cap.sev-h { background: var(--sev-h); }
+  .gv-cap.sev-l { background: var(--sev-l); }
+  .gv-cap.sev-c { background: var(--sev-c); }
+
+  /* ---------- pin shelf ---------- */
+  .shelf { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 18px; }
+  @media (max-width: 940px) { .shelf { grid-template-columns: 1fr; } }
+  .shelf-item {
+    background: rgba(255,255,255,0.025);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    border-radius: 18px; padding: 20px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .shelf-cap { display: flex; align-items: flex-start; gap: 10px; }
+  .shelf-cap .cap-text { font-size: 12px; color: var(--text-tertiary); line-height: 1.5; }
+  .shelf-cap .cap-text strong { color: var(--text-secondary); font-weight: 600; }
+  .unpin {
+    margin-left: auto; font: inherit; font-size: 11px; font-weight: 600; color: var(--text-tertiary);
+    background: none; border: none; cursor: pointer; padding: 2px 6px; flex-shrink: 0;
+  }
+  .unpin:hover { color: var(--text-primary); }
+  .shelf-stage { background: var(--popover-bg); border-radius: 14px; padding: 18px; display: flex; justify-content: center; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
+  .shelf-stage .popover-full { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+  .shelf-empty { font-size: 13px; color: var(--text-tertiary); }
+
+  /* ---------- notes ---------- */
+  .notes { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .notes { grid-template-columns: 1fr; } }
+  .note-card {
+    background: rgba(255,255,255,0.025);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+    border-radius: 18px; padding: 24px;
+  }
+  .note-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .note-card p { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+  .note-card p:last-child { margin-bottom: 0; }
+  .note-card strong { color: var(--text-primary); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <div class="eyebrow">Headroom · design exploration · Aug 2026</div>
+  <h1>Identity row — round 5</h1>
+  <p class="lede">Multi-account identity, explored on top of everything already decided. Each service stays on <strong>its own card</strong>. When every provider is single-account, cards keep the classic header — full logo + brand-tinted provider name, Ridd's favorite frame. The moment <strong>any</strong> provider goes multi-account, <strong>every</strong> card adopts the icon + name row so the surface stays consistent (a lone Codex login just reads “Codex”). This round is <strong>interactive</strong>: every open question is a control, including dark/light. Hover an account row to see the email reveal.</p>
+</header>
+
+<section>
+  <div class="section-head">
+    <h2>Inherited, not up for debate</h2>
+    <p>Locked by the micro-gauge round and round 4. Every mockup below carries all of these.</p>
+  </div>
+  <div class="decisions">
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>Carved well + quarter ticks</strong> is the full-width track — the recessed instrument from the original exploration.</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>Window labels at 90% white.</strong> “This label text should be white… a little more color contrast.”</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>No “Resets” language.</strong> A bare, dimmed countdown (53% dark, D2) beside the label; the full sentence lives in the tooltip.</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>Sentence case everywhere.</strong> “You basically can't do caps case anymore — it just looks like AI.” The legacy eyebrow stays only as a reference option.</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>The plan chip stays.</strong> “I like the chip. I think this is well done.” It's the default here; inline/hidden remain for comparison.</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>Accounts chunk by gap, no hairlines.</strong> “You're basically getting that for free… just a little bit of an extra gap.”</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>No icon before the email.</strong> Killed in the micro-gauge round.</p></div>
+    <div class="decision"><span class="d-mark d-lock">LOCKED</span><p><strong>The landed color axis</strong> — solid · glass + cap · color-as-event · hue ramp — now applied at full width inside the well.</p></div>
+  </div>
+</section>
+
+<section>
+  <div class="explorer">
+    <div class="rail" id="rail">
+      <div class="ctl" data-key="scenario">
+        <div class="ctl-label">Scenario</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint" id="scenarioHint"></div>
+      </div>
+      <div class="ctl" data-key="scheme">
+        <div class="ctl-label">Scheme</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Round-4 audited light tokens: opaque light fills, cool-steel glass, scheme-specific severity colors.</div>
+      </div>
+      <div class="rail-rule"></div>
+      <div class="ctl" data-key="name">
+        <div class="ctl-label">Name style <span style="text-transform:none;letter-spacing:0">(multi-account mode)</span></div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Applies once any provider is multi-account (then all cards adopt it). An all-single surface keeps the classic 16px brand headers. Caps options are retired — sentence case landed.</div>
+      </div>
+      <div class="ctl" data-key="ink">
+        <div class="ctl-label">Name ink</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Brand tint = the L5 question. It spends color on identity in a system where color means severity — judge it against the color-as-event fill.</div>
+      </div>
+      <div class="ctl" data-key="mono" data-show-ink="brand">
+        <div class="ctl-label">Monochrome tint <span style="text-transform:none;letter-spacing:0">(Grok · Cursor)</span></div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Their brands have no ink. “Neutral” = the shipping widget accents (grok cooler, cursor pure). “Split” pushes them apart by temperature only. “Primary” tints only brands that have color.</div>
+      </div>
+      <div class="rail-rule"></div>
+      <div class="ctl" data-key="plan">
+        <div class="ctl-label">Plan</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">The chip is the landed choice; the alternatives stay for an honest comparison.</div>
+      </div>
+      <div class="ctl" data-key="email">
+        <div class="ctl-label">Email</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Its only job is disambiguation. On “Hover”, mouse over a row.</div>
+      </div>
+      <div class="ctl" data-key="mark">
+        <div class="ctl-label">Menu-bar / main mark</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">“Position” = the main account is simply the first row, no mark at all. “Plate on main” gives the nameplate a new job: marking the main account only.</div>
+      </div>
+      <div class="ctl" data-key="logo">
+        <div class="ctl-label">Provider logo</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">“Group lead” shows the small logo once per multi-account run — pairs with brand ink carrying identity on the other rows.</div>
+      </div>
+      <div class="rail-rule"></div>
+      <div class="ctl" data-key="gauge">
+        <div class="ctl-label">Gauge format</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Pick the format first — the options below change to match it. Micro docks the gauge before the numeral in the reading cluster (the round-4 frame).</div>
+      </div>
+      <div class="ctl" data-key="fillFull" data-show="full">
+        <div class="ctl-label">Full-width style</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">The landed color axis plus the H, I, J treatments from the original exploration. Segmented (J) replaces the carved well with console ticks.</div>
+      </div>
+      <div class="ctl" data-key="ticks" data-show="full">
+        <div class="ctl-label">Ticks</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">Carved-well styles only — Segmented (J) brings its own structure.</div>
+      </div>
+      <div class="ctl" data-key="microShape" data-show="micro">
+        <div class="ctl-label">Micro shape</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">The four landed shapes from the round-4 matrix.</div>
+      </div>
+      <div class="ctl" data-key="fillMicro" data-show="micro">
+        <div class="ctl-label">Micro fill</div>
+        <div class="seg-group"></div>
+        <div class="ctl-hint">The landed color axis; shape and color stay independent preferences. Chip + color-as-event is the landed default.</div>
+      </div>
+    </div>
+
+    <div class="stagecol">
+      <div class="presets" id="presets"><span class="p-label">Presets</span></div>
+      <div class="preset-note" id="presetNote"></div>
+      <div class="stage"><div id="previewMount"></div></div>
+      <div class="stage-tools">
+        <button class="tool-btn" id="pinBtn">Pin this combination ↓</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>Pinned comparisons</h2>
+    <p>Pin the combinations worth arguing about and read them side by side. Pins live only on this page (refresh clears them).</p>
+  </div>
+  <div class="shelf" id="shelf"><div class="shelf-empty" id="shelfEmpty">Nothing pinned yet — dial in a combination above and hit “Pin”.</div></div>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>The two questions from the screenshot</h2>
+  </div>
+  <div class="notes">
+    <div class="note-card">
+      <h3>Should the titles be brand-tinted (L5)?</h3>
+      <p>It's defensible only as a <strong>trade</strong>, not an addition: the tint replaces the repeated logos (set Provider logo → “Group lead”, ink → “Brand”). Then color is doing real work — identity — and the row gets quieter overall, not louder. Note the single-account header already spends this tint, so brand-inked multi rows also make the two cases rhyme.</p>
+      <p>The failure mode shows up in the five-account stress scenario: five tinted names plus severity fills reads as confetti. If the tint only survives with the color-as-event fill and the minimal row, that's a sign it's fighting the system. Judge it there before falling in love with it in the two-account case.</p>
+    </div>
+    <div class="note-card">
+      <h3>Does the nameplate (L3) have a right to return?</h3>
+      <p>It's the one “styled” treatment with a reason to exist — the same carved physics as the meter wells. It returns here in sentence case (the tracked-caps version died with the caps decision). But as the every-row treatment it spends chrome five times over in the stress case.</p>
+      <p>The stronger role: <strong>plate on the main account only</strong> (mark → “Plate on main”). One plate marks which account drives the menu bar — it replaces the confusing mb-mark with something physical, and the chrome cost is paid exactly once. That's the version worth debating.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="section-head">
+    <h2>What the scenarios are testing</h2>
+    <p><strong>Single account</strong> — the majority case, now rendered exactly as today: classic logo + brand name header, untouched by this round. <strong>Two Claude + Codex</strong> — the boundary case: Claude going multi-account flips every card to icon + name rows for consistency, so the lone Codex login reads “Codex” in the same treatment. <strong>Five-account stress</strong> — where any surviving chrome hurts most; includes the “Same login as Personal” badge from the real app. <strong>Provider failure</strong> — a capability failure in the same row rhythm: meters replaced by one line of copy and an action.</p>
+  </div>
+</section>
+
+<script>
+/* ---------- assets ---------- */
+const CLAUDE_SVG = '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fill-rule="nonzero"/></svg>';
+const CODEX_SVG = '<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M3.53191 0.672167C3.89319 0.523523 4.2865 0.469819 4.67441 0.516166C5.17441 0.573666 5.61991 0.786167 6.01091 1.15367C6.01591 1.15867 6.02291 1.16217 6.02941 1.16417C6.03647 1.1659 6.04385 1.1659 6.05091 1.16417C6.55923 1.0329 7.09731 1.08148 7.57391 1.30167L7.59741 1.31267L7.65541 1.34117C8.15429 1.59402 8.54342 2.02067 8.74941 2.54067C8.85391 2.79567 8.90591 3.06117 8.90691 3.33817C8.91442 3.54417 8.89185 3.75017 8.83991 3.94967C8.83735 3.95974 8.83738 3.97029 8.84 3.98035C8.84263 3.9904 8.84775 3.99963 8.85491 4.00717C9.15191 4.31067 9.34891 4.67217 9.44641 5.09217C9.59091 5.80467 9.44291 6.44717 9.00291 7.01917L8.93491 7.10217C8.64349 7.43574 8.261 7.67695 7.83441 7.79617C7.82515 7.79888 7.81666 7.80373 7.80962 7.81033C7.80259 7.81694 7.7972 7.8251 7.79391 7.83417C7.69841 8.10967 7.60241 8.34567 7.42391 8.58117C6.97391 9.17467 6.31291 9.50417 5.56841 9.50017C4.97491 9.49717 4.44891 9.28017 3.98991 8.84917C3.983 8.8427 3.9745 8.83819 3.96528 8.83608C3.95606 8.83397 3.94644 8.83435 3.93741 8.83717C3.74341 8.89967 3.54741 8.90867 3.33541 8.90617C2.99774 8.90346 2.66514 8.82377 2.36291 8.67317C2.04632 8.51629 1.77069 8.28773 1.55791 8.00567C1.48191 7.90467 1.40641 7.80967 1.35091 7.69717C1.27514 7.54279 1.21323 7.38199 1.16591 7.21667C1.06601 6.84048 1.0636 6.44504 1.15891 6.06767C1.16204 6.05869 1.16307 6.04911 1.16191 6.03967C1.1602 6.03039 1.15545 6.02195 1.14841 6.01567C0.917442 5.78189 0.740911 5.50002 0.631408 5.19017C0.558583 4.99931 0.516232 4.79818 0.505908 4.59417C0.487743 4.32546 0.511528 4.05556 0.576408 3.79417C0.744908 3.23817 1.06741 2.80167 1.54291 2.48517C1.64891 2.41467 1.74941 2.35967 1.84341 2.32017C1.95091 2.27567 2.05841 2.23817 2.16641 2.20667C2.17413 2.20427 2.18113 2.20001 2.1868 2.19425C2.19247 2.18849 2.19663 2.18142 2.19891 2.17367C2.28091 1.87919 2.42194 1.60446 2.61341 1.36617C2.85477 1.05967 3.17114 0.820634 3.53191 0.672167ZM5.27291 5.95467C5.19165 5.95922 5.11522 5.99471 5.05931 6.05385C5.0034 6.11299 4.97225 6.19128 4.97225 6.27267C4.97225 6.35405 5.0034 6.43235 5.05931 6.49148C5.11522 6.55062 5.19165 6.58611 5.27291 6.59067H7.09091C7.13417 6.59309 7.17747 6.58667 7.21816 6.57178C7.25885 6.5569 7.29608 6.53387 7.32756 6.5041C7.35905 6.47433 7.38413 6.43846 7.40127 6.39866C7.41841 6.35887 7.42725 6.31599 7.42725 6.27267C7.42725 6.22934 7.41841 6.18647 7.40127 6.14667C7.38413 6.10688 7.35905 6.071 7.32756 6.04123C7.29608 6.01146 7.25885 5.98843 7.21816 5.97355C7.17747 5.95866 7.13417 5.95224 7.09091 5.95467H5.27291ZM3.23091 3.61517C3.18764 3.54469 3.11865 3.49381 3.03854 3.47328C2.95844 3.45275 2.87348 3.46419 2.80165 3.50517C2.72982 3.54615 2.67675 3.61346 2.65366 3.69287C2.63056 3.77228 2.63926 3.85756 2.67791 3.93067L3.31391 5.04267L2.68091 6.11067C2.6596 6.14662 2.64558 6.18641 2.63966 6.22778C2.63373 6.26914 2.63601 6.31127 2.64636 6.35176C2.65671 6.39225 2.67494 6.4303 2.7 6.46374C2.72506 6.49718 2.75646 6.52536 2.79241 6.54667C2.82836 6.56797 2.86815 6.58199 2.90952 6.58792C2.95088 6.59385 2.99301 6.59157 3.0335 6.58121C3.07399 6.57086 3.11204 6.55263 3.14548 6.52758C3.17892 6.50252 3.2071 6.47112 3.22841 6.43517L3.95541 5.20767C3.98407 5.15931 3.9994 5.10422 3.99984 5.048C4.00028 4.99179 3.98581 4.93647 3.95791 4.88767L3.23091 3.61517Z" fill="url(#cdxg)"/><defs><linearGradient id="cdxg" x1="5" y1="0.5" x2="5" y2="9.5" gradientUnits="userSpaceOnUse"><stop stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/></linearGradient></defs></svg>';
+/* Official monochrome marks from Sources/HeadroomApp/Resources/BrandIcons (light/dark pairs);
+   fill swapped to currentColor so the per-scheme --mono-mark token drives them. */
+const GROK_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"/></svg>';
+const CURSOR_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" fill-rule="evenodd" xmlns="http://www.w3.org/2000/svg"><path d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z"/></svg>';
+const LOGOS = { claude: CLAUDE_SVG, codex: CODEX_SVG, grok: GROK_SVG, cursor: CURSOR_SVG };
+const PROVIDER_LABEL = { claude: 'Claude', codex: 'Codex', grok: 'Grok', cursor: 'Cursor' };
+const MONO_BRAND = { grok: true, cursor: true };
+
+/* ---------- scenario data ---------- */
+/* Landed frame: bare countdown (no "Resets" language); tooltip keeps the sentence. */
+const M = (label, cd, pct, sev) => ({ label, cd, pct, sev });
+const SCENARIOS = {
+  single: {
+    label: 'Single account',
+    hint: 'The majority case: one Claude login. Renders exactly as today — classic logo + brand name header, untouched by this round.',
+    accounts: [
+      { prov: 'claude', name: null, plan: 'Max', email: 'kyle@example.com', main: true,
+        meters: [M('5-hour', '3h 11m', 72, 'h'), M('Weekly', '3d 23h', 38, 'l')] },
+    ],
+  },
+  duo: {
+    label: 'Two Claude + Codex',
+    hint: 'The boundary case: Claude going multi-account flips the whole surface to icon + name rows — the lone Codex login reads simply “Codex” on its own card.',
+    accounts: [
+      { prov: 'claude', name: 'Personal', plan: 'Max', email: 'personal@example.com', main: true,
+        meters: [M('5-hour', '3h 11m', 72, 'h'), M('Weekly', '3d 23h', 38, 'l')] },
+      { prov: 'claude', name: 'Work', plan: 'Pro', email: 'work@example.com',
+        meters: [M('5-hour', '3h 11m', 29, 'l'), M('Weekly', '3d 23h', 12, 'c')] },
+      { prov: 'codex', name: null, plan: 'Plus', email: 'kyle@example.com',
+        meters: [M('5-hour', '3h 11m', 91, 'h'), M('Weekly', '3d 23h', 64, 'h')] },
+    ],
+  },
+  four: {
+    label: 'Four providers',
+    hint: 'The full roster: Claude multi-account plus single Codex, Grok, and Cursor. Both bill as period pools — Grok’s label follows the server-declared period (weekly in the verified captures), Cursor’s included pool is monthly. Pair with Brand-tinted ink to judge the monochrome tint options.',
+    accounts: [
+      { prov: 'claude', name: 'Personal', plan: 'Max', email: 'personal@example.com', main: true,
+        meters: [M('5-hour', '3h 11m', 72, 'h'), M('Weekly', '3d 23h', 38, 'l')] },
+      { prov: 'claude', name: 'Work', plan: 'Pro', email: 'work@example.com',
+        meters: [M('5-hour', '3h 11m', 29, 'l'), M('Weekly', '3d 23h', 12, 'c')] },
+      { prov: 'codex', name: null, plan: 'Plus', email: 'kyle@example.com',
+        meters: [M('5-hour', '3h 11m', 91, 'h'), M('Weekly', '3d 23h', 64, 'h')] },
+      { prov: 'grok', name: null, plan: 'SuperGrok', email: 'kyle@example.com',
+        meters: [M('Weekly', '4d 16h', 57, 'h')] },
+      { prov: 'cursor', name: null, plan: 'Pro', email: 'kyle@example.com',
+        meters: [M('Monthly', '21d 9h', 34, 'l')] },
+    ],
+  },
+  stress: {
+    label: 'Five-account stress',
+    hint: 'Where surviving chrome hurts most — includes the “Same login as Personal” badge from the real app.',
+    accounts: [
+      { prov: 'claude', name: 'Personal', plan: 'Max', email: 'personal@example.com', main: true,
+        meters: [M('5-hour', '3h 11m', 72, 'h'), M('Weekly', '3d 23h', 38, 'l')] },
+      { prov: 'claude', name: 'Work', plan: 'Pro', email: 'work@example.com',
+        meters: [M('5-hour', '3h 11m', 29, 'l'), M('Weekly', '3d 23h', 12, 'c')] },
+      { prov: 'claude', name: 'Team', plan: 'Max', email: 'personal@example.com', sameLogin: 'Personal',
+        meters: [M('5-hour', '3h 11m', 84, 'h'), M('Weekly', '3d 23h', 55, 'h')] },
+      { prov: 'codex', name: 'Personal', plan: 'Plus', email: 'kyle@example.com',
+        meters: [M('5-hour', '3h 11m', 91, 'h'), M('Weekly', '3d 23h', 64, 'h')] },
+      { prov: 'codex', name: 'Work', plan: 'Pro', email: 'kyle@corp.example.com',
+        meters: [M('5-hour', '3h 11m', 18, 'l'), M('Weekly', '3d 23h', 42, 'l')] },
+    ],
+  },
+  failure: {
+    label: 'Provider failure',
+    hint: 'A capability failure in the same row rhythm as everything else: meters become one line of copy plus an action, on the provider’s own card.',
+    accounts: [
+      { prov: 'claude', name: 'Personal', plan: 'Max', email: 'personal@example.com', main: true,
+        meters: [M('5-hour', '3h 11m', 72, 'h'), M('Weekly', '3d 23h', 38, 'l')] },
+      { prov: 'claude', name: 'Work', plan: 'Pro', email: 'work@example.com',
+        meters: [M('5-hour', '3h 11m', 29, 'l'), M('Weekly', '3d 23h', 12, 'c')] },
+      { prov: 'codex', name: null, failed: 'Sign in required' },
+    ],
+  },
+};
+
+/* ---------- controls ---------- */
+const CONTROLS = {
+  scenario: { options: { single: 'Single', duo: 'Two + Codex', four: 'All four', stress: 'Five-account', failure: 'Failure' } },
+  scheme:   { options: { dark: 'Dark', light: 'Light' } },
+  mono:     { options: { neutral: 'Neutral accents', split: 'Temperature split', plain: 'Primary only' } },
+  name:     { options: { settled: 'Settled semibold', nativemed: 'Native medium', plate: 'Nameplate', legacy: 'Legacy eyebrow (ref)' } },
+  ink:      { options: { neutral: 'Neutral', brand: 'Brand-tinted' } },
+  plan:     { options: { chip: 'Chip', inline: 'Inline text', hidden: 'Hidden' } },
+  email:    { options: { hover: 'Hover', always: 'Always', hidden: 'Hidden' } },
+  mark:     { options: { none: 'Position', dot: 'Dot on main', plate: 'Plate on main', legacy: 'Legacy mb-mark' } },
+  logo:     { options: { every: 'Every row', lead: 'Group lead' } },
+  gauge:    { options: { full: 'Full gauge', micro: 'Micro gauge' } },
+  fillFull: { options: { solid: 'Solid (V)', glass: 'Glass + cap (S)', ghost: 'Ghost + cap (I)', event: 'Color as event (T)', hue: 'Hue travel (H/W)', segs: 'Segmented (J)' } },
+  microShape: { options: { chip: 'Chip', machined: 'Machined', ticks: 'Ticks', tube: 'Tube' } },
+  fillMicro: { options: { solid: 'Solid', glass: 'Glass + cap', event: 'Color as event', hue: 'Hue ramp' } },
+  ticks:    { options: { quarters: 'Quarters', mid: 'Quarters + 50 mark', none: 'None' } },
+};
+
+const state = { scenario: 'duo', scheme: 'dark', name: 'settled', ink: 'neutral', mono: 'neutral', plan: 'chip', email: 'hover', mark: 'none', logo: 'every', gauge: 'full', fillFull: 'event', microShape: 'chip', fillMicro: 'event', ticks: 'quarters' };
+
+const PRESETS = [
+  { id: 'landed', label: 'Landed default', note: '<strong>Everything already decided, nothing extra:</strong> settled sentence-case names, chip, color-as-event fill, email on hover, main = top row.',
+    s: { name: 'settled', ink: 'neutral', plan: 'chip', email: 'hover', mark: 'none', logo: 'every', fillFull: 'event', fillMicro: 'event', ticks: 'quarters' } },
+  { id: 'brand', label: 'Brand-inked', note: '<strong>The L5 trade:</strong> tint replaces the repeated small logos (group-lead only), so color buys identity instead of stacking on top of it — and multi rows rhyme with the classic single-account header.',
+    s: { name: 'settled', ink: 'brand', plan: 'chip', email: 'hover', mark: 'dot', logo: 'lead', fillFull: 'event', fillMicro: 'event', ticks: 'quarters' } },
+  { id: 'machined', label: 'Machined', note: '<strong>L3 as the every-row treatment:</strong> sentence-case plates sharing the wells’ carved physics, paired with glass + cap so the plate is the only flourish. Judge it on the stress scenario.',
+    s: { name: 'plate', ink: 'neutral', plan: 'chip', email: 'hover', mark: 'none', logo: 'every', fillFull: 'glass', fillMicro: 'glass', ticks: 'quarters' } },
+  { id: 'mainplate', label: 'Main-plate', note: '<strong>The nameplate’s better job:</strong> one plate marks the menu-bar account; every other row stays plain. Replaces the confusing mb-mark with something physical.',
+    s: { name: 'nativemed', ink: 'neutral', plan: 'chip', email: 'hover', mark: 'plate', logo: 'every', fillFull: 'hue', fillMicro: 'hue', ticks: 'quarters' } },
+  { id: 'legacy', label: 'Legacy (reference)', note: '<strong>Where we started:</strong> uppercase eyebrow, mb-mark, always-on email, solid fill. Keep one pin of this as the busy-ness baseline.',
+    s: { name: 'legacy', ink: 'neutral', plan: 'chip', email: 'always', mark: 'legacy', logo: 'every', fillFull: 'solid', fillMicro: 'solid', ticks: 'quarters' } },
+];
+
+/* ---------- rendering ---------- */
+const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+function microGauge(m, s) {
+  const sev = m.sev;
+  const mf = s.fillMicro;
+  if (s.microShape === 'chip' || s.microShape === 'machined') {
+    const machined = s.microShape === 'machined';
+    const shape = machined ? 'micro mwell' : 'micro';
+    let fill, cap = '';
+    if (mf === 'solid') fill = machined ? `mfill wsev-${sev}` : `mfill sev-${sev}`;
+    else if (mf === 'glass') { fill = 'mfill glass'; cap = `<i class="mcap sev-${sev}"></i>`; }
+    else if (mf === 'event') fill = sev === 'h' ? 'mfill glass' : (machined ? `mfill wsev-${sev}` : `mfill sev-${sev}`);
+    else fill = `mfill ramp-${sev}`;
+    return `<span class="${shape}${cap ? ' capped' : ''}"><i class="${fill}" style="width:${m.pct}%">${cap}</i></span>`;
+  }
+  if (s.microShape === 'ticks') {
+    const lit = Math.max(1, Math.round(m.pct / 20));
+    let cells = '';
+    for (let i = 0; i < 5; i++) {
+      if (i >= lit) { cells += '<i class="gt"></i>'; continue; }
+      const isCap = i === lit - 1;
+      if (mf === 'solid') cells += `<i class="gt tcap sev-${sev}"></i>`;
+      else if (mf === 'glass') cells += isCap ? `<i class="gt tcap sev-${sev}"></i>` : `<i class="gt on tglass"></i>`;
+      else if (mf === 'event') cells += sev === 'h'
+        ? (isCap ? '<i class="gt tcap tglass"></i>' : '<i class="gt on tglass"></i>')
+        : (isCap ? `<i class="gt tcap sev-${sev}"></i>` : `<i class="gt on sev-${sev}"></i>`);
+      else cells += isCap ? `<i class="gt tcap sev-${sev}"></i>` : `<i class="gt on sev-${sev}"></i>`;
+    }
+    return `<span class="g-ticks">${cells}</span>`;
+  }
+  /* tube */
+  let fill, cap = '';
+  if (mf === 'solid') fill = `gv-fill sev-${sev}`;
+  else if (mf === 'glass') { fill = 'gv-fill glass'; cap = `<i class="gv-cap sev-${sev}"></i>`; }
+  else if (mf === 'event') fill = sev === 'h' ? 'gv-fill glass' : `gv-fill sev-${sev}`;
+  else fill = `gv-fill ramp-${sev}`;
+  return `<span class="g-vert"><i class="${fill}" style="height:${m.pct}%">${cap}</i></span>`;
+}
+
+function renderMeter(m, s) {
+  const pctCls = m.sev === 'c' ? ' crit' : '';
+  const labcd = `<span class="m-lab"><span class="m-label">${m.label}</span><span class="m-reset" title="Resets in ${m.cd}">${m.cd}</span></span>`;
+  const num = `<span class="m-num"><span class="m-pct${pctCls}">${m.pct}%</span><span class="m-term">left</span></span>`;
+  if (s.gauge === 'micro') {
+    /* round-4 frame: gauge docks before the numeral in the reading cluster */
+    return `<div class="meter mrow">
+      <div class="meter-top">${labcd}<span class="m-spacer"></span>${microGauge(m, s)}${num}</div>
+    </div>`;
+  }
+  if (s.fillFull === 'segs') {
+    /* J: console segments replace the well — fractional ink on the tip */
+    const lit = Math.max(1, Math.round(m.pct / 5));
+    let cells = '';
+    for (let i = 0; i < 20; i++) {
+      if (i >= lit) { cells += '<i class="seg"></i>'; continue; }
+      cells += i === lit - 1 ? `<i class="seg tip-${m.sev}"></i>` : `<i class="seg on-${m.sev}"></i>`;
+    }
+    return `<div class="meter">
+      <div class="meter-top">${labcd}<span class="m-spacer"></span>${num}</div>
+      <div class="segs">${cells}</div>
+    </div>`;
+  }
+  const ticks = s.ticks === 'none' ? '' :
+    `<i class="tick" style="left:25%"></i><i class="tick${s.ticks === 'mid' ? ' mid' : ''}" style="left:50%"></i><i class="tick" style="left:75%"></i>`;
+  const cap = (s.fillFull === 'glass' || s.fillFull === 'ghost') ? `<i class="cap sev-${m.sev}"></i>` : '';
+  return `<div class="meter">
+    <div class="meter-top">${labcd}<span class="m-spacer"></span>${num}</div>
+    <div class="itrack">${ticks}<div class="ifill sev-${m.sev}" style="width:${m.pct}%">${cap}</div></div>
+  </div>`;
+}
+
+function renderAccount(a, i, group, s, anyMulti) {
+  /* Consistency rule: if ANY provider is multi-account, every card adopts the
+     icon + name row. Classic headers only when the whole surface is single-account. */
+  const classic = !anyMulti;
+
+  let markHtml = '';
+  if (a.main && s.mark === 'dot') markHtml = `<span class="main-dot" title="Shown in the menu bar"></span>`;
+  if (a.main && s.mark === 'legacy') markHtml = `<span class="mb-mark" title="Shown in the menu bar"></span>`;
+
+  let planHtml = '';
+  if (a.plan && s.plan === 'chip') planHtml = `<span class="plan-pill">${esc(a.plan)}</span>`;
+  if (a.plan && s.plan === 'inline') planHtml = `<span class="plan-inline">· ${esc(a.plan)}</span>`;
+
+  let emailHtml = '';
+  if (a.email && s.email !== 'hidden') {
+    emailHtml = `<span class="acct-email${s.email === 'hover' ? ' email-hover' : ''}">${esc(a.email)}</span>`;
+  }
+
+  const mono = MONO_BRAND[a.prov] ? ' p-mono' : '';
+  if (classic) {
+    const provName = `<span class="prov-name p-${a.prov}">${PROVIDER_LABEL[a.prov]}</span>`;
+    if (a.failed) {
+      return `<div class="acct-block">
+        <div class="acct-row"><span class="prov-icon-slot failed${mono}">${LOGOS[a.prov]}</span>${provName}<span class="fail-copy">${esc(a.failed)}</span><span class="fail-action">Set Up →</span></div>
+      </div>`;
+    }
+    return `<div class="acct-block">
+      <div class="acct-row"><span class="prov-icon-slot${mono}">${LOGOS[a.prov]}</span>${provName}${planHtml}${markHtml}${emailHtml}</div>
+      <div class="meters${s.gauge !== 'full' ? ' micro-mode' : ''}">${a.meters.map(m => renderMeter(m, s)).join('')}</div>
+    </div>`;
+  }
+
+  const displayName = a.name || PROVIDER_LABEL[a.prov];
+  const showLogo = s.logo === 'every' || i === 0;
+  const logo = showLogo
+    ? `<span class="acct-icon-slot${a.failed ? ' failed' : ''}${mono}">${LOGOS[a.prov]}</span>`
+    : `<span class="acct-icon-slot"></span>`;
+
+  if (a.failed) {
+    return `<div class="acct-block">
+      <div class="acct-row">${logo}<span class="acct-name p-${a.prov}">${esc(displayName)}</span><span class="fail-copy">${esc(a.failed)}</span><span class="fail-action">Set Up →</span></div>
+    </div>`;
+  }
+
+  const plated = s.name === 'plate' || (s.mark === 'plate' && a.main);
+  let nameHtml = `<span class="acct-name p-${a.prov}">${esc(displayName)}</span>`;
+  if (plated) nameHtml = `<span class="nameplate">${nameHtml}</span>`;
+
+  const badge = a.sameLogin ? `<span class="same-login">Same login as ${esc(a.sameLogin)}</span>` : '';
+
+  return `<div class="acct-block">
+    <div class="acct-row">${logo}${nameHtml}${planHtml}${markHtml}${badge}${emailHtml}</div>
+    <div class="meters${s.gauge !== 'full' ? ' micro-mode' : ''}">${a.meters.map(m => renderMeter(m, s)).join('')}</div>
+  </div>`;
+}
+
+function renderPopover(s) {
+  const sc = SCENARIOS[s.scenario];
+  /* one card per provider, in first-appearance order */
+  const groups = [];
+  sc.accounts.forEach(a => {
+    let g = groups.find(g => g.prov === a.prov);
+    if (!g) { g = { prov: a.prov, accounts: [] }; groups.push(g); }
+    g.accounts.push(a);
+  });
+  const anyMulti = groups.some(g => g.accounts.length > 1);
+  const cards = groups.map(g =>
+    `<div class="card">${g.accounts.map((a, i) => renderAccount(a, i, g.accounts, s, anyMulti)).join('')}</div>`
+  ).join('');
+  return `<div class="popover-full${s.scheme === 'light' ? ' light' : ''} n-${s.name} ink-${s.ink} mono-${s.mono} f-${s.fillFull}">
+    <div class="pop-head"><span class="pop-title">Usage</span><span class="pop-updated">Updated 2 min ago</span><span class="pop-gear">⚙︎</span></div>
+    <div class="cards">${cards}</div>
+    <div class="pop-foot"><span>Refresh</span><span>Quit</span></div>
+  </div>`;
+}
+
+/* ---------- wiring ---------- */
+const railEl = document.getElementById('rail');
+const mount = document.getElementById('previewMount');
+const scenarioHint = document.getElementById('scenarioHint');
+const presetNote = document.getElementById('presetNote');
+
+function buildRail() {
+  railEl.querySelectorAll('.ctl').forEach(ctl => {
+    const key = ctl.dataset.key;
+    const group = ctl.querySelector('.seg-group');
+    group.innerHTML = '';
+    Object.entries(CONTROLS[key].options).forEach(([val, label]) => {
+      const b = document.createElement('button');
+      b.className = 'seg-btn'; b.textContent = label; b.dataset.val = val;
+      b.addEventListener('click', () => { state[key] = val; presetNote.innerHTML = ''; update(); });
+      group.appendChild(b);
+    });
+  });
+}
+
+function syncRail() {
+  railEl.querySelectorAll('.ctl').forEach(ctl => {
+    const key = ctl.dataset.key;
+    ctl.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('sel', b.dataset.val === state[key]));
+    /* format-dependent controls reveal themselves based on the gauge choice */
+    let visible = !ctl.dataset.show || ctl.dataset.show === state.gauge;
+    if (ctl.dataset.showInk && state.ink !== ctl.dataset.showInk) visible = false;
+    if (key === 'ticks' && state.fillFull === 'segs') visible = false;
+    ctl.style.display = visible ? '' : 'none';
+  });
+  scenarioHint.textContent = SCENARIOS[state.scenario].hint;
+}
+
+function update() {
+  mount.innerHTML = renderPopover(state);
+  mount.closest('.stage').classList.toggle('stage-light', state.scheme === 'light');
+  syncRail();
+}
+
+/* presets */
+const presetsEl = document.getElementById('presets');
+PRESETS.forEach(p => {
+  const b = document.createElement('button');
+  b.className = 'preset-btn'; b.textContent = p.label;
+  b.addEventListener('click', () => { Object.assign(state, p.s); presetNote.innerHTML = p.note; update(); });
+  presetsEl.appendChild(b);
+});
+
+/* pin shelf */
+const shelf = document.getElementById('shelf');
+const shelfEmpty = document.getElementById('shelfEmpty');
+document.getElementById('pinBtn').addEventListener('click', () => {
+  shelfEmpty.style.display = 'none';
+  const item = document.createElement('div');
+  item.className = 'shelf-item';
+  const desc = [
+    `<strong>${CONTROLS.scenario.options[state.scenario]} · ${CONTROLS.scheme.options[state.scheme]}</strong>`,
+    `name: ${CONTROLS.name.options[state.name]}`,
+    `ink: ${CONTROLS.ink.options[state.ink]}${state.ink === 'brand' ? ` (mono: ${CONTROLS.mono.options[state.mono]})` : ''}`,
+    `plan: ${CONTROLS.plan.options[state.plan]}`,
+    `email: ${CONTROLS.email.options[state.email]}`,
+    `mark: ${CONTROLS.mark.options[state.mark]}`,
+    `logo: ${CONTROLS.logo.options[state.logo]}`,
+    `gauge: ${CONTROLS.gauge.options[state.gauge]}`,
+    state.gauge === 'full'
+      ? `style: ${CONTROLS.fillFull.options[state.fillFull]}${state.fillFull !== 'segs' ? ` · ticks: ${CONTROLS.ticks.options[state.ticks]}` : ''}`
+      : `shape: ${CONTROLS.microShape.options[state.microShape]} · fill: ${CONTROLS.fillMicro.options[state.fillMicro]}`,
+  ].join(' · ');
+  item.innerHTML = `<div class="shelf-cap"><div class="cap-text">${desc}</div><button class="unpin">✕ remove</button></div>
+    <div class="shelf-stage${state.scheme === 'light' ? ' stage-light' : ''}">${renderPopover(state)}</div>`;
+  item.querySelector('.unpin').addEventListener('click', () => {
+    item.remove();
+    if (!shelf.querySelector('.shelf-item')) shelfEmpty.style.display = '';
+  });
+  shelf.appendChild(item);
+});
+
+buildRail();
+update();
+</script>
+</div>
+</body>
+</html>

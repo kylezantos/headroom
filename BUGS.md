@@ -103,7 +103,23 @@ official `claude` CLI's `/usage` panel instead.
   auth-absent case to the typed `codexStorageMismatch` recovery. Grok has no equivalent typed
   storage-mismatch diagnosis yet, so the user can fall back to generic reconnect/check behavior.
   Add the analog only after characterizing where supported Grok CLI versions store credentials
-  under both the built-in home and an isolated `GROK_HOME`.
+  under both the built-in home and an isolated `GROK_HOME`. Checked 2026-08-30: no Grok CLI
+  install (and no `~/.grok/auth.json`) on the dev machine, so the characterization needs a
+  machine with the CLI installed and signed in.
+
+- **Grok subscription overage is decoded but deliberately unsurfaced.** `GrokDTOs` reads
+  `onDemandCap`/`onDemandUsed`/`prepaidBalance` from the billing config additively, but no
+  surface renders Grok subscription overage (Cursor's on-demand row ships via
+  `CursorOnDemandSpendProvider`; xAI *API* credit balance ships via `XAIAPISpendProvider`).
+  This is a recorded decision, not an oversight: we have no verified live capture of a
+  subscription account with on-demand active, so any UI would be speculative — the same
+  trap the original Codex DTO field names fell into. Revisit only with such a capture.
+
+- **Billing-period resets keep the countdown, not the source's date style.** Cursor's own
+  panel shows day-precision dates ("Resets Sep 12"); Headroom renders its universal bare
+  countdown ("21d") derived from `resetSchedule`, with the verbatim label retained as
+  non-visible provenance. Explicit product decision (2026-08-30): cross-provider
+  consistency wins over per-source display mimicry.
 
 - **In-app troubleshooting sheet is deferred.** The README matrix is the shipping self-serve
   path for the four providers. A discoverable interactive sheet spanning setup states, probes,

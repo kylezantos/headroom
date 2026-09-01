@@ -134,6 +134,20 @@ private struct StubCursorSource: CursorUsageSource {
     @Test func cursorIsExplicitlySingleAccount() {
         #expect(CursorProvider(source: StubCursorSource(result: .transientCapture)).accountCapacity == 1)
     }
+
+    @Test func executableDisappearingBeforeProbeFailsClosedWithoutPTYInput() async {
+        let executable = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-removed-cursor-\(UUID().uuidString)")
+        #expect(FileManager.default.createFile(
+            atPath: executable.path,
+            contents: Data(),
+            attributes: [.posixPermissions: 0o700]
+        ))
+        #expect(FileManager.default.isExecutableFile(atPath: executable.path))
+        try? FileManager.default.removeItem(at: executable)
+
+        #expect(await CursorUsageCLIProbe(cursorPath: executable.path).capturePanel() == .cliNotFound)
+    }
 }
 
 @Suite struct CursorConnectionTests {

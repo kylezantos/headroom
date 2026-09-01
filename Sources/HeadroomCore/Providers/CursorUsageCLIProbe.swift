@@ -76,12 +76,16 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
     public static func resolveCursorPath() -> String? {
         CLIExecutableResolver.resolve(
             named: "cursor-agent",
-            fallbackPaths: [
-                "\(NSHomeDirectory())/.local/bin/cursor-agent",
-                "/opt/homebrew/bin/cursor-agent",
-                "/usr/local/bin/cursor-agent",
-            ]
+            fallbackPaths: fallbackPaths
         )
+    }
+
+    static var fallbackPaths: [String] {
+        [
+            "\(NSHomeDirectory())/.local/bin/cursor-agent",
+            "/opt/homebrew/bin/cursor-agent",
+            "/usr/local/bin/cursor-agent",
+        ]
     }
 
     static func classifyAuthStatus(_ data: Data) -> CursorAuthStatus {

@@ -251,3 +251,87 @@ struct CLIExecutableResolverSupplementalTests {
         )
     }
 }
+
+@Suite struct ProviderExecutableResolutionCharacterizationTests {
+    private let executableMarker = "__HEADROOM_EXECUTABLE__"
+
+    @Test func fixedFallbacksMatchTheSupportedInstallerLocationsInPriorityOrder() {
+        #expect(CursorUsageCLIProbe.fallbackPaths == [
+            "\(NSHomeDirectory())/.local/bin/cursor-agent",
+            "/opt/homebrew/bin/cursor-agent",
+            "/usr/local/bin/cursor-agent",
+        ])
+        #expect(GrokACPUsageSource.fallbackPaths == [
+            "\(NSHomeDirectory())/.local/bin/grok",
+            "\(NSHomeDirectory())/.grok/bin/grok",
+            "/opt/homebrew/bin/grok",
+            "/usr/local/bin/grok",
+        ])
+    }
+
+    @Test func versionManagerShellCandidateBeatsEveryFixedFallback() {
+        for (name, fallbackPaths) in [
+            ("cursor-agent", CursorUsageCLIProbe.fallbackPaths),
+            ("grok", GrokACPUsageSource.fallbackPaths),
+        ] {
+            let shim = "/Users/test/.mise/shims/\(name)"
+            let resolved = CLIExecutableResolver.selectExecutable(
+                loginShellOutput: "\(executableMarker)\n\(shim)\n",
+                fallbackPaths: fallbackPaths,
+                isExecutable: { $0 == shim || fallbackPaths.contains($0) }
+            )
+            #expect(resolved == shim)
+        }
+    }
+
+    @Test func nativeUserLocalCandidateWinsWhenMultipleFixedFallbacksAreExecutable() {
+        #expect(CLIExecutableResolver.selectExecutable(
+            loginShellOutput: nil,
+            fallbackPaths: CursorUsageCLIProbe.fallbackPaths,
+            isExecutable: { CursorUsageCLIProbe.fallbackPaths.contains($0) }
+        ) == CursorUsageCLIProbe.fallbackPaths.first)
+        #expect(CLIExecutableResolver.selectExecutable(
+            loginShellOutput: nil,
+            fallbackPaths: GrokACPUsageSource.fallbackPaths,
+            isExecutable: { GrokACPUsageSource.fallbackPaths.contains($0) }
+        ) == GrokACPUsageSource.fallbackPaths.first)
+    }
+
+    @Test func homebrewCandidateRecoversAfterLoginShellMiss() {
+        for (homebrew, fallbackPaths) in [
+            ("/opt/homebrew/bin/cursor-agent", CursorUsageCLIProbe.fallbackPaths),
+            ("/opt/homebrew/bin/grok", GrokACPUsageSource.fallbackPaths),
+        ] {
+            #expect(CLIExecutableResolver.selectExecutable(
+                loginShellOutput: "\(executableMarker)\n",
+                fallbackPaths: fallbackPaths,
+                isExecutable: { $0 == homebrew }
+            ) == homebrew)
+        }
+    }
+
+    @Test func missingAndNonExecutableCandidatesBothFailClosed() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-provider-resolver-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let missing = root.appendingPathComponent("missing").path
+        let nonExecutable = root.appendingPathComponent("non-executable")
+        #expect(FileManager.default.createFile(
+            atPath: nonExecutable.path,
+            contents: Data(),
+            attributes: [.posixPermissions: 0o600]
+        ))
+
+        #expect(CLIExecutableResolver.selectExecutable(
+            loginShellOutput: nil,
+            fallbackPaths: [missing],
+            isExecutable: FileManager.default.isExecutableFile(atPath:)
+        ) == nil)
+        #expect(CLIExecutableResolver.selectExecutable(
+            loginShellOutput: nil,
+            fallbackPaths: [nonExecutable.path],
+            isExecutable: FileManager.default.isExecutableFile(atPath:)
+        ) == nil)
+    }
+}

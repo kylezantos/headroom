@@ -150,4 +150,18 @@ struct GrokProviderTests {
         )
         #expect(extra["GROK_HOME"] == "/tmp/headroom-account")
     }
+
+    @Test func executableDisappearingBeforeProbeFailsClosedWithoutACPSpawn() async {
+        let executable = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-removed-grok-\(UUID().uuidString)")
+        #expect(FileManager.default.createFile(
+            atPath: executable.path,
+            contents: Data(),
+            attributes: [.posixPermissions: 0o700]
+        ))
+        #expect(FileManager.default.isExecutableFile(atPath: executable.path))
+        try? FileManager.default.removeItem(at: executable)
+
+        #expect(await GrokACPUsageSource(grokPath: executable.path).fetchUsage() == .cliNotFound)
+    }
 }

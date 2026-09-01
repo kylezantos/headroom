@@ -138,13 +138,17 @@ public struct GrokACPUsageSource: GrokUsageSource {
     public static func resolveGrokPath() -> String? {
         CLIExecutableResolver.resolve(
             named: "grok",
-            fallbackPaths: [
-                "\(NSHomeDirectory())/.local/bin/grok",
-                "\(NSHomeDirectory())/.grok/bin/grok",
-                "/opt/homebrew/bin/grok",
-                "/usr/local/bin/grok",
-            ]
+            fallbackPaths: fallbackPaths
         )
+    }
+
+    static var fallbackPaths: [String] {
+        [
+            "\(NSHomeDirectory())/.local/bin/grok",
+            "\(NSHomeDirectory())/.grok/bin/grok",
+            "/opt/homebrew/bin/grok",
+            "/usr/local/bin/grok",
+        ]
     }
 
     public func fetchUsage() async -> GrokUsageSourceResult {

@@ -34,6 +34,15 @@ account:
 The redacted capture used by parser tests is
 `Tests/HeadroomCoreTests/Fixtures/cursor-usage.txt`.
 
+Reverified on 2026-08-31 with Cursor Agent `2026.08.25-3e8eec8`: the authenticated Pro+
+panel still parsed as a live monthly window with on-demand disabled. The same probe succeeded
+with `PATH=/usr/bin:/bin`, resolving the native `~/.local/bin/cursor-agent` install from a
+Finder-like environment. An Apple Development-signed Headroom bundle on macOS 26.5.1 also
+returned the live panel under that sparse path. Deterministic resolver tests pin
+version-manager precedence, Homebrew fallback selection, missing and non-executable candidates,
+and an executable disappearing before PTY input. Actual Homebrew/version-manager installs and
+macOS 15 Sequoia remain separate runtime characterization work in `BUGS.md`.
+
 ## PTY details that are load-bearing
 
 Cursor Agent uses Ink and enables the Kitty keyboard protocol. A raw pseudo-terminal must:

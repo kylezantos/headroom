@@ -86,6 +86,19 @@ official `claude` CLI's `/usage` panel instead.
   account-home isolation rules. Preserve Grok's ACP/HTTP transport boundary and Cursor's guarded
   PTY input gates. This follow-up is characterization only until those provider-specific fixtures
   and a signed installed-app matrix exist.
+  - **Characterized 2026-08-31 on the current macOS runtime.** Cursor Agent
+    `2026.08.25-3e8eec8` at `~/.local/bin/cursor-agent` resolved and parsed the live Pro+ `/usage`
+    panel both normally and with `PATH=/usr/bin:/bin`. Grok Build `1.0.13` at
+    `~/.grok/bin/grok` resolved under the same sparse path and returned a live free-plan weekly
+    window through the HTTP fallback. A signed-in isolated `GROK_HOME` returned the same live
+    window; after official `grok logout` removed that isolated credential, the same probe returned
+    login-required rather than falling back to the built-in account. Deterministic tests now pin
+    the exact fallback order, version-manager precedence, Homebrew recovery after a shell miss,
+    missing and non-executable fail-closed behavior, and launch-race `.cliNotFound` results. An
+    Apple Development-signed bundle on macOS 26.5.1 also returned both live snapshots with the
+    sparse path. Real Homebrew/version-manager installs and macOS 15 Sequoia remain unverified, so
+    this does not yet authorize the locator migration. See
+    `docs/solutions/grok-build-usage-feasibility.md`.
 
 ## Reliability (carried from earlier review)
 
@@ -99,13 +112,20 @@ official `claude` CLI's `/usage` panel instead.
   Settings rather than adding persistent menu-bar attention. Revisit only with a deliberate
   cross-surface attention design.
 
-- **Grok can report success before readable auth appears.** Codex maps this wrapper-success /
+- **Grok storage-mismatch diagnosis remains reproduction-gated.** Codex maps wrapper-success /
   auth-absent case to the typed `codexStorageMismatch` recovery. Grok has no equivalent typed
   storage-mismatch diagnosis yet, so the user can fall back to generic reconnect/check behavior.
   Add the analog only after characterizing where supported Grok CLI versions store credentials
-  under both the built-in home and an isolated `GROK_HOME`. Checked 2026-08-30: no Grok CLI
-  install (and no `~/.grok/auth.json`) on the dev machine, so the characterization needs a
-  machine with the CLI installed and signed in.
+  under both the built-in home and an isolated `GROK_HOME`.
+  - **Characterized without reproduction 2026-08-31.** Official device-code login on Grok Build `1.0.13`
+    wrote a mode-`0600` `auth.json` containing one first-party OIDC record under both the default
+    home and an explicit isolated `GROK_HOME`; each produced a live Headroom snapshot. Official
+    logout removed only the isolated file, after which Headroom returned the typed auth-absent
+    result. Standard `grok login` in a fresh isolated home also wrote the mode-`0600` file before
+    its successful process exit and immediately produced a live snapshot; logout again removed
+    only the isolated credential. The wrapper-success/auth-absent mismatch did not reproduce in
+    either supported login flow, so do not add a distinct diagnosis unless a genuine
+    success-without-file capture establishes one is necessary.
 
 - **Grok subscription overage is decoded but deliberately unsurfaced.** `GrokDTOs` reads
   `onDemandCap`/`onDemandUsed`/`prepaidBalance` from the billing config additively, but no
@@ -113,7 +133,10 @@ official `claude` CLI's `/usage` panel instead.
   `CursorOnDemandSpendProvider`; xAI *API* credit balance ships via `XAIAPISpendProvider`).
   This is a recorded decision, not an oversight: we have no verified live capture of a
   subscription account with on-demand active, so any UI would be speculative — the same
-  trap the original Codex DTO field names fell into. Revisit only with such a capture.
+  trap the original Codex DTO field names fell into. A sanitized free-plan capture on 2026-08-31
+  confirmed all three fields exist but are zero (`onDemandCap`, `onDemandUsed`, and
+  `prepaidBalance`), which strengthens the decoder evidence but does not validate active overage
+  semantics or presentation. Revisit only with a capture where on-demand is genuinely active.
 
 - **Billing-period resets keep the countdown, not the source's date style.** Cursor's own
   panel shows day-precision dates ("Resets Sep 12"); Headroom renders its universal bare

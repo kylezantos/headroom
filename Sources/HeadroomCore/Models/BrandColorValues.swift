@@ -136,6 +136,124 @@ public enum HeadroomWidgetColorValues {
     }
 }
 
+/// App-local color tokens for the macOS popover meter. These stay separate from
+/// `HeadroomWidgetColorValues` so meter experiments cannot change the widgets by accident.
+public enum HeadroomMeterColorValues {
+    private static let darkText = HeadroomRGBColor(red: 0.92, green: 0.92, blue: 0.96)
+    private static let lightLabel = HeadroomRGBColor(
+        red: 29.0 / 255.0,
+        green: 31.0 / 255.0,
+        blue: 36.0 / 255.0
+    )
+    private static let lightMetadata = HeadroomRGBColor(red: 0.24, green: 0.24, blue: 0.26)
+
+    public static func labelInk(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: dark ? darkText : lightLabel, opacity: 0.90)
+    }
+
+    public static func countdownInk(dark: Bool) -> HeadroomTint {
+        // The round-4 D2 values clear 4.5:1 against both RaisedTile fill endpoints.
+        HeadroomTint(color: dark ? darkText : lightMetadata, opacity: dark ? 0.53 : 0.72)
+    }
+
+    public static func glassA(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: .white, opacity: 0.22)
+            : HeadroomTint(
+                color: HeadroomRGBColor(
+                    red: 117.0 / 255.0,
+                    green: 124.0 / 255.0,
+                    blue: 134.0 / 255.0
+                ),
+                opacity: 1
+            )
+    }
+
+    public static func glassB(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: .white, opacity: 0.11)
+            : HeadroomTint(
+                color: HeadroomRGBColor(
+                    red: 102.0 / 255.0,
+                    green: 108.0 / 255.0,
+                    blue: 117.0 / 255.0
+                ),
+                opacity: 1
+            )
+    }
+
+    public static func glassRim(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .white, opacity: dark ? 0.25 : 0.30)
+    }
+
+    public static func wellBackground(dark: Bool) -> HeadroomRGBColor {
+        dark
+            ? HeadroomRGBColor(
+                red: 15.0 / 255.0,
+                green: 17.0 / 255.0,
+                blue: 20.0 / 255.0
+            )
+            : HeadroomRGBColor(
+                red: 223.0 / 255.0,
+                green: 226.0 / 255.0,
+                blue: 231.0 / 255.0
+            )
+    }
+
+    public static func wellShadow(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0.65 : 0.20)
+    }
+
+    public static func tickOff(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: .white, opacity: 0.09)
+            : HeadroomTint(color: .black, opacity: 0.08)
+    }
+
+    public static func tickGlass(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: .white, opacity: 0.26)
+            : HeadroomTint(
+                color: HeadroomRGBColor(
+                    red: 107.0 / 255.0,
+                    green: 114.0 / 255.0,
+                    blue: 123.0 / 255.0
+                ),
+                opacity: 1
+            )
+    }
+
+    public static func tickGlassCap(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: .white, opacity: 0.52)
+            : HeadroomTint(
+                color: HeadroomRGBColor(
+                    red: 71.0 / 255.0,
+                    green: 78.0 / 255.0,
+                    blue: 87.0 / 255.0
+                ),
+                opacity: 1
+            )
+    }
+
+    public static func rampStartSeverityMix(
+        dark: Bool,
+        surface: MeterRampSurface
+    ) -> Double {
+        guard dark else { return 0.55 }
+        return surface == .flat ? 0.58 : 0.42
+    }
+
+    public static func ghostBodyOpacity(for severity: UsageSeverity, dark: Bool) -> Double {
+        switch (dark, severity) {
+        case (true, .critical): 0.22
+        case (true, _): 0.18
+        case (false, .critical): 0.34
+        case (false, _): 0.30
+        }
+    }
+}
+
 /// Layout metrics for the bare (no-container) brand marks, shared by every surface — the
 /// iOS app + widget, and the Mac popover + widget — so they stay visually identical.
 public enum HeadroomBrandMark {

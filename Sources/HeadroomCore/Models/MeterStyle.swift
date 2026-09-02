@@ -188,18 +188,22 @@ public enum MeterRecipe {
         surface: MeterRampSurface
     ) -> MeterRampStops {
         let end = HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark)
-        let severityWeight: Double
         let mixColor: HeadroomRGBColor
         switch scheme {
         case .light:
-            severityWeight = 0.55
             mixColor = .white
         case .dark:
-            severityWeight = surface == .flat ? 0.58 : 0.42
             mixColor = .black
         }
         return MeterRampStops(
-            start: mix(end, weight: severityWeight, with: mixColor),
+            start: mix(
+                end,
+                weight: HeadroomMeterColorValues.rampStartSeverityMix(
+                    dark: scheme == .dark,
+                    surface: surface
+                ),
+                with: mixColor
+            ),
             end: end
         )
     }

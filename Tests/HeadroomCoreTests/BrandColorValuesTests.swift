@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import HeadroomCore
 
@@ -48,6 +49,119 @@ struct BrandColorValuesTests {
         }
     }
 
+    @Test func meterTokensMatchTheApprovedSchemeSpecificValues() {
+        #expect(HeadroomMeterColorValues.labelInk(dark: true) == HeadroomTint(
+            color: HeadroomRGBColor(red: 0.92, green: 0.92, blue: 0.96),
+            opacity: 0.90
+        ))
+        #expect(HeadroomMeterColorValues.labelInk(dark: false) == HeadroomTint(
+            color: HeadroomRGBColor(red: 29.0 / 255.0, green: 31.0 / 255.0, blue: 36.0 / 255.0),
+            opacity: 0.90
+        ))
+        #expect(HeadroomMeterColorValues.countdownInk(dark: true).opacity == 0.53)
+        #expect(HeadroomMeterColorValues.countdownInk(dark: false).opacity == 0.72)
+
+        #expect(HeadroomMeterColorValues.glassA(dark: true) == HeadroomTint(color: .white, opacity: 0.22))
+        #expect(HeadroomMeterColorValues.glassB(dark: true) == HeadroomTint(color: .white, opacity: 0.11))
+        #expect(HeadroomMeterColorValues.glassA(dark: false) == HeadroomTint(
+            color: HeadroomRGBColor(red: 117.0 / 255.0, green: 124.0 / 255.0, blue: 134.0 / 255.0),
+            opacity: 1
+        ))
+        #expect(HeadroomMeterColorValues.glassB(dark: false) == HeadroomTint(
+            color: HeadroomRGBColor(red: 102.0 / 255.0, green: 108.0 / 255.0, blue: 117.0 / 255.0),
+            opacity: 1
+        ))
+        #expect(HeadroomMeterColorValues.glassRim(dark: true) == HeadroomTint(color: .white, opacity: 0.25))
+        #expect(HeadroomMeterColorValues.glassRim(dark: false) == HeadroomTint(color: .white, opacity: 0.30))
+
+        #expect(HeadroomMeterColorValues.wellBackground(dark: true) == HeadroomRGBColor(
+            red: 15.0 / 255.0, green: 17.0 / 255.0, blue: 20.0 / 255.0
+        ))
+        #expect(HeadroomMeterColorValues.wellBackground(dark: false) == HeadroomRGBColor(
+            red: 223.0 / 255.0, green: 226.0 / 255.0, blue: 231.0 / 255.0
+        ))
+        #expect(HeadroomMeterColorValues.wellShadow(dark: true) == HeadroomTint(color: .black, opacity: 0.65))
+        #expect(HeadroomMeterColorValues.wellShadow(dark: false) == HeadroomTint(color: .black, opacity: 0.20))
+
+        #expect(HeadroomMeterColorValues.tickOff(dark: true) == HeadroomTint(color: .white, opacity: 0.09))
+        #expect(HeadroomMeterColorValues.tickOff(dark: false) == HeadroomTint(color: .black, opacity: 0.08))
+        #expect(HeadroomMeterColorValues.tickGlass(dark: true) == HeadroomTint(color: .white, opacity: 0.26))
+        #expect(HeadroomMeterColorValues.tickGlass(dark: false) == HeadroomTint(
+            color: HeadroomRGBColor(red: 107.0 / 255.0, green: 114.0 / 255.0, blue: 123.0 / 255.0),
+            opacity: 1
+        ))
+        #expect(HeadroomMeterColorValues.tickGlassCap(dark: true) == HeadroomTint(color: .white, opacity: 0.52))
+        #expect(HeadroomMeterColorValues.tickGlassCap(dark: false) == HeadroomTint(
+            color: HeadroomRGBColor(red: 71.0 / 255.0, green: 78.0 / 255.0, blue: 87.0 / 255.0),
+            opacity: 1
+        ))
+
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .well) == 0.42)
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .flat) == 0.58)
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .well) == 0.55)
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .flat) == 0.55)
+        #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .healthy, dark: true) == 0.18)
+        #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .critical, dark: true) == 0.22)
+        #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .healthy, dark: false) == 0.30)
+        #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .critical, dark: false) == 0.34)
+    }
+
+    @Test func meterTextClearsSmallTextContrastOnRaisedTileFills() {
+        for dark in [true, false] {
+            for background in raisedTileFillColors(dark: dark) {
+                let label = composite(HeadroomMeterColorValues.labelInk(dark: dark), over: background)
+                let countdown = composite(HeadroomMeterColorValues.countdownInk(dark: dark), over: background)
+                #expect(contrastRatio(label, background) >= 4.5, "label, dark=\(dark)")
+                #expect(contrastRatio(countdown, background) >= 4.5, "countdown, dark=\(dark)")
+            }
+        }
+    }
+
+    @Test func everySeverityClearsNonTextContrastAgainstTheTrack() {
+        for dark in [true, false] {
+            for background in raisedTileFillColors(dark: dark) {
+                let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
+                for severity in [UsageSeverity.healthy, .low, .critical] {
+                    let color = HeadroomSeverityColorValues.color(for: severity, dark: dark)
+                    #expect(contrastRatio(color, track) >= 3, "\(severity), dark=\(dark)")
+                }
+            }
+        }
+    }
+
+    @Test func rampStartsRemainChromaBearingInBothSchemes() {
+        for scheme in MeterColorScheme.allCases {
+            for surface in [MeterRampSurface.flat, .well] {
+                for severity in [UsageSeverity.healthy, .low, .critical] {
+                    let start = MeterRecipe.rampStops(
+                        severity: severity,
+                        scheme: scheme,
+                        surface: surface
+                    ).start
+                    #expect(rgbChroma(start) >= 0.04, "\(severity), \(scheme), \(surface)")
+                }
+            }
+        }
+    }
+
+    /// These are characterization measurements, not 3:1 pass assertions. Ghost is
+    /// deliberately subtle, and U8 owns the live decision if that subtlety reads as lost.
+    @Test func ghostBodyContrastOnTrackIsRecorded() {
+        #expect(measuredGhostRatios(dark: true).min().map { abs($0 - 1.2295) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: true).max().map { abs($0 - 1.3733) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false).min().map { abs($0 - 1.3815) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false).max().map { abs($0 - 1.6345) < 0.0001 } == true)
+    }
+
+    /// Glass is also recorded rather than promoted to a blanket pass: its dark-scheme
+    /// gradient measures below 3:1, while both light-scheme endpoints clear it.
+    @Test func healthyGlassContrastOnTrackIsRecorded() {
+        #expect(measuredGlassRatios(dark: true).min().map { abs($0 - 1.3782) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: true).max().map { abs($0 - 1.9544) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: false).min().map { abs($0 - 3.0986) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: false).max().map { abs($0 - 4.0254) < 0.0001 } == true)
+    }
+
     @Test func widgetContainerBackgroundMatchesCanonicalSpec() {
         #expect(HeadroomWidgetColorValues.containerBackgroundTop(dark: true) == HeadroomRGBColor(red: 0.082, green: 0.090, blue: 0.114))
         #expect(HeadroomWidgetColorValues.containerBackgroundMiddle(dark: true) == HeadroomRGBColor(red: 0.061, green: 0.070, blue: 0.091))
@@ -71,5 +185,75 @@ struct BrandColorValuesTests {
         #expect(HeadroomWidgetColorValues.tileCloseShadow(dark: true) == HeadroomTint(color: .black, opacity: 0.28))
         #expect(HeadroomWidgetColorValues.tileAmbientShadow(dark: true) == HeadroomTint(color: .black, opacity: 0.40))
         #expect(HeadroomWidgetColorValues.tileLongShadow(dark: false) == HeadroomTint(color: .black, opacity: 0.05))
+    }
+}
+
+private func raisedTileFillColors(dark: Bool) -> [HeadroomRGBColor] {
+    // Flattened endpoints of RaisedTile's current glass fill in the design reference.
+    [
+        HeadroomWidgetColorValues.tileFillTop(dark: dark),
+        HeadroomWidgetColorValues.tileFillBottom(dark: dark),
+    ]
+}
+
+private func composite(_ tint: HeadroomTint, over background: HeadroomRGBColor) -> HeadroomRGBColor {
+    mix(tint.color, weight: tint.opacity, with: background)
+}
+
+private func mix(
+    _ foreground: HeadroomRGBColor,
+    weight: Double,
+    with background: HeadroomRGBColor
+) -> HeadroomRGBColor {
+    HeadroomRGBColor(
+        red: foreground.red * weight + background.red * (1 - weight),
+        green: foreground.green * weight + background.green * (1 - weight),
+        blue: foreground.blue * weight + background.blue * (1 - weight)
+    )
+}
+
+private func contrastRatio(_ lhs: HeadroomRGBColor, _ rhs: HeadroomRGBColor) -> Double {
+    let lighter = max(relativeLuminance(lhs), relativeLuminance(rhs))
+    let darker = min(relativeLuminance(lhs), relativeLuminance(rhs))
+    return (lighter + 0.05) / (darker + 0.05)
+}
+
+private func relativeLuminance(_ color: HeadroomRGBColor) -> Double {
+    0.2126 * linearized(color.red)
+        + 0.7152 * linearized(color.green)
+        + 0.0722 * linearized(color.blue)
+}
+
+private func linearized(_ component: Double) -> Double {
+    component <= 0.04045
+        ? component / 12.92
+        : pow((component + 0.055) / 1.055, 2.4)
+}
+
+private func rgbChroma(_ color: HeadroomRGBColor) -> Double {
+    max(color.red, color.green, color.blue) - min(color.red, color.green, color.blue)
+}
+
+private func measuredGhostRatios(dark: Bool) -> [Double] {
+    raisedTileFillColors(dark: dark).flatMap { background in
+        let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
+        return [UsageSeverity.healthy, .low, .critical].map { severity in
+            let body = HeadroomTint(
+                color: HeadroomSeverityColorValues.color(for: severity, dark: dark),
+                opacity: HeadroomMeterColorValues.ghostBodyOpacity(for: severity, dark: dark)
+            )
+            return contrastRatio(composite(body, over: track), track)
+        }
+    }
+}
+
+private func measuredGlassRatios(dark: Bool) -> [Double] {
+    let glass = [
+        HeadroomMeterColorValues.glassA(dark: dark),
+        HeadroomMeterColorValues.glassB(dark: dark),
+    ]
+    return raisedTileFillColors(dark: dark).flatMap { background in
+        let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
+        return glass.map { contrastRatio(composite($0, over: track), track) }
     }
 }

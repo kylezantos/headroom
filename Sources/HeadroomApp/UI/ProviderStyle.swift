@@ -55,6 +55,68 @@ enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
+    static func meterLabelInk(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.labelInk(dark: scheme == .dark))
+    }
+
+    static func meterCountdownInk(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.countdownInk(dark: scheme == .dark))
+    }
+
+    static func meterGlassA(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.glassA(dark: scheme == .dark))
+    }
+
+    static func meterGlassB(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.glassB(dark: scheme == .dark))
+    }
+
+    static func meterGlassRim(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.glassRim(dark: scheme == .dark))
+    }
+
+    static func meterWellBackground(scheme: ColorScheme) -> Color {
+        Color(HeadroomMeterColorValues.wellBackground(dark: scheme == .dark))
+    }
+
+    static func meterWellShadow(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.wellShadow(dark: scheme == .dark))
+    }
+
+    static func meterTickOff(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.tickOff(dark: scheme == .dark))
+    }
+
+    static func meterTickGlass(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.tickGlass(dark: scheme == .dark))
+    }
+
+    static func meterTickGlassCap(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.tickGlassCap(dark: scheme == .dark))
+    }
+
+    static func meterRampStart(
+        for severity: UsageSeverity,
+        surface: MeterRampSurface,
+        scheme: ColorScheme
+    ) -> Color {
+        let stops = MeterRecipe.rampStops(
+            severity: severity,
+            scheme: scheme == .dark ? .dark : .light,
+            surface: surface
+        )
+        return Color(stops.start)
+    }
+
+    static func meterGhostBody(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
+        severityColor(for: severity, scheme: scheme).opacity(
+            HeadroomMeterColorValues.ghostBodyOpacity(
+                for: severity,
+                dark: scheme == .dark
+            )
+        )
+    }
+
     /// Semantic fill for a usage bar by health band (UI-01). A static three-stop ramp —
     /// green → amber → red — chosen over the brand accent because Claude's warm clay is
     /// too close to amber to read as "warning". Brand identity stays in the logo + plan
@@ -78,6 +140,10 @@ enum ProviderStyle {
         case .cursor: return "cursorarrow"
         default: return "circle.dashed"
         }
+    }
+
+    private static func color(_ tint: HeadroomTint) -> Color {
+        Color(tint.color).opacity(tint.opacity)
     }
 }
 

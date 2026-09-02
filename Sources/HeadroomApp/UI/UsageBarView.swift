@@ -1,42 +1,31 @@
 import SwiftUI
 import HeadroomCore
 
-/// One labeled usage bar showing the selected percentage + reset countdown (U7, UI-01/04).
-/// The fill color follows the window's static severity band (green → amber → red) so
-/// urgency reads before any number does; the percentage and fill switch together while
-/// the adjacent term removes used-vs-left ambiguity. The bar carries an
-/// `accessibilityValue` so VoiceOver reads the selected percentage — a custom bar is
-/// invisible to VoiceOver otherwise (design review). `dimmed` renders the stale
-/// treatment: the fill desaturates but the number stays fully legible, because a stale
-/// last-known value is exactly what the user opened the app to see. The countdown ticks
-/// per-minute via the caller's TimelineView `now`, so it never reads frozen.
+/// One usage row in either the full two-line frame or the compact micro frame.
+/// The row owns text, accessibility, and value motion; `MeterGauge` owns every
+/// shape × fill rendering decision.
 struct UsageBarView: View {
     let window: UsageWindow
     let percentageMode: UsagePercentageMode
     let now: Date
+    var meterStyle: MeterStyle = .default
     var dimmed: Bool = false
     /// H3a (Jul 2026 multi-account design review): in the multi-account meter the critical
     /// band drops the "Low" chip and paints the percentage numeral a decoupled critical text
-    /// color instead — the band header already carries per-account identity, so the chip's
-    /// second urgency mark became redundant. Off by default so the single-account path keeps
-    /// the chip exactly as before.
+    /// color instead. Single-account rows keep the chip exactly as before.
     var chiplessCriticalInk: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
 
-    // Whole-point steps only, staying on the family ladder (impeccable audit P3).
-    private var labelSize: CGFloat { 13 }
-    private var resetSize: CGFloat { 11 }
-    private var percentSize: CGFloat { 18 }
-    private var termSize: CGFloat { 11 }
-    private var barHeight: CGFloat { 8 }
-    private var rowSpacing: CGFloat { 5 }
+    private let labelSize: CGFloat = 13
+    private let resetSize: CGFloat = 11
+    private let percentSize: CGFloat = 18
+    private let termSize: CGFloat = 11
+    private let rowSpacing: CGFloat = 5
 
     private var isEffectivelyDimmed: Bool { dimmed || !window.freshness.isLive }
 
-    /// True only when this row should paint its numeral critical instead of chipping it
-    /// (H3a): live (not dimmed) critical, in the chipless multi-account path.
     private var usesCriticalInk: Bool {
         chiplessCriticalInk && !isEffectivelyDimmed && severity == .critical
     }
@@ -44,30 +33,29 @@ struct UsageBarView: View {
     private var pct: Int? {
         window.freshness.isUnavailable ? nil : percentageMode.roundedPercentage(for: window)
     }
+
     private var percentText: String { pct.map { "\($0)%" } ?? "—" }
+
     private var fraction: Double {
         window.freshness.isUnavailable ? 0 : percentageMode.fraction(for: window)
     }
+
     private var severity: UsageSeverity { window.severity }
 
-    /// One spring drives the fill width, its color band, and the rolling percentage so the
-    /// bar and its number describe the same value in lockstep. A no-overshoot spring reads
-    /// as physical and is distance-aware — a 3% change settles faster than a 40% one — where
-    /// the old fixed 450ms `easeOut` felt both slow (Emil: keep UI motion under ~300ms) and
-    /// uniform regardless of distance. Nil'd under Reduce Motion so the value snaps instead.
+    /// The same spring drives gauge geometry, severity, and rolling numeric text. The value
+    /// snaps under Reduce Motion, preserving the existing accessibility behavior.
     private var valueAnimation: Animation? { reduceMotion ? nil : HeadroomMotion.valueSpring }
 
-    /// Desaturated grey while stale; the live severity color otherwise.
-    private var fillColor: Color {
-        isEffectivelyDimmed
-            ? Color.secondary.opacity(0.55)
-            : ProviderStyle.severityColor(for: severity, scheme: scheme)
+    private var resetLine: MeterResetLine? {
+        guard !window.freshness.isUnavailable else { return nil }
+        return window.resetSchedule.meterResetLine(now: now)
     }
 
-    private var resetText: String? {
-        window.freshness.isUnavailable
-            ? nil
-            : Countdown.resetText(for: window, now: now)
+    private var gaugeFreshness: UsageWindowFreshness {
+        guard dimmed, !window.freshness.isUnavailable else { return window.freshness }
+        if case .stale = window.freshness { return window.freshness }
+        // Snapshot-level staleness is a visual state; the date is not rendered by the gauge.
+        return .stale(observedAt: window.observedAt ?? now)
     }
 
     private var stateText: String? {
@@ -82,19 +70,14 @@ struct UsageBarView: View {
         }
     }
 
-    private func fillWidth(in availableWidth: Double) -> Double {
-        guard fraction > 0 else { return 0 }
-        return max(8, availableWidth * fraction)
-    }
-
     var body: some View {
-        // Prefer the reset inline beside the label; fall back to a sub-line under the bar
-        // when the row is too tight to share (Codex's long "GPT-5.3-Codex-Spark …" labels).
-        // Fit-aware instead of keyed on window kind, so short labels like "Weekly (Fable)"
-        // inline like the standard windows (KTD3).
-        ViewThatFits(in: .horizontal) {
-            meter(inlineReset: true)
-            meter(inlineReset: false)
+        Group {
+            switch meterStyle.format {
+            case .full:
+                fullRow
+            case .micro:
+                microRow
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label) usage")
@@ -102,90 +85,148 @@ struct UsageBarView: View {
         .animation(valueAnimation, value: severity)
     }
 
-    private func meter(inlineReset: Bool) -> some View {
+    /// Full keeps the established fit-aware frame: label metadata and numeral above the
+    /// full-width gauge, with a reset subline only when a long label cannot share the top row.
+    private var fullRow: some View {
+        ViewThatFits(in: .horizontal) {
+            fullMeter(inlineReset: true)
+            fullMeter(inlineReset: false)
+        }
+    }
+
+    private func fullMeter(inlineReset: Bool) -> some View {
         VStack(alignment: .leading, spacing: rowSpacing) {
-            // Row recipe aligned with the large widget's meter (Jul 2026): 13pt medium
-            // label + "· reset" in the shared WCAG-tuned widget grays (system .tertiary
-            // sat at ~2.3:1 on the dark tile). Percent stays 18pt medium — the popover's
-            // larger canvas earns the bigger numeral; weight ladder 400/500/600/700.
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(label)
-                    .font(.system(size: labelSize, weight: .medium))
-                    .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                if let stateText {
-                    Text("· \(stateText)")
-                        .font(.system(size: resetSize, weight: .medium))
-                        .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-                if inlineReset, let resetText {
-                    // fixedSize so the reset reports its full width to ViewThatFits — the
-                    // inline candidate must be rejected (dropping to the sub-line) rather
-                    // than accepted by silently compressing the reset.
-                    Text("· \(resetText)")
-                        .font(.system(size: resetSize).monospacedDigit())
-                        .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
-                        .lineLimit(1)
-                        .fixedSize()
-                }
+                labelText
+                stateLabel
+                if inlineReset { resetLabel(fixedSize: true) }
                 Spacer(minLength: 6)
-                if !isEffectivelyDimmed, severity == .critical, !chiplessCriticalInk {
-                    lowChip
-                        .transition(.opacity)
+                urgencyChip
+                numeral
+            }
+
+            gauge
+
+            if !inlineReset {
+                resetLabel(fixedSize: false)
+            }
+        }
+    }
+
+    /// Micro tries the approved one-line reading cluster first. Its fallback preserves
+    /// the same information while moving only the gauge + numeral to a second line.
+    private var microRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .center, spacing: 6) {
+                labelCluster(fixedReset: true)
+                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 6)
+                urgencyChip
+                gauge
+                numeral
+            }
+
+            VStack(alignment: .leading, spacing: rowSpacing) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    labelCluster(fixedReset: false)
+                    Spacer(minLength: 6)
+                    urgencyChip
                 }
-                Text(percentText)
-                    // Semibold, matching the widgets' bold numerals — the glance payload
-                    // leads the row. H3a: goes critical-ink (chipless multi-account) when the
-                    // "Low" chip is suppressed, so urgency still reads on the numeral itself.
-                    .font(.system(size: percentSize, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(usesCriticalInk ? ProviderStyle.criticalText(scheme: scheme) : .primary)
-                    .contentTransition(.numericText())
-                    .animation(valueAnimation, value: percentText)
-                if pct != nil {
-                    Text(percentageMode.term)
-                        .font(.system(size: termSize))
-                        .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                HStack(alignment: .center, spacing: 6) {
+                    Spacer(minLength: 0)
+                    gauge
+                    numeral
                 }
             }
-            bar
-            if !inlineReset, let resetText {
-                Text(resetText)
-                    .font(.system(size: resetSize).monospacedDigit())
+        }
+    }
+
+    private func labelCluster(fixedReset: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            labelText
+            stateLabel
+            resetLabel(fixedSize: fixedReset)
+        }
+    }
+
+    private var labelText: some View {
+        Text(label)
+            .font(.system(size: labelSize, weight: .medium))
+            .foregroundStyle(ProviderStyle.meterLabelInk(scheme: scheme))
+            .lineLimit(1)
+            .truncationMode(.tail)
+    }
+
+    @ViewBuilder
+    private var stateLabel: some View {
+        if let stateText {
+            Text("· \(stateText)")
+                .font(.system(size: resetSize, weight: .medium))
+                .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                .lineLimit(1)
+                .fixedSize()
+        }
+    }
+
+    @ViewBuilder
+    private func resetLabel(fixedSize: Bool) -> some View {
+        if let resetLine {
+            Text(resetLine.countdown)
+                .font(.system(size: resetSize).monospacedDigit())
+                .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
+                .lineLimit(1)
+                .fixedSize(horizontal: fixedSize, vertical: true)
+                .help(resetLine.tooltip)
+        }
+    }
+
+    @ViewBuilder
+    private var urgencyChip: some View {
+        if !isEffectivelyDimmed, severity == .critical, !chiplessCriticalInk {
+            lowChip
+                .transition(.opacity)
+        }
+    }
+
+    private var numeral: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Text(percentText)
+                .font(.system(size: percentSize, weight: .semibold).monospacedDigit())
+                .foregroundStyle(usesCriticalInk ? ProviderStyle.criticalText(scheme: scheme) : .primary)
+                .contentTransition(.numericText())
+                .animation(valueAnimation, value: percentText)
+            if pct != nil {
+                Text(percentageMode.term)
+                    .font(.system(size: termSize))
                     .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
             }
         }
+        .fixedSize()
     }
 
-    private var bar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(ProviderStyle.barTrack(scheme: scheme))
-                Capsule()
-                    .fill(fillColor)
-                    .frame(width: fillWidth(in: geo.size.width))
-                    // Width and its severity color ride one spring — a band change only
-                    // ever happens when the fraction changes, so both animate together in
-                    // the same transaction. The visible payoff of a refresh cycle; not a
-                    // loop. (Stale desaturation rides the card's freshness cross-fade.)
-                    .animation(valueAnimation, value: fraction)
-            }
-        }
-        .frame(height: barHeight)
+    private var gauge: some View {
+        MeterGauge(
+            style: meterStyle,
+            fraction: fraction,
+            severity: severity,
+            freshness: gaugeFreshness,
+            scheme: scheme
+        )
+        .animation(valueAnimation, value: fraction)
     }
 
-    /// Small static "Low" flag shown only for the critical band (≤15% left) — a word
-    /// earns its place when you're nearly out, not across the whole amber range where
-    /// the color alone is the right amount of signal.
+    /// Small static "Low" flag shown only for the critical band (≤15% left).
     private var lowChip: some View {
         Text("Low")
             .font(.system(size: 10.5, weight: .semibold))
             .kerning(0.2)
             .foregroundStyle(ProviderStyle.severityColor(for: severity, scheme: scheme))
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(ProviderStyle.severityColor(for: severity, scheme: scheme).opacity(0.16), in: Capsule())
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(
+                ProviderStyle.severityColor(for: severity, scheme: scheme).opacity(0.16),
+                in: Capsule()
+            )
     }
 
     private var label: String {
@@ -205,17 +246,14 @@ struct UsageBarView: View {
         if let stateText {
             parts.append(stateText)
         }
-        if let resetText {
-            parts.append(resetText)
+        if let resetLine {
+            parts.append(resetLine.tooltip)
         }
         return parts.joined(separator: ", ")
     }
 
-    /// Presentation-only tidy of Codex's constructed window labels so their period suffix
-    /// matches the "5-hour"/"Weekly" windows shown above them. The model name is left
-    /// verbatim (KTD6) — only the "5h"/"weekly" suffix the provider appends is normalized,
-    /// with a middot setting it off from the model. Non-matching labels (Claude's
-    /// "Weekly (Fable)") pass through untouched.
+    /// Presentation-only tidy of Codex's constructed window labels. The model name stays
+    /// verbatim; only the provider-appended period suffix is normalized.
     private static func normalizeOther(_ raw: String) -> String {
         if raw.hasSuffix(" weekly") { return "\(raw.dropLast(7)) · Weekly" }
         if raw.hasSuffix(" 5h") { return "\(raw.dropLast(3)) · 5-hour" }

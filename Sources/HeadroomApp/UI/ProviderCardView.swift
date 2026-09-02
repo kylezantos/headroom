@@ -914,6 +914,7 @@ struct UsageBarsStack: View {
     let percentageMode: UsagePercentageMode
     let now: Date
     let dimmed: Bool
+    var meterStyle: MeterStyle = .default
     /// H3a: multi-account sections opt into chipless critical numerals; single-account keeps
     /// the "Low" chip. Threaded down to every row so a stack renders one way.
     var chiplessCriticalInk: Bool = false
@@ -922,12 +923,13 @@ struct UsageBarsStack: View {
         if windows.isEmpty {
             Text("No usage data").font(.caption).foregroundStyle(.secondary)
         } else {
-            VStack(spacing: 9) {
+            VStack(spacing: meterStyle.format == .micro ? 12 : 9) {
                 ForEach(Array(windows.enumerated()), id: \.offset) { _, window in
                     UsageBarView(
                         window: window,
                         percentageMode: percentageMode,
                         now: now,
+                        meterStyle: meterStyle,
                         dimmed: dimmed,
                         chiplessCriticalInk: chiplessCriticalInk
                     )
@@ -942,19 +944,53 @@ struct UsageBarsStack: View {
 struct SkeletonMeter: View {
     let labelWidth: CGFloat
     let valueWidth: CGFloat
+    var format: GaugeFormat = .micro
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack {
-                RoundedRectangle(cornerRadius: 4).fill(ProviderStyle.barTrack(scheme: scheme)).frame(width: labelWidth, height: 13)
-                Spacer(minLength: 6)
-                RoundedRectangle(cornerRadius: 4).fill(ProviderStyle.barTrack(scheme: scheme)).frame(width: valueWidth, height: 13)
+        switch format {
+        case .full:
+            VStack(alignment: .leading, spacing: 5) {
+                skeletonTextRow
+                Capsule().fill(track).frame(height: MeterGeometry.fullTrackHeight)
             }
-            Capsule().fill(ProviderStyle.barTrack(scheme: scheme)).frame(height: 8)
+        case .micro:
+            HStack {
+                skeletonLabel
+                Spacer(minLength: 6)
+                Capsule()
+                    .fill(track)
+                    .frame(
+                        width: MeterGeometry.microChipWidth,
+                        height: MeterGeometry.microChipHeight
+                    )
+                skeletonValue
+            }
         }
     }
+
+    private var skeletonTextRow: some View {
+        HStack {
+            skeletonLabel
+            Spacer(minLength: 6)
+            skeletonValue
+        }
+    }
+
+    private var skeletonLabel: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(track)
+            .frame(width: labelWidth, height: 13)
+    }
+
+    private var skeletonValue: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .fill(track)
+            .frame(width: valueWidth, height: 13)
+    }
+
+    private var track: Color { ProviderStyle.barTrack(scheme: scheme) }
 }
 
 // MARK: - Shared command recovery row

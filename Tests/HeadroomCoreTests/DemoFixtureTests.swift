@@ -76,6 +76,8 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .multiFive).accounts.count == 8)  // 5 Claude + 3 Codex (past the cap for scroll)
         #expect(DemoFixture.multiFixture(for: .multiMixed).accounts.count == 4)
         #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.count == 4)  // one built-in per provider
+        #expect(DemoFixture.multiFixture(for: .fourDefault).accounts.count == 4)
+        #expect(DemoFixture.multiFixture(for: .duplicateLabels).accounts.count == 4)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)
@@ -115,5 +117,45 @@ struct DemoFixtureTests {
         #expect(fixture.accounts.map(\.providerID) == DemoFixture.registeredProviderOrder)
         #expect(fixture.providers.map(\.id) == DemoFixture.registeredProviderOrder)
         #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor])
+    }
+
+    @Test func fourDefaultScenarioKeepsStoredDefaultLabels() {
+        let fixture = DemoFixture.multiFixture(for: .fourDefault)
+        let accountsByProvider = Dictionary(grouping: fixture.accounts, by: \.providerID)
+
+        #expect(fixture.accounts.map(\.providerID) == DemoFixture.registeredProviderOrder)
+        #expect(fixture.accounts.map(\.label) == ["Main", "Main", "Main", "Main"])
+        #expect(fixture.accounts.allSatisfy { $0.isBuiltIn })
+        #expect(!surfaceUsesAccountRows(accountsByProvider: accountsByProvider))
+        #expect(fixture.accounts.map { account in
+            rowTitle(
+                for: account,
+                in: accountsByProvider[account.providerID] ?? [],
+                providerDisplayName: account.providerID.displayName
+            )
+        } == ["Claude", "Codex", "Grok", "Cursor"])
+    }
+
+    @Test func duplicateLabelsScenarioHasDistinctExplicitEmails() async {
+        let fixture = DemoFixture.multiFixture(for: .duplicateLabels)
+
+        #expect(fixture.accounts.map(\.label) == ["Main", "Account 2", "Work", "work"])
+
+        var emails: [String] = []
+        for provider in fixture.providers {
+            if let email = await provider.fetchSnapshot().accountEmail {
+                emails.append(email)
+            }
+        }
+        #expect(emails == [
+            "main@example.com",
+            "second@example.com",
+            "work-primary@example.com",
+            "work-secondary@example.com",
+        ])
+        #expect(Set(emails).count == fixture.accounts.count)
+        #expect(fixture.accounts.allSatisfy {
+            showsPersistentEmail(for: $0, in: fixture.accounts)
+        })
     }
 }

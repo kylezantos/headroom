@@ -167,6 +167,12 @@ extension DemoFixture {
         // scenario (U12). Shows Claude/Codex's rolling windows beside Grok/Cursor's
         // billing-period meters, exercising every brand mark and window shape at once.
         case multiProviders = "multi-4"
+        /// All four providers with their untouched built-in "Main" label. The identity
+        /// resolver turns these into provider names only at presentation time (KTD10).
+        case fourDefault = "four-default"
+        /// Default labels plus a case-insensitive renamed collision, with distinct
+        /// addresses so the persistent-email treatment visibly disambiguates every row.
+        case duplicateLabels = "dup-labels"
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
@@ -192,6 +198,7 @@ extension DemoFixture {
         plan: String,
         fiveHour: Double,
         weekly: Double,
+        email: String? = nil,
         freshness: Freshness = .live,
         builtIn: Bool = false,
         capability: ProviderCapabilityState? = nil
@@ -202,11 +209,11 @@ extension DemoFixture {
         // Placeholder identity derived from the label ("Work" → work@example.com) — demo
         // fixtures ship in the repo, so they never carry a real address. An account still
         // waiting on sign-in has no email to show yet, same as it has no windows.
-        var email: String? = "\(label.lowercased())@example.com"
+        var snapshotEmail: String? = email ?? "\(label.lowercased())@example.com"
         switch freshness {
         case .stale(let reason) where reason.isPermanent:
             windows = []
-            email = nil
+            snapshotEmail = nil
         default:
             windows = [
                 UsageWindow(kind: .fiveHour, utilization: fiveHour, resetsAt: Date().addingTimeInterval(3.2 * 3600), resetLabel: "Resets 2:15pm"),
@@ -217,7 +224,7 @@ extension DemoFixture {
             providerID: providerID,
             windows: windows,
             planLabel: plan,
-            accountEmail: email,
+            accountEmail: snapshotEmail,
             capturedAt: Date().addingTimeInterval(-135),
             freshness: freshness
         )
@@ -238,9 +245,15 @@ extension DemoFixture {
     /// fixed 5h/weekly pair.
     private static func builtInProviderPair(
         provider providerID: ProviderID,
-        snapshot: UsageSnapshot
+        snapshot: UsageSnapshot,
+        label: String? = nil
     ) -> (account: ProviderAccount, provider: any UsageProvider) {
-        let account = ProviderAccount(id: .primary, providerID: providerID, label: providerID.displayName, isBuiltIn: true)
+        let account = ProviderAccount(
+            id: .primary,
+            providerID: providerID,
+            label: label ?? providerID.displayName,
+            isBuiltIn: true
+        )
         return (account, DemoUsageProvider(id: providerID, displayName: providerID.displayName, snapshot: snapshot, accountID: .primary))
     }
 
@@ -322,6 +335,71 @@ extension DemoFixture {
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
                 builtInProviderPair(provider: .grok, snapshot: grokSnapshot),
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+            ]
+        case .fourDefault:
+            pairs = [
+                demoAccount(
+                    provider: .claude,
+                    id: "claude-main",
+                    label: "Main",
+                    plan: "Max",
+                    fiveHour: 28,
+                    weekly: 62,
+                    email: "claude-main@example.com",
+                    builtIn: true
+                ),
+                demoAccount(
+                    provider: .codex,
+                    id: "codex-main",
+                    label: "Main",
+                    plan: "Prolite",
+                    fiveHour: 9,
+                    weekly: 36,
+                    email: "codex-main@example.com",
+                    builtIn: true
+                ),
+                builtInProviderPair(provider: .grok, snapshot: grokSnapshot, label: "Main"),
+                builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot, label: "Main"),
+            ]
+        case .duplicateLabels:
+            pairs = [
+                demoAccount(
+                    provider: .claude,
+                    id: "main",
+                    label: "Main",
+                    plan: "Max",
+                    fiveHour: 28,
+                    weekly: 62,
+                    email: "main@example.com",
+                    builtIn: true
+                ),
+                demoAccount(
+                    provider: .claude,
+                    id: "second",
+                    label: "Account 2",
+                    plan: "Pro",
+                    fiveHour: 71,
+                    weekly: 88,
+                    email: "second@example.com"
+                ),
+                demoAccount(
+                    provider: .claude,
+                    id: "work-primary",
+                    label: "Work",
+                    plan: "Max",
+                    fiveHour: 12,
+                    weekly: 41,
+                    email: "work-primary@example.com"
+                ),
+                demoAccount(
+                    provider: .claude,
+                    id: "work-secondary",
+                    label: "work",
+                    plan: "Team",
+                    fiveHour: 47,
+                    weekly: 55,
+                    email: "work-secondary@example.com"
+                ),
             ]
         }
         let continuitySnapshots: [AccountKey: UsageSnapshot] = if scenario == .capabilityFailure {

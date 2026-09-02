@@ -49,6 +49,15 @@ enum Entry {
             FileHandle.standardError.write(Data("Unknown --demo scenario '\(token)'. Valid scenarios: \(valid)\n".utf8))
             exit(1)
         }
+        if DemoFixture.isEnabled,
+           let index = CommandLine.arguments.firstIndex(of: "--meter-style"),
+           (!CommandLine.arguments.indices.contains(index + 1)
+               || MeterStyle(launchToken: CommandLine.arguments[index + 1]) == nil) {
+            FileHandle.standardError.write(Data(
+                "Invalid --meter-style. Expected <format>.<shape>.<fill>, for example micro.chip.event.\n".utf8
+            ))
+            exit(1)
+        }
         HeadroomApp.main()
     }
 
@@ -644,7 +653,14 @@ enum AppComposition {
     /// macOS widgets and the iPhone mirror pick up the same fixed numbers.
     @MainActor
     private static func demoStore() -> UsageStore {
-        let prefs = Preferences(defaults: UserDefaults(suiteName: "co.zantos.headroom.demo") ?? .standard)
+        guard let demoDefaults = UserDefaults(suiteName: "co.zantos.headroom.demo") else {
+            preconditionFailure("Unable to create isolated demo preferences")
+        }
+        let prefs = Preferences(defaults: demoDefaults)
+        let meterStyle = demoMeterStyle()
+        prefs.meterFormat = meterStyle.format
+        prefs.meterShape = meterStyle.shape
+        prefs.meterFill = meterStyle.fill
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills side by side in the menu bar
         prefs.widgetsEnabled = true
@@ -684,9 +700,15 @@ enum AppComposition {
     @MainActor
     private static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario) -> UsageStore {
         let prefsSuite = "co.zantos.headroom.demo.multi.\(UUID().uuidString)"
-        let prefsDefaults = UserDefaults(suiteName: prefsSuite) ?? .standard
+        guard let prefsDefaults = UserDefaults(suiteName: prefsSuite) else {
+            preconditionFailure("Unable to create isolated multi-account demo preferences")
+        }
         prefsDefaults.removePersistentDomain(forName: prefsSuite)
         let prefs = Preferences(defaults: prefsDefaults)
+        let meterStyle = demoMeterStyle()
+        prefs.meterFormat = meterStyle.format
+        prefs.meterShape = meterStyle.shape
+        prefs.meterFill = meterStyle.fill
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills in the menu bar
         prefs.setSurfaceEnabled(true, for: .anthropicAPI)   // API spend surfaces are off by default
@@ -738,6 +760,16 @@ enum AppComposition {
             providerFactory: factory,
             continuityCache: continuityCache
         )
+    }
+
+    /// Demo-only launch override. An absent flag always reseeds the landed default so a
+    /// previous demo run cannot change a later capture; Entry rejects malformed tokens.
+    static func demoMeterStyle(arguments: [String] = CommandLine.arguments) -> MeterStyle {
+        guard let index = arguments.firstIndex(of: "--meter-style"),
+              arguments.indices.contains(index + 1),
+              let style = MeterStyle(launchToken: arguments[index + 1])
+        else { return .default }
+        return style
     }
 
     /// One provider instance per configured account, in registry order (built-in first).

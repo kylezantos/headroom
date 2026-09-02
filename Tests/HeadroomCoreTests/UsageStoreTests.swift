@@ -1026,6 +1026,35 @@ struct UsageStoreTests {
         #expect(store.menuBarSummary.severity == severity)
     }
 
+    @Test func meterStyleSeedsPersistsAndNeverTriggersWidgetExport() {
+        let preferences = freshPreferences()
+        preferences.meterFormat = .full
+        preferences.meterShape = .tube
+        preferences.meterFill = .ghost
+        let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyWidgetExporter()
+        let store = UsageStore(
+            providers: [
+                StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            ],
+            preferences: preferences,
+            widgetExporter: exporter,
+            phoneSyncExporter: phoneExporter
+        )
+
+        #expect(store.meterStyle == MeterStyle(format: .full, shape: .tube, fill: .ghost))
+
+        let updated = MeterStyle(format: .micro, shape: .segmented, fill: .hueRamp)
+        store.setMeterStyle(updated)
+
+        #expect(store.meterStyle == updated)
+        #expect(preferences.meterFormat == updated.format)
+        #expect(preferences.meterShape == updated.shape)
+        #expect(preferences.meterFill == updated.fill)
+        #expect(exporter.exports.isEmpty)
+        #expect(phoneExporter.exports.isEmpty)
+    }
+
     @Test func menuBarFillTracksSelectedProviderWeekly() async {
         let store = makeStore(source: .claude, providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [

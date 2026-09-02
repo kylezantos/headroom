@@ -393,10 +393,15 @@ enum PopoverRenderHarness {
 
     private static func renderPreferences(mode: UsagePercentageMode) -> Preferences {
         let suite = "co.zantos.headroom.render.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite) ?? .standard
+        guard let defaults = UserDefaults(suiteName: suite) else {
+            preconditionFailure("Unable to create isolated render preferences")
+        }
         defaults.removePersistentDomain(forName: suite)
         let preferences = Preferences(defaults: defaults)
         preferences.usagePercentageMode = mode
+        preferences.meterFormat = MeterStyle.default.format
+        preferences.meterShape = MeterStyle.default.shape
+        preferences.meterFill = MeterStyle.default.fill
         // API spend surfaces are off by default (`isSurfaceEnabled` → `isSubscription`),
         // so the store's `apiSpendProviderOrder` is empty and the section renders nothing.
         // Enable both so the connected hero shows the API Spend section — wiring the

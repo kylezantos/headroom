@@ -95,6 +95,7 @@ public final class UsageStore {
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
     public private(set) var usagePercentageMode: UsagePercentageMode
+    public private(set) var meterStyle: MeterStyle
     public private(set) var menuBarFillSource: MenuBarFillSource
     public private(set) var menuBarWindowSources: [ProviderID: MenuBarWindowSource]
     public private(set) var showCodexSparkCountersInApp: Bool
@@ -197,6 +198,11 @@ public final class UsageStore {
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
         self.usagePercentageMode = preferences.usagePercentageMode
+        self.meterStyle = MeterStyle(
+            format: preferences.meterFormat,
+            shape: preferences.meterShape,
+            fill: preferences.meterFill
+        )
         let registeredProviderIDs = providers.map(\.id).uniqued()
         self.composedProviderOrder = registeredProviderIDs
         self.menuBarFillSource = preferences.menuBarFillSource.filtered(to: registeredProviderIDs)
@@ -327,6 +333,13 @@ public final class UsageStore {
     public func setUsagePercentageMode(_ mode: UsagePercentageMode) {
         preferences.usagePercentageMode = mode
         usagePercentageMode = mode
+    }
+
+    public func setMeterStyle(_ style: MeterStyle) {
+        preferences.meterFormat = style.format
+        preferences.meterShape = style.shape
+        preferences.meterFill = style.fill
+        meterStyle = style
     }
 
     public func setMenuBarFillSource(_ source: MenuBarFillSource) {

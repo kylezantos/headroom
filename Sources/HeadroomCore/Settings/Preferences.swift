@@ -12,6 +12,9 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let appearancePreference = "appearancePreference"
         static let showMenuBarPercentage = "showMenuBarPercentage"
         static let usagePercentageMode = "usagePercentageMode"
+        static let meterFormat = "meterFormat"
+        static let meterShape = "meterShape"
+        static let meterFill = "meterFill"
         static let menuBarFillSource = "menuBarFillSource"
         static let menuBarFillProviders = "menuBarFillProviders"
         /// Kept as a read-through migration source for installs that saved one shared
@@ -61,6 +64,36 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return mode
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.usagePercentageMode) }
+    }
+
+    public var meterFormat: GaugeFormat {
+        get {
+            guard let raw = defaults.string(forKey: Key.meterFormat),
+                  let format = GaugeFormat(rawValue: raw)
+            else { return MeterStyle.default.format }
+            return format
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.meterFormat) }
+    }
+
+    public var meterShape: GaugeShape {
+        get {
+            guard let raw = defaults.string(forKey: Key.meterShape),
+                  let shape = GaugeShape(rawValue: raw)
+            else { return MeterStyle.default.shape }
+            return shape
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.meterShape) }
+    }
+
+    public var meterFill: GaugeFill {
+        get {
+            guard let raw = defaults.string(forKey: Key.meterFill),
+                  let fill = GaugeFill(rawValue: raw)
+            else { return MeterStyle.default.fill }
+            return fill
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.meterFill) }
     }
 
     public var menuBarFillSource: MenuBarFillSource {

@@ -73,6 +73,34 @@ struct PreferencesTests {
         #expect(prefs.usagePercentageMode == .remaining)
     }
 
+    @Test func meterStyleComponentsDefaultPersistAndIgnoreUnknownValuesIndependently() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+
+        #expect(prefs.meterFormat == MeterStyle.default.format)
+        #expect(prefs.meterShape == MeterStyle.default.shape)
+        #expect(prefs.meterFill == MeterStyle.default.fill)
+
+        prefs.meterFormat = .full
+        prefs.meterShape = .tube
+        prefs.meterFill = .ghost
+        #expect(prefs.meterFormat == .full)
+        #expect(prefs.meterShape == .tube)
+        #expect(prefs.meterFill == .ghost)
+
+        defaults.set("wide", forKey: "meterFormat")
+        #expect(prefs.meterFormat == MeterStyle.default.format)
+        #expect(prefs.meterShape == .tube)
+        #expect(prefs.meterFill == .ghost)
+
+        defaults.set("blob", forKey: "meterShape")
+        #expect(prefs.meterShape == MeterStyle.default.shape)
+        #expect(prefs.meterFill == .ghost)
+
+        defaults.set("sparkle", forKey: "meterFill")
+        #expect(prefs.meterFill == MeterStyle.default.fill)
+    }
+
     @Test func menuBarFillSourceMigratesEveryLegacyValue() {
         let defaults = freshDefaults()
         let prefs = Preferences(defaults: defaults)

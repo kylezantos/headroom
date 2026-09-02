@@ -16,6 +16,7 @@
 		079F32150EB353B7459F9A1E /* VesselMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0627C951970F44087A8EE593 /* VesselMark.swift */; };
 		07FEC9311797B972C4DBC492 /* GrokDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2DD5C8BCCC8BADC9508D07 /* GrokDTOs.swift */; };
 		084D12BD03637F092BEC19F5 /* SoftwareUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98CDEAF6EF0A499E6D0A8FA /* SoftwareUpdateController.swift */; };
+		08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */; };
 		0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E542DE434B4A2F1EA525110E /* ProviderCardView.swift */; };
 		0F6E53CFBD9ABC36DD6E4A82 /* IOSCompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79F757570AB27C93700E341 /* IOSCompanionView.swift */; };
 		10BDACB4C950DBCDA4603D43 /* Preferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3E94962CE286BEB04CB86DC /* Preferences.swift */; };
@@ -326,6 +327,7 @@
 		42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		432AF864130D5870A2FC78CF /* PollingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingEngine.swift; sourceTree = "<group>"; };
 		4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeExecutableDiscoveryInteractionTests.swift; sourceTree = "<group>"; };
+		489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardIdentityRows.swift; sourceTree = "<group>"; };
 		48C63A7205115E3F08BEDE08 /* PopoverRenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverRenderHarness.swift; sourceTree = "<group>"; };
 		4B371EDE73E7D7D689ADFED6 /* GrokAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokAccountEmailReader.swift; sourceTree = "<group>"; };
 		4BE9F956D9F249904E8CE412 /* DemoModeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeUITests.swift; sourceTree = "<group>"; };
@@ -674,6 +676,7 @@
 				D15A53AE4F679F87EABE633E /* MeterGauge.swift */,
 				7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */,
 				864FC2FB47A9E7D44E659809 /* PopoverView.swift */,
+				489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */,
 				E542DE434B4A2F1EA525110E /* ProviderCardView.swift */,
 				0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */,
 				271BAABD34D394E2014676BC /* ProviderStyle.swift */,
@@ -1242,6 +1245,7 @@
 				64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */,
 				2FF5F97796EE9B85A1379553 /* PopoverRenderHarness.swift in Sources */,
 				E8F06C1901BA60D02C5F964C /* PopoverView.swift in Sources */,
+				08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */,
 				0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */,
 				AD3E4560009B235BD443F798 /* ProviderLogoView.swift in Sources */,
 				9D992181780CEEF21E07FEF0 /* ProviderStyle.swift in Sources */,

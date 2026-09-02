@@ -126,32 +126,45 @@ struct MeterStyleTests {
         }
     }
 
-    @Test func cellRecipesIdentifyOffBodyAndTipForEveryFill() {
-        for fill in GaugeFill.allCases {
-            let body = MeterRecipe.cellRecipe(
-                index: 0,
-                lit: 3,
-                fill: fill,
-                severity: .low
-            )
-            let tip = MeterRecipe.cellRecipe(
-                index: 2,
-                lit: 3,
-                fill: fill,
-                severity: .low
-            )
+    @Test func cellRecipesPreserveEveryFillAndTipContract() {
+        #expect(MeterRecipe.cellRecipe(
+            index: 0,
+            lit: 2,
+            fill: .solid,
+            severity: .low
+        ) == .body(.severity))
+        #expect(MeterRecipe.cellRecipe(
+            index: 1,
+            lit: 2,
+            fill: .solid,
+            severity: .low
+        ) == .tip(.severity))
 
-            guard case .body = body else {
-                Issue.record("Expected a body recipe for \(fill)")
-                continue
-            }
-            guard case .tip = tip else {
-                Issue.record("Expected a tip recipe for \(fill)")
-                continue
-            }
-            #expect(MeterRecipe.cellRecipe(index: 3, lit: 3, fill: fill, severity: .low) == .off)
-            #expect(MeterRecipe.cellRecipe(index: -1, lit: 3, fill: fill, severity: .low) == .off)
-        }
+        #expect(MeterRecipe.cellRecipe(
+            index: 0,
+            lit: 2,
+            fill: .glass,
+            severity: .low
+        ) == .body(.glass))
+        #expect(MeterRecipe.cellRecipe(
+            index: 1,
+            lit: 2,
+            fill: .glass,
+            severity: .low
+        ) == .tip(.severity))
+
+        #expect(MeterRecipe.cellRecipe(
+            index: 0,
+            lit: 2,
+            fill: .ghost,
+            severity: .low
+        ) == .body(.ghost))
+        #expect(MeterRecipe.cellRecipe(
+            index: 1,
+            lit: 2,
+            fill: .ghost,
+            severity: .low
+        ) == .tip(.severity))
 
         #expect(MeterRecipe.cellRecipe(
             index: 0,
@@ -167,10 +180,46 @@ struct MeterStyleTests {
         ) == .tip(.neutral))
         #expect(MeterRecipe.cellRecipe(
             index: 0,
+            lit: 2,
+            fill: .colorAsEvent,
+            severity: .critical
+        ) == .body(.severity))
+        #expect(MeterRecipe.cellRecipe(
+            index: 1,
+            lit: 2,
+            fill: .colorAsEvent,
+            severity: .critical
+        ) == .tip(.severity))
+
+        #expect(MeterRecipe.cellRecipe(
+            index: 0,
+            lit: 5,
+            fill: .hueRamp,
+            severity: .critical
+        ) == .body(.ramp(progress: 0)))
+        #expect(MeterRecipe.cellRecipe(
+            index: 2,
+            lit: 5,
+            fill: .hueRamp,
+            severity: .critical
+        ) == .body(.ramp(progress: 0.5)))
+        #expect(MeterRecipe.cellRecipe(
+            index: 4,
+            lit: 5,
+            fill: .hueRamp,
+            severity: .critical
+        ) == .tip(.ramp(progress: 1)))
+        #expect(MeterRecipe.cellRecipe(
+            index: 0,
             lit: 1,
             fill: .hueRamp,
             severity: .critical
         ) == .tip(.ramp(progress: 1)))
+
+        for fill in GaugeFill.allCases {
+            #expect(MeterRecipe.cellRecipe(index: 3, lit: 3, fill: fill, severity: .low) == .off)
+            #expect(MeterRecipe.cellRecipe(index: -1, lit: 3, fill: fill, severity: .low) == .off)
+        }
     }
 
     @Test func fillRecipesHonorFillSeverityAndFreshness() {

@@ -136,6 +136,13 @@ public enum HeadroomWidgetColorValues {
     }
 }
 
+/// The ramp's dark-scheme start is mixed against different meter surfaces. Light mode
+/// uses the same white mix on both because both reference surfaces are light neutrals.
+public enum MeterRampSurface: Sendable {
+    case flat
+    case well
+}
+
 /// App-local color tokens for the macOS popover meter. These stay separate from
 /// `HeadroomWidgetColorValues` so meter experiments cannot change the widgets by accident.
 public enum HeadroomMeterColorValues {

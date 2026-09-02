@@ -1,5 +1,15 @@
 import Foundation
 
+public struct MeterResetLine: Sendable, Equatable {
+    public let countdown: String
+    public let tooltip: String
+
+    public init(countdown: String, tooltip: String) {
+        self.countdown = countdown
+        self.tooltip = tooltip
+    }
+}
+
 /// Pure reset-countdown formatting. Kept out of views so every surface uses the same
 /// approved precision and reset-evidence semantics.
 public enum Countdown {

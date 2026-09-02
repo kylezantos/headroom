@@ -235,7 +235,9 @@ struct MeterGauge: View {
     ) -> Color {
         switch fill {
         case .severity:
-            return flatSeverityColor
+            return isTip
+                ? ProviderStyle.severityColor(for: severity, scheme: scheme)
+                : flatSeverityColor
         case .glass:
             return isTip
                 ? ProviderStyle.meterTickGlassCap(scheme: scheme)

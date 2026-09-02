@@ -117,13 +117,6 @@ public enum MeterColorScheme: String, CaseIterable, Sendable {
     case dark
 }
 
-/// The ramp's dark-scheme start is mixed against different meter surfaces. Light mode
-/// uses the same white mix on both because both reference surfaces are light neutrals.
-public enum MeterRampSurface: Sendable {
-    case flat
-    case well
-}
-
 public struct MeterRampStops: Sendable, Equatable {
     public let start: HeadroomRGBColor
     public let end: HeadroomRGBColor
@@ -267,16 +260,6 @@ public enum MeterRecipe {
             green: color.green * weight + background.green * backgroundWeight,
             blue: color.blue * weight + background.blue * backgroundWeight
         )
-    }
-}
-
-public struct MeterResetLine: Sendable, Equatable {
-    public let countdown: String
-    public let tooltip: String
-
-    public init(countdown: String, tooltip: String) {
-        self.countdown = countdown
-        self.tooltip = tooltip
     }
 }
 

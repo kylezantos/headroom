@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
+    @State private var meterStyle: MeterStyle = .default
     @State private var menuBarFillSource: MenuBarFillSource = .auto
     @State private var menuBarWindowSources: [ProviderID: MenuBarWindowSource] = [:]
     @State private var widgetsEnabled = true
@@ -97,6 +98,15 @@ struct SettingsView: View {
             header
             generalTile
             appearanceTile
+            // KTD13: the real-meter swatches need the tile's full width so they can
+            // wrap at the 360pt window minimum. Only Format keeps the shared picker cap.
+            MeterStyleTile(
+                meterStyle: meterStyle,
+                formatPickerMaxWidth: Self.segmentedMaxWidth
+            ) { newStyle in
+                meterStyle = newStyle
+                store.setMeterStyle(newStyle)
+            }
             menuBarTile
             widgetsTile
             subscriptionTile
@@ -807,6 +817,7 @@ struct SettingsView: View {
         appearancePreference = preferences.appearancePreference
         showMenuBarPercentage = store.showMenuBarPercentage
         usagePercentageMode = store.usagePercentageMode
+        meterStyle = store.meterStyle
         menuBarFillSource = store.menuBarFillSource
         menuBarWindowSources = Dictionary(uniqueKeysWithValues: store.registeredProviderOrder.map {
             ($0, store.menuBarWindowSource(for: $0))

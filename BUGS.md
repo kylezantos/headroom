@@ -193,17 +193,17 @@ official `claude` CLI's `/usage` panel instead.
   The iOS host/widget entitlements already declare the key and are signed via Xcode, so the phone
   read side is fine — only the Mac publisher is blocked.
 
-## Contrast — severity bar colors in light mode (pre-existing, shared tokens)
+## Contrast — meter ghost and glass bodies are intentionally subtle
 
-- `HeadroomSeverityColorValues` has one value per severity used in both schemes. As bar fills
-  in **light** mode they miss WCAG 1.4.11 non-text contrast (≥3:1) against the composited
-  bar track on a white card: healthy 1.69:1, low 1.57:1, critical 2.59:1; the track itself
-  is only 1.32:1 against the card. In **dark**, critical is marginal at 2.81:1 (healthy 4.31,
-  low 4.63 pass). Mitigating: the adjacent percent text (AA-passing) carries the same value,
-  so the bars are reinforcement, not the sole indicator. Fix would be scheme-aware severity
-  variants (darker greens/ambers/reds for light), which touches the popover, companion, and
-  widgets together — do it as one deliberate pass, not a widget-only patch. Found during the
-  2026-07-08 widget contrast audit; text tokens were fixed in that pass, bars deferred.
+- The scheme-specific severity colors now clear WCAG 1.4.11 non-text contrast (≥3:1) against
+  both flattened `RaisedTile` track endpoints: dark healthy 4.31–5.04:1, low 4.63–5.42:1,
+  critical 3.06–3.58:1; light healthy 3.49–3.61:1, low 3.15–3.25:1, critical 3.61–3.73:1.
+- The translucent bodies are characterization measurements, not blanket 3:1 passes. Ghost
+  measures 1.23–1.37:1 in dark and 1.38–1.63:1 in light. Healthy glass measures 1.38–1.95:1
+  in dark and 3.10–4.03:1 in light. Glass and ghost retain a full-severity reading-edge cap,
+  and the adjacent percentage remains the primary numeric value. Revisit the body opacity or
+  dark glass tokens only if live review shows the fill disappearing; keep the scheme-specific
+  assertions in `BrandColorValuesTests` as the measurement source of truth.
 
 ## Companion platforms
 

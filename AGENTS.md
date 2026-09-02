@@ -33,7 +33,8 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
   - `Models/` — `UsageSnapshot`/`UsageWindow` (with `resetLabel`), `FailureReason`,
     snapshot `Freshness` (`.pending`/`.live`/`.stale`), per-window
     `UsageWindowFreshness` (`.live`/`.stale`/`.unavailable`), `UsageProvider` protocol,
-    `Countdown`, `Account` (`AccountID`/`AccountKey`/`ProviderAccount`).
+    `Countdown`, `Account` (`AccountID`/`AccountKey`/`ProviderAccount`), and the pure
+    `MeterStyle`/`MeterRecipe` rendering contract.
   - `Providers/` — `ClaudeProvider` (via `ClaudeUsageSource`), `ClaudeUsageCLIProbe`
     (openpty + posix_spawn), `ClaudeUsageParser`, `CodexProvider` (+ `UsageHTTPClient`,
     DTOs), `CodexConnection`, shared login-shell `CLIExecutableResolver`, `RedirectBlocker`,
@@ -44,10 +45,17 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
     catalog, max 5 per provider), `LaunchAtLogin` (SMAppService).
 - `Sources/HeadroomApp` — SwiftUI `MenuBarExtra(.window)` shell + adaptive popover (Liquid
   Glass on Tahoe, native material on Sequoia), cards, settings, menu bar label.
-  `AppComposition` is the one place providers are wired.
+  `MeterGauge` is the popover's single format × shape × fill renderer; `AppComposition` is
+  the one place providers are wired.
 
 Data flow: `PollingEngine` → `UsageStore.refreshAll()` fetches providers concurrently →
 merges with continuity → menu bar label + popover bind to the `@Observable` store.
+
+The popover meter style is one global `MeterStyle`, persisted as three independent
+UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStore`. It affects
+only the macOS popover: widget, phone, and menu-bar projections intentionally carry no style.
+Tube remains a stored shape when Full is selected, but `GaugeShape.resolved(for:)` renders it
+as Chip until the user returns to Micro.
 
 ### Multi-account (Jul 2026)
 
@@ -132,6 +140,12 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
 - Don't commit build artifacts (`.build/`, `Headroom.app/`) — already gitignored.
 
 ## Gotchas
+
+- **Meter visual acceptance must use the live `MenuBarExtra` window.** Drive deterministic
+  fixtures with `swift run Headroom --demo <scenario> --meter-style
+  <format>.<shape>.<fill>` and inspect the native popover in both appearances. Do not accept
+  `--render-popover` output as evidence while the Xcode 26.5 appearance-capture bug remains in
+  `BUGS.md`; Core recipe tests prove decisions, not SwiftUI rendering or window sizing.
 
 - **The Claude probe is print-first, PTY-fallback.** `ClaudeUsageCLIProbe` first runs
   `claude -p "/usage" --no-session-persistence` (non-interactive, ~2s, atomic report — no

@@ -399,9 +399,7 @@ enum PopoverRenderHarness {
         defaults.removePersistentDomain(forName: suite)
         let preferences = Preferences(defaults: defaults)
         preferences.usagePercentageMode = mode
-        preferences.meterFormat = MeterStyle.default.format
-        preferences.meterShape = MeterStyle.default.shape
-        preferences.meterFill = MeterStyle.default.fill
+        preferences.meterStyle = .default
         // API spend surfaces are off by default (`isSurfaceEnabled` → `isSubscription`),
         // so the store's `apiSpendProviderOrder` is empty and the section renders nothing.
         // Enable both so the connected hero shows the API Spend section — wiring the

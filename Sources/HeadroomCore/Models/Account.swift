@@ -31,6 +31,8 @@ public struct AccountKey: Hashable, Sendable, Codable, CustomStringConvertible {
 /// `CODEX_HOME`) that the user signs into once via the official CLI — Headroom never
 /// touches credentials itself (same compliance boundary as single-account).
 public struct ProviderAccount: Identifiable, Sendable, Codable, Equatable, Hashable {
+    public static let builtInDefaultLabel = "Main"
+
     public let id: AccountID
     public let providerID: ProviderID
     /// User-editable display label ("Personal", "Work"). Hidden in the UI while a
@@ -51,6 +53,25 @@ public struct ProviderAccount: Identifiable, Sendable, Codable, Equatable, Hasha
 
     /// The built-in default account every provider starts with.
     public static func builtIn(for providerID: ProviderID) -> ProviderAccount {
-        ProviderAccount(id: .primary, providerID: providerID, label: "Main", isBuiltIn: true)
+        ProviderAccount(
+            id: .primary,
+            providerID: providerID,
+            label: builtInDefaultLabel,
+            isBuiltIn: true
+        )
+    }
+
+    public static func extraDefaultLabel(ordinal: Int) -> String {
+        "Account \(ordinal)"
+    }
+
+    public static func isDefaultLabel(_ label: String) -> Bool {
+        if label == builtInDefaultLabel { return true }
+
+        let prefix = "Account "
+        guard label.hasPrefix(prefix) else { return false }
+        let suffix = label.dropFirst(prefix.count).utf8
+        guard let first = suffix.first, (49...57).contains(first) else { return false }
+        return suffix.allSatisfy { (48...57).contains($0) }
     }
 }

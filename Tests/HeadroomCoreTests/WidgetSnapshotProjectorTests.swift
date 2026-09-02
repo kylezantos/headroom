@@ -464,41 +464,6 @@ struct WidgetSnapshotProjectorTests {
         #expect(decoded.providers[0].windows[0].kind == .weekly)
     }
 
-    @Test func encodedWidgetSnapshotIsInvariantAcrossEveryMeterStyle() throws {
-        let snapshots: [ProviderID: UsageSnapshot] = [
-            .claude: .live(.claude, windows: [
-                UsageWindow(kind: .weekly, utilization: 40, resetsAt: reset),
-                UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset),
-            ], plan: "max", at: now),
-        ]
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-
-        func encodedSnapshot(for meterStyle: MeterStyle) throws -> Data {
-            // KTD17: meter style is deliberately consumed only by the popover. Keeping
-            // it outside this projector call is the schema-level widget boundary.
-            _ = meterStyle
-            return try encoder.encode(WidgetSnapshotProjector.project(
-                snapshots: snapshots,
-                providerOrder: [.claude],
-                displayNames: [.claude: "Claude"],
-                renewalDate: { _ in nil },
-                widgetsEnabled: true,
-                generatedAt: now
-            ))
-        }
-
-        let baseline = try encodedSnapshot(for: .default)
-        for format in GaugeFormat.allCases {
-            for shape in GaugeShape.allCases {
-                for fill in GaugeFill.allCases {
-                    let style = MeterStyle(format: format, shape: shape, fill: fill)
-                    #expect(try encodedSnapshot(for: style) == baseline)
-                }
-            }
-        }
-    }
-
     @Test func periodAndUnknownWindowsSurviveForGenericProviders() {
         let other = ProviderID("other")
         let monthly = WindowKind.billingPeriod(label: "Monthly", duration: 30 * 24 * 60 * 60)

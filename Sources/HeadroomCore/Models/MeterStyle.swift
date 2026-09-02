@@ -285,15 +285,6 @@ public extension ResetSchedule {
     /// evidence. Unresolved or elapsed evidence has no reset line to display.
     func meterResetLine(now: Date) -> MeterResetLine? {
         guard case .scheduled(let deadline) = self else { return nil }
-        let tooltip = Countdown.resetText(resetsAt: deadline, now: now)
-        if tooltip == "Resets now" {
-            return MeterResetLine(countdown: "now", tooltip: tooltip)
-        }
-        let prefix = "Resets in "
-        guard tooltip.hasPrefix(prefix) else { return nil }
-        return MeterResetLine(
-            countdown: String(tooltip.dropFirst(prefix.count)),
-            tooltip: tooltip
-        )
+        return Countdown.resetLine(resetsAt: deadline, now: now)
     }
 }

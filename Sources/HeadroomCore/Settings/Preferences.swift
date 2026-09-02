@@ -96,6 +96,17 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.meterFill) }
     }
 
+    public var meterStyle: MeterStyle {
+        get {
+            MeterStyle(format: meterFormat, shape: meterShape, fill: meterFill)
+        }
+        nonmutating set {
+            if meterFormat != newValue.format { meterFormat = newValue.format }
+            if meterShape != newValue.shape { meterShape = newValue.shape }
+            if meterFill != newValue.fill { meterFill = newValue.fill }
+        }
+    }
+
     public var menuBarFillSource: MenuBarFillSource {
         get {
             switch defaults.string(forKey: Key.menuBarFillSource) {

@@ -84,6 +84,7 @@ struct PreferencesTests {
         prefs.meterFormat = .full
         prefs.meterShape = .tube
         prefs.meterFill = .ghost
+        #expect(prefs.meterStyle == MeterStyle(format: .full, shape: .tube, fill: .ghost))
         #expect(prefs.meterFormat == .full)
         #expect(prefs.meterShape == .tube)
         #expect(prefs.meterFill == .ghost)
@@ -99,6 +100,10 @@ struct PreferencesTests {
 
         defaults.set("sparkle", forKey: "meterFill")
         #expect(prefs.meterFill == MeterStyle.default.fill)
+
+        let replacement = MeterStyle(format: .micro, shape: .segmented, fill: .hueRamp)
+        prefs.meterStyle = replacement
+        #expect(prefs.meterStyle == replacement)
     }
 
     @Test func menuBarFillSourceMigratesEveryLegacyValue() {

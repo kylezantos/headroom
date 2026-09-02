@@ -231,7 +231,7 @@ public struct AccountRegistry: @unchecked Sendable { // UserDefaults is thread-s
     private func defaultLabel(existing: [ProviderAccount]) -> String {
         let used = Set(existing.map(\.label))
         var n = existing.count + 1
-        while used.contains("Account \(n)") { n += 1 }
-        return "Account \(n)"
+        while used.contains(ProviderAccount.extraDefaultLabel(ordinal: n)) { n += 1 }
+        return ProviderAccount.extraDefaultLabel(ordinal: n)
     }
 }

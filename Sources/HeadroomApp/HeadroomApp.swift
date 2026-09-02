@@ -658,9 +658,7 @@ enum AppComposition {
         }
         let prefs = Preferences(defaults: demoDefaults)
         let meterStyle = demoMeterStyle()
-        prefs.meterFormat = meterStyle.format
-        prefs.meterShape = meterStyle.shape
-        prefs.meterFill = meterStyle.fill
+        prefs.meterStyle = meterStyle
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills side by side in the menu bar
         prefs.widgetsEnabled = true
@@ -706,9 +704,7 @@ enum AppComposition {
         prefsDefaults.removePersistentDomain(forName: prefsSuite)
         let prefs = Preferences(defaults: prefsDefaults)
         let meterStyle = demoMeterStyle()
-        prefs.meterFormat = meterStyle.format
-        prefs.meterShape = meterStyle.shape
-        prefs.meterFill = meterStyle.fill
+        prefs.meterStyle = meterStyle
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills in the menu bar
         prefs.setSurfaceEnabled(true, for: .anthropicAPI)   // API spend surfaces are off by default

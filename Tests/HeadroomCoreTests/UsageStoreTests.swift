@@ -1053,6 +1053,51 @@ struct UsageStoreTests {
         #expect(preferences.meterFill == updated.fill)
         #expect(exporter.exports.isEmpty)
         #expect(phoneExporter.exports.isEmpty)
+
+        store.setMeterStyle(updated)
+        #expect(exporter.exports.isEmpty)
+        #expect(phoneExporter.exports.isEmpty)
+    }
+
+    @Test func exportedWidgetSnapshotIsInvariantAcrossEveryMeterStyle() async throws {
+        let generatedAt = Date(timeIntervalSince1970: 2_100_000_000)
+        let snapshot = UsageSnapshot.live(
+            .claude,
+            windows: [
+                UsageWindow(kind: .weekly, utilization: 40, resetsAt: reset),
+                UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset),
+            ],
+            plan: "max",
+            at: generatedAt.addingTimeInterval(-60)
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+
+        func encodedExport(for style: MeterStyle) async throws -> Data {
+            let preferences = freshPreferences()
+            preferences.meterStyle = style
+            let exporter = SpyWidgetExporter()
+            let store = UsageStore(
+                providers: [
+                    StubProvider(id: .claude, displayName: "Claude", snapshot: snapshot),
+                ],
+                preferences: preferences,
+                widgetExporter: exporter
+            )
+            await store.refreshAll()
+            store.exportWidgetSnapshot(generatedAt: generatedAt)
+            return try encoder.encode(#require(exporter.exports.last))
+        }
+
+        let baseline = try await encodedExport(for: .default)
+        for format in GaugeFormat.allCases {
+            for shape in GaugeShape.allCases {
+                for fill in GaugeFill.allCases {
+                    let style = MeterStyle(format: format, shape: shape, fill: fill)
+                    #expect(try await encodedExport(for: style) == baseline)
+                }
+            }
+        }
     }
 
     @Test func menuBarFillTracksSelectedProviderWeekly() async {

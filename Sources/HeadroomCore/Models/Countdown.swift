@@ -28,10 +28,17 @@ public enum Countdown {
     /// use the same compact relative grammar while source labels remain available to
     /// diagnostics and snapshot consumers.
     public static func resetText(resetsAt: Date, now: Date) -> String {
+        resetLine(resetsAt: resetsAt, now: now)?.tooltip ?? "Reset info unavailable"
+    }
+
+    public static func resetLine(resetsAt: Date, now: Date) -> MeterResetLine? {
         let interval = resetsAt.timeIntervalSince(now)
-        if (-60...60).contains(interval) { return "Resets now" }
-        guard interval > 60 else { return "Reset info unavailable" }
-        return "Resets in \(string(to: resetsAt, now: now))"
+        if (-60...60).contains(interval) {
+            return MeterResetLine(countdown: "now", tooltip: "Resets now")
+        }
+        guard interval > 60 else { return nil }
+        let countdown = string(to: resetsAt, now: now)
+        return MeterResetLine(countdown: countdown, tooltip: "Resets in \(countdown)")
     }
 
     public static func resetText(for window: UsageWindow, now: Date) -> String {

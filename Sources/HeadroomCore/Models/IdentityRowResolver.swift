@@ -16,8 +16,10 @@ public func rowTitle(
     in providerAccounts: [ProviderAccount],
     providerDisplayName: String
 ) -> String {
-    let visibleAccounts = providerAccounts.filter { $0.providerID == account.providerID }
-    guard visibleAccounts.count == 1, isDefaultAccountLabel(account.label) else {
+    let visibleAccounts = providerAccounts.lazy.filter { $0.providerID == account.providerID }
+    guard visibleAccounts.prefix(2).count == 1,
+          ProviderAccount.isDefaultLabel(account.label)
+    else {
         return account.label
     }
     return providerDisplayName
@@ -29,22 +31,13 @@ public func showsPersistentEmail(
     for account: ProviderAccount,
     in providerAccounts: [ProviderAccount]
 ) -> Bool {
-    let visibleAccounts = providerAccounts.filter { $0.providerID == account.providerID }
-    if visibleAccounts.count > 1, isDefaultAccountLabel(account.label) {
+    let visibleAccounts = providerAccounts.lazy.filter { $0.providerID == account.providerID }
+    if visibleAccounts.prefix(2).count > 1,
+       ProviderAccount.isDefaultLabel(account.label) {
         return true
     }
     return visibleAccounts.contains { candidate in
         candidate.key != account.key
             && candidate.label.compare(account.label, options: .caseInsensitive) == .orderedSame
     }
-}
-
-private func isDefaultAccountLabel(_ label: String) -> Bool {
-    if label == "Main" { return true }
-
-    let prefix = "Account "
-    guard label.hasPrefix(prefix) else { return false }
-    let suffix = label.dropFirst(prefix.count).utf8
-    guard let first = suffix.first, (49...57).contains(first) else { return false }
-    return suffix.allSatisfy { (48...57).contains($0) }
 }

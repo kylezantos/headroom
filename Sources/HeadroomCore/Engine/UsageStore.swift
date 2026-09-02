@@ -198,11 +198,7 @@ public final class UsageStore {
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
         self.usagePercentageMode = preferences.usagePercentageMode
-        self.meterStyle = MeterStyle(
-            format: preferences.meterFormat,
-            shape: preferences.meterShape,
-            fill: preferences.meterFill
-        )
+        self.meterStyle = preferences.meterStyle
         let registeredProviderIDs = providers.map(\.id).uniqued()
         self.composedProviderOrder = registeredProviderIDs
         self.menuBarFillSource = preferences.menuBarFillSource.filtered(to: registeredProviderIDs)
@@ -336,9 +332,8 @@ public final class UsageStore {
     }
 
     public func setMeterStyle(_ style: MeterStyle) {
-        preferences.meterFormat = style.format
-        preferences.meterShape = style.shape
-        preferences.meterFill = style.fill
+        guard meterStyle != style else { return }
+        preferences.meterStyle = style
         meterStyle = style
     }
 

@@ -38,30 +38,27 @@ func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
 /// trust-required first run and Codex credential recovery — guided Connect/Waiting
 /// cards that hand control to each provider's official CLI.
 ///
-/// Multi-account (Jul 2026): the card takes one `ProviderAccountEntry` per configured
-/// account. A single account renders exactly the pre-multi-account layout (no labels,
-/// no bands — nothing changed for the common case). Two or more accounts stack labeled
-/// sections inside the one provider card. G1 (Jul 2026 multi-account design review)
-/// replaced the uppercase eyebrow + hairline dividers with a plain bold identity row per
-/// account, grouped by an 18pt proximity gap — a filled band variant (H3a) was built and
-/// reverted after live review: on the real glass card it read as slabs and zoned Claude
-/// into sections while sibling cards stayed open (PRODUCT.md #1). The compact meter
-/// recipe is dropped — every section renders at the regular scale, with the 640pt
-/// popover scroll cap absorbing taller five-account stacks.
+/// Multi-account (Jul/Sep 2026): the card takes one `ProviderAccountEntry` per configured
+/// account. KTD9 gives single providers and account sections one 15pt neutral identity
+/// row, while the popover-wide flip decides whether a lone row names its provider or its
+/// account. G3 (R18) groups accounts with a 22pt gap and indents meters under the title.
+/// The earlier eyebrow, hairline, filled H3a band, 21pt tinted provider header, and
+/// account counter are all retired; the 640pt popover scroll cap absorbs taller stacks.
 /// The guided full-size Connect/Waiting cards stay reserved for the single-account
 /// first run — extra accounts get a compact inline sign-in row instead, since the
 /// user explicitly created them from Settings and just needs the Terminal handoff.
 ///
-/// Type + spacing were tuned in the mockup: 16pt bold card titles, 14pt vertical rhythm
-/// between rows, 20pt card padding. Plan pills return in multi-account mode as the
-/// natural differentiator ("Max" vs "Pro"); they stay hidden with one account
-/// (density audit).
+/// Card padding remains the live-tuned 13pt on every side. KTD11 keeps email tooltip-only
+/// unless a provider-local label is ambiguous, and KTD18 places plan, stale, menu-bar,
+/// and Connected state on the relevant identity row.
 struct ProviderCardView: View {
     let providerID: ProviderID
     let displayName: String
     let entries: [ProviderAccountEntry]
     let capabilityStatus: ProviderCapabilityStatus?
     let percentageMode: UsagePercentageMode
+    let meterStyle: MeterStyle
+    let anyProviderMultiAccount: Bool
     let now: Date
     let onRetrySetup: () -> Void
     /// Retry scoped to one account — the multi-account rows use this so watching one
@@ -83,6 +80,12 @@ struct ProviderCardView: View {
     }
     private var activeSetupAccount: ProviderAccount? {
         providerCardStopWaitingAccount(entries: entries)
+    }
+    private var providerAccounts: [ProviderAccount] { entries.map(\.account) }
+
+    private func hasTransientStaleState(_ snapshot: UsageSnapshot) -> Bool {
+        guard case .stale(let reason) = snapshot.freshness else { return false }
+        return !reason.isPermanent
     }
 
     var body: some View {
@@ -131,7 +134,16 @@ struct ProviderCardView: View {
 
     private func capabilityBody(_ presentation: CapabilityRecoveryPresentation) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            header
+            IdentityRow(
+                providerID: providerID,
+                title: displayName,
+                planLabel: nil,
+                isMenuBarAccount: false,
+                isStale: false,
+                email: nil,
+                showsPersistentEmail: false,
+                showsConnectedChip: false
+            )
             ProviderCapabilityRecoveryView(
                 presentation: presentation,
                 stopWaitingAccount: activeSetupAccount,
@@ -149,17 +161,9 @@ struct ProviderCardView: View {
                 }
             )
             if isMultiAccount {
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 22) {
                     ForEach(entries.filter { $0.snapshot.freshness != .pending }) { entry in
-                        AccountSectionView(
-                            entry: entry,
-                            providerDisplayName: displayName,
-                            percentageMode: percentageMode,
-                            now: now,
-                            isMenuBarAccount: entry.id == entries.first?.id,
-                            showsStopWaiting: false,
-                            onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) }
-                        )
+                        accountSection(for: entry, showsStopWaiting: false)
                     }
                 }
             } else if !snapshot.windows.isEmpty {
@@ -293,8 +297,8 @@ struct ProviderCardView: View {
                 }
             )
         } else {
-            VStack(alignment: .leading, spacing: 9) {
-                header
+            VStack(alignment: .leading, spacing: 7) {
+                accountIdentityRow(for: primaryEntry)
                 content
             }
         }
@@ -322,24 +326,41 @@ struct ProviderCardView: View {
     // MARK: - Multi-account
 
     private var multiAccountBody: some View {
-        // G1: sections stack at 18pt with no dividers — a real gap step above the 7pt
-        // header-to-meters bind, so proximity alone carries the account grouping.
-        VStack(alignment: .leading, spacing: 10) {
-            header
-            VStack(alignment: .leading, spacing: 18) {
-                ForEach(entries) { entry in
-                    AccountSectionView(
-                        entry: entry,
-                        providerDisplayName: displayName,
-                        percentageMode: percentageMode,
-                        now: now,
-                        isMenuBarAccount: entry.id == entries.first?.id,
-                        showsStopWaiting: activeSetupAccount?.key == entry.account.key,
-                        onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) }
-                    )
-                }
+        // G3: the 22pt gap chunks accounts without adding chrome; each section owns its
+        // identity, so row mode has no separate provider header or account counter.
+        VStack(alignment: .leading, spacing: 22) {
+            ForEach(entries) { entry in
+                accountSection(
+                    for: entry,
+                    showsStopWaiting: activeSetupAccount?.key == entry.account.key
+                )
             }
         }
+    }
+
+    private func accountSection(
+        for entry: ProviderAccountEntry,
+        showsStopWaiting: Bool
+    ) -> some View {
+        AccountSectionView(
+            entry: entry,
+            providerDisplayName: displayName,
+            identityTitle: rowTitle(
+                for: entry.account,
+                in: providerAccounts,
+                providerDisplayName: displayName
+            ),
+            showsPersistentEmail: showsPersistentEmail(
+                for: entry.account,
+                in: providerAccounts
+            ),
+            percentageMode: percentageMode,
+            meterStyle: meterStyle,
+            now: now,
+            isMenuBarAccount: isMultiAccount && entry.id == entries.first?.id,
+            showsStopWaiting: showsStopWaiting,
+            onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) }
+        )
     }
 
     /// The guided-setup payoff: when either provider goes live after its Terminal handoff,
@@ -384,42 +405,23 @@ struct ProviderCardView: View {
         SetupSessions.performRecovery(action, for: account, onRetry: onRetry)
     }
 
-    /// The per-card "Updated N min ago" was removed here — both providers poll on one
-    /// cycle, so it reads once in the popover header (PopoverView) instead of twice.
-    /// Header mirrors the large widget's recipe (icon ≈ 1.33× the title size, title in
-    /// the shared brand text-accent) so popover and widgets read as one family.
-    private var header: some View {
-        HStack(spacing: 6) {
-            ProviderLogoView(providerID: providerID, size: 21)
-            Text(displayName)
-                .font(.system(size: 16, weight: .semibold))
-                .kerning(-0.2)
-                .foregroundStyle(ProviderStyle.textAccent(for: providerID, scheme: scheme))
-            if isMultiAccount {
-                // Quiet count so a five-account stack announces its size up front.
-                Text("\(entries.count) accounts")
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            }
-            Spacer(minLength: 6)
-            if showsConnectedChip {
-                connectedChip
-                    .transition(.opacity)
-            }
-        }
-    }
-
-    private var connectedChip: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-            Text("Connected")
-                .font(.system(size: 11, weight: .semibold))
-        }
-        .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
-        .padding(.horizontal, 8).padding(.vertical, 2.5)
-        .background(ClaudeSetupStyle.connectedBackground(dark: scheme == .dark), in: Capsule())
+    private func accountIdentityRow(for entry: ProviderAccountEntry?) -> some View {
+        let account = entry?.account ?? primaryAccount
+        let rowName = anyProviderMultiAccount
+            ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
+            : displayName
+        let persistentEmail = anyProviderMultiAccount
+            && showsPersistentEmail(for: account, in: providerAccounts)
+        return IdentityRow(
+            providerID: providerID,
+            title: rowName,
+            planLabel: entry?.snapshot.planLabel,
+            isMenuBarAccount: false,
+            isStale: entry.map { hasTransientStaleState($0.snapshot) } ?? false,
+            email: entry?.snapshot.accountEmail,
+            showsPersistentEmail: persistentEmail,
+            showsConnectedChip: showsConnectedChip
+        )
     }
 
     @ViewBuilder private var content: some View {
@@ -442,7 +444,6 @@ struct ProviderCardView: View {
             if !snapshot.windows.isEmpty { bars(for: snapshot, dimmed: true) }
         } else {
             bars(for: snapshot, dimmed: true)
-            stalePill(reason)
         }
     }
 
@@ -452,8 +453,10 @@ struct ProviderCardView: View {
             windows: snapshot.windows,
             percentageMode: percentageMode,
             now: now,
-            dimmed: dimmed
+            dimmed: dimmed,
+            meterStyle: meterStyle
         )
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
     }
 
     /// Varied widths (audit UI-13): real content isn't two identical bars, so the
@@ -461,11 +464,12 @@ struct ProviderCardView: View {
     /// the ~20–30s first Claude poll so the delay feels intentional, not hung.
     private var pendingSkeleton: some View {
         VStack(alignment: .leading, spacing: 9) {
-            SkeletonMeter(labelWidth: 72, valueWidth: 42)
-            SkeletonMeter(labelWidth: 86, valueWidth: 36)
+            SkeletonMeter(labelWidth: 72, valueWidth: 42, format: meterStyle.format)
+            SkeletonMeter(labelWidth: 86, valueWidth: 36, format: meterStyle.format)
             Text("Fetching usage…")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
     }
 
     /// Permanent failure the user can fix (UI-05) that is not one of the guided setup
@@ -478,20 +482,6 @@ struct ProviderCardView: View {
             if let command = recoveryCommand {
                 CommandRecoveryRow(command: command)
             }
-        }
-    }
-
-    /// Small "Stale" flag + the transient reason, so a network blip is explicit rather
-    /// than communicated only by a faint bar (which also reads as "disabled").
-    private func stalePill(_ reason: FailureReason) -> some View {
-        HStack(spacing: 6) {
-            Text("Stale")
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.20), in: Capsule())
-            Text(reason.message)
-                .font(.caption2).foregroundStyle(.secondary)
-                .lineLimit(1)
         }
     }
 
@@ -620,17 +610,142 @@ struct StopWaitingButton: View {
     }
 }
 
+// MARK: - Unified identity row
+
+private enum IdentityRowMetrics {
+    static let markSlotWidth: CGFloat = 15
+    static let spacing: CGFloat = 6
+    static let meterContentInset = markSlotWidth + spacing
+}
+
+/// The one identity treatment used for provider-name and account-name rows (KTD9).
+/// The mark owns the only brand color; account metadata and state remain neutral.
+private struct IdentityRow: View {
+    let providerID: ProviderID
+    let title: String
+    let planLabel: String?
+    let isMenuBarAccount: Bool
+    let isStale: Bool
+    let email: String?
+    let showsPersistentEmail: Bool
+    let showsConnectedChip: Bool
+
+    @Environment(\.colorScheme) private var scheme
+
+    @ViewBuilder var body: some View {
+        if let email = normalizedEmail {
+            row(email: email)
+                .help(email)
+        } else {
+            row(email: nil)
+        }
+    }
+
+    private func row(email: String?) -> some View {
+        HStack(spacing: IdentityRowMetrics.spacing) {
+            ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
+                .frame(
+                    width: IdentityRowMetrics.markSlotWidth,
+                    height: IdentityRowMetrics.markSlotWidth
+                )
+            Text(title)
+                .font(.system(size: 15, weight: .semibold))
+                .kerning(-0.15)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            if let planLabel, !planLabel.isEmpty {
+                Text(planLabel.capitalized)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1)
+                    .background(
+                        ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
+                        in: Capsule()
+                    )
+            }
+            if isMenuBarAccount {
+                Image(systemName: "menubar.rectangle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .accessibilityLabel("Shown in the menu bar")
+            }
+            if showsPersistentEmail, let email {
+                Text(email)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(1)
+            }
+            Spacer(minLength: 6)
+            if isStale {
+                staleTag
+            }
+            if showsConnectedChip {
+                ConnectedChip()
+                    .transition(.opacity)
+            }
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityIdentity(email: email))
+    }
+
+    private var normalizedEmail: String? {
+        guard let email, !email.isEmpty else { return nil }
+        return email
+    }
+
+    private var staleTag: some View {
+        Text("Stale")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Color.secondary.opacity(0.18), in: Capsule())
+    }
+
+    private func accessibilityIdentity(email: String?) -> String {
+        var parts = [title]
+        if let planLabel, !planLabel.isEmpty { parts.append("\(planLabel) plan") }
+        if isMenuBarAccount { parts.append("Shown in the menu bar") }
+        if isStale { parts.append("Stale") }
+        if let email { parts.append("signed in as \(email)") }
+        if showsConnectedChip { parts.append("Connected") }
+        return parts.joined(separator: ", ")
+    }
+}
+
+private struct ConnectedChip: View {
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "checkmark")
+                .font(.system(size: 9, weight: .bold))
+            Text("Connected")
+                .font(.system(size: 11, weight: .semibold))
+        }
+        .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2.5)
+        .background(ClaudeSetupStyle.connectedBackground(dark: scheme == .dark), in: Capsule())
+    }
+}
+
 // MARK: - Account section (multi-account rows)
 
-/// One account's section inside a multi-account provider card (H3a, Jul 2026 multi-account
-/// design review): a full-bleed band header (account name + plan pill + optional menu-bar
-/// mark) fencing the account's meters, with per-account failure affordances below. The band
-/// replaced the earlier uppercase eyebrow + hairline divider — a filled strip reads as a
-/// stronger group boundary while still sitting one hierarchy step below the brand row.
+/// One account's section inside a multi-account provider card. The round-6 unified identity
+/// row carries its title and account-scoped state; a 22pt inter-account gap plus the meter
+/// inset provides the G3 hierarchy without a band or divider (R15, R18, KTD18).
 private struct AccountSectionView: View {
     let entry: ProviderAccountEntry
     let providerDisplayName: String
+    let identityTitle: String
+    let showsPersistentEmail: Bool
     let percentageMode: UsagePercentageMode
+    let meterStyle: MeterStyle
     let now: Date
     /// H3a: the selected primary account (`entries.first`) is the one the menu bar and
     /// widgets follow; its band carries a "menubar.rectangle" mark so the popover explains
@@ -641,12 +756,13 @@ private struct AccountSectionView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
+    @State private var showsConnectedChip = false
 
     private var snapshot: UsageSnapshot { entry.snapshot }
     private var account: ProviderAccount { entry.account }
 
     var body: some View {
-        // G1: 7pt binds the header to its meters; the 18pt inter-section gap in
+        // G3: 7pt binds the identity to its meters; the 22pt inter-section gap in
         // `multiAccountBody` does the separating (proximity, not chrome). The whole section
         // is one VoiceOver container so the rotor can jump account-to-account instead of
         // the meters floating free of their identity row.
@@ -662,11 +778,11 @@ private struct AccountSectionView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(account.label) account")
+        .accessibilityLabel("\(identityTitle) account")
         .animation(reduceMotion ? nil : HeadroomMotion.valueSpring, value: snapshot.freshness)
-        .onChange(of: snapshot.freshness) { settleSetupIfLive() }
+        .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
         .onAppear {
-            settleSetupIfLive()
+            evaluateConnectedPayoff()
             SetupSessions.announceFailureIfNeeded(for: account)
         }
         .onChange(of: SetupSessions.state(for: account)) {
@@ -674,80 +790,21 @@ private struct AccountSectionView: View {
         }
     }
 
-    /// Identity header row (G1, Jul 2026 — supersedes the H3a band, which read as slabs on
-    /// the live glass and zoned Claude into sections while sibling cards stayed open,
-    /// PRODUCT.md #1). Set in the popover's one section-header register — the exact
-    /// "API Spend" recipe (11pt bold uppercase, +0.5 tracking) — so account headers and
-    /// the spend header speak the same grammar; a 13pt bold mixed-case pass (live review)
-    /// sat too close to the meter labels' own register to separate. Secondary ink keeps it
-    /// a header, not a peer of the bright numerals; grouping stays proximity-only via the
-    /// inter-section gap in `multiAccountBody`.
     private var identityRow: some View {
-        HStack(spacing: 6) {
-            Text(account.label)
-                .font(.system(size: 11, weight: .bold))
-                // Primary ink, not the API Spend header's secondary (live review): the
-                // account name is the section's identity anchor and reads washed-out at
-                // .secondary on the glass card; size + case keep it a header regardless.
-                .foregroundStyle(.primary)
-                .textCase(.uppercase)
-                .tracking(0.5)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            if let plan = snapshot.planLabel, !plan.isEmpty {
-                Text(plan.capitalized)
-                    .font(.system(size: 9.5, weight: .medium))
-                    .foregroundStyle(.tertiary)
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(ClaudeSetupStyle.stepBackground(dark: scheme == .dark), in: Capsule())
-            }
-            if isMenuBarAccount {
-                Image(systemName: "menubar.rectangle")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Shown in the menu bar")
-            }
-            if let email = accountEmail {
-                // Identity check (Aug 2026): the label is user-chosen and can drift from
-                // the login it names, so the signed-in address rides beside it in the plan
-                // pill's tertiary register — metadata, not a second label. Inline rather
-                // than a subordinate line so a five-account stack costs no extra height.
-                // Negative layout priority yields width to the account name first, and
-                // middle truncation keeps the domain visible on long addresses.
-                Text(email)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .layoutPriority(-1)
-                    .help(email)
-            }
-            Spacer(minLength: 6)
-            if case .stale(let reason) = snapshot.freshness, !reason.isPermanent {
-                staleTag
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityIdentity)
-    }
-
-    /// Nil whenever the account has no known address yet (pre-first-poll, or a source
-    /// without the claim) — a normal state, so the row simply collapses. Gated on
-    /// non-nil, never on `.live`: the last-known address persists across stale
-    /// refreshes exactly like the plan pill.
-    private var accountEmail: String? {
-        guard let email = snapshot.accountEmail, !email.isEmpty else { return nil }
-        return email
-    }
-
-    private var accessibilityIdentity: String {
-        // Explicit label replaces the band's combined child labels, so re-state the
-        // menu-bar mark here (H3a) — otherwise its "Shown in the menu bar" is dropped.
-        var parts = ["\(account.label) account"]
-        if let email = accountEmail { parts.append("signed in as \(email)") }
-        if let plan = snapshot.planLabel, !plan.isEmpty { parts.append("\(plan) plan") }
-        if isMenuBarAccount { parts.append("Shown in the menu bar") }
-        return parts.joined(separator: ", ")
+        let isStale: Bool = {
+            guard case .stale(let reason) = snapshot.freshness else { return false }
+            return !reason.isPermanent
+        }()
+        return IdentityRow(
+            providerID: account.providerID,
+            title: identityTitle,
+            planLabel: snapshot.planLabel,
+            isMenuBarAccount: isMenuBarAccount,
+            isStale: isStale,
+            email: snapshot.accountEmail,
+            showsPersistentEmail: showsPersistentEmail,
+            showsConnectedChip: showsConnectedChip
+        )
     }
 
     @ViewBuilder private var stateContent: some View {
@@ -776,8 +833,10 @@ private struct AccountSectionView: View {
             percentageMode: percentageMode,
             now: now,
             dimmed: dimmed,
+            meterStyle: meterStyle,
             chiplessCriticalInk: true
         )
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
     }
 
     /// Permanent failure on one account: a single compact row — the reason, then the
@@ -880,27 +939,29 @@ private struct AccountSectionView: View {
         }
     }
 
-    private var staleTag: some View {
-        Text("Stale")
-            .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(Color.secondary.opacity(0.18), in: Capsule())
-    }
-
     private var isWaitingForSetup: Bool {
         SetupSessions.isWaiting(for: account)
     }
 
-    /// An account going live ends its handoff session and pending retries so the
-    /// waiting row doesn't keep spinning (and retrying) after success.
-    private func settleSetupIfLive() {
+    /// Account-scoped setup payoff: the chip belongs to the row whose login completed.
+    private func evaluateConnectedPayoff() {
         guard case .live = snapshot.freshness, SetupSessions.isConnected(account) else { return }
-        SetupSessions.settle(for: account)
+        guard !showsConnectedChip else { return }
+        withAnimation(reduceMotion ? nil : HeadroomMotion.valueSpring) {
+            showsConnectedChip = true
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            withAnimation(reduceMotion ? nil : HeadroomMotion.settle) {
+                showsConnectedChip = false
+            }
+            SetupSessions.settle(for: account)
+        }
     }
 
     private var accountSkeleton: some View {
-        SkeletonMeter(labelWidth: 72, valueWidth: 38)
+        SkeletonMeter(labelWidth: 72, valueWidth: 38, format: meterStyle.format)
+            .padding(.leading, IdentityRowMetrics.meterContentInset)
     }
 }
 

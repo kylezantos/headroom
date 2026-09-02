@@ -32,6 +32,11 @@ func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
     state == .blockedByOpenHandoff ? "Close setup, then retry" : nil
 }
 
+private func providerCardHasTransientStaleState(_ snapshot: UsageSnapshot) -> Bool {
+    guard case .stale(let reason) = snapshot.freshness else { return false }
+    return !reason.isPermanent
+}
+
 /// One provider's card (U7). Renders the explicit states off `snapshot.freshness`:
 /// `.pending` first-run skeleton, `.live`, transient stale (last data kept, marked with
 /// a "Stale" pill), permanent needs-reauth (actionable command), and — for Claude's
@@ -81,13 +86,6 @@ struct ProviderCardView: View {
     private var activeSetupAccount: ProviderAccount? {
         providerCardStopWaitingAccount(entries: entries)
     }
-    private var providerAccounts: [ProviderAccount] { entries.map(\.account) }
-
-    private func hasTransientStaleState(_ snapshot: UsageSnapshot) -> Bool {
-        guard case .stale(let reason) = snapshot.freshness else { return false }
-        return !reason.isPermanent
-    }
-
     var body: some View {
         Group {
             if let presentation = capabilityRecoveryPresentation(
@@ -133,7 +131,8 @@ struct ProviderCardView: View {
     // MARK: - Single account (unchanged pre-multi-account layout)
 
     private func capabilityBody(_ presentation: CapabilityRecoveryPresentation) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let providerAccounts = entries.map(\.account)
+        return VStack(alignment: .leading, spacing: 10) {
             IdentityRow(
                 providerID: providerID,
                 title: displayName,
@@ -163,7 +162,11 @@ struct ProviderCardView: View {
             if isMultiAccount {
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(entries.filter { $0.snapshot.freshness != .pending }) { entry in
-                        accountSection(for: entry, showsStopWaiting: false)
+                        accountSection(
+                            for: entry,
+                            providerAccounts: providerAccounts,
+                            showsStopWaiting: false
+                        )
                     }
                 }
             } else if !snapshot.windows.isEmpty {
@@ -326,12 +329,14 @@ struct ProviderCardView: View {
     // MARK: - Multi-account
 
     private var multiAccountBody: some View {
+        let providerAccounts = entries.map(\.account)
         // G3: the 22pt gap chunks accounts without adding chrome; each section owns its
         // identity, so row mode has no separate provider header or account counter.
-        VStack(alignment: .leading, spacing: 22) {
+        return VStack(alignment: .leading, spacing: 22) {
             ForEach(entries) { entry in
                 accountSection(
                     for: entry,
+                    providerAccounts: providerAccounts,
                     showsStopWaiting: activeSetupAccount?.key == entry.account.key
                 )
             }
@@ -340,6 +345,7 @@ struct ProviderCardView: View {
 
     private func accountSection(
         for entry: ProviderAccountEntry,
+        providerAccounts: [ProviderAccount],
         showsStopWaiting: Bool
     ) -> some View {
         AccountSectionView(
@@ -407,6 +413,7 @@ struct ProviderCardView: View {
 
     private func accountIdentityRow(for entry: ProviderAccountEntry?) -> some View {
         let account = entry?.account ?? primaryAccount
+        let providerAccounts = entries.map(\.account)
         let rowName = anyProviderMultiAccount
             ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
             : displayName
@@ -417,7 +424,7 @@ struct ProviderCardView: View {
             title: rowName,
             planLabel: entry?.snapshot.planLabel,
             isMenuBarAccount: false,
-            isStale: entry.map { hasTransientStaleState($0.snapshot) } ?? false,
+            isStale: entry.map { providerCardHasTransientStaleState($0.snapshot) } ?? false,
             email: entry?.snapshot.accountEmail,
             showsPersistentEmail: persistentEmail,
             showsConnectedChip: showsConnectedChip
@@ -644,10 +651,6 @@ private struct IdentityRow: View {
     private func row(email: String?) -> some View {
         HStack(spacing: IdentityRowMetrics.spacing) {
             ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
-                .frame(
-                    width: IdentityRowMetrics.markSlotWidth,
-                    height: IdentityRowMetrics.markSlotWidth
-                )
             Text(title)
                 .font(.system(size: 15, weight: .semibold))
                 .kerning(-0.15)
@@ -791,16 +794,12 @@ private struct AccountSectionView: View {
     }
 
     private var identityRow: some View {
-        let isStale: Bool = {
-            guard case .stale(let reason) = snapshot.freshness else { return false }
-            return !reason.isPermanent
-        }()
         return IdentityRow(
             providerID: account.providerID,
             title: identityTitle,
             planLabel: snapshot.planLabel,
             isMenuBarAccount: isMenuBarAccount,
-            isStale: isStale,
+            isStale: providerCardHasTransientStaleState(snapshot),
             email: snapshot.accountEmail,
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip
@@ -975,7 +974,7 @@ struct UsageBarsStack: View {
     let percentageMode: UsagePercentageMode
     let now: Date
     let dimmed: Bool
-    var meterStyle: MeterStyle = .default
+    let meterStyle: MeterStyle
     /// H3a: multi-account sections opt into chipless critical numerals; single-account keeps
     /// the "Low" chip. Threaded down to every row so a stack renders one way.
     var chiplessCriticalInk: Bool = false
@@ -1005,7 +1004,7 @@ struct UsageBarsStack: View {
 struct SkeletonMeter: View {
     let labelWidth: CGFloat
     let valueWidth: CGFloat
-    var format: GaugeFormat = .micro
+    let format: GaugeFormat
 
     @Environment(\.colorScheme) private var scheme
 

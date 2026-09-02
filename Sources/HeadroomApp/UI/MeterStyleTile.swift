@@ -108,7 +108,7 @@ struct MeterStyleTile: View {
 
     private func shapeSwatch(_ shape: GaugeShape) -> some View {
         let isSelected = meterStyle.shape == shape
-        let isAvailable = meterStyle.format == .micro || shape != .tube
+        let isAvailable = shape.resolved(for: meterStyle.format) == shape
 
         return Button {
             onChange(MeterStyle(format: meterStyle.format, shape: shape, fill: meterStyle.fill))
@@ -121,8 +121,7 @@ struct MeterStyleTile: View {
                         style: MeterStyle(format: .micro, shape: shape, fill: .glass),
                         fraction: 0.62,
                         severity: .healthy,
-                        freshness: .live,
-                        scheme: colorScheme
+                        freshness: .live
                     )
                 }
                 .frame(height: 26)
@@ -140,15 +139,7 @@ struct MeterStyleTile: View {
                 isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? Color.accentColor
-                            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            }
+            .meterStyleSelectionBorder(isSelected: isSelected, colorScheme: colorScheme)
         }
         .buttonStyle(.plain)
         .disabled(!isAvailable)
@@ -188,15 +179,7 @@ struct MeterStyleTile: View {
                 isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
                 in: RoundedRectangle(cornerRadius: 8, style: .continuous)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? Color.accentColor
-                            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            }
+            .meterStyleSelectionBorder(isSelected: isSelected, colorScheme: colorScheme)
         }
         .buttonStyle(.plain)
         .help(fill.label)
@@ -213,8 +196,24 @@ struct MeterStyleTile: View {
             style: MeterStyle(format: .micro, shape: .chip, fill: fill),
             fraction: fraction,
             severity: severity,
-            freshness: .live,
-            scheme: colorScheme
+            freshness: .live
         )
+    }
+}
+
+private extension View {
+    func meterStyleSelectionBorder(
+        isSelected: Bool,
+        colorScheme: ColorScheme
+    ) -> some View {
+        overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(
+                    isSelected
+                        ? Color.accentColor
+                        : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
+                    lineWidth: isSelected ? 2 : 1
+                )
+        }
     }
 }

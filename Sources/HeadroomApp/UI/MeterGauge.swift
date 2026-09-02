@@ -9,7 +9,8 @@ struct MeterGauge: View {
     let fraction: Double
     let severity: UsageSeverity
     let freshness: UsageWindowFreshness
-    let scheme: ColorScheme
+
+    @Environment(\.colorScheme) private var scheme
 
     private var resolvedShape: GaugeShape { style.resolvedShape }
     private var clampedFraction: Double {
@@ -64,9 +65,12 @@ struct MeterGauge: View {
     private func continuousGauge(shape: GaugeShape) -> some View {
         GeometryReader { geometry in
             let isVertical = shape == .tube
-            let inset = shape == .machined
-                ? CGFloat(style.format == .micro ? MeterGeometry.microMachinedInset : MeterGeometry.fullTrackInset)
-                : 0
+            let inset = continuousInset
+            let fillRecipe = MeterRecipe.fillRecipe(
+                fill: style.fill,
+                severity: severity,
+                freshness: freshness
+            )
             let availableLength = max(
                 0,
                 (isVertical ? geometry.size.height : geometry.size.width) - inset * 2
@@ -80,12 +84,8 @@ struct MeterGauge: View {
                     quarterMarks(in: geometry.size)
                 }
 
-                if fillLength > 0, MeterRecipe.fillRecipe(
-                    fill: style.fill,
-                    severity: severity,
-                    freshness: freshness
-                ) != .none {
-                    continuousFill(shape: shape)
+                if fillLength > 0, fillRecipe != .none {
+                    continuousFill(shape: shape, recipe: fillRecipe)
                         .frame(
                             width: isVertical ? max(0, geometry.size.width - inset * 2) : fillLength,
                             height: isVertical ? fillLength : max(0, geometry.size.height - inset * 2)
@@ -112,13 +112,12 @@ struct MeterGauge: View {
         }
     }
 
-    private func continuousFill(shape: GaugeShape) -> some View {
+    private func continuousFill(shape: GaugeShape, recipe: MeterFillRecipe) -> some View {
         let radius = shape == .machined ? max(1, (gaugeHeight - 2 * continuousInset) / 2) : gaugeHeight / 2
         return ZStack(alignment: shape == .tube ? .top : .trailing) {
-            continuousFillBody(shape: shape)
-                .clipShape(RoundedRectangle(cornerRadius: radius, style: .continuous))
+            continuousFillBody(shape: shape, recipe: recipe)
 
-            if drawsCap {
+            if recipe == .glass || recipe == .ghost {
                 RoundedRectangle(cornerRadius: capThickness / 2, style: .continuous)
                     .fill(ProviderStyle.severityColor(for: severity, scheme: scheme))
                     .frame(
@@ -131,12 +130,8 @@ struct MeterGauge: View {
     }
 
     @ViewBuilder
-    private func continuousFillBody(shape: GaugeShape) -> some View {
-        switch MeterRecipe.fillRecipe(
-            fill: style.fill,
-            severity: severity,
-            freshness: freshness
-        ) {
+    private func continuousFillBody(shape: GaugeShape, recipe: MeterFillRecipe) -> some View {
+        switch recipe {
         case .none:
             Color.clear
         case .staleGrey:
@@ -176,11 +171,28 @@ struct MeterGauge: View {
             ? 0
             : MeterRecipe.litCellCount(fraction: clampedFraction, cells: cells)
         let gap = CGFloat(style.format == .micro ? MeterGeometry.microCellGap : MeterGeometry.fullCellGap)
+        let fillRecipe = MeterRecipe.fillRecipe(
+            fill: style.fill,
+            severity: severity,
+            freshness: freshness
+        )
+        let rampStops = style.fill == .hueRamp
+            ? MeterRecipe.rampStops(
+                severity: severity,
+                scheme: scheme == .dark ? .dark : .light,
+                surface: .well
+            )
+            : nil
 
         return HStack(spacing: gap) {
             ForEach(0..<cells, id: \.self) { index in
                 RoundedRectangle(cornerRadius: style.format == .micro ? 1.5 : 2, style: .continuous)
-                    .fill(segmentedCellColor(index: index, lit: lit))
+                    .fill(segmentedCellColor(
+                        index: index,
+                        lit: lit,
+                        fillRecipe: fillRecipe,
+                        rampStops: rampStops
+                    ))
                     .frame(
                         width: style.format == .micro ? CGFloat(MeterGeometry.microCellWidth) : nil,
                         height: gaugeHeight
@@ -190,32 +202,37 @@ struct MeterGauge: View {
         }
     }
 
-    private func segmentedCellColor(index: Int, lit: Int) -> Color {
-        guard index < lit else { return ProviderStyle.meterTickOff(scheme: scheme) }
-        if case .staleGrey = MeterRecipe.fillRecipe(
-            fill: style.fill,
-            severity: severity,
-            freshness: freshness
-        ) {
-            return staleColor
-        }
-
-        switch MeterRecipe.cellRecipe(
+    private func segmentedCellColor(
+        index: Int,
+        lit: Int,
+        fillRecipe: MeterFillRecipe,
+        rampStops: MeterRampStops?
+    ) -> Color {
+        let cellRecipe = MeterRecipe.cellRecipe(
             index: index,
             lit: lit,
             fill: style.fill,
             severity: severity
-        ) {
+        )
+        switch cellRecipe {
         case .off:
             return ProviderStyle.meterTickOff(scheme: scheme)
         case .body(let fill):
-            return cellColor(fill, isTip: false)
+            return fillRecipe == .staleGrey
+                ? staleColor
+                : cellColor(fill, isTip: false, rampStops: rampStops)
         case .tip(let fill):
-            return cellColor(fill, isTip: true)
+            return fillRecipe == .staleGrey
+                ? staleColor
+                : cellColor(fill, isTip: true, rampStops: rampStops)
         }
     }
 
-    private func cellColor(_ fill: MeterCellFill, isTip: Bool) -> Color {
+    private func cellColor(
+        _ fill: MeterCellFill,
+        isTip: Bool,
+        rampStops: MeterRampStops?
+    ) -> Color {
         switch fill {
         case .severity:
             return flatSeverityColor
@@ -232,16 +249,11 @@ struct MeterGauge: View {
                 ? ProviderStyle.meterTickGlassCap(scheme: scheme)
                 : ProviderStyle.meterTickGlass(scheme: scheme)
         case .ramp(let progress):
-            let stops = MeterRecipe.rampStops(
-                severity: severity,
-                scheme: scheme == .dark ? .dark : .light,
-                surface: .well
-            )
-            let t = min(1, max(0, progress))
+            guard let stops = rampStops else { return flatSeverityColor }
             return Color(
-                red: stops.start.red + (stops.end.red - stops.start.red) * t,
-                green: stops.start.green + (stops.end.green - stops.start.green) * t,
-                blue: stops.start.blue + (stops.end.blue - stops.start.blue) * t
+                red: stops.start.red + (stops.end.red - stops.start.red) * progress,
+                green: stops.start.green + (stops.end.green - stops.start.green) * progress,
+                blue: stops.start.blue + (stops.end.blue - stops.start.blue) * progress
             )
         }
     }
@@ -264,11 +276,6 @@ struct MeterGauge: View {
 
     private var capThickness: CGFloat {
         CGFloat(style.format == .micro ? MeterGeometry.microCapThickness : MeterGeometry.fullCapThickness)
-    }
-
-    private var drawsCap: Bool {
-        guard freshness.isLive else { return false }
-        return style.fill == .glass || style.fill == .ghost
     }
 
     private var flatSeverityColor: Color {

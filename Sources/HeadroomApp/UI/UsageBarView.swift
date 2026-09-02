@@ -8,7 +8,7 @@ struct UsageBarView: View {
     let window: UsageWindow
     let percentageMode: UsagePercentageMode
     let now: Date
-    var meterStyle: MeterStyle = .default
+    let meterStyle: MeterStyle
     var dimmed: Bool = false
     /// H3a (Jul 2026 multi-account design review): in the multi-account meter the critical
     /// band drops the "Low" chip and paints the percentage numeral a decoupled critical text
@@ -209,8 +209,7 @@ struct UsageBarView: View {
             style: meterStyle,
             fraction: fraction,
             severity: severity,
-            freshness: gaugeFreshness,
-            scheme: scheme
+            freshness: gaugeFreshness
         )
         .animation(valueAnimation, value: fraction)
     }

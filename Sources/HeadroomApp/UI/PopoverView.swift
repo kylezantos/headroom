@@ -84,6 +84,9 @@ struct PopoverView: View {
                         }
                         APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)
                     }
+                    // Reserve a gutter inside the expanded scroll viewport below. The
+                    // matching negative outer inset preserves the cards' original width.
+                    .padding(.trailing, 10)
                     // Scroll content is laid out at its ideal height regardless of the
                     // ScrollView's own frame, so this reports the true stack height even
                     // on the first pass while the frame below is still zero.
@@ -111,6 +114,10 @@ struct PopoverView: View {
                     }
                 }
                 .animation(reduceMotion ? nil : HeadroomMotion.settle, value: scrollContinuesBelow)
+                // Extend only the scroll viewport into the shell's existing right margin.
+                // Cards keep symmetrical 19pt shell margins; the scroller occupies this
+                // borrowed 10pt instead of covering a card or shrinking its content.
+                .padding(.trailing, -10)
                 .frame(height: forcedCardsHeight ?? min(cardsHeight, 640))
                 footer
             }

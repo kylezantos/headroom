@@ -485,11 +485,9 @@ struct HeadroomApp: App {
                     : CredentialStore()
             )
             .preferredColorScheme(resolvedScheme)
-            // KTD2: the sidebar window is fixed-width and opens at its 812pt default
-            // height, but resizing stays available on the vertical axis — the user can
-            // shrink it to `SettingsView.minimumWindowHeight` (600pt), at which point the
-            // panes scroll, and AppKit can constrain the window to a short screen. Only
-            // minimizing is withdrawn, since a settings sheet in the Dock is a dead end.
+            // The Settings shell has one stable size across every destination; overflowing
+            // panes scroll internally instead of resizing the window around their content.
+            .windowResizeBehavior(.disabled)
             .windowMinimizeBehavior(.disabled)
         }
         // Hidden title bar: the settings window draws its own identity block (icon, name,

@@ -98,8 +98,12 @@ struct BrandColorValuesTests {
 
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .well) == 0.42)
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .flat) == 0.58)
-        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .well) == 0.55)
-        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .flat) == 0.55)
+        // Light retuned 0.55 → 0.75 with the vivid fill tier (the lighter fills washed the
+        // ramp start into the track at 0.55). Increase Contrast reverts fills *and* mix.
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .well) == 0.75)
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .flat) == 0.75)
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: false, surface: .well, increasedContrast: true) == 0.55)
+        #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .flat, increasedContrast: true) == 0.58)
         #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .healthy, dark: true) == 0.18)
         #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .critical, dark: true) == 0.22)
         #expect(HeadroomMeterColorValues.ghostBodyOpacity(for: .healthy, dark: false) == 0.30)
@@ -117,62 +121,160 @@ struct BrandColorValuesTests {
         }
     }
 
-    @Test func everySeverityClearsNonTextContrastAgainstTheTrack() {
+    @Test func severityFillTokensMatchCanonicalSpec() {
+        // Fill tier (Sep 2026): vivid light defaults, text-tier fallbacks under Increase
+        // Contrast, dark unchanged in both branches. Amber was tuned down from the design
+        // brief's (0.96, 0.58, 0.05) to clear the ≥2.0:1-vs-track floor (1.70 → 2.06).
+        #expect(HeadroomSeverityColorValues.healthyFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.16, green: 0.66, blue: 0.30))
+        #expect(HeadroomSeverityColorValues.lowFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.91, green: 0.50, blue: 0.02))
+        #expect(HeadroomSeverityColorValues.criticalFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.90, green: 0.22, blue: 0.20))
+
+        for severity in [UsageSeverity.healthy, .low, .critical] {
+            #expect(
+                HeadroomSeverityColorValues.fill(for: severity, dark: false, increasedContrast: true)
+                    == HeadroomSeverityColorValues.color(for: severity, dark: false),
+                "light increased contrast falls back to the text tier: \(severity)"
+            )
+            for increasedContrast in [true, false] {
+                #expect(
+                    HeadroomSeverityColorValues.fill(for: severity, dark: true, increasedContrast: increasedContrast)
+                        == HeadroomSeverityColorValues.color(for: severity, dark: true),
+                    "dark fills are the dark text tier: \(severity)"
+                )
+            }
+        }
+
+        // The two `fill(for:)` overloads (UsageSeverity / WidgetUsageSeverity) cannot drift.
+        #expect(HeadroomSeverityColorValues.fill(for: WidgetUsageSeverity.low, dark: false, increasedContrast: false)
+            == HeadroomSeverityColorValues.fill(for: UsageSeverity.low, dark: false, increasedContrast: false))
+    }
+
+    /// The 3:1 (WCAG 1.4.11) floor still holds everywhere it is claimed: every dark fill, and
+    /// every light fill once the user turns on Increase Contrast. The *default* light
+    /// appearance is deliberately exempt — see the redundant-visualization test below.
+    @Test func everySeverityFillClearsNonTextContrastWhereItIsClaimed() {
         for dark in [true, false] {
             for background in raisedTileFillColors(dark: dark) {
                 let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
                 for severity in [UsageSeverity.healthy, .low, .critical] {
-                    let color = HeadroomSeverityColorValues.color(for: severity, dark: dark)
-                    #expect(contrastRatio(color, track) >= 3, "\(severity), dark=\(dark)")
+                    let fill = HeadroomSeverityColorValues.fill(
+                        for: severity,
+                        dark: dark,
+                        increasedContrast: true
+                    )
+                    #expect(contrastRatio(fill, track) >= 3, "\(severity), dark=\(dark)")
                 }
             }
         }
     }
 
-    /// The light severity palette exists *because* the vivid dark tokens fail on the light
-    /// track — recording that keeps the next "just brighten the light fill, bar fills carry
-    /// no text" pass from landing. Also pins how little luminance headroom the surviving
-    /// light values have: a saturated orange cannot fit under the cap at all.
-    @Test func vividDarkSeverityColorsCannotBeReusedOnTheLightTrack() {
+    /// Characterizes the deliberate policy change. In the default light appearance the bar is a
+    /// *redundant* visualization — the percent numeral beside it states the value at full text
+    /// contrast — so the fills trade 1.4.11's 3:1 for vividness and are held instead to a
+    /// legibility floor of ≥2.0:1 against the track and ≥2.5:1 against the card behind it.
+    /// Increase Contrast restores the 3:1 fills (asserted above).
+    @Test func defaultLightSeverityFillsClearTheRedundantVisualizationFloor() {
         for background in raisedTileFillColors(dark: false) {
             let track = composite(HeadroomWidgetColorValues.barTrack(dark: false), over: background)
             for severity in [UsageSeverity.healthy, .low, .critical] {
-                let vivid = HeadroomSeverityColorValues.color(for: severity, dark: true)
-                #expect(contrastRatio(vivid, track) < 3, "vivid \(severity) on the light track")
+                let fill = HeadroomSeverityColorValues.fill(
+                    for: severity,
+                    dark: false,
+                    increasedContrast: false
+                )
+                #expect(contrastRatio(fill, track) >= 2.0, "\(severity) vs track")
+                #expect(contrastRatio(fill, background) >= 2.5, "\(severity) vs card")
             }
-            // Any fill brighter than this cap drops below 3:1 on this track.
-            let cap = (relativeLuminance(track) + 0.05) / 3 - 0.05
-            for severity in [UsageSeverity.healthy, .low, .critical] {
-                let light = HeadroomSeverityColorValues.color(for: severity, dark: false)
-                #expect(relativeLuminance(light) <= cap, "light \(severity) luminance cap")
+        }
+    }
+
+    /// Why the policy is a two-tier split rather than a palette retune, and why the light track
+    /// stays at black @ 0.12 (renamed from `vividDarkSeverityColorsCannotBeReusedOnTheLightTrack`
+    /// now that the default light fills sit below 3:1 on purpose). On the light track no
+    /// saturated fill can reach 3:1: the track sits at L≈0.745, so a 3:1 fill needs L ≤ 0.215 —
+    /// darker than any vivid sRGB amber (the dark token is L≈0.41). And *deepening* the track
+    /// lowers the ratio instead of raising it, because these mid-luminance fills are darker than
+    /// the track and converge on it as it darkens (amber: 2.06 → 1.46 at 0.18 alpha). Both facts
+    /// are asserted so a future "just darken the track" fix fails here first.
+    @Test func noVividLightFillCanClearThreeToOneOnTheLightTrack() {
+        let card = raisedTileFillColors(dark: false)[1]
+        let track = composite(HeadroomWidgetColorValues.barTrack(dark: false), over: card)
+
+        for severity in [UsageSeverity.healthy, .low, .critical] {
+            let darkToken = HeadroomSeverityColorValues.color(for: severity, dark: true)
+            let lightFill = HeadroomSeverityColorValues.fill(
+                for: severity,
+                dark: false,
+                increasedContrast: false
+            )
+            #expect(contrastRatio(darkToken, track) < 3, "dark \(severity) reused on the light track")
+            // Critical's light fill happens to clear 3:1 on its own; healthy and low do not,
+            // and the policy does not require them to.
+            if severity != .critical {
+                #expect(contrastRatio(lightFill, track) < 3, "default light \(severity) is intentionally below 3:1")
             }
-            // A saturated amber fill — the recurring request — sits well over the cap.
-            #expect(relativeLuminance(HeadroomRGBColor(red: 0.94, green: 0.55, blue: 0.00)) > cap)
+
+            let deeperTrack = composite(HeadroomTint(color: .black, opacity: 0.18), over: card)
+            #expect(
+                contrastRatio(lightFill, deeperTrack) < contrastRatio(lightFill, track),
+                "deepening the light track reduces fill separation: \(severity)"
+            )
         }
     }
 
     @Test func rampStartsRemainChromaBearingInBothSchemes() {
         for scheme in MeterColorScheme.allCases {
             for surface in [MeterRampSurface.flat, .well] {
-                for severity in [UsageSeverity.healthy, .low, .critical] {
-                    let start = MeterRecipe.rampStops(
-                        severity: severity,
-                        scheme: scheme,
-                        surface: surface
-                    ).start
-                    #expect(rgbChroma(start) >= 0.04, "\(severity), \(scheme), \(surface)")
+                for increasedContrast in [false, true] {
+                    for severity in [UsageSeverity.healthy, .low, .critical] {
+                        let start = MeterRecipe.rampStops(
+                            severity: severity,
+                            scheme: scheme,
+                            surface: surface,
+                            increasedContrast: increasedContrast
+                        ).start
+                        #expect(rgbChroma(start) >= 0.04, "\(severity), \(scheme), \(surface), ic=\(increasedContrast)")
+                    }
                 }
+            }
+        }
+    }
+
+    /// The light ramp-start retune (0.55 → 0.75) exists to hold the start's separation from the
+    /// track once the fills went vivid; at 0.55 the amber start fell to 1.27:1 (was 1.55:1).
+    /// Each default light start now matches or beats what the old text-tier ramp measured.
+    @Test func lightRampStartsKeepTheirSeparationFromTheTrack() {
+        let previousLightStartRatios: [UsageSeverity: Double] = [
+            .healthy: 1.628,
+            .low: 1.545,
+            .critical: 1.833,
+        ]
+        for background in raisedTileFillColors(dark: false) {
+            let track = composite(HeadroomWidgetColorValues.barTrack(dark: false), over: background)
+            for (severity, previous) in previousLightStartRatios {
+                let start = MeterRecipe.rampStops(
+                    severity: severity,
+                    scheme: .light,
+                    surface: .flat,
+                    increasedContrast: false
+                ).start
+                #expect(contrastRatio(start, track) >= previous, "\(severity) ramp start")
             }
         }
     }
 
     /// These are characterization measurements, not 3:1 pass assertions. Ghost is
     /// deliberately subtle, and U8 owns the live decision if that subtlety reads as lost.
+    /// The light *default* band moved (1.3815–1.6345 → 1.2584–1.5465) because Ghost tints the
+    /// severity fill and the vivid light fills sit closer in luminance to the track. The
+    /// increased-contrast branch keeps the old band exactly, because it keeps the old colors.
     @Test func ghostBodyContrastOnTrackIsRecorded() {
-        #expect(measuredGhostRatios(dark: true).min().map { abs($0 - 1.2295) < 0.0001 } == true)
-        #expect(measuredGhostRatios(dark: true).max().map { abs($0 - 1.3733) < 0.0001 } == true)
-        #expect(measuredGhostRatios(dark: false).min().map { abs($0 - 1.3815) < 0.0001 } == true)
-        #expect(measuredGhostRatios(dark: false).max().map { abs($0 - 1.6345) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: true, increasedContrast: false).min().map { abs($0 - 1.2295) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: true, increasedContrast: false).max().map { abs($0 - 1.3733) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false, increasedContrast: false).min().map { abs($0 - 1.2584) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false, increasedContrast: false).max().map { abs($0 - 1.5465) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false, increasedContrast: true).min().map { abs($0 - 1.3815) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false, increasedContrast: true).max().map { abs($0 - 1.6345) < 0.0001 } == true)
     }
 
     /// Glass is also recorded rather than promoted to a blanket pass: its dark-scheme
@@ -256,12 +358,16 @@ private func rgbChroma(_ color: HeadroomRGBColor) -> Double {
     max(color.red, color.green, color.blue) - min(color.red, color.green, color.blue)
 }
 
-private func measuredGhostRatios(dark: Bool) -> [Double] {
+private func measuredGhostRatios(dark: Bool, increasedContrast: Bool) -> [Double] {
     raisedTileFillColors(dark: dark).flatMap { background in
         let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
         return [UsageSeverity.healthy, .low, .critical].map { severity in
             let body = HeadroomTint(
-                color: HeadroomSeverityColorValues.color(for: severity, dark: dark),
+                color: HeadroomSeverityColorValues.fill(
+                    for: severity,
+                    dark: dark,
+                    increasedContrast: increasedContrast
+                ),
                 opacity: HeadroomMeterColorValues.ghostBodyOpacity(for: severity, dark: dark)
             )
             return contrastRatio(composite(body, over: track), track)

@@ -11,6 +11,12 @@ struct MeterGauge: View {
     let freshness: UsageWindowFreshness
 
     @Environment(\.colorScheme) private var scheme
+    // Fill tier lookup: Increase Contrast swaps the vivid light bar fills back to the
+    // darker text-tier values that clear WCAG 1.4.11's 3:1 floor. Read here at the SwiftUI
+    // boundary so the Core tokens stay pure. See `HeadroomSeverityColorValues`.
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    private var increasedContrast: Bool { contrast == .increased }
 
     private var resolvedShape: GaugeShape { style.resolvedShape }
     private var clampedFraction: Double {
@@ -119,7 +125,7 @@ struct MeterGauge: View {
 
             if recipe == .glass || recipe == .ghost {
                 RoundedRectangle(cornerRadius: capThickness / 2, style: .continuous)
-                    .fill(ProviderStyle.severityColor(for: severity, scheme: scheme))
+                    .fill(severityFillColor)
                     .frame(
                         width: shape == .tube ? nil : capThickness,
                         height: shape == .tube ? capThickness : nil
@@ -148,16 +154,21 @@ struct MeterGauge: View {
                 endPoint: .bottom
             )
         case .ghost:
-            ProviderStyle.meterGhostBody(for: severity, scheme: scheme)
+            ProviderStyle.meterGhostBody(
+                for: severity,
+                scheme: scheme,
+                increasedContrast: increasedContrast
+            )
         case .ramp:
             LinearGradient(
                 colors: [
                     ProviderStyle.meterRampStart(
                         for: severity,
                         surface: shape == .machined ? .well : .flat,
-                        scheme: scheme
+                        scheme: scheme,
+                        increasedContrast: increasedContrast
                     ),
-                    ProviderStyle.severityColor(for: severity, scheme: scheme),
+                    severityFillColor,
                 ],
                 startPoint: shape == .tube ? .bottom : .leading,
                 endPoint: shape == .tube ? .top : .trailing
@@ -180,7 +191,8 @@ struct MeterGauge: View {
             ? MeterRecipe.rampStops(
                 severity: severity,
                 scheme: scheme == .dark ? .dark : .light,
-                surface: .well
+                surface: .well,
+                increasedContrast: increasedContrast
             )
             : nil
 
@@ -235,17 +247,19 @@ struct MeterGauge: View {
     ) -> Color {
         switch fill {
         case .severity:
-            return isTip
-                ? ProviderStyle.severityColor(for: severity, scheme: scheme)
-                : flatSeverityColor
+            return isTip ? severityFillColor : flatSeverityColor
         case .glass:
             return isTip
                 ? ProviderStyle.meterTickGlassCap(scheme: scheme)
                 : ProviderStyle.meterTickGlass(scheme: scheme)
         case .ghost:
             return isTip
-                ? ProviderStyle.severityColor(for: severity, scheme: scheme)
-                : ProviderStyle.meterGhostBody(for: severity, scheme: scheme)
+                ? severityFillColor
+                : ProviderStyle.meterGhostBody(
+                    for: severity,
+                    scheme: scheme,
+                    increasedContrast: increasedContrast
+                )
         case .neutral:
             return isTip
                 ? ProviderStyle.meterTickGlassCap(scheme: scheme)
@@ -280,9 +294,17 @@ struct MeterGauge: View {
         CGFloat(style.format == .micro ? MeterGeometry.microCapThickness : MeterGeometry.fullCapThickness)
     }
 
+    private var severityFillColor: Color {
+        ProviderStyle.severityFill(
+            for: severity,
+            scheme: scheme,
+            increasedContrast: increasedContrast
+        )
+    }
+
     private var flatSeverityColor: Color {
         let opacity = scheme == .dark ? (severity == .critical ? 0.95 : 0.85) : 1
-        return ProviderStyle.severityColor(for: severity, scheme: scheme).opacity(opacity)
+        return severityFillColor.opacity(opacity)
     }
 
     private var staleColor: Color { Color.secondary.opacity(0.55) }

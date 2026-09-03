@@ -47,6 +47,22 @@ public enum HeadroomWidgetStyle {
         Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
+    /// Bar-fill tier, mirroring the popover (`ProviderStyle.severityFill`): vivid in the
+    /// default light appearance, reverting to the 3:1-passing text-tier values under
+    /// Increase Contrast. Text, the "Low" label, and the attention glyphs keep
+    /// `severityColor`. See `HeadroomSeverityColorValues` for why the tiers differ.
+    public static func severityFill(
+        for severity: WidgetUsageSeverity,
+        scheme: ColorScheme,
+        increasedContrast: Bool
+    ) -> Color {
+        Color(HeadroomSeverityColorValues.fill(
+            for: severity,
+            dark: scheme == .dark,
+            increasedContrast: increasedContrast
+        ))
+    }
+
     public static func secondaryText(scheme: ColorScheme) -> Color {
         Color(HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark))
     }
@@ -283,6 +299,7 @@ public struct HeadroomWidgetUsageBar: View {
     private let height: CGFloat
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
 
     public init(percentRemaining: Double, severity: WidgetUsageSeverity, dimmed: Bool = false, height: CGFloat = 6) {
         self.percentRemaining = percentRemaining
@@ -306,7 +323,13 @@ public struct HeadroomWidgetUsageBar: View {
                 Capsule()
                     .fill(HeadroomWidgetStyle.barTrack(scheme: scheme))
                 Capsule()
-                    .fill(dimmed ? HeadroomWidgetStyle.secondaryText(scheme: scheme) : HeadroomWidgetStyle.severityColor(for: severity, scheme: scheme))
+                    .fill(dimmed
+                        ? HeadroomWidgetStyle.secondaryText(scheme: scheme)
+                        : HeadroomWidgetStyle.severityFill(
+                            for: severity,
+                            scheme: scheme,
+                            increasedContrast: contrast == .increased
+                        ))
                     .frame(width: fillWidth(in: geo.size.width))
             }
         }

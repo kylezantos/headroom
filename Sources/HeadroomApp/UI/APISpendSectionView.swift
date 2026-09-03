@@ -99,43 +99,58 @@ struct APISpendSectionView: View {
         }
     }
 
+    /// Amount and action stack instead of sharing one line: at the popover's 384pt a
+    /// "Replace key…" button beside the total would eat the width the status message needs,
+    /// so the button takes its own trailing line and the amount stays where it was.
     @ViewBuilder private func amountView(_ snapshot: APISpendSnapshot, status: APISpendRowStatus) -> some View {
-        if let amount = APISpendPresentation.amountText(amount: snapshot.amount, currency: snapshot.currency) {
-            HStack(spacing: 3) {
-                Text(amount)
-                    .font(.system(size: 17, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(snapshot.freshness == .live ? .primary : .secondary)
-                    .privacySensitive()
-                if let qualifier = APISpendPresentation.qualifier(kind: snapshot.kind) {
-                    Text(qualifier)
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
-                }
-                // Quiet escape hatch to top up: opens the provider's billing page (the
-                // screen with the actual "Buy credits" control) — we never run the
-                // purchase ourselves. Bare glyph per the popover's control language;
-                // hover pill announces clickability.
-                if let url = APISpendPresentation.addCreditsURL(for: snapshot.providerID) {
-                    Button {
-                        NSWorkspace.shared.open(url)
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.system(size: 10, weight: .semibold))
-                            .frame(width: 18, height: 18)
-                    }
-                    .buttonStyle(HoverButtonStyle(
-                        horizontalPadding: 0,
-                        verticalPadding: 0,
-                        hoverForegroundColor: ProviderStyle.textAccent(for: snapshot.providerID, scheme: scheme)
-                    ))
-                    .delayedHelp("Open \(snapshot.displayName) billing to add credits")
-                    .accessibilityLabel("Add \(snapshot.displayName) credits")
-                }
+        let amount = APISpendPresentation.amountText(amount: snapshot.amount, currency: snapshot.currency)
+
+        VStack(alignment: .trailing, spacing: 3) {
+            if let amount {
+                amountLine(snapshot, amount: amount)
             }
-        } else if let callToAction = status.callToAction {
-            Button(callToAction, action: onOpenSettings)
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 7, verticalPadding: 3))
-                .font(.caption2)
+            // Continuity keeps the last total on screen after the key stops working; the
+            // button follows the key problem, not the absence of an amount, so a retained
+            // number beside "Key rejected" is no longer a dead end.
+            if status.showsCTA(hasAmount: amount != nil), let callToAction = status.callToAction {
+                Button(callToAction, action: onOpenSettings)
+                    .buttonStyle(HoverButtonStyle(horizontalPadding: 7, verticalPadding: 3))
+                    .font(.caption2)
+            }
+        }
+    }
+
+    @ViewBuilder private func amountLine(_ snapshot: APISpendSnapshot, amount: String) -> some View {
+        HStack(spacing: 3) {
+            Text(amount)
+                .font(.system(size: 17, weight: .semibold).monospacedDigit())
+                .foregroundStyle(snapshot.freshness == .live ? .primary : .secondary)
+                .privacySensitive()
+            if let qualifier = APISpendPresentation.qualifier(kind: snapshot.kind) {
+                Text(qualifier)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+            }
+            // Quiet escape hatch to top up: opens the provider's billing page (the
+            // screen with the actual "Buy credits" control) — we never run the
+            // purchase ourselves. Bare glyph per the popover's control language;
+            // hover pill announces clickability.
+            if let url = APISpendPresentation.addCreditsURL(for: snapshot.providerID) {
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 10, weight: .semibold))
+                        .frame(width: 18, height: 18)
+                }
+                .buttonStyle(HoverButtonStyle(
+                    horizontalPadding: 0,
+                    verticalPadding: 0,
+                    hoverForegroundColor: ProviderStyle.textAccent(for: snapshot.providerID, scheme: scheme)
+                ))
+                .delayedHelp("Open \(snapshot.displayName) billing to add credits")
+                .accessibilityLabel("Add \(snapshot.displayName) credits")
+            }
         }
     }
 }

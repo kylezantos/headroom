@@ -271,6 +271,95 @@ struct APISpendPresentationTests {
         #expect(live.callToAction == nil)
     }
 
+    // MARK: - When the action shows
+
+    /// Continuity keeps the last total on the row after the key stops working. The card
+    /// used to hang its button off "there is no amount", so that row showed a stale number
+    /// beside a "Key rejected" badge and no way to fix it.
+    @Test func keyProblemsKeepTheirActionEvenWithARetainedAmount() {
+        let keyProblems: [FailureReason] = [
+            .notLoggedIn("Add an admin key in Settings"),
+            .needsReauth("Anthropic admin key rejected"),
+            .scopeDenied("Anthropic key lacks cost report access"),
+        ]
+
+        for reason in keyProblems {
+            let status = APISpendPresentation.rowStatus(
+                freshness: .stale(reason),
+                providerID: .claude,
+                displayName: "Anthropic API"
+            )
+
+            #expect(status.keyNeedsAttention)
+            #expect(status.showsCTA(hasAmount: true))
+            #expect(status.showsCTA(hasAmount: false))
+        }
+    }
+
+    /// Retryable staleness keeps the old rule: the next poll may clear it, so a row that
+    /// still has a number stays a plain number.
+    @Test func retryableStalenessOnlyOffersTheActionWithoutAnAmount() {
+        for reason in [FailureReason.transient("Network unavailable"), .decode("Couldn't read Anthropic cost response")] {
+            let status = APISpendPresentation.rowStatus(
+                freshness: .stale(reason),
+                providerID: .claude,
+                displayName: "Anthropic API"
+            )
+
+            #expect(!status.keyNeedsAttention)
+            #expect(!status.showsCTA(hasAmount: true))
+            #expect(status.showsCTA(hasAmount: false))
+        }
+    }
+
+    /// A permanent failure that isn't about a key keeps the source's own copy, so it also
+    /// keeps the old amount-driven rule rather than nagging over a retained total.
+    @Test func genericSetupFailureKeepsTheAmountDrivenRule() {
+        let status = APISpendPresentation.rowStatus(
+            freshness: .stale(.providerSetup(.claudeCLIMissing)),
+            providerID: .claude,
+            displayName: "Anthropic API"
+        )
+
+        #expect(!status.keyNeedsAttention)
+        #expect(!status.showsCTA(hasAmount: true))
+        #expect(status.showsCTA(hasAmount: false))
+    }
+
+    @Test func liveRowsNeverShowTheAction() {
+        let live = APISpendPresentation.rowStatus(
+            freshness: .live,
+            providerID: .claude,
+            displayName: "Anthropic API"
+        )
+
+        #expect(!live.showsCTA(hasAmount: true))
+        #expect(!live.showsCTA(hasAmount: false))
+    }
+
+    @Test func companionRowsShareTheSameActionRule() {
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Anthropic admin key rejected", needsAttention: true),
+            attention: .keyRejected,
+            providerID: .claude,
+            displayName: "Anthropic API"
+        ).showsCTA(hasAmount: true))
+        #expect(!APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Temporary issue", needsAttention: false),
+            attention: .retryable,
+            providerID: .claude,
+            displayName: "Anthropic API"
+        ).showsCTA(hasAmount: true))
+    }
+
+    @Test func onlyKeyAttentionsCountAsAKeyProblem() {
+        #expect(APISpendAttention.missingKey.isKeyProblem)
+        #expect(APISpendAttention.keyRejected.isKeyProblem)
+        #expect(APISpendAttention.keyLacksAccess.isKeyProblem)
+        #expect(!APISpendAttention.setupRequired.isKeyProblem)
+        #expect(!APISpendAttention.retryable.isKeyProblem)
+    }
+
     @Test func attentionIsDerivedFromTheTypedReason() {
         #expect(APISpendAttention(reason: .notLoggedIn("x")) == .missingKey)
         #expect(APISpendAttention(reason: .needsReauth("x")) == .keyRejected)

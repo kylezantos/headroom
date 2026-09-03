@@ -313,19 +313,20 @@ enum PopoverRenderHarness {
     }
 
     /// One capture per sidebar pane, demo store, at the shipping
-    /// `SettingsView.windowWidth` × `windowHeight` frame — verifies the shared type
-    /// hierarchy (15pt tile heads / 13pt controls / 11pt fine print) and the all-tiles
-    /// material system across both windows. `height` overrides the frame for the
+    /// `SettingsView.windowWidth` × that pane's `preferredContentHeight` — verifies the
+    /// shared type hierarchy (15pt tile heads / 13pt controls / 11pt fine print) and the
+    /// all-tiles material system across both windows. `height` overrides the frame for the
     /// multi-account capture, which needs a taller canvas so the full account list is
-    /// visible instead of cropped at the window height.
+    /// visible instead of cropped at the pane height.
     private static func renderSettings(
         pane: SettingsPane,
         percentageMode: UsagePercentageMode,
         dark: Bool,
         multiAccount: Bool = false,
-        height: CGFloat = SettingsView.windowHeight,
+        height heightOverride: CGFloat? = nil,
         to url: URL
     ) async -> Bool {
+        let height = heightOverride ?? pane.preferredContentHeight
         NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         let preferences = renderPreferences(mode: percentageMode)
         // The window opens on the persisted pane (R4), so selecting it here is how the

@@ -188,12 +188,7 @@ struct MenuBarSettingsPane: View {
                             .transition(.opacity)
                     }
                     .animation(reduceMotion ? nil : HeadroomMotion.settle, value: menuBarPreviewKey)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(
-                        Color(white: 0.15),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    )
+                    .menuBarPreviewPlate()
                     Text("Live preview — follows the choices below")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)

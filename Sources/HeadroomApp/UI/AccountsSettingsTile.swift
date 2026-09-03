@@ -184,6 +184,10 @@ struct AccountsSettingsTile: View {
         )
         // R11: a provider that isn't fetched has nothing to say about its fetch health.
         let capability = presentation.hidesCapabilityBanner ? nil : allCapability
+        // R11: VoiceOver follows the banner. Announcing a hidden capability failure would
+        // both speak state the screen doesn't show and burn the per-provider dedupe entry,
+        // so the announcement would be lost once the provider is switched back on.
+        let announcedCapability = presentation.hidesCapabilityBanner ? nil : capabilityState
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
@@ -275,10 +279,10 @@ struct AccountsSettingsTile: View {
         }
         .animation(reduceMotion ? nil : HeadroomMotion.settle, value: accounts.map(\.id))
         .onAppear {
-            SetupSessions.announceCapabilityIfNeeded(capabilityState, for: providerID)
+            SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
         }
         .onChange(of: capabilityState) {
-            SetupSessions.announceCapabilityIfNeeded(capabilityState, for: providerID)
+            SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
         }
     }
 
@@ -357,7 +361,7 @@ struct AccountsSettingsTile: View {
                 }
                 Spacer(minLength: 8)
                 if !usesSecondLine {
-                    if !presentation.hidesAccountStatus {
+                    if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
                         accountStatus(
                             capabilityRow,
                             snapshot: snapshot,
@@ -819,6 +823,14 @@ struct AccountsSettingsTile: View {
 
         var needsRecovery: Bool {
             self == .needsSignIn || self == .blocked || self == .setupFailed
+        }
+
+        /// R11: sign-in and removal states are management, not fetch health, so they
+        /// survive a provider whose subscription switch is off — that switch only stops
+        /// fetching, and Add Account / sign-in stay live behind it.
+        var isSetupState: Bool {
+            self == .waiting || self == .setupActive || self == .setupFailed
+                || self == .blocked || self == .removing || self == .removalFailed
         }
     }
 

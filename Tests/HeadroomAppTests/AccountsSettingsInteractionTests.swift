@@ -382,12 +382,13 @@ struct AccountsSettingsInteractionTests {
         )
 
         #expect(off.dimsAccountRows)
-        #expect(off.hidesAccountStatus)
+        // R11: "off" means "not fetched", never "unmanageable" — fetch-derived status
+        // hides, but a sign-in the user starts anyway still reports itself.
+        #expect(off.hidesAccountStatus(isSetupState: false))
+        #expect(!off.hidesAccountStatus(isSetupState: true))
         #expect(off.hidesFetchRecovery)
         #expect(off.hidesCapabilityBanner)
         #expect(off.offHelpText == "Not fetched while this provider is off.")
-        // R11: "off" means "not fetched", never "unmanageable".
-        #expect(off.allowsAccountManagement)
         #expect(off.showsAccountCounter)
         #expect(off.showsAddAction)
         #expect(off.subscriptionSwitch.isEnabled)
@@ -400,11 +401,11 @@ struct AccountsSettingsInteractionTests {
             hasActiveHandoff: { _ in false }
         )
         #expect(!on.dimsAccountRows)
-        #expect(!on.hidesAccountStatus)
+        #expect(!on.hidesAccountStatus(isSetupState: false))
+        #expect(!on.hidesAccountStatus(isSetupState: true))
         #expect(!on.hidesFetchRecovery)
         #expect(!on.hidesCapabilityBanner)
         #expect(on.offHelpText == nil)
-        #expect(on.allowsAccountManagement)
     }
 
     @Test func singleAccountProviderHeaderDropsTheCounterAndAddButKeepsTheSwitch() {
@@ -420,7 +421,6 @@ struct AccountsSettingsInteractionTests {
         #expect(!presentation.showsAddAction)
         #expect(presentation.subscriptionSwitch.isEnabled)
         #expect(presentation.subscriptionSwitch.accessibilityLabel == "Cursor subscription")
-        #expect(presentation.allowsAccountManagement)
     }
 
     @Test func leavingAccountsCommitsOnlyTheDraftsThatWouldChangeALabel() {

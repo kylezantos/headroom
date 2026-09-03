@@ -161,16 +161,26 @@ extension AnyTransition {
     }
 }
 
-/// The menu-bar specimen's dark plate. `MenuBarLabel` pins its palette to the dark menu
-/// bar (white ink + dark severity colors), so on a light well that ink would vanish; the
-/// plate keeps the preview faithful in both appearances. Shared by the Menu Bar pane and
-/// the Appearance specimen so the two strips cannot drift.
+/// A single-label menu-bar specimen on the shared plate. Used by the Appearance specimen;
+/// the Menu Bar pane applies `menuBarPreviewPlate()` directly because its strip stacks two
+/// labels for a reflow-free percentage swap.
 struct MenuBarPreviewPill: View {
     let meters: [MenuBarMeter]
     let showsPercentage: Bool
 
     var body: some View {
         MenuBarLabel(meters: meters, showsPercentage: showsPercentage)
+            .menuBarPreviewPlate()
+    }
+}
+
+extension View {
+    /// The menu-bar specimen's dark plate. `MenuBarLabel` pins its palette to the dark
+    /// menu bar (white ink + dark severity colors), so on a light well that ink would
+    /// vanish; the plate keeps the preview faithful in both appearances. Shared by the
+    /// Menu Bar pane and the Appearance specimen so the two strips cannot drift.
+    func menuBarPreviewPlate() -> some View {
+        self
             .padding(.horizontal, 7)
             .padding(.vertical, 3)
             .background(
@@ -178,9 +188,7 @@ struct MenuBarPreviewPill: View {
                 in: RoundedRectangle(cornerRadius: 6, style: .continuous)
             )
     }
-}
 
-extension View {
     /// The recessed well behind a settings preview (specimen or menu-bar strip).
     func settingsPreviewWell(dark: Bool, verticalPadding: CGFloat) -> some View {
         self

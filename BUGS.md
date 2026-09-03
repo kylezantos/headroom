@@ -165,6 +165,10 @@ official `claude` CLI's `/usage` panel instead.
   touch user settings. Harmless for the unsigned debug binary (its own `Headroom` domain),
   but `Headroom.app --demo` would write into the user's settings. Found during the sidebar
   acceptance pass (2026-09-03).
+- **A focused, uncommitted account rename can still be lost on ⌘Q.** R12's backstop commits
+  pending renames in `AccountsSettingsTile.onDisappear`, which fires on pane switch and
+  window close but is not guaranteed on app termination. Add an `NSApplication.willTerminate`
+  commit if it matters in practice (code-review residual, 2026-09-03).
 - **Reopening Settings after ⌘W restores keyboard focus into a renamed account field.** The
   rename commits correctly (R12), but SwiftUI restores focus to the last focused
   `TextField`, so that row reopens with its editing chrome while siblings look static.

@@ -56,8 +56,11 @@ struct SettingsView: View {
     /// confirm the state change.
     private static let settleAnimation = HeadroomMotion.settle
 
-    /// KTD2: one fixed frame for every pane. Short panes show empty space and taller
-    /// ones scroll internally, so the window never resizes as the user changes rooms.
+    /// KTD2: the width is fixed for every pane and 812pt is the default height, so the
+    /// window never resizes as the user changes rooms. Height is the one axis that gives:
+    /// the user may shrink it to `minimumWindowHeight` (600pt) and the panes — every body
+    /// is a `ScrollView` — scroll instead of clipping. That flexibility is also what lets
+    /// AppKit constrain the window to a short screen rather than hang it off the bottom.
     ///
     /// Appearance is the tallest pane (specimen + Theme + Meter style + In-app display):
     /// about 805pt of content at default text size once the Fill swatches sit on one row.
@@ -66,6 +69,11 @@ struct SettingsView: View {
     /// text sizes scroll inside the pane instead of growing the frame.
     static let windowWidth: CGFloat = 720
     static let windowHeight: CGFloat = 812
+    static let minimumWindowHeight: CGFloat = 600
+    /// Diagnostic seam: the render harness raises the frame for its multi-account capture
+    /// so the whole account list is in the picture. The live window never sets this.
+    var frameHeightOverride: CGFloat? = nil
+    private var frameHeight: CGFloat { frameHeightOverride ?? Self.windowHeight }
 
     var body: some View {
         NavigationSplitView {
@@ -80,7 +88,12 @@ struct SettingsView: View {
         // KTD8: no `.navigationTitle` anywhere in the split view — the window title
         // string set in `HeadroomApp` is what `placeSettingsWindowOnActiveScreen()`
         // matches on, and a navigation title would replace it.
-        .frame(width: Self.windowWidth, height: Self.windowHeight)
+        .frame(
+            minWidth: Self.windowWidth, idealWidth: Self.windowWidth, maxWidth: Self.windowWidth,
+            minHeight: min(Self.minimumWindowHeight, frameHeight),
+            idealHeight: frameHeight,
+            maxHeight: frameHeight
+        )
         .onAppear { loadPreferences() }
         .task { await refreshSavedKeyPresence() }
         // KTD3: the scan lives on the root so revisiting Accounts keeps its badges, but it

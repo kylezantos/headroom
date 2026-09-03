@@ -109,14 +109,18 @@ enum AccountsSettingsInteractions {
         let showsAddAction: Bool
 
         var dimsAccountRows: Bool { !isFetching }
-        var hidesAccountStatus: Bool { !isFetching }
+        /// R11: only *fetch-derived* status hides while the provider is off. Sign-in the
+        /// user starts anyway ("Waiting for sign-in…", setup failure, blocked, removal)
+        /// is management state and must stay visible, or the handoff looks like nothing
+        /// happened (code-review finding).
+        func hidesAccountStatus(isSetupState: Bool) -> Bool {
+            !isFetching && !isSetupState
+        }
         var hidesFetchRecovery: Bool { !isFetching }
         var hidesCapabilityBanner: Bool { !isFetching }
         var offHelpText: String? {
             isFetching ? nil : "Not fetched while this provider is off."
         }
-        /// Always true — stated as a value so R11's promise is asserted, not assumed.
-        var allowsAccountManagement: Bool { true }
     }
 
     static func subscriptionSwitchPresentation(

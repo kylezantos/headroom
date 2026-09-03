@@ -85,11 +85,11 @@ struct MeterStyleTile: View {
     }
 
     private var shapeColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 52, maximum: 72), spacing: swatchSpacing)]
+        [GridItem(.adaptive(minimum: 64, maximum: 80), spacing: swatchSpacing)]
     }
 
     private var fillColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 70, maximum: 88), spacing: swatchSpacing)]
+        [GridItem(.adaptive(minimum: 78, maximum: 88), spacing: swatchSpacing)]
     }
 
     private func rowLabel(_ text: String) -> some View {
@@ -169,8 +169,9 @@ struct MeterStyleTile: View {
                 Text(fill.label)
                     .font(.system(size: 10.5, weight: .medium))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
-                    .frame(height: 25, alignment: .top)
+                    .lineLimit(2, reservesSpace: true)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(height: 28, alignment: .top)
             }
             .padding(5)
             .frame(maxWidth: .infinity)

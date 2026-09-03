@@ -59,13 +59,13 @@ struct SettingsView: View {
     /// KTD2: one fixed frame for every pane. Short panes show empty space and taller
     /// ones scroll internally, so the window never resizes as the user changes rooms.
     ///
-    /// U3 measured Appearance — the tallest pane — at 874.5pt of content at default text
-    /// size (specimen + Theme + Meter style + In-app display). Pinning to that would need
-    /// a ~927pt window once the hidden title bar's ~52pt is added, which no longer fits a
-    /// 900pt-tall display, so the frame is capped at 780pt (≈832pt of window) and
-    /// Appearance scrolls the last ~95pt. Every other pane fits without scrolling.
+    /// Appearance is the tallest pane (specimen + Theme + Meter style + In-app display):
+    /// about 805pt of content at default text size once the Fill swatches sit on one row.
+    /// The hidden title bar adds 32pt (measured live), so 812pt of content is an 844pt
+    /// window, which still clears a 13-inch MacBook Air's 931pt of usable height. Larger
+    /// text sizes scroll inside the pane instead of growing the frame.
     static let windowWidth: CGFloat = 720
-    static let windowHeight: CGFloat = 780
+    static let windowHeight: CGFloat = 812
 
     var body: some View {
         NavigationSplitView {

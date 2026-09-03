@@ -157,6 +157,18 @@ official `claude` CLI's `/usage` panel instead.
   Regenerate all sizes with `node Scripts/gen-app-icon.mjs` (master:
   `design/vessel-app-icon.svg`).
 - `MenuBarLabel` uses a fixed font size (menu bar height is OS-constrained).
+- **`--demo` writes Settings preferences to the standard defaults domain.** `HeadroomApp.init`
+  builds `Preferences()` (`.standard`) and hands it to `SettingsView`, while
+  `AppComposition.store` routes the store to the isolated per-launch demo suite, so in demo
+  mode `appearancePreference`, `settingsPane`, `showMenuBarPercentage`, and
+  `menuBarFillSource` land in the real domain despite the comment saying demo runs never
+  touch user settings. Harmless for the unsigned debug binary (its own `Headroom` domain),
+  but `Headroom.app --demo` would write into the user's settings. Found during the sidebar
+  acceptance pass (2026-09-03).
+- **Reopening Settings after ⌘W restores keyboard focus into a renamed account field.** The
+  rename commits correctly (R12), but SwiftUI restores focus to the last focused
+  `TextField`, so that row reopens with its editing chrome while siblings look static.
+  Cosmetic; consider clearing `focusedLabel` on disappear.
 - **Menu Bar pane still lists providers whose subscription is switched off.** "Priority
   providers" and "Preferred window" iterate `registeredProviderOrder`, which ignores the
   per-provider surface switches now living in Settings → Accounts, so an off provider can be

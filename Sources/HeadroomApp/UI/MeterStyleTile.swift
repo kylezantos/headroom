@@ -88,8 +88,10 @@ struct MeterStyleTile: View {
         [GridItem(.adaptive(minimum: 64, maximum: 80), spacing: swatchSpacing)]
     }
 
+    /// 72pt minimum so all five fills sit on one row inside the 720pt sidebar window's
+    /// detail column (about 400pt beside the row label); 78pt wrapped "Hue ramp" alone.
     private var fillColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 78, maximum: 88), spacing: swatchSpacing)]
+        [GridItem(.adaptive(minimum: 72, maximum: 80), spacing: swatchSpacing)]
     }
 
     private func rowLabel(_ text: String) -> some View {

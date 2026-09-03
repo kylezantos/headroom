@@ -1,4 +1,5 @@
 import SwiftUI
+import HeadroomCore
 
 /// Shared row vocabulary for the Settings window (settings-ui audit, Jul 2026): one
 /// grammar everywhere — label on the leading edge, control on the trailing edge — so
@@ -157,5 +158,37 @@ extension AnyTransition {
             ),
             removal: .opacity
         )
+    }
+}
+
+/// The menu-bar specimen's dark plate. `MenuBarLabel` pins its palette to the dark menu
+/// bar (white ink + dark severity colors), so on a light well that ink would vanish; the
+/// plate keeps the preview faithful in both appearances. Shared by the Menu Bar pane and
+/// the Appearance specimen so the two strips cannot drift.
+struct MenuBarPreviewPill: View {
+    let meters: [MenuBarMeter]
+    let showsPercentage: Bool
+
+    var body: some View {
+        MenuBarLabel(meters: meters, showsPercentage: showsPercentage)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(
+                Color(white: 0.15),
+                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+            )
+    }
+}
+
+extension View {
+    /// The recessed well behind a settings preview (specimen or menu-bar strip).
+    func settingsPreviewWell(dark: Bool, verticalPadding: CGFloat) -> some View {
+        self
+            .padding(.horizontal, 9)
+            .padding(.vertical, verticalPadding)
+            .background(
+                ClaudeSetupStyle.wellBackground(dark: dark),
+                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+            )
     }
 }

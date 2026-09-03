@@ -64,7 +64,6 @@ struct AccountsSettingsTile: View {
     /// R9: the provider group headers own the subscription switches, so the tile needs the
     /// root's surface binding (set + animate + `refreshNow()`) rather than a local toggle.
     let surfaceBinding: (UsageSurface) -> Binding<Bool>
-    var showsTitle = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -79,13 +78,8 @@ struct AccountsSettingsTile: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // The pane scaffold already prints "Accounts" above this tile (U2/U4); the tile
-            // keeps its own title only where it is embedded without one.
-            if showsTitle {
-                Text("Accounts")
-                    .font(.system(size: 15, weight: .semibold))
-                    .kerning(-0.2)
-            }
+            // The pane scaffold prints "Accounts" above this tile (U2/U4), so the tile
+            // carries no title of its own.
             SettingsHelpText(text: "Track several subscriptions side by side. Every account signs in through its official CLI in Terminal — Headroom never sees your credentials.")
 
             ForEach(Array(store.registeredProviderOrder.enumerated()), id: \.element) { index, providerID in

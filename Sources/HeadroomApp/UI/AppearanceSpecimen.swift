@@ -73,29 +73,17 @@ struct AppearanceSpecimen: View {
 
             HStack(spacing: 10) {
                 // The label renderer pins its palette dark (white ink + dark severity
-                // colors) because that's what the Tahoe menu bar shows. On a light well
-                // that ink would be invisible, so the strip keeps its own dark plate —
-                // the same one the Menu Bar tile uses.
-                MenuBarLabel(meters: menuBarMeters, showsPercentage: true)
-                    .padding(.horizontal, 7)
-                    .padding(.vertical, 3)
-                    .background(
-                        Color(white: 0.15),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    )
+                // colors) because that's what the Tahoe menu bar shows; the shared plate
+                // keeps it legible on a light well.
+                MenuBarPreviewPill(meters: menuBarMeters, showsPercentage: true)
                 Text("Follows the choices below.")
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
                 Spacer(minLength: 0)
             }
         }
-        .padding(.horizontal, 9)
-        .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            ClaudeSetupStyle.wellBackground(dark: colorScheme == .dark),
-            in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-        )
+        .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 8)
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preview of a provider card in the selected style")

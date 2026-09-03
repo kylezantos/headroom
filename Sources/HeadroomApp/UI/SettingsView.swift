@@ -27,8 +27,8 @@ struct SettingsView: View {
     var duplicateDetector = ClaudeDuplicateLoginDetector()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var selectedPane: SettingsPane = .general
     @State private var sidebarSelection: SettingsPane? = .general
+    @State private var hasVisitedAccounts = false
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
@@ -83,7 +83,11 @@ struct SettingsView: View {
         .frame(width: Self.windowWidth, height: Self.windowHeight)
         .onAppear { loadPreferences() }
         .task { await refreshSavedKeyPresence() }
-        .task(id: claudeDuplicateFingerprint) {
+        // KTD3: the scan lives on the root so revisiting Accounts keeps its badges, but it
+        // only starts once Accounts has been shown — a visit to General should not read
+        // every Claude account's `.claude.json`.
+        .task(id: hasVisitedAccounts ? claudeDuplicateFingerprint : nil) {
+            guard hasVisitedAccounts else { return }
             // Off-main: `.claude.json` can be large (the CLI writes project history
             // into it), so the identity reads never block the settings surface.
             let detector = duplicateDetector
@@ -99,6 +103,7 @@ struct SettingsView: View {
         }
         .onChange(of: selectedPane) { _, newValue in
             preferences.settingsPane = newValue
+            if newValue == .accounts { hasVisitedAccounts = true }
         }
         .confirmationDialog(
             "Remove this admin key?",
@@ -115,6 +120,10 @@ struct SettingsView: View {
         }
     }
 
+    /// The pane on screen. `sidebarSelection` is optional only because `List(selection:)`
+    /// demands it; the binding below never stores nil, so the fallback is unreachable.
+    private var selectedPane: SettingsPane { sidebarSelection ?? .general }
+
     /// macOS can hand a sidebar `List` a nil selection (⌘-click deselect, or a rebuild
     /// mid-transition). Dropping to no pane would blank the detail column, so a nil is
     /// ignored and the last real destination stays selected.
@@ -124,7 +133,6 @@ struct SettingsView: View {
             set: { newValue in
                 guard let newValue else { return }
                 sidebarSelection = newValue
-                selectedPane = newValue
             }
         )
     }
@@ -253,8 +261,8 @@ struct SettingsView: View {
         // R4: reopen on the last-visited destination; an unknown stored value already
         // decodes to General in `Preferences`.
         let storedPane = preferences.settingsPane
-        selectedPane = storedPane
         sidebarSelection = storedPane
+        if storedPane == .accounts { hasVisitedAccounts = true }
         appearancePreference = preferences.appearancePreference
         showMenuBarPercentage = store.showMenuBarPercentage
         usagePercentageMode = store.usagePercentageMode

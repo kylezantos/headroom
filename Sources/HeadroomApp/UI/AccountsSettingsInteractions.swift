@@ -169,7 +169,7 @@ enum AccountsSettingsInteractions {
     }
 
     /// R12: leaving Accounts (pane switch or window close) must not silently discard a
-    /// typed rename. Mirrors `commitLabel`'s own guard so the caller commits exactly the
+    /// typed rename. Uses the same rule as `commitLabel` so the caller commits exactly the
     /// drafts that would change something, in the list's own order.
     nonisolated static func pendingLabelCommits(
         drafts: [AccountKey: String],
@@ -177,8 +177,7 @@ enum AccountsSettingsInteractions {
     ) -> [ProviderAccount] {
         accounts.filter { account in
             guard let draft = drafts[account.key] else { return false }
-            let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-            return !trimmed.isEmpty && trimmed != account.label
+            return pendingRename(draft, for: account) != nil
         }
     }
 
@@ -223,10 +222,18 @@ enum AccountsSettingsInteractions {
         for account: ProviderAccount,
         in store: UsageStore
     ) -> Bool {
-        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, trimmed != account.label else { return false }
+        guard let trimmed = pendingRename(draft, for: account) else { return false }
         store.renameAccount(account.key, to: trimmed)
         return true
+    }
+
+    /// The one rule for "this draft renames the account": trimmed, non-empty, and
+    /// different from the current label. Shared by the commit path and the
+    /// leave-Accounts sweep so the two can never disagree (R12).
+    nonisolated static func pendingRename(_ draft: String, for account: ProviderAccount) -> String? {
+        let trimmed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed != account.label else { return nil }
+        return trimmed
     }
 
     /// Built-in rows route to the non-destructive stop-tracking path — their config

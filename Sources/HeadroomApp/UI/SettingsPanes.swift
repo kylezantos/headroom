@@ -188,10 +188,6 @@ struct MenuBarSettingsPane: View {
                             .transition(.opacity)
                     }
                     .animation(reduceMotion ? nil : HeadroomMotion.settle, value: menuBarPreviewKey)
-                    // The label is pinned to its dark palette (white ink + dark severity
-                    // colors), representative of the Tahoe menu bar's dark translucent backplate.
-                    // A light preview well would render that white ink invisibly, so the specimen
-                    // sits on its own dark plate — a faithful preview of what the menu bar shows.
                     .padding(.horizontal, 7)
                     .padding(.vertical, 3)
                     .background(
@@ -203,12 +199,7 @@ struct MenuBarSettingsPane: View {
                         .foregroundStyle(.tertiary)
                     Spacer(minLength: 0)
                 }
-                .padding(.horizontal, 9)
-                .padding(.vertical, 6)
-                .background(
-                    ClaudeSetupStyle.wellBackground(dark: colorScheme == .dark),
-                    in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-                )
+                .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 6)
 
                 SettingsSwitchRow(title: "Show percentage", isOn: $showMenuBarPercentage)
                     .onChange(of: showMenuBarPercentage) { _, newValue in
@@ -427,8 +418,7 @@ struct AccountsSettingsPane: View {
             AccountsSettingsTile(
                 store: store,
                 duplicateLoginLabels: duplicateLoginLabels,
-                surfaceBinding: surfaceBinding,
-                showsTitle: false
+                surfaceBinding: surfaceBinding
             )
         }
     }
@@ -648,10 +638,14 @@ struct APISpendSettingsPane: View {
             // R13: Return commits the key, matching the Save button's own guard, so a
             // pasted key doesn't need a mouse trip.
             .onSubmit {
-                let trimmed = text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty else { return }
+                guard Self.hasSavableKey(text.wrappedValue) else { return }
                 onSaveKey(text.wrappedValue, provider)
             }
+    }
+
+    /// One rule for "there is a key to save", shared by Return and the Save button.
+    private static func hasSavableKey(_ draft: String) -> Bool {
+        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// The editor is used for both first save and intentional replacement. Removal
@@ -668,7 +662,7 @@ struct APISpendSettingsPane: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            .disabled(!Self.hasSavableKey(text.wrappedValue))
 
             if replacing {
                 Button("Cancel") {

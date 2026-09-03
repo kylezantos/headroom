@@ -413,39 +413,22 @@ struct WidgetsSettingsPane: View {
 
 // MARK: - Accounts
 
-/// Interim shape: the Subscription Usage tile still sits above the account groups,
-/// now holding only the per-provider switches (its two display preferences moved to
-/// Appearance in U3). U4 moves each switch into its group header and deletes this tile.
+/// R9/KD7: one room per provider. The old "Subscription Usage" tile is gone — each
+/// provider's on/off switch now rides its own group header in `AccountsSettingsTile`,
+/// next to the accounts it governs, and its two display preferences moved to Appearance
+/// in U3.
 struct AccountsSettingsPane: View {
     let store: UsageStore
+    let duplicateLoginLabels: [AccountKey: String]
     let surfaceBinding: (UsageSurface) -> Binding<Bool>
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.accounts.label) {
-            SettingsTile("Subscription Usage") {
-                ForEach(store.registeredProviderOrder, id: \.self) { providerID in
-                    if let surface = UsageSurface.subscription(for: providerID) {
-                        surfaceSwitchRow(surface)
-                    }
-                }
-            }
-
-            AccountsSettingsTile(store: store)
-        }
-    }
-
-    /// Provider master row: brand mark + name (popover siblings), switch trailing.
-    private func surfaceSwitchRow(_ surface: UsageSurface) -> some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 7) {
-                ProviderLogoView(providerID: surface.providerID, size: 15)
-                Text(surface.displayName)
-            }
-            Spacer(minLength: 12)
-            Toggle(surface.displayName, isOn: surfaceBinding(surface))
-                .toggleStyle(.switch)
-                .controlSize(.small)
-                .labelsHidden()
+            AccountsSettingsTile(
+                store: store,
+                duplicateLoginLabels: duplicateLoginLabels,
+                surfaceBinding: surfaceBinding
+            )
         }
     }
 }

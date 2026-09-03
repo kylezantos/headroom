@@ -324,6 +324,144 @@ struct AccountsSettingsInteractionTests {
         #expect(fixture.store.accountRemovalStates[account.key] == nil)
     }
 
+    // MARK: - R9/R10/R11: the provider group's subscription switch (KTD6)
+
+    @Test func providerSwitchStaysEnabledWhileNoAccountHasAnOpenHandoff() {
+        let accounts = [
+            ProviderAccount.builtIn(for: .claude),
+            ProviderAccount(id: AccountID("work"), providerID: .claude, label: "Work"),
+        ]
+
+        let presentation = AccountsSettingsInteractions.subscriptionSwitchPresentation(
+            providerDisplayName: "Claude",
+            accounts: accounts,
+            isSurfaceEnabled: true,
+            hasActiveHandoff: { _ in false }
+        )
+
+        #expect(presentation.isEnabled)
+        #expect(presentation.helpText == nil)
+        #expect(presentation.accessibilityLabel == "Claude subscription")
+    }
+
+    @Test func providerSwitchDisablesWithANamedReasonWhileASignInIsOpen() {
+        let builtIn = ProviderAccount.builtIn(for: .claude)
+        let work = ProviderAccount(id: AccountID("work"), providerID: .claude, label: "Work")
+
+        let whileOn = AccountsSettingsInteractions.subscriptionSwitchPresentation(
+            providerDisplayName: "Claude",
+            accounts: [builtIn, work],
+            isSurfaceEnabled: true,
+            hasActiveHandoff: { $0.key == work.key }
+        )
+        #expect(!whileOn.isEnabled)
+        #expect(whileOn.helpText == "Finish or stop the sign-in in progress before turning Claude off")
+
+        let whileOff = AccountsSettingsInteractions.subscriptionSwitchPresentation(
+            providerDisplayName: "Claude",
+            accounts: [builtIn, work],
+            isSurfaceEnabled: false,
+            hasActiveHandoff: { $0.key == work.key }
+        )
+        #expect(!whileOff.isEnabled)
+        #expect(whileOff.helpText == "Finish or stop the sign-in in progress before turning Claude on")
+    }
+
+    @Test func providerOffDimsRowsAndHidesFetchStateWhileManagementStaysLive() {
+        let accounts = [
+            ProviderAccount.builtIn(for: .grok),
+            ProviderAccount(id: AccountID("second"), providerID: .grok, label: "Second"),
+        ]
+
+        let off = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: accounts,
+            capacity: 5,
+            isSurfaceEnabled: false,
+            hasActiveHandoff: { _ in false }
+        )
+
+        #expect(off.dimsAccountRows)
+        #expect(off.hidesAccountStatus)
+        #expect(off.hidesFetchRecovery)
+        #expect(off.hidesCapabilityBanner)
+        #expect(off.offHelpText == "Not fetched while this provider is off.")
+        // R11: "off" means "not fetched", never "unmanageable".
+        #expect(off.allowsAccountManagement)
+        #expect(off.showsAccountCounter)
+        #expect(off.showsAddAction)
+        #expect(off.subscriptionSwitch.isEnabled)
+
+        let on = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: accounts,
+            capacity: 5,
+            isSurfaceEnabled: true,
+            hasActiveHandoff: { _ in false }
+        )
+        #expect(!on.dimsAccountRows)
+        #expect(!on.hidesAccountStatus)
+        #expect(!on.hidesFetchRecovery)
+        #expect(!on.hidesCapabilityBanner)
+        #expect(on.offHelpText == nil)
+        #expect(on.allowsAccountManagement)
+    }
+
+    @Test func singleAccountProviderHeaderDropsTheCounterAndAddButKeepsTheSwitch() {
+        let presentation = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Cursor",
+            accounts: [ProviderAccount.builtIn(for: .cursor)],
+            capacity: 1,
+            isSurfaceEnabled: false,
+            hasActiveHandoff: { _ in false }
+        )
+
+        #expect(!presentation.showsAccountCounter)
+        #expect(!presentation.showsAddAction)
+        #expect(presentation.subscriptionSwitch.isEnabled)
+        #expect(presentation.subscriptionSwitch.accessibilityLabel == "Cursor subscription")
+        #expect(presentation.allowsAccountManagement)
+    }
+
+    @Test func leavingAccountsCommitsOnlyTheDraftsThatWouldChangeALabel() {
+        let fixture = makeFixture()
+        defer { fixture.cleanup() }
+        let account = try! #require(AccountsSettingsInteractions.addAccount(
+            for: .codex,
+            to: fixture.store,
+            openSetup: { _ in }
+        ))
+        let builtIn = try! #require(fixture.store.accounts(for: .codex).first { $0.isBuiltIn })
+
+        let pending = AccountsSettingsInteractions.pendingLabelCommits(
+            drafts: [
+                account.key: "  Studio  ",
+                builtIn.key: "   ",
+            ],
+            accounts: [builtIn, account]
+        )
+
+        // Blank drafts are not renames; the unchanged built-in label stays put.
+        #expect(pending.map(\.key) == [account.key])
+
+        for pendingAccount in pending {
+            AccountsSettingsInteractions.commitLabel(
+                "  Studio  ",
+                for: pendingAccount,
+                in: fixture.store
+            )
+        }
+        #expect(fixture.store.accounts(for: .codex).first { $0.key == account.key }?.label == "Studio")
+        #expect(fixture.store.accounts(for: .codex).first { $0.key == builtIn.key }?.label == builtIn.label)
+
+        // A draft identical to the stored label is not a pending commit either.
+        let settled = try! #require(fixture.store.accounts(for: .codex).first { $0.key == account.key })
+        #expect(AccountsSettingsInteractions.pendingLabelCommits(
+            drafts: [settled.key: "Studio"],
+            accounts: [settled]
+        ).isEmpty)
+    }
+
     @Test func forceCancelClearsDurableMarkersAndRelaunchRestoresNoGhostSession() throws {
         let fixture = makeFixture()
         defer { fixture.cleanup() }

@@ -58,13 +58,15 @@ func acceptsAccountLabelDraftChange(
 /// reflects the result.
 struct AccountsSettingsTile: View {
     let store: UsageStore
-    /// Injection seam (unused in production wiring); the default reads each
-    /// account's `.claude.json`.
-    var duplicateDetector = ClaudeDuplicateLoginDetector()
+    /// KTD3: resolved on the settings root so a pane switch neither blanks the badges nor
+    /// re-reads every account's `.claude.json`.
+    let duplicateLoginLabels: [AccountKey: String]
+    /// R9: the provider group headers own the subscription switches, so the tile needs the
+    /// root's surface binding (set + animate + `refreshNow()`) rather than a local toggle.
+    let surfaceBinding: (UsageSurface) -> Binding<Bool>
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    @State private var duplicateLoginLabels: [AccountKey: String] = [:]
     @State private var labelDrafts: [AccountKey: String] = [:]
     @State private var removalCandidate: ProviderAccount?
     @State private var resetCandidate: ProviderAccount?
@@ -153,35 +155,10 @@ struct AccountsSettingsTile: View {
                 commitLabel(for: account)
             }
         }
-        .task(id: claudeDuplicateFingerprint) {
-            // Off-main: `.claude.json` can be large (the CLI writes project history
-            // into it), so the identity reads never block the settings surface.
-            let detector = duplicateDetector
-            let accounts = store.accounts(for: .claude)
-            let labels = await Task.detached {
-                detector.duplicateLabels(for: accounts)
-            }.value
-            // The detached scan outlives this .task's cancellation, so a slow stale
-            // scan can finish after a newer one — never let it overwrite the fresh
-            // badge state (code-review finding).
-            guard !Task.isCancelled else { return }
-            duplicateLoginLabels = labels
-        }
-    }
-
-    /// Recompute duplicate badges when the Claude account list changes, a row is
-    /// renamed (badges quote account labels), a row's signed-in identity changes, or
-    /// a fresh capture lands (a re-login to a different accountUuid under the same
-    /// email only surfaces as a new `capturedAt` — the scan is cheap off-main and
-    /// only runs while the settings pane is visible).
-    private var claudeDuplicateFingerprint: String {
-        store.accounts(for: .claude)
-            .map { account in
-                let snapshot = store.snapshot(for: account.key)
-                let captured = snapshot.capturedAt?.timeIntervalSinceReferenceDate ?? 0
-                return "\(account.id.raw):\(account.label):\(snapshot.accountEmail ?? ""):\(captured)"
-            }
-            .joined(separator: "|")
+        // R12: leaving Accounts — pane switch or window close — commits a typed rename
+        // instead of discarding it. Focus loss already commits, but ⌘W tears the tile
+        // down without moving focus first.
+        .onDisappear { commitPendingLabels() }
     }
 
     private func account(for key: AccountKey) -> ProviderAccount? {
@@ -194,17 +171,27 @@ struct AccountsSettingsTile: View {
         let accounts = store.accounts(for: providerID)
         let capacity = store.accountCapacity(for: providerID)
         let capabilityState = store.providerCapabilities[providerID]?.state
-        let capability = capabilityRecoveryPresentation(
+        let displayName = store.displayNames[providerID] ?? providerID.raw.capitalized
+        let surface = UsageSurface.subscription(for: providerID)
+        let presentation = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: displayName,
+            accounts: accounts,
+            capacity: capacity,
+            isSurfaceEnabled: surface.map { store.isSurfaceEnabled($0) } ?? true
+        )
+        let allCapability = capabilityRecoveryPresentation(
             state: capabilityState,
             hasActiveSetupSession: accounts.contains(where: { SetupSessions.hasActiveHandoff(for: $0) })
         )
+        // R11: a provider that isn't fetched has nothing to say about its fetch health.
+        let capability = presentation.hidesCapabilityBanner ? nil : allCapability
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     ProviderLogoView(providerID: providerID, size: 15)
-                    Text(store.displayNames[providerID] ?? providerID.raw.capitalized)
+                    Text(displayName)
                 }
-                if capacity > 1 {
+                if presentation.showsAccountCounter {
                     // A stop-tracked built-in is hidden from the list but keeps its
                     // registry slot, so count it — otherwise the header reads "4 of 5"
                     // while Add Account is disabled.
@@ -213,7 +200,11 @@ struct AccountsSettingsTile: View {
                     Text("\(usedSlots) of \(capacity)")
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.secondary)
-                    Spacer(minLength: 12)
+                }
+                Spacer(minLength: 12)
+                if presentation.showsAddAction {
+                    // R11: adding and signing in stay live while the provider is off —
+                    // Grok and Cursor ship off, so this is how a first account arrives.
                     Button("Add Account…") { addAccount(for: providerID) }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
@@ -221,8 +212,13 @@ struct AccountsSettingsTile: View {
                         .help(store.canAddAccount(for: providerID)
                               ? "Sign in another account via the official CLI"
                               : "Up to \(capacity) accounts per provider")
-                } else {
-                    Spacer(minLength: 12)
+                }
+                if let surface {
+                    subscriptionSwitch(
+                        surface,
+                        displayName: displayName,
+                        presentation: presentation.subscriptionSwitch
+                    )
                 }
             }
             if let capability, !accounts.isEmpty {
@@ -251,7 +247,7 @@ struct AccountsSettingsTile: View {
                 .padding(.leading, 16)
             }
             ForEach(accounts) { account in
-                accountRow(account, capability: capability)
+                accountRow(account, capability: capability, presentation: presentation)
             }
             if store.isBuiltInTrackingStopped(for: providerID) {
                 // The way back from stop-tracking: resurface the CLI's own login and
@@ -271,12 +267,11 @@ struct AccountsSettingsTile: View {
                 .help("Track the account your CLI is signed into again")
                 .padding(.leading, 16)
             }
-            if let surface = UsageSurface.subscription(for: providerID),
-               !store.isSurfaceEnabled(surface) {
-                // Without this hint, an account added while the surface is off would
-                // sit in "Needs sign-in" forever with no visible cause (code-review
-                // finding) — the disabled surface means it's never polled.
-                SettingsHelpText(text: "\(store.displayNames[providerID] ?? providerID.raw.capitalized) usage is turned off in Subscription Usage — accounts stay signed in but aren't fetched.")
+            if let offHelpText = presentation.offHelpText {
+                // R11: one line naming the only consequence of "off". Without it, an
+                // account added while the surface is off would look broken rather than
+                // simply unpolled (code-review finding).
+                SettingsHelpText(text: offHelpText)
             }
         }
         .animation(reduceMotion ? nil : HeadroomMotion.settle, value: accounts.map(\.id))
@@ -288,11 +283,29 @@ struct AccountsSettingsTile: View {
         }
     }
 
+    /// R9/R10: the provider's on/off switch now sits with the accounts it governs. Its
+    /// binding is the root's (`setSurfaceEnabled` inside the settle animation, then a
+    /// refresh), so turning a provider on fetches it immediately.
+    private func subscriptionSwitch(
+        _ surface: UsageSurface,
+        displayName: String,
+        presentation: AccountsSettingsInteractions.SubscriptionSwitchPresentation
+    ) -> some View {
+        Toggle(displayName, isOn: surfaceBinding(surface))
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .labelsHidden()
+            .disabled(!presentation.isEnabled)
+            .help(presentation.helpText ?? "Fetch \(displayName) usage")
+            .accessibilityLabel(presentation.accessibilityLabel)
+    }
+
     // MARK: - Account row
 
     private func accountRow(
         _ account: ProviderAccount,
-        capability: CapabilityRecoveryPresentation?
+        capability: CapabilityRecoveryPresentation?,
+        presentation: AccountsSettingsInteractions.ProviderGroupPresentation
     ) -> some View {
         let snapshot = store.snapshot(for: account.key)
         let removalState = store.accountRemovalStates[account.key]
@@ -302,11 +315,16 @@ struct AccountsSettingsTile: View {
             snapshot: snapshot,
             capability: capability
         )
-        let recoveryActions = settingsRecoveryActions(
-            snapshot: snapshot,
-            account: account,
-            setupState: setupState
-        )
+        // R11: fetch-recovery ("Check Again", "Install…", "Reconnect…") is fetch state,
+        // so it goes with the status text while the provider is off; the plain sign-in
+        // affordance below is management and stays.
+        let recoveryActions = presentation.hidesFetchRecovery
+            ? nil
+            : settingsRecoveryActions(
+                snapshot: snapshot,
+                account: account,
+                setupState: setupState
+            )
         let status = AccountStatus(
             snapshot: snapshot,
             waiting: isWaitingForSetup(account),
@@ -340,13 +358,15 @@ struct AccountsSettingsTile: View {
                 }
                 Spacer(minLength: 8)
                 if !usesSecondLine {
-                    accountStatus(
-                        capabilityRow,
-                        snapshot: snapshot,
-                        status: status,
-                        setupFailure: setupFailure,
-                        account: account
-                    )
+                    if !presentation.hidesAccountStatus {
+                        accountStatus(
+                            capabilityRow,
+                            snapshot: snapshot,
+                            status: status,
+                            setupFailure: setupFailure,
+                            account: account
+                        )
+                    }
                     if capability == nil, removalState == nil {
                         recoveryButtons(
                             for: account,
@@ -383,6 +403,10 @@ struct AccountsSettingsTile: View {
         // 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-
         // name alignment axis.
         .padding(.leading, 16)
+        // R11: dimmed, never disabled — "off" means "not fetched", so every management
+        // control in the row still works. Matches the disabled-swatch step in
+        // `MeterStyleTile`.
+        .opacity(presentation.dimsAccountRows ? 0.45 : 1)
         .disabled(removalState == .removing)
         .onAppear { SetupSessions.announceFailureIfNeeded(for: account) }
         .onChange(of: setupState) {
@@ -844,6 +868,20 @@ struct AccountsSettingsTile: View {
                 labelDrafts[account.key] = value
             }
         )
+    }
+
+    /// R12: the ⌘W / pane-switch backstop for focus-loss commit.
+    private func commitPendingLabels() {
+        guard !labelDrafts.isEmpty else { return }
+        for providerID in store.registeredProviderOrder {
+            for account in AccountsSettingsInteractions.pendingLabelCommits(
+                drafts: labelDrafts,
+                accounts: store.accounts(for: providerID)
+            ) {
+                commitLabel(for: account)
+            }
+        }
+        labelDrafts.removeAll()
     }
 
     private func commitLabel(for account: ProviderAccount) {

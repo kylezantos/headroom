@@ -22,6 +22,9 @@ struct SettingsView: View {
     var preferences = Preferences()
     var credentialStore = CredentialStore()
     var launchControl: LaunchAtLoginControlling = LaunchAtLogin()
+    /// Injection seam (unused in production wiring); the default reads each account's
+    /// `.claude.json`.
+    var duplicateDetector = ClaudeDuplicateLoginDetector()
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var selectedPane: SettingsPane = .general
@@ -44,6 +47,9 @@ struct SettingsView: View {
     @State private var credentialMessages: [APIKeyProvider: String] = [:]
     @State private var messageDismissals: [APIKeyProvider: Task<Void, Never>] = [:]
     @State private var removalCandidate: APIKeyProvider?
+    /// KTD3: hoisted off `AccountsSettingsTile` so leaving and re-entering Accounts
+    /// neither blanks the "Same login as X" badges nor re-reads every `.claude.json`.
+    @State private var duplicateLoginLabels: [AccountKey: String] = [:]
 
     /// Fast, no-bounce settle shared by the credential-row reveals and result messages.
     /// The interaction is occasional settings work, so it gets just enough motion to
@@ -75,6 +81,20 @@ struct SettingsView: View {
         .frame(width: Self.windowWidth, height: Self.windowHeight)
         .onAppear { loadPreferences() }
         .task { await refreshSavedKeyPresence() }
+        .task(id: claudeDuplicateFingerprint) {
+            // Off-main: `.claude.json` can be large (the CLI writes project history
+            // into it), so the identity reads never block the settings surface.
+            let detector = duplicateDetector
+            let accounts = store.accounts(for: .claude)
+            let labels = await Task.detached {
+                detector.duplicateLabels(for: accounts)
+            }.value
+            // The detached scan outlives this .task's cancellation, so a slow stale
+            // scan can finish after a newer one — never let it overwrite the fresh
+            // badge state (code-review finding).
+            guard !Task.isCancelled else { return }
+            duplicateLoginLabels = labels
+        }
         .onChange(of: selectedPane) { _, newValue in
             preferences.settingsPane = newValue
         }
@@ -157,6 +177,7 @@ struct SettingsView: View {
         case .accounts:
             AccountsSettingsPane(
                 store: store,
+                duplicateLoginLabels: duplicateLoginLabels,
                 surfaceBinding: surfaceBinding
             )
         case .apiSpend:
@@ -173,6 +194,21 @@ struct SettingsView: View {
                 cancelMessageDismissal: { messageDismissals[$0]?.cancel() }
             )
         }
+    }
+
+    /// Recompute duplicate badges when the Claude account list changes, a row is
+    /// renamed (badges quote account labels), a row's signed-in identity changes, or
+    /// a fresh capture lands (a re-login to a different accountUuid under the same
+    /// email only surfaces as a new `capturedAt` — the scan is cheap off-main and
+    /// only runs while the settings window is open).
+    private var claudeDuplicateFingerprint: String {
+        store.accounts(for: .claude)
+            .map { account in
+                let snapshot = store.snapshot(for: account.key)
+                let captured = snapshot.capturedAt?.timeIntervalSinceReferenceDate ?? 0
+                return "\(account.id.raw):\(account.label):\(snapshot.accountEmail ?? ""):\(captured)"
+            }
+            .joined(separator: "|")
     }
 
     // MARK: - Shared bindings

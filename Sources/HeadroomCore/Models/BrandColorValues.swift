@@ -285,6 +285,20 @@ public enum HeadroomBrandMark {
 /// WCAG 1.4.11 (≥3:1) against the light bar track (the originals sat at 1.6–2.6:1) and read
 /// ≥4:1 as chip text on white. Dark critical is nudged (0.27 → 0.34 green) for the same
 /// 3:1 bar-vs-track floor; dark healthy/low already passed and are untouched.
+///
+/// The light `low` orange reading brown is a **consequence of that bar floor, not a text
+/// compromise** — do not "fix" it by splitting fill tokens from text tokens and brightening
+/// the fill (attempted Sep 2026, rejected on the numbers). The light track is black @ 0.12
+/// over a near-white `RaisedTile` (L ≈ 0.72–0.75), so a fill must sit at L ≤ 0.207 to clear
+/// 3:1, and a saturated orange is intrinsically brighter than that: rgb(0.94, 0.55, 0.00)
+/// measures 1.83–1.89:1 on the track and only 2.48:1 against the card itself. Holding the
+/// amber hue band (OKLCh h ≈ 60–67, which must stay clear of critical's h ≈ 29), the most
+/// chromatic color available under that luminance cap is ≈ rgb(0.73, 0.41, 0.00) — a ~4%
+/// chroma gain, i.e. no visible difference. A vivid light orange is reachable only by
+/// dropping the 3:1 fill-vs-track floor or darkening the light track to ≈ 0.34 gray; both
+/// are palette-wide decisions, not a token split. Guarded by
+/// `everySeverityClearsNonTextContrastAgainstTheTrack` and
+/// `vividDarkSeverityColorsCannotBeReusedOnTheLightTrack`.
 public enum HeadroomSeverityColorValues {
     public static func healthy(dark: Bool) -> HeadroomRGBColor {
         dark ? HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35) : HeadroomRGBColor(red: 0.09, green: 0.52, blue: 0.22)

@@ -129,6 +129,28 @@ struct BrandColorValuesTests {
         }
     }
 
+    /// The light severity palette exists *because* the vivid dark tokens fail on the light
+    /// track — recording that keeps the next "just brighten the light fill, bar fills carry
+    /// no text" pass from landing. Also pins how little luminance headroom the surviving
+    /// light values have: a saturated orange cannot fit under the cap at all.
+    @Test func vividDarkSeverityColorsCannotBeReusedOnTheLightTrack() {
+        for background in raisedTileFillColors(dark: false) {
+            let track = composite(HeadroomWidgetColorValues.barTrack(dark: false), over: background)
+            for severity in [UsageSeverity.healthy, .low, .critical] {
+                let vivid = HeadroomSeverityColorValues.color(for: severity, dark: true)
+                #expect(contrastRatio(vivid, track) < 3, "vivid \(severity) on the light track")
+            }
+            // Any fill brighter than this cap drops below 3:1 on this track.
+            let cap = (relativeLuminance(track) + 0.05) / 3 - 0.05
+            for severity in [UsageSeverity.healthy, .low, .critical] {
+                let light = HeadroomSeverityColorValues.color(for: severity, dark: false)
+                #expect(relativeLuminance(light) <= cap, "light \(severity) luminance cap")
+            }
+            // A saturated amber fill — the recurring request — sits well over the cap.
+            #expect(relativeLuminance(HeadroomRGBColor(red: 0.94, green: 0.55, blue: 0.00)) > cap)
+        }
+    }
+
     @Test func rampStartsRemainChromaBearingInBothSchemes() {
         for scheme in MeterColorScheme.allCases {
             for surface in [MeterRampSurface.flat, .well] {

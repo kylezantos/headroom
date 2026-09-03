@@ -1,0 +1,1733 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headroom · Settings redesign options</title>
+<style>
+  /* ============================================================
+     TOKENS
+     Block 1 is carried verbatim from design/ridd-round5-identity-row.html,
+     which extracted it from BrandColorValues.swift / UsageSeverityColorValues.swift.
+     Block 2 adds the Settings-window-only tokens, derived from
+     RaisedTile.swift, ClaudeSetupViews.swift (ClaudeSetupStyle) and the
+     AppKit semantic colors those files resolve against.
+     ============================================================ */
+  :root {
+    /* Real tokens from BrandColorValues.swift (dark scheme) */
+    --page-bg: #0a0b0e;
+    --popover-bg: #1d1f23;
+    --tile-top: #25272d;
+    --tile-bottom: #191b21;
+    --ring: rgba(255,255,255,0.065);
+    --track: rgba(255,255,255,0.14);
+    --hairline: rgba(255,255,255,0.10);
+    --text-primary: #f2f2f7;
+    --text-secondary: rgba(235,235,245,0.66);
+    --text-tertiary: rgba(235,235,245,0.56);
+    --label-90: rgba(235,235,245,0.90);
+    --reset-dim1: rgba(235,235,245,0.53);
+    --sev-h: #33c759;
+    --sev-l: #ff9e0a;
+    --sev-c: #ff5749;
+    --critical-text: #ff6659;
+    --claude-accent: #e88f69;
+    --codex-accent: #96a1ff;
+    --grok-accent: #c7ccd6;
+    --cursor-accent: #cfcfd4;
+    --mono-mark: #f5f5f7;
+    --pill-bg: rgba(255,255,255,0.09);
+    --glass-a: rgba(255,255,255,0.22);
+    --glass-b: rgba(255,255,255,0.11);
+    --glass-rim: rgba(255,255,255,0.25);
+    --ramp-neutral: rgba(235,235,245,0.18);
+    --tick-off: rgba(255,255,255,0.09);
+    --tick-glass: rgba(255,255,255,0.26);
+    --tick-glass-cap: rgba(255,255,255,0.52);
+    --well-bg: #0f1114;
+    --well-shadow: inset 0 1px 2.5px rgba(0,0,0,0.65), inset 0 -0.5px 0 rgba(255,255,255,0.05), 0 0.5px 0 rgba(255,255,255,0.045);
+    --tick: rgba(255,255,255,0.06);
+    --tick-mid: rgba(255,255,255,0.11);
+    --plate-bg: #101216;
+    --plate-shadow: inset 0 1px 1.5px rgba(0,0,0,0.5), 0 0.5px 0 rgba(255,255,255,0.05);
+
+    /* --- Settings window, dark --- */
+    --window-bg: #323232;                     /* NSColor.windowBackgroundColor */
+    --tile-fill-top: rgba(255,255,255,0.08);  /* RaisedTile .opaque, dark */
+    --tile-fill-bottom: rgba(255,255,255,0.05);
+    --tile-rim-top: rgba(255,255,255,0.20);
+    --tile-rim-bottom: rgba(255,255,255,0.06);
+    --tile-shadow: 0 1px 7px rgba(0,0,0,0.42);
+    --settings-well: rgba(0,0,0,0.32);        /* ClaudeSetupStyle.wellBackground */
+    --settings-hairline: rgba(255,255,255,0.10);
+    --connected-ink: rgb(64,219,107);
+    --connected-bg: rgba(51,199,89,0.12);
+    --accent: #0A84FF;                        /* macOS system accent, dark */
+    --sidebar-bg: rgba(255,255,255,0.035);
+    --sidebar-sel-text: #ffffff;
+    --switch-off: rgba(255,255,255,0.16);
+    --seg-track: rgba(255,255,255,0.09);
+    --seg-rim: rgba(255,255,255,0.06);
+    --seg-sel: #636366;
+    --seg-sel-rim: rgba(255,255,255,0.10);
+    --btn-top: #5c5c60;
+    --btn-bottom: #4e4e53;
+    --btn-rim: rgba(255,255,255,0.10);
+    --field-bg: rgba(0,0,0,0.24);
+    --scroll-thumb: rgba(255,255,255,0.22);
+    --annot: #7fb2ff;
+  }
+  .light {
+    --popover-bg: #f1f3f6;
+    --tile-top: #ffffff;
+    --tile-bottom: #fbfbfc;
+    --ring: rgba(0,0,0,0.05);
+    --track: rgba(0,0,0,0.12);
+    --hairline: rgba(0,0,0,0.09);
+    --text-primary: #1d1f24;
+    --text-secondary: rgba(61,61,66,0.84);
+    --text-tertiary: rgba(61,61,66,0.74);
+    --label-90: rgba(29,31,36,0.92);
+    --reset-dim1: rgba(61,61,66,0.72);
+    --sev-h: #20913e;
+    --sev-l: #bb6a1d;
+    --sev-c: #f42a24;
+    --critical-text: #d1241c;
+    --claude-accent: #b2541c;
+    --codex-accent: #3340d6;
+    --grok-accent: #333840;
+    --cursor-accent: #2b2b2e;
+    --mono-mark: #0d0d0f;
+    --pill-bg: rgba(0,0,0,0.06);
+    --glass-a: #757c86;
+    --glass-b: #666c75;
+    --glass-rim: rgba(255,255,255,0.30);
+    --ramp-neutral: #a6abb2;
+    --tick-off: rgba(0,0,0,0.08);
+    --tick-glass: #6b727b;
+    --tick-glass-cap: #474e57;
+    --well-bg: #dfe2e7;
+    --well-shadow: inset 0 1px 2px rgba(0,0,0,0.20), inset 0 -0.5px 0 rgba(255,255,255,0.72), 0 0.5px 0 rgba(255,255,255,0.62);
+    --tick: rgba(0,0,0,0.08);
+    --tick-mid: rgba(0,0,0,0.14);
+    --plate-bg: #e3e6eb;
+    --plate-shadow: inset 0 1px 1.5px rgba(0,0,0,0.16), 0 0.5px 0 rgba(255,255,255,0.6);
+
+    /* --- Settings window, light --- */
+    --window-bg: #ececec;
+    --tile-fill-top: #ffffff;                 /* NSColor.controlBackgroundColor */
+    --tile-fill-bottom: rgba(236,236,236,0.96);
+    --tile-rim-top: rgba(255,255,255,0.90);
+    --tile-rim-bottom: rgba(0,0,0,0.07);
+    --tile-shadow: 0 1px 5px rgba(0,0,0,0.09);
+    --settings-well: rgba(0,0,0,0.05);
+    --settings-hairline: rgba(0,0,0,0.08);
+    --connected-ink: rgb(21,114,53);
+    --connected-bg: rgba(32,145,62,0.12);
+    --accent: #007AFF;
+    --sidebar-bg: rgba(0,0,0,0.028);
+    --sidebar-sel-text: #ffffff;
+    --switch-off: rgba(0,0,0,0.14);
+    --seg-track: rgba(0,0,0,0.055);
+    --seg-rim: rgba(0,0,0,0.05);
+    --seg-sel: #ffffff;
+    --seg-sel-rim: rgba(0,0,0,0.06);
+    --btn-top: #ffffff;
+    --btn-bottom: #f6f6f7;
+    --btn-rim: rgba(0,0,0,0.13);
+    --field-bg: #ffffff;
+    --scroll-thumb: rgba(0,0,0,0.26);
+    color: var(--text-primary);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    background: var(--page-bg);
+    color: var(--text-primary);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  ::selection { background: rgba(10,132,255,0.34); color: #fff; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .page { max-width: 1120px; margin: 0 auto; padding: 30px 32px 120px; }
+
+  /* ---------- sticky control bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 40;
+    background: rgba(10,11,14,0.86);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.07);
+    margin-bottom: 34px;
+  }
+  .topbar-inner {
+    max-width: 1120px; margin: 0 auto; padding: 11px 32px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .tb-title { font-size: 12.5px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.2px; }
+  .tb-note { font-size: 11.5px; color: var(--text-tertiary); margin-left: auto; }
+  .scheme-toggle {
+    display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px;
+    background: rgba(255,255,255,0.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05);
+  }
+  .scheme-toggle button {
+    font: inherit; font-size: 12px; font-weight: 600; color: var(--text-secondary);
+    background: none; border: none; border-radius: 7px; padding: 4px 14px; cursor: pointer;
+    transition: background 180ms cubic-bezier(0.22,1,0.36,1), color 180ms cubic-bezier(0.22,1,0.36,1);
+  }
+  .scheme-toggle button:hover { color: var(--text-primary); background: rgba(255,255,255,0.06); }
+  .scheme-toggle button[aria-pressed="true"] { background: rgba(255,255,255,0.15); color: #f2f2f7; }
+
+  /* ---------- page chrome (house idiom) ---------- */
+  header.masthead { margin-bottom: 34px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-tertiary); margin-bottom: 10px; }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .lede { font-size: 15px; color: var(--text-secondary); max-width: 720px; margin-bottom: 18px; }
+  .lede strong { color: var(--text-primary); font-weight: 600; }
+  section { margin-bottom: 76px; }
+  h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 8px; }
+  .section-head { max-width: 760px; margin-bottom: 24px; }
+  .section-head p { font-size: 14px; color: var(--text-secondary); }
+  .section-head strong { color: var(--text-primary); font-weight: 600; }
+
+  .fixed-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 20px; max-width: 1000px; }
+  @media (max-width: 900px) { .fixed-strip { grid-template-columns: 1fr 1fr; } }
+  .fixed-item { display: flex; gap: 9px; align-items: flex-start; }
+  .fixed-item p { font-size: 12.5px; color: var(--text-secondary); }
+  .fixed-item strong { color: var(--text-primary); font-weight: 600; display: block; }
+  .f-mark { font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px; border-radius: 5px; padding: 2px 7px; flex-shrink: 0; transform: translateY(3px); background: rgba(51,199,89,0.14); color: #7ee8a2; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .grid > * { min-width: 0; }
+  .option { background: rgba(255,255,255,0.025); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); border-radius: 18px; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+  .option.wide { grid-column: 1 / -1; }
+  .option-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .option-letter { font-size: 12px; font-weight: 700; min-width: 22px; height: 22px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.10); color: var(--text-primary); flex-shrink: 0; transform: translateY(4px); padding: 0 5px; }
+  .option-title { font-size: 16px; font-weight: 650; }
+  .option-sub { font-size: 13px; color: var(--text-secondary); }
+  .option-size { margin-left: auto; font-size: 11px; font-weight: 600; color: var(--text-tertiary); font-variant-numeric: tabular-nums; background: rgba(255,255,255,0.06); border-radius: 99px; padding: 2px 9px; transform: translateY(2px); }
+  .option-note { font-size: 12.5px; color: var(--text-secondary); }
+  .option-note + .option-note { margin-top: -8px; }
+  .option-note strong { color: var(--text-primary); font-weight: 600; }
+
+  .stage { background: var(--popover-bg); border-radius: 16px; padding: 26px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); display: flex; flex-direction: column; align-items: center; gap: 14px; overflow-x: auto; }
+  .stage.stage-light { background: #dee2e8; }
+  .stage.pair { flex-direction: row; align-items: flex-start; justify-content: center; gap: 26px; flex-wrap: wrap; }
+  .stage-cap { font-size: 11px; font-weight: 600; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-tertiary); align-self: flex-start; }
+
+  .callouts { list-style: none; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+  .callouts li { display: flex; gap: 10px; font-size: 12.5px; color: var(--text-secondary); }
+  .callouts strong { color: var(--text-primary); font-weight: 600; }
+  .cnum { font-size: 10px; font-weight: 700; width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: rgba(127,178,255,0.18); color: var(--annot); flex-shrink: 0; transform: translateY(2px); }
+  .tile .cnum { margin-left: auto; transform: none; }
+
+  /* IA map table */
+  table.ia { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.ia th { text-align: left; font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-tertiary); padding: 0 14px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.09); }
+  table.ia td { padding: 9px 14px 9px 0; border-bottom: 1px solid rgba(255,255,255,0.055); color: var(--text-secondary); vertical-align: top; }
+  table.ia td.to { color: var(--text-primary); font-weight: 600; }
+  table.ia tr.grp td { color: var(--text-tertiary); font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; padding-top: 18px; border-bottom: none; }
+  table.ia td.why { color: var(--text-tertiary); font-size: 12px; font-weight: 400; }
+
+  .note-card { background: rgba(255,255,255,0.025); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); border-radius: 18px; padding: 24px; }
+  .note-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+  .note-card p { font-size: 13.5px; color: var(--text-secondary); margin-bottom: 10px; }
+  .note-card p:last-child { margin-bottom: 0; }
+  .note-card strong { color: var(--text-primary); font-weight: 600; }
+  .notes2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 900px) { .notes2, .grid { grid-template-columns: 1fr; } }
+
+  /* ============================================================
+     SETTINGS WINDOW CHASSIS
+     1px in these mocks = 1pt in the shipped window.
+     ============================================================ */
+  .win {
+    position: relative; flex-shrink: 0;
+    background: var(--window-bg); color: var(--text-primary);
+    border-radius: 11px; overflow: hidden;
+    box-shadow: 0 24px 60px rgba(0,0,0,0.5), inset 0 0 0 0.5px rgba(255,255,255,0.10);
+    font-size: 13px; display: flex; flex-direction: column;
+  }
+  .light .win { box-shadow: 0 24px 60px rgba(0,0,0,0.22), inset 0 0 0 0.5px rgba(0,0,0,0.10); }
+  .tl { position: absolute; top: 15px; left: 18px; display: flex; gap: 8px; z-index: 5; }
+  .tl i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+  .tl i:nth-child(1) { background: #ff5f57; }
+  .tl i:nth-child(2) { background: #febc2e; }
+  .tl i:nth-child(3) { background: #28c840; }
+
+  .whead { display: flex; align-items: center; gap: 10px; padding: 30px 20px 2px; flex-shrink: 0; }
+  .appicon { width: 34px; height: 34px; border-radius: 8px; flex-shrink: 0; position: relative; overflow: hidden; }
+  .appicon svg { display: block; width: 34px; height: 34px; }
+  .appicon::after { content: ""; position: absolute; inset: 0; border-radius: 8px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); }
+  .light .appicon::after { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.10); }
+  .wtitle { font-size: 22px; font-weight: 700; letter-spacing: -0.2px; }
+  .wver { margin-left: auto; font-size: 11px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+
+  .wscroll { position: relative; overflow: hidden; flex: 1 1 auto; }
+  .wscroll.scrolls { overflow-y: auto; }
+  .wbody { padding: 12px 20px 16px; display: flex; flex-direction: column; gap: 14px; }
+  .fade-bottom::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 64px; background: linear-gradient(to bottom, rgba(50,50,50,0), var(--window-bg)); pointer-events: none; }
+  .light .fade-bottom::after { background: linear-gradient(to bottom, rgba(236,236,236,0), var(--window-bg)); }
+
+  .wfoot { flex-shrink: 0; padding: 11px 20px 13px; display: flex; align-items: center; box-shadow: inset 0 1px 0 var(--settings-hairline); }
+  .wfoot .right { margin-left: auto; }
+
+  /* ---------- tiles + row grammar ---------- */
+  .tile {
+    padding: 13px; border-radius: 10px;
+    display: flex; flex-direction: column; gap: 10px;
+    background: linear-gradient(180deg, var(--tile-fill-top), var(--tile-fill-bottom));
+    box-shadow: inset 0 1px 0 var(--tile-rim-top), inset 0 0 0 1px var(--tile-rim-bottom), var(--tile-shadow);
+  }
+  .ttitle { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; display: flex; align-items: center; }
+  .trow { display: flex; align-items: baseline; gap: 12px; }
+  .trow.center { align-items: center; }
+  .trow .tlabel { font-size: 13px; }
+  .trow .ctl-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .tgroup { display: flex; flex-direction: column; gap: 4px; }
+  .thelp { font-size: 11px; line-height: 1.42; color: var(--text-secondary); }
+  .subhead { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .tstack { display: flex; flex-direction: column; gap: 8px; }
+  .thair { height: 1px; background: var(--settings-hairline); margin: 2px 0; }
+  .prow { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .mark { width: 15px; height: 15px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .mark svg { width: 15px; height: 15px; display: block; }
+  .mark.mono { color: var(--mono-mark); }
+
+  /* ---------- macOS controls ---------- */
+  .sw { position: relative; width: 26px; height: 15px; border-radius: 99px; background: var(--switch-off); border: none; padding: 0; cursor: pointer; flex-shrink: 0; box-shadow: inset 0 0.5px 1px rgba(0,0,0,0.14); transition: background 180ms cubic-bezier(0.22,1,0.36,1); }
+  .sw::after { content: ""; position: absolute; top: 1px; left: 1px; width: 13px; height: 13px; border-radius: 50%; background: #fff; box-shadow: 0 0.5px 1.5px rgba(0,0,0,0.34); transition: transform 180ms cubic-bezier(0.22,1,0.36,1); }
+  .sw[aria-checked="true"], .sw.on { background: var(--accent); }
+  .sw[aria-checked="true"]::after, .sw.on::after { transform: translateX(11px); }
+
+  .seg { display: inline-flex; padding: 1.5px; gap: 1.5px; border-radius: 6.5px; background: var(--seg-track); box-shadow: inset 0 0 0 0.5px var(--seg-rim); }
+  .seg > button, .seg > span { font: inherit; font-size: 11px; font-weight: 500; line-height: 1; color: var(--text-primary); background: none; border: none; border-radius: 5px; padding: 5px 11px; cursor: pointer; white-space: nowrap; transition: background 180ms cubic-bezier(0.22,1,0.36,1); }
+  .seg > button:hover:not(.sel) { background: rgba(127,127,127,0.14); }
+  .seg > .sel { background: var(--seg-sel); box-shadow: 0 0.5px 1.5px rgba(0,0,0,0.26), inset 0 0 0 0.5px var(--seg-sel-rim); }
+  .seg.wide { display: flex; width: 100%; }
+  .seg.wide > button, .seg.wide > span { flex: 1; text-align: center; }
+  .seg.cap220 { max-width: 220px; width: 220px; }
+  .seg.cap220 > button, .seg.cap220 > span { flex: 1; text-align: center; }
+
+  .btn { font: inherit; font-size: 11.5px; font-weight: 500; line-height: 1; height: 20px; padding: 0 10px; border: none; border-radius: 5px; color: var(--text-primary); background: linear-gradient(180deg, var(--btn-top), var(--btn-bottom)); box-shadow: inset 0 0 0 0.5px var(--btn-rim), 0 0.5px 1px rgba(0,0,0,0.16); cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; transition: filter 120ms ease-out, transform 120ms ease-out; }
+  .btn:hover { filter: brightness(1.07); }
+  .btn:active { transform: scale(0.96); }
+  .btn.primary { background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, white), var(--accent)); color: #fff; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.12), 0 0.5px 1px rgba(0,0,0,0.2); }
+  .btn.plain { background: none; box-shadow: none; color: var(--text-secondary); padding: 0 4px; }
+  .btn.plain:hover { color: var(--text-primary); filter: none; }
+  .btn.menu { padding-right: 7px; }
+  .btn.menu .chev { width: 9px; height: 12px; opacity: 0.75; }
+
+  .cb { width: 14px; height: 14px; border-radius: 3.5px; flex-shrink: 0; background: linear-gradient(180deg, var(--btn-top), var(--btn-bottom)); box-shadow: inset 0 0 0 0.5px var(--btn-rim); border: none; padding: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+  .cb.on { background: var(--accent); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.16); }
+  .cb svg { width: 10px; height: 10px; color: #fff; opacity: 0; }
+  .cb.on svg { opacity: 1; }
+  .cbrow { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+
+  .stepper { display: inline-flex; flex-direction: column; width: 15px; height: 20px; border-radius: 4px; overflow: hidden; background: linear-gradient(180deg, var(--btn-top), var(--btn-bottom)); box-shadow: inset 0 0 0 0.5px var(--btn-rim); }
+  .stepper button { flex: 1; border: none; background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; color: var(--text-primary); }
+  .stepper button + button { box-shadow: inset 0 0.5px 0 var(--btn-rim); }
+  .stepper svg { width: 7px; height: 5px; }
+  .stepval { font-size: 13px; font-variant-numeric: tabular-nums; }
+
+  .field { font: inherit; font-size: 12px; color: var(--text-primary); background: var(--field-bg); border: none; border-radius: 5px; padding: 4px 7px; box-shadow: inset 0 0 0 0.5px var(--btn-rim); flex: 1; min-width: 0; }
+  .link { color: var(--accent); font-size: 11px; text-decoration: none; }
+
+  .connected { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .connected .ck { width: 16px; height: 16px; border-radius: 50%; background: var(--connected-bg); color: var(--connected-ink); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .connected .ck svg { width: 8px; height: 8px; }
+  .pill { font-size: 9.5px; font-weight: 500; color: var(--text-secondary); box-shadow: inset 0 0 0 1px var(--settings-hairline); border-radius: 99px; padding: 1px 7px; white-space: nowrap; }
+  .status { font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
+  .status.warn { color: var(--sev-l); }
+
+  /* well behind swatch rows + specimens */
+  .well-box { background: var(--settings-well); border-radius: 7px; padding: 6px 9px; }
+
+  /* ---------- meter-style swatches ---------- */
+  .swgrid { display: grid; gap: 8px; }
+  .swgrid.shapes { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .swgrid.fills { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .msw { border: none; background: none; padding: 5px; border-radius: 8px; cursor: pointer; display: flex; flex-direction: column; gap: 5px; text-align: center; box-shadow: inset 0 0 0 1px var(--settings-hairline); transition: background 180ms cubic-bezier(0.22,1,0.36,1), box-shadow 180ms cubic-bezier(0.22,1,0.36,1); }
+  .msw:hover { background: rgba(127,127,127,0.08); }
+  .msw.sel { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .msw.off { opacity: 0.45; cursor: default; }
+  .msw .mwellbox { height: 26px; border-radius: 6px; background: var(--settings-well); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; }
+  .msw .lbl { font-size: 10.5px; font-weight: 500; color: var(--text-primary); line-height: 1.25; }
+
+  /* ---------- menu bar specimen ---------- */
+  .mbplate { display: inline-flex; align-items: center; background: #262626; border-radius: 6px; padding: 3px 7px; }
+  .mbmeter { display: inline-flex; align-items: center; gap: 7px; }
+  .mbmeter + .mbmeter { margin-left: 16px; }
+  .mbmeter.iconly + .mbmeter.iconly { margin-left: 8px; }
+  .vessel { position: relative; width: 11px; height: 18px; border-radius: 99px; border: 1.6px solid rgba(255,255,255,0.86); overflow: hidden; flex-shrink: 0; }
+  .vessel i { position: absolute; left: 0; right: 0; bottom: 0; display: block; }
+  .vessel i.h { background: #33c759; } .vessel i.l { background: #ff9e0a; } .vessel i.c { background: #ff5749; }
+  .vessel.crit { border-color: #ff5749; }
+  .mbpct { font-size: 13.5px; font-weight: 500; color: #fff; font-variant-numeric: tabular-nums; letter-spacing: 0; }
+  .mbcap { font-size: 10px; color: var(--text-tertiary); }
+
+  /* ---------- popover card (specimen) ---------- */
+  .card { background: linear-gradient(180deg, var(--tile-top), var(--tile-bottom)); box-shadow: inset 0 0 0 1px var(--ring), 0 6px 18px rgba(0,0,0,0.38); border-radius: 10px; padding: 13px; }
+  .light .card { box-shadow: inset 0 0 0 1px var(--ring), 0 4px 14px rgba(0,0,0,0.08); }
+  .prov-head { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; }
+  .prov-icon-slot { width: 21px; height: 21px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .prov-icon-slot svg { width: 18px; height: 18px; }
+  .prov-name { font-size: 16px; font-weight: 600; letter-spacing: -0.2px; }
+  .prov-name.p-claude { color: var(--claude-accent); }
+  .prov-name.p-codex { color: var(--codex-accent); }
+  .prov-name.p-grok { color: var(--grok-accent); }
+  .prov-name.p-cursor { color: var(--cursor-accent); }
+  .p-mono { color: var(--mono-mark); }
+  .plan-pill { font-size: 9.5px; font-weight: 500; color: var(--text-tertiary); background: var(--pill-bg); border-radius: 99px; padding: 1px 6px; }
+
+  /* ============================================================
+     GAUGES — carried verbatim from ridd-round5-identity-row.html,
+     plus the Ghost + cap micro variants the shipped GaugeFill needs.
+     ============================================================ */
+  .meters { display: flex; flex-direction: column; gap: 9px; }
+  .meters.micro-mode { gap: 12px; }
+  .meter { display: flex; flex-direction: column; gap: 5px; }
+  .meter-top { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .mrow .meter-top { align-items: center; }
+  .m-lab { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .m-num { display: inline-flex; align-items: baseline; gap: 5px; }
+  .m-label { font-size: 13px; font-weight: 500; color: var(--label-90); white-space: nowrap; }
+  .m-reset { font-size: 11px; color: var(--reset-dim1); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .m-spacer { flex: 1; }
+  .m-pct { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .m-pct.crit { color: var(--critical-text); }
+  .m-term { font-size: 11px; color: var(--text-tertiary); }
+
+  .itrack { height: 8px; border-radius: 4.5px; background: var(--well-bg); position: relative; overflow: visible; box-shadow: var(--well-shadow); }
+  .itrack .tick { position: absolute; top: 2px; bottom: 2px; width: 1px; background: var(--tick); }
+  .itrack .tick.mid { background: var(--tick-mid); }
+  .ifill { position: absolute; top: 1.5px; bottom: 1.5px; left: 1.5px; border-radius: 3px; min-width: 6px; box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .f-solid .ifill.sev-h { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-h) 82%, white), var(--sev-h)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 6px 0 14px -2px color-mix(in srgb, var(--sev-h) 50%, transparent); }
+  .f-solid .ifill.sev-l { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-l) 82%, white), var(--sev-l)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 6px 0 14px -2px color-mix(in srgb, var(--sev-l) 50%, transparent); }
+  .f-solid .ifill.sev-c { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-c) 82%, white), var(--sev-c)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 6px 0 14px -2px color-mix(in srgb, var(--sev-c) 55%, transparent); }
+  .f-glass .ifill { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); }
+  .f-glass .cap { position: absolute; right: 0; top: 0; bottom: 0; width: 3px; border-radius: 2px; }
+  .f-glass .cap.sev-h { background: var(--sev-h); box-shadow: 0 0 7px color-mix(in srgb, var(--sev-h) 55%, transparent); }
+  .f-glass .cap.sev-l { background: var(--sev-l); box-shadow: 0 0 7px color-mix(in srgb, var(--sev-l) 55%, transparent); }
+  .f-glass .cap.sev-c { background: var(--sev-c); box-shadow: 0 0 7px color-mix(in srgb, var(--sev-c) 60%, transparent); }
+  .f-event .ifill.sev-h { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); }
+  .f-event .ifill.sev-l { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-l) 62%, transparent), color-mix(in srgb, var(--sev-l) 34%, transparent)); }
+  .f-event .ifill.sev-c { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-c) 88%, transparent), color-mix(in srgb, var(--sev-c) 54%, transparent)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 5px 0 12px -4px color-mix(in srgb, var(--sev-c) 48%, transparent); }
+  .light .f-event .ifill.sev-l { background: linear-gradient(180deg, var(--sev-l), color-mix(in srgb, var(--sev-l) 74%, white)); }
+  .light .f-event .ifill.sev-c { background: linear-gradient(180deg, var(--sev-c), color-mix(in srgb, var(--sev-c) 74%, white)); }
+  .f-hue .ifill.sev-h { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-h)); }
+  .f-hue .ifill.sev-l { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-l)); }
+  .f-hue .ifill.sev-c { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-c)); box-shadow: inset 0 0.5px 0 var(--glass-rim), 5px 0 12px -3px color-mix(in srgb, var(--sev-c) 45%, transparent); }
+  .f-ghost .ifill { box-shadow: none; }
+  .f-ghost .ifill.sev-h { background: color-mix(in srgb, var(--sev-h) 18%, transparent); }
+  .f-ghost .ifill.sev-l { background: color-mix(in srgb, var(--sev-l) 18%, transparent); }
+  .f-ghost .ifill.sev-c { background: color-mix(in srgb, var(--sev-c) 22%, transparent); }
+  .light .f-ghost .ifill.sev-h { background: color-mix(in srgb, var(--sev-h) 30%, white); }
+  .light .f-ghost .ifill.sev-l { background: color-mix(in srgb, var(--sev-l) 30%, white); }
+  .light .f-ghost .ifill.sev-c { background: color-mix(in srgb, var(--sev-c) 34%, white); }
+  .f-ghost .cap { position: absolute; right: 0; top: 0; bottom: 0; width: 3.5px; border-radius: 99px; }
+  .f-ghost .cap.sev-h { background: var(--sev-h); }
+  .f-ghost .cap.sev-l { background: var(--sev-l); }
+  .f-ghost .cap.sev-c { background: var(--sev-c); }
+  .segs { display: flex; gap: 2.5px; height: 7px; }
+  .segs .seg-cell { flex: 1; border-radius: 2px; background: var(--tick-off); }
+  .seg-cell.on-h { background: color-mix(in srgb, var(--sev-h) 38%, transparent); }
+  .seg-cell.on-l { background: color-mix(in srgb, var(--sev-l) 38%, transparent); }
+  .seg-cell.on-c { background: color-mix(in srgb, var(--sev-c) 45%, transparent); }
+  .light .seg-cell.on-h { background: color-mix(in srgb, var(--sev-h) 45%, white); }
+  .light .seg-cell.on-l { background: color-mix(in srgb, var(--sev-l) 45%, white); }
+  .light .seg-cell.on-c { background: color-mix(in srgb, var(--sev-c) 55%, white); }
+  .seg-cell.tip-h { background: var(--sev-h); }
+  .seg-cell.tip-l { background: var(--sev-l); }
+  .seg-cell.tip-c { background: var(--sev-c); }
+
+  .micro { width: 32px; height: 5px; border-radius: 99px; background: var(--track); position: relative; overflow: hidden; flex-shrink: 0; align-self: center; }
+  .micro .mfill { position: absolute; top: 0; bottom: 0; left: 0; border-radius: 99px; min-width: 3px; }
+  .mfill.sev-h { background: color-mix(in srgb, var(--sev-h) 85%, transparent); }
+  .mfill.sev-l { background: color-mix(in srgb, var(--sev-l) 85%, transparent); }
+  .mfill.sev-c { background: color-mix(in srgb, var(--sev-c) 95%, transparent); }
+  .light .mfill.sev-h { background: var(--sev-h); }
+  .light .mfill.sev-l { background: var(--sev-l); }
+  .light .mfill.sev-c { background: var(--sev-c); }
+  .mfill.glass { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .mfill.ramp-h { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-h)); }
+  .mfill.ramp-l { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-l)); }
+  .mfill.ramp-c { background: linear-gradient(90deg, var(--ramp-neutral), var(--sev-c)); }
+  .mfill.gh-h { background: color-mix(in srgb, var(--sev-h) 20%, transparent); }
+  .mfill.gh-l { background: color-mix(in srgb, var(--sev-l) 20%, transparent); }
+  .mfill.gh-c { background: color-mix(in srgb, var(--sev-c) 24%, transparent); }
+  .light .mfill.gh-h { background: color-mix(in srgb, var(--sev-h) 30%, white); }
+  .light .mfill.gh-l { background: color-mix(in srgb, var(--sev-l) 30%, white); }
+  .light .mfill.gh-c { background: color-mix(in srgb, var(--sev-c) 34%, white); }
+  .micro.capped, .micro.capped .mfill { overflow: visible; }
+  .mcap { position: absolute; right: -0.5px; top: -0.5px; bottom: -0.5px; width: 2.5px; border-radius: 2px; }
+  .mcap.sev-h { background: var(--sev-h); }
+  .mcap.sev-l { background: var(--sev-l); }
+  .mcap.sev-c { background: var(--sev-c); }
+
+  .micro.mwell { height: 6px; border-radius: 3.5px; background: var(--well-bg); overflow: visible; box-shadow: var(--well-shadow); }
+  .micro.mwell .mfill { top: 1px; bottom: 1px; left: 1px; border-radius: 2.5px; box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .mfill.wsev-h { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-h) 80%, transparent), color-mix(in srgb, var(--sev-h) 48%, transparent)); }
+  .mfill.wsev-l { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-l) 80%, transparent), color-mix(in srgb, var(--sev-l) 48%, transparent)); }
+  .mfill.wsev-c { background: linear-gradient(180deg, color-mix(in srgb, var(--sev-c) 88%, transparent), color-mix(in srgb, var(--sev-c) 55%, transparent)); }
+  .light .mfill.wsev-h { background: linear-gradient(180deg, var(--sev-h), color-mix(in srgb, var(--sev-h) 74%, white)); }
+  .light .mfill.wsev-l { background: linear-gradient(180deg, var(--sev-l), color-mix(in srgb, var(--sev-l) 74%, white)); }
+  .light .mfill.wsev-c { background: linear-gradient(180deg, var(--sev-c), color-mix(in srgb, var(--sev-c) 74%, white)); }
+
+  .g-ticks { display: inline-flex; gap: 2px; align-self: center; flex-shrink: 0; }
+  .gt { width: 6px; height: 5px; border-radius: 1.5px; background: var(--tick-off); }
+  .gt.on.sev-h { background: color-mix(in srgb, var(--sev-h) 45%, transparent); }
+  .gt.on.sev-l { background: color-mix(in srgb, var(--sev-l) 45%, transparent); }
+  .gt.on.sev-c { background: color-mix(in srgb, var(--sev-c) 55%, transparent); }
+  .light .gt.on.sev-h { background: color-mix(in srgb, var(--sev-h) 45%, white); }
+  .light .gt.on.sev-l { background: color-mix(in srgb, var(--sev-l) 45%, white); }
+  .light .gt.on.sev-c { background: color-mix(in srgb, var(--sev-c) 55%, white); }
+  .gt.tcap.sev-h { background: var(--sev-h); }
+  .gt.tcap.sev-l { background: var(--sev-l); }
+  .gt.tcap.sev-c { background: var(--sev-c); }
+  .gt.on.tglass { background: var(--tick-glass); }
+  .gt.tcap.tglass { background: var(--tick-glass-cap); }
+
+  .g-vert { width: 5px; height: 16px; border-radius: 99px; background: var(--track); position: relative; overflow: hidden; flex-shrink: 0; align-self: center; }
+  .g-vert.capped, .g-vert.capped .gv-fill { overflow: visible; }
+  .gv-fill { position: absolute; left: 0; right: 0; bottom: 0; min-height: 3px; }
+  .gv-fill.sev-h { background: color-mix(in srgb, var(--sev-h) 85%, transparent); }
+  .gv-fill.sev-l { background: color-mix(in srgb, var(--sev-l) 85%, transparent); }
+  .gv-fill.sev-c { background: color-mix(in srgb, var(--sev-c) 95%, transparent); }
+  .light .gv-fill.sev-h { background: var(--sev-h); }
+  .light .gv-fill.sev-l { background: var(--sev-l); }
+  .light .gv-fill.sev-c { background: var(--sev-c); }
+  .gv-fill.glass { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .gv-fill.ramp-h { background: linear-gradient(to top, var(--ramp-neutral), var(--sev-h)); }
+  .gv-fill.ramp-l { background: linear-gradient(to top, var(--ramp-neutral), var(--sev-l)); }
+  .gv-fill.ramp-c { background: linear-gradient(to top, var(--ramp-neutral), var(--sev-c)); }
+  .gv-fill.gh-h { background: color-mix(in srgb, var(--sev-h) 20%, transparent); }
+  .gv-fill.gh-l { background: color-mix(in srgb, var(--sev-l) 20%, transparent); }
+  .gv-fill.gh-c { background: color-mix(in srgb, var(--sev-c) 24%, transparent); }
+  .light .gv-fill.gh-h { background: color-mix(in srgb, var(--sev-h) 30%, white); }
+  .light .gv-fill.gh-l { background: color-mix(in srgb, var(--sev-l) 30%, white); }
+  .light .gv-fill.gh-c { background: color-mix(in srgb, var(--sev-c) 34%, white); }
+  .gv-cap { position: absolute; top: -0.5px; left: -0.5px; right: -0.5px; height: 2.5px; border-radius: 1px; }
+  .gv-cap.sev-h { background: var(--sev-h); }
+  .gv-cap.sev-l { background: var(--sev-l); }
+  .gv-cap.sev-c { background: var(--sev-c); }
+
+  /* ============================================================
+     LAYOUT-OPTION PARTS
+     ============================================================ */
+  .win.split { flex-direction: row; }
+  .sbar { width: 196px; flex-shrink: 0; background: var(--sidebar-bg); box-shadow: inset -1px 0 0 var(--settings-hairline); padding: 30px 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+  .sbhead { display: flex; align-items: center; gap: 9px; padding: 4px 8px 12px; }
+  .sbhead .nm { font-size: 13.5px; font-weight: 600; letter-spacing: -0.1px; }
+  .sbhead .vr { font-size: 10px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+  .sbgrp { font-size: 11px; font-weight: 600; color: var(--text-secondary); padding: 12px 8px 4px; }
+  .sbgrp:first-of-type { padding-top: 2px; }
+  .sbrow { display: flex; align-items: center; gap: 9px; padding: 5px 8px; border-radius: 6px; font-size: 13px; color: var(--text-primary); background: none; border: none; width: 100%; text-align: left; cursor: default; }
+  .sbrow .ic { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-secondary); }
+  .sbrow.sel { background: var(--accent); color: #fff; }
+  .sbrow.sel .ic { color: #fff; }
+  .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .panehead { padding: 30px 20px 6px; display: flex; align-items: center; gap: 10px; }
+  .panetitle { font-size: 17px; font-weight: 600; letter-spacing: -0.2px; }
+
+  .tbarwrap { flex-shrink: 0; }
+  .tbstrip { height: 28px; }
+  .tbar { display: flex; gap: 2px; padding: 0 8px 8px; box-shadow: inset 0 -1px 0 var(--settings-hairline); }
+  .tbtab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 5px 2px 4px; border-radius: 6px; border: none; background: none; cursor: pointer; color: var(--text-primary); font: inherit; font-size: 10.5px; }
+  .tbtab .ic { width: 19px; height: 19px; color: var(--text-secondary); }
+  .tbtab.sel { background: rgba(127,127,127,0.18); }
+  .tbtab.sel .ic { color: var(--accent); }
+
+  .jumpbar { position: sticky; top: 0; z-index: 3; padding: 8px 20px 10px; background: var(--window-bg); box-shadow: inset 0 -1px 0 var(--settings-hairline); }
+
+  .grpsep { display: flex; align-items: center; gap: 10px; padding: 6px 0 0; }
+  .grpsep .gl { font-size: 11px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; }
+  .grpsep .gr { flex: 1; height: 1px; background: var(--settings-hairline); }
+
+  /* F — grouped inset lists */
+  .fsec { display: flex; flex-direction: column; gap: 6px; }
+  .fsec .fsect { font-size: 13px; font-weight: 600; color: var(--text-secondary); padding-left: 2px; }
+  .flist { border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, var(--tile-fill-top), var(--tile-fill-bottom)); box-shadow: inset 0 1px 0 var(--tile-rim-top), inset 0 0 0 1px var(--tile-rim-bottom), var(--tile-shadow); }
+  .flist .frow { display: flex; align-items: center; gap: 12px; padding: 10px 13px; font-size: 13px; }
+  .flist .frow.stack { display: block; }
+  .flist .frow + .frow { box-shadow: inset 0 1px 0 var(--settings-hairline); }
+  .flist .frow .ctl-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+
+  /* G — accordion */
+  .accrow { border-radius: 10px; background: linear-gradient(180deg, var(--tile-fill-top), var(--tile-fill-bottom)); box-shadow: inset 0 1px 0 var(--tile-rim-top), inset 0 0 0 1px var(--tile-rim-bottom), var(--tile-shadow); overflow: hidden; }
+  .acchead { display: flex; align-items: center; gap: 10px; padding: 11px 13px; width: 100%; background: none; border: none; font: inherit; color: var(--text-primary); cursor: pointer; text-align: left; }
+  .acchead .chev { width: 11px; height: 11px; color: var(--text-secondary); flex-shrink: 0; transition: transform 200ms cubic-bezier(0.22,1,0.36,1); }
+  .acchead.open .chev { transform: rotate(90deg); }
+  .acchead .nm { font-size: 14px; font-weight: 600; letter-spacing: -0.1px; }
+  .acchead .sum { margin-left: auto; font-size: 11px; color: var(--text-secondary); text-align: right; }
+  .accbody { padding: 0 13px 13px 34px; display: flex; flex-direction: column; gap: 10px; }
+
+  /* H — preset gallery */
+  .gal { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 8px; }
+  .galcard { flex: 0 0 auto; width: 132px; border: none; background: none; padding: 5px; border-radius: 9px; cursor: pointer; display: flex; flex-direction: column; gap: 6px; box-shadow: inset 0 0 0 1px var(--settings-hairline); transition: background 180ms cubic-bezier(0.22,1,0.36,1), box-shadow 180ms cubic-bezier(0.22,1,0.36,1); }
+  .galcard:hover { background: rgba(127,127,127,0.08); }
+  .galcard.sel { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .galcard .minicard { background: var(--settings-well); border-radius: 6px; padding: 8px 9px; display: flex; flex-direction: column; gap: 7px; min-height: 78px; }
+  .galcard .mtitle { font-size: 10px; font-weight: 600; color: var(--text-secondary); display: flex; align-items: center; gap: 5px; }
+  .galcard .mtitle .mark { width: 11px; height: 11px; } .galcard .mtitle .mark svg { width: 11px; height: 11px; }
+  .galcard .gname { font-size: 11px; font-weight: 600; }
+  .galcard .gsub { font-size: 9.5px; color: var(--text-secondary); }
+  .mini-meter { display: flex; align-items: center; gap: 5px; }
+  .mini-meter .ml { font-size: 9px; color: var(--label-90); }
+  .mini-meter .mp { font-size: 9.5px; font-weight: 600; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .disclose { display: flex; align-items: center; gap: 7px; background: none; border: none; font: inherit; font-size: 13px; color: var(--text-primary); cursor: pointer; padding: 2px 0; }
+  .disclose .chev { width: 11px; height: 11px; color: var(--text-secondary); transition: transform 200ms cubic-bezier(0.22,1,0.36,1); }
+  .disclose.open .chev { transform: rotate(90deg); }
+
+  /* theme thumbnails */
+  .themerow { display: flex; gap: 10px; }
+  .themebtn { border: none; background: none; padding: 0; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .themebtn .thumb { width: 96px; height: 64px; border-radius: 8px; overflow: hidden; position: relative; box-shadow: inset 0 0 0 1px var(--settings-hairline); }
+  .themebtn.sel .thumb { box-shadow: inset 0 0 0 2px var(--accent); }
+  .themebtn .tlbl { font-size: 11px; color: var(--text-primary); }
+  .thumb .tb-dark { position: absolute; inset: 0; background: #2b2b2e; }
+  .thumb .tb-lite { position: absolute; inset: 0; background: #ededf0; }
+  .thumb .half { clip-path: polygon(0 0, 100% 0, 0 100%); }
+  .thumb .tbar2 { position: absolute; left: 8px; right: 8px; top: 9px; height: 5px; border-radius: 3px; background: rgba(127,127,127,0.42); }
+  .thumb .tln { position: absolute; left: 8px; height: 4px; border-radius: 2px; background: rgba(127,127,127,0.3); }
+
+  /* preferred-window matrix */
+  .matrix { display: grid; grid-template-columns: auto 1fr; gap: 8px 12px; align-items: center; }
+  .matrix .mh { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+
+  /* slider */
+  .slider { position: relative; height: 20px; display: flex; align-items: center; }
+  .slider input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 4px; border-radius: 2px; background: var(--track); outline: none; }
+  .slider input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 0.5px 2px rgba(0,0,0,0.4), inset 0 0 0 0.5px rgba(0,0,0,0.12); cursor: pointer; }
+  .ticklabels { display: flex; justify-content: space-between; font-size: 9.5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  /* chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font: inherit; font-size: 11px; font-weight: 500; color: var(--text-primary); background: none; border: none; border-radius: 99px; padding: 3px 10px; cursor: pointer; box-shadow: inset 0 0 0 1px var(--settings-hairline); display: inline-flex; align-items: center; gap: 5px; transition: background 180ms cubic-bezier(0.22,1,0.36,1); }
+  .chip:hover { background: rgba(127,127,127,0.10); }
+  .chip.sel { background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .chip .mark { width: 12px; height: 12px; } .chip .mark svg { width: 12px; height: 12px; }
+
+  /* component-gallery frames */
+  .cgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  .cgrid.three { grid-template-columns: repeat(3, 1fr); }
+  .cgrid > *, .specimen-row > * { min-width: 0; }
+  @media (max-width: 980px) { .cgrid, .cgrid.three { grid-template-columns: 1fr; } }
+  .comp { background: rgba(255,255,255,0.025); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 14px; }
+  .comp h3 { font-size: 14px; font-weight: 650; }
+  .comp .comp-sub { font-size: 12.5px; color: var(--text-secondary); margin-top: -8px; }
+  .compstage { border-radius: 12px; padding: 16px; background: var(--window-bg); }
+  .compstage.tileish { background: linear-gradient(180deg, var(--tile-fill-top), var(--tile-fill-bottom)); box-shadow: inset 0 1px 0 var(--tile-rim-top), inset 0 0 0 1px var(--tile-rim-bottom), var(--tile-shadow); }
+  .specimen-row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .verdict { font-size: 12.5px; color: var(--text-secondary); }
+  .seg.compact > button { padding: 5px 7px; font-size: 10.5px; }
+  .trow .ctl-end { min-width: 0; }
+  #treatC .gal { flex-wrap: wrap; overflow: visible; }
+  #treatC .galcard { flex: 1 1 calc(50% - 5px); width: auto; }
+  .verdict strong { color: var(--text-primary); font-weight: 600; }
+
+  /* mock scrollbars */
+  .wscroll.scrolls::-webkit-scrollbar, .gal::-webkit-scrollbar, .stage::-webkit-scrollbar { width: 8px; height: 8px; }
+  .wscroll.scrolls::-webkit-scrollbar-thumb, .gal::-webkit-scrollbar-thumb, .stage::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
+  .wscroll.scrolls::-webkit-scrollbar-track, .gal::-webkit-scrollbar-track, .stage::-webkit-scrollbar-track { background: transparent; }
+
+  .ruler { position: relative; }
+  .ruler::before { content: ""; position: absolute; left: 0; right: 0; top: 700px; border-top: 1px dashed var(--annot); opacity: 0.65; }
+  .rulercap { margin-top: 11px; font-size: 11px; color: var(--text-secondary); display: flex; align-items: center; gap: 8px; }
+  .dashkey { width: 24px; border-top: 1px dashed var(--annot); flex-shrink: 0; }
+
+
+  /* ---------- additions used by the mocks ---------- */
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.9em; color: var(--text-primary); background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 4px; }
+  .pairgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 1000px) { .pairgrid { grid-template-columns: 1fr; } }
+  .stage.tight { padding: 14px; }
+  .itrack.plain { background: var(--track); box-shadow: none; }
+  .appicon.sm, .appicon.sm svg { width: 26px; height: 26px; }
+  .appicon.sm::after { border-radius: 6px; }
+  .appicon.sm { border-radius: 6px; }
+  .acap { font-size: 11px; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
+  .acctrow { display: flex; align-items: center; gap: 8px; padding-left: 16px; }
+  .acctid { display: flex; flex-direction: column; min-width: 0; }
+  .anm { font-size: 13px; padding: 3px 6px; border-radius: 6px; }
+  .aem { font-size: 10px; color: var(--text-secondary); padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .asp { flex: 1; }
+  .akey { font-size: 11px; color: var(--text-secondary); }
+  .stepbtn { flex: 1; display: flex; align-items: center; justify-content: center; }
+  .stepbtn + .stepbtn { box-shadow: inset 0 0.5px 0 var(--btn-rim); }
+  .stepbtn svg { width: 7px; height: 5px; }
+  .dleft { width: 316px; flex: 0 0 316px; background: var(--settings-well); box-shadow: inset -1px 0 0 var(--settings-hairline); padding: 30px 16px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .dcap { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .swrow { display: flex; gap: 6px; }
+  .swrow .msw { flex: 1; min-width: 0; }
+  .msw.mini { padding: 4px; }
+  .msw.mini .mwellbox { height: 19px; }
+  .msw.mini .lbl { font-size: 9.5px; }
+  .swgrid.fills .lbl { min-height: 26px; }
+  .sw { display: block; }
+
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="tb-title">Headroom · Settings redesign</span>
+    <div class="scheme-toggle" role="group" aria-label="Preview appearance">
+      <button type="button" id="btnDark" aria-pressed="true">Dark</button>
+      <button type="button" id="btnLight" aria-pressed="false">Light</button>
+    </div>
+    <span class="tb-note">Re-themes every mock. The baseline pair stays fixed for comparison.</span>
+  </div>
+</div>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="ico-vessel" viewBox="0 0 1024 1024">
+    <linearGradient id="vi-bg" x1="0.1" y1="0" x2="0.92" y2="1"><stop offset="0" stop-color="#33404f"/><stop offset="0.5" stop-color="#1a2330"/><stop offset="1" stop-color="#0b111a"/></linearGradient>
+    <linearGradient id="vi-liquid" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#93ffc6"/><stop offset="0.5" stop-color="#4bdd97"/><stop offset="1" stop-color="#1fac70"/></linearGradient>
+    <linearGradient id="vi-topHi" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/><stop offset="0.42" stop-color="#ffffff" stop-opacity="0.02"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="vi-wall" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffffff" stop-opacity="0.98"/><stop offset="0.5" stop-color="#dfe8e6" stop-opacity="0.86"/><stop offset="1" stop-color="#b7c4c2" stop-opacity="0.82"/></linearGradient>
+    <radialGradient id="vi-vig" cx="0.5" cy="0.95" r="0.85"><stop offset="0.5" stop-color="#000000" stop-opacity="0"/><stop offset="1" stop-color="#000000" stop-opacity="0.30"/></radialGradient>
+    <filter id="vi-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#vi-bg)"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#vi-topHi)"/>
+    <g filter="url(#vi-glow)"><path d="M376 534.4 H648 V656 A136 136 0 0 1 376 656 Z" fill="url(#vi-liquid)"/></g>
+    <rect x="376" y="527.4" width="272" height="13" rx="6.5" fill="#eafff4" opacity="0.42"/>
+    <rect x="346" y="202" width="332" height="620" rx="166" fill="none" stroke="url(#vi-wall)" stroke-width="22"/>
+    <rect x="0" y="0" width="1024" height="1024" fill="url(#vi-vig)"/>
+  </symbol>
+  <symbol id="ico-claude" viewBox="0 0 24 24"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fill-rule="nonzero"/></symbol>
+  <symbol id="ico-codex" viewBox="0 0 10 10">
+    <linearGradient id="cx-grad" x1="4.99991" y1="0.500166" x2="4.99991" y2="9.50017" gradientUnits="userSpaceOnUse"><stop stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/></linearGradient>
+    <path d="M3.53191 0.672167C3.89319 0.523523 4.2865 0.469819 4.67441 0.516166C5.17441 0.573666 5.61991 0.786167 6.01091 1.15367C6.01591 1.15867 6.02291 1.16217 6.02941 1.16417C6.03647 1.1659 6.04385 1.1659 6.05091 1.16417C6.55923 1.0329 7.09731 1.08148 7.57391 1.30167L7.59741 1.31267L7.65541 1.34117C8.15429 1.59402 8.54342 2.02067 8.74941 2.54067C8.85391 2.79567 8.90591 3.06117 8.90691 3.33817C8.91442 3.54417 8.89185 3.75017 8.83991 3.94967C8.83735 3.95974 8.83738 3.97029 8.84 3.98035C8.84263 3.9904 8.84775 3.99963 8.85491 4.00717C9.15191 4.31067 9.34891 4.67217 9.44641 5.09217C9.59091 5.80467 9.44291 6.44717 9.00291 7.01917L8.93491 7.10217C8.64349 7.43574 8.261 7.67695 7.83441 7.79617C7.82515 7.79888 7.81666 7.80373 7.80962 7.81033C7.80259 7.81694 7.7972 7.8251 7.79391 7.83417C7.69841 8.10967 7.60241 8.34567 7.42391 8.58117C6.97391 9.17467 6.31291 9.50417 5.56841 9.50017C4.97491 9.49717 4.44891 9.28017 3.98991 8.84917C3.983 8.8427 3.9745 8.83819 3.96528 8.83608C3.95606 8.83397 3.94644 8.83435 3.93741 8.83717C3.74341 8.89967 3.54741 8.90867 3.33541 8.90617C2.99774 8.90346 2.66514 8.82377 2.36291 8.67317C2.04632 8.51629 1.77069 8.28773 1.55791 8.00567C1.48191 7.90467 1.40641 7.80967 1.35091 7.69717C1.27514 7.54279 1.21323 7.38199 1.16591 7.21667C1.06601 6.84048 1.0636 6.44504 1.15891 6.06767C1.16204 6.05869 1.16307 6.04911 1.16191 6.03967C1.1602 6.03039 1.15545 6.02195 1.14841 6.01567C0.917442 5.78189 0.740911 5.50002 0.631408 5.19017C0.558583 4.99931 0.516232 4.79818 0.505908 4.59417C0.487743 4.32546 0.511528 4.05556 0.576408 3.79417C0.744908 3.23817 1.06741 2.80167 1.54291 2.48517C1.64891 2.41467 1.74941 2.35967 1.84341 2.32017C1.95091 2.27567 2.05841 2.23817 2.16641 2.20667C2.17413 2.20427 2.18113 2.20001 2.1868 2.19425C2.19247 2.18849 2.19663 2.18142 2.19891 2.17367C2.28091 1.87919 2.42194 1.60446 2.61341 1.36617C2.85477 1.05967 3.17114 0.820634 3.53191 0.672167ZM5.27291 5.95467C5.19165 5.95922 5.11522 5.99471 5.05931 6.05385C5.0034 6.11299 4.97225 6.19128 4.97225 6.27267C4.97225 6.35405 5.0034 6.43235 5.05931 6.49148C5.11522 6.55062 5.19165 6.58611 5.27291 6.59067H7.09091C7.13417 6.59309 7.17747 6.58667 7.21816 6.57178C7.25885 6.5569 7.29608 6.53387 7.32756 6.5041C7.35905 6.47433 7.38413 6.43846 7.40127 6.39866C7.41841 6.35887 7.42725 6.31599 7.42725 6.27267C7.42725 6.22934 7.41841 6.18647 7.40127 6.14667C7.38413 6.10688 7.35905 6.071 7.32756 6.04123C7.29608 6.01146 7.25885 5.98843 7.21816 5.97355C7.17747 5.95866 7.13417 5.95224 7.09091 5.95467H5.27291ZM3.23091 3.61517C3.18764 3.54469 3.11865 3.49381 3.03854 3.47328C2.95844 3.45275 2.87348 3.46419 2.80165 3.50517C2.72982 3.54615 2.67675 3.61346 2.65366 3.69287C2.63056 3.77228 2.63926 3.85756 2.67791 3.93067L3.31391 5.04267L2.68091 6.11067C2.6596 6.14662 2.64558 6.18641 2.63966 6.22778C2.63373 6.26914 2.63601 6.31127 2.64636 6.35176C2.65671 6.39225 2.67494 6.4303 2.7 6.46374C2.72506 6.49718 2.75646 6.52536 2.79241 6.54667C2.82836 6.56797 2.86815 6.58199 2.90952 6.58792C2.95088 6.59385 2.99301 6.59157 3.0335 6.58121C3.07399 6.57086 3.11204 6.55263 3.14548 6.52758C3.17892 6.50252 3.2071 6.47112 3.22841 6.43517L3.95541 5.20767C3.98407 5.15931 3.9994 5.10422 3.99984 5.048C4.00028 4.99179 3.98581 4.93647 3.95791 4.88767L3.23091 3.61517Z" fill="url(#cx-grad)"/>
+  </symbol>
+  <symbol id="ico-grok" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"/></symbol>
+  <symbol id="ico-cursor" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z"/></symbol>
+  <symbol id="ico-general" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 6h14M3 10h14M3 14h14"/><circle cx="7" cy="6" r="1.9" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="1.9" fill="currentColor" stroke="none"/><circle cx="8" cy="14" r="1.9" fill="currentColor" stroke="none"/></g></symbol>
+  <symbol id="ico-appearance" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.75"/></g><path d="M10 3.25a6.75 6.75 0 000 13.5z" fill="currentColor"/></symbol>
+  <symbol id="ico-menubar" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2.75" y="4.25" width="14.5" height="11.5" rx="2.4"/></g><path d="M4 7.6h12v1.1H4z" fill="currentColor"/></symbol>
+  <symbol id="ico-widgets" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="6" height="6" rx="1.7"/><rect x="11" y="3" width="6" height="6" rx="1.7"/><rect x="3" y="11" width="6" height="6" rx="1.7"/><rect x="11" y="11" width="6" height="6" rx="1.7"/></g></symbol>
+  <symbol id="ico-accounts" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="10" cy="7.4" r="3.05"/><path d="M4.3 16.2a5.9 5.9 0 0111.4 0"/></g></symbol>
+  <symbol id="ico-api" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.1" cy="7.1" r="3.35"/><path d="M9.5 9.5l6.3 6.3M13.4 13.4l1.5-1.5M11.6 11.6l1.4-1.4"/></g></symbol>
+  <symbol id="ico-chevron" viewBox="0 0 12 12"><path d="M4.4 2.6L7.9 6l-3.5 3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ico-updown" viewBox="0 0 12 12"><path d="M3.4 5L6 2.4 8.6 5M3.4 7L6 9.6 8.6 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ico-check" viewBox="0 0 12 12"><path d="M2.4 6.3l2.4 2.4 4.8-5.1" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ico-caretup" viewBox="0 0 12 8"><path d="M2.4 5.4L6 2l3.6 3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="ico-caretdown" viewBox="0 0 12 8"><path d="M2.4 2.6L6 6l3.6-3.4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</defs></svg>
+
+<div class="page">
+
+<header class="masthead">
+  <div class="eyebrow">Headroom · design exploration · Sep 2026</div>
+  <h1>Settings redesign options</h1>
+  <p class="lede">The meter style system landed a real set of visual choices (format, shape, fill), and the Settings window has not caught up. It is eight peer tiles in one 700pt scroll, with the visual decisions scattered across three of them and nothing on screen that shows what a combination actually looks like. Eight layout options below, plus a live component gallery of the picker parts, all drawn on the shipped tokens at <strong>1px = 1pt</strong>.</p>
+  <div class="fixed-strip">
+    <div class="fixed-item"><span class="f-mark">FIXED</span><p><strong>Tile material</strong>Raised tile, 13pt pad, 10pt radius, top-lit rim, real shadow.</p></div>
+    <div class="fixed-item"><span class="f-mark">FIXED</span><p><strong>Row grammar</strong>Label leading, control trailing. Switches for masters, checkboxes for dependents.</p></div>
+    <div class="fixed-item"><span class="f-mark">FIXED</span><p><strong>Native controls</strong>System segmented pickers, small switches, standard push buttons. No custom widgets.</p></div>
+    <div class="fixed-item"><span class="f-mark">FIXED</span><p><strong>No pulsing</strong>Status is drawn, never animated. Motion is hover and press only.</p></div>
+  </div>
+</header>
+
+<section id="today">
+  <div class="section-head">
+    <h2>Today</h2>
+    <p>The shipped window at 460pt, drawn <strong>unrolled</strong> so all eight tiles are visible at once. The dashed line marks the bottom of the 700pt default window: everything under it is a scroll. Dark and light are both pinned here so they can be compared directly; every option further down follows the Dark / Light control at the top of the page.</p>
+  </div>
+  <div class="grid">
+    <div class="stage"><div class="stage-cap">Dark</div><div id="baseDark"></div></div>
+    <div class="stage stage-light light"><div class="stage-cap">Light</div><div id="baseLight"></div></div>
+  </div>
+  <ol class="callouts" style="margin-top:22px">
+    <li><span class="cnum">1</span><span><strong>Eight peer tiles, no hierarchy.</strong> General, Appearance, Meter style, Menu Bar, Widgets, Subscription Usage, Accounts and API Spend all carry the same material, the same title weight and the same width. Nothing says which are everyday preferences and which are one-time plumbing.</span></li>
+    <li><span class="cnum">2</span><span><strong>The visual decisions are split three ways.</strong> Theme is in tile 2, meter style is in tile 3, and Percentages (Left / Used) is stranded at the top of tile 6, roughly 900pt away from the meters it redirects.</span></li>
+    <li><span class="cnum">3</span><span><strong>Theme is a word picker with no preview.</strong> Three text segments decide the whole window's appearance while the meter style right underneath gets live swatches. Two adjacent choices, two unrelated levels of feedback.</span></li>
+    <li><span class="cnum">4</span><span><strong>Subscription Usage mixes two jobs.</strong> A display preference (Percentages) sits above four data-source switches that decide whether a provider is polled at all. The tile name covers neither well.</span></li>
+    <li><span class="cnum">5</span><span><strong>No wayfinding in a long scroll.</strong> There is no map, no jump target and no group label. Finding "Sync snapshot to iPhone" means scrolling and reading tile titles.</span></li>
+    <li><span class="cnum">6</span><span><strong>Nothing shows the result.</strong> The Menu Bar tile has a live specimen. The meter style, which changes every meter in the popover, has swatches but no card. The user picks a combination and then has to close Settings to see it.</span></li>
+  </ol>
+</section>
+
+<section id="ia">
+  <div class="section-head">
+    <h2>Proposed information architecture</h2>
+    <p>A proposal, not a decision. Six groups instead of eight peers, ordered everyday first. Two moves do most of the work: every visual choice collects under <strong>Appearance</strong>, and the per-provider on/off switches fold into the <strong>Accounts</strong> group they belong to. Every option below assumes this map.</p>
+  </div>
+  <table class="ia">
+    <thead><tr><th style="width:34%">Today</th><th style="width:30%">Proposed</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="3">General</td></tr>
+      <tr><td>General · Refresh every</td><td class="to">General</td><td class="why">Unchanged.</td></tr>
+      <tr><td>General · Launch at login</td><td class="to">General</td><td class="why">Unchanged.</td></tr>
+      <tr><td>Footer · Check for Updates…</td><td class="to">General</td><td class="why">Update checking is a preference, not a window action. Frees the footer for Done alone.</td></tr>
+      <tr class="grp"><td colspan="3">Appearance</td></tr>
+      <tr><td>Appearance · Theme</td><td class="to">Appearance</td><td class="why">Gains thumbnails so it matches the feedback level of the pickers beside it.</td></tr>
+      <tr><td>Meter style · Format / Shape / Fill</td><td class="to">Appearance</td><td class="why">Was its own tile. It is a visual choice, so it belongs with the other visual choices.</td></tr>
+      <tr><td>Subscription Usage · Percentages</td><td class="to">Appearance</td><td class="why">Moves next to the meters it reverses. Its help line already says "in the app and menu bar".</td></tr>
+      <tr><td>Subscription Usage · Show Codex Spark counters in app</td><td class="to">Appearance</td><td class="why">A display toggle, sitting under the app-wide display group.</td></tr>
+      <tr class="grp"><td colspan="3">Menu Bar</td></tr>
+      <tr><td>Menu Bar · specimen, Show percentage, Priority providers, Preferred window</td><td class="to">Menu Bar</td><td class="why">Unchanged. It is already the best-organised tile in the window.</td></tr>
+      <tr class="grp"><td colspan="3">Widgets &amp; iPhone</td></tr>
+      <tr><td>Widgets · Share data with widgets, Spark counters in widgets, Sync snapshot to iPhone</td><td class="to">Widgets &amp; iPhone</td><td class="why">Renamed only. The iPhone sync is not a widget, and the old title hid it.</td></tr>
+      <tr class="grp"><td colspan="3">Accounts</td></tr>
+      <tr><td>Subscription Usage · Claude / Codex / Grok / Cursor subscription</td><td class="to">Accounts, in each provider group header</td><td class="why">Removes today's trap: an account can sit in "Needs sign-in" forever because its surface is off in a different tile. The app already prints a help line apologising for exactly that.</td></tr>
+      <tr><td>Accounts · provider groups, account rows, Add Account…</td><td class="to">Accounts</td><td class="why">Unchanged structure, one owner per provider.</td></tr>
+      <tr class="grp"><td colspan="3">API Spend</td></tr>
+      <tr><td>API Spend · provider switches, keys, Period</td><td class="to">API Spend</td><td class="why">Unchanged. Distinct data source, distinct credentials, correctly last.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section id="options">
+  <div class="section-head">
+    <h2>Layout options</h2>
+    <p>Eight shapes for the same content, each drawn at its own natural width. Options at 500pt or narrower are shown as a dark / light pair; the three widest (A, D and H) follow the <strong>Dark / Light</strong> control at the top of the page, because two of those windows will not sit side by side in this document. The pairs follow the control too: the selected scheme is always on the left and its opposite on the right.</p>
+  </div>
+
+  <div class="grid" style="grid-template-columns:1fr">
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">A</span>
+        <span class="option-title">Sidebar navigation</span>
+        <span class="option-size">720 × 660</span>
+      </div>
+      <p class="option-sub">The System Settings idiom: six destinations in a sidebar, one pane at a time, no scroll for most of them.</p>
+      <div class="stage" data-scheme="auto"><div id="optA"></div></div>
+      <p class="option-note"><strong>Fixes</strong> callouts 1, 2 and 5 outright. The sidebar is the map, the "Preferences" and "Sources" list groups state the hierarchy in words, and Appearance finally holds every visual choice in one pane where the swatch grids get 484pt of width instead of 420pt. <strong>Costs</strong> the window is 260pt wider and the user now has to know which pane a setting lives in. Appearance is the tallest pane and sets the height at 660pt; General and Menu Bar are far shorter, so those panes sit in obvious dead space unless the window resizes per pane. <strong>Feasibility</strong> <code>NavigationSplitView</code> with a <code>List(selection:)</code> sidebar and <code>Section</code> headers, <code>.navigationSplitViewColumnWidth(196)</code>, detail panes reusing the current tiles unchanged. This is the least custom option in the set.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">B</span>
+        <span class="option-title">Toolbar icon tabs</span>
+        <span class="option-size">500 × 428</span>
+      </div>
+      <p class="option-sub">Classic macOS Preferences: six icon tabs across the top, the window resizes to whichever pane you pick.</p>
+      <div class="pairgrid">
+        <div class="stage tight" data-pair="a"><div class="stage-cap" data-paircap="a">Dark</div><div id="optB1"></div></div>
+        <div class="stage tight" data-pair="b"><div class="stage-cap" data-paircap="b">Light</div><div id="optB2"></div></div>
+      </div>
+      <p class="option-note"><strong>Fixes</strong> the same hierarchy and wayfinding problems as A while keeping the window narrow, and the tab row is a genuinely faster switch than a sidebar for six items. <strong>Costs</strong> six labels in 500pt means 83pt per tab, which is tight for "Appearance" and forces "API Spend" to abbreviate at smaller widths. The idiom also reads slightly dated next to System Settings, and a resizing window is jarring if the user moves between panes often. <strong>Feasibility</strong> <code>TabView</code> with <code>.tabViewStyle(.grouped)</code> on macOS 15 gives this natively, including the toolbar chrome and the per-pane window sizing. Icons need real SF Symbols rather than the traced shapes drawn here.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">C</span>
+        <span class="option-title">Grouped single scroll with a jump bar</span>
+        <span class="option-size">460 × 700</span>
+      </div>
+      <p class="option-sub">Keep the scroll, give it a map: a sticky jump bar under the header and named groups between the tiles.</p>
+      <div class="pairgrid">
+        <div class="stage tight" data-pair="a"><div class="stage-cap" data-paircap="a">Dark</div><div id="optC1"></div></div>
+        <div class="stage tight" data-pair="b"><div class="stage-cap" data-paircap="b">Light</div><div id="optC2"></div></div>
+      </div>
+      <p class="option-note"><strong>Fixes</strong> callouts 1, 2 and 5 at the lowest cost of any option: nothing moves windows, the merged Appearance tile collects Theme, meter style and Percentages, and "Preferences" / "Sources" separators finally rank the groups. Everything stays visible to a scroll, which suits a settings surface people visit twice a year. <strong>Costs</strong> it is still a 1,300pt scroll, so the jump bar is a patch over the length rather than a cure. A sticky segmented control inside a settings window is also not a macOS pattern, and five 84pt segments are cramped. <strong>Feasibility</strong> <code>ScrollViewReader</code> plus <code>scrollTo(_:anchor:)</code> on section ids, with the jump bar pinned outside the <code>ScrollView</code>. Straightforward, but the jump bar is custom chrome that will need its own keyboard story.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">D</span>
+        <span class="option-title">Preview-first studio</span>
+        <span class="option-size">760 × 560</span>
+      </div>
+      <p class="option-sub">A pinned live specimen on the left, the visual controls on the right. Every choice is answered on screen.</p>
+      <div class="stage" data-scheme="auto"><div id="optD"></div></div>
+      <p class="option-note"><strong>Fixes</strong> callout 6, which no other option really solves. The user picks Machined + Glass and watches a real Claude card and the menu bar strip change together, which is the only honest way to choose between five fills. It also proves the shared-decision principle: one style, three surfaces, one screen. <strong>Costs</strong> it is the widest window in the set and it earns its width only in Appearance and Menu Bar. Accounts and API Spend have nothing to preview, so the left pane either goes blank or shows something irrelevant, and a settings window that changes shape per section is worse than one that does not. <strong>Feasibility</strong> <code>HSplitView</code> or a fixed <code>HStack</code> with the specimen in a <code>.safeAreaInset</code>, driven by the same <code>MeterStyle</code> binding the popover reads. The specimen is literally <code>ProviderCardView</code> and <code>MenuBarLabel</code> with fixture data, so it stays truthful as the renderer evolves. Best treated as the Appearance pane of A rather than as a whole window.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">E</span>
+        <span class="option-title">Display | Sources split</span>
+        <span class="option-size">480 × 640</span>
+      </div>
+      <p class="option-sub">One decision at the top: are you changing how Headroom looks, or where its data comes from.</p>
+      <div class="pairgrid">
+        <div class="stage tight" data-pair="a"><div class="stage-cap" data-paircap="a">Dark</div><div id="optE1"></div></div>
+        <div class="stage tight" data-pair="b"><div class="stage-cap" data-paircap="b">Light</div><div id="optE2"></div></div>
+      </div>
+      <p class="option-note"><strong>Fixes</strong> the hierarchy problem with one control instead of six, and it names the real split in this app: four tiles you touch to taste, two you touch when something breaks. Each half then fits close to one screen, so the scroll stops being the main experience. <strong>Costs</strong> two segments hide six sections, so "which half is Widgets in" is a guess until you learn it. It also gives Accounts, the most complex surface in the window, no top-level presence. <strong>Feasibility</strong> a <code>Picker(.segmented)</code> bound to an enum above a <code>ScrollView</code> that switches content, with <code>.transition(.opacity)</code> between halves. Cheap to build and cheap to reverse, which makes it a reasonable half-step toward A.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">F</span>
+        <span class="option-title">Grouped inset lists</span>
+        <span class="option-size">460 × 700</span>
+      </div>
+      <p class="option-sub">The Sequoia Form idiom: section titles outside the container, hairline-separated rows inside it.</p>
+      <div class="pairgrid">
+        <div class="stage tight" data-pair="a"><div class="stage-cap" data-paircap="a">Dark</div><div id="optF1"></div></div>
+        <div class="stage tight" data-pair="b"><div class="stage-cap" data-paircap="b">Light</div><div id="optF2"></div></div>
+      </div>
+      <p class="option-note"><strong>Fixes</strong> the material problem by admitting these are lists, not cards. Titles move outside the container, so the tile stops carrying a heading it never needed, and hairline separators do the work that 10pt gaps were doing with less ink. It is the densest option here and by some distance the most native on Sequoia. <strong>Costs</strong> it is the one option that changes the rhythm on purpose: 10pt row padding inside a separated list is tighter than the current 10pt gap between free rows, and the meter pickers have to compress into a single inline swatch row, which loses the two-state (62% healthy over 38% low) fill comparison. Accounts rows, which are two lines tall with badges and status, fight the list grid. <strong>Feasibility</strong> <code>Form</code> with <code>.formStyle(.grouped)</code> gives all of this for free, including the section titles and separators, and would delete a lot of the hand-built layout in <code>SettingsView</code>. The custom swatch grids need <code>LabeledContent</code> wrappers to sit correctly in a grouped form.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">G</span>
+        <span class="option-title">Accordion with summaries</span>
+        <span class="option-size">440 × 840 open · 450 collapsed</span>
+      </div>
+      <p class="option-sub">Every section collapses to one line that states its current value, so the closed window is a status report.</p>
+      <div class="pairgrid">
+        <div class="stage tight" data-pair="a"><div class="stage-cap" data-paircap="a">Dark</div><div id="optG1"></div></div>
+        <div class="stage tight" data-pair="b"><div class="stage-cap" data-paircap="b">Light</div><div id="optG2"></div></div>
+      </div>
+      <p class="option-note"><strong>Fixes</strong> the scroll completely in the state that matters: collapsed, all six sections sit in about 450pt with nothing to scroll, and the summaries ("Micro · Chip · Color as event", "Claude 2, Codex 1, Grok 1, Cursor 1") answer most visits without opening anything. That is a real match for a surface people open to check a value, not to change one. <strong>Costs</strong> every change is now two clicks, and disclosure state is a thing to remember and get wrong. Summaries also have to stay true: a wrong one is worse than none, and "Anthropic key saved · Current month" quietly omits two other providers. Only one section can be open comfortably, so cross-section work (meter style and menu bar together) gets harder, and opening Appearance pushes the window to 840pt, taller than today’s 700pt. <strong>Feasibility</strong> <code>DisclosureGroup</code> with a custom label, or <code>LabeledContent</code> in a grouped <code>Form</code> if the summaries stay text-only. Cheap. The summary strings are the actual work, and each is a new piece of derived state to keep in sync.</p>
+    </div>
+
+    <div class="option wide">
+      <div class="option-head">
+        <span class="option-letter">H</span>
+        <span class="option-title">Gallery-led appearance</span>
+        <span class="option-size">520 × 620</span>
+      </div>
+      <p class="option-sub">Six named presets as real mini cards, with the three-axis picker demoted behind Customize.</p>
+      <div class="stage" data-scheme="auto"><div id="optH"></div></div>
+      <p class="option-note"><strong>Fixes</strong> the actual decision problem. Format × shape × fill is 18 valid combinations, and asking someone to assemble one from three abstract axes is a worse question than asking them to point at the one they like. Named presets ("Quiet", "Instrument", "Signal") also give the choice a vocabulary, and every card is a real provider card in that style, so the preview is the picker. <strong>Costs</strong> presets are new persisted product surface: names to maintain, a "Custom" state when the axes drift off a preset, and a migration for anyone whose current combination is not one of the six. The gallery also scrolls horizontally in a 520pt window, which hides two of the six until you drag. <strong>Feasibility</strong> a <code>ScrollView(.horizontal)</code> of <code>MeterGauge</code>-rendered cards plus a <code>DisclosureGroup</code> holding today's <code>MeterStyleTile</code>. No new model beyond a <code>MeterStyle</code> preset table, since a preset is just a named triple. <code>ViewThatFits</code> can drop the gallery to two rows in narrow windows.</p>
+    </div>
+
+  </div>
+</section>
+
+<section id="gallery">
+  <div class="section-head">
+    <h2>Component gallery</h2>
+    <p>The picker parts, live. Everything here is clickable and keyboard operable, and can be dropped into any layout above. The meter treatments all drive the <strong>same specimen card</strong>, so the three ways of asking the question can be judged against one answer.</p>
+  </div>
+
+  <div class="cgrid">
+    <div class="comp">
+      <h3>Theme picker</h3>
+      <p class="comp-sub">Three 96 × 64 mini windows instead of three words. Selected carries a 2px accent ring.</p>
+      <div class="compstage tileish" data-scheme="auto">
+        <div class="tstack">
+          <div class="ttitle" style="margin-bottom:2px">Theme</div>
+          <div class="themerow" id="themeRow" role="radiogroup" aria-label="Theme"></div>
+        </div>
+      </div>
+      <p class="verdict"><strong>Note.</strong> The thumbnails re-theme this tile only, which is exactly what the real control does to the window it lives in. System splits the thumbnail on the diagonal rather than animating between the two, so the control never moves on its own.</p>
+    </div>
+
+    <div class="comp">
+      <h3>Percentages: Left or Used</h3>
+      <p class="comp-sub">A segmented control whose consequence is visible: the numeral, the word and the fill direction all invert.</p>
+      <div class="compstage tileish" data-scheme="auto">
+        <div class="tstack">
+          <div class="trow center"><span class="tlabel">Percentages</span><span class="ctl-end"><span class="seg cap220" id="pctSeg" role="radiogroup" aria-label="Percentages"></span></span></div>
+          <p class="thelp">Changes the numbers, words, and meter direction in the app and menu bar.</p>
+          <div class="well-box" style="padding:11px 12px" id="pctPreview"></div>
+        </div>
+      </div>
+      <p class="verdict"><strong>Note.</strong> Severity stays keyed to what is left, so a 28% used row that is really 72% remaining still reads healthy. Flipping the numeral must never flip the color.</p>
+    </div>
+  </div>
+
+  <div class="comp" style="margin-top:24px">
+    <h3>Meter style, three treatments</h3>
+    <p class="comp-sub">One shared specimen, three ways of asking. Pick a treatment, then judge the specimen, not the picker.</p>
+    <div class="specimen-row">
+      <div class="stage" data-scheme="auto" style="padding:20px;flex:0 0 auto;align-items:stretch">
+        <div class="stage-cap">Shared specimen</div>
+        <div id="sharedSpecimen" style="width:300px"></div>
+        <div id="sharedMenuBar" style="margin-top:4px"></div>
+      </div>
+      <div style="flex:1;min-width:280px">
+        <p class="verdict" style="margin-bottom:10px">Current selection: <strong id="styleToken">micro.chip.event</strong><span id="styleNote"> (the shipped default)</span>. Tube is stored but renders as Chip whenever Full is selected, which is why the Tube swatch dims rather than disappearing.</p>
+        <p class="verdict">Treatment (i) is today's control, tidied. Treatment (ii) trades the swatch grid for three segmented rows with one live gauge each, which is far more compact and far less browsable. Treatment (iii) leads with presets and hides the axes, which is the H layout's thesis expressed as a component.</p>
+      </div>
+    </div>
+    <div class="cgrid three" style="margin-top:6px">
+      <div>
+        <div class="compstage tileish" data-scheme="auto" id="treatA"></div>
+        <p class="verdict" style="margin-top:10px"><strong>(i) Refined swatch grid.</strong> Consistent 64pt cells on one well, 10.5pt labels on a single line, Tube dimmed to 45% under Full with the shipped help line below. Most browsable, tallest.</p>
+      </div>
+      <div>
+        <div class="compstage tileish" data-scheme="auto" id="treatB"></div>
+        <p class="verdict" style="margin-top:10px"><strong>(ii) Segmented rows.</strong> Three rows, each ending in a live micro gauge of the current selection. Half the height, but fill names have to carry the whole idea in words.</p>
+      </div>
+      <div>
+        <div class="compstage tileish" data-scheme="auto" id="treatC"></div>
+        <p class="verdict" style="margin-top:10px"><strong>(iii) Preset gallery.</strong> Six named cards, axes behind Customize. Fastest to a good answer, slowest to an exact one.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cgrid" style="margin-top:24px">
+    <div class="comp">
+      <h3>Menu bar specimen</h3>
+      <p class="comp-sub">The shipped dark plate, driven by a chip group instead of a pull-down menu.</p>
+      <div class="compstage tileish" data-scheme="auto">
+        <div class="tstack">
+          <div class="well-box"><div style="display:flex;align-items:center;gap:10px"><div id="mbSpecimen"></div><span class="mbcap">Live preview — follows the choices below</span></div></div>
+          <div class="trow center"><span class="tlabel">Show percentage</span><span class="ctl-end"><button type="button" class="sw on" id="mbPct" role="switch" aria-checked="true" aria-label="Show percentage"></button></span></div>
+          <div class="tgroup">
+            <div class="trow center"><span class="tlabel">Priority providers</span></div>
+            <div class="chips" id="mbChips" role="group" aria-label="Priority providers"></div>
+            <p class="thelp">Controls the menu-bar number and widget tiles. Auto uses the tightest menu-bar limit; widgets use the first 2 enabled providers.</p>
+          </div>
+        </div>
+      </div>
+      <p class="verdict"><strong>Note.</strong> The chip group shows the selection without opening anything, and Auto stops being a hidden default. It costs vertical space and needs a rule for what happens when every chip is off, which is that it reverts to Auto, exactly as the shipped menu does.</p>
+    </div>
+
+    <div class="comp">
+      <h3>Refresh interval: stepper or slider</h3>
+      <p class="comp-sub">The same 2 to 60 range, asked two ways, with the cost line the app already shows.</p>
+      <div class="compstage tileish" data-scheme="auto">
+        <div class="tstack">
+          <div class="tgroup">
+            <div class="trow center"><span class="tlabel">Refresh every</span><span class="ctl-end"><span class="stepval" id="stepVal">5 min</span><span class="stepper"><button type="button" id="stepUp" aria-label="Increase refresh interval"><svg><use href="#ico-caretup"/></svg></button><button type="button" id="stepDown" aria-label="Decrease refresh interval"><svg><use href="#ico-caretdown"/></svg></button></span></span></div>
+            <p class="thelp">Each Claude refresh runs a CLI session (~20–30s). Minimum&nbsp;2&nbsp;min.</p>
+          </div>
+          <div class="thair"></div>
+          <div class="tgroup">
+            <div class="trow center"><span class="tlabel">Refresh every</span><span class="ctl-end"><span class="stepval" id="slideVal">5 min</span></span></div>
+            <div class="slider"><input type="range" id="slideIn" min="0" max="5" step="1" value="1" aria-label="Refresh interval" list="ivals"></div>
+            <div class="ticklabels"><span>2</span><span>5</span><span>10</span><span>15</span><span>30</span><span>60</span></div>
+            <p class="thelp">Each Claude refresh runs a CLI session (~20–30s). Minimum&nbsp;2&nbsp;min.</p>
+          </div>
+        </div>
+      </div>
+      <p class="verdict"><strong>Recommendation: keep the stepper.</strong> The slider looks friendlier and is worse. It snaps to six presets, so it silently drops 47 of the 59 legal values, and its tick labels add a second numeral row that competes with the value. The stepper is one native control, it is already correct, and this is a set-once preference where precision beats sweep.</p>
+    </div>
+  </div>
+
+  <div class="comp" style="margin-top:24px">
+    <h3>Preferred window matrix</h3>
+    <p class="comp-sub">Four provider rows against two choices. The marks are the row headers, so the tile needs no provider sub-cards.</p>
+    <div class="compstage tileish" data-scheme="auto" style="max-width:420px">
+      <div class="tstack">
+        <div class="subhead">Preferred window</div>
+        <div class="matrix" id="winMatrix"></div>
+        <p class="thelp">Each provider's percentage, fill, and color follow its preferred window.</p>
+      </div>
+    </div>
+    <p class="verdict"><strong>Note.</strong> This is close to what ships, with one change: the segmented controls share a column so the two options line up vertically and the matrix reads as a matrix. Grok and Cursor bill as period pools rather than rolling windows, so in the real window their rows are simply absent instead of showing a disabled 5-hour option.</p>
+  </div>
+</section>
+
+<section id="recommendation">
+  <div class="section-head">
+    <h2>Recommendation</h2>
+  </div>
+  <div class="notes2">
+    <div class="note-card">
+      <h3>Ship C now, then A</h3>
+      <p><strong>C is the honest first move.</strong> It fixes the three problems that actually cost people time (no hierarchy, split visual choices, no wayfinding) without moving a single control into a new window shape, and it can go out in one pass. Merging Appearance, meter style and Percentages into one tile is most of the win on its own, and the "Preferences" / "Sources" separators do the ranking that eight peer tiles refuse to do.</p>
+      <p><strong>A is where it should end up.</strong> Once Accounts routinely holds five Claude rows plus three other providers, one scroll stops working at any length, and a sidebar is the native answer macOS users already know. Doing C first is not wasted: the merged Appearance tile and the regrouped Accounts become A's panes unchanged.</p>
+      <p><strong>Skip B, E and G as destinations.</strong> B is a narrower A with worse labels. E hides six sections behind two words. G optimises for reading values, which is what the popover and the menu bar are already for.</p>
+    </div>
+    <div class="note-card">
+      <h3>Pickers, and what to defer</h3>
+      <p><strong>Treatment (i), the refined swatch grid.</strong> Comparison fairness is the first product principle, and only the grid shows all four shapes and all five fills at once at the same size, on one well, at the same severity pair. Segmented rows make the user hold four unseen options in their head, and a preset gallery quietly ranks six combinations above the other twelve.</p>
+      <p><strong>Adopt D's specimen as a component, not as a window.</strong> Put the live provider card at the top of the merged Appearance tile, above Theme. It answers callout 6, it reuses <code>ProviderCardView</code> so it stays truthful, and it costs about 90pt of height in a window that has plenty.</p>
+      <p><strong>Defer:</strong> the preset gallery (H) until there is evidence people find the three axes hard, since presets add persisted product surface and a Custom state; the slider, permanently; and F's grouped Form, which is the right long-term material but should not be attempted in the same pass as an IA change, because it would move every row and every separator at once.</p>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const NAME = { claude: "Claude", codex: "Codex", grok: "Grok", cursor: "Cursor" };
+  const MONO = { grok: 1, cursor: 1 };
+  const mark = p => `<span class="mark${MONO[p] ? " mono" : ""}"><svg><use href="#ico-${p}"/></svg></span>`;
+  const bigMark = p => `<span class="prov-icon-slot${MONO[p] ? " p-mono" : ""}"><svg><use href="#ico-${p}"/></svg></span>`;
+
+  /* ---------- static (picture-of-a-window) controls ---------- */
+  const sw = (on, label) => `<span class="sw${on ? " on" : ""}" role="img" aria-label="${esc(label)}: ${on ? "On" : "Off"}"></span>`;
+  const cb = on => `<span class="cb${on ? " on" : ""}" role="img" aria-label="${on ? "Checked" : "Unchecked"}"><svg><use href="#ico-check"/></svg></span>`;
+  const seg = (opts, sel, cls = "") => `<span class="seg ${cls}" role="img" aria-label="${esc(opts.join(", "))}; selected ${esc(sel)}">` +
+    opts.map(o => `<span class="${o === sel ? "sel" : ""}">${esc(o)}</span>`).join("") + `</span>`;
+  const btn = (t, cls = "") => `<span class="btn ${cls}">${esc(t)}</span>`;
+  const menuBtn = t => `<span class="btn menu">${esc(t)}<svg class="chev"><use href="#ico-updown"/></svg></span>`;
+  const stepper = v => `<span class="ctl-end"><span class="stepval">${esc(v)}</span><span class="stepper"><span class="stepbtn"><svg><use href="#ico-caretup"/></svg></span><span class="stepbtn"><svg><use href="#ico-caretdown"/></svg></span></span></span>`;
+  const help = t => `<p class="thelp">${t}</p>`;
+  const rowSwitch = (label, on) => `<div class="trow center"><span class="tlabel">${esc(label)}</span><span class="ctl-end">${sw(on, label)}</span></div>`;
+  const rowCheck = (label, on) => `<span class="cbrow">${cb(on)}<span>${esc(label)}</span></span>`;
+  const connected = () => `<span class="connected"><span class="ck"><svg><use href="#ico-check"/></svg></span>Connected</span>`;
+  const savedKey = () => `<span class="connected"><span class="ck"><svg><use href="#ico-check"/></svg></span>Saved securely</span>`;
+  const tile = (title, body, badges) => `<div class="tile"><div class="ttitle">${esc(title)}${(badges || []).map(n => `<span class="cnum">${n}</span>`).join("")}</div>${body}</div>`;
+
+  /* ============================================================
+     GAUGES — the round-5 renderer, extended to the shipped
+     GaugeFill set (solid · glass · ghost · event · hue).
+     ============================================================ */
+  function microGauge(shape, fill, sev, pct) {
+    if (shape === "chip" || shape === "machined") {
+      const machined = shape === "machined";
+      const wrap = machined ? "micro mwell" : "micro";
+      let f, cap = "";
+      if (fill === "solid") f = machined ? `mfill wsev-${sev}` : `mfill sev-${sev}`;
+      else if (fill === "glass") { f = "mfill glass"; cap = `<i class="mcap sev-${sev}"></i>`; }
+      else if (fill === "ghost") { f = `mfill gh-${sev}`; cap = `<i class="mcap sev-${sev}"></i>`; }
+      else if (fill === "event") f = sev === "h" ? "mfill glass" : (machined ? `mfill wsev-${sev}` : `mfill sev-${sev}`);
+      else f = `mfill ramp-${sev}`;
+      return `<span class="${wrap}${cap ? " capped" : ""}"><i class="${f}" style="width:${pct}%">${cap}</i></span>`;
+    }
+    if (shape === "segmented") {
+      const lit = Math.max(1, Math.round(pct / 20));
+      let cells = "";
+      for (let i = 0; i < 5; i++) {
+        if (i >= lit) { cells += `<i class="gt"></i>`; continue; }
+        const tip = i === lit - 1;
+        if (fill === "solid") cells += `<i class="gt tcap sev-${sev}"></i>`;
+        else if (fill === "glass") cells += tip ? `<i class="gt tcap sev-${sev}"></i>` : `<i class="gt on tglass"></i>`;
+        else if (fill === "event") cells += sev === "h"
+          ? (tip ? `<i class="gt tcap tglass"></i>` : `<i class="gt on tglass"></i>`)
+          : (tip ? `<i class="gt tcap sev-${sev}"></i>` : `<i class="gt on sev-${sev}"></i>`);
+        else cells += tip ? `<i class="gt tcap sev-${sev}"></i>` : `<i class="gt on sev-${sev}"></i>`;
+      }
+      return `<span class="g-ticks">${cells}</span>`;
+    }
+    let f, cap = "";
+    if (fill === "solid") f = `gv-fill sev-${sev}`;
+    else if (fill === "glass") { f = "gv-fill glass"; cap = `<i class="gv-cap sev-${sev}"></i>`; }
+    else if (fill === "ghost") { f = `gv-fill gh-${sev}`; cap = `<i class="gv-cap sev-${sev}"></i>`; }
+    else if (fill === "event") f = sev === "h" ? "gv-fill glass" : `gv-fill sev-${sev}`;
+    else f = `gv-fill ramp-${sev}`;
+    return `<span class="g-vert${cap ? " capped" : ""}"><i class="${f}" style="height:${pct}%">${cap}</i></span>`;
+  }
+
+  function fullGauge(shape, fill, sev, pct) {
+    if (shape === "segmented") {
+      const lit = Math.max(1, Math.round(pct / 5));
+      let cells = "";
+      for (let i = 0; i < 20; i++) {
+        if (i >= lit) { cells += `<i class="seg-cell"></i>`; continue; }
+        cells += i === lit - 1 ? `<i class="seg-cell tip-${sev}"></i>` : `<i class="seg-cell on-${sev}"></i>`;
+      }
+      return `<div class="segs">${cells}</div>`;
+    }
+    const machined = shape === "machined";
+    const ticks = machined
+      ? `<i class="tick" style="left:25%"></i><i class="tick mid" style="left:50%"></i><i class="tick" style="left:75%"></i>`
+      : "";
+    const cap = (fill === "glass" || fill === "ghost") ? `<i class="cap sev-${sev}"></i>` : "";
+    return `<div class="f-${fill}"><div class="itrack${machined ? "" : " plain"}">${ticks}<div class="ifill sev-${sev}" style="width:${pct}%">${cap}</div></div></div>`;
+  }
+
+  const resolvedShape = st => (st.format === "full" && st.shape === "tube") ? "chip" : st.shape;
+  const gauge = (st, sev, pct) => st.format === "micro"
+    ? microGauge(resolvedShape(st), st.fill, sev, pct)
+    : fullGauge(resolvedShape(st), st.fill, sev, pct);
+
+  /* meter row: shipped reading frame (label + bare countdown, numeral trailing) */
+  function meterRow(m, st, mode) {
+    const shown = mode === "used" ? 100 - m.pct : m.pct;
+    const term = mode === "used" ? "used" : "left";
+    const fillPct = mode === "used" ? 100 - m.pct : m.pct;
+    const lab = `<span class="m-lab"><span class="m-label">${esc(m.label)}</span><span class="m-reset">${esc(m.cd)}</span></span>`;
+    const num = `<span class="m-num"><span class="m-pct${m.sev === "c" ? " crit" : ""}">${shown}%</span><span class="m-term">${term}</span></span>`;
+    if (st.format === "micro") {
+      return `<div class="meter mrow"><div class="meter-top">${lab}<span class="m-spacer"></span>${gauge(st, m.sev, fillPct)}${num}</div></div>`;
+    }
+    return `<div class="meter"><div class="meter-top">${lab}<span class="m-spacer"></span>${num}</div>${gauge(st, m.sev, fillPct)}</div>`;
+  }
+
+  function providerCard(prov, plan, meters, st, mode) {
+    return `<div class="card"><div class="prov-head">${bigMark(prov)}<span class="prov-name p-${prov}">${NAME[prov]}</span>` +
+      (plan ? `<span class="plan-pill">${esc(plan)}</span>` : "") + `</div>` +
+      `<div class="meters${st.format === "micro" ? " micro-mode" : ""}">${meters.map(m => meterRow(m, st, mode)).join("")}</div></div>`;
+  }
+
+  /* ---------- menu bar specimen ---------- */
+  function menuBarStrip(entries, showPct) {
+    return `<span class="mbplate">` + entries.map(e =>
+      `<span class="mbmeter${showPct ? "" : " iconly"}"><span class="vessel${e.sev === "c" ? " crit" : ""}"><i class="${e.sev}" style="height:${e.pct}%"></i></span>` +
+      (showPct ? `<span class="mbpct">${e.pct}%</span>` : "") + `</span>`).join("") + `</span>`;
+  }
+
+  /* ============================================================
+     SETTINGS TILES (shared by every layout mock)
+     ============================================================ */
+  const SHAPES = [["chip", "Chip"], ["machined", "Machined"], ["segmented", "Segmented"], ["tube", "Tube"]];
+  const FILLS = [["solid", "Solid"], ["glass", "Glass + cap"], ["ghost", "Ghost + cap"], ["event", "Color as event"], ["hue", "Hue ramp"]];
+
+  function shapeSwatches(st, live) {
+    return SHAPES.map(([id, label]) => {
+      const off = st.format === "full" && id === "tube";
+      const selected = st.shape === id;
+      const g = microGauge(id, "glass", "h", 62);
+      const inner = `<span class="mwellbox">${g}</span><span class="lbl">${label}</span>`;
+      return live
+        ? `<button type="button" class="msw${selected ? " sel" : ""}${off ? " off" : ""}" data-shape="${id}"${off ? " disabled" : ""} aria-pressed="${selected}" aria-label="${label} shape">${inner}</button>`
+        : `<span class="msw${selected ? " sel" : ""}${off ? " off" : ""}">${inner}</span>`;
+    }).join("");
+  }
+
+  function fillSwatches(st, live) {
+    return FILLS.map(([id, label]) => {
+      const selected = st.fill === id;
+      const inner = `<span class="mwellbox">${microGauge("chip", id, "h", 62)}${microGauge("chip", id, "l", 38)}</span><span class="lbl">${label}</span>`;
+      return live
+        ? `<button type="button" class="msw${selected ? " sel" : ""}" data-fill="${id}" aria-pressed="${selected}" aria-label="${label} fill">${inner}</button>`
+        : `<span class="msw${selected ? " sel" : ""}">${inner}</span>`;
+    }).join("");
+  }
+
+  function meterStyleRows(st) {
+    return `<div class="trow center"><span class="tlabel">Format</span><span class="ctl-end">${seg(["Full", "Micro"], st.format === "full" ? "Full" : "Micro", "cap220")}</span></div>` +
+      `<div class="trow" style="align-items:flex-start"><span class="tlabel" style="width:46px;flex:0 0 46px">Shape</span><div class="swgrid shapes" style="flex:1">${shapeSwatches(st, false)}</div></div>` +
+      (st.format === "full" ? `<p class="thelp" style="padding-left:58px;margin-top:-4px">Tube is available only with Micro format.</p>` : "") +
+      `<div class="trow" style="align-items:flex-start"><span class="tlabel" style="width:46px;flex:0 0 46px">Fill</span><div class="swgrid fills" style="flex:1">${fillSwatches(st, false)}</div></div>`;
+  }
+
+  function themeThumbs(sel, live) {
+    const draw = k => k === "light"
+      ? `<span class="tb-lite"></span><span class="tbar2"></span><span class="tln" style="top:22px;width:52px"></span><span class="tln" style="top:32px;width:66px"></span><span class="tln" style="top:42px;width:40px"></span>`
+      : k === "dark"
+        ? `<span class="tb-dark"></span><span class="tbar2"></span><span class="tln" style="top:22px;width:52px"></span><span class="tln" style="top:32px;width:66px"></span><span class="tln" style="top:42px;width:40px"></span>`
+        : `<span class="tb-lite"></span><span class="tb-dark half"></span><span class="tbar2"></span><span class="tln" style="top:22px;width:52px"></span><span class="tln" style="top:32px;width:66px"></span><span class="tln" style="top:42px;width:40px"></span>`;
+    return [["system", "System"], ["light", "Light"], ["dark", "Dark"]].map(([id, label]) => {
+      const on = sel === id;
+      const inner = `<span class="thumb">${draw(id)}</span><span class="tlbl">${label}</span>`;
+      return live
+        ? `<button type="button" class="themebtn${on ? " sel" : ""}" data-theme="${id}" role="radio" aria-checked="${on}" aria-label="${label} theme">${inner}</button>`
+        : `<span class="themebtn${on ? " sel" : ""}">${inner}</span>`;
+    }).join("");
+  }
+
+  const MB_DEMO = [{ sev: "l", pct: 38 }, { sev: "h", pct: 64 }];
+
+  const T = {};
+  T.general = (badges, withUpdates) => tile("General",
+    `<div class="tgroup"><div class="trow center"><span class="tlabel">Refresh every</span>${stepper("5 min")}</div>` +
+    help(`Each Claude refresh runs a CLI session (~20–30s). Minimum&nbsp;2&nbsp;min.`) + `</div>` +
+    rowSwitch("Launch at login", true) +
+    (withUpdates ? `<div class="trow center"><span class="tlabel">Software updates</span><span class="ctl-end">${btn("Check for Updates…")}</span></div>` : ""), badges);
+
+  T.appearanceClassic = badges => tile("Appearance",
+    `<div class="trow center"><span class="tlabel">Theme</span><span class="ctl-end">${seg(["System", "Light", "Dark"], "System", "cap220")}</span></div>`, badges);
+
+  T.meterStyleTile = (st, badges) => tile("Meter style", meterStyleRows(st), badges);
+
+  T.appearanceMerged = (st, theme) => tile("Appearance",
+    `<div class="tgroup"><div class="trow"><span class="tlabel">Theme</span></div><div class="themerow">${themeThumbs(theme, false)}</div></div>` +
+    `<div class="thair"></div>` + meterStyleRows(st) +
+    `<div class="thair"></div>` +
+    `<div class="tgroup"><div class="trow center"><span class="tlabel">Percentages</span><span class="ctl-end">${seg(["Left", "Used"], "Left", "cap220")}</span></div>` +
+    help("Changes the numbers, words, and meter direction in the app and menu bar.") + `</div>` +
+    rowCheck("Show Codex Spark counters in app", true));
+
+  T.menuBarBody = () =>
+    `<div class="well-box"><div style="display:flex;align-items:center;gap:10px">${menuBarStrip(MB_DEMO, true)}<span class="mbcap">Live preview — follows the choices below</span></div></div>` +
+    rowSwitch("Show percentage", true) +
+    `<div class="tgroup"><div class="trow center"><span class="tlabel">Priority providers</span><span class="ctl-end">${menuBtn("Auto")}</span></div>` +
+    help("Controls the menu-bar number and widget tiles. Auto uses the tightest menu-bar limit; widgets use the first 2 enabled providers.") + `</div>` +
+    `<div class="tstack"><span class="subhead">Preferred window</span>` +
+    ["claude", "codex"].map(p => `<div class="trow center"><span class="prow">${mark(p)}${NAME[p]}</span><span class="ctl-end">${seg(["Weekly", "5-hour"], "Weekly", "cap220")}</span></div>`).join("") +
+    help("Each provider's percentage, fill, and color follow its preferred window.") + `</div>`;
+
+  T.menuBar = badges => tile("Menu Bar", T.menuBarBody(), badges);
+
+  T.widgets = (title, badges) => tile(title || "Widgets",
+    `<div class="tgroup">${rowSwitch("Share data with widgets", true)}` +
+    help("Controls whether Headroom supplies usage data to macOS widgets.") +
+    help("Widgets show up to 2 of your priority providers from Menu Bar settings.") + `</div>` +
+    rowCheck("Show Codex Spark counters in widgets", false) +
+    `<div class="tgroup">${rowSwitch("Sync snapshot to iPhone", false)}` +
+    help("Sends only the widget-safe usage snapshot through your iCloud account. No provider credentials are synced.") + `</div>`, badges);
+
+  T.subscription = badges => tile("Subscription Usage",
+    `<div class="tgroup"><div class="trow center"><span class="tlabel">Percentages</span><span class="ctl-end">${seg(["Left", "Used"], "Left", "cap220")}</span></div>` +
+    help("Changes the numbers, words, and meter direction in the app and menu bar.") + `</div>` +
+    ["claude", "codex", "grok", "cursor"].map(p =>
+      `<div class="trow center"><span class="prow">${mark(p)}${NAME[p]} subscription</span><span class="ctl-end">${sw(true, NAME[p] + " subscription")}</span></div>`).join("") +
+    rowCheck("Show Codex Spark counters in app", true), badges);
+
+  const ACCTS = {
+    claude: { cap: "2 of 5", rows: [{ n: "Personal", e: "personal@example.com", cli: true, st: "connected" }, { n: "Work", e: "work@example.com", st: "connected" }] },
+    codex: { cap: "1 of 5", rows: [{ n: "Personal", e: "kyle@example.com", cli: true, st: "connected" }] },
+    grok: { cap: "1 of 5", rows: [{ n: "Personal", e: "kyle@example.com", cli: true, st: "needs" }] },
+    cursor: { cap: null, rows: [{ n: "Cursor", e: "kyle@example.com", cli: true, st: "connected" }] }
+  };
+
+  function accountGroup(p, opts) {
+    const g = ACCTS[p];
+    const head = `<div class="trow center"><span class="prow">${mark(p)}${NAME[p]}</span>` +
+      (g.cap ? `<span class="acap">${g.cap}</span>` : "") +
+      `<span class="ctl-end">` + (opts && opts.surfaceSwitch ? sw(true, NAME[p] + " subscription") : "") +
+      (g.cap ? btn("Add Account…") : "") + `</span></div>`;
+    const rows = g.rows.map(r =>
+      `<div class="acctrow"><span class="acctid"><span class="anm">${esc(r.n)}</span><span class="aem">${esc(r.e)}</span></span>` +
+      (r.cli ? `<span class="pill">CLI login</span>` : "") + `<span class="asp"></span>` +
+      (r.st === "connected" ? connected() : `<span class="status warn">Needs sign-in</span>${btn("Sign In…")}`) + `</div>`).join("");
+    return `<div class="tstack">${head}${rows}</div>`;
+  }
+
+  T.accounts = (badges, opts) => tile("Accounts",
+    help("Track several subscriptions side by side. Every account signs in through its official CLI in Terminal — Headroom never sees your credentials.") +
+    ["claude", "codex", "grok", "cursor"].map((p, i) => (i ? `<div class="thair"></div>` : "") + accountGroup(p, opts)).join(""), badges);
+
+  T.apiSpend = badges => tile("API Spend",
+    `<div class="tstack"><div class="trow center"><span class="prow">${mark("claude")}Anthropic API spend</span><span class="ctl-end">${sw(true, "Anthropic API spend")}</span></div>` +
+    `<div style="padding-left:0"><div class="akey">Headroom Anthropic Admin API Key</div><div class="trow center" style="margin-top:6px">${savedKey()}<span class="ctl-end">${btn("Replace key…")}${btn("Remove", "plain")}</span></div></div></div>` +
+    `<div class="thair"></div>` +
+    `<div class="trow center"><span class="prow">${mark("codex")}OpenAI API spend</span><span class="ctl-end">${sw(false, "OpenAI API spend")}</span></div>` +
+    `<div class="trow center"><span class="prow">${mark("grok")}xAI API spend</span><span class="ctl-end">${sw(false, "xAI API spend")}</span></div>` +
+    `<div class="thair"></div>` +
+    `<div class="trow center"><span class="tlabel">Period</span><span class="ctl-end">${seg(["Current month", "Last 30 days"], "Current month", "cap220")}</span></div>`, badges);
+
+  /* ---------- window chrome ---------- */
+  const traffic = `<span class="tl"><i></i><i></i><i></i></span>`;
+  const appHead = () => `<div class="whead"><span class="appicon"><svg viewBox="0 0 1024 1024"><use href="#ico-vessel"/></svg></span><span class="wtitle">Headroom Settings</span><span class="wver">v1.3.0 (31)</span></div>`;
+  const footer = (withUpdates) => `<div class="wfoot">${withUpdates ? btn("Check for Updates…") : ""}<span class="right">${btn("Done", "primary")}</span></div>`;
+
+  /* ============================================================
+     WINDOW MOCKS
+     ============================================================ */
+  const DEFAULT_STYLE = { format: "micro", shape: "chip", fill: "event" };
+  const CARD_METERS = [
+    { label: "5-hour", cd: "3h 11m", pct: 72, sev: "h" },
+    { label: "Weekly", cd: "3d 23h", pct: 38, sev: "l" },
+    { label: "Weekly (Fable)", cd: "3d 23h", pct: 12, sev: "c" }
+  ];
+
+  function baselineWin(badged) {
+    const b = n => badged ? n : null;
+    return `<div class="win ruler" style="width:460px">${traffic}${appHead()}
+      <div class="wscroll"><div class="wbody">
+        ${T.general(b([1]), false)}
+        ${T.appearanceClassic(b([3]))}
+        ${T.meterStyleTile(DEFAULT_STYLE, b([6]))}
+        ${T.menuBar(null)}
+        ${T.widgets(null, null)}
+        ${T.subscription(b([2, 4]))}
+        ${T.accounts(b([5]), null)}
+        ${T.apiSpend(null)}
+      </div></div>
+      ${footer(true)}
+    </div><div class="rulercap"><span class="dashkey"></span>Dashed line: the 700pt window bottom. Everything below it needs scrolling.</div>`;
+  }
+
+  const sbRow = (icon, label, sel) =>
+    `<span class="sbrow${sel ? " sel" : ""}"${sel ? ' aria-current="page"' : ""}><span class="ic"><svg viewBox="0 0 20 20" width="16" height="16"><use href="#ico-${icon}"/></svg></span>${esc(label)}</span>`;
+
+  function optA() {
+    return `<div class="win split" style="width:720px;height:660px">${traffic}
+      <div class="sbar">
+        <div class="sbhead"><span class="appicon sm"><svg viewBox="0 0 1024 1024"><use href="#ico-vessel"/></svg></span><span style="display:flex;flex-direction:column;line-height:1.25"><span class="nm">Headroom</span><span class="vr">v1.3.0 (31)</span></span></div>
+        <div class="sbgrp">Preferences</div>
+        ${sbRow("general", "General", false)}
+        ${sbRow("appearance", "Appearance", true)}
+        ${sbRow("menubar", "Menu Bar", false)}
+        ${sbRow("widgets", "Widgets & iPhone", false)}
+        <div class="sbgrp">Sources</div>
+        ${sbRow("accounts", "Accounts", false)}
+        ${sbRow("api", "API Spend", false)}
+      </div>
+      <div class="pane">
+        <div class="panehead"><span class="panetitle">Appearance</span></div>
+        <div class="wscroll"><div class="wbody" style="padding-top:8px">
+          ${tile("Theme", `<div class="themerow">${themeThumbs("system", false)}</div>`)}
+          ${tile("Meter style", meterStyleRows(DEFAULT_STYLE))}
+          ${tile("In-app display",
+            `<div class="tgroup"><div class="trow center"><span class="tlabel">Percentages</span><span class="ctl-end">${seg(["Left", "Used"], "Left", "cap220")}</span></div>` +
+            help("Changes the numbers, words, and meter direction in the app and menu bar.") + `</div>` +
+            rowCheck("Show Codex Spark counters in app", true))}
+        </div></div>
+        ${footer(false)}
+      </div></div>`;
+  }
+
+  const tbTab = (icon, label, sel) =>
+    `<span class="tbtab${sel ? " sel" : ""}"><span class="ic"><svg viewBox="0 0 20 20" width="19" height="19"><use href="#ico-${icon}"/></svg></span>${esc(label)}</span>`;
+
+  function optB() {
+    return `<div class="win" style="width:500px">${traffic}
+      <div class="tbarwrap"><div class="tbstrip"></div><div class="tbar">
+        ${tbTab("general", "General", false)}${tbTab("appearance", "Appearance", false)}${tbTab("menubar", "Menu Bar", true)}
+        ${tbTab("widgets", "Widgets", false)}${tbTab("accounts", "Accounts", false)}${tbTab("api", "API Spend", false)}
+      </div></div>
+      <div class="wscroll"><div class="wbody"><div class="tile">${T.menuBarBody()}</div></div></div>
+      ${footer(false)}</div>`;
+  }
+
+  function optC() {
+    return `<div class="win" style="width:460px;height:700px">${traffic}${appHead()}
+      <div class="jumpbar">${seg(["Appearance", "Menu bar", "Widgets", "Accounts", "API"], "Appearance", "wide")}</div>
+      <div class="wscroll fade-bottom"><div class="wbody">
+        <div class="grpsep"><span class="gl">Preferences</span><span class="gr"></span></div>
+        ${T.general(null, true)}
+        ${T.appearanceMerged(DEFAULT_STYLE, "system")}
+        ${T.menuBar(null)}
+        ${T.widgets("Widgets & iPhone", null)}
+        <div class="grpsep"><span class="gl">Sources</span><span class="gr"></span></div>
+        ${T.accounts(null, { surfaceSwitch: true })}
+        ${T.apiSpend(null)}
+      </div></div>
+      ${footer(false)}</div>`;
+  }
+
+  function optD() {
+    return `<div class="win split" style="width:760px;height:560px">${traffic}
+      <div class="dleft">
+        <span class="dcap">Popover preview</span>
+        ${providerCard("claude", "Max", CARD_METERS, DEFAULT_STYLE, "left")}
+        <span class="dcap" style="margin-top:4px">Menu bar</span>
+        <div class="well-box">${menuBarStrip(MB_DEMO, true)}</div>
+        <p class="thelp">Follows every choice on the right. Nothing here is editable.</p>
+      </div>
+      <div class="pane">
+        <div class="panehead"><span class="panetitle">Appearance</span></div>
+        <div class="wscroll fade-bottom"><div class="wbody" style="padding-top:8px">
+          ${tile("Theme", `<div class="themerow">${themeThumbs("system", false)}</div>`)}
+          ${tile("Meter style", meterStyleRows(DEFAULT_STYLE))}
+          ${T.menuBar(null)}
+        </div></div>
+        ${footer(false)}
+      </div></div>`;
+  }
+
+  function optE() {
+    return `<div class="win" style="width:480px;height:640px">${traffic}${appHead()}
+      <div style="padding:10px 20px 2px">${seg(["Display", "Sources"], "Display", "wide")}</div>
+      <div class="wscroll fade-bottom"><div class="wbody">
+        ${T.general(null, true)}
+        ${T.appearanceMerged(DEFAULT_STYLE, "system")}
+        ${T.menuBar(null)}
+        ${T.widgets("Widgets & iPhone", null)}
+      </div></div>
+      ${footer(false)}</div>`;
+  }
+
+  function miniSwatchRow(kind, st) {
+    const items = kind === "shape"
+      ? SHAPES.map(([id, label]) => `<span class="msw mini${st.shape === id ? " sel" : ""}${st.format === "full" && id === "tube" ? " off" : ""}"><span class="mwellbox">${microGauge(id, "glass", "h", 62)}</span><span class="lbl">${label}</span></span>`)
+      : FILLS.map(([id, label]) => `<span class="msw mini${st.fill === id ? " sel" : ""}"><span class="mwellbox">${microGauge("chip", id, "h", 62)}</span><span class="lbl">${label}</span></span>`);
+    return `<div class="swrow">${items.join("")}</div>`;
+  }
+
+  function optF() {
+    const frow = (label, ctl) => `<div class="frow"><span>${esc(label)}</span><span class="ctl-end">${ctl}</span></div>`;
+    const fstack = (label, body) => `<div class="frow stack"><div style="margin-bottom:7px">${esc(label)}</div>${body}</div>`;
+    return `<div class="win" style="width:460px;height:700px">${traffic}${appHead()}
+      <div class="wscroll fade-bottom"><div class="wbody">
+        <div class="fsec"><span class="fsect">General</span><div class="flist">
+          ${frow("Refresh every", `<span class="stepval">5 min</span><span class="stepper"><span class="stepbtn"><svg><use href="#ico-caretup"/></svg></span><span class="stepbtn"><svg><use href="#ico-caretdown"/></svg></span></span>`)}
+          ${frow("Launch at login", sw(true, "Launch at login"))}
+          ${frow("Software updates", btn("Check for Updates…"))}
+        </div>${help("Each Claude refresh runs a CLI session (~20–30s). Minimum&nbsp;2&nbsp;min.")}</div>
+
+        <div class="fsec"><span class="fsect">Appearance</span><div class="flist">
+          ${fstack("Theme", `<div class="themerow">${themeThumbs("system", false)}</div>`)}
+          ${frow("Format", seg(["Full", "Micro"], "Micro", "cap220"))}
+          ${fstack("Shape", miniSwatchRow("shape", DEFAULT_STYLE))}
+          ${fstack("Fill", miniSwatchRow("fill", DEFAULT_STYLE))}
+          ${frow("Percentages", seg(["Left", "Used"], "Left", "cap220"))}
+          ${frow("Show Codex Spark counters in app", cb(true))}
+        </div>${help("Changes the numbers, words, and meter direction in the app and menu bar.")}</div>
+
+        <div class="fsec"><span class="fsect">Menu bar</span><div class="flist">
+          <div class="frow stack">${menuBarStrip(MB_DEMO, true)} <span class="mbcap" style="margin-left:8px">Live preview — follows the choices below</span></div>
+          ${frow("Show percentage", sw(true, "Show percentage"))}
+          ${frow("Priority providers", menuBtn("Auto"))}
+          ${frow("Claude preferred window", seg(["Weekly", "5-hour"], "Weekly", "cap220"))}
+          ${frow("Codex preferred window", seg(["Weekly", "5-hour"], "Weekly", "cap220"))}
+        </div></div>
+      </div></div>
+      ${footer(false)}</div>`;
+  }
+
+  function optG() {
+    const head = (label, summary, open) =>
+      `<span class="acchead${open ? " open" : ""}"><svg class="chev" viewBox="0 0 12 12"><use href="#ico-chevron"/></svg><span class="nm">${esc(label)}</span><span class="sum">${esc(summary)}</span></span>`;
+    const closed = (label, summary) => `<div class="accrow">${head(label, summary, false)}</div>`;
+    return `<div class="win" style="width:440px;height:840px">${traffic}${appHead()}
+      <div class="wscroll"><div class="wbody">
+        ${closed("General", "Every 5 min · Launch at login")}
+        <div class="accrow">${head("Appearance", "", true)}
+          <div class="accbody">
+            <div class="tgroup"><span class="subhead">Theme</span><div class="themerow">${themeThumbs("system", false)}</div></div>
+            <div class="trow center"><span class="tlabel">Format</span><span class="ctl-end">${seg(["Full", "Micro"], "Micro", "cap220")}</span></div>
+            <div class="tgroup"><span class="subhead">Shape</span><div class="swgrid shapes">${shapeSwatches(DEFAULT_STYLE, false)}</div></div>
+            <div class="tgroup"><span class="subhead">Fill</span><div class="swgrid fills">${fillSwatches(DEFAULT_STYLE, false)}</div></div>
+            <div class="trow center"><span class="tlabel">Percentages</span><span class="ctl-end">${seg(["Left", "Used"], "Left", "cap220")}</span></div>
+          </div>
+        </div>
+        ${closed("Menu Bar", "Auto · Percentage on")}
+        ${closed("Widgets & iPhone", "Widgets on · iPhone off")}
+        ${closed("Accounts", "Claude 2, Codex 1, Grok 1, Cursor 1")}
+        ${closed("API Spend", "Anthropic key saved · Current month")}
+      </div></div>
+      ${footer(false)}</div>`;
+  }
+
+  const PRESETS = [
+    { id: "instrument", name: "Instrument", st: { format: "micro", shape: "machined", fill: "glass" } },
+    { id: "quiet", name: "Quiet", sub: "Default", st: { format: "micro", shape: "chip", fill: "event" } },
+    { id: "bars", name: "Bars", st: { format: "full", shape: "chip", fill: "solid" } },
+    { id: "ticks", name: "Ticks", st: { format: "micro", shape: "segmented", fill: "event" } },
+    { id: "signal", name: "Signal", st: { format: "full", shape: "machined", fill: "hue" } },
+    { id: "tubes", name: "Tubes", st: { format: "micro", shape: "tube", fill: "ghost" } }
+  ];
+
+  function miniMeter(st, m) {
+    const g = gauge(st, m.sev, m.pct);
+    if (st.format === "micro") {
+      return `<div class="mini-meter"><span class="ml">${esc(m.label)}</span><span style="flex:1"></span>${g}<span class="mp">${m.pct}%</span></div>`;
+    }
+    return `<div><div class="mini-meter"><span class="ml">${esc(m.label)}</span><span style="flex:1"></span><span class="mp">${m.pct}%</span></div><div style="margin-top:4px">${g}</div></div>`;
+  }
+
+  function presetCard(p, selId, live) {
+    const meters = [{ label: "5-hour", pct: 72, sev: "h" }, { label: "Weekly", pct: 38, sev: "l" }];
+    const inner = `<span class="minicard"><span class="mtitle">${mark("claude")}Claude</span>${meters.map(m => miniMeter(p.st, m)).join("")}</span>` +
+      `<span class="gname">${esc(p.name)}</span><span class="gsub">${esc(p.sub || (p.st.format + " · " + p.st.shape + " · " + p.st.fill))}</span>`;
+    const sel = selId === p.id;
+    return live
+      ? `<button type="button" class="galcard${sel ? " sel" : ""}" data-preset="${p.id}" aria-pressed="${sel}" aria-label="${esc(p.name)} preset">${inner}</button>`
+      : `<span class="galcard${sel ? " sel" : ""}">${inner}</span>`;
+  }
+
+  function optH() {
+    return `<div class="win" style="width:520px;height:620px">${traffic}${appHead()}
+      <div class="wscroll fade-bottom"><div class="wbody">
+        ${tile("Meter style",
+          `<div class="gal">${PRESETS.map(p => presetCard(p, "quiet", false)).join("")}</div>` +
+          `<span class="disclose"><svg class="chev" viewBox="0 0 12 12"><use href="#ico-chevron"/></svg>Customize</span>` +
+          help("Presets set format, shape, and fill together. Customize opens the three axes."))}
+        ${tile("Theme", `<div class="themerow">${themeThumbs("system", false)}</div>`)}
+        ${T.menuBar(null)}
+      </div></div>
+      ${footer(false)}</div>`;
+  }
+
+  /* ---------- mount the static mocks ---------- */
+  const put = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  put("baseDark", baselineWin(true));
+  put("baseLight", baselineWin(false));
+  put("optA", optA());
+  put("optB1", optB()); put("optB2", optB());
+  put("optC1", optC()); put("optC2", optC());
+  put("optD", optD());
+  put("optE1", optE()); put("optE2", optE());
+  put("optF1", optF()); put("optF2", optF());
+  put("optG1", optG()); put("optG2", optG());
+  put("optH", optH());
+
+  /* ============================================================
+     INTERACTIVE COMPONENT GALLERY
+     ============================================================ */
+  const S = { format: "micro", shape: "chip", fill: "event" };
+  let pctMode = "left";
+  let themeSel = "system";
+  const mbState = { showPct: true, priority: new Set() };
+  const PROV_MB = { claude: { sev: "l", pct: 38 }, codex: { sev: "h", pct: 64 }, grok: { sev: "h", pct: 71 }, cursor: { sev: "c", pct: 12 } };
+  const ORDER = ["claude", "codex", "grok", "cursor"];
+  const winPref = { claude: "Weekly", codex: "5-hour" };
+  let interval = 5;
+  const SLIDE = [2, 5, 10, 15, 30, 60];
+
+  /* --- scheme --- */
+  let scheme = "dark";
+  function applyScheme() {
+    document.querySelectorAll('[data-scheme="auto"]').forEach(el => {
+      el.classList.toggle("light", scheme === "light");
+      if (el.classList.contains("stage")) el.classList.toggle("stage-light", scheme === "light");
+    });
+    document.querySelectorAll('[data-pair="a"]').forEach(el => {
+      el.classList.toggle("light", scheme === "light");
+      el.classList.toggle("stage-light", scheme === "light");
+    });
+    document.querySelectorAll('[data-pair="b"]').forEach(el => {
+      el.classList.toggle("light", scheme === "dark");
+      el.classList.toggle("stage-light", scheme === "dark");
+    });
+    document.querySelectorAll("[data-paircap]").forEach(el => {
+      const isA = el.dataset.paircap === "a";
+      el.textContent = (isA === (scheme === "dark")) ? "Dark" : "Light";
+    });
+    const ts = document.querySelector('[data-scheme="theme"]');
+    if (ts) {
+      const light = themeSel === "light" || (themeSel === "system" && scheme === "light");
+      ts.classList.toggle("light", light);
+    }
+    document.getElementById("btnDark").setAttribute("aria-pressed", String(scheme === "dark"));
+    document.getElementById("btnLight").setAttribute("aria-pressed", String(scheme === "light"));
+  }
+  document.getElementById("btnDark").addEventListener("click", () => { scheme = "dark"; applyScheme(); });
+  document.getElementById("btnLight").addEventListener("click", () => { scheme = "light"; applyScheme(); });
+
+  /* --- theme picker --- */
+  const themeRow = document.getElementById("themeRow");
+  const themeStage = themeRow.closest(".compstage");
+  themeStage.dataset.scheme = "theme";
+  function renderTheme() {
+    themeRow.innerHTML = themeThumbs(themeSel, true);
+    themeRow.querySelectorAll("[data-theme]").forEach(b => b.addEventListener("click", () => {
+      themeSel = b.dataset.theme; renderTheme(); applyScheme();
+    }));
+  }
+  renderTheme();
+
+  /* --- percentages --- */
+  const pctSeg = document.getElementById("pctSeg");
+  const pctPreview = document.getElementById("pctPreview");
+  function renderPct() {
+    pctSeg.innerHTML = ["Left", "Used"].map(o => {
+      const on = o.toLowerCase() === pctMode;
+      return `<button type="button" class="${on ? "sel" : ""}" role="radio" aria-checked="${on}">${o}</button>`;
+    }).join("");
+    pctSeg.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+      pctMode = b.textContent.toLowerCase(); renderPct();
+    }));
+    pctPreview.innerHTML = `<div class="meters micro-mode">` +
+      CARD_METERS.slice(0, 2).map(m => meterRow(m, DEFAULT_STYLE, pctMode)).join("") + `</div>`;
+  }
+  renderPct();
+
+  /* --- meter style, three treatments --- */
+  const specimenEl = document.getElementById("sharedSpecimen");
+  const specimenMB = document.getElementById("sharedMenuBar");
+  const tokenEl = document.getElementById("styleToken");
+  const treatA = document.getElementById("treatA");
+  const treatB = document.getElementById("treatB");
+  const treatC = document.getElementById("treatC");
+  let customOpen = false;
+
+  const liveSeg = (opts, sel, onPick, label, extra) => {
+    const id = "sg" + Math.random().toString(36).slice(2, 8);
+    return `<span class="seg ${extra || ""}" role="radiogroup" aria-label="${esc(label)}" data-lsg="${id}">` +
+      opts.map(([val, text]) => `<button type="button" class="${val === sel ? "sel" : ""}" role="radio" aria-checked="${val === sel}" data-val="${val}">${esc(text)}</button>`).join("") +
+      `</span>`;
+  };
+
+  function currentPreset() {
+    const hit = PRESETS.find(p => p.st.format === S.format && p.st.shape === S.shape && p.st.fill === S.fill);
+    return hit ? hit.id : null;
+  }
+
+  function renderStyle() {
+    specimenEl.innerHTML = providerCard("claude", "Max", CARD_METERS, S, "left");
+    specimenMB.innerHTML = `<div class="well-box" style="display:inline-block">${menuBarStrip([{ sev: "l", pct: 38 }, { sev: "h", pct: 64 }], true)}</div>`;
+    const res = resolvedShape(S);
+    tokenEl.textContent = `${S.format}.${S.shape}.${S.fill}`;
+    const noteEl = document.getElementById("styleNote");
+    const isDefault = S.format === "micro" && S.shape === "chip" && S.fill === "event";
+    noteEl.textContent = isDefault ? " (the shipped default)" : (res !== S.shape ? ` (stored; renders as ${res})` : "");
+
+    /* (i) refined swatch grid */
+    treatA.innerHTML = `<div class="tstack">
+      <div class="trow center"><span class="tlabel">Format</span><span class="ctl-end">${liveSeg([["full", "Full"], ["micro", "Micro"]], S.format, null, "Format")}</span></div>
+      <div class="tgroup"><span class="subhead">Shape</span><div class="swgrid shapes">${shapeSwatches(S, true)}</div>
+      ${S.format === "full" ? `<p class="thelp">Tube is available only with Micro format.</p>` : ""}</div>
+      <div class="tgroup"><span class="subhead">Fill</span><div class="swgrid fills">${fillSwatches(S, true)}</div></div>
+    </div>`;
+
+    /* (ii) three segmented rows, each with a live gauge */
+    const gaugeOf = () => `<span style="display:inline-flex;align-items:center;min-width:34px;justify-content:flex-end">${microGauge(resolvedShape(S), S.fill, "h", 62)}</span>`;
+    treatB.innerHTML = `<div class="tstack">
+      <div class="trow center"><span class="tlabel">Format</span><span class="ctl-end">${liveSeg([["full", "Full"], ["micro", "Micro"]], S.format, null, "Format")}${gaugeOf()}</span></div>
+      <div class="trow center"><span class="tlabel">Shape</span><span class="ctl-end">${liveSeg([["chip", "Chip"], ["machined", "Mach."], ["segmented", "Seg."], ["tube", "Tube"]], S.shape, null, "Shape", "compact")}${gaugeOf()}</span></div>
+      <div class="trow center"><span class="tlabel">Fill</span><span class="ctl-end">${liveSeg([["solid", "Solid"], ["glass", "Glass"], ["ghost", "Ghost"], ["event", "Event"], ["hue", "Ramp"]], S.fill, null, "Fill", "compact")}${gaugeOf()}</span></div>
+      <p class="thelp">Labels abbreviate at this width: Glass + cap, Ghost + cap, Color as event, Hue ramp.</p>
+    </div>`;
+
+    /* (iii) preset gallery + customize */
+    const sel = currentPreset();
+    treatC.innerHTML = `<div class="tstack">
+      <div class="gal">${PRESETS.map(p => presetCard(p, sel, true)).join("")}</div>
+      <button type="button" class="disclose${customOpen ? " open" : ""}" id="discloseBtn" aria-expanded="${customOpen}"><svg class="chev" viewBox="0 0 12 12"><use href="#ico-chevron"/></svg>Customize</button>
+      ${customOpen ? `<div class="tgroup"><span class="subhead">Shape</span><div class="swgrid shapes">${shapeSwatches(S, true)}</div></div>
+      <div class="tgroup"><span class="subhead">Fill</span><div class="swgrid fills">${fillSwatches(S, true)}</div></div>` : ""}
+      ${sel ? "" : `<p class="thelp">Custom combination. No preset matches ${S.format}.${S.shape}.${S.fill}.</p>`}
+    </div>`;
+
+    [treatA, treatB, treatC].forEach(root => {
+      root.querySelectorAll("[data-lsg] button").forEach(b => b.addEventListener("click", () => {
+        const key = b.closest(".trow").querySelector(".tlabel").textContent.toLowerCase();
+        if (key === "format") S.format = b.dataset.val;
+        else if (key === "shape") S.shape = b.dataset.val;
+        else S.fill = b.dataset.val;
+        renderStyle();
+      }));
+      root.querySelectorAll("[data-shape]").forEach(b => b.addEventListener("click", () => { S.shape = b.dataset.shape; renderStyle(); }));
+      root.querySelectorAll("[data-fill]").forEach(b => b.addEventListener("click", () => { S.fill = b.dataset.fill; renderStyle(); }));
+      root.querySelectorAll("[data-preset]").forEach(b => b.addEventListener("click", () => {
+        const p = PRESETS.find(x => x.id === b.dataset.preset);
+        S.format = p.st.format; S.shape = p.st.shape; S.fill = p.st.fill; renderStyle();
+      }));
+    });
+    const disc = document.getElementById("discloseBtn");
+    if (disc) disc.addEventListener("click", () => { customOpen = !customOpen; renderStyle(); });
+    applyScheme();
+  }
+  renderStyle();
+
+  /* --- menu bar specimen --- */
+  const mbSpecimen = document.getElementById("mbSpecimen");
+  const mbChips = document.getElementById("mbChips");
+  const mbSwitch = document.getElementById("mbPct");
+  function mbEntries() {
+    if (!mbState.priority.size) {
+      let tight = null;
+      ORDER.forEach(p => { if (!tight || PROV_MB[p].pct < PROV_MB[tight].pct) tight = p; });
+      return [PROV_MB[tight]];
+    }
+    return ORDER.filter(p => mbState.priority.has(p)).map(p => PROV_MB[p]);
+  }
+  function renderMB() {
+    mbSpecimen.innerHTML = menuBarStrip(mbEntries(), mbState.showPct);
+    const autoOn = mbState.priority.size === 0;
+    mbChips.innerHTML = `<button type="button" class="chip${autoOn ? " sel" : ""}" data-chip="auto" aria-pressed="${autoOn}">Auto</button>` +
+      ORDER.map(p => {
+        const on = mbState.priority.has(p);
+        return `<button type="button" class="chip${on ? " sel" : ""}" data-chip="${p}" aria-pressed="${on}">${mark(p)}${NAME[p]}</button>`;
+      }).join("");
+    mbChips.querySelectorAll("[data-chip]").forEach(b => b.addEventListener("click", () => {
+      const k = b.dataset.chip;
+      if (k === "auto") mbState.priority.clear();
+      else if (mbState.priority.has(k)) mbState.priority.delete(k);
+      else mbState.priority.add(k);
+      renderMB();
+    }));
+    mbSwitch.setAttribute("aria-checked", String(mbState.showPct));
+    mbSwitch.classList.toggle("on", mbState.showPct);
+  }
+  mbSwitch.addEventListener("click", () => { mbState.showPct = !mbState.showPct; renderMB(); });
+  renderMB();
+
+  /* --- refresh interval --- */
+  const stepVal = document.getElementById("stepVal");
+  const slideVal = document.getElementById("slideVal");
+  const slideIn = document.getElementById("slideIn");
+  const setStep = v => { interval = Math.min(60, Math.max(2, v)); stepVal.textContent = interval + " min"; };
+  document.getElementById("stepUp").addEventListener("click", () => setStep(interval + 1));
+  document.getElementById("stepDown").addEventListener("click", () => setStep(interval - 1));
+  slideIn.addEventListener("input", () => { slideVal.textContent = SLIDE[+slideIn.value] + " min"; });
+
+  /* --- preferred window matrix --- */
+  const matrix = document.getElementById("winMatrix");
+  function renderMatrix() {
+    matrix.innerHTML = ORDER.map(p => {
+      const head = `<span class="prow">${mark(p)}${NAME[p]}</span>`;
+      if (p === "grok" || p === "cursor") return head + `<span><span class="pill">Billing period</span></span>`;
+      const opts = ["Weekly", "5-hour"];
+      return head + `<span class="seg cap220" role="radiogroup" aria-label="${NAME[p]} preferred window" data-mx="${p}">` +
+        opts.map(o => `<button type="button" class="${winPref[p] === o ? "sel" : ""}" role="radio" aria-checked="${winPref[p] === o}">${o}</button>`).join("") + `</span>`;
+    }).join("");
+    matrix.querySelectorAll("[data-mx] button").forEach(b => b.addEventListener("click", () => {
+      winPref[b.parentElement.dataset.mx] = b.textContent; renderMatrix();
+    }));
+  }
+  renderMatrix();
+
+  applyScheme();
+})();
+</script>
+</body>
+</html>

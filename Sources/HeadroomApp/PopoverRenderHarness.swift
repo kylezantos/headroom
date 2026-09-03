@@ -367,7 +367,7 @@ enum PopoverRenderHarness {
             preferences: preferences,
             // The unsigned debug binary's Keychain reads raise a SecurityAgent prompt that
             // blocks the whole run; the diagnostic never needs real keys.
-            credentialStore: CredentialStore(apiKeyStore: RenderAPIKeyStore())
+            credentialStore: CredentialStore(apiKeyStore: DemoAPIKeyStore())
         )
             .environment(\.colorScheme, dark ? .dark : .light)
 
@@ -467,12 +467,4 @@ enum PopoverRenderHarness {
             return DemoFixture.codexSnapshot
         }
     }
-}
-
-/// Keychain stand-in for the settings renders: every read reports "no key" so the
-/// configured-key rows render the editor state and no Keychain prompt can appear.
-private struct RenderAPIKeyStore: APIKeyStoring {
-    func readAPIKey(for provider: APIKeyProvider) throws -> String { throw CredentialError.notLoggedIn }
-    func saveAPIKey(_ key: String, for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
-    func deleteAPIKey(for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
 }

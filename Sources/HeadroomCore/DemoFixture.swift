@@ -476,6 +476,18 @@ extension DemoFixture {
 }
 
 /// A `UsageProvider` that returns a fixed snapshot — screenshot demo mode only.
+/// Keychain stand-in for demo and render runs: every read reports "no key", so the API
+/// Spend rows render their editor state and the process never touches the real Keychain.
+/// The unsigned debug binary otherwise raises one macOS Keychain prompt per provider each
+/// time Settings mounts, and "Always Allow" cannot stick because its signature changes on
+/// every rebuild.
+public struct DemoAPIKeyStore: APIKeyStoring {
+    public init() {}
+    public func readAPIKey(for provider: APIKeyProvider) throws -> String { throw CredentialError.notLoggedIn }
+    public func saveAPIKey(_ key: String, for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
+    public func deleteAPIKey(for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
+}
+
 public struct DemoUsageProvider: UsageProvider {
     public let id: ProviderID
     public let accountID: AccountID

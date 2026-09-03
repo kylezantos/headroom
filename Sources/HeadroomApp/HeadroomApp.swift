@@ -477,7 +477,12 @@ struct HeadroomApp: App {
                 store: store,
                 appearancePreference: $appearancePreference,
                 softwareUpdates: softwareUpdates,
-                preferences: preferences
+                preferences: preferences,
+                // Demo runs stay off the real Keychain: the unsigned debug binary would
+                // otherwise raise one prompt per API-key provider every time Settings opens.
+                credentialStore: DemoFixture.isEnabled
+                    ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
+                    : CredentialStore()
             )
             .preferredColorScheme(resolvedScheme)
             // KTD2: the sidebar window is a fixed frame, so both resize affordances are

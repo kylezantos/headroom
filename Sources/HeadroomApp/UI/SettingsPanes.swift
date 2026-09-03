@@ -427,7 +427,8 @@ struct AccountsSettingsPane: View {
             AccountsSettingsTile(
                 store: store,
                 duplicateLoginLabels: duplicateLoginLabels,
-                surfaceBinding: surfaceBinding
+                surfaceBinding: surfaceBinding,
+                showsTitle: false
             )
         }
     }

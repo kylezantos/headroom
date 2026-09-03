@@ -65,6 +65,8 @@ struct SettingsSidebar: View {
                 Text("Headroom")
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(-0.2)
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
                 if let version = Self.versionLabel {
                     // Quiet stamp under the name. Hidden under `swift run` (no bundle
                     // Info.plist) rather than showing a placeholder.

@@ -43,22 +43,27 @@ enum PopoverRenderHarness {
                     }
                 }
             }
-            for mode in UsagePercentageMode.allCases {
-                for dark in [false, true] {
-                    let modeSuffix = mode == .used ? "-used" : ""
-                    let name = "settings\(modeSuffix)-\(dark ? "dark" : "light").png"
-                    let url = outDir.appendingPathComponent(name)
-                    if await renderSettings(percentageMode: mode, dark: dark, to: url) {
-                        print("✓ \(url.path)")
-                    } else {
-                        failedPaths.append(url.path)
+            // KTD10: one capture per sidebar pane and appearance at the fixed frame. The
+            // Used variant only matters where Percentages lives now (Appearance).
+            for pane in SettingsPane.allCases {
+                let modes: [UsagePercentageMode] = pane == .appearance ? UsagePercentageMode.allCases : [.remaining]
+                for mode in modes {
+                    for dark in [false, true] {
+                        let modeSuffix = mode == .used ? "-used" : ""
+                        let name = "settings-\(pane.rawValue)\(modeSuffix)-\(dark ? "dark" : "light").png"
+                        let url = outDir.appendingPathComponent(name)
+                        if await renderSettings(pane: pane, percentageMode: mode, dark: dark, to: url) {
+                            print("✓ \(url.path)")
+                        } else {
+                            failedPaths.append(url.path)
+                        }
                     }
                 }
             }
             for dark in [false, true] {
-                let name = "settings-accounts-\(dark ? "dark" : "light").png"
+                let name = "settings-accounts-multi-\(dark ? "dark" : "light").png"
                 let url = outDir.appendingPathComponent(name)
-                if await renderSettings(percentageMode: .remaining, dark: dark, multiAccount: true, to: url) {
+                if await renderSettings(pane: .accounts, percentageMode: .remaining, dark: dark, multiAccount: true, to: url) {
                     print("✓ \(url.path)")
                 } else {
                     failedPaths.append(url.path)
@@ -301,9 +306,12 @@ enum PopoverRenderHarness {
     /// Settings window, demo store, fixed 460×1240 — verifies the shared type hierarchy
     /// (22pt title / 15pt tile heads / 13pt controls / 11pt fine print) and the
     /// all-tiles material system across both windows.
-    private static func renderSettings(percentageMode: UsagePercentageMode, dark: Bool, multiAccount: Bool = false, to url: URL) async -> Bool {
+    private static func renderSettings(pane: SettingsPane, percentageMode: UsagePercentageMode, dark: Bool, multiAccount: Bool = false, to url: URL) async -> Bool {
         NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         let preferences = renderPreferences(mode: percentageMode)
+        // The window opens on the persisted pane (R4), so selecting it here is how the
+        // harness chooses which detail column to capture without a view-side hook.
+        preferences.settingsPane = pane
         let store: UsageStore
         if multiAccount {
             let fixture = multiFixture(for: .multiMixed)
@@ -351,18 +359,21 @@ enum PopoverRenderHarness {
                 preferences: preferences
             )
         }
-        let height: CGFloat = multiAccount ? 1500 : 1240
+        let width = SettingsView.windowWidth
+        let height = SettingsView.windowHeight
         let root = SettingsView(
             store: store,
             appearancePreference: .constant(dark ? .dark : .light),
-            preferences: preferences
+            preferences: preferences,
+            // The unsigned debug binary's Keychain reads raise a SecurityAgent prompt that
+            // blocks the whole run; the diagnostic never needs real keys.
+            credentialStore: CredentialStore(apiKeyStore: RenderAPIKeyStore())
         )
-            .frame(width: 460, height: height)
             .environment(\.colorScheme, dark ? .dark : .light)
 
         let hosting = NSHostingView(rootView: root)
         hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        hosting.frame = NSRect(x: 0, y: 0, width: 460, height: height)
+        hosting.frame = NSRect(x: 0, y: 0, width: width, height: height)
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.contentView = hosting
@@ -456,4 +467,12 @@ enum PopoverRenderHarness {
             return DemoFixture.codexSnapshot
         }
     }
+}
+
+/// Keychain stand-in for the settings renders: every read reports "no key" so the
+/// configured-key rows render the editor state and no Keychain prompt can appear.
+private struct RenderAPIKeyStore: APIKeyStoring {
+    func readAPIKey(for provider: APIKeyProvider) throws -> String { throw CredentialError.notLoggedIn }
+    func saveAPIKey(_ key: String, for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
+    func deleteAPIKey(for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
 }

@@ -71,13 +71,15 @@ struct SettingsView: View {
         NavigationSplitView {
             SettingsSidebar(selection: sidebarBinding)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 196, max: 250)
+                // KTD1: the removal must sit on the sidebar column's content — applied to
+                // the split view itself it is ignored and the toggle still renders.
+                .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
         }
         // KTD8: no `.navigationTitle` anywhere in the split view — the window title
         // string set in `HeadroomApp` is what `placeSettingsWindowOnActiveScreen()`
         // matches on, and a navigation title would replace it.
-        .toolbar(removing: .sidebarToggle)
         .frame(width: Self.windowWidth, height: Self.windowHeight)
         .onAppear { loadPreferences() }
         .task { await refreshSavedKeyPresence() }

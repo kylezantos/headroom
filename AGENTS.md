@@ -46,7 +46,10 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
 - `Sources/HeadroomApp` — SwiftUI `MenuBarExtra(.window)` shell + adaptive popover (Liquid
   Glass on Tahoe, native material on Sequoia), cards, settings, menu bar label.
   `MeterGauge` is the popover's single format × shape × fill renderer; `AppComposition` is
-  the one place providers are wired.
+  the one place providers are wired. Settings (Sep 2026) is a fixed-frame
+  `NavigationSplitView`: `SettingsView` owns every root state and dialog, `SettingsSidebar`
+  lists the six `SettingsPane` destinations, and the stateless panes live in
+  `SettingsPanes.swift`; Appearance previews choices with an inert `AppearanceSpecimen`.
 
 Data flow: `PollingEngine` → `UsageStore.refreshAll()` fetches providers concurrently →
 merges with continuity → menu bar label + popover bind to the `@Observable` store.
@@ -83,7 +86,9 @@ top, refreshes only it, and immediately reroutes the menu bar, widgets, phone pr
 capability recovery, and the never-signed-in timer exemption. A dangling primary pointer falls
 back to canonical order without writing defaults and is retained in case the row resurfaces.
 The popover still shows all accounts at the regular meter scale and the card list scrolls past a
-640pt cap. Account management lives in Settings → Accounts (`AccountsSettingsTile`); removing
+640pt cap. Account management lives in Settings → Accounts (`AccountsSettingsTile`), where each
+provider group header also carries the subscription on/off switch (off means not fetched, never
+unmanageable); removing
 an **extra** account deletes its Headroom-owned config home, while the **built-in** account can
 only be *stop-tracked* (Aug 2026): a persisted registry tombstone hides the row without touching
 the CLI's own config or login, allowed only while another account exists, undone via "Show CLI

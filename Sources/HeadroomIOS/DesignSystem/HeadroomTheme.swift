@@ -22,6 +22,21 @@ enum HeadroomTheme {
         Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
+    /// Bar-fill tier, mirroring the Mac popover and the widgets: vivid in the default light
+    /// appearance (the percent numeral beside the bar carries the value at text contrast),
+    /// falling back to the 3:1 text-safe tokens under Increase Contrast.
+    static func severityFill(
+        for severity: WidgetUsageSeverity,
+        scheme: ColorScheme,
+        increasedContrast: Bool
+    ) -> Color {
+        Color(HeadroomSeverityColorValues.fill(
+            for: severity,
+            dark: scheme == .dark,
+            increasedContrast: increasedContrast
+        ))
+    }
+
     /// The screen background — a lifted vertical gradient (gray at top → near-black at
     /// bottom) with a faint cool glow bleeding from the top, ported from the approved
     /// `design/ios-companion.html` mock. This is what gives the phone its Mac-like

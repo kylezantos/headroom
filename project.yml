@@ -99,6 +99,7 @@ targets:
       - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Models/ProviderSetup.swift
       - path: Sources/HeadroomCore/Models/UsageModels.swift
+      - path: Sources/HeadroomCore/Models/PlanLabelPresentation.swift
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift
@@ -132,6 +133,7 @@ targets:
       - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Models/ProviderSetup.swift
       - path: Sources/HeadroomCore/Models/UsageModels.swift
+      - path: Sources/HeadroomCore/Models/PlanLabelPresentation.swift
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift

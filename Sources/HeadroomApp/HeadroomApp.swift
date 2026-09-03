@@ -480,13 +480,18 @@ struct HeadroomApp: App {
                 preferences: preferences
             )
             .preferredColorScheme(resolvedScheme)
+            // KTD2: the sidebar window is a fixed frame, so both resize affordances are
+            // withdrawn rather than left as no-ops the user can grab.
+            .windowResizeBehavior(.disabled)
+            .windowMinimizeBehavior(.disabled)
         }
-        // Hidden title bar: the settings window draws its own header (logo + title) in
-        // content, so traffic lights float on a transparent strip. Avoids Tahoe wrapping a
-        // toolbar item in a Liquid Glass container. (Standard modern-macOS utility pattern.)
+        // Hidden title bar: the settings window draws its own identity block (icon, name,
+        // version) at the top of the sidebar, so traffic lights float on a transparent
+        // strip. Avoids Tahoe wrapping a toolbar item in a Liquid Glass container.
+        // (Standard modern-macOS utility pattern.)
         .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentMinSize)
-        .defaultSize(width: 460, height: 700)
+        .windowResizability(.contentSize)
+        .defaultSize(width: SettingsView.windowWidth, height: SettingsView.windowHeight)
         .defaultPosition(.center)
     }
 

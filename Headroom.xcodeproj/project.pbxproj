@@ -124,6 +124,7 @@
 		8FF832CFE659FBCFD41419B2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 702E83E9BC8385F802D31257 /* PrivacyInfo.xcprivacy */; };
 		93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */; };
 		94B616960A02334A94964B51 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; };
+		9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */; };
 		95463E3DC5B6918C5EC2768C /* LargeWidgetDensity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7A5E48B198FF02F4A1C58 /* LargeWidgetDensity.swift */; };
 		959AE719260D8E5F925ACCD5 /* HeadroomWidgetContainerBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7ED0585073F5F5D27320A1 /* HeadroomWidgetContainerBackground.swift */; };
 		9A2E1DD1FDAA631A97E25F20 /* Redaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF324F891EEEAD03BABA4FC /* Redaction.swift */; };
@@ -341,6 +342,7 @@
 		45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLabelPresentation.swift; sourceTree = "<group>"; };
 		489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardIdentityRows.swift; sourceTree = "<group>"; };
 		48C63A7205115E3F08BEDE08 /* PopoverRenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverRenderHarness.swift; sourceTree = "<group>"; };
+		4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountEmail.swift; sourceTree = "<group>"; };
 		4B371EDE73E7D7D689ADFED6 /* GrokAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokAccountEmailReader.swift; sourceTree = "<group>"; };
 		4BE9F956D9F249904E8CE412 /* DemoModeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeUITests.swift; sourceTree = "<group>"; };
 		4E052D0EBE1013A87240C92E /* Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Account.swift; sourceTree = "<group>"; };
@@ -778,6 +780,7 @@
 			isa = PBXGroup;
 			children = (
 				4E052D0EBE1013A87240C92E /* Account.swift */,
+				4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */,
 				7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */,
 				87284976C67D36ECE2DD747F /* Countdown.swift */,
 				917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */,
@@ -1143,6 +1146,7 @@
 				C783F2F2706BC1861515E895 /* APISpendPresentation.swift in Sources */,
 				93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */,
 				01F5298BBF7958F27A848A8A /* Account.swift in Sources */,
+				9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */,
 				A113A612C726C4102627D24C /* AccountRegistry.swift in Sources */,
 				4B4C9CAB4F37C267CE7FAF7E /* AccountStorage.swift in Sources */,
 				E18DE57B1F934A2358BA65EE /* BrandColorValues.swift in Sources */,

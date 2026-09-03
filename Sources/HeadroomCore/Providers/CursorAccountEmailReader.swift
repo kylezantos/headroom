@@ -21,12 +21,8 @@ public enum CursorStatusBlob {
     }
 
     public static func email(in data: Data) -> String? {
-        guard let root = try? JSONDecoder().decode(Root.self, from: data),
-              let email = root.userInfo?.email?
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-              !email.isEmpty
-        else { return nil }
-        return email
+        guard let root = try? JSONDecoder().decode(Root.self, from: data) else { return nil }
+        return AccountEmail.normalized(root.userInfo?.email)
     }
 }
 

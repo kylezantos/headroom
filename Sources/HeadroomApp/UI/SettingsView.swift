@@ -67,7 +67,13 @@ struct SettingsView: View {
     /// The hidden title bar adds 32pt (measured live), so 812pt of content is an 844pt
     /// window, which still clears a 13-inch MacBook Air's 931pt of usable height. Larger
     /// text sizes scroll inside the pane instead of growing the frame.
-    static let windowWidth: CGFloat = 720
+    /// 740, not 720: the sidebar column had to grow 36pt to stop clipping "Widgets &
+    /// iPhone", and the detail column cannot absorb that. Appearance's Fill row needs
+    /// 392pt of grid (5 × 72pt swatches + 4 × 8pt gaps) beside its 46pt row label, and
+    /// the detail column only offers `width − sidebar − 124`. At 720/216 that is 379pt
+    /// and the five fills wrap to two rows; 740/216 restores the 523pt detail column —
+    /// the exact width `MeterStyleTile`'s 72pt minimum was chosen against.
+    static let windowWidth: CGFloat = 740
     static let windowHeight: CGFloat = 812
     static let minimumWindowHeight: CGFloat = 600
     /// Diagnostic seam: the render harness raises the frame for its multi-account capture
@@ -78,7 +84,11 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             SettingsSidebar(selection: sidebarBinding)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 196, max: 250)
+                // 216pt as the *floor*, not just the ideal: with the split view pinned to
+                // a fixed overall width the sidebar can settle on its minimum, and 180pt
+                // clipped the longest destination to "Widgets & i…". 108pt of text at
+                // 13pt plus the icon column and the sidebar's row insets needs ~216pt.
+                .navigationSplitViewColumnWidth(min: 216, ideal: 216, max: 250)
                 // KTD1: the removal must sit on the sidebar column's content — applied to
                 // the split view itself it is ignored and the toggle still renders.
                 .toolbar(removing: .sidebarToggle)

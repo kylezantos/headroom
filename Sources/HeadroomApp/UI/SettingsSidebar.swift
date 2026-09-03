@@ -27,6 +27,11 @@ struct SettingsSidebar: View {
                     Section(group.label) {
                         ForEach(group.panes) { pane in
                             Label(pane.label, systemImage: pane.symbolName)
+                                // The column is sized for the longest destination
+                                // ("Widgets & iPhone", 108pt of glyphs at 13pt), but a
+                                // future name or a larger text size must truncate on one
+                                // line rather than wrap a sidebar row to two.
+                                .lineLimit(1)
                                 .tag(pane)
                         }
                     }

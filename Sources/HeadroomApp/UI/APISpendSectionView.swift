@@ -42,6 +42,12 @@ struct APISpendSectionView: View {
             kind: snapshot.kind,
             periodLabel: store.apiSpendPeriod.displayLabel(now: now)
         )
+        // Badge, sub-line and button title all come from one Core decision, so a rejected
+        // key can no longer be badged "Needs setup" next to an "Add key" button.
+        let status = APISpendPresentation.rowStatus(
+            freshness: snapshot.freshness,
+            displayName: snapshot.displayName
+        )
 
         HStack(alignment: .center, spacing: 6) {
             VStack(alignment: .leading, spacing: 2) {
@@ -56,38 +62,43 @@ struct APISpendSectionView: View {
                 // already carries one consolidated stamp. Non-live states keep their
                 // status line because it carries information the header does not (U2).
                 if snapshot.freshness != .live {
-                    statusLine(snapshot)
+                    statusLine(status)
                 }
             }
             Spacer(minLength: 8)
-            amountView(snapshot)
+            amountView(snapshot, status: status)
         }
     }
 
-    @ViewBuilder private func statusLine(_ snapshot: APISpendSnapshot) -> some View {
-        switch snapshot.freshness {
-        case .pending:
-            Text("Waiting for cost data")
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-        case .live:
-            // Live rows render no sub-line (gated out in spendRow) — the popover header
-            // carries the single consolidated "Updated" stamp.
-            EmptyView()
-        case .stale(let reason):
-            HStack(spacing: 6) {
-                Text(reason.isPermanent ? "Needs setup" : "Stale")
+    @ViewBuilder private func statusLine(_ status: APISpendRowStatus) -> some View {
+        HStack(spacing: 6) {
+            if let badge = status.badge {
+                Text(badge)
                     .font(.caption2.weight(.semibold))
-                    .foregroundStyle(reason.isPermanent ? ProviderStyle.severityColor(for: .low, scheme: scheme) : .secondary)
-                Text(reason.message)
+                    .foregroundStyle(badgeColor(status.tone))
+            }
+            if let message = status.message {
+                Text(message)
                     .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(status.tone == .quiet ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
                     .lineLimit(1)
             }
         }
     }
 
-    @ViewBuilder private func amountView(_ snapshot: APISpendSnapshot) -> some View {
+    private func badgeColor(_ tone: APISpendRowStatus.Tone) -> Color {
+        switch tone {
+        case .quiet, .neutral:
+            .secondary
+        case .warning:
+            ProviderStyle.severityColor(for: .low, scheme: scheme)
+        case .critical:
+            // Text ink, not the bar fill — the badge is small type on the tile surface.
+            ProviderStyle.criticalText(scheme: scheme)
+        }
+    }
+
+    @ViewBuilder private func amountView(_ snapshot: APISpendSnapshot, status: APISpendRowStatus) -> some View {
         if let amount = APISpendPresentation.amountText(amount: snapshot.amount, currency: snapshot.currency) {
             HStack(spacing: 3) {
                 Text(amount)
@@ -120,8 +131,8 @@ struct APISpendSectionView: View {
                     .accessibilityLabel("Add \(snapshot.displayName) credits")
                 }
             }
-        } else {
-            Button("Add key", action: onOpenSettings)
+        } else if let callToAction = status.callToAction {
+            Button(callToAction, action: onOpenSettings)
                 .buttonStyle(HoverButtonStyle(horizontalPadding: 7, verticalPadding: 3))
                 .font(.caption2)
         }

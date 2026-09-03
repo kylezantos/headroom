@@ -89,10 +89,13 @@ struct APISpendMirrorView: View {
     }
 
     @ViewBuilder private func statusLine(_ summary: WidgetAPISpendSummary) -> some View {
-        if let status = APISpendPresentation.companionStatusText(freshness: summary.freshness) {
+        if let status = APISpendPresentation.companionStatusText(
+            freshness: summary.freshness,
+            attention: summary.attention
+        ) {
             Text(status)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(statusColor(for: summary.freshness))
+                .foregroundStyle(statusColor(for: summary))
                 .lineLimit(1)
         }
     }
@@ -115,14 +118,23 @@ struct APISpendMirrorView: View {
         }
     }
 
-    private func statusColor(for freshness: WidgetProviderFreshness) -> Color {
-        switch freshness {
-        case .pending:
-            HeadroomTheme.tertiaryText(scheme)
-        case .live:
-            HeadroomTheme.tertiaryText(scheme)
-        case .stale(_, let needsAttention):
-            needsAttention ? HeadroomTheme.severityColor(for: .low, scheme: scheme) : HeadroomTheme.secondaryText(scheme)
+    /// Tone comes from the same Core mapping that chose the badge text, so a rejected key
+    /// reads as critical here and as warning-only on a merely missing one.
+    private func statusColor(for summary: WidgetAPISpendSummary) -> Color {
+        let tone = APISpendPresentation.rowStatus(
+            freshness: summary.freshness,
+            attention: summary.attention,
+            displayName: summary.displayName
+        ).tone
+        switch tone {
+        case .quiet:
+            return HeadroomTheme.tertiaryText(scheme)
+        case .neutral:
+            return HeadroomTheme.secondaryText(scheme)
+        case .warning:
+            return HeadroomTheme.severityColor(for: .low, scheme: scheme)
+        case .critical:
+            return HeadroomTheme.severityColor(for: .critical, scheme: scheme)
         }
     }
 }

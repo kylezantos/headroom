@@ -78,7 +78,7 @@ enum SettingsMetrics {
 /// the family: one step under the popover's 16pt card titles, two above the 13pt
 /// controls, so size separates the levels instead of weight alone.
 struct SettingsTile<Content: View>: View {
-    private let title: String
+    private let title: String?
     private let content: Content
 
     init(_ title: String, @ViewBuilder content: () -> Content) {
@@ -86,11 +86,22 @@ struct SettingsTile<Content: View>: View {
         self.content = content()
     }
 
+    /// Untitled form for the single-tile panes (General, Menu Bar, Widgets & iPhone,
+    /// API Spend). The sidebar rebuild made the pane scaffold print the destination name
+    /// as the first row, so a lone tile repeating it said the same word twice a line
+    /// apart. Multi-tile panes (Appearance, Accounts) still need their tile titles.
+    init(@ViewBuilder content: () -> Content) {
+        self.title = nil
+        self.content = content()
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .kerning(-0.2)
+            if let title {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .kerning(-0.2)
+            }
             content
         }
         .padding(13)

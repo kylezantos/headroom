@@ -50,7 +50,7 @@ struct GeneralSettingsPane: View {
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.general.label) {
-            SettingsTile("General") {
+            SettingsTile {
                 VStack(alignment: .leading, spacing: 4) {
                     ResponsiveControlRow(label: "Refresh every") {
                         Stepper(value: $intervalMinutes, in: 2...60) {
@@ -90,30 +90,32 @@ struct GeneralSettingsPane: View {
 
 // MARK: - Appearance
 
+/// Every visual choice in one room (KD7): the live specimen on top, then Theme, meter
+/// style, and the in-app display switches under it — the three tiles the specimen
+/// responds to, in the order it responds to them.
 struct AppearanceSettingsPane: View {
+    let store: UsageStore
     @Binding var appearancePreference: AppearancePreference
     @Binding var meterStyle: MeterStyle
+    @Binding var usagePercentageMode: UsagePercentageMode
+    @Binding var showCodexSparkCountersInApp: Bool
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.appearance.label) {
-            SettingsTile("Appearance") {
-                ResponsiveControlRow(label: "Theme") {
-                    // Declared label matches the visible "Theme" — the old "Appearance"
-                    // label made VoiceOver announce a different name than the screen shows.
-                    Picker("Theme", selection: $appearancePreference) {
-                        ForEach(AppearancePreference.allCases) { preference in
-                            Text(preference.label).tag(preference)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
+            // R6: sits on the pane background above the tiles, not inside one — it is
+            // the subject of the pane, not another setting.
+            AppearanceSpecimen(
+                meterStyle: meterStyle,
+                percentageMode: usagePercentageMode
+            )
+
+            SettingsTile("Theme") {
+                ThemeThumbnailPicker(selection: $appearancePreference)
                     .onChange(of: appearancePreference) { _, newValue in
                         onAppearanceChange(newValue)
                     }
-                }
             }
 
             // KTD13: the real-meter swatches need the tile's full width so they can
@@ -124,6 +126,32 @@ struct AppearanceSettingsPane: View {
             ) { newStyle in
                 meterStyle = newStyle
                 onMeterStyleChange(newStyle)
+            }
+
+            // R8: the two display preferences that used to hide inside "Subscription
+            // Usage", beside the switches that decide whether a provider is polled at
+            // all. They change how numbers read, not what is fetched.
+            SettingsTile("In-app display") {
+                VStack(alignment: .leading, spacing: 4) {
+                    ResponsiveControlRow(label: "Percentages") {
+                        Picker("Percentages", selection: $usagePercentageMode) {
+                            ForEach(UsagePercentageMode.allCases) { mode in
+                                Text(mode.label).tag(mode)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
+                        .onChange(of: usagePercentageMode) { _, newValue in
+                            store.setUsagePercentageMode(newValue)
+                        }
+                    }
+                    SettingsHelpText(text: "Changes the numbers, words, and meter direction in the app and menu bar.")
+                }
+                Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
+                    .onChange(of: showCodexSparkCountersInApp) { _, newValue in
+                        store.setShowCodexSparkCountersInApp(newValue)
+                    }
             }
         }
     }
@@ -142,7 +170,7 @@ struct MenuBarSettingsPane: View {
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.menuBar.label) {
-            SettingsTile("Menu Bar") {
+            SettingsTile {
                 // Live specimen of the real menu-bar label (same renderer, same store
                 // meters), re-rendering as the choices below change — the user sees what
                 // "fill" and "limit window" mean instead of decoding prose.
@@ -363,7 +391,7 @@ struct WidgetsSettingsPane: View {
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.widgets.label) {
-            SettingsTile("Widgets") {
+            SettingsTile {
                 WidgetSettingsSection(
                     widgetsEnabled: $widgetsEnabled,
                     showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
@@ -385,42 +413,21 @@ struct WidgetsSettingsPane: View {
 
 // MARK: - Accounts
 
-/// Interim shape: the Subscription Usage tile still sits above the account groups. U4
-/// moves each provider's switch into its group header and deletes this tile.
+/// Interim shape: the Subscription Usage tile still sits above the account groups,
+/// now holding only the per-provider switches (its two display preferences moved to
+/// Appearance in U3). U4 moves each switch into its group header and deletes this tile.
 struct AccountsSettingsPane: View {
     let store: UsageStore
-    @Binding var usagePercentageMode: UsagePercentageMode
-    @Binding var showCodexSparkCountersInApp: Bool
     let surfaceBinding: (UsageSurface) -> Binding<Bool>
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.accounts.label) {
             SettingsTile("Subscription Usage") {
-                VStack(alignment: .leading, spacing: 4) {
-                    ResponsiveControlRow(label: "Percentages") {
-                        Picker("Percentages", selection: $usagePercentageMode) {
-                            ForEach(UsagePercentageMode.allCases) { mode in
-                                Text(mode.label).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
-                        .onChange(of: usagePercentageMode) { _, newValue in
-                            store.setUsagePercentageMode(newValue)
-                        }
-                    }
-                    SettingsHelpText(text: "Changes the numbers, words, and meter direction in the app and menu bar.")
-                }
                 ForEach(store.registeredProviderOrder, id: \.self) { providerID in
                     if let surface = UsageSurface.subscription(for: providerID) {
                         surfaceSwitchRow(surface)
                     }
                 }
-                Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
-                    .onChange(of: showCodexSparkCountersInApp) { _, newValue in
-                        store.setShowCodexSparkCountersInApp(newValue)
-                    }
             }
 
             AccountsSettingsTile(store: store)
@@ -463,7 +470,7 @@ struct APISpendSettingsPane: View {
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.apiSpend.label) {
-            SettingsTile("API Spend") {
+            SettingsTile {
                 ForEach(store.registeredAPISpendProviderOrder, id: \.self) { providerID in
                     if let provider = APIKeyProvider.allCases.first(where: { $0.providerID == providerID }),
                        let surface = UsageSurface.api(for: providerID) {

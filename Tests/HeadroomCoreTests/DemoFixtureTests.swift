@@ -158,4 +158,29 @@ struct DemoFixtureTests {
             showsPersistentEmail(for: $0, in: fixture.accounts)
         })
     }
+
+    // MARK: - Settings Appearance specimen (U3 / KTD4)
+
+    /// The Appearance pane's live specimen must exercise the whole severity ramp: with
+    /// every demo Claude window sitting in healthy/low territory, `Color as event` and
+    /// `Hue ramp` would preview as identical neutrals (plan Assumptions).
+    @Test func settingsSpecimenSpansEverySeverityBand() {
+        let bands = DemoFixture.settingsSpecimenSnapshot.windows.map(\.severity)
+        #expect(bands.count == 3)
+        #expect(bands.filter { $0 == .healthy }.count == 1)
+        #expect(bands.filter { $0 == .low }.count == 1)
+        #expect(bands.filter { $0 == .critical }.count == 1)
+    }
+
+    /// KTD4: the specimen is a synthetic account, so its id must never collide with a
+    /// real built-in account or any demo fixture account — a collision would let the
+    /// preview card read (or reset) live per-account state.
+    @Test func settingsSpecimenAccountIDIsUnusedElsewhere() {
+        let specimenID = DemoFixture.settingsSpecimenAccount.id
+        #expect(specimenID != ProviderAccount.builtIn(for: .claude).id)
+        for scenario in DemoFixture.MultiAccountScenario.allCases {
+            let ids = DemoFixture.multiFixture(for: scenario).accounts.map(\.id)
+            #expect(!ids.contains(specimenID))
+        }
+    }
 }

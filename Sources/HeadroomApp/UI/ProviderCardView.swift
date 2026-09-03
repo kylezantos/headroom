@@ -69,6 +69,11 @@ struct ProviderCardView: View {
     /// Retry scoped to one account — the multi-account rows use this so watching one
     /// sign-in doesn't re-probe the whole fleet. Defaults to the whole-card retry.
     var onRetryAccount: ((ProviderAccount) -> Void)? = nil
+    /// KTD4: off for the Settings > Appearance specimen. `SetupSessions` dedupes failure
+    /// announcements per account and capability announcements *per provider*, so a preview
+    /// card — even on a synthetic account id — would otherwise clear the real Claude
+    /// capability entry and make the popover re-announce it.
+    var announcesAccessibilityEvents: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
@@ -110,22 +115,26 @@ struct ProviderCardView: View {
         .animation(reduceMotion ? nil : HeadroomMotion.valueSpring, value: snapshot.freshness)
         .onAppear {
             evaluateConnectedPayoff()
-            SetupSessions.announceFailureIfNeeded(for: primaryAccount)
-            SetupSessions.announceCapabilityIfNeeded(
-                capabilityStatus?.state,
-                for: providerID
-            )
+            announceSetupStateIfNeeded()
+            announceCapabilityStateIfNeeded()
         }
         .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
         .onChange(of: SetupSessions.state(for: primaryAccount)) {
-            SetupSessions.announceFailureIfNeeded(for: primaryAccount)
+            announceSetupStateIfNeeded()
         }
         .onChange(of: capabilityStatus?.state) {
-            SetupSessions.announceCapabilityIfNeeded(
-                capabilityStatus?.state,
-                for: providerID
-            )
+            announceCapabilityStateIfNeeded()
         }
+    }
+
+    private func announceSetupStateIfNeeded() {
+        guard announcesAccessibilityEvents else { return }
+        SetupSessions.announceFailureIfNeeded(for: primaryAccount)
+    }
+
+    private func announceCapabilityStateIfNeeded() {
+        guard announcesAccessibilityEvents else { return }
+        SetupSessions.announceCapabilityIfNeeded(capabilityStatus?.state, for: providerID)
     }
 
     // MARK: - Single account (unchanged pre-multi-account layout)

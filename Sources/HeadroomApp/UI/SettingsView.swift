@@ -52,9 +52,14 @@ struct SettingsView: View {
 
     /// KTD2: one fixed frame for every pane. Short panes show empty space and taller
     /// ones scroll internally, so the window never resizes as the user changes rooms.
-    /// Provisional until U3 measures the Appearance pane and pins the final height.
+    ///
+    /// U3 measured Appearance — the tallest pane — at 874.5pt of content at default text
+    /// size (specimen + Theme + Meter style + In-app display). Pinning to that would need
+    /// a ~927pt window once the hidden title bar's ~52pt is added, which no longer fits a
+    /// 900pt-tall display, so the frame is capped at 780pt (≈832pt of window) and
+    /// Appearance scrolls the last ~95pt. Every other pane fits without scrolling.
     static let windowWidth: CGFloat = 720
-    static let windowHeight: CGFloat = 660
+    static let windowHeight: CGFloat = 780
 
     var body: some View {
         NavigationSplitView {
@@ -119,8 +124,11 @@ struct SettingsView: View {
             )
         case .appearance:
             AppearanceSettingsPane(
+                store: store,
                 appearancePreference: $appearancePreference,
                 meterStyle: $meterStyle,
+                usagePercentageMode: $usagePercentageMode,
+                showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
                 onAppearanceChange: { newValue in
                     preferences.appearancePreference = newValue
                     // Repaint the AppKit windows (this Settings window + the popover panel);
@@ -149,8 +157,6 @@ struct SettingsView: View {
         case .accounts:
             AccountsSettingsPane(
                 store: store,
-                usagePercentageMode: $usagePercentageMode,
-                showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
                 surfaceBinding: surfaceBinding
             )
         case .apiSpend:

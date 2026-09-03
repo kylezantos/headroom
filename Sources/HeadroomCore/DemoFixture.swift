@@ -87,6 +87,43 @@ public enum DemoFixture {
         )
     }
 
+    // MARK: Settings Appearance specimen (U3 / KTD4)
+
+    /// Synthetic account behind the Settings > Appearance specimen card. Its id is
+    /// deliberately unlike `.primary` and every `multiFixture` id: `ProviderCardView`
+    /// keys per-account setup state off the account, so a colliding id would let an
+    /// inert preview read — or clear — a real Claude account's state.
+    public static let settingsSpecimenAccount = ProviderAccount(
+        id: AccountID("settings-appearance-specimen"),
+        providerID: .claude,
+        label: "Main",
+        isBuiltIn: false
+    )
+
+    /// The specimen's usage. Its three windows deliberately land one per severity band
+    /// (healthy > 50% remaining, low ≤ 50%, critical ≤ 15%): the shipping demo snapshots
+    /// never reach critical, so `Color as event` and `Hue ramp` would preview as the same
+    /// neutral meters and the fill choice would look inert.
+    public static var settingsSpecimenSnapshot: UsageSnapshot {
+        UsageSnapshot(
+            providerID: .claude,
+            windows: [
+                // 26% used → 74% left: healthy.
+                UsageWindow(kind: .fiveHour, utilization: 26, resetsAt: soon(hours: 3, minutes: 15, seconds: 30), resetLabel: "Resets 2:15pm"),
+                // 68% used → 32% left: low.
+                UsageWindow(kind: .weekly, utilization: 68, resetsAt: soon(days: 4, minutes: 30), resetLabel: "Resets Jul 9"),
+                // 91% used → 9% left: critical.
+                UsageWindow(kind: .other("Weekly (Fable)"), utilization: 91, resetsAt: soon(days: 4, minutes: 30), resetLabel: "Resets Jul 9"),
+            ],
+            planLabel: "Max",
+            // Placeholder identity (see `claudeSnapshot`); the specimen is announced as a
+            // single opaque element, so VoiceOver never reads it either way.
+            accountEmail: "personal@example.com",
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live
+        )
+    }
+
     // MARK: API spend (macOS only)
 
     public static var anthropicSpend: APISpendSnapshot {

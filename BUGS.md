@@ -280,3 +280,30 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   dies on SIGPIPE, so only a fully-hung, non-writing npm lingers; bounded to one process
   per user-triggered Check Again / uncached discovery. Deferred as low-impact vs. the risk
   of destabilizing the load-bearing shell probe.
+
+## Video-review round residuals (2026-09-03)
+
+- **Light-mode severity orange stays dark by design.** A brighter fill (e.g. rgb 0.94/0.55/0)
+  measures 1.8:1 against the light meter track, below the 3:1 non-text floor the palette
+  enforces on solid fills and tips; the luminance cap on the track leaves no vivid orange that
+  passes. The WHY note and a characterization test live in `BrandColorValues.swift` /
+  `BrandColorValuesTests.swift`. Real options if the brown reads wrong: relax the fill-vs-track
+  floor and guarantee track-vs-card contrast instead, darken the light track into a recessed
+  well, or add a lighter tip/gloss over the dark body. Needs a design decision, not a token swap.
+- **Unavailable rows are still narrower than live rows.** The percent column now reserves
+  three digits, but an `.unavailable` row hides the "left"/"used" term entirely, so a card that
+  mixes live and unavailable windows still won't share one gauge edge. Reserving the term's width
+  would fix it at the cost of a visible hole in an all-unavailable card.
+- **Rejected API key with a retained amount shows no CTA.** When continuity keeps a prior spend
+  total, the card shows the amount and the corrected "Key rejected" badge but no "Replace key…"
+  button; the button only appears when there is no amount to show. Decide whether the CTA should
+  also appear beside a retained amount.
+- **`APISpendPresentation.statusText` has no production callers** after the row-status refactor;
+  it is exercised only by tests and can likely be deleted.
+- **Per-pane Settings heights are budgets, not measurements.** `SettingsPane.preferredContentHeight`
+  values (General 400 … Appearance 812) and the sidebar width (216pt, window 740pt) were derived
+  from font metrics, not visually accepted. Verify in the live window that "Widgets & iPhone" is
+  whole, the Fill row keeps five swatches on one line, and the height change animates rather
+  than snaps.
+- **`supergrokheavy` → "SuperGrok Heavy" plan mapping is unconfirmed** against a live Grok tier
+  id; the fallback capitalization renders any real value sensibly either way.

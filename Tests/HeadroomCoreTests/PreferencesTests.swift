@@ -220,6 +220,39 @@ struct PreferencesTests {
         ])
     }
 
+    @Test func settingsPaneDefaultsPersistsAndIgnoresUnknownValues() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.settingsPane == .general)
+
+        prefs.settingsPane = .accounts
+        // A second reader over the same suite sees the persisted pane (R4: reopening
+        // Settings lands on the last-visited pane, across launches).
+        #expect(Preferences(defaults: defaults).settingsPane == .accounts)
+
+        defaults.set("billing", forKey: "settingsPane")
+        #expect(prefs.settingsPane == .general)
+    }
+
+    @Test func settingsPaneOrderAndGroupsMatchTheSidebar() {
+        // R1: sidebar order and its two section headers are derived from the enum.
+        #expect(SettingsPane.allCases == [.general, .appearance, .menuBar, .widgets, .accounts, .apiSpend])
+        #expect(SettingsPane.allCases.map(\.label) == [
+            "General",
+            "Appearance",
+            "Menu Bar",
+            "Widgets & iPhone",
+            "Accounts",
+            "API Spend",
+        ])
+
+        #expect(SettingsPane.Group.allCases == [.preferences, .sources])
+        #expect(SettingsPane.Group.preferences.panes == [.general, .appearance, .menuBar, .widgets])
+        #expect(SettingsPane.Group.sources.panes == [.accounts, .apiSpend])
+        // The two groups partition all six panes without overlap.
+        #expect(SettingsPane.Group.allCases.flatMap(\.panes) == SettingsPane.allCases)
+    }
+
     @Test func apiSpendPeriodDefaultsAndPersists() {
         let prefs = Preferences(defaults: freshDefaults())
         #expect(prefs.apiSpendPeriod == .currentMonth)

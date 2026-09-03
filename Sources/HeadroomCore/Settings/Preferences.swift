@@ -25,6 +25,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
         static let apiSpendPeriod = "apiSpendPeriod"
+        static let settingsPane = "settingsPane"
         static func menuBarWindowSource(_ id: ProviderID) -> String { "menuBarWindowSource.\(id.raw)" }
         static func renewal(_ id: ProviderID) -> String { "renewalDate.\(id.raw)" }
         static func surfaceEnabled(_ surface: UsageSurface) -> String { "surfaceEnabled.\(surface.rawValue)" }
@@ -195,6 +196,19 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return period
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.apiSpendPeriod) }
+    }
+
+    /// Last-visited Settings destination (R4/KTD7). A plain preference rather than
+    /// `@SceneStorage` so the choice survives quitting the app, not just closing the
+    /// window; an unrecognized stored pane falls back to General.
+    public var settingsPane: SettingsPane {
+        get {
+            guard let raw = defaults.string(forKey: Key.settingsPane),
+                  let pane = SettingsPane(rawValue: raw)
+            else { return .general }
+            return pane
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.settingsPane) }
     }
 
     public func isSurfaceEnabled(_ surface: UsageSurface) -> Bool {

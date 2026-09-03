@@ -98,7 +98,8 @@ struct APISpendPresentationTests {
 
     @Test func missingKeyAsksForOne() {
         let status = APISpendPresentation.rowStatus(
-            freshness: .stale(.notLoggedIn("Add a Anthropic admin API key in Settings")),
+            freshness: .stale(.notLoggedIn("Add an admin key in Settings")),
+            providerID: .claude,
             displayName: "Anthropic API"
         )
 
@@ -109,11 +110,81 @@ struct APISpendPresentationTests {
         #expect(status.remoteHint == "Set up on Mac")
     }
 
+    /// Each vendor's endpoints take a different credential, so the ask has to name the one
+    /// the Settings pane's field asks for — not Anthropic's noun for all three.
+    @Test func missingKeyNamesEachProvidersOwnCredential() {
+        let expected: [(ProviderID, String, String)] = [
+            (.claude, "Anthropic API", "Add an admin key to see Anthropic spend"),
+            (.codex, "OpenAI API", "Add an admin key to see OpenAI spend"),
+            (.grok, "xAI API", "Add a management key to see xAI spend"),
+        ]
+
+        for (providerID, displayName, message) in expected {
+            #expect(APISpendPresentation.rowStatus(
+                freshness: .stale(.notLoggedIn("Add a key in Settings")),
+                providerID: providerID,
+                displayName: displayName
+            ).message == message)
+        }
+    }
+
+    /// A spend provider we haven't declared a credential for reads plainly rather than
+    /// inheriting Anthropic's "admin key".
+    @Test func unknownSpendProviderFallsBackToAPlainAPIKey() {
+        let status = APISpendPresentation.rowStatus(
+            freshness: .stale(.notLoggedIn("Add a key in Settings")),
+            providerID: ProviderID("someday"),
+            displayName: "Someday API"
+        )
+
+        #expect(status.message == "Add an API key to see Someday spend")
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(.scopeDenied("no access")),
+            providerID: ProviderID("someday"),
+            displayName: "Someday API"
+        ).message == "Key can't read cost data")
+    }
+
+    /// The article belongs to the credential, never to the vendor: "a xAI"/"an xAI" is the
+    /// shape of the bug this copy is built to make impossible.
+    @Test func noSpendCopyGluesAnArticleToAVendorName() {
+        let providers: [(ProviderID, String)] = [
+            (.claude, "Anthropic API"),
+            (.codex, "OpenAI API"),
+            (.grok, "xAI API"),
+            (ProviderID("someday"), "Someday API"),
+        ]
+        let reasons: [FailureReason] = [
+            .notLoggedIn("Add a key in Settings"),
+            .needsReauth("key rejected"),
+            .scopeDenied("key lacks access"),
+        ]
+
+        for (providerID, displayName) in providers {
+            let vendor = APISpendPresentation.vendorName(from: displayName)
+            for reason in reasons {
+                let status = APISpendPresentation.rowStatus(
+                    freshness: .stale(reason),
+                    providerID: providerID,
+                    displayName: displayName
+                )
+                let lines = [status.message, status.badge, status.callToAction, status.remoteHint]
+                    .compactMap { $0 }
+
+                for line in lines {
+                    #expect(!line.contains("a \(vendor)"))
+                    #expect(!line.contains("an \(vendor)"))
+                }
+            }
+        }
+    }
+
     /// The reported contradiction: a saved key the provider rejected was badged
     /// "Needs setup" next to an "Add key" button. Badge, message and CTA must all agree.
     @Test func rejectedKeyReadsAsRejectedNotAsMissing() {
         let status = APISpendPresentation.rowStatus(
             freshness: .stale(.needsReauth("Anthropic admin key rejected")),
+            providerID: .claude,
             displayName: "Anthropic API"
         )
 
@@ -126,17 +197,21 @@ struct APISpendPresentationTests {
     @Test func rejectedKeyCopyNamesEachProvider() {
         #expect(APISpendPresentation.rowStatus(
             freshness: .stale(.needsReauth("OpenAI admin key rejected")),
+            providerID: .codex,
             displayName: "OpenAI API"
         ).message == "OpenAI didn't accept the saved admin key")
+        // xAI's endpoints never saw an admin key — the pane asks for a management key.
         #expect(APISpendPresentation.rowStatus(
             freshness: .stale(.needsReauth("xAI management key rejected")),
+            providerID: .grok,
             displayName: "xAI API"
-        ).message == "xAI didn't accept the saved admin key")
+        ).message == "xAI didn't accept the saved management key")
     }
 
     @Test func scopeDeniedKeyReadsAsAnAccessProblem() {
         let status = APISpendPresentation.rowStatus(
             freshness: .stale(.scopeDenied("Anthropic key lacks cost report access")),
+            providerID: .claude,
             displayName: "Anthropic API"
         )
 
@@ -146,9 +221,27 @@ struct APISpendPresentationTests {
         #expect(status.callToAction == "Fix key…")
     }
 
+    /// The 403 line names the surface each vendor actually refused.
+    @Test func scopeDeniedNamesEachProvidersReport() {
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(.scopeDenied("OpenAI key lacks organization cost access")),
+            providerID: .codex,
+            displayName: "OpenAI API"
+        ).message == "Key can't read organization costs")
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(.scopeDenied("xAI key lacks billing read access")),
+            providerID: .grok,
+            displayName: "xAI API"
+        ).message == "Key can't read team billing")
+    }
+
     @Test func transientFailureKeepsTheStaleBehaviour() {
         for reason in [FailureReason.transient("Network unavailable"), .decode("Couldn't read Anthropic cost response")] {
-            let status = APISpendPresentation.rowStatus(freshness: .stale(reason), displayName: "Anthropic API")
+            let status = APISpendPresentation.rowStatus(
+                freshness: .stale(reason),
+                providerID: .claude,
+                displayName: "Anthropic API"
+            )
 
             #expect(status.badge == "Stale")
             #expect(status.tone == .neutral)
@@ -159,12 +252,20 @@ struct APISpendPresentationTests {
     }
 
     @Test func pendingAndLiveRowsCarryNoBadge() {
-        let pending = APISpendPresentation.rowStatus(freshness: .pending, displayName: "Anthropic API")
+        let pending = APISpendPresentation.rowStatus(
+            freshness: .pending,
+            providerID: .claude,
+            displayName: "Anthropic API"
+        )
         #expect(pending.badge == nil)
         #expect(pending.message == "Waiting for cost data")
         #expect(pending.tone == .quiet)
 
-        let live = APISpendPresentation.rowStatus(freshness: .live, displayName: "Anthropic API")
+        let live = APISpendPresentation.rowStatus(
+            freshness: .live,
+            providerID: .claude,
+            displayName: "Anthropic API"
+        )
         #expect(live.badge == nil)
         #expect(live.message == nil)
         #expect(live.callToAction == nil)

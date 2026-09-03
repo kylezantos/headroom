@@ -46,6 +46,7 @@ struct APISpendSectionView: View {
         // key can no longer be badged "Needs setup" next to an "Add key" button.
         let status = APISpendPresentation.rowStatus(
             freshness: snapshot.freshness,
+            providerID: snapshot.providerID,
             displayName: snapshot.displayName
         )
 

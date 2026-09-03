@@ -25,6 +25,86 @@ public enum APISpendAttention: String, Codable, Sendable, Equatable, CaseIterabl
         case .providerSetup(let outcome): self = outcome.isPermanent ? .setupRequired : .retryable
         }
     }
+
+    /// The key itself is what's wrong — there is nothing to wait for, only a key to add,
+    /// replace or re-scope. Rows in these states must offer that action even when they
+    /// still show a retained amount (`setupRequired` is deliberately excluded: its copy
+    /// comes from the source and may not be about a key at all).
+    public var isKeyProblem: Bool {
+        switch self {
+        case .missingKey, .keyRejected, .keyLacksAccess: true
+        case .setupRequired, .retryable: false
+        }
+    }
+}
+
+/// The credential a spend provider actually needs, in the same words the Settings → API
+/// Spend pane puts on its field ("Anthropic admin key", "xAI management key"), so the two
+/// surfaces can't disagree about what the user is being asked to paste. The article is
+/// declared per credential rather than assembled at the call site: copy that picks "a"/"an"
+/// from a vendor name produces "a xAI", and only the provider knows whether it wants an
+/// admin key or a management key.
+public struct APISpendCredentialDescriptor: Sendable, Equatable {
+    /// The indefinite article that belongs to `noun`.
+    public let article: String
+    /// Bare noun for mid-sentence use — "admin key".
+    public let noun: String
+    /// What that credential has to be able to read, article included — "the cost report".
+    /// Each vendor exposes a different surface, so the access failure names the real one.
+    public let reportNoun: String
+
+    public init(article: String, noun: String, reportNoun: String) {
+        self.article = article
+        self.noun = noun
+        self.reportNoun = reportNoun
+    }
+
+    /// The noun carrying its own article — "an admin key", "a management key".
+    public var credentialNoun: String { "\(article) \(noun)" }
+
+    /// `/v1/organizations/cost_report` refuses a regular key; the pane's field is
+    /// "Anthropic admin key".
+    public static let anthropicAdminKey = APISpendCredentialDescriptor(
+        article: "an",
+        noun: "admin key",
+        reportNoun: "the cost report"
+    )
+
+    /// `/v1/organization/costs` refuses a regular key; the pane's field is
+    /// "OpenAI admin key".
+    public static let openAIAdminKey = APISpendCredentialDescriptor(
+        article: "an",
+        noun: "admin key",
+        reportNoun: "organization costs"
+    )
+
+    /// The management API reads team billing and takes a management key, not an admin
+    /// key — the pane's field is "xAI management key".
+    public static let xAIManagementKey = APISpendCredentialDescriptor(
+        article: "a",
+        noun: "management key",
+        reportNoun: "team billing"
+    )
+
+    /// A spend provider that hasn't declared its credential. Vendor-free wording, so a new
+    /// provider reads plainly instead of inheriting Anthropic's nouns.
+    public static let generic = APISpendCredentialDescriptor(
+        article: "an",
+        noun: "API key",
+        reportNoun: "cost data"
+    )
+
+    /// Resolves the credential for surfaces that only carry a `ProviderID` (the widget and
+    /// companion payloads never ship a provider instance). Providers declare the same
+    /// constants, and `APISpendProviderTests` holds the two in sync.
+    public static func forProvider(_ providerID: ProviderID?) -> APISpendCredentialDescriptor {
+        switch providerID {
+        case .claude: anthropicAdminKey
+        case .codex: openAIAdminKey
+        case .grok: xAIManagementKey
+        default: generic
+        }
+    }
 }
 
 /// Everything a spend row renders for one state: badge, tone, sub-line and the action
@@ -47,19 +127,32 @@ public struct APISpendRowStatus: Sendable, Equatable {
     public let callToAction: String?
     /// Companion/widget wording for the same action, which can only be taken on the Mac.
     public let remoteHint: String?
+    /// The stored (or absent) key is itself the problem — see `APISpendAttention.isKeyProblem`.
+    public let keyNeedsAttention: Bool
 
     public init(
         badge: String?,
         tone: Tone,
         message: String?,
         callToAction: String?,
-        remoteHint: String?
+        remoteHint: String?,
+        keyNeedsAttention: Bool = false
     ) {
         self.badge = badge
         self.tone = tone
         self.message = message
         self.callToAction = callToAction
         self.remoteHint = remoteHint
+        self.keyNeedsAttention = keyNeedsAttention
+    }
+
+    /// Whether the row renders its button. A row with an amount normally stays a plain
+    /// number, but continuity keeps showing the last total after the key stops working —
+    /// and a retained amount beside a "Key rejected" badge with no button is a dead end.
+    /// Retryable staleness keeps the old rule: the next poll may clear it on its own.
+    public func showsCTA(hasAmount: Bool) -> Bool {
+        guard callToAction != nil else { return false }
+        return keyNeedsAttention || !hasAmount
     }
 }
 
@@ -93,7 +186,11 @@ public enum APISpendPresentation {
     }
 
     /// macOS popover row: the full `Freshness` still carries the typed `FailureReason`.
-    public static func rowStatus(freshness: Freshness, displayName: String) -> APISpendRowStatus {
+    public static func rowStatus(
+        freshness: Freshness,
+        providerID: ProviderID? = nil,
+        displayName: String
+    ) -> APISpendRowStatus {
         switch freshness {
         case .pending:
             pendingStatus
@@ -103,7 +200,8 @@ public enum APISpendPresentation {
             attentionStatus(
                 APISpendAttention(reason: reason),
                 sourceMessage: reason.message,
-                vendor: vendorName(from: displayName)
+                vendor: vendorName(from: displayName),
+                credential: .forProvider(providerID)
             )
         }
     }
@@ -114,6 +212,7 @@ public enum APISpendPresentation {
     public static func rowStatus(
         freshness: WidgetProviderFreshness,
         attention: APISpendAttention? = nil,
+        providerID: ProviderID? = nil,
         displayName: String = ""
     ) -> APISpendRowStatus {
         switch freshness {
@@ -125,7 +224,8 @@ public enum APISpendPresentation {
             attentionStatus(
                 attention ?? (needsAttention ? .setupRequired : .retryable),
                 sourceMessage: message,
-                vendor: vendorName(from: displayName)
+                vendor: vendorName(from: displayName),
+                credential: .forProvider(providerID)
             )
         }
     }
@@ -149,32 +249,36 @@ public enum APISpendPresentation {
     private static func attentionStatus(
         _ attention: APISpendAttention,
         sourceMessage: String,
-        vendor: String
+        vendor: String,
+        credential: APISpendCredentialDescriptor
     ) -> APISpendRowStatus {
         switch attention {
         case .missingKey:
             APISpendRowStatus(
                 badge: "Needs setup",
                 tone: .warning,
-                message: "Add an admin key to see \(vendor) spend",
+                message: "Add \(credential.credentialNoun) to see \(vendor) spend",
                 callToAction: "Add key…",
-                remoteHint: "Set up on Mac"
+                remoteHint: "Set up on Mac",
+                keyNeedsAttention: true
             )
         case .keyRejected:
             APISpendRowStatus(
                 badge: "Key rejected",
                 tone: .critical,
-                message: "\(vendor) didn't accept the saved admin key",
+                message: "\(vendor) didn't accept the saved \(credential.noun)",
                 callToAction: "Replace key…",
-                remoteHint: "Replace key on Mac"
+                remoteHint: "Replace key on Mac",
+                keyNeedsAttention: true
             )
         case .keyLacksAccess:
             APISpendRowStatus(
                 badge: "Key lacks access",
                 tone: .warning,
-                message: "Key can't read the cost report",
+                message: "Key can't read \(credential.reportNoun)",
                 callToAction: "Fix key…",
-                remoteHint: "Fix key on Mac"
+                remoteHint: "Fix key on Mac",
+                keyNeedsAttention: true
             )
         case .setupRequired:
             APISpendRowStatus(

@@ -124,6 +124,7 @@ struct APISpendMirrorView: View {
         let tone = APISpendPresentation.rowStatus(
             freshness: summary.freshness,
             attention: summary.attention,
+            providerID: ProviderID(summary.id),
             displayName: summary.displayName
         ).tone
         switch tone {

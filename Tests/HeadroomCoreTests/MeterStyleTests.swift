@@ -84,10 +84,106 @@ struct MeterStyleTests {
         #expect(MeterGeometry.fullTrackInset == 1.5)
         #expect(MeterGeometry.fullCellHeight == 7)
         #expect(MeterGeometry.fullCellGap == 2.5)
-        #expect(MeterGeometry.microCapThickness == 2.5)
-        #expect(MeterGeometry.fullCapThickness == 3.5)
+        #expect(MeterGeometry.fullMinimumFillLength == 6)
+        #expect(MeterGeometry.microMinimumFillLength == 3)
         #expect(MeterRecipe.cellCount(for: .micro) == 5)
         #expect(MeterRecipe.cellCount(for: .full) == 20)
+    }
+
+    /// L7B: the cap is its own marker with Kyle's approved constants, not a slice of the fill.
+    /// It is longer than its track on purpose — 1pt proud on each side of the 8pt full track
+    /// and of the 5pt micro chip and tube.
+    @Test func capGeometryMatchesTheApprovedMarkerConstants() {
+        #expect(MeterGeometry.fullCap == MeterCapGeometry(
+            thickness: 2.5,
+            length: 10,
+            cornerRadius: 1.25
+        ))
+        #expect(MeterGeometry.microCap == MeterCapGeometry(
+            thickness: 2,
+            length: 7,
+            cornerRadius: 0
+        ))
+        #expect(MeterGeometry.cap(for: .full) == MeterGeometry.fullCap)
+        #expect(MeterGeometry.cap(for: .micro) == MeterGeometry.microCap)
+
+        // Full · chip and machined: 2.5 wide × 10 tall, 1pt proud of the 8pt track.
+        #expect(MeterGeometry.fullCap.width(on: .horizontal) == 2.5)
+        #expect(MeterGeometry.fullCap.height(on: .horizontal) == 10)
+        #expect(MeterGeometry.fullCap.overhang(onTrackThickness: MeterGeometry.fullTrackHeight) == 1)
+
+        // Micro · chip: 2 wide × 7 tall on the 32×5 chip.
+        #expect(MeterGeometry.microCap.width(on: .horizontal) == 2)
+        #expect(MeterGeometry.microCap.height(on: .horizontal) == 7)
+        #expect(MeterGeometry.microCap.overhang(onTrackThickness: MeterGeometry.microChipHeight) == 1)
+
+        // Micro · tube: the same marker turned a quarter turn — 7 wide × 2 tall on the 5×16 tube.
+        #expect(MeterGeometry.microCap.width(on: .vertical) == 7)
+        #expect(MeterGeometry.microCap.height(on: .vertical) == 2)
+        #expect(MeterGeometry.microCap.overhang(onTrackThickness: MeterGeometry.microTubeWidth) == 1)
+    }
+
+    /// L8A: a plain rect of `fraction × available`, floored per format. No end rounding lives
+    /// here — the track shape supplies it, which is what makes the trailing edge flat.
+    @Test func continuousFillLengthFloorsAndClampsPerFormat() {
+        #expect(MeterGeometry.minimumFillLength(for: .full) == 6)
+        #expect(MeterGeometry.minimumFillLength(for: .micro) == 3)
+
+        #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 0.74, format: .full) == 74)
+        #expect(MeterGeometry.continuousFillLength(available: 32, fraction: 0.5, format: .micro) == 16)
+
+        // Below roughly 6% (full) / 9% (micro) the fill parks at its minimum.
+        #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 0.02, format: .full) == 6)
+        #expect(MeterGeometry.continuousFillLength(available: 32, fraction: 0.02, format: .micro) == 3)
+
+        #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 1, format: .full) == 100)
+        #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 1.4, format: .full) == 100)
+        // A track shorter than the floor never overflows its own run.
+        #expect(MeterGeometry.continuousFillLength(available: 4, fraction: 0.01, format: .full) == 4)
+
+        for format in GaugeFormat.allCases {
+            #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 0, format: format) == 0)
+            #expect(MeterGeometry.continuousFillLength(available: 100, fraction: -0.3, format: format) == 0)
+            #expect(MeterGeometry.continuousFillLength(available: 100, fraction: .nan, format: format) == 0)
+            #expect(MeterGeometry.continuousFillLength(available: 0, fraction: 0.5, format: format) == 0)
+        }
+    }
+
+    /// L7B: the cap's center rides the fill's trailing edge, parks with the fill at the
+    /// minimum length (so it never reaches the track's leading end), and stays inside the
+    /// track's own run at 100% rather than hanging half its thickness past the end.
+    @Test func capCenterRidesTheFillEndWithoutLeavingTheTrack() {
+        let full = MeterGeometry.fullCap
+        let micro = MeterGeometry.microCap
+
+        #expect(MeterGeometry.capCenterOffset(fillLength: 74, available: 100, cap: full) == 74)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 16, available: 32, cap: micro) == 16)
+
+        // Parked at the minimum fill: the cap's leading edge still clears the track start.
+        let parkedFull = MeterGeometry.capCenterOffset(
+            fillLength: MeterGeometry.fullMinimumFillLength,
+            available: 100,
+            cap: full
+        )
+        #expect(parkedFull == 6)
+        #expect(parkedFull - full.thickness / 2 > 0)
+
+        let parkedMicro = MeterGeometry.capCenterOffset(
+            fillLength: MeterGeometry.microMinimumFillLength,
+            available: 32,
+            cap: micro
+        )
+        #expect(parkedMicro == 3)
+        #expect(parkedMicro - micro.thickness / 2 > 0)
+
+        // At 100% the whole marker stays within the track.
+        #expect(MeterGeometry.capCenterOffset(fillLength: 100, available: 100, cap: full) == 98.75)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 32, available: 32, cap: micro) == 31)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 16, available: 16, cap: micro) == 15)
+
+        // Degenerate track shorter than the cap: center it instead of producing a negative.
+        #expect(MeterGeometry.capCenterOffset(fillLength: 2, available: 2, cap: full) == 1)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 0, available: 0, cap: full) == 0)
     }
 
     @Test func segmentedCellCountsClampAndKeepANonzeroFloor() {

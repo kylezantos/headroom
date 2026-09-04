@@ -108,8 +108,93 @@ public enum MeterGeometry {
     public static let fullTrackInset = 1.5
     public static let fullCellHeight = 7.0
     public static let fullCellGap = 2.5
-    public static let microCapThickness = 2.5
-    public static let fullCapThickness = 3.5
+
+    /// L8A: a nonzero value always shows a visible stub. The floor is measured along the
+    /// fill's travel axis, inside the track's inset.
+    public static let fullMinimumFillLength = 6.0
+    public static let microMinimumFillLength = 3.0
+
+    /// L7B: the approved cap constants. Full is 2.5 × 10 with r 1.25 on the 8pt track, so it
+    /// stands 1pt proud on each side; Micro is 2 × 7 with square ends — the same pair serves
+    /// the 32×5 chip and the 5×16 tube, because the tube is that marker rotated a quarter turn.
+    public static let fullCap = MeterCapGeometry(thickness: 2.5, length: 10, cornerRadius: 1.25)
+    public static let microCap = MeterCapGeometry(thickness: 2, length: 7, cornerRadius: 0)
+
+    public static func cap(for format: GaugeFormat) -> MeterCapGeometry {
+        switch format {
+        case .full: fullCap
+        case .micro: microCap
+        }
+    }
+
+    public static func minimumFillLength(for format: GaugeFormat) -> Double {
+        switch format {
+        case .full: fullMinimumFillLength
+        case .micro: microMinimumFillLength
+        }
+    }
+
+    /// L8A: the fill body is a plain rect of `fraction × available`, floored at the format's
+    /// minimum so a nonzero value never disappears. The track's own shape — not this length —
+    /// supplies the rounded base, which is why the trailing edge lands flat.
+    public static func continuousFillLength(
+        available: Double,
+        fraction: Double,
+        format: GaugeFormat
+    ) -> Double {
+        guard available > 0, fraction.isFinite, fraction > 0 else { return 0 }
+        return min(available, max(minimumFillLength(for: format), available * min(1, fraction)))
+    }
+
+    /// L7B: the cap's center rides the fill's flat trailing edge, measured along the travel
+    /// axis from the inside of the track's leading end. It is clamped to the track's own run
+    /// so the marker never floats half-off the end at 100%; at the minimum fill length it
+    /// parks with the fill, which is why it cannot collide with the leading end.
+    public static func capCenterOffset(
+        fillLength: Double,
+        available: Double,
+        cap: MeterCapGeometry
+    ) -> Double {
+        let half = cap.thickness / 2
+        guard available > cap.thickness else { return max(0, available / 2) }
+        return min(max(fillLength, half), available - half)
+    }
+}
+
+/// Which way a continuous fill travels. Chip and machined run leading → trailing; the tube
+/// runs bottom → top.
+public enum MeterFillAxis: Sendable {
+    case horizontal
+    case vertical
+}
+
+/// L7B: the Glass/Ghost cap is its own shape, not the fill's rounded end. `thickness` runs
+/// along the fill's travel axis; `length` runs across the track and is deliberately longer
+/// than the track so the marker crosses the well outline on both sides instead of
+/// terminating inside it.
+public struct MeterCapGeometry: Sendable, Equatable {
+    public let thickness: Double
+    public let length: Double
+    public let cornerRadius: Double
+
+    public init(thickness: Double, length: Double, cornerRadius: Double) {
+        self.thickness = thickness
+        self.length = length
+        self.cornerRadius = cornerRadius
+    }
+
+    public func width(on axis: MeterFillAxis) -> Double {
+        axis == .horizontal ? thickness : length
+    }
+
+    public func height(on axis: MeterFillAxis) -> Double {
+        axis == .horizontal ? length : thickness
+    }
+
+    /// How far the cap stands proud of each side of a track this thick.
+    public func overhang(onTrackThickness trackThickness: Double) -> Double {
+        (length - trackThickness) / 2
+    }
 }
 
 public enum MeterColorScheme: String, CaseIterable, Sendable {

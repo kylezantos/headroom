@@ -88,8 +88,9 @@ struct MeterStyleTile: View {
         [GridItem(.adaptive(minimum: 64, maximum: 80), spacing: swatchSpacing)]
     }
 
-    /// 72pt minimum so all five fills sit on one row inside the 720pt sidebar window's
-    /// detail column (about 400pt beside the row label); 78pt wrapped "Hue ramp" alone.
+    /// 72pt minimum so all five fills sit on one row inside the sidebar window's detail
+    /// column (about 400pt beside the row label); 78pt wrapped "Hue ramp" alone. The
+    /// window width is sized to keep that budget — see `SettingsView.windowWidth`.
     private var fillColumns: [GridItem] {
         [GridItem(.adaptive(minimum: 72, maximum: 80), spacing: swatchSpacing)]
     }

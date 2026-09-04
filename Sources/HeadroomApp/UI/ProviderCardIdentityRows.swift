@@ -41,8 +41,8 @@ struct IdentityRow: View {
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
-            if let planLabel, !planLabel.isEmpty {
-                Text(planLabel.capitalized)
+            if let planDisplayName {
+                Text(planDisplayName)
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 5)
@@ -51,12 +51,10 @@ struct IdentityRow: View {
                         ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
                         in: Capsule()
                     )
+                    .fixedSize()
             }
             if isMenuBarAccount {
-                Image(systemName: "menubar.rectangle")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Shown in the menu bar")
+                mainTag
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -84,6 +82,29 @@ struct IdentityRow: View {
         return email
     }
 
+    /// Raw ids (`prolite`, `SuperGrok`) never reach the badge — Core owns the humanizing
+    /// so the lenient provider models keep their verbatim value (#709).
+    private var planDisplayName: String? {
+        PlanLabelPresentation.displayName(planLabel)
+    }
+
+    /// The primary account's marker. A `menubar.rectangle` glyph read as a stray icon at
+    /// this size, so it is a word: same geometry as the plan badge, outlined rather than
+    /// tinted so it separates from both the tertiary plan badge and the filled stale tag
+    /// while account metadata stays neutral — the mark owns the only brand color (KTD9).
+    private var mainTag: some View {
+        Text("Main")
+            .font(.system(size: 9.5, weight: .semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(ClaudeSetupStyle.stepBackground(dark: scheme == .dark), in: Capsule())
+            .overlay(Capsule().strokeBorder(ClaudeSetupStyle.stepBorder(dark: scheme == .dark), lineWidth: 1))
+            .fixedSize()
+            .help("Main account — shown in the menu bar and widgets")
+            .accessibilityLabel("Main account, shown in the menu bar")
+    }
+
     private var staleTag: some View {
         Text("Stale")
             .font(.system(size: 10, weight: .semibold))
@@ -95,8 +116,8 @@ struct IdentityRow: View {
 
     private func accessibilityIdentity(email: String?) -> String {
         var parts = [title]
-        if let planLabel, !planLabel.isEmpty { parts.append("\(planLabel) plan") }
-        if isMenuBarAccount { parts.append("Shown in the menu bar") }
+        if let planDisplayName { parts.append("\(planDisplayName) plan") }
+        if isMenuBarAccount { parts.append("Main account, shown in the menu bar") }
         if isStale { parts.append("Stale") }
         if let email { parts.append("signed in as \(email)") }
         if showsConnectedChip { parts.append("Connected") }

@@ -661,17 +661,14 @@ struct AccountsSettingsTile: View {
             }
     }
 
-    /// The row-tag capsule shared by "CLI login" and "Same login as X".
+    /// The row-tag capsule shared by "CLI login" and "Same login as X". Tokens live in
+    /// `SettingsPillBadge` so the Menu Bar pane's "Off" tag renders the same badge.
     private func pillBadge(
         _ text: String,
         help helpText: String,
         accessibilityLabel: String? = nil
     ) -> some View {
-        Text(text)
-            .font(.system(size: 10, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 5).padding(.vertical, 1)
-            .background(ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark), in: Capsule())
+        SettingsPillBadge(text: text)
             .help(helpText)
             .accessibilityLabel(accessibilityLabel ?? text)
     }

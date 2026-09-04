@@ -274,6 +274,31 @@ struct WidgetSnapshotProjectorTests {
         }
         #expect(message == "Add API key on Mac")
         #expect(needsAttention)
+        // The typed reason rides alongside so the companion can badge the same way the
+        // Mac card does instead of collapsing every permanent failure to "Needs setup".
+        #expect(spend.attention == .missingKey)
+    }
+
+    @Test func rejectedAPISpendKeyProjectsItsOwnAttention() {
+        let envelope = WidgetSnapshotProjector.project(
+            snapshots: [:],
+            providerOrder: [],
+            displayNames: [:],
+            renewalDate: { _ in nil },
+            widgetsEnabled: true,
+            apiSpendSnapshots: [
+                .claude: .stale(
+                    providerID: .claude,
+                    displayName: "Anthropic API",
+                    periodLabel: "September",
+                    reason: .needsReauth("Anthropic admin key rejected")
+                ),
+            ],
+            apiSpendProviderOrder: [.claude],
+            generatedAt: now
+        )
+
+        #expect(envelope.apiSpendProviders[0].attention == .keyRejected)
     }
 
     @Test func nonSubscriptionAllowanceWindowsAreFilteredOutOfWidgets() {

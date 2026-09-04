@@ -24,7 +24,9 @@ public enum CodexAuthBlob {
             lastRefresh: lastRefresh,
             // Identity only, and best-effort: a missing/unreadable id_token must not make
             // an otherwise valid credential malformed.
-            email: (tokens["id_token"] as? String).flatMap { JWTClaims.string("email", in: $0) }
+            email: AccountEmail.normalized(
+                (tokens["id_token"] as? String).flatMap { JWTClaims.string("email", in: $0) }
+            )
         )
     }
 }

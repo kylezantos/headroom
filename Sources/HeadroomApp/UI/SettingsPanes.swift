@@ -259,6 +259,10 @@ struct MenuBarSettingsPane: View {
                         if selected { Image(systemName: "checkmark") }
                     }
                 }
+                // A provider whose subscription switch is off is never fetched, so it can
+                // never supply the menu-bar number. Listed but greyed (not removed) so the
+                // menu keeps registry order and the absence reads as a state, not a bug.
+                .disabled(!isProviderFetched(providerID))
             }
         } label: {
             Text(menuBarSelectionLabel)
@@ -289,6 +293,14 @@ struct MenuBarSettingsPane: View {
         store.setMenuBarFillSource(source)
     }
 
+    /// Whether Headroom actually polls this provider. `providerOrder` is
+    /// `registeredProviderOrder` filtered by the user's subscription switches, so this
+    /// reads the same `enabledSurfaces` truth the rest of the app does — no second
+    /// on/off source lives in the Menu Bar pane.
+    private func isProviderFetched(_ providerID: ProviderID) -> Bool {
+        store.providerOrder.contains(providerID)
+    }
+
     private func menuBarWindowBinding(for providerID: ProviderID) -> Binding<MenuBarWindowSource> {
         Binding(
             get: { menuBarWindowSources[providerID] ?? store.menuBarWindowSource(for: providerID) },
@@ -302,33 +314,55 @@ struct MenuBarSettingsPane: View {
         providerID: ProviderID,
         selection: Binding<MenuBarWindowSource>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        // R11's rule, applied here: "off" means "not fetched". The row stays in registry
+        // order and keeps its stored choice — dimmed with an Off tag, control disabled —
+        // so turning the provider back on restores the row in place instead of
+        // reflowing the list.
+        let isFetched = isProviderFetched(providerID)
+
+        return VStack(alignment: .leading, spacing: 4) {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
-                    providerWindowLabel(providerID)
+                    providerWindowLabel(providerID, isFetched: isFetched)
                     Spacer(minLength: 12)
                     menuBarWindowPicker(providerID: providerID, selection: selection)
+                        .disabled(!isFetched)
                 }
 
                 VStack(alignment: .leading, spacing: 6) {
-                    providerWindowLabel(providerID)
+                    providerWindowLabel(providerID, isFetched: isFetched)
                     menuBarWindowPicker(providerID: providerID, selection: selection)
+                        .disabled(!isFetched)
                 }
             }
 
-            if let fallback = menuBarWindowFallbackText(for: providerID) {
+            // The fallback line describes live data ("using 5-hour while weekly is
+            // unavailable"), which says nothing about a provider that isn't polled.
+            if isFetched, let fallback = menuBarWindowFallbackText(for: providerID) {
                 SettingsHelpText(text: fallback)
             }
         }
     }
 
-    private func providerWindowLabel(_ providerID: ProviderID) -> some View {
-        ZStack(alignment: .leading) {
-            ForEach(store.registeredProviderOrder, id: \.self) { id in
-                providerWindowLabelContent(id).hidden()
+    private func providerWindowLabel(_ providerID: ProviderID, isFetched: Bool) -> some View {
+        // The Off tag sits outside the width-reservation stack: reserving it would widen
+        // every row's label slot the moment one provider is switched off. The picker is
+        // pinned to `segmentedMaxWidth` by the trailing spacer, so the tag can't push it.
+        HStack(spacing: 6) {
+            ZStack(alignment: .leading) {
+                ForEach(store.registeredProviderOrder, id: \.self) { id in
+                    providerWindowLabelContent(id).hidden()
+                }
+                providerWindowLabelContent(providerID)
             }
-            providerWindowLabelContent(providerID)
+            if !isFetched {
+                SettingsPillBadge(text: "Off")
+                    .help("Not fetched while this provider is off.")
+                    .accessibilityLabel("Off — not fetched while this provider is off")
+            }
         }
+        // Matches the dimmed-row step Accounts uses for the same "off" state.
+        .opacity(isFetched ? 1 : 0.45)
     }
 
     /// Every row reserves the widest registered provider label so flexible picker slots

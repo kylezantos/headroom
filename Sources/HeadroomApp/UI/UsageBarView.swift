@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import HeadroomCore
 
@@ -20,9 +21,20 @@ struct UsageBarView: View {
 
     private let labelSize: CGFloat = 13
     private let resetSize: CGFloat = 11
-    private let percentSize: CGFloat = 18
+    private static let percentSize: CGFloat = 18
     private let termSize: CGFloat = 11
     private let rowSpacing: CGFloat = 5
+
+    /// The numeral sits in a fixed, trailing-aligned column wide enough for "100%" — the
+    /// widest string either percentage mode can print. Without the reservation a
+    /// three-digit row is wider than a two-digit one and drags the gauge left, so the
+    /// meters in a card stop sharing a right edge. Measured from the same
+    /// monospaced-digit system font the numeral renders in, so it stays correct if
+    /// `percentSize` changes instead of drifting from a hard-coded pixel guess.
+    private static let percentColumnWidth: CGFloat = {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: percentSize, weight: .semibold)
+        return ceil(("100%" as NSString).size(withAttributes: [.font: font]).width)
+    }()
 
     private var isEffectivelyDimmed: Bool { dimmed || !window.freshness.isLive }
 
@@ -191,10 +203,11 @@ struct UsageBarView: View {
     private var numeral: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(percentText)
-                .font(.system(size: percentSize, weight: .semibold).monospacedDigit())
+                .font(.system(size: Self.percentSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(usesCriticalInk ? ProviderStyle.criticalText(scheme: scheme) : .primary)
                 .contentTransition(.numericText())
                 .animation(valueAnimation, value: percentText)
+                .frame(minWidth: Self.percentColumnWidth, alignment: .trailing)
             if pct != nil {
                 Text(percentageMode.term)
                     .font(.system(size: termSize))

@@ -56,26 +56,41 @@ struct SettingsView: View {
     /// confirm the state change.
     private static let settleAnimation = HeadroomMotion.settle
 
-    /// The window uses one stable content size for every pane. Pane content scrolls when
-    /// it exceeds that frame, so changing destinations never makes the surrounding window
-    /// jump between each pane's intrinsic height.
+    /// KTD2, revised Sep 2026: the width is fixed for every pane, but the height is now
+    /// per-destination (`SettingsPane.preferredContentHeight`). One Appearance-sized frame
+    /// everywhere left General showing two rows above ~600pt of empty window. Every pane
+    /// body is still a `ScrollView`, so a pane that outgrows its budget scrolls instead of
+    /// clipping, and AppKit can still constrain the window to a short screen.
     ///
     /// Appearance is the tallest pane (specimen + Theme + Meter style + In-app display):
     /// about 805pt of content at default text size once the Fill swatches sit on one row.
     /// The hidden title bar adds 32pt (measured live), so 812pt of content is an 844pt
-    /// window, which still clears a 13-inch MacBook Air's 931pt of usable height. Larger
-    /// text sizes scroll inside the pane instead of growing the frame.
-    static let windowWidth: CGFloat = 720
-    static let windowHeight: CGFloat = 812
+    /// window, which still clears a 13-inch MacBook Air's 931pt of usable height. It stays
+    /// the window's declared default size.
+    /// 740, not 720: the sidebar column had to grow 36pt to stop clipping "Widgets &
+    /// iPhone", and the detail column cannot absorb that. Appearance's Fill row needs
+    /// 392pt of grid (5 × 72pt swatches + 4 × 8pt gaps) beside its 46pt row label, and
+    /// the detail column only offers `width − sidebar − 124`. At 720/216 that is 379pt
+    /// and the five fills wrap to two rows; 740/216 restores the 523pt detail column —
+    /// the exact width `MeterStyleTile`'s 72pt minimum was chosen against.
+    static let windowWidth: CGFloat = 740
+    static let windowHeight: CGFloat = SettingsPane.appearance.preferredContentHeight
+    static let minimumWindowHeight: CGFloat = 600
     /// Diagnostic seam: the render harness raises the frame for its multi-account capture
     /// so the whole account list is in the picture. The live window never sets this.
     var frameHeightOverride: CGFloat? = nil
-    private var frameHeight: CGFloat { frameHeightOverride ?? Self.windowHeight }
+    private var frameHeight: CGFloat {
+        frameHeightOverride ?? selectedPane.preferredContentHeight
+    }
 
     var body: some View {
         NavigationSplitView {
             SettingsSidebar(selection: sidebarBinding)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 196, max: 250)
+                // 216pt as the *floor*, not just the ideal: with the split view pinned to
+                // a fixed overall width the sidebar can settle on its minimum, and 180pt
+                // clipped the longest destination to "Widgets & i…". 108pt of text at
+                // 13pt plus the icon column and the sidebar's row insets needs ~216pt.
+                .navigationSplitViewColumnWidth(min: 216, ideal: 216, max: 250)
                 // KTD1: the removal must sit on the sidebar column's content — applied to
                 // the split view itself it is ignored and the toggle still renders.
                 .toolbar(removing: .sidebarToggle)
@@ -85,7 +100,19 @@ struct SettingsView: View {
         // KTD8: no `.navigationTitle` anywhere in the split view — the window title
         // string set in `HeadroomApp` is what `placeSettingsWindowOnActiveScreen()`
         // matches on, and a navigation title would replace it.
-        .frame(width: Self.windowWidth, height: frameHeight)
+        .frame(
+            minWidth: Self.windowWidth, idealWidth: Self.windowWidth, maxWidth: Self.windowWidth,
+            minHeight: min(Self.minimumWindowHeight, frameHeight),
+            idealHeight: frameHeight,
+            maxHeight: frameHeight
+        )
+        // The scene is `.windowResizability(.contentSize)`, so AppKit follows the hosting
+        // view's fitting size every layout pass: interpolating the frame height is what
+        // makes the window grow or shrink over the settle duration instead of snapping.
+        // Scoped to `frameHeight` so ordinary preference changes inside a pane are not
+        // swept into it. A pane switch changes both the height and the detail content, so
+        // the room cross-fades as the frame travels.
+        .animation(reduceMotion ? nil : Self.settleAnimation, value: frameHeight)
         .onAppear { loadPreferences() }
         .task { await refreshSavedKeyPresence() }
         // KTD3: the scan lives on the root so revisiting Accounts keeps its badges, but it

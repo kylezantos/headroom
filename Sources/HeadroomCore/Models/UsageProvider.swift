@@ -76,5 +76,13 @@ public extension UsageProvider {
 public protocol APISpendProvider: Sendable {
     var id: ProviderID { get }
     var displayName: String { get }
+    /// The credential this provider's endpoints actually accept. Declared here so the
+    /// row copy names the right thing per vendor ("an admin key" vs "a management key")
+    /// instead of hard-coding one vendor's noun for all three.
+    var credential: APISpendCredentialDescriptor { get }
     func fetchSpend(period: APISpendPeriod) async -> APISpendSnapshot
+}
+
+public extension APISpendProvider {
+    var credential: APISpendCredentialDescriptor { .forProvider(id) }
 }

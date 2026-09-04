@@ -243,14 +243,29 @@ public enum HeadroomMeterColorValues {
             )
     }
 
+    /// How much of the severity *fill* survives in the Hue ramp's start stop (the rest is
+    /// mixed toward white in light, black in dark).
+    ///
+    /// Light retuned 0.55 → 0.75 alongside the vivid fill tier: the default light fills are
+    /// lighter than the text-tier values the 0.55 mix was set against, so a 45% white mix
+    /// washed the start into the track (amber 1.27:1, was 1.55:1). At 0.75 every light start
+    /// matches or beats its previous separation (1.59 / 1.69 / 2.27:1). Under Increase
+    /// Contrast the fills revert to the text tier, so the mix reverts with them and the ramp
+    /// renders exactly as it does today.
     public static func rampStartSeverityMix(
         dark: Bool,
-        surface: MeterRampSurface
+        surface: MeterRampSurface,
+        increasedContrast: Bool = false
     ) -> Double {
-        guard dark else { return 0.55 }
+        guard dark else { return increasedContrast ? 0.55 : 0.75 }
         return surface == .flat ? 0.58 : 0.42
     }
 
+    /// Opacity applied to the severity *fill* token for the Ghost body. Left at the round-6
+    /// values through the fill split: the vivid light fills lower the recorded body-vs-track
+    /// separation slightly (1.38–1.63 → 1.26–1.55), and Ghost is deliberately subtle, so this
+    /// stays a characterized measurement rather than a chased number. `BrandColorValuesTests`
+    /// records both branches.
     public static func ghostBodyOpacity(for severity: UsageSeverity, dark: Bool) -> Double {
         switch (dark, severity) {
         case (true, .critical): 0.22
@@ -280,11 +295,16 @@ public enum HeadroomBrandMark {
     }
 }
 
-/// Severity colors are scheme-aware: the dark values are the vivid originals (tuned for
-/// dark cards), while the light values are darkened along the same hues so bar fills clear
-/// WCAG 1.4.11 (≥3:1) against the light bar track (the originals sat at 1.6–2.6:1) and read
-/// ≥4:1 as chip text on white. Dark critical is nudged (0.27 → 0.34 green) for the same
-/// 3:1 bar-vs-track floor; dark healthy/low already passed and are untouched.
+/// Two tiers of severity color (Sep 2026 policy change — see `…Fill` below).
+///
+/// **Text tier** — `healthy/low/critical(dark:)` and `criticalText(dark:)`. The dark values
+/// are the vivid originals (tuned for dark cards); the light values are darkened along the
+/// same hues so severity *ink* reads ≥4:1 on white. Dark critical is nudged (0.27 → 0.34
+/// green) for the 3:1 bar-vs-track floor; dark healthy/low already passed and are untouched.
+/// Every text, icon, and pill use stays on this tier. Values are unchanged by the fill split.
+///
+/// **Fill tier** — `healthyFill/lowFill/criticalFill(dark:increasedContrast:)`, what a meter
+/// bar paints. See that tier's own note below.
 public enum HeadroomSeverityColorValues {
     public static func healthy(dark: Bool) -> HeadroomRGBColor {
         dark ? HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35) : HeadroomRGBColor(red: 0.09, green: 0.52, blue: 0.22)
@@ -320,6 +340,68 @@ public enum HeadroomSeverityColorValues {
         case .healthy: healthy(dark: dark)
         case .low: low(dark: dark)
         case .critical: critical(dark: dark)
+        }
+    }
+
+    // MARK: - Fill tier
+    //
+    // What a meter bar paints, split from the text tier in Sep 2026 by product decision.
+    //
+    // In the *default* light appearance these are vivid — close to the dark tokens in feel —
+    // and they deliberately sit below WCAG 1.4.11's 3:1 non-text floor against the light bar
+    // track (measured 2.06–3.22:1, worst case low/amber over the darker card fill). That is a
+    // considered choice, not an oversight: the percent numeral beside every bar already states
+    // the value at full text contrast, so the bar is a redundant visualization rather than the
+    // sole carrier of the information the guideline protects.
+    //
+    // Two things keep it accessible:
+    //   1. every *text*, icon, and pill use stays on the text tier above (unchanged), and
+    //   2. when the user turns on Increase Contrast, the light fills fall back to the text
+    //      tier's darkened values, which clear 3:1 on the track (3.15–3.61:1). The dark fills
+    //      are the dark text-tier values in both branches — they already pass (3.06–4.63:1).
+    //
+    // Why a split instead of a retune: no vivid light fill can clear 3:1 on the light track on
+    // its own. The track is black @ 0.12 over a near-white card (L≈0.745), so a 3:1 fill has to
+    // sit at L ≤ 0.215 — darker than any saturated sRGB orange (rgb(0.96,0.58,0.05) is L≈0.41).
+    // Deepening the track makes it *worse*, not better: these mid-luminance fills are darker
+    // than the track, so a darker track converges on them (at 0.18 alpha the amber falls to
+    // 1.46:1). The light track therefore stays at 0.12.
+    //
+    // Light default values were tuned down from the brief's starting points only where the
+    // ≥2.0:1-vs-track / ≥2.5:1-vs-card policy floor required it: amber
+    // (0.96,0.58,0.05) → (0.91,0.50,0.02) (1.70 → 2.06 vs track); green and red pass as given.
+    // `BrandColorValuesTests` pins every ratio.
+
+    public static func healthyFill(dark: Bool, increasedContrast: Bool) -> HeadroomRGBColor {
+        guard !dark else { return healthy(dark: true) }
+        return increasedContrast
+            ? healthy(dark: false)
+            : HeadroomRGBColor(red: 0.16, green: 0.66, blue: 0.30)
+    }
+
+    public static func lowFill(dark: Bool, increasedContrast: Bool) -> HeadroomRGBColor {
+        guard !dark else { return low(dark: true) }
+        return increasedContrast
+            ? low(dark: false)
+            : HeadroomRGBColor(red: 0.91, green: 0.50, blue: 0.02)
+    }
+
+    public static func criticalFill(dark: Bool, increasedContrast: Bool) -> HeadroomRGBColor {
+        guard !dark else { return critical(dark: true) }
+        return increasedContrast
+            ? critical(dark: false)
+            : HeadroomRGBColor(red: 0.90, green: 0.22, blue: 0.20)
+    }
+
+    public static func fill(
+        for severity: WidgetUsageSeverity,
+        dark: Bool,
+        increasedContrast: Bool
+    ) -> HeadroomRGBColor {
+        switch severity {
+        case .healthy: healthyFill(dark: dark, increasedContrast: increasedContrast)
+        case .low: lowFill(dark: dark, increasedContrast: increasedContrast)
+        case .critical: criticalFill(dark: dark, increasedContrast: increasedContrast)
         }
     }
 }

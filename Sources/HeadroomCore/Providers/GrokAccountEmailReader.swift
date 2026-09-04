@@ -25,6 +25,6 @@ public struct GrokCredentialEmailReader: GrokAccountEmailReading {
     }
 
     public func readAccountEmail() -> String? {
-        (try? authReader.readGrokCredential())?.email
+        AccountEmail.normalized((try? authReader.readGrokCredential())?.email)
     }
 }

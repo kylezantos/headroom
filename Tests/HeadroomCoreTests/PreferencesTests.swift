@@ -253,6 +253,25 @@ struct PreferencesTests {
         #expect(SettingsPane.Group.allCases.flatMap(\.panes) == SettingsPane.allCases)
     }
 
+    @Test func everyPaneDeclaresAHeightAndAppearanceIsTheTallest() {
+        // Appearance is the height budget the window was originally measured at, so it
+        // must stay the ceiling — a taller room would make the window grow past the
+        // 13-inch MacBook Air clearance the 812pt figure was chosen for.
+        let tallest = SettingsPane.allCases.max { $0.preferredContentHeight < $1.preferredContentHeight }
+        #expect(tallest == .appearance)
+        for pane in SettingsPane.allCases where pane != .appearance {
+            #expect(pane.preferredContentHeight < SettingsPane.appearance.preferredContentHeight)
+        }
+
+        // Floor: the sidebar column needs roughly 340pt for its identity block and six
+        // destinations, so no pane may shrink the window below the point where the
+        // sidebar itself starts to scroll.
+        for pane in SettingsPane.allCases {
+            #expect(pane.preferredContentHeight >= SettingsPane.minimumContentHeight)
+        }
+        #expect(SettingsPane.minimumContentHeight >= 340)
+    }
+
     @Test func apiSpendPeriodDefaultsAndPersists() {
         let prefs = Preferences(defaults: freshDefaults())
         #expect(prefs.apiSpendPeriod == .currentMonth)

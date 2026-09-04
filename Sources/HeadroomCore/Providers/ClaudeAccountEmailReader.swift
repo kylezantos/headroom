@@ -23,7 +23,7 @@ public enum ClaudeAccountBlob {
     }
 
     public static func email(in data: Data) -> String? {
-        nonEmpty(decode(data)?.oauthAccount?.emailAddress)
+        AccountEmail.normalized(decode(data)?.oauthAccount?.emailAddress)
     }
 
     /// The stable upstream account identity — the safe deduplication key (emails can

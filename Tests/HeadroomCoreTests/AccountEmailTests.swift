@@ -626,6 +626,105 @@ struct CursorAccountEmailTests {
     }
 }
 
+// MARK: - Normalization
+
+/// Same address, as each CLI happens to have stored it. `.claude.json` keeps the casing
+/// the user typed at login; Codex's `id_token` claim arrives already lowercased. Before
+/// normalization the Accounts pane showed "Kylezantos@gmail.com" for Claude next to
+/// "kylezantos@gmail.com" for Codex.
+private let mixedCaseAddress = "Kylezantos@Gmail.COM"
+private let normalizedAddress = "kylezantos@gmail.com"
+
+/// `tokens.id_token` whose `email` claim is `Kylezantos@Gmail.COM`.
+private let codexMixedCaseIDTokenFixture =
+    "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9"
+    + ".eyJzdWIiOiJ1c2VyLTEyMyIsImVtYWlsIjoiS3lsZXphbnRvc0BHbWFpbC5DT00ifQ"
+    + ".sig-not-verified"
+
+struct AccountEmailNormalizationTests {
+    @Test func normalizationTrimsAndLowercases() {
+        #expect(AccountEmail.normalized("  \(mixedCaseAddress) \n") == normalizedAddress)
+        #expect(AccountEmail.normalized(normalizedAddress) == normalizedAddress)
+    }
+
+    @Test func nothingDisplayableYieldsNil() {
+        #expect(AccountEmail.normalized(nil) == nil)
+        #expect(AccountEmail.normalized("") == nil)
+        #expect(AccountEmail.normalized("   ") == nil)
+    }
+
+    @Test func claudeAccountFileEmailIsNormalized() {
+        let json = #"{ "oauthAccount": { "emailAddress": " \#(mixedCaseAddress) " } }"#
+        #expect(ClaudeAccountBlob.email(in: Data(json.utf8)) == normalizedAddress)
+    }
+
+    @Test func codexIDTokenEmailIsNormalized() throws {
+        let json = """
+        { "tokens": { "access_token": "at", "id_token": "\(codexMixedCaseIDTokenFixture)" } }
+        """
+        #expect(try CodexAuthBlob.parse(Data(json.utf8)).email == normalizedAddress)
+    }
+
+    @Test func grokAuthFileEmailIsNormalized() throws {
+        let json = #"""
+        { "https://auth.x.ai::a": { "auth_mode": "oidc", "key": "k", "user_id": "u",
+                                    "email": " \#(mixedCaseAddress) " } }
+        """#
+        #expect(try GrokAuthBlob.parse(Data(json.utf8)).email == normalizedAddress)
+    }
+
+    @Test func grokEmailReaderNormalizesWhateverTheAuthReaderReturns() {
+        let reader = GrokCredentialEmailReader(
+            authReader: StubGrokAuthReader(
+                credential: GrokCredential(accessToken: "k", userID: "u", email: mixedCaseAddress)
+            )
+        )
+        #expect(reader.readAccountEmail() == normalizedAddress)
+    }
+
+    @Test func cursorStatusEmailIsNormalized() {
+        let json = #"{ "status": "authenticated", "userInfo": { "email": " \#(mixedCaseAddress) " } }"#
+        #expect(CursorStatusBlob.email(in: Data(json.utf8)) == normalizedAddress)
+    }
+
+    /// The whole point: one address read from two different CLIs renders as one string,
+    /// so the Accounts pane no longer shows the same login twice with different casing.
+    @Test func claudeAndCodexAgreeOnTheSameAddress() async throws {
+        let claudeJSON = #"{ "oauthAccount": { "emailAddress": "\#(mixedCaseAddress)" } }"#
+        let codexJSON = """
+        { "tokens": { "access_token": "at", "id_token": "\(codexMixedCaseIDTokenFixture)" } }
+        """
+        let claudeProvider = ClaudeProvider(
+            source: MockClaudeSource(result: .panel(text: usagePanel, planHint: "Max")),
+            emailSource: StubClaudeEmailSource(
+                email: ClaudeAccountBlob.email(in: Data(claudeJSON.utf8))
+            ),
+            now: { Date(timeIntervalSince1970: 1_000_000) }
+        )
+        let codexProvider = CodexProvider(
+            credentials: CredentialStore(
+                codexReader: MockCodexReader(credential: try CodexAuthBlob.parse(Data(codexJSON.utf8)))
+            ),
+            http: MockFetcher(status: 200, body: """
+            { "plan_type": "prolite",
+              "rate_limit": { "primary_window": { "used_percent": 10, "limit_window_seconds": 18000,
+                                                  "reset_at": 1783023708 } } }
+            """),
+            now: { Date(timeIntervalSince1970: 1_000_000) }
+        )
+
+        let claudeEmail = await claudeProvider.fetchSnapshot().accountEmail
+        let codexEmail = await codexProvider.fetchSnapshot().accountEmail
+        #expect(claudeEmail == normalizedAddress)
+        #expect(claudeEmail == codexEmail)
+    }
+}
+
+private struct StubGrokAuthReader: GrokAuthReading {
+    let credential: GrokCredential
+    func readGrokCredential() throws -> GrokCredential { credential }
+}
+
 /// Claude email-source double — keeps the provider tests off the real `.claude.json`.
 private struct StubClaudeEmailSource: ClaudeAccountEmailReading {
     let email: String?

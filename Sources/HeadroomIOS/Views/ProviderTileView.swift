@@ -53,8 +53,8 @@ struct ProviderTileView: View {
                 }
             }
             Spacer(minLength: 8)
-            if let planLabel = provider.planLabel, !planLabel.isEmpty {
-                Text(planLabel.capitalized)
+            if let planLabel = PlanLabelPresentation.displayName(provider.planLabel) {
+                Text(planLabel)
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(HeadroomTheme.secondaryText(scheme))
                     .lineLimit(1)

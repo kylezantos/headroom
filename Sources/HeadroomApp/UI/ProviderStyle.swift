@@ -98,23 +98,30 @@ enum ProviderStyle {
     static func meterRampStart(
         for severity: UsageSeverity,
         surface: MeterRampSurface,
-        scheme: ColorScheme
+        scheme: ColorScheme,
+        increasedContrast: Bool
     ) -> Color {
         let stops = MeterRecipe.rampStops(
             severity: severity,
             scheme: scheme == .dark ? .dark : .light,
-            surface: surface
+            surface: surface,
+            increasedContrast: increasedContrast
         )
         return Color(stops.start)
     }
 
-    static func meterGhostBody(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
-        severityColor(for: severity, scheme: scheme).opacity(
-            HeadroomMeterColorValues.ghostBodyOpacity(
-                for: severity,
-                dark: scheme == .dark
+    static func meterGhostBody(
+        for severity: UsageSeverity,
+        scheme: ColorScheme,
+        increasedContrast: Bool
+    ) -> Color {
+        severityFill(for: severity, scheme: scheme, increasedContrast: increasedContrast)
+            .opacity(
+                HeadroomMeterColorValues.ghostBodyOpacity(
+                    for: severity,
+                    dark: scheme == .dark
+                )
             )
-        )
     }
 
     /// Semantic fill for a usage bar by health band (UI-01). A static three-stop ramp —
@@ -124,6 +131,23 @@ enum ProviderStyle {
     /// a pulse, so it honors the standing no-pulsing rule.
     static func severityColor(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
         Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
+    }
+
+    /// Meter-bar fill tier: vivid in the default light appearance, falling back to the
+    /// text-tier (3:1-passing) values under Increase Contrast. Callers read
+    /// `\.colorSchemeContrast` at the SwiftUI boundary — the Core token stays a pure Bool
+    /// so both branches are testable. Only bars, caps, segments, and ramps use this;
+    /// numerals, icons, and the "Low" pill stay on `severityColor(for:scheme:)`.
+    static func severityFill(
+        for severity: UsageSeverity,
+        scheme: ColorScheme,
+        increasedContrast: Bool
+    ) -> Color {
+        Color(HeadroomSeverityColorValues.fill(
+            for: severity,
+            dark: scheme == .dark,
+            increasedContrast: increasedContrast
+        ))
     }
 
     /// Critical-as-text ink (H3a), decoupled from the bar fill so the chipless multi-account

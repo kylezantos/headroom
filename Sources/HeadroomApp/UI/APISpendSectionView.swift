@@ -29,6 +29,10 @@ struct APISpendSectionView: View {
                         spendRow(store.apiSpendSnapshot(for: id))
                     }
                 }
+                // L4B: amounts and separators stop 34pt from the tile's right edge,
+                // level with the percentages in the provider cards above, so the
+                // popover's right edge reads as one line.
+                .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
             }
             // Padding matches the provider cards above, so sibling tiles share one
             // padding and radius.

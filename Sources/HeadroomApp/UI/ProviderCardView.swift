@@ -473,6 +473,7 @@ struct ProviderCardView: View {
             meterStyle: meterStyle
         )
         .padding(.leading, IdentityRowMetrics.meterContentInset)
+        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 
     /// Varied widths (audit UI-13): real content isn't two identical bars, so the
@@ -486,6 +487,7 @@ struct ProviderCardView: View {
                 .font(.caption2).foregroundStyle(.tertiary)
         }
         .padding(.leading, IdentityRowMetrics.meterContentInset)
+        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 
     /// Permanent failure the user can fix (UI-05) that is not one of the guided setup

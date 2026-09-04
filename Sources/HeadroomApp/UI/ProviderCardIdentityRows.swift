@@ -7,6 +7,11 @@ enum IdentityRowMetrics {
     static let markSlotWidth: CGFloat = 15
     static let spacing: CGFloat = 6
     static let meterContentInset = markSlotWidth + spacing
+    /// L4B: the trailing gutter mirrors the label column instead of the mark. With the
+    /// card's own 13pt padding this ends every identity row and every meter row 34pt from
+    /// the card's right edge — the same 34pt the titles and meter labels start at — and
+    /// leaves the provider mark hanging alone in its 13pt gutter.
+    static let contentTrailingInset = meterContentInset
 }
 
 /// The one identity treatment used for provider-name and account-name rows (KTD9).
@@ -35,12 +40,7 @@ struct IdentityRow: View {
     private func row(email: String?) -> some View {
         HStack(spacing: IdentityRowMetrics.spacing) {
             ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
-            Text(title)
-                .font(.system(size: 15, weight: .semibold))
-                .kerning(-0.15)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            titleText
             if let planLabel, !planLabel.isEmpty {
                 Text(planLabel.capitalized)
                     .font(.system(size: 9.5, weight: .medium))
@@ -51,12 +51,6 @@ struct IdentityRow: View {
                         ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
                         in: Capsule()
                     )
-            }
-            if isMenuBarAccount {
-                Image(systemName: "menubar.rectangle")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .accessibilityLabel("Shown in the menu bar")
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -75,8 +69,27 @@ struct IdentityRow: View {
                     .transition(.opacity)
             }
         }
+        // L4B: trailing controls stop level with the meter rows below them.
+        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(accessibilityIdentity(email: email))
+    }
+
+    /// L5D: the main account carries no visible marker. Order already says it — main is
+    /// always its provider's first row — and a second capsule beside the plan badge made a
+    /// busy title cluster busier, so the fact moves to the title's tooltip and to VoiceOver.
+    @ViewBuilder private var titleText: some View {
+        let text = Text(title)
+            .font(.system(size: 15, weight: .semibold))
+            .kerning(-0.15)
+            .foregroundStyle(.primary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+        if isMenuBarAccount {
+            text.help(Self.mainAccountHelp)
+        } else {
+            text
+        }
     }
 
     private var normalizedEmail: String? {
@@ -93,10 +106,14 @@ struct IdentityRow: View {
             .background(Color.secondary.opacity(0.18), in: Capsule())
     }
 
+    /// L5D: with the badge gone, the tooltip and this VoiceOver phrase are the only places
+    /// the fact is stated — keep them in step.
+    static let mainAccountHelp = "Main account — shown in the menu bar and widgets"
+
     private func accessibilityIdentity(email: String?) -> String {
         var parts = [title]
         if let planLabel, !planLabel.isEmpty { parts.append("\(planLabel) plan") }
-        if isMenuBarAccount { parts.append("Shown in the menu bar") }
+        if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
         if isStale { parts.append("Stale") }
         if let email { parts.append("signed in as \(email)") }
         if showsConnectedChip { parts.append("Connected") }
@@ -219,6 +236,7 @@ struct AccountSectionView: View {
             chiplessCriticalInk: true
         )
         .padding(.leading, IdentityRowMetrics.meterContentInset)
+        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 
     /// Permanent failure on one account: a single compact row — the reason, then the
@@ -344,5 +362,6 @@ struct AccountSectionView: View {
     private var accountSkeleton: some View {
         SkeletonMeter(labelWidth: 72, valueWidth: 38, format: meterStyle.format)
             .padding(.leading, IdentityRowMetrics.meterContentInset)
+            .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 }

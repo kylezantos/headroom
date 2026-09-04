@@ -176,6 +176,7 @@ struct AccountsSettingsTile: View {
             providerDisplayName: displayName,
             accounts: accounts,
             capacity: capacity,
+            hasFreeAccountSlot: store.canAddAccount(for: providerID),
             isSurfaceEnabled: surface.map { store.isSurfaceEnabled($0) } ?? true
         )
         let allCapability = capabilityRecoveryPresentation(
@@ -206,15 +207,14 @@ struct AccountsSettingsTile: View {
                 }
                 Spacer(minLength: 12)
                 if presentation.showsAddAction {
-                    // R11: adding and signing in stay live while the provider is off —
-                    // Grok and Cursor ship off, so this is how a first account arrives.
+                    // L11A: an off group dims as one unit, Add included. Both the enabled
+                    // and disabled reasons come from `ProviderGroupPresentation` so the
+                    // rule is tested rather than restated here.
                     Button("Add Account…") { addAccount(for: providerID) }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        .disabled(!store.canAddAccount(for: providerID))
-                        .help(store.canAddAccount(for: providerID)
-                              ? "Sign in another account via the official CLI"
-                              : "Up to \(capacity) accounts per provider")
+                        .disabled(!presentation.addAction.isEnabled)
+                        .help(presentation.addAction.helpText)
                 }
                 if let surface {
                     subscriptionSwitch(
@@ -824,7 +824,8 @@ struct AccountsSettingsTile: View {
 
         /// R11: sign-in and removal states are management, not fetch health, so they
         /// survive a provider whose subscription switch is off — that switch only stops
-        /// fetching, and Add Account / sign-in stay live behind it.
+        /// fetching, and an in-flight sign-in still reports itself. (L11A dims Add
+        /// Account while off; a handoff already under way is unaffected.)
         var isSetupState: Bool {
             self == .waiting || self == .setupActive || self == .setupFailed
                 || self == .blocked || self == .removing || self == .removalFailed

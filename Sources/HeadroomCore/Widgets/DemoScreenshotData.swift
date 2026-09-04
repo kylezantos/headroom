@@ -339,6 +339,65 @@ public enum DemoScreenshotData {
         )
     }
 
+    // MARK: - Settings preview
+
+    /// L9P: the frozen envelope behind the Settings › Widgets & iPhone preview strip.
+    ///
+    /// Unlike the `--demo` variants above it pins every date, so the small and medium
+    /// tiles in Settings render the same picture on every pass — Settings is not a
+    /// live-data surface, and a preview whose "Updated N min ago" footer ticked would
+    /// invite the reader to trust it as real. Two providers with two windows each is the
+    /// widget's own shape: `widgetProviders` caps the list at two, and small/medium show
+    /// the overall period window (plus the 5-hour window on medium).
+    public static let settingsPreviewNow = Date(timeIntervalSince1970: 1_800_000_000)
+
+    public static let settingsPreviewEnvelope = WidgetSnapshotEnvelope(
+        generatedAt: settingsPreviewNow.addingTimeInterval(-4 * 60),
+        status: .enabled,
+        providers: [
+            WidgetProviderSummary(
+                id: ProviderID.claude.raw,
+                displayName: "Claude",
+                planLabel: "Max",
+                freshness: .live,
+                windows: [
+                    fixedWindow(.weekly, label: "Weekly", percent: 38, reset: "Resets Monday", severity: .low),
+                    fixedWindow(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15 PM", severity: .healthy),
+                ],
+                renewalDate: nil
+            ),
+            WidgetProviderSummary(
+                id: ProviderID.codex.raw,
+                displayName: "Codex",
+                planLabel: "Pro Lite",
+                freshness: .live,
+                windows: [
+                    fixedWindow(.weekly, label: "Weekly", percent: 64, reset: "Resets in 6d 4h", severity: .healthy),
+                    fixedWindow(.fiveHour, label: "5h", percent: 41, reset: "Resets 4:05 PM", severity: .healthy),
+                ],
+                renewalDate: nil
+            ),
+        ],
+        apiSpendProviders: []
+    )
+
+    private static func fixedWindow(
+        _ kind: WidgetWindowKind,
+        label: String,
+        percent: Double,
+        reset: String,
+        severity: WidgetUsageSeverity
+    ) -> WidgetWindowSummary {
+        WidgetWindowSummary(
+            kind: kind,
+            label: label,
+            percentRemaining: percent,
+            resetsAt: settingsPreviewNow.addingTimeInterval(3 * 3_600),
+            resetLabel: reset,
+            severity: severity
+        )
+    }
+
     // MARK: Helpers
 
     private static func window(

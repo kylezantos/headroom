@@ -303,11 +303,9 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   also appear beside a retained amount.
 - **`APISpendPresentation.statusText` has no production callers** after the row-status refactor;
   it is exercised only by tests and can likely be deleted.
-- **Per-pane Settings heights are budgets, not measurements.** `SettingsPane.preferredContentHeight`
-  values (General 400 … Appearance 812) and the sidebar width (216pt, window 740pt) were derived
-  from font metrics, not visually accepted. Verify in the live window that "Widgets & iPhone" is
-  whole, the Fill row keeps five swatches on one line, and the height change animates rather
-  than snaps.
+- ~~**Per-pane Settings heights are budgets, not measurements.**~~ Resolved by L9A: the window is
+  a single resizable 800 × 700 frame (min 720 × 600) and `SettingsPane.preferredContentHeight`
+  is gone. Verified live at 800 × 700, 1100 × 800 and the clamped floor.
 - **`supergrokheavy` → "SuperGrok Heavy" plan mapping is unconfirmed** against a live Grok tier
   id; the fallback capitalization renders any real value sensibly either way.
 - **`CredentialStore` still says "xAI API API key".** `APIKeyProvider.displayName` for `.xAI`
@@ -318,3 +316,27 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   both undercut the now-precise failure copy on the popover card.
 - **xAI missing-key line says "spend" for a prepaid balance.** "Add a management key to see
   xAI spend" follows the shared sentence shape; branching on `APISpendKind` would say "balance".
+
+## Settings window residuals (2026-09-04, W4a / L9A–L11A)
+
+- **A fresh worktree cannot run the `HeadroomAppTests` xcodebuild scheme without a manual
+  Sparkle fetch.** `project.yml` points the framework at
+  `.xcode-derived/SourcePackages/artifacts/sparkle/Sparkle/Sparkle.xcframework`, which only
+  `Scripts/build-app.sh` creates (curl + ditto of the 2.9.4 release zip);
+  `-resolvePackageDependencies` does not produce it. Worse, once xcodebuild has cached a
+  "no XCFramework found" build description in the *shared* DerivedData it keeps failing even
+  after the framework exists — the run only succeeds with an explicit `-derivedDataPath`.
+  Either give `build-app.sh` a deps-only mode the documented test command can call, or move the
+  prefetch into the scheme's pre-action.
+- **The measured vertical resize floor is 632pt, not the declared 600.** `SettingsView` asks for
+  `minHeight: 600` and `.windowResizability(.contentSize)` clamps the live window at 632 — 32pt
+  more, exactly the hidden title bar's height. Harmless (the effective floor is still above the
+  600pt the sidebar column needs) but the constant reads 32pt lower than what ships.
+- **The sidebar's version stamp cannot be visually accepted under `swift run`.** It reads
+  `CFBundleShortVersionString`, which a SwiftPM binary has no Info.plist for, so L10A's 10.5pt
+  monospaced-digit line is absent from every `--demo` capture. Accept it on a
+  `Scripts/build-app.sh` bundle instead.
+- **The demo fixture gives Cursor an account capacity of 5.** `--demo multi-4` renders Cursor
+  with "1 of 5" and an "Add Account…" button, but the shipping Cursor provider is deliberately
+  single-account (no config-home isolation), so its real header carries the switch alone. The
+  fixture provider should declare a capacity of 1 or the demo misrepresents the pane.

@@ -30,6 +30,10 @@ struct SettingsPaneScaffold<Content: View>: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 20)
+            // L9A: the window is resizable now, so the pane's measure is capped and
+            // left-aligned rather than tracking the column. Without this a 1200pt-wide
+            // window runs a help line the whole way across.
+            .frame(maxWidth: SettingsView.detailContentMaxWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.automatic)

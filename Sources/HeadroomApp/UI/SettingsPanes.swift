@@ -30,6 +30,10 @@ struct SettingsPaneScaffold<Content: View>: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 20)
+            // L9A: the window is resizable now, so the pane's measure is capped and
+            // left-aligned rather than tracking the column. Without this a 1200pt-wide
+            // window runs a help line the whole way across.
+            .frame(maxWidth: SettingsView.detailContentMaxWidth, alignment: .leading)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.automatic)
@@ -118,12 +122,8 @@ struct AppearanceSettingsPane: View {
                     }
             }
 
-            // KTD13: the real-meter swatches need the tile's full width so they can
-            // wrap. Only Format keeps the shared picker cap.
-            MeterStyleTile(
-                meterStyle: meterStyle,
-                formatPickerMaxWidth: SettingsMetrics.segmentedMaxWidth
-            ) { newStyle in
+            // L12B: every row is a swatch grid now, so the tile takes its full width.
+            MeterStyleTile(meterStyle: meterStyle) { newStyle in
                 meterStyle = newStyle
                 onMeterStyleChange(newStyle)
             }

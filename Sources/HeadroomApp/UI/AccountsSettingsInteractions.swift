@@ -97,16 +97,41 @@ enum AccountsSettingsInteractions {
         let accessibilityLabel: String
     }
 
+    /// L11A: the group header's "Add Account…" button. It stays *shown* wherever the
+    /// provider is multi-account — a control that vanishes is harder to learn than one
+    /// that is dimmed — and carries its own reason for being unavailable.
+    enum AddAccountActionState: Equatable {
+        case enabled(help: String)
+        case disabled(help: String)
+
+        var isEnabled: Bool {
+            if case .enabled = self { return true }
+            return false
+        }
+
+        var helpText: String {
+            switch self {
+            case .enabled(let help), .disabled(let help): help
+            }
+        }
+    }
+
     /// R11: "off" means "not fetched", never "unmanageable". Fetch-derived chrome (status
     /// text, fetch-recovery buttons, the provider capability banner) disappears and the
-    /// rows dim, while Add Account, sign-in, rename, removal, stop-tracking and "Show CLI
-    /// Account" stay live — Grok and Cursor ship off, so a first account must be reachable
-    /// before the switch is ever turned on.
+    /// rows dim, while sign-in, rename, removal, stop-tracking and "Show CLI Account"
+    /// stay live.
+    ///
+    /// L11A revises R11 for one control: "Add Account…" now dims with the rest of the
+    /// group. It was left live so a first account could be created before the switch had
+    /// ever been turned on, but that made the one full-contrast control in an off group
+    /// the one that does the most. The switch itself stays enabled, so the first-account
+    /// path costs one extra click and nothing else.
     struct ProviderGroupPresentation: Equatable {
         let subscriptionSwitch: SubscriptionSwitchPresentation
         let isFetching: Bool
         let showsAccountCounter: Bool
         let showsAddAction: Bool
+        let addAction: AddAccountActionState
 
         var dimsAccountRows: Bool { !isFetching }
         /// R11: only *fetch-derived* status hides while the provider is off. Sign-in the
@@ -152,6 +177,7 @@ enum AccountsSettingsInteractions {
         providerDisplayName: String,
         accounts: [ProviderAccount],
         capacity: Int,
+        hasFreeAccountSlot: Bool,
         isSurfaceEnabled: Bool,
         hasActiveHandoff: @MainActor (ProviderAccount) -> Bool = SetupSessions.hasActiveHandoff(for:)
     ) -> ProviderGroupPresentation {
@@ -168,8 +194,36 @@ enum AccountsSettingsInteractions {
             ),
             isFetching: isSurfaceEnabled,
             showsAccountCounter: multiAccount,
-            showsAddAction: multiAccount
+            showsAddAction: multiAccount,
+            addAction: addAccountActionState(
+                providerDisplayName: providerDisplayName,
+                capacity: capacity,
+                hasFreeAccountSlot: hasFreeAccountSlot,
+                isSurfaceEnabled: isSurfaceEnabled
+            )
         )
+    }
+
+    /// L11A. Ordering is load-bearing: capacity outranks the subscription switch, because
+    /// turning a full provider back on would not free a slot — "Turn Grok on to add an
+    /// account" there would send the user through the switch for nothing.
+    ///
+    /// An open Terminal handoff deliberately does *not* block this. It holds the
+    /// subscription switch (R10) because flipping mid-handoff would strand the account the
+    /// handoff is about to produce, but starting a second sign-in is legitimate.
+    nonisolated static func addAccountActionState(
+        providerDisplayName: String,
+        capacity: Int,
+        hasFreeAccountSlot: Bool,
+        isSurfaceEnabled: Bool
+    ) -> AddAccountActionState {
+        guard hasFreeAccountSlot else {
+            return .disabled(help: "Up to \(capacity) accounts per provider")
+        }
+        guard isSurfaceEnabled else {
+            return .disabled(help: "Turn \(providerDisplayName) on to add an account.")
+        }
+        return .enabled(help: "Sign in another account via the official CLI")
     }
 
     /// R12: leaving Accounts (pane switch or window close) must not silently discard a

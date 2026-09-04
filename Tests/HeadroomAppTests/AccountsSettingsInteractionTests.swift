@@ -377,6 +377,7 @@ struct AccountsSettingsInteractionTests {
             providerDisplayName: "Grok",
             accounts: accounts,
             capacity: 5,
+            hasFreeAccountSlot: true,
             isSurfaceEnabled: false,
             hasActiveHandoff: { _ in false }
         )
@@ -397,6 +398,7 @@ struct AccountsSettingsInteractionTests {
             providerDisplayName: "Grok",
             accounts: accounts,
             capacity: 5,
+            hasFreeAccountSlot: true,
             isSurfaceEnabled: true,
             hasActiveHandoff: { _ in false }
         )
@@ -408,11 +410,106 @@ struct AccountsSettingsInteractionTests {
         #expect(on.offHelpText == nil)
     }
 
+    // MARK: - L11A: Add Account while the provider is off
+
+    @Test func addAccountIsLiveWhileTheProviderIsOnAndHasARoomySlot() {
+        let presentation = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: [ProviderAccount.builtIn(for: .grok)],
+            capacity: 5,
+            hasFreeAccountSlot: true,
+            isSurfaceEnabled: true,
+            hasActiveHandoff: { _ in false }
+        )
+
+        #expect(presentation.showsAddAction)
+        #expect(presentation.addAction.isEnabled)
+        #expect(presentation.addAction.helpText == "Sign in another account via the official CLI")
+    }
+
+    @Test func addAccountIsDisabledWhileTheProviderIsOffAndSaysWhy() {
+        let presentation = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: [ProviderAccount.builtIn(for: .grok)],
+            capacity: 5,
+            hasFreeAccountSlot: true,
+            isSurfaceEnabled: false,
+            hasActiveHandoff: { _ in false }
+        )
+
+        // L11A: the button is still drawn — it dims with the group rather than vanishing.
+        #expect(presentation.showsAddAction)
+        #expect(!presentation.addAction.isEnabled)
+        #expect(presentation.addAction.helpText == "Turn Grok on to add an account.")
+        // The switch is the way back out, so it must not dim with everything else.
+        #expect(presentation.subscriptionSwitch.isEnabled)
+    }
+
+    @Test func addAccountAtCapacityKeepsTheCapacityReasonEvenWhileOff() {
+        let full = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: [ProviderAccount.builtIn(for: .grok)],
+            capacity: 5,
+            hasFreeAccountSlot: false,
+            isSurfaceEnabled: false,
+            hasActiveHandoff: { _ in false }
+        )
+
+        // L11A: turning the provider on would not free a slot, so the off-switch reason
+        // must never displace the capacity one — it would send the user through the
+        // switch for nothing.
+        #expect(!full.addAction.isEnabled)
+        #expect(full.addAction.helpText == "Up to 5 accounts per provider")
+
+        let fullAndOn = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: [ProviderAccount.builtIn(for: .grok)],
+            capacity: 5,
+            hasFreeAccountSlot: false,
+            isSurfaceEnabled: true,
+            hasActiveHandoff: { _ in false }
+        )
+        #expect(!fullAndOn.addAction.isEnabled)
+        #expect(fullAndOn.addAction.helpText == "Up to 5 accounts per provider")
+    }
+
+    @Test func addAccountIgnoresAnOpenHandoffButStillFollowsTheSwitch() {
+        let accounts = [
+            ProviderAccount.builtIn(for: .grok),
+            ProviderAccount(id: AccountID("second"), providerID: .grok, label: "Second"),
+        ]
+
+        let midHandoffOn = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: accounts,
+            capacity: 5,
+            hasFreeAccountSlot: true,
+            isSurfaceEnabled: true,
+            hasActiveHandoff: { $0.id == AccountID("second") }
+        )
+        // R10 holds the *switch* mid-handoff; L11A does not extend that to Add Account,
+        // because starting a second sign-in strands nothing.
+        #expect(midHandoffOn.addAction.isEnabled)
+        #expect(!midHandoffOn.subscriptionSwitch.isEnabled)
+
+        let midHandoffOff = AccountsSettingsInteractions.providerGroupPresentation(
+            providerDisplayName: "Grok",
+            accounts: accounts,
+            capacity: 5,
+            hasFreeAccountSlot: true,
+            isSurfaceEnabled: false,
+            hasActiveHandoff: { $0.id == AccountID("second") }
+        )
+        #expect(!midHandoffOff.addAction.isEnabled)
+        #expect(midHandoffOff.addAction.helpText == "Turn Grok on to add an account.")
+    }
+
     @Test func singleAccountProviderHeaderDropsTheCounterAndAddButKeepsTheSwitch() {
         let presentation = AccountsSettingsInteractions.providerGroupPresentation(
             providerDisplayName: "Cursor",
             accounts: [ProviderAccount.builtIn(for: .cursor)],
             capacity: 1,
+            hasFreeAccountSlot: false,
             isSurfaceEnabled: false,
             hasActiveHandoff: { _ in false }
         )

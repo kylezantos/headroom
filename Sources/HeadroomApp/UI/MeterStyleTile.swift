@@ -11,12 +11,8 @@ struct MeterStyleTile: View {
     let meterStyle: MeterStyle
     let onChange: (MeterStyle) -> Void
 
-    /// L12B: Format is no longer a segmented control, so nothing here caps to the shared
-    /// segmented width. The parameter is still accepted (and ignored) so the settings pane
-    /// that owns the call site keeps compiling while the parallel workstreams merge.
     init(
         meterStyle: MeterStyle,
-        formatPickerMaxWidth: CGFloat = 0,
         onChange: @escaping (MeterStyle) -> Void
     ) {
         self.meterStyle = meterStyle

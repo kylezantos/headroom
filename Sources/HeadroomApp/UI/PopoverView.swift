@@ -25,6 +25,7 @@ struct PopoverView: View {
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     // Drives the first-session open fade. Subsequent menu-bar opens are instant because
     // SwiftUI recreates this view per open; replaying motion there reads as latency.
     @State private var appeared = false
@@ -32,6 +33,14 @@ struct PopoverView: View {
     /// Content extends past the scroll cap and isn't scrolled to the bottom — gates
     /// the bottom fade so it never softens a fully visible last card.
     @State private var scrollContinuesBelow = false
+    /// L3A: the list is scrolled off its top — gates the top feather so an unscrolled
+    /// popover keeps its crisp first-card edge, exactly like the bottom gate.
+    @State private var scrollContinuesAbove = false
+    /// L2A: live scroll geometry driving the bespoke gutter indicator. The system
+    /// scroller is hidden, so this is the only position and length cue.
+    @State private var scrollMetrics = PopoverScrollMetrics()
+    @State private var scrollIndicatorVisible = false
+    @State private var scrollIndicatorHideTask: Task<Void, Never>?
     /// Measured height of the card stack. `MenuBarExtra(.window)` sizes its window to the
     /// content's ideal height, and a `ScrollView` has no ideal height of its own — left to
     /// self-size it collapsed to zero and the popover opened at 127pt with no cards
@@ -84,27 +93,42 @@ struct PopoverView: View {
                         }
                         APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)
                     }
-                    // Reserve a gutter inside the expanded scroll viewport below. The
-                    // matching negative outer inset preserves the cards' original width.
-                    .padding(.trailing, 10)
                     // Scroll content is laid out at its ideal height regardless of the
                     // ScrollView's own frame, so this reports the true stack height even
                     // on the first pass while the frame below is still zero.
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardsHeight = $0 }
                 }
-                .scrollIndicators(.automatic)
+                // L2A: the stock overlay scroller sat on the card border and painted a
+                // near-black well over the card interior when it expanded. We hide it and
+                // draw our own in the 19pt shell gutter instead (see `scrollIndicator`),
+                // which also retires main's borrowed 10pt scroller gutter — the viewport
+                // and the cards are the same width again.
+                .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
-                // Soft bottom fade while content continues below the cap — the flat
-                // clip alone read as a card with missing data (impeccable audit P2).
-                // Overflow-gated so the common non-scrolling popover keeps its crisp
-                // final card edge.
-                .onScrollGeometryChange(for: Bool.self) { geometry in
-                    geometry.contentOffset.y + geometry.containerSize.height < geometry.contentSize.height - 4
-                } action: { _, overflows in
-                    scrollContinuesBelow = overflows
+                // Soft fades while content continues past either end of the cap — the flat
+                // clip alone read as a card with missing data (impeccable audit P2), and
+                // L3A extends the same treatment to the top so a scrolled card is no longer
+                // chopped square under the header. Both ends are gated so the common
+                // non-scrolling popover keeps its crisp first and last card edges.
+                .onScrollGeometryChange(for: PopoverScrollMetrics.self) { geometry in
+                    PopoverScrollMetrics(
+                        offset: geometry.contentOffset.y,
+                        viewport: geometry.containerSize.height,
+                        content: geometry.contentSize.height
+                    )
+                } action: { _, metrics in
+                    scrollMetrics = metrics
+                    scrollContinuesAbove = metrics.continuesAbove
+                    scrollContinuesBelow = metrics.continuesBelow
+                    flashScrollIndicator(overflows: metrics.overflows)
                 }
                 .mask {
                     VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [scrollContinuesAbove ? .black.opacity(0) : .black, .black],
+                            startPoint: .top, endPoint: .bottom
+                        )
+                        .frame(height: 26)
                         Rectangle().fill(.black)
                         LinearGradient(
                             colors: [.black, scrollContinuesBelow ? .black.opacity(0) : .black],
@@ -114,10 +138,10 @@ struct PopoverView: View {
                     }
                 }
                 .animation(reduceMotion ? nil : HeadroomMotion.settle, value: scrollContinuesBelow)
-                // Extend only the scroll viewport into the shell's existing right margin.
-                // Cards keep symmetrical 19pt shell margins; the scroller occupies this
-                // borrowed 10pt instead of covering a card or shrinking its content.
-                .padding(.trailing, -10)
+                .animation(reduceMotion ? nil : HeadroomMotion.settle, value: scrollContinuesAbove)
+                // Applied outside the mask so the indicator never feathers at the ends,
+                // and outside the feather animations so its position tracks the scroll 1:1.
+                .overlay(alignment: .topTrailing) { scrollIndicator }
                 .frame(height: forcedCardsHeight ?? min(cardsHeight, 640))
                 footer
             }
@@ -142,6 +166,73 @@ struct PopoverView: View {
                 appeared = true
                 PopoverEntranceAnimation.hasAnimatedThisSession = true
             }
+        }
+    }
+
+    // MARK: - Bespoke scroll indicator (L2A)
+
+    /// A 3pt capsule whose centre sits 8pt from the shell's right edge, so it lives wholly
+    /// inside the 19pt gutter and never touches a card (the cards' right edge is 19pt in).
+    /// No track, no well, no hover growth — the three things the stock scroller was faulted
+    /// for. Drawn only while the content overflows the 640pt cap.
+    @ViewBuilder private var scrollIndicator: some View {
+        if scrollMetrics.overflows {
+            Capsule()
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.30))
+                .opacity(scrollIndicatorVisible ? 1 : 0)
+                // Fade-out is the specified 200ms on `settle`'s curve; the appearance is
+                // the shorter `quickSettle` so the cue is already there when the finger
+                // lands. Reduce Motion shows and hides it outright.
+                .animation(scrollIndicatorAnimation, value: scrollIndicatorVisible)
+                // Geometry sits outside the animation scope so the capsule slides with the
+                // scroll rather than easing behind it.
+                .frame(
+                    width: PopoverScrollIndicatorMetrics.width,
+                    height: scrollIndicatorLength
+                )
+                .offset(x: PopoverScrollIndicatorMetrics.gutterOffset, y: scrollIndicatorOffsetY)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var scrollIndicatorAnimation: Animation? {
+        guard !reduceMotion else { return nil }
+        return scrollIndicatorVisible ? HeadroomMotion.quickSettle : HeadroomMotion.settle
+    }
+
+    /// Proportional length — viewport × (viewport / content) — floored at 24pt so a very
+    /// long list still leaves something to see, and capped by the inset track.
+    private var scrollIndicatorLength: CGFloat {
+        let viewport = scrollMetrics.viewport
+        let content = scrollMetrics.content
+        guard viewport > 0, content > viewport else { return 0 }
+        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
+        return min(track, max(PopoverScrollIndicatorMetrics.minimumLength, viewport * (viewport / content)))
+    }
+
+    private var scrollIndicatorOffsetY: CGFloat {
+        let viewport = scrollMetrics.viewport
+        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
+        let travel = max(track - scrollIndicatorLength, 0)
+        let scrollable = max(scrollMetrics.content - viewport, 1)
+        let progress = min(max(scrollMetrics.offset / scrollable, 0), 1)
+        return PopoverScrollIndicatorMetrics.endInset + travel * progress
+    }
+
+    /// Appears on scroll, holds 900ms, then fades. Each geometry change restarts the hold,
+    /// so a continuous drag keeps it lit and it settles once the list stops moving.
+    private func flashScrollIndicator(overflows: Bool) {
+        scrollIndicatorHideTask?.cancel()
+        guard overflows else {
+            scrollIndicatorVisible = false
+            return
+        }
+        scrollIndicatorVisible = true
+        scrollIndicatorHideTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            scrollIndicatorVisible = false
         }
     }
 
@@ -301,6 +392,30 @@ struct PopoverView: View {
 @MainActor
 private enum PopoverEntranceAnimation {
     static var hasAnimatedThisSession = false
+}
+
+/// L2A geometry. The gutter offset is measured from the scroll viewport's trailing edge,
+/// which coincides with the cards' right edge 19pt inside the shell: pushing the 3pt
+/// capsule out by 12.5pt lands its centre 8pt from the shell edge.
+private enum PopoverScrollIndicatorMetrics {
+    static let width: CGFloat = 3
+    static let minimumLength: CGFloat = 24
+    static let endInset: CGFloat = 6
+    static let shellMargin: CGFloat = 19
+    static let centreFromShellEdge: CGFloat = 8
+    static let gutterOffset: CGFloat = shellMargin - centreFromShellEdge + width / 2
+}
+
+/// One read of the scroll viewport, shared by both feathers and the indicator so the three
+/// stay in step and the popover installs a single `onScrollGeometryChange`.
+private struct PopoverScrollMetrics: Equatable {
+    var offset: CGFloat = 0
+    var viewport: CGFloat = 0
+    var content: CGFloat = 0
+
+    var overflows: Bool { viewport > 0 && content > viewport + 1 }
+    var continuesAbove: Bool { overflows && offset > 0 }
+    var continuesBelow: Bool { offset + viewport < content - 4 }
 }
 
 private struct PopoverSurfaceModifier: ViewModifier {

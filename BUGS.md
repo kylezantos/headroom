@@ -329,3 +329,21 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   drop the argument (plus its now-stale `KTD13` comment) in `AppearanceSettingsPane`.
   `SettingsMetrics.segmentedMaxWidth` itself stays: the Percentages, Menu Bar, and API Spend
   pickers still use it.
+
+## L4B's 34pt right edge stops at the card's transient recovery rows
+
+- **The Sep 2026 card margin (L4B) covers the identity rows, the meter rows and the pending
+  skeletons.** Those now end 34pt from the card's right edge, mirroring the 34pt label column.
+  The card's *transient* rows were deliberately left at the old 13pt: `StopWaitingButton`'s
+  trailing `HStack` in `AccountSectionView` and `ProviderCardView`, the compact inline sign-in
+  and "Check now" rows in `AccountSectionView.signInContent`, and the nested Connect/Waiting
+  tiles (`ClaudeConnectCard`, `CodexConnectCard`, `ProviderSetupRecoveryCard`,
+  `CodexAccessRecoveryCard`), which own their own backgrounds and would look shrunken inside
+  the card if inset. The nested tiles are almost certainly right to stay full-width; the bare
+  button rows are the open question — in a signed-out or waiting account they sit 21pt to the
+  right of every percentage above them. Decide once those states have been seen live.
+- **The L5D tooltip is unverified as rendered.** The main account's title carries
+  `.help("Main account — shown in the menu bar and widgets")` and the VoiceOver label still
+  says it, but AppKit's tooltip timer does not fire for synthetic (CGEvent-warped) pointer
+  moves, so the popup itself was never observed. Confirm it by hovering the first row of a
+  multi-account provider with a real pointer.

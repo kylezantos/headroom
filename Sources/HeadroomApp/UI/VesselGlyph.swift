@@ -11,8 +11,8 @@ import HeadroomCore
 /// into an `NSImage` and shown directly.
 /// It is not a template image: the fill is always severity-colored, while the vessel
 /// stroke stays neutral except in the critical band. Images are cached per whole-percent
-/// fill level and severity so live updates don't re-rasterize on every redraw. Static —
-/// no motion (user's standing rule).
+/// fill level, severity, and menu-bar appearance so live updates don't re-rasterize on every
+/// redraw. Static — no motion (user's standing rule).
 enum VesselGlyph {
     /// Point size tuned to sit level with system menu-bar glyphs (~16–18pt tall).
     static let menuBarSize = NSSize(width: 11, height: 18)
@@ -21,18 +21,31 @@ enum VesselGlyph {
 
     @MainActor private static var cache: [ImageKey: NSImage] = [:]
 
-    /// Cached vessel at the given fill (0…1); `nil` → the static decorative fill.
-    @MainActor static func menuBarImage(fill: Double?, severity: UsageSeverity, isNeutral: Bool) -> NSImage {
+    /// Cached vessel at the given fill (0…1); `nil` → the static decorative fill. The
+    /// palette is part of the cache key (L1A): the same level renders differently on a light
+    /// menu bar than on a dark one.
+    @MainActor static func menuBarImage(
+        fill: Double?,
+        severity: UsageSeverity,
+        isNeutral: Bool,
+        palette: MenuBarPalette
+    ) -> NSImage {
         let clamped = min(1, max(0, fill ?? staticFill))
         let bucket = Int((clamped * 100).rounded())
-        let key = ImageKey(fillBucket: bucket, severity: severity, isNeutral: isNeutral)
+        let key = ImageKey(
+            fillBucket: bucket,
+            severity: severity,
+            isNeutral: isNeutral,
+            isDarkMenuBar: palette.isDarkMenuBar
+        )
         if let cached = cache[key] { return cached }
         let image = render(
             size: menuBarSize,
             lineWidth: 1.6,
             fill: CGFloat(bucket) / 100,
             severity: severity,
-            isNeutral: isNeutral
+            isNeutral: isNeutral,
+            palette: palette
         )
         cache[key] = image
         return image
@@ -43,7 +56,8 @@ enum VesselGlyph {
         lineWidth: CGFloat,
         fill: CGFloat,
         severity: UsageSeverity,
-        isNeutral: Bool
+        isNeutral: Bool,
+        palette: MenuBarPalette
     ) -> NSImage {
         let image = NSImage(size: size, flipped: false) { bounds in
             // Capsule wall (stroke stays inside the bounds).
@@ -52,7 +66,7 @@ enum VesselGlyph {
                                     xRadius: wallRect.width / 2,
                                     yRadius: wallRect.width / 2)
             wall.lineWidth = lineWidth
-            strokeColor(for: severity, isNeutral: isNeutral).setStroke()
+            strokeColor(for: severity, isNeutral: isNeutral, palette: palette).setStroke()
             wall.stroke()
 
             // Liquid: clip to an inset capsule, then fill the lower `fill` fraction. The
@@ -66,7 +80,7 @@ enum VesselGlyph {
             // flipped: false → origin is bottom-left, so the liquid sits at the base.
             let liquid = NSRect(x: inner.minX, y: inner.minY,
                                 width: inner.width, height: inner.height * fill)
-            fillColor(for: severity, isNeutral: isNeutral).setFill()
+            fillColor(for: severity, isNeutral: isNeutral, palette: palette).setFill()
             NSBezierPath(rect: liquid).fill()
             NSGraphicsContext.restoreGraphicsState()
             return true
@@ -75,36 +89,44 @@ enum VesselGlyph {
         return image
     }
 
-    // Menu bar palette pinned dark (Jul 2026). `VesselGlyph` renders ONLY the menu-bar
-    // status item (the widget uses a separate `VesselMark`), and SwiftUI rasterizes the
-    // resulting `Image(nsImage:)` against the *system* appearance — so a dynamic `NSColor`
-    // bakes to its light value in light mode while a sibling `.labelColor` stays dynamic and
-    // resolves white on the dark menu bar, giving a mixed palette. The Tahoe menu bar always
-    // paints status items on a dark translucent backplate, so both the stroke and the fills
-    // pin to their dark-scheme values regardless of system appearance. See MenuBarLabel.
-    private static func strokeColor(for severity: UsageSeverity, isNeutral: Bool) -> NSColor {
-        if !isNeutral, severity == .critical { return fillColor(for: severity, isNeutral: false) }
-        return .white
+    // L1A (Sep 2026): the palette follows the *menu bar's* effective appearance instead of
+    // being pinned dark. `VesselGlyph` renders ONLY the menu-bar status item (the widget uses
+    // a separate `VesselMark`), and SwiftUI rasterizes the resulting `Image(nsImage:)`
+    // against the *system* appearance — so every color here is resolved to an explicit value
+    // by `MenuBarPalette` rather than left as a dynamic `NSColor`, and nothing depends on
+    // which appearance the rasterizer is in. See MenuBarLabel / MenuBarAppearanceMonitor.
+    private static func strokeColor(
+        for severity: UsageSeverity,
+        isNeutral: Bool,
+        palette: MenuBarPalette
+    ) -> NSColor {
+        // The critical band is the one case where the wall itself carries severity.
+        if !isNeutral, severity == .critical {
+            return fillColor(for: severity, isNeutral: false, palette: palette)
+        }
+        return palette.ink.menuBarColor
     }
 
-    private static func fillColor(for severity: UsageSeverity, isNeutral: Bool) -> NSColor {
-        guard !isNeutral else { return NSColor.white.withAlphaComponent(0.62) }
-        // The liquid is a meter fill, so it reads from the fill tier — but pinned dark, where
-        // the fill and text tiers are the same values and Increase Contrast is a no-op. The
-        // menu bar has no SwiftUI environment to read, and its backplate is always dark.
-        let rgb = HeadroomSeverityColorValues.fill(for: severity, dark: true, increasedContrast: false)
-        return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1.0)
+    private static func fillColor(
+        for severity: UsageSeverity,
+        isNeutral: Bool,
+        palette: MenuBarPalette
+    ) -> NSColor {
+        guard !isNeutral else { return palette.neutralLiquid.menuBarColor }
+        return palette.liquid(for: severity).menuBarColor
     }
 
     private struct ImageKey: Hashable {
         let fillBucket: Int
         let severity: String
         let isNeutral: Bool
+        let isDarkMenuBar: Bool
 
-        init(fillBucket: Int, severity: UsageSeverity, isNeutral: Bool) {
+        init(fillBucket: Int, severity: UsageSeverity, isNeutral: Bool, isDarkMenuBar: Bool) {
             self.fillBucket = fillBucket
             self.severity = String(describing: severity)
             self.isNeutral = isNeutral
+            self.isDarkMenuBar = isDarkMenuBar
         }
     }
 }

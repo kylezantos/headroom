@@ -41,8 +41,8 @@ struct IdentityRow: View {
         HStack(spacing: IdentityRowMetrics.spacing) {
             ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
             titleText
-            if let planLabel, !planLabel.isEmpty {
-                Text(planLabel.capitalized)
+            if let planDisplayName {
+                Text(planDisplayName)
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
                     .padding(.horizontal, 5)
@@ -51,6 +51,7 @@ struct IdentityRow: View {
                         ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
                         in: Capsule()
                     )
+                    .fixedSize()
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -97,6 +98,12 @@ struct IdentityRow: View {
         return email
     }
 
+    /// Raw ids (`prolite`, `SuperGrok`) never reach the badge — Core owns the humanizing
+    /// so the lenient provider models keep their verbatim value (#709).
+    private var planDisplayName: String? {
+        PlanLabelPresentation.displayName(planLabel)
+    }
+
     private var staleTag: some View {
         Text("Stale")
             .font(.system(size: 10, weight: .semibold))
@@ -112,7 +119,7 @@ struct IdentityRow: View {
 
     private func accessibilityIdentity(email: String?) -> String {
         var parts = [title]
-        if let planLabel, !planLabel.isEmpty { parts.append("\(planLabel) plan") }
+        if let planDisplayName { parts.append("\(planDisplayName) plan") }
         if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
         if isStale { parts.append("Stale") }
         if let email { parts.append("signed in as \(email)") }

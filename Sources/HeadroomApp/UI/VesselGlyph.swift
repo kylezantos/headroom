@@ -89,7 +89,10 @@ enum VesselGlyph {
 
     private static func fillColor(for severity: UsageSeverity, isNeutral: Bool) -> NSColor {
         guard !isNeutral else { return NSColor.white.withAlphaComponent(0.62) }
-        let rgb = HeadroomSeverityColorValues.color(for: severity, dark: true)
+        // The liquid is a meter fill, so it reads from the fill tier — but pinned dark, where
+        // the fill and text tiers are the same values and Increase Contrast is a no-op. The
+        // menu bar has no SwiftUI environment to read, and its backplate is always dark.
+        let rgb = HeadroomSeverityColorValues.fill(for: severity, dark: true, increasedContrast: false)
         return NSColor(srgbRed: rgb.red, green: rgb.green, blue: rgb.blue, alpha: 1.0)
     }
 

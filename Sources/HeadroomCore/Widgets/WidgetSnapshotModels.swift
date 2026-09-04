@@ -220,6 +220,10 @@ public struct WidgetAPISpendSummary: Codable, Equatable, Sendable, Identifiable 
     public let kind: APISpendKind?
     public let capturedAt: Date?
     public let freshness: WidgetProviderFreshness
+    /// Additive field: why a stale row needs attention, kept alongside the freshness so
+    /// the companion can show the same badge/CTA the Mac card does. Payloads from older
+    /// writers omit it and fall back to the permanent/transient split in `freshness`.
+    public let attention: APISpendAttention?
 
     public init(
         id: String,
@@ -229,7 +233,8 @@ public struct WidgetAPISpendSummary: Codable, Equatable, Sendable, Identifiable 
         periodLabel: String,
         kind: APISpendKind? = nil,
         capturedAt: Date?,
-        freshness: WidgetProviderFreshness
+        freshness: WidgetProviderFreshness,
+        attention: APISpendAttention? = nil
     ) {
         self.id = id
         self.displayName = displayName
@@ -239,6 +244,7 @@ public struct WidgetAPISpendSummary: Codable, Equatable, Sendable, Identifiable 
         self.kind = kind
         self.capturedAt = capturedAt
         self.freshness = freshness
+        self.attention = attention
     }
 
     public var semanticKind: APISpendKind { kind ?? .periodSpend }

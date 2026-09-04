@@ -104,23 +104,30 @@ struct MeterStyleTests {
         #expect(MeterRecipe.litCellCount(fraction: 0.5, cells: 0) == 0)
     }
 
+    /// The ramp is a bar fill end to end, so its end stop is the severity *fill* token, not the
+    /// text token (Sep 2026 fill/text split) — and it tracks Increase Contrast with the rest of
+    /// the meter.
     @Test func rampStopsStayInTheSeverityHueAndEndAtFullSeverity() {
         for scheme in MeterColorScheme.allCases {
             for severity in [UsageSeverity.healthy, .low, .critical] {
-                let severityColor = HeadroomSeverityColorValues.color(
-                    for: severity,
-                    dark: scheme == .dark
-                )
-                for surface in [MeterRampSurface.flat, .well] {
-                    let stops = MeterRecipe.rampStops(
-                        severity: severity,
-                        scheme: scheme,
-                        surface: surface
+                for increasedContrast in [false, true] {
+                    let severityFill = HeadroomSeverityColorValues.fill(
+                        for: severity,
+                        dark: scheme == .dark,
+                        increasedContrast: increasedContrast
                     )
+                    for surface in [MeterRampSurface.flat, .well] {
+                        let stops = MeterRecipe.rampStops(
+                            severity: severity,
+                            scheme: scheme,
+                            surface: surface,
+                            increasedContrast: increasedContrast
+                        )
 
-                    #expect(stops.end == severityColor)
-                    #expect(stops.start != stops.end)
-                    #expect(!isNeutral(stops.start))
+                        #expect(stops.end == severityFill)
+                        #expect(stops.start != stops.end)
+                        #expect(!isNeutral(stops.start))
+                    }
                 }
             }
         }

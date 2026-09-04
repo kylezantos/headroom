@@ -55,7 +55,11 @@ public actor CredentialStore {
             }
             return .success(key)
         } catch CredentialError.notLoggedIn {
-            return .failure(.notLoggedIn("Add a \(provider.displayName) admin API key in Settings"))
+            // The provider's declared credential, article included: interpolating a vendor
+            // name after "a" produced "Add a Anthropic admin API key", and named the wrong
+            // credential for xAI, which takes a management key.
+            let credential = APISpendCredentialDescriptor.forProvider(provider.providerID)
+            return .failure(.notLoggedIn("Add \(credential.credentialNoun) in Settings"))
         } catch {
             return .failure(.notLoggedIn("\(provider.displayName) API key unreadable"))
         }

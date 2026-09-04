@@ -961,6 +961,17 @@
           <li>Light fills are scheme-specific and opaque; “glass” becomes cool steel rather than black-alpha gray.</li>
           <li>Every recipe preserves the green → amber → red severity ramp in both schemes.</li>
         </ul>
+        <p class="matrix-notes"><strong>2026-09-03 — severity fills split from severity text.</strong>
+        The rev-3 proposal above (a light <code>severityFill</code> set audited to 3:1 on the track) shipped
+        as the darkened light tokens, and in the app those bars read muddy. Product decision: in the
+        <em>default</em> light appearance the bar is a redundant visualization — the percent numeral beside it
+        already states the value at full text contrast — so the fills go vivid and sit at 2.06–3.22:1 on the
+        track instead of 3:1. Accessibility is held by two rules: all <em>text</em>, icons, and the “Low” pill
+        stay on the (unchanged) text tokens, and Increase Contrast swaps the light fills back to the
+        3:1-passing values. Ratios and the reasoning live in
+        <code>HeadroomSeverityColorValues</code> + <code>BrandColorValuesTests</code>. Note for future rounds:
+        the light track stays at <code>rgba(0,0,0,0.12)</code> — <em>darkening</em> it reduces fill separation,
+        because these mid-luminance fills are darker than the track and converge on it.</p>
       </article>
 
       <article class="landed-group">

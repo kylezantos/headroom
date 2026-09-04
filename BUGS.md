@@ -280,3 +280,52 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   dies on SIGPIPE, so only a fully-hung, non-writing npm lingers; bounded to one process
   per user-triggered Check Again / uncached discovery. Deferred as low-impact vs. the risk
   of destabilizing the load-bearing shell probe.
+
+## Video-review round residuals (2026-09-03)
+
+- **Light-mode severity fills went vivid on 2026-09-03 (two-tier policy).** Meter fills now use
+  `HeadroomSeverityColorValues.fill(for:dark:increasedContrast:)`: vivid in the default light
+  appearance (amber 2.06:1 vs track, 2.71:1 vs card; green 2.26 / 2.97; red 3.11 / 4.09) on the
+  argument that the percent numeral beside every bar is the accessible carrier, with the old
+  3:1 text-safe tokens restored automatically under Increase Contrast. Text, pills, and icons
+  stay on the text tier. Residuals: the Ghost recipe's light separation band dropped from
+  1.38–1.63 to 1.26–1.55 and needs eyeballing; deepening the light track makes fill contrast
+  *worse* (fills are darker than the track) and is now asserted in
+  `noVividLightFillCanClearThreeToOneOnTheLightTrack`; `design/ridd-round4-meter-style.html`
+  carries a dated note but its CSS specimen vars still show the pre-change values.
+- **Unavailable rows are still narrower than live rows.** The percent column now reserves
+  three digits, but an `.unavailable` row hides the "left"/"used" term entirely, so a card that
+  mixes live and unavailable windows still won't share one gauge edge. Reserving the term's width
+  would fix it at the cost of a visible hole in an all-unavailable card.
+- **Rejected API key with a retained amount shows no CTA.** When continuity keeps a prior spend
+  total, the card shows the amount and the corrected "Key rejected" badge but no "Replace key…"
+  button; the button only appears when there is no amount to show. Decide whether the CTA should
+  also appear beside a retained amount.
+- **`APISpendPresentation.statusText` has no production callers** after the row-status refactor;
+  it is exercised only by tests and can likely be deleted.
+- **Per-pane Settings heights are budgets, not measurements.** `SettingsPane.preferredContentHeight`
+  values (General 400 … Appearance 812) and the sidebar width (216pt, window 740pt) were derived
+  from font metrics, not visually accepted. Verify in the live window that "Widgets & iPhone" is
+  whole, the Fill row keeps five swatches on one line, and the height change animates rather
+  than snaps.
+- **`supergrokheavy` → "SuperGrok Heavy" plan mapping is unconfirmed** against a live Grok tier
+  id; the fallback capitalization renders any real value sensibly either way.
+- **`CredentialStore` still says "xAI API API key".** `APIKeyProvider.displayName` for `.xAI`
+  is "xAI API", so the empty/unreadable-key messages double the word. The missing-key message
+  was fixed via `APISpendCredentialDescriptor`; the other two were left alone.
+- **Settings → API Spend guidance is stale.** The Anthropic field still warns of a "known
+  request-format issue" (resolved 2026-08-10, see above) and OpenAI says "not live-verified";
+  both undercut the now-precise failure copy on the popover card.
+- **xAI missing-key line says "spend" for a prepaid balance.** "Add a management key to see
+  xAI spend" follows the shared sentence shape; branching on `APISpendKind` would say "balance".
+
+## `MeterStyleTile(formatPickerMaxWidth:)` is an ignored compatibility parameter
+
+- **L12B (2026-09-04) removed the Format segmented control**, so nothing in `MeterStyleTile`
+  caps to `SettingsMetrics.segmentedMaxWidth` any more. The initializer still *accepts* and
+  ignores `formatPickerMaxWidth` purely so the `SettingsPanes.swift` call site — owned by a
+  parallel workstream in a separate worktree — keeps compiling before the merge. Once the
+  Loom-refinement branches are merged, delete the parameter from `MeterStyleTile.init` and
+  drop the argument (plus its now-stale `KTD13` comment) in `AppearanceSettingsPane`.
+  `SettingsMetrics.segmentedMaxWidth` itself stays: the Percentages, Menu Bar, and API Spend
+  pickers still use it.

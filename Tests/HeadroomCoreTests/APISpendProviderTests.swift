@@ -337,4 +337,44 @@ struct APISpendProviderTests {
         }
         #expect(reason == .scopeDenied("xAI key lacks billing read access"))
     }
+
+    /// Copy resolves the credential from a `ProviderID` (the widget payloads carry nothing
+    /// else), so the registry must agree with what each provider declares — otherwise the
+    /// card could ask for a credential the endpoints never accept.
+    @Test func declaredCredentialsMatchTheProviderIDRegistry() {
+        let anthropic = AnthropicAPISpendProvider(credentials: store(.anthropic), http: MockFetcher(status: 200, body: "{}"))
+        let openAI = OpenAIAPISpendProvider(credentials: store(.openAI), http: MockFetcher(status: 200, body: "{}"))
+        let xAI = XAIAPISpendProvider(credentials: store(.xAI), http: MockFetcher(status: 200, body: "{}"))
+
+        #expect(anthropic.credential == .anthropicAdminKey)
+        #expect(openAI.credential == .openAIAdminKey)
+        #expect(xAI.credential == .xAIManagementKey)
+
+        for provider in [anthropic as any APISpendProvider, openAI, xAI] {
+            #expect(provider.credential == APISpendCredentialDescriptor.forProvider(provider.id))
+        }
+
+        #expect(anthropic.credential.credentialNoun == "an admin key")
+        #expect(xAI.credential.credentialNoun == "a management key")
+    }
+
+    /// The missing-key failure names the credential, not "a <vendor> admin API key" — that
+    /// wording produced "Add a Anthropic…" and asked xAI for the wrong kind of key.
+    @Test func missingKeyFailureNamesTheDeclaredCredential() async {
+        let credentials = CredentialStore(
+            codexReader: MockCodexReader(credential: nil),
+            apiKeyStore: MockAPIKeyStore(keys: [:])
+        )
+
+        #expect(await credentials.apiKey(for: .anthropic).failureReason == .notLoggedIn("Add an admin key in Settings"))
+        #expect(await credentials.apiKey(for: .openAI).failureReason == .notLoggedIn("Add an admin key in Settings"))
+        #expect(await credentials.apiKey(for: .xAI).failureReason == .notLoggedIn("Add a management key in Settings"))
+    }
+}
+
+private extension Result where Failure == FailureReason {
+    var failureReason: FailureReason? {
+        guard case .failure(let reason) = self else { return nil }
+        return reason
+    }
 }

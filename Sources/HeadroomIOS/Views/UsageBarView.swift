@@ -7,6 +7,7 @@ struct UsageBarView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.colorSchemeContrast) private var contrast
     @State private var appeared = false
 
     private var percent: Int? {
@@ -21,7 +22,11 @@ struct UsageBarView: View {
     private var fillColor: Color {
         isEffectivelyDimmed
             ? Color.secondary.opacity(0.48)
-            : HeadroomTheme.severityColor(for: window.severity, scheme: scheme)
+            : HeadroomTheme.severityFill(
+                for: window.severity,
+                scheme: scheme,
+                increasedContrast: contrast == .increased
+            )
     }
 
     var body: some View {

@@ -1,21 +1,41 @@
 import SwiftUI
 import HeadroomCore
 
-/// Global popover meter controls. Shape and fill choices are deliberately rendered
-/// by `MeterGauge` itself, so the controls stay truthful as the renderer evolves.
+/// Global popover meter controls. Every choice is deliberately rendered by `MeterGauge`
+/// itself, so the controls stay truthful as the renderer evolves.
+///
+/// L12B: three homogeneous swatch rows. Format lost its segmented control — Full and Micro
+/// are swatches showing a mini card fragment each — and the row names became captions above
+/// their rows instead of a 46pt left label column, so the tile has one rhythm instead of three.
 struct MeterStyleTile: View {
     let meterStyle: MeterStyle
-    let formatPickerMaxWidth: CGFloat
     let onChange: (MeterStyle) -> Void
+
+    /// L12B: Format is no longer a segmented control, so nothing here caps to the shared
+    /// segmented width. The parameter is still accepted (and ignored) so the settings pane
+    /// that owns the call site keeps compiling while the parallel workstreams merge.
+    init(
+        meterStyle: MeterStyle,
+        formatPickerMaxWidth: CGFloat = 0,
+        onChange: @escaping (MeterStyle) -> Void
+    ) {
+        self.meterStyle = meterStyle
+        self.onChange = onChange
+    }
 
     @Environment(\.colorScheme) private var colorScheme
 
-    private let rowLabelWidth: CGFloat = 46
-    private let rowSpacing: CGFloat = 12
+    /// L12B: one fixed column rhythm across all three rows. Five 76pt columns on 8pt gaps
+    /// need 412pt; at the 720pt minimum window the detail column is 504pt, so the tile is
+    /// 464pt wide and its 438pt interior clears that without wrapping or shrinking.
+    private let swatchWidth: CGFloat = 76
     private let swatchSpacing: CGFloat = 8
+    private let rowSpacing: CGFloat = 16
+    private let captionSpacing: CGFloat = 6
+    private let columnCount = 5
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: rowSpacing) {
             Text("Meter style")
                 .font(.system(size: 15, weight: .semibold))
                 .kerning(-0.2)
@@ -30,81 +50,110 @@ struct MeterStyleTile: View {
     }
 
     private var formatRow: some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(alignment: .firstTextBaseline, spacing: rowSpacing) {
-                rowLabel("Format")
-                Spacer(minLength: rowSpacing)
-                formatPicker
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Format")
-                formatPicker
-            }
-        }
-    }
-
-    private var formatPicker: some View {
-        Picker("Format", selection: formatBinding) {
+        swatchRow("Format") {
             ForEach(GaugeFormat.allCases) { format in
-                Text(format.label).tag(format)
+                formatSwatch(format)
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .frame(maxWidth: formatPickerMaxWidth)
     }
 
     private var shapeRow: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .top, spacing: rowSpacing) {
-                rowLabel("Shape")
-                LazyVGrid(columns: shapeColumns, alignment: .leading, spacing: swatchSpacing) {
-                    ForEach(GaugeShape.allCases) { shape in
-                        shapeSwatch(shape)
-                    }
-                }
+        swatchRow("Shape") {
+            ForEach(GaugeShape.allCases) { shape in
+                shapeSwatch(shape)
             }
-
+        } footer: {
             if meterStyle.format == .full {
                 SettingsHelpText(text: "Tube is available only with Micro format.")
-                    .padding(.leading, rowLabelWidth + rowSpacing)
             }
         }
     }
 
     private var fillRow: some View {
-        HStack(alignment: .top, spacing: rowSpacing) {
-            rowLabel("Fill")
-            LazyVGrid(columns: fillColumns, alignment: .leading, spacing: swatchSpacing) {
-                ForEach(GaugeFill.allCases) { fill in
-                    fillSwatch(fill)
-                }
+        swatchRow("Fill") {
+            ForEach(GaugeFill.allCases) { fill in
+                fillSwatch(fill)
             }
         }
     }
 
-    private var shapeColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 64, maximum: 80), spacing: swatchSpacing)]
+    /// L12B: a fixed five-column grid, not an adaptive one, so Format (2), Shape (4), and
+    /// Fill (5) all sit on the same column centers.
+    private var columns: [GridItem] {
+        Array(
+            repeating: GridItem(.fixed(swatchWidth), spacing: swatchSpacing, alignment: .leading),
+            count: columnCount
+        )
     }
 
-    /// 72pt minimum so all five fills sit on one row inside the 720pt sidebar window's
-    /// detail column (about 400pt beside the row label); 78pt wrapped "Hue ramp" alone.
-    private var fillColumns: [GridItem] {
-        [GridItem(.adaptive(minimum: 72, maximum: 80), spacing: swatchSpacing)]
-    }
+    private func swatchRow<Swatches: View, Footer: View>(
+        _ caption: String,
+        @ViewBuilder swatches: () -> Swatches,
+        @ViewBuilder footer: () -> Footer = { EmptyView() }
+    ) -> some View {
+        VStack(alignment: .leading, spacing: captionSpacing) {
+            Text(caption)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
 
-    private func rowLabel(_ text: String) -> some View {
-        Text(text)
-            .frame(width: rowLabelWidth, alignment: .leading)
-    }
-
-    private var formatBinding: Binding<GaugeFormat> {
-        Binding(
-            get: { meterStyle.format },
-            set: { format in
-                onChange(MeterStyle(format: format, shape: meterStyle.shape, fill: meterStyle.fill))
+            LazyVGrid(columns: columns, alignment: .leading, spacing: swatchSpacing) {
+                swatches()
             }
+
+            footer()
+        }
+    }
+
+    // MARK: - Swatches
+
+    /// L12B: the two formats are mini card fragments — a "Weekly" caption over a full-width
+    /// bar, or the same caption with the micro chip inline beside it — so the swatch shows
+    /// the row layout the format produces rather than naming it.
+    private func formatSwatch(_ format: GaugeFormat) -> some View {
+        let isSelected = meterStyle.format == format
+
+        return Button {
+            onChange(MeterStyle(format: format, shape: meterStyle.shape, fill: meterStyle.fill))
+        } label: {
+            swatchBody(label: format.label) {
+                Group {
+                    switch format {
+                    case .full:
+                        VStack(alignment: .leading, spacing: 3) {
+                            fragmentCaption
+                            fragmentGauge(format: .full)
+                        }
+                    case .micro:
+                        HStack(spacing: 4) {
+                            fragmentCaption
+                            fragmentGauge(format: .micro)
+                        }
+                    }
+                }
+                .frame(width: 60, alignment: .leading)
+            }
+            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme)
+        }
+        .buttonStyle(.plain)
+        .help(format.label)
+        .accessibilityLabel("\(format.label) format")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+
+    private var fragmentCaption: some View {
+        Text("Weekly")
+            .font(.system(size: 6))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .fixedSize()
+    }
+
+    private func fragmentGauge(format: GaugeFormat) -> some View {
+        MeterGauge(
+            style: MeterStyle(format: format, shape: .chip, fill: .solid),
+            fraction: 0.62,
+            severity: .healthy,
+            freshness: .live
         )
     }
 
@@ -115,33 +164,16 @@ struct MeterStyleTile: View {
         return Button {
             onChange(MeterStyle(format: meterStyle.format, shape: shape, fill: meterStyle.fill))
         } label: {
-            VStack(spacing: 5) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(ClaudeSetupStyle.wellBackground(dark: colorScheme == .dark))
-                    MeterGauge(
-                        style: MeterStyle(format: .micro, shape: shape, fill: .glass),
-                        fraction: 0.62,
-                        severity: .healthy,
-                        freshness: .live
-                    )
-                }
-                .frame(height: 26)
-
-                Text(shape.label)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+            swatchBody(label: shape.label) {
+                MeterGauge(
+                    style: MeterStyle(format: .micro, shape: shape, fill: .glass),
+                    fraction: 0.62,
+                    severity: .healthy,
+                    freshness: .live
+                )
             }
-            .padding(5)
-            .frame(maxWidth: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .opacity(isAvailable ? 1 : 0.45)
-            .background(
-                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .meterStyleSelectionBorder(isSelected: isSelected, colorScheme: colorScheme)
+            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme)
         }
         .buttonStyle(.plain)
         .disabled(!isAvailable)
@@ -156,11 +188,29 @@ struct MeterStyleTile: View {
         return Button {
             onChange(MeterStyle(format: meterStyle.format, shape: meterStyle.shape, fill: fill))
         } label: {
-            VStack(spacing: 5) {
+            swatchBody(label: fill.label, labelLines: 2) {
                 VStack(spacing: 4) {
                     referenceGauge(fill: fill, fraction: 0.62, severity: .healthy)
                     referenceGauge(fill: fill, fraction: 0.38, severity: .low)
                 }
+            }
+            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme)
+        }
+        .buttonStyle(.plain)
+        .help(fill.label)
+        .accessibilityLabel("\(fill.label) fill")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+    }
+
+    /// The one swatch shell every row shares: a 26pt well over a 10.5pt label, 5pt apart,
+    /// inside 5pt of padding.
+    private func swatchBody<Content: View>(
+        label: String,
+        labelLines: Int = 1,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: 5) {
+            content()
                 .frame(maxWidth: .infinity)
                 .frame(height: 26)
                 .background(
@@ -168,26 +218,15 @@ struct MeterStyleTile: View {
                     in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                 )
 
-                Text(fill.label)
-                    .font(.system(size: 10.5, weight: .medium))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(2, reservesSpace: true)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(height: 28, alignment: .top)
-            }
-            .padding(5)
-            .frame(maxWidth: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(
-                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .meterStyleSelectionBorder(isSelected: isSelected, colorScheme: colorScheme)
+            Text(label)
+                .font(.system(size: 10.5, weight: .medium))
+                .multilineTextAlignment(.center)
+                .lineLimit(labelLines, reservesSpace: labelLines > 1)
+                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(height: labelLines > 1 ? 28 : nil, alignment: .top)
         }
-        .buttonStyle(.plain)
-        .help(fill.label)
-        .accessibilityLabel("\(fill.label) fill")
-        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .padding(5)
     }
 
     private func referenceGauge(
@@ -205,18 +244,24 @@ struct MeterStyleTile: View {
 }
 
 private extension View {
-    func meterStyleSelectionBorder(
+    func meterStyleSwatchChrome(
         isSelected: Bool,
         colorScheme: ColorScheme
     ) -> some View {
-        overlay {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(
-                    isSelected
-                        ? Color.accentColor
-                        : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                    lineWidth: isSelected ? 2 : 1
-                )
-        }
+        frame(maxWidth: .infinity)
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(
+                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        isSelected
+                            ? Color.accentColor
+                            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
+                        lineWidth: isSelected ? 2 : 1
+                    )
+            }
     }
 }

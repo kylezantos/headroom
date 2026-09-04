@@ -91,8 +91,16 @@ public enum WidgetSnapshotProjector {
             periodLabel: snapshot.periodLabel,
             kind: snapshot.kind,
             capturedAt: snapshot.capturedAt,
-            freshness: freshness(snapshot.freshness)
+            freshness: freshness(snapshot.freshness),
+            attention: spendAttention(snapshot.freshness)
         )
+    }
+
+    /// Carries the typed reason across the wire, which the widget `freshness` case
+    /// (message + permanence flag only) cannot express.
+    private static func spendAttention(_ freshness: Freshness) -> APISpendAttention? {
+        guard case .stale(let reason) = freshness else { return nil }
+        return APISpendAttention(reason: reason)
     }
 
     private static func windowSummary(

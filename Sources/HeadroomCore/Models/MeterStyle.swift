@@ -175,12 +175,19 @@ public enum MeterRecipe {
         rampStops(severity: severity, scheme: scheme, surface: .well)
     }
 
+    /// The ramp is a bar fill end to end, so both stops come from the severity *fill* tier
+    /// and honor Increase Contrast (`increasedContrast`); text keeps the text tier.
     public static func rampStops(
         severity: UsageSeverity,
         scheme: MeterColorScheme,
-        surface: MeterRampSurface
+        surface: MeterRampSurface,
+        increasedContrast: Bool = false
     ) -> MeterRampStops {
-        let end = HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark)
+        let end = HeadroomSeverityColorValues.fill(
+            for: severity,
+            dark: scheme == .dark,
+            increasedContrast: increasedContrast
+        )
         let mixColor: HeadroomRGBColor
         switch scheme {
         case .light:
@@ -193,7 +200,8 @@ public enum MeterRecipe {
                 end,
                 weight: HeadroomMeterColorValues.rampStartSeverityMix(
                     dark: scheme == .dark,
-                    surface: surface
+                    surface: surface,
+                    increasedContrast: increasedContrast
                 ),
                 with: mixColor
             ),

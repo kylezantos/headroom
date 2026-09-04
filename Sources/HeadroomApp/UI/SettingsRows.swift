@@ -65,6 +65,23 @@ struct SavedCredentialStatus: View {
     }
 }
 
+/// The row-tag capsule: 10pt medium secondary ink on the step material. Shared so the
+/// Accounts tags ("CLI login", "Same login as X") and the Menu Bar pane's "Off" tag
+/// cannot drift into two badge styles for one role.
+struct SettingsPillBadge: View {
+    let text: String
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 5).padding(.vertical, 1)
+            .background(ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark), in: Capsule())
+    }
+}
+
 /// Shared metrics for the Settings window's panes.
 enum SettingsMetrics {
     /// One trailing-control width for every segmented picker (Theme / provider window /

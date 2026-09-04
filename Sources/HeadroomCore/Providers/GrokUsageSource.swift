@@ -62,11 +62,7 @@ public enum GrokAuthBlob {
     }
 
     private static func email(in entry: [String: Any]) -> String? {
-        guard let value = (entry["email"] as? String)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !value.isEmpty
-        else { return nil }
-        return value
+        AccountEmail.normalized(entry["email"] as? String)
     }
 }
 

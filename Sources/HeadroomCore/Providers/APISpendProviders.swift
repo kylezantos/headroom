@@ -3,6 +3,8 @@ import Foundation
 public struct OpenAIAPISpendProvider: APISpendProvider {
     public let id = ProviderID.codex
     public let displayName = "OpenAI API"
+    /// `/v1/organization/costs` is an organization endpoint: a project key gets a 401 here.
+    public let credential = APISpendCredentialDescriptor.openAIAdminKey
 
     private let credentials: CredentialStore
     private let http: UsageFetching
@@ -67,6 +69,8 @@ public struct OpenAIAPISpendProvider: APISpendProvider {
 public struct AnthropicAPISpendProvider: APISpendProvider {
     public let id = ProviderID.claude
     public let displayName = "Anthropic API"
+    /// `/v1/organizations/cost_report` only answers an admin key (`sk-ant-admin…`).
+    public let credential = APISpendCredentialDescriptor.anthropicAdminKey
 
     private let credentials: CredentialStore
     private let http: UsageFetching
@@ -162,6 +166,9 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
 public struct XAIAPISpendProvider: APISpendProvider {
     public let id = ProviderID.grok
     public let displayName = "xAI API"
+    /// management-api.x.ai validates a *management* key and reads team billing with it;
+    /// an inference key (`xai-…` from the console) is not the same credential.
+    public let credential = APISpendCredentialDescriptor.xAIManagementKey
 
     private let credentials: CredentialStore
     private let http: UsageFetching

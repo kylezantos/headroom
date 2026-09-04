@@ -318,3 +318,14 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   both undercut the now-precise failure copy on the popover card.
 - **xAI missing-key line says "spend" for a prepaid balance.** "Add a management key to see
   xAI spend" follows the shared sentence shape; branching on `APISpendKind` would say "balance".
+
+## `MeterStyleTile(formatPickerMaxWidth:)` is an ignored compatibility parameter
+
+- **L12B (2026-09-04) removed the Format segmented control**, so nothing in `MeterStyleTile`
+  caps to `SettingsMetrics.segmentedMaxWidth` any more. The initializer still *accepts* and
+  ignores `formatPickerMaxWidth` purely so the `SettingsPanes.swift` call site — owned by a
+  parallel workstream in a separate worktree — keeps compiling before the merge. Once the
+  Loom-refinement branches are merged, delete the parameter from `MeterStyleTile.init` and
+  drop the argument (plus its now-stale `KTD13` comment) in `AppearanceSettingsPane`.
+  `SettingsMetrics.segmentedMaxWidth` itself stays: the Percentages, Menu Bar, and API Spend
+  pickers still use it.

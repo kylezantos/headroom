@@ -7,6 +7,11 @@ import Sparkle
 @MainActor
 protocol SoftwareUpdateControlling: AnyObject {
     var canCheckForUpdates: Bool { get }
+    /// L13: Sparkle's own persisted background-check preference, surfaced as a switch in
+    /// the General pane's Updates tile. Read/written straight through to the updater —
+    /// Sparkle owns the storage (`SUEnableAutomaticChecks`), so Headroom keeps no
+    /// second copy that could drift from it.
+    var automaticallyChecksForUpdates: Bool { get set }
     func checkForUpdates()
 }
 
@@ -41,6 +46,21 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SoftwareUpdate
         super.init()
     }
 
+    var automaticallyChecksForUpdates: Bool {
+        get {
+            #if canImport(Sparkle)
+            return updaterController?.updater.automaticallyChecksForUpdates ?? false
+            #else
+            return false
+            #endif
+        }
+        set {
+            #if canImport(Sparkle)
+            updaterController?.updater.automaticallyChecksForUpdates = newValue
+            #endif
+        }
+    }
+
     func checkForUpdates() {
         #if canImport(Sparkle)
         updaterController?.checkForUpdates(nil)
@@ -58,5 +78,8 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SoftwareUpdate
 @MainActor
 final class DisabledSoftwareUpdateController: SoftwareUpdateControlling {
     var canCheckForUpdates: Bool { false }
+    /// No updater to defer to, so this is a plain stored value: previews and tests can
+    /// still drive the switch without Sparkle present.
+    var automaticallyChecksForUpdates: Bool = false
     func checkForUpdates() {}
 }

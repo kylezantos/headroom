@@ -40,6 +40,9 @@ struct SettingsView: View {
     @State private var showCodexSparkCountersInWidgets = false
     @State private var syncToIPhoneEnabled = false
     @State private var launchAtLogin = false
+    /// L13: mirrors Sparkle's stored preference so the Updates switch repaints on
+    /// toggle; the updater stays the source of truth and is written on change.
+    @State private var automaticUpdateChecks = false
     @State private var apiSpendPeriod: APISpendPeriod = .currentMonth
     @State private var apiKeyDrafts: [APIKeyProvider: String] = [:]
     @State private var savedKeyProviders: Set<APIKeyProvider> = []
@@ -188,6 +191,7 @@ struct SettingsView: View {
             GeneralSettingsPane(
                 intervalMinutes: $intervalMinutes,
                 launchAtLogin: $launchAtLogin,
+                automaticUpdateChecks: $automaticUpdateChecks,
                 softwareUpdates: softwareUpdates,
                 onIntervalChange: { newValue in
                     preferences.pollIntervalMinutes = newValue
@@ -195,6 +199,9 @@ struct SettingsView: View {
                 },
                 onLaunchAtLoginChange: { newValue in
                     try? launchControl.setEnabled(newValue)
+                },
+                onAutomaticUpdateChecksChange: { newValue in
+                    softwareUpdates.automaticallyChecksForUpdates = newValue
                 }
             )
         case .appearance:
@@ -322,6 +329,7 @@ struct SettingsView: View {
         syncToIPhoneEnabled = store.syncToIPhoneEnabled
         apiSpendPeriod = store.apiSpendPeriod
         launchAtLogin = launchControl.isEnabled
+        automaticUpdateChecks = softwareUpdates.automaticallyChecksForUpdates
     }
 
     /// Presence only (never the key material): selects the configured summary or the

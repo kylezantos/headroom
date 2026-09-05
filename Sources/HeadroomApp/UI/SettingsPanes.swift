@@ -46,9 +46,11 @@ struct SettingsPaneScaffold<Content: View>: View {
 struct GeneralSettingsPane: View {
     @Binding var intervalMinutes: Int
     @Binding var launchAtLogin: Bool
+    @Binding var automaticUpdateChecks: Bool
     let softwareUpdates: SoftwareUpdateControlling
     let onIntervalChange: (Int) -> Void
     let onLaunchAtLoginChange: (Bool) -> Void
+    let onAutomaticUpdateChecksChange: (Bool) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -75,20 +77,45 @@ struct GeneralSettingsPane: View {
                     .onChange(of: launchAtLogin) { _, newValue in
                         onLaunchAtLoginChange(newValue)
                     }
-                // Hidden — not permanently dimmed — when no updater is configured
-                // (debug/CLI builds lack the Sparkle Info.plist keys). A button that can
-                // never be pressed reads as broken. (R3: the removed footer's action.)
-                if softwareUpdates.canCheckForUpdates {
-                    ResponsiveControlRow(label: "Software updates") {
+            }
+
+            // L13: software update gets its own group at the foot of the pane, the way
+            // System Settings separates it from the general preferences above, instead
+            // of riding under "Launch at login".
+            //
+            // Hidden — not permanently dimmed — when no updater is configured
+            // (debug/CLI builds lack the Sparkle Info.plist keys). A button that can
+            // never be pressed reads as broken. (R3: the removed footer's action.)
+            if softwareUpdates.canCheckForUpdates {
+                SettingsTile("Updates") {
+                    ResponsiveControlRow(label: versionRowLabel) {
                         Button("Check for Updates…") {
                             softwareUpdates.checkForUpdates()
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
+                    VStack(alignment: .leading, spacing: 4) {
+                        SettingsSwitchRow(
+                            title: "Automatically check for updates",
+                            isOn: $automaticUpdateChecks
+                        )
+                        .onChange(of: automaticUpdateChecks) { _, newValue in
+                            onAutomaticUpdateChecksChange(newValue)
+                        }
+                        SettingsHelpText(text: "Headroom checks in the background and tells you when a new version is ready.")
+                    }
                 }
             }
         }
+    }
+
+    /// The bundle's version beside the check button, in the About-panel form
+    /// ("Version 1.4.0 (32)"). The tile only renders in a configured release bundle, so
+    /// the number is present in practice; the bare label is the safe fallback.
+    private var versionRowLabel: String {
+        guard let version = AppVersionLabel.plain else { return "Version" }
+        return "Version \(version)"
     }
 }
 

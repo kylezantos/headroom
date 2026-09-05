@@ -109,14 +109,10 @@ struct SettingsSidebar: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    static let versionLabel: String? = {
-        guard let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-              !short.isEmpty else { return nil }
-        if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String, !build.isEmpty {
-            return "v\(short) (\(build))"
-        }
-        return "v\(short)"
-    }()
+    /// The sidebar's stamp is the plain version with the family's "v" prefix. The
+    /// bundle reads live in `AppVersionLabel` so the General pane's Updates row (L13)
+    /// prints the same number without a second copy of this logic.
+    static var versionLabel: String? { AppVersionLabel.prefixed }
 }
 
 extension SettingsPane {
@@ -132,6 +128,24 @@ extension SettingsPane {
         case .apiSpend: "key"
         }
     }
+}
+
+/// The app's marketing version and build, read once from the bundle. Nil under
+/// `swift run` (no bundle Info.plist), so callers hide their row rather than print a
+/// placeholder.
+enum AppVersionLabel {
+    /// "1.4.0 (32)", or "1.4.0" when no build number is stamped.
+    static let plain: String? = {
+        guard let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+              !short.isEmpty else { return nil }
+        if let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String, !build.isEmpty {
+            return "\(short) (\(build))"
+        }
+        return short
+    }()
+
+    /// "v1.4.0 (32)" — the sidebar identity block's form.
+    static var prefixed: String? { plain.map { "v\($0)" } }
 }
 
 /// Loads the vessel mark straight from its bundled SVG (mirrors `ProviderLogoView`'s

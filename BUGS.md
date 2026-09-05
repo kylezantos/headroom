@@ -333,7 +333,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   `.help("Main account — shown in the menu bar and widgets")` and the VoiceOver label still
   says it, but AppKit's tooltip timer does not fire for synthetic (CGEvent-warped) pointer
   moves, so the popup itself was never observed. Confirm it by hovering the first row of a
-  multi-account provider with a real pointer.
+  multi-account provider with a real pointer. **L11A's "Turn <Provider> on to add an account."
+  tooltip is unverified for the same reason** — it is the `.help(_:)` on the disabled
+  "Add Account…" button in a switched-off provider group header, and a disabled AppKit
+  control plus synthetic hover is exactly the combination that never fires the tooltip
+  timer, so it was never observed either. Confirm both in one real-pointer pass.
 
 ## Settings window residuals (2026-09-04, W4a / L9A–L11A)
 
@@ -371,8 +375,3 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   neither the small (`primarySubscriptionWindow`) nor the medium (`displaySubscriptionWindows`)
   family ever draws one — only the large widget and iOS do. The switch therefore sits under a
   preview that never responds to it. Either preview the large family too, or move the switch.
-- **The Widgets & iPhone pane now overflows its height budget.**
-  `SettingsPane.widgets.preferredContentHeight` is still `minimumContentHeight` (400pt), which
-  predates the L9P preview strip (~190pt on top of the tile), so the pane scrolls. Harmless —
-  every pane body is a `ScrollView` — and L9A retires per-pane heights for one 700pt resizable
-  window, which resolves it. Re-check after the W4a shell lands.

@@ -318,3 +318,20 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   both undercut the now-precise failure copy on the popover card.
 - **xAI missing-key line says "spend" for a prepaid balance.** "Add a management key to see
   xAI spend" follows the shared sentence shape; branching on `APISpendKind` would say "balance".
+- **The Widgets & iPhone preview strip has no iPhone tile (L9P).** L9P asked for one "if a
+  shared, WidgetKit-free rendering path exists". None does: the companion tile lives in
+  `HeadroomIOS`/`HeadroomIOSWidgets` (`ProviderTileView`, `HeadroomTheme`, `Elevation`), neither
+  of which is in the SPM package or the macOS app target, so previewing it would mean either a
+  cross-platform move of the iOS design system or a hand-drawn mock — the exact drift cost the
+  options doc warned about. The strip therefore shows only the macOS small and medium widgets.
+  Revisit if the iOS tile ever lands in a shared, platform-neutral library.
+- **The preview strip cannot reflect "Show Codex Spark counters in widgets".** That switch adds
+  an `.other(…Spark weekly)` window, and `.other` windows are not `isSubscriptionWindow`, so
+  neither the small (`primarySubscriptionWindow`) nor the medium (`displaySubscriptionWindows`)
+  family ever draws one — only the large widget and iOS do. The switch therefore sits under a
+  preview that never responds to it. Either preview the large family too, or move the switch.
+- **The Widgets & iPhone pane now overflows its height budget.**
+  `SettingsPane.widgets.preferredContentHeight` is still `minimumContentHeight` (400pt), which
+  predates the L9P preview strip (~190pt on top of the tile), so the pane scrolls. Harmless —
+  every pane body is a `ScrollView` — and L9A retires per-pane heights for one 700pt resizable
+  window, which resolves it. Re-check after the W4a shell lands.

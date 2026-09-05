@@ -47,7 +47,7 @@ struct WidgetPreviewStrip: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 10)
-        .opacity(widgetsEnabled ? 1 : 0.45)
+        .opacity(widgetsEnabled ? 1 : 0.55)
         .animation(reduceMotion ? nil : HeadroomMotion.settle, value: widgetsEnabled)
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)

@@ -14,11 +14,10 @@ struct APISpendSectionView: View {
             // One raised panel with the header inside and hairline-separated rows — mirrors
             // the settings "API Spend" panel so the two surfaces share one language.
             VStack(alignment: .leading, spacing: 9) {
-                Text("API Spend")
-                    .font(.system(size: 11, weight: .bold))
+                // Sentence case, no caps eyebrow (round-5 lock: "caps case looks like AI").
+                Text("API spend")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .tracking(0.5)
 
                 VStack(spacing: 0) {
                     ForEach(Array(ids.enumerated()), id: \.element) { index, id in

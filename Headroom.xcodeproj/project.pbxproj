@@ -1409,7 +1409,7 @@
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.3.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -1485,7 +1485,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Headroom;
 				INFOPLIST_KEY_CFBundleName = Headroom;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.4.0;
+				INFOPLIST_KEY_CFBundleShortVersionString = 1.3.0;
 				INFOPLIST_KEY_CFBundleVersion = 32;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -1497,7 +1497,7 @@
 				INFOPLIST_KEY_SUFeedURL = "$(HEADROOM_SPARKLE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.3.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -1585,7 +1585,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Headroom;
 				INFOPLIST_KEY_CFBundleName = Headroom;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.4.0;
+				INFOPLIST_KEY_CFBundleShortVersionString = 1.3.0;
 				INFOPLIST_KEY_CFBundleVersion = 32;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
@@ -1597,7 +1597,7 @@
 				INFOPLIST_KEY_SUFeedURL = "$(HEADROOM_SPARKLE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.3.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -1794,7 +1794,7 @@
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.4.0;
+				MARKETING_VERSION = 1.3.0;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",

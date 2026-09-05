@@ -26,7 +26,9 @@ let package = Package(
         ),
         .executableTarget(
             name: "HeadroomApp",
-            dependencies: ["HeadroomCore"],
+            // L9P: Settings › Widgets & iPhone renders the real small/medium widget
+            // bodies from HeadroomWidgetSharedUI rather than a hand-kept mock.
+            dependencies: ["HeadroomCore", "HeadroomWidgetSharedUI"],
             // The app icon catalog is compiled by actool in the xcodegen/xcodebuild app
             // build only; excluding it keeps `swift build`/`swift test` (a plain CLI
             // executable, no app bundle) fast and free of asset-catalog processing.

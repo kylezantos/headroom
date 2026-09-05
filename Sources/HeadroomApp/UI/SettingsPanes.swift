@@ -411,6 +411,10 @@ struct WidgetsSettingsPane: View {
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.widgets.label) {
+            // L9P: sits on the pane background above the tile, like the Appearance
+            // specimen — it is the subject of the pane, not another setting.
+            WidgetPreviewStrip(widgetsEnabled: widgetsEnabled)
+
             SettingsTile {
                 WidgetSettingsSection(
                     widgetsEnabled: $widgetsEnabled,

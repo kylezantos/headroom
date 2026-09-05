@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomWidgetSharedUI
+#endif
 import SwiftUI
 import WidgetKit
 

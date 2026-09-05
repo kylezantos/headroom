@@ -33,6 +33,9 @@ targets:
       - path: Sources/HeadroomApp
         excludes:
           - HeadroomApp.entitlements
+      # L9P: the Widgets & iPhone settings pane previews the real small/medium widget
+      # bodies. Compiled into the app the same way the two widget extensions compile it.
+      - path: Sources/HeadroomWidgetSharedUI
     dependencies:
       - target: HeadroomCore
       - target: HeadroomWidgets

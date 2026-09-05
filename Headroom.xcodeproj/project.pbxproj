@@ -52,6 +52,7 @@
 		33F4E619E256E723243ED1B3 /* grok-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = CDC9199DC7DC96DF143A8480 /* grok-dark.svg */; };
 		351C19F8454F736D4E3EFE06 /* ProviderID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */; };
 		36608F62A9E13ABAD0F755B8 /* HeadroomIOSWidgetEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D8078325519503A5D0F657 /* HeadroomIOSWidgetEntry.swift */; };
+		37CAAD4A4F8C640CFA6B1EAF /* HeadroomWidgetSharedUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */; };
 		39471F9CA629CA85D24AB5AE /* WidgetProviderIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4C33D4F3F0499DED381759 /* WidgetProviderIcon.swift */; };
 		3A43420A2CA4E07BAE3D99D6 /* WidgetUsageBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DD7A937E15E5BF9470E4A6B /* WidgetUsageBar.swift */; };
 		3A697334A73277ADE44CA811 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F363F18C043CEABFA7A2901B /* ProviderLogoView.swift */; };
@@ -64,7 +65,6 @@
 		4590C3DC405F2F052A5EE7C8 /* ProviderSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */; };
 		461264D34984B04423E2C1F1 /* ProviderAccountConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFD57C46D795C9775A1357F3 /* ProviderAccountConfiguration.swift */; };
 		46BD02EFDD1709E853B5CA73 /* UsageBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378187F940FD56B1A363971 /* UsageBarView.swift */; };
-		47AE2B7AF00367702C3276B3 /* HeadroomMediumWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F395690B55C802624547B6D /* HeadroomMediumWidgetView.swift */; };
 		4B4C9CAB4F37C267CE7FAF7E /* AccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7339860B2F91C83B1108CED /* AccountStorage.swift */; };
 		4BF249D4C7CEAE5DA58A40ED /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		4C0935F10F089C904FBDC937 /* ClaudeCapabilityDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6EC7DBD45EA74BD368DAB59 /* ClaudeCapabilityDiagnostic.swift */; };
@@ -106,6 +106,7 @@
 		72EF5606C8FA8717D9249DE0 /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		730A334D25EFB4F97AF1C1D0 /* HeadroomLargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3DED341B03E9DB7876BDD8B /* HeadroomLargeWidgetView.swift */; };
 		7418A0A724FCE0A54421AC9A /* HeadroomMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BECE3EB6F9311F47B82E8D1 /* HeadroomMotion.swift */; };
+		758CF69DCC6B42C3E4D65169 /* HeadroomWidgetFamilyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49506C3D72F15656A00B3D9 /* HeadroomWidgetFamilyViews.swift */; };
 		77917E6B75DF9DFD17899C30 /* WidgetSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */; };
 		77EF37E2C9BE4D5FFD98E462 /* cursor-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = 1CF869B3DC05316C71518F2A /* cursor-dark.svg */; };
 		7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
@@ -123,6 +124,7 @@
 		8D37A27F8FB8A9F3A5200078 /* ResetSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */; };
 		8D777BAB94EF15B0531B099F /* grok-light.svg in Resources */ = {isa = PBXBuildFile; fileRef = A8BCF00E1D1AB5149D047DD6 /* grok-light.svg */; };
 		8FF832CFE659FBCFD41419B2 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 702E83E9BC8385F802D31257 /* PrivacyInfo.xcprivacy */; };
+		90312FD84CD542B74CD0EC97 /* HeadroomWidgetFamilyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49506C3D72F15656A00B3D9 /* HeadroomWidgetFamilyViews.swift */; };
 		93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */; };
 		94B616960A02334A94964B51 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; };
 		9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */; };
@@ -160,13 +162,13 @@
 		BF15CFCAEF6CF7181D91A6F7 /* SettingsRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744C00250970DA4405528A9E /* SettingsRows.swift */; };
 		C000604822EDE36CCB99D307 /* ProviderCapabilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */; };
 		C28D2C6192617E958AF0332C /* ThemeThumbnailPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */; };
-		C3780A7639B2B5A780402317 /* HeadroomSmallWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0ABF0C454123B6AAF8D2492 /* HeadroomSmallWidgetView.swift */; };
 		C52BF60996ACE1F4000874B1 /* BrandColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */; };
 		C783F2F2706BC1861515E895 /* APISpendPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5CD411FF3CB3B7B9B5465F /* APISpendPresentation.swift */; };
 		C7E68A38A0A0E0D2CDC8A213 /* LaunchAtLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */; };
 		C86BB4BF2961A5AFC310AA84 /* SetupSessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C40B2D2A8F7E2BCA4823C279 /* SetupSessionCoordinator.swift */; };
 		C89159D02864CC6512B83D8C /* IOSWidgetTimelineMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */; };
 		CA1A83C2FCF419EBC2ABECC1 /* cursor-light.svg in Resources */ = {isa = PBXBuildFile; fileRef = 21DE6A53BF9F70EB068EA592 /* cursor-light.svg */; };
+		CBE071C6D70A1D7452F3C52A /* WidgetPreviewStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1473F524586653EE503553 /* WidgetPreviewStrip.swift */; };
 		CD29C4379A86CAC8A03AF46A /* Countdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87284976C67D36ECE2DD747F /* Countdown.swift */; };
 		CE723982BAA7A79F3B71880F /* BrandIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */; };
 		CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */; };
@@ -175,13 +177,13 @@
 		D13E8EE9A513FB1311992870 /* AppearanceSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ACD1DA362EC2FD0CB1EC33E /* AppearanceSetting.swift */; };
 		D3F3534EAFDA072660FF15DD /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
 		D4487583EBB5122570323276 /* IOSWidgetTimelineMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */; };
+		D4ACD733FFC836F06D43FDC1 /* HeadroomWidgetFamilyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49506C3D72F15656A00B3D9 /* HeadroomWidgetFamilyViews.swift */; };
 		D68163551E31D133ED32CA8F /* BrandColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */; };
 		D7CAC892DFB775932331FFBA /* GrokUsageSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFDB70D92C7145AFEEAF520 /* GrokUsageSource.swift */; };
 		DAFB4F586505C2785C8CE80A /* WidgetSnapshotProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */; };
 		DC1870CA40E1A553BF305430 /* CompanionDemoModeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */; };
 		DD58BD0566EB21FFEDDC5996 /* ResetSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */; };
 		E18DE57B1F934A2358BA65EE /* BrandColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */; };
-		E220ECA3C7AB61EA07CFB6F1 /* WidgetProviderWeeklyLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC34C34508588C817227112F /* WidgetProviderWeeklyLine.swift */; };
 		E29E2B87772530D886E3F94F /* SettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C025DD0467C17BEED8A13DCE /* SettingsPane.swift */; };
 		E34A369D991B59A298AFC73A /* HeadroomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B51A9D5A1F8B1C3217B253 /* HeadroomApp.swift */; };
 		E41E57E19A4E079471F68C92 /* ProviderSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */; };
@@ -381,7 +383,6 @@
 		88E5257FBAB9CE287E59153B /* codex-color.svg */ = {isa = PBXFileReference; path = "codex-color.svg"; sourceTree = "<group>"; };
 		8DD7A937E15E5BF9470E4A6B /* WidgetUsageBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetUsageBar.swift; sourceTree = "<group>"; };
 		8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = HeadroomIOSWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		8F395690B55C802624547B6D /* HeadroomMediumWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomMediumWidgetView.swift; sourceTree = "<group>"; };
 		917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityRowResolver.swift; sourceTree = "<group>"; };
 		926228C877EF61458BB10B50 /* ResponsiveLayoutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResponsiveLayoutUITests.swift; sourceTree = "<group>"; };
 		9574D232CF05C00E2B526408 /* VesselMark.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VesselMark.swift; sourceTree = "<group>"; };
@@ -416,16 +417,15 @@
 		C9D8078325519503A5D0F657 /* HeadroomIOSWidgetEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSWidgetEntry.swift; sourceTree = "<group>"; };
 		C9D996992FCBD0C9F54F348C /* WidgetSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSettingsSection.swift; sourceTree = "<group>"; };
 		CAAC30B235FDF373550D04AD /* MenuBarLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarLabel.swift; sourceTree = "<group>"; };
-		CC34C34508588C817227112F /* WidgetProviderWeeklyLine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetProviderWeeklyLine.swift; sourceTree = "<group>"; };
 		CDC9199DC7DC96DF143A8480 /* grok-dark.svg */ = {isa = PBXFileReference; path = "grok-dark.svg"; sourceTree = "<group>"; };
 		CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
-		D0ABF0C454123B6AAF8D2492 /* HeadroomSmallWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomSmallWidgetView.swift; sourceTree = "<group>"; };
 		D15A53AE4F679F87EABE633E /* MeterGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterGauge.swift; sourceTree = "<group>"; };
 		D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotProjector.swift; sourceTree = "<group>"; };
 		D3E94962CE286BEB04CB86DC /* Preferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preferences.swift; sourceTree = "<group>"; };
 		D6EC7DBD45EA74BD368DAB59 /* ClaudeCapabilityDiagnostic.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeCapabilityDiagnostic.swift; sourceTree = "<group>"; };
 		D7B30A642E6073839FA849DB /* HeadroomIOSUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = HeadroomIOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D98CDEAF6EF0A499E6D0A8FA /* SoftwareUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdateController.swift; sourceTree = "<group>"; };
+		DA1473F524586653EE503553 /* WidgetPreviewStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPreviewStrip.swift; sourceTree = "<group>"; };
 		DAF324F891EEEAD03BABA4FC /* Redaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redaction.swift; sourceTree = "<group>"; };
 		DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Sparkle.xcframework; path = ".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle/Sparkle.xcframework"; sourceTree = "<group>"; };
 		DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCapabilityPresentation.swift; sourceTree = "<group>"; };
@@ -440,6 +440,7 @@
 		F363F18C043CEABFA7A2901B /* ProviderLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderLogoView.swift; sourceTree = "<group>"; };
 		F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderSetup.swift; sourceTree = "<group>"; };
 		F461F3CFADEDB16809F8BB7F /* GrokConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokConnection.swift; sourceTree = "<group>"; };
+		F49506C3D72F15656A00B3D9 /* HeadroomWidgetFamilyViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetFamilyViews.swift; sourceTree = "<group>"; };
 		F550600E287E34F7124E73AA /* Elevation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Elevation.swift; sourceTree = "<group>"; };
 		F624981937860322BEFB6D9A /* HeadroomWidgetContainerBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetContainerBackground.swift; sourceTree = "<group>"; };
 		F7339860B2F91C83B1108CED /* AccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStorage.swift; sourceTree = "<group>"; };
@@ -487,15 +488,12 @@
 			isa = PBXGroup;
 			children = (
 				C3DED341B03E9DB7876BDD8B /* HeadroomLargeWidgetView.swift */,
-				8F395690B55C802624547B6D /* HeadroomMediumWidgetView.swift */,
-				D0ABF0C454123B6AAF8D2492 /* HeadroomSmallWidgetView.swift */,
 				1D7ED0585073F5F5D27320A1 /* HeadroomWidgetContainerBackground.swift */,
 				86D2C4B7BA8C794A93EDC3E8 /* HeadroomWidgetPreviews.swift */,
 				B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */,
 				9574D232CF05C00E2B526408 /* VesselMark.swift */,
 				78B924E019B9A132CE8FA1FB /* WidgetAPISpendView.swift */,
 				2B4C33D4F3F0499DED381759 /* WidgetProviderIcon.swift */,
-				CC34C34508588C817227112F /* WidgetProviderWeeklyLine.swift */,
 				85F2D260E777F25434670C48 /* WidgetStatusView.swift */,
 				8DD7A937E15E5BF9470E4A6B /* WidgetUsageBar.swift */,
 				2AF1C09E792CFF5984A4DC07 /* WidgetUsageMeter.swift */,
@@ -709,6 +707,7 @@
 				80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */,
 				DF2BA56351FD2FA2E4940F33 /* UsageBarView.swift */,
 				FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */,
+				DA1473F524586653EE503553 /* WidgetPreviewStrip.swift */,
 				C9D996992FCBD0C9F54F348C /* WidgetSettingsSection.swift */,
 			);
 			path = UI;
@@ -736,6 +735,7 @@
 		B6868A0F9F04CFD02EF6D7A7 /* HeadroomWidgetSharedUI */ = {
 			isa = PBXGroup;
 			children = (
+				F49506C3D72F15656A00B3D9 /* HeadroomWidgetFamilyViews.swift */,
 				E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */,
 			);
 			path = HeadroomWidgetSharedUI;
@@ -1232,6 +1232,7 @@
 				8AA5705AC7EA53BA210B5289 /* HeadroomIOSWidgetView.swift in Sources */,
 				06769F1846A5C3F03083EFBE /* HeadroomIOSWidgets.swift in Sources */,
 				6EDF8E1CC04BF1DAD791D429 /* HeadroomWidgetContainerBackground.swift in Sources */,
+				90312FD84CD542B74CD0EC97 /* HeadroomWidgetFamilyViews.swift in Sources */,
 				64E76A4A757DC3E9DB0ADE51 /* HeadroomWidgetSharedUI.swift in Sources */,
 				8734D2763F3EA91CBB32E3CE /* IOSWidgetStatusView.swift in Sources */,
 				A60D076A272E45CCFCC05E74 /* IOSWidgetTimelineMapping.swift in Sources */,
@@ -1271,6 +1272,8 @@
 				66BA4AA745FB0E91177156D3 /* CodexSetupViews.swift in Sources */,
 				E34A369D991B59A298AFC73A /* HeadroomApp.swift in Sources */,
 				7418A0A724FCE0A54421AC9A /* HeadroomMotion.swift in Sources */,
+				D4ACD733FFC836F06D43FDC1 /* HeadroomWidgetFamilyViews.swift in Sources */,
+				37CAAD4A4F8C640CFA6B1EAF /* HeadroomWidgetSharedUI.swift in Sources */,
 				ADEFB16F5E7CF386F72C58D8 /* HoverButtonStyle.swift in Sources */,
 				F4D04A6771D231DB885D09E5 /* MenuBarLabel.swift in Sources */,
 				9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */,
@@ -1291,6 +1294,7 @@
 				C28D2C6192617E958AF0332C /* ThemeThumbnailPicker.swift in Sources */,
 				15EEFD226FCB5864E97EAA12 /* UsageBarView.swift in Sources */,
 				728126D0D3BBA60E8D4D9B89 /* VesselGlyph.swift in Sources */,
+				CBE071C6D70A1D7452F3C52A /* WidgetPreviewStrip.swift in Sources */,
 				AC0331D17112DB32C3311741 /* WidgetSettingsSection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1300,11 +1304,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				730A334D25EFB4F97AF1C1D0 /* HeadroomLargeWidgetView.swift in Sources */,
-				47AE2B7AF00367702C3276B3 /* HeadroomMediumWidgetView.swift in Sources */,
-				C3780A7639B2B5A780402317 /* HeadroomSmallWidgetView.swift in Sources */,
 				4EA657309B9F48B811B1C9D5 /* HeadroomTimelineProvider.swift in Sources */,
 				959AE719260D8E5F925ACCD5 /* HeadroomWidgetContainerBackground.swift in Sources */,
 				E51EA57BFB71FB24ABBAD2E0 /* HeadroomWidgetEntry.swift in Sources */,
+				758CF69DCC6B42C3E4D65169 /* HeadroomWidgetFamilyViews.swift in Sources */,
 				18FDEF22E0619E554966F64D /* HeadroomWidgetPreviews.swift in Sources */,
 				5688973702693C0623291B4C /* HeadroomWidgetSharedUI.swift in Sources */,
 				003475AF90FE48BDC8A0142D /* HeadroomWidgetView.swift in Sources */,
@@ -1313,7 +1316,6 @@
 				F6214ECC9A7E32CC7C199C0A /* WidgetAPISpendView.swift in Sources */,
 				39471F9CA629CA85D24AB5AE /* WidgetProviderIcon.swift in Sources */,
 				A29F74C130194DF08BC83F74 /* WidgetProviderStyle.swift in Sources */,
-				E220ECA3C7AB61EA07CFB6F1 /* WidgetProviderWeeklyLine.swift in Sources */,
 				130CF5D07C345F0E7381FA66 /* WidgetStatusView.swift in Sources */,
 				3A43420A2CA4E07BAE3D99D6 /* WidgetUsageBar.swift in Sources */,
 				A3C287F3C70F95A357C9FF0F /* WidgetUsageMeter.swift in Sources */,

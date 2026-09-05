@@ -151,4 +151,41 @@ struct DemoScreenshotDataVariantsTests {
             Issue.record("Claude provider should be stale in attention fixture")
         }
     }
+
+    // MARK: - L9P settings preview fixture
+
+    /// The Settings › Widgets & iPhone strip renders the real widget bodies, so its
+    /// fixture has to be frozen: any `Date()` in it would make the medium tile's
+    /// "Updated N min ago" footer drift and invite the reader to trust the preview as
+    /// live data.
+    @Test func settingsPreviewFixtureIsFrozen() {
+        let first = DemoScreenshotData.settingsPreviewEnvelope
+        let second = DemoScreenshotData.settingsPreviewEnvelope
+        #expect(first == second)
+        #expect(first.generatedAt == DemoScreenshotData.settingsPreviewNow.addingTimeInterval(-4 * 60))
+        for provider in first.providers {
+            for window in provider.windows {
+                #expect(window.resetSchedule == .scheduled(DemoScreenshotData.settingsPreviewNow.addingTimeInterval(3 * 3_600)))
+                #expect(window.resetLabel?.isEmpty == false)
+            }
+        }
+    }
+
+    /// The strip previews the small and medium families, which draw
+    /// `primarySubscriptionWindow` and `displaySubscriptionWindows`. A fixture whose
+    /// windows fell outside those accessors would preview as an empty tile.
+    @Test func settingsPreviewFixtureFillsBothWidgetFamilies() {
+        let envelope = DemoScreenshotData.settingsPreviewEnvelope
+        // `widgetProviders` caps the list at two; the fixture is already that shape, so
+        // neither tile silently drops a provider.
+        #expect(envelope.widgetProviders.count == 2)
+        #expect(envelope.widgetProviders.map(\.id) == [ProviderID.claude.raw, ProviderID.codex.raw])
+        // No API spend: the medium tile shows its "from Mac · …" footer instead of the
+        // spend strip, whose provider marks would bypass the app's injected renderer.
+        #expect(envelope.apiSpendProviders.isEmpty)
+        for provider in envelope.widgetProviders {
+            #expect(provider.primarySubscriptionWindow != nil)
+            #expect(provider.displaySubscriptionWindows.count == 2)
+        }
+    }
 }

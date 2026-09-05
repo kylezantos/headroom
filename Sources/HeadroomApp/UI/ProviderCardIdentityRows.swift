@@ -29,11 +29,12 @@ struct IdentityRow: View {
     @Environment(\.colorScheme) private var scheme
 
     @ViewBuilder var body: some View {
-        if let email = normalizedEmail {
+        let email = normalizedEmail
+        if let tooltip = rowHelp(email: email) {
             row(email: email)
-                .help(email)
+                .help(tooltip)
         } else {
-            row(email: nil)
+            row(email: email)
         }
     }
 
@@ -76,20 +77,26 @@ struct IdentityRow: View {
         .accessibilityLabel(accessibilityIdentity(email: email))
     }
 
-    /// L5D: the main account carries no visible marker. Order already says it — main is
-    /// always its provider's first row — and a second capsule beside the plan badge made a
-    /// busy title cluster busier, so the fact moves to the title's tooltip and to VoiceOver.
-    @ViewBuilder private var titleText: some View {
-        let text = Text(title)
+    private var titleText: some View {
+        Text(title)
             .font(.system(size: 15, weight: .semibold))
             .kerning(-0.15)
             .foregroundStyle(.primary)
             .lineLimit(1)
             .truncationMode(.tail)
-        if isMenuBarAccount {
-            text.help(Self.mainAccountHelp)
-        } else {
-            text
+    }
+
+    /// L5D: the main account carries no visible marker. Order already says it — main is
+    /// always its provider's first row — and a second capsule beside the plan badge made a
+    /// busy title cluster busier, so the fact moves to this row's tooltip and to VoiceOver.
+    /// One `.help` per row: nested help modifiers let the innermost win on macOS, so a
+    /// separate tooltip on the title would swallow the email the row has always shown.
+    private func rowHelp(email: String?) -> String? {
+        switch (email, isMenuBarAccount) {
+        case (let email?, true): return "\(email)\n\(Self.mainAccountHelp)"
+        case (let email?, false): return email
+        case (nil, true): return Self.mainAccountHelp
+        case (nil, false): return nil
         }
     }
 
@@ -113,8 +120,8 @@ struct IdentityRow: View {
             .background(Color.secondary.opacity(0.18), in: Capsule())
     }
 
-    /// L5D: with the badge gone, the tooltip and this VoiceOver phrase are the only places
-    /// the fact is stated — keep them in step.
+    /// L5D: with the badge gone, the row tooltip and this VoiceOver phrase are the only
+    /// places the fact is stated — keep them in step.
     static let mainAccountHelp = "Main account — shown in the menu bar and widgets"
 
     private func accessibilityIdentity(email: String?) -> String {

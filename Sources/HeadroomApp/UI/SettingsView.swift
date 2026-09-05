@@ -88,15 +88,29 @@ struct SettingsView: View {
     var body: some View {
         NavigationSplitView {
             SettingsSidebar(selection: sidebarBinding)
+                // KTD1: the removal must sit on the sidebar column's content — applied to
+                // the split view itself it is ignored and the toggle still renders.
+                //
+                // **Order is load-bearing on Tahoe (macOS 26).** This must come *before*
+                // `.navigationSplitViewColumnWidth`, not after it. `.toolbar(removing:)`
+                // wraps the content in a view whose column-width preference
+                // `NavigationSplitView` no longer reads, so a width declared underneath it
+                // is silently dropped and the column falls back to a 140pt intrinsic
+                // width — which clipped the longest destination to "Widgets &…".
+                // Measured on macOS 26.5 against the live window: with the removal applied
+                // last the column is 140pt at every window width and for *any* declared
+                // value (216, 250, even a fixed 400); applied first it is 216pt at 720,
+                // 800, and 1100 wide. Independent of the outer frame — the pre-L9A
+                // width-pinned frame reproduces 140pt just the same — and independent of
+                // the split-view style. If this ever has to move again, prove it by
+                // reading the sidebar column's accessibility frame, not by eye.
+                .toolbar(removing: .sidebarToggle)
                 // L9A: 216pt as the *floor* as well as the ideal — the sidebar can
                 // settle on its minimum, and 180pt clipped the longest destination to
                 // "Widgets & i…". 108pt of text at 13pt plus the icon column and the
                 // sidebar's row insets needs ~216pt. 250 caps how much of a widened
                 // window the navigation can claim; the extra width belongs to the panes.
                 .navigationSplitViewColumnWidth(min: 216, ideal: 216, max: 250)
-                // KTD1: the removal must sit on the sidebar column's content — applied to
-                // the split view itself it is ignored and the toggle still renders.
-                .toolbar(removing: .sidebarToggle)
         } detail: {
             detail
         }

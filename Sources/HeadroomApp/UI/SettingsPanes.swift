@@ -648,13 +648,13 @@ struct APISpendSettingsPane: View {
         let guidance: (text: String, linkLabel: String, url: URL) = switch provider {
         case .anthropic:
             (
-                "A regular API key cannot read organization spend. Use a dedicated admin key so you can revoke it independently. Spend retrieval currently has a known request-format issue.",
+                "A regular API key can't read organization spend. Use a dedicated admin key you can revoke on its own. Spend retrieval has a known request-format issue.",
                 "Open Anthropic Console",
                 URL(string: "https://platform.claude.com/settings/admin-keys")!
             )
         case .openAI:
             (
-                "A regular API key cannot read organization spend. Use a dedicated admin key with the narrowest access available so you can revoke it independently. Spend retrieval has not been live-verified.",
+                "A regular API key can't read organization spend. Use a dedicated admin key with the narrowest access, so you can revoke it by itself. Spend retrieval isn't live-verified yet.",
                 "Open OpenAI Platform",
                 URL(string: "https://platform.openai.com/settings/organization/admin-keys")!
             )

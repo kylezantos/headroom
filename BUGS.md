@@ -375,3 +375,27 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   neither the small (`primarySubscriptionWindow`) nor the medium (`displaySubscriptionWindows`)
   family ever draws one — only the large widget and iOS do. The switch therefore sits under a
   preview that never responds to it. Either preview the large family too, or move the switch.
+
+## Motion system residuals (2026-09-04, S1A–M11A)
+
+- **The live popover does not crossfade on a meter-style change.** M5A landed on the Appearance
+  specimen (`AppearanceSpecimen.swift`) and the swatch ring, but `PopoverView`/`ProviderCardView`
+  still hard-cut when `store.meterStyle` changes. Usually invisible (Settings is open, the popover
+  is closed); add the same `.id(recipeKey)` + `.transition(.opacity)` on the card list if it shows.
+- **The specimen's static-meter gate reuses `announcesAccessibilityEvents`.** `ProviderCardView`
+  derives `meterArrivalKey` from the KTD4 inert-preview flag so the M4A draw-in never fires in the
+  specimen. A dedicated `stagesArrival` parameter would be clearer; it was avoided only to keep the
+  W2 follow-up out of W4's file.
+- **M7A removals are instant under Reduce Motion, not faded.** The Accounts list is one `.movement`
+  scope on purpose (splitting the row fade from the tile contraction is what made the contraction
+  land late), so S2A's "crossfades survive" does not hold for that one list. Revisit only if a
+  Reduce Motion user reports the hard cut.
+- **M4A under Reduce Motion is not a true per-property split.** The skeleton → live body's
+  `.transition(.opacity)` and the resize it causes share one transaction, so the body-driven card
+  resize rides the crossfade scope; only the tile scope snaps. A ZStack crossfade slot would fix it
+  but `staleContent`'s two-view branch needs restructuring first.
+- **Unavailable → live rolls the numeral from "—".** The reverse direction is a crossfade. Forcing
+  a crossfade both ways needs an `.id()` swap on the numeral that risks the layout shift M4A
+  forbids; flag if it looks wrong in acceptance.
+- **The popover entrance stays silent under Reduce Motion.** M9A ("keep exactly as is") was chosen
+  over routing `PopoverView`'s once-per-session fade through the S2A resolver; one line to flip.

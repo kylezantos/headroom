@@ -27,6 +27,7 @@ struct IdentityRow: View {
     let showsConnectedChip: Bool
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @ViewBuilder var body: some View {
         let email = normalizedEmail
@@ -68,7 +69,7 @@ struct IdentityRow: View {
             }
             if showsConnectedChip {
                 ConnectedChip()
-                    .transition(.opacity)
+                    .transition(.connectedChip(reduceMotion: reduceMotion))
             }
         }
         // L4B: trailing controls stop level with the meter rows below them.
@@ -135,6 +136,19 @@ struct IdentityRow: View {
     }
 }
 
+private extension AnyTransition {
+    /// M8A: a sign-in payoff earns a little arrival, so the chip enters on opacity plus a
+    /// 0.96 scale; it leaves on opacity alone, because an exit that announces itself twice
+    /// reads as an error. S2A drops the scale under Reduce Motion and keeps the fade.
+    static func connectedChip(reduceMotion: Bool) -> AnyTransition {
+        guard !reduceMotion else { return .opacity }
+        return .asymmetric(
+            insertion: .opacity.combined(with: .scale(scale: 0.96)),
+            removal: .opacity
+        )
+    }
+}
+
 private struct ConnectedChip: View {
     @Environment(\.colorScheme) private var scheme
 
@@ -185,7 +199,17 @@ struct AccountSectionView: View {
         // the meters floating free of their identity row.
         VStack(alignment: .leading, spacing: 7) {
             identityRow
-            stateContent
+            // M4A/S2A: the innermost scope around the switching body, so the crossfade —
+            // not the section's height change — is what this animation drives. The wrapper
+            // repeats the parent's 7pt spacing so it stays layout-neutral for the
+            // multi-view `signInContent` branch. Fill and numeral roll are `UsageBarView`'s.
+            VStack(alignment: .leading, spacing: 7) {
+                stateContent
+            }
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion),
+                value: snapshot.freshness
+            )
             if showsStopWaiting,
                SetupSessions.state(for: account) != .blockedByOpenHandoff {
                 HStack {
@@ -196,7 +220,12 @@ struct AccountSectionView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(identityTitle) account")
-        .animation(reduceMotion ? nil : HeadroomMotion.valueSpring, value: snapshot.freshness)
+        // M4A/S2A: the section's own geometry — its height inside the 22pt account stack —
+        // is travel, so Reduce Motion snaps it while the body above still crossfades.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+            value: snapshot.freshness
+        )
         .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
         .onAppear {
             evaluateConnectedPayoff()
@@ -361,12 +390,14 @@ struct AccountSectionView: View {
     private func evaluateConnectedPayoff() {
         guard case .live = snapshot.freshness, SetupSessions.isConnected(account) else { return }
         guard !showsConnectedChip else { return }
-        withAnimation(reduceMotion ? nil : HeadroomMotion.valueSpring) {
+        // M8A/S2A: as in `ProviderCardView` — the transition owns the scale, so this stays
+        // a crossfade and the fade survives Reduce Motion.
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {
             showsConnectedChip = true
         }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
-            withAnimation(reduceMotion ? nil : HeadroomMotion.settle) {
+            withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
                 showsConnectedChip = false
             }
             SetupSessions.settle(for: account)

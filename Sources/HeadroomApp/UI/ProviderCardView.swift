@@ -109,10 +109,13 @@ struct ProviderCardView: View {
         .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
         .raisedTile(cornerRadius: 10)
-        // A refresh replacing the pending skeleton (or a stale card recovering) cross-fades
-        // and springs its height change rather than hard-cutting — the arrival of a poll
-        // cycle, felt not flashed. Snaps instead under Reduce Motion.
-        .animation(reduceMotion ? nil : HeadroomMotion.valueSpring, value: snapshot.freshness)
+        // M4A/S2A: this scope owns the *tile* — its padding, its raised shape, the height
+        // it reports to the popover stack. That is travel, so Reduce Motion snaps it; the
+        // body's crossfade is a separate scope below (`singleAccountContent`) and survives.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+            value: snapshot.freshness
+        )
         .onAppear {
             evaluateConnectedPayoff()
             announceSetupStateIfNeeded()
@@ -313,6 +316,14 @@ struct ProviderCardView: View {
                 accountIdentityRow(for: primaryEntry)
                 content
             }
+            // M4A/S2A: the `.pending → .live` body swap is opacity, so it keeps its timing
+            // under Reduce Motion. This is the innermost scope around the switching body,
+            // which is why it — not the tile scope above — drives the `.transition`.
+            // The fill and numeral roll inside the inserted body belong to `UsageBarView`.
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion),
+                value: snapshot.freshness
+            )
         }
     }
 
@@ -388,10 +399,16 @@ struct ProviderCardView: View {
         guard case .live = snapshot.freshness else { return }
         guard SetupSessions.isConnected(primaryAccount) else { return }
         guard !showsConnectedChip else { return }
-        withAnimation(reduceMotion ? nil : HeadroomMotion.valueSpring) { showsConnectedChip = true }
+        // M8A/S2A: the chip's own transition drops the scale under Reduce Motion, so the
+        // driving animation stays a crossfade here — silencing it would take the fade too.
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {
+            showsConnectedChip = true
+        }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
-            withAnimation(reduceMotion ? nil : HeadroomMotion.settle) { showsConnectedChip = false }
+            withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
+                showsConnectedChip = false
+            }
             SetupSessions.settle(for: primaryAccount)
         }
     }

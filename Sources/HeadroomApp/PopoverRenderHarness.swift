@@ -236,7 +236,6 @@ enum PopoverRenderHarness {
         let root = PopoverView(
             store: store,
             onOpenSettings: {},
-            forceVisible: true,
             forceSolidSurface: true,
             // Must fit the whole locked scenario: Claude (3 windows) + Codex (2 windows)
             // + both API Spend rows. At 410 the second spend row clipped under the footer

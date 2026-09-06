@@ -10,10 +10,6 @@ import HeadroomCore
 struct PopoverView: View {
     var store: UsageStore
     var onOpenSettings: () -> Void
-    /// Render-harness only: `ImageRenderer` does not fire `onAppear`, so the entrance
-    /// fade would leave the snapshot fully transparent. Forces the content visible for
-    /// the offscreen marketing export; the live app leaves this off.
-    var forceVisible: Bool = false
     /// Render-harness only: `ImageRenderer` can't rasterize the Liquid Glass shell, so the
     /// marketing export forces the solid surface branch (a flat dark shell that also
     /// matches the design artboard). The live app leaves this off and keeps its glass.
@@ -26,12 +22,6 @@ struct PopoverView: View {
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
-    // M9A: drives the first-session open fade. Subsequent menu-bar opens are instant
-    // because SwiftUI recreates this view per open; replaying motion there reads as
-    // latency. The gate is kept verbatim — including the outright Reduce Motion skip —
-    // rather than folded into the S2A resolver, so the entrance stays a decision.
-    @State private var appeared = false
-    @State private var animatesEntrance = false
     /// Content extends past the scroll cap and isn't scrolled to the bottom — gates
     /// the bottom fade so it never softens a fully visible last card.
     @State private var scrollContinuesBelow = false
@@ -175,9 +165,9 @@ struct PopoverView: View {
                 .frame(height: forcedCardsHeight ?? min(cardsHeight, 640))
                 footer
             }
-            // One quick content fade on open — no per-row stagger or vertical travel.
-            .opacity((appeared || forceVisible) ? 1 : 0)
-            .animation(reduceMotion || !animatesEntrance ? nil : HeadroomMotion.quickSettle, value: appeared)
+            // M9C (Sep 2026): no entrance motion at all, not even on the first open. Kyle
+            // reviewed the once-per-session fade in the live build and called for instant —
+            // the popover is opened dozens of times a day and any fade reads as latency.
             // 19pt inset / 20pt tile gap / 384pt overall — tuned in the onboarding HTML
             // mockup (Jul 2026); roomier than the original concentric 12pt scheme.
             .padding(19)
@@ -187,15 +177,6 @@ struct PopoverView: View {
             .modifier(PopoverSurfaceModifier(cornerRadius: 22, forceSolid: forceSolidSurface))
             // Capture the popover's hosting window so opening Settings can dismiss it.
             .background(WindowAccessor { configurePopoverWindow($0) })
-            .onAppear {
-                guard !PopoverEntranceAnimation.hasAnimatedThisSession else {
-                    appeared = true
-                    return
-                }
-                animatesEntrance = true
-                appeared = true
-                PopoverEntranceAnimation.hasAnimatedThisSession = true
-            }
         }
     }
 
@@ -468,11 +449,6 @@ struct PopoverView: View {
                 .foregroundStyle(.secondary)
         }
     }
-}
-
-@MainActor
-private enum PopoverEntranceAnimation {
-    static var hasAnimatedThisSession = false
 }
 
 /// L2A geometry. The gutter offset is measured from the scroll viewport's trailing edge,

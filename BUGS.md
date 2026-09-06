@@ -397,5 +397,3 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **Unavailable → live rolls the numeral from "—".** The reverse direction is a crossfade. Forcing
   a crossfade both ways needs an `.id()` swap on the numeral that risks the layout shift M4A
   forbids; flag if it looks wrong in acceptance.
-- **The popover entrance stays silent under Reduce Motion.** M9A ("keep exactly as is") was chosen
-  over routing `PopoverView`'s once-per-session fade through the S2A resolver; one line to flip.

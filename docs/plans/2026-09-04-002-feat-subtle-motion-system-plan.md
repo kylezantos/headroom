@@ -25,7 +25,7 @@ rules for springs and Reduce Motion. Standing rules: nothing loops or pulses, no
 | M6B | Settings pane switch | Approved **against the recommendation** (Kyle's call): 120ms opacity-only crossfade of the detail column on `quickSettle`. Nothing travels. Sidebar highlight stays native. M6A/M6C denied. |
 | M7A | Account list changes | Approved with a note. Reorder on `reorder` spring (`response 0.35, dampingFraction 1.0`); inserted rows use `settingsReveal` (4pt rise + blur), removed rows fade only; the popover card list adopts the same reorder animation keyed on account order. Kyle: the **container contraction after a removal was jerky** in the demo — the row's fade and the container's height change must share one animation scope (same `withAnimation`), so the tile contracts on the spring while the row fades, never after it. M7B/M7C denied. |
 | M8A | Connected chip | Approved. Enter opacity + scale 0.96→1 on `valueSpring`; exit opacity-only on `settle`; 4s hold unchanged. M8B/M8C denied. |
-| M9A | Popover open | Approved: keep exactly as is (120ms fade once per session, instant after). Add the anchor to the existing comment. M9B/M9C denied. |
+| M9C | Popover open | **Superseded 2026-09-06.** M9A (keep the once-per-session fade) was approved on paper, then Kyle reviewed the live build and called for instant: no entrance motion at all, not even on the first open. The fade, its session gate, and the render-harness `forceVisible` escape hatch are removed. |
 | M10A | Menu bar numeral | Approved: cut, and record why in `MenuBarLabel.swift`. M10B denied. |
 | M11A | Refresh and setup chips | Approved. Footer crossfade kept; setup chips and primary buttons adopt S3A timing and S2A gating. M11B denied. |
 

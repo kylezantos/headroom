@@ -25,6 +25,9 @@ struct APISpendPresentationTests {
         #expect(APISpendPresentation.addCreditsURL(for: .claude)?.absoluteString == "https://platform.claude.com/settings/billing")
         #expect(APISpendPresentation.addCreditsURL(for: .codex)?.absoluteString == "https://platform.openai.com/settings/organization/billing/overview")
         #expect(APISpendPresentation.addCreditsURL(for: .grok)?.absoluteString == "https://console.x.ai")
+        // S5A: Cursor has no billing page to open, which is what makes its spend row the
+        // one that draws the reserved-empty top-up slot in `--demo spend-states`.
+        #expect(APISpendPresentation.addCreditsURL(for: .cursor) == nil)
         #expect(APISpendPresentation.addCreditsURL(for: ProviderID("someday")) == nil)
     }
 

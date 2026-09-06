@@ -799,9 +799,9 @@ enum AppComposition {
     /// The spend rows a live preview scenario poses. Every other scenario keeps the two
     /// `.live` period-spend rows the demo has always shown; `spend-states` (S5A) is the one
     /// that exercises the card's other states, because nothing else in the tree ever renders
-    /// a stale spend row or a `.balance` row. Cursor is deliberately absent: it does have a
-    /// production spend path (`CursorOnDemandSpendProvider`), but the review scenario is
-    /// about the states above, and an on-demand Cursor row would only repeat one of them.
+    /// a stale spend row or a `.balance` row. Cursor rides along last because it is the only
+    /// spend provider with no `addCreditsURL`: its row is what proves the reserved-empty
+    /// top-up slot keeps all four amounts on one right edge.
     private static func demoSpendProviders(
         for scenario: DemoFixture.MultiAccountScenario
     ) -> [any APISpendProvider] {
@@ -811,6 +811,7 @@ enum AppComposition {
                 DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpendKeyRejected),
                 DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
                 DemoSpendProvider(id: .grok, displayName: "xAI API", snapshot: DemoFixture.xaiBalanceSpend),
+                DemoSpendProvider(id: .cursor, displayName: "Cursor on-demand", snapshot: DemoFixture.cursorOnDemandSpend),
             ]
         default:
             [

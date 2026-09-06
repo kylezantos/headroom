@@ -183,6 +183,24 @@ public enum DemoFixture {
         )
     }
 
+    /// S5A review fixture: Cursor is the one spend provider with no `addCreditsURL`, so its
+    /// row draws the reserved-but-empty 18pt top-up slot — the thing that keeps every amount
+    /// on one right edge when a neighbour can be topped up and this one cannot. Mirrors
+    /// `CursorOnDemandSpendProvider`: display name "Cursor on-demand", on-demand dollars in
+    /// usd, and the parser's reset-style `periodLabel` (`CursorProvider.swift:252-259`); the
+    /// popover chip reads the store's period, so this label only reaches the widget mirror.
+    public static var cursorOnDemandSpend: APISpendSnapshot {
+        APISpendSnapshot(
+            providerID: .cursor,
+            displayName: "Cursor on-demand",
+            amount: 12.40,
+            currency: "usd",
+            periodLabel: "Resets Sep 1",
+            capturedAt: Date(),
+            freshness: .live
+        )
+    }
+
     // MARK: Manual renewal dates ("Plan renews Jul 28" / "Renews Jul 15")
 
     public static func renewalDate(for id: ProviderID) -> Date? {

@@ -150,6 +150,39 @@ public enum DemoFixture {
         )
     }
 
+    /// S5A review fixture: the key stopped working but continuity keeps the last total on
+    /// screen. `.needsReauth` is what `APISpendAttention(reason:)` maps to `.keyRejected`
+    /// (`APISpendPresentation.swift:22`), the only status that pairs a "Key rejected" tag
+    /// with a retained amount and a "Replace key" chip — the popover renders Core's own copy
+    /// here, so the reason's message is provenance rather than the line the card shows.
+    public static var anthropicSpendKeyRejected: APISpendSnapshot {
+        APISpendSnapshot(
+            providerID: .claude,
+            displayName: "Anthropic API",
+            amount: 142.67,
+            currency: "usd",
+            periodLabel: APISpendPeriod.currentMonth.label,
+            capturedAt: Date().addingTimeInterval(-3 * 3_600),
+            freshness: .stale(.needsReauth("Anthropic admin key rejected"))
+        )
+    }
+
+    /// S5A review fixture: xAI bills a prepaid pool, so its row is the one `.balance` row in
+    /// the popover. `periodLabel` mirrors `XAIAPISpendProvider`'s own "Prepaid balance"; the
+    /// card's chip reads "Remaining balance" off the `kind`, not off this label.
+    public static var xaiBalanceSpend: APISpendSnapshot {
+        APISpendSnapshot(
+            providerID: .grok,
+            displayName: "xAI API",
+            amount: 58.90,
+            currency: "usd",
+            periodLabel: "Prepaid balance",
+            kind: .balance,
+            capturedAt: Date(),
+            freshness: .live
+        )
+    }
+
     // MARK: Manual renewal dates ("Plan renews Jul 28" / "Renews Jul 15")
 
     public static func renewalDate(for id: ProviderID) -> Date? {
@@ -210,6 +243,12 @@ extension DemoFixture {
         /// Default labels plus a case-insensitive renamed collision, with distinct
         /// addresses so the persistent-email treatment visibly disambiguates every row.
         case duplicateLabels = "dup-labels"
+        /// S5A: the same four provider cards as `multi-4`, but the API spend card poses the
+        /// states no other scenario reaches — a rejected key holding a retained total, a
+        /// plain live row, and xAI's prepaid balance. Every shipped spend fixture is `.live`
+        /// period spend, so the tag, the wrapping message, the card-foot chip and the
+        /// balance row's column alignment had no way to be seen in the live popover.
+        case spendStates = "spend-states"
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
@@ -366,7 +405,9 @@ extension DemoFixture {
                     builtIn: false
                 ),
             ]
-        case .multiProviders:
+        // S5A: `spend-states` differs from `multi-4` only in the spend snapshots the app
+        // wires beside it, so the two share one account list — a second copy would drift.
+        case .multiProviders, .spendStates:
             pairs = [
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),

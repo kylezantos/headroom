@@ -741,8 +741,15 @@ enum AppComposition {
         prefs.meterStyle = meterStyle
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills in the menu bar
-        prefs.setSurfaceEnabled(true, for: .anthropicAPI)   // API spend surfaces are off by default
-        prefs.setSurfaceEnabled(true, for: .openAIAPI)
+        // API spend surfaces are off by default, so enable exactly the ones this scenario
+        // wires — derived from the providers rather than a hardcoded Claude/Codex pair, so
+        // `spend-states`' xAI balance row is not silently filtered out of the card.
+        let spendProviders = demoSpendProviders(for: scenario)
+        for provider in spendProviders {
+            if let surface = UsageSurface.api(for: provider.id) {
+                prefs.setSurfaceEnabled(true, for: surface)
+            }
+        }
         // widgetsEnabled / syncToIPhoneEnabled deliberately left off (with nil exporters
         // below) so the preview never publishes to the widget App Group or iCloud KVS.
 
@@ -780,16 +787,37 @@ enum AppComposition {
         }
         return UsageStore(
             providers: fixture.providers,
-            apiSpendProviders: [
-                DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),
-                DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
-            ],
+            apiSpendProviders: spendProviders,
             preferences: prefs,
             accounts: fixture.accounts,
             accountRegistry: registry,
             providerFactory: factory,
             continuityCache: continuityCache
         )
+    }
+
+    /// The spend rows a live preview scenario poses. Every other scenario keeps the two
+    /// `.live` period-spend rows the demo has always shown; `spend-states` (S5A) is the one
+    /// that exercises the card's other states, because nothing else in the tree ever renders
+    /// a stale spend row or a `.balance` row. Cursor is deliberately absent: it does have a
+    /// production spend path (`CursorOnDemandSpendProvider`), but the review scenario is
+    /// about the states above, and an on-demand Cursor row would only repeat one of them.
+    private static func demoSpendProviders(
+        for scenario: DemoFixture.MultiAccountScenario
+    ) -> [any APISpendProvider] {
+        switch scenario {
+        case .spendStates:
+            [
+                DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpendKeyRejected),
+                DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
+                DemoSpendProvider(id: .grok, displayName: "xAI API", snapshot: DemoFixture.xaiBalanceSpend),
+            ]
+        default:
+            [
+                DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),
+                DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
+            ]
+        }
     }
 
     /// Demo-only launch override. An absent flag always reseeds the landed default so a

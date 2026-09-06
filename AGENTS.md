@@ -103,7 +103,7 @@ swift build                        # HeadroomCore + Headroom
 swift test                         # unit suite (fast, all mocked — no CLI/network/Keychain)
 xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' test
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
-swift run Headroom --demo [multi-2|multi-3|multi-5|multi-mixed]  # live app with fixture data (screenshots, multi-account preview)
+swift run Headroom --demo [multi-2|multi-3|multi-5|multi-mixed|spend-states]  # live app with fixture data (screenshots, multi-account preview)
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```
 

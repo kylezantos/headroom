@@ -78,6 +78,8 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.count == 4)  // one built-in per provider
         #expect(DemoFixture.multiFixture(for: .fourDefault).accounts.count == 4)
         #expect(DemoFixture.multiFixture(for: .duplicateLabels).accounts.count == 4)
+        // S5A: reuses multi-4's accounts — only the spend snapshots beside them differ.
+        #expect(DemoFixture.multiFixture(for: .spendStates).accounts.count == 4)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)

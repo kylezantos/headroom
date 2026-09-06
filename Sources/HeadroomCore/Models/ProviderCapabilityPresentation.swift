@@ -5,7 +5,7 @@ public extension ProviderCapabilityState {
             nil
         case .inconclusive:
             .init(
-                status: "Claude Code location couldn't be confirmed — usage will retry",
+                status: "Couldn't confirm where Claude Code is — will retry",
                 primaryLabel: "Check Again",
                 primaryAction: .checkNow,
                 secondaryLabel: "Open Guided Setup",

@@ -23,7 +23,7 @@ struct WidgetSettingsSection: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 SettingsSwitchRow(title: "Sync snapshot to iPhone", isOn: $syncToIPhoneEnabled)
-                SettingsHelpText(text: "Sends only the widget-safe usage snapshot through your iCloud account. No provider credentials are synced.")
+                SettingsHelpText(text: "Sends only your usage numbers through iCloud. Sign-ins are never synced.")
             }
         }
     }

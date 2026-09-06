@@ -30,26 +30,30 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     case cursorUnknownUI
     case cursorTransientCapture
 
+    // W2A: these render in the popover's 295pt recovery line and again, `lineLimit(2)`,
+    // in a ≈197pt account state row. The `\u{00A0}` runs glue tails that would otherwise
+    // wrap to a bare orphan at 295 ("CLI" at 7%, "read it" at 13%) and keep an em dash
+    // off the start of a line; they are inert at the narrower measure.
     public var message: String {
         switch self {
         case .claudeCLIMissing: "Install Claude Code to show usage"
         case .claudeLoginRequired: "Sign in with the official Claude CLI"
-        case .claudeTrustRequired: "Approve Headroom's Claude workspace in the official CLI"
+        case .claudeTrustRequired: "Approve Headroom's workspace in\u{00A0}the\u{00A0}Claude\u{00A0}CLI"
         case .claudeUnknownUI: "Claude opened an unrecognized setup screen"
         case .claudeTransientCapture: "Couldn't read Claude usage — will retry"
         case .codexCLIMissing: "Install Codex CLI to connect"
         case .codexAuthAbsent: "Connect with the official Codex CLI"
         case .codexPermissionDenied: "Allow Headroom to read the Codex sign-in file"
-        case .codexUnsafePermissions: "Codex sign-in data is not stored privately — reconnect"
+        case .codexUnsafePermissions: "Codex sign-in isn't stored privately\u{00A0}—\u{00A0}reconnect"
         case .codexMalformedAuth: "Codex sign-in data is unreadable — reconnect"
         case .codexCredentialIO: "Couldn't read Codex sign-in data"
         case .codexRejectedAuth: "Codex sign-in expired — reconnect"
-        case .codexStorageMismatch: "Codex stored this login somewhere Headroom cannot read"
+        case .codexStorageMismatch: "Codex saved this login where Headroom can't\u{00A0}read\u{00A0}it"
         case .codexCallbackIncomplete: "Codex sign-in did not finish"
         case .grokCLIMissing: "Install Grok Build to show usage"
         case .grokAuthAbsent: "Connect with the official Grok Build CLI"
         case .grokPermissionDenied: "Allow Headroom to read the Grok sign-in file"
-        case .grokUnsafePermissions: "Grok sign-in data is not stored privately — reconnect"
+        case .grokUnsafePermissions: "Grok sign-in isn't stored privately\u{00A0}—\u{00A0}reconnect"
         case .grokMalformedAuth: "Grok sign-in data is unreadable — reconnect"
         case .grokCredentialIO: "Couldn't read Grok sign-in data"
         case .grokRejectedAuth: "Grok sign-in expired — reconnect"

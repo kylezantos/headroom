@@ -36,6 +36,11 @@ struct SettingsHelpText: View {
             .lineSpacing(2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+            // W2A: cap the measure at ~75 characters (≈460pt at 11pt SF), the width a
+            // help line stays comfortably readable at. Without it these lines inherit
+            // the pane's 640 content cap, which stretches a two-line string until the
+            // second line is a one- or two-word orphan.
+            .frame(maxWidth: 460, alignment: .leading)
     }
 }
 

@@ -232,7 +232,7 @@ struct MenuBarSettingsPane: View {
                     ResponsiveControlRow(label: "Priority providers") {
                         menuBarProviderSelectionMenu
                     }
-                    SettingsHelpText(text: "Controls the menu-bar number and widget tiles. Auto uses the tightest menu-bar limit; widgets use the first 2 enabled providers.")
+                    SettingsHelpText(text: "Sets the menu-bar number and widget tiles. Auto picks the tightest limit; widgets show the first two enabled providers.")
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -622,7 +622,7 @@ struct APISpendSettingsPane: View {
             HStack(spacing: 8) {
                 SavedCredentialStatus()
                 Spacer(minLength: 12)
-                Button("Replace key…") {
+                Button("Replace key") {
                     credentialMessages[provider] = nil
                     cancelMessageDismissal(provider)
                     replacingKeyProviders.insert(provider)

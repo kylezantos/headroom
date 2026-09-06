@@ -234,7 +234,7 @@ public enum APISpendPresentation {
         badge: nil,
         tone: .quiet,
         message: "Waiting for cost data",
-        callToAction: "Add key…",
+        callToAction: "Add key",
         remoteHint: nil
     )
 
@@ -258,7 +258,7 @@ public enum APISpendPresentation {
                 badge: "Needs setup",
                 tone: .warning,
                 message: "Add \(credential.credentialNoun) to see \(vendor) spend",
-                callToAction: "Add key…",
+                callToAction: "Add key",
                 remoteHint: "Set up on Mac",
                 keyNeedsAttention: true
             )
@@ -267,7 +267,7 @@ public enum APISpendPresentation {
                 badge: "Key rejected",
                 tone: .critical,
                 message: "\(vendor) didn't accept the saved \(credential.noun)",
-                callToAction: "Replace key…",
+                callToAction: "Replace key",
                 remoteHint: "Replace key on Mac",
                 keyNeedsAttention: true
             )
@@ -276,7 +276,7 @@ public enum APISpendPresentation {
                 badge: "Key lacks access",
                 tone: .warning,
                 message: "Key can't read \(credential.reportNoun)",
-                callToAction: "Fix key…",
+                callToAction: "Fix key",
                 remoteHint: "Fix key on Mac",
                 keyNeedsAttention: true
             )
@@ -285,7 +285,7 @@ public enum APISpendPresentation {
                 badge: "Needs setup",
                 tone: .warning,
                 message: sourceMessage,
-                callToAction: "Add key…",
+                callToAction: "Add key",
                 remoteHint: "Set up on Mac"
             )
         case .retryable:
@@ -293,7 +293,7 @@ public enum APISpendPresentation {
                 badge: "Stale",
                 tone: .neutral,
                 message: sourceMessage,
-                callToAction: "Add key…",
+                callToAction: "Add key",
                 remoteHint: nil
             )
         }

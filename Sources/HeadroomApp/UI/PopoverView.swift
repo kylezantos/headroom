@@ -95,6 +95,9 @@ struct PopoverView: View {
                             .transition(.settingsReveal)
                         }
                         APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)
+                            // S5A: the spend tile is a sibling card, so it arrives and
+                            // leaves the same way the provider cards above it do.
+                            .transition(.settingsReveal)
                     }
                     // M7A: the popover had no reorder animation at all, so a Make Main
                     // promotion teleported its card to the top. The stack's own layout change

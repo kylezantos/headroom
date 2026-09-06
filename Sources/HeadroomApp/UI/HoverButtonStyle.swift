@@ -27,6 +27,10 @@ struct HoverButtonStyle: ButtonStyle {
 
         var body: some View {
             let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
+            // S3A: hover in fast, out slow — the pill is there when the pointer arrives and
+            // lingers a beat when it leaves. Press lands inside 100ms, release returns on settle.
+            let hoverAnimation = hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
+            let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
             styledLabel
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, verticalPadding)
@@ -38,6 +42,13 @@ struct HoverButtonStyle: ButtonStyle {
                             .opacity(configuration.isPressed ? 1 : 0)
                     }
                 }
+                // S2A: the pill and the hover ink are opacity only, so they keep their timing
+                // under Reduce Motion. They carry their own modifiers because the scale below
+                // is movement and has to resolve independently of them.
+                .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
+                           value: hovering)
+                .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
+                           value: configuration.isPressed)
                 // Extend the tap target 8pt past the visible pill to clear the 40pt floor
                 // (7pt left the default chip at ≈38pt), then pull that padding back out of
                 // layout so neighbouring controls don't shift — SwiftUI's equivalent of a
@@ -47,13 +58,13 @@ struct HoverButtonStyle: ButtonStyle {
                 .contentShape(Rectangle())
                 .padding(-8)
                 // Tactile press: a subtle 0.96 scale (never below 0.95, which reads as
-                // exaggerated). An interruptible value animation, so releasing mid-press
-                // springs back smoothly rather than snapping — still input-driven, no idle
+                // exaggerated). S2A: scaling is movement, so Reduce Motion drops it outright
+                // while the pill above still cross-fades — still input-driven, no idle
                 // motion, so it stays inside the no-pulsing rule.
                 .scaleEffect(configuration.isPressed ? 0.96 : 1)
+                .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
+                           value: configuration.isPressed)
                 .onHover { hovering = $0 }
-                .animation(reduceMotion ? nil : HeadroomMotion.hover, value: hovering)
-                .animation(reduceMotion ? nil : HeadroomMotion.press, value: configuration.isPressed)
         }
 
         @ViewBuilder private var styledLabel: some View {

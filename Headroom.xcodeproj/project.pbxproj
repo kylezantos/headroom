@@ -195,6 +195,7 @@
 		E87C2C27BE2D7441ECD01833 /* SettingsPanes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130BB6361A694CF7B316C2EA /* SettingsPanes.swift */; };
 		E888F6381D1EF5EEE508FC15 /* claude-color.svg in Resources */ = {isa = PBXBuildFile; fileRef = 3D242FD4C2496701C8997F9A /* claude-color.svg */; };
 		E8F06C1901BA60D02C5F964C /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 864FC2FB47A9E7D44E659809 /* PopoverView.swift */; };
+		EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */; };
 		EBC072A6309015BF03CDEDD5 /* LargeWidgetDensity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7A5E48B198FF02F4A1C58 /* LargeWidgetDensity.swift */; };
 		EF347E65B94D120C55BFEB66 /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		EF3B349C2E4C1D1A7DE56A6E /* vessel-app-icon.svg in Resources */ = {isa = PBXBuildFile; fileRef = C21C54F0CE85AEC7C48005B1 /* vessel-app-icon.svg */; };
@@ -307,6 +308,7 @@
 		1516F991C6C196F0CDF676CC /* StatusScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusScreen.swift; sourceTree = "<group>"; };
 		1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomTimelineProvider.swift; sourceTree = "<group>"; };
 		1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
+		1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomMotionTests.swift; sourceTree = "<group>"; };
 		1CF869B3DC05316C71518F2A /* cursor-dark.svg */ = {isa = PBXFileReference; path = "cursor-dark.svg"; sourceTree = "<group>"; };
 		1D7ED0585073F5F5D27320A1 /* HeadroomWidgetContainerBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetContainerBackground.swift; sourceTree = "<group>"; };
 		1E0D177E83274B5B1344E7AC /* ClaudeProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeProvider.swift; sourceTree = "<group>"; };
@@ -480,6 +482,7 @@
 			children = (
 				BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */,
 				4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */,
+				1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */,
 			);
 			path = HeadroomAppTests;
 			sourceTree = "<group>";
@@ -1139,6 +1142,7 @@
 			files = (
 				CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */,
 				B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */,
+				EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

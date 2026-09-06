@@ -353,6 +353,7 @@ struct CodexPrimaryButtonStyle: ButtonStyle {
     private struct StyleBody: View {
         let configuration: Configuration
         let dark: Bool
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var hovering = false
 
         var body: some View {
@@ -363,6 +364,9 @@ struct CodexPrimaryButtonStyle: ButtonStyle {
             let bottom = dark
                 ? Color(red: 0.29, green: 0.34, blue: 0.82)
                 : Color(red: 0.20, green: 0.24, blue: 0.76)
+            // S3A: hover in fast, out slow; press lands inside 100ms and returns on settle.
+            let hoverAnimation = hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
+            let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
             configuration.label
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.white)
@@ -372,10 +376,16 @@ struct CodexPrimaryButtonStyle: ButtonStyle {
                 .overlay(shape.strokeBorder(Color.white.opacity(0.22), lineWidth: 1).blendMode(.plusLighter).opacity(0.6))
                 .shadow(color: .black.opacity(0.20), radius: 1, y: 1)
                 .brightness(configuration.isPressed ? -0.03 : (hovering ? 0.04 : 0))
+                // S2A: brightness is a colour change and keeps its timing under Reduce Motion;
+                // the 0.98 scale below is movement, so it carries its own modifier.
+                .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
+                           value: hovering)
+                .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
+                           value: configuration.isPressed)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
+                           value: configuration.isPressed)
                 .onHover { hovering = $0 }
-                .animation(HeadroomMotion.press, value: hovering)
-                .animation(HeadroomMotion.press, value: configuration.isPressed)
         }
     }
 }

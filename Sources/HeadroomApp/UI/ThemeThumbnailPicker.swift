@@ -88,7 +88,10 @@ struct ThemeThumbnailPicker: View {
         .help(preference.themeHelpText)
         .accessibilityLabel("\(preference.label) theme")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        .animation(reduceMotion ? nil : HeadroomMotion.press, value: isSelected)
+        // S1A/S2A: the ring's tint, its 1↔2pt width, and the 8% accent fill are all colour
+        // work, so the house press curve carries them and Reduce Motion keeps the cross-fade.
+        .animation(HeadroomMotion.resolved(HeadroomMotion.pressDown, .crossfade, reduceMotion: reduceMotion),
+                   value: isSelected)
     }
 
     static let artWidth: CGFloat = 96

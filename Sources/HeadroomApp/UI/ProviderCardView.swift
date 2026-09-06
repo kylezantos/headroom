@@ -172,7 +172,9 @@ struct ProviderCardView: View {
                 }
             )
             if isMultiAccount {
-                VStack(alignment: .leading, spacing: 22) {
+                // T1A: the same 26pt account gap as `multiAccountBody` — one grouping rhythm
+                // whether or not the capability notice is showing.
+                VStack(alignment: .leading, spacing: 26) {
                     ForEach(entries.filter { $0.snapshot.freshness != .pending }) { entry in
                         accountSection(
                             for: entry,
@@ -188,12 +190,13 @@ struct ProviderCardView: View {
     }
 
     private var singleAccountBody: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // P4C: the card's actions end in one trailing row, and `CardActionRow` owns the 8pt
+        // above it — so this stack no longer spaces its own children.
+        VStack(alignment: .leading, spacing: 0) {
             singleAccountContent
             if let activeSetupAccount {
-                HStack {
-                    Spacer(minLength: 0)
-                    StopWaitingButton(account: activeSetupAccount)
+                CardActionRow {
+                    StopWaitingButton(account: activeSetupAccount, style: .chip(.regular))
                 }
             }
         }
@@ -332,16 +335,19 @@ struct ProviderCardView: View {
         onCheckNow: @escaping () -> Void
     ) -> some View {
         if let message = SetupSessions.failureMessage(for: account) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            // P4C: the warning keeps the whole line and wraps; "Check now" drops to the
+            // notice's own action row instead of sitting at the end of the sentence.
+            VStack(alignment: .leading, spacing: 0) {
                 Label(message, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 11.5))
                     .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityElement(children: .combine)
                     .accessibilityLabel("Setup failed. \(message)")
-                Spacer(minLength: 4)
-                Button("Check now", action: onCheckNow)
-                    .buttonStyle(SetupChipButtonStyle())
+                CardActionRow {
+                    Button("Check now", action: onCheckNow)
+                        .buttonStyle(SetupChipButtonStyle())
+                }
             }
         }
     }
@@ -350,9 +356,11 @@ struct ProviderCardView: View {
 
     private var multiAccountBody: some View {
         let providerAccounts = entries.map(\.account)
-        // G3: the 22pt gap chunks accounts without adding chrome; each section owns its
-        // identity, so row mode has no separate provider header or account counter.
-        return VStack(alignment: .leading, spacing: 22) {
+        // G3: the inter-account gap chunks accounts without adding chrome; each section owns
+        // its identity, so row mode has no separate provider header or account counter.
+        // T1A widened it 22 → 26 to hold the grouping now the title sits at `.medium` and
+        // the meter rows inside a section are 2pt tighter.
+        return VStack(alignment: .leading, spacing: 26) {
             ForEach(entries) { entry in
                 accountSection(
                     for: entry,
@@ -548,35 +556,73 @@ private struct ProviderSetupRecoveryCard: View {
     let onSecondaryAction: (() -> Void)?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        // P4C: status line first, then one trailing action row — the primary trailing-most.
+        VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
                 ProviderLogoView(providerID: providerID, size: 18)
                 Text(presentation.status)
                     .font(.system(size: 12.5, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Setup needed. \(presentation.status)")
-            HStack(spacing: 10) {
-                Button(presentation.primaryLabel, action: onPrimaryAction)
-                    .buttonStyle(.borderedProminent)
+            CardActionRow {
                 if let secondaryLabel = presentation.secondaryLabel,
                    let onSecondaryAction {
                     Button(secondaryLabel, action: onSecondaryAction)
                         .buttonStyle(SetupChipButtonStyle())
                 }
+                Button(presentation.primaryLabel, action: onPrimaryAction)
+                    .buttonStyle(.borderedProminent)
             }
         }
     }
 }
 
 struct ProviderCapabilityRecoveryView: View {
+    /// The same recovery block renders at a popover card's foot and inside the Accounts
+    /// tile. B3A sizes the chips per surface and P4C only re-places the popover one — a
+    /// Settings group keeps its leading row beside the tile's other controls.
+    enum Placement {
+        case cardFoot
+        case settingsGroup
+
+        var chipSize: SetupChipButtonStyle.Size { self == .cardFoot ? .regular : .small }
+    }
+
     let presentation: CapabilityRecoveryPresentation
     var stopWaitingAccount: ProviderAccount? = nil
+    var placement: Placement = .cardFoot
     let onPrimaryAction: () -> Void
     let onSecondaryAction: (() -> Void)?
 
     var body: some View {
+        // P4C: three button languages used to share one leading row. Every message keeps its
+        // own line now and, at a card foot, all three actions collect in one trailing row
+        // ending level with the identity row above (21pt content inset), primary last.
+        VStack(alignment: .leading, spacing: 0) {
+            messages
+            switch placement {
+            case .cardFoot:
+                CardActionRow {
+                    secondaryButton
+                    stopWaitingButton
+                    primaryButton
+                }
+                .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
+            case .settingsGroup:
+                HStack(spacing: 8) {
+                    primaryButton
+                    secondaryButton
+                    stopWaitingButton
+                }
+                .padding(.top, 8)
+            }
+        }
+    }
+
+    private var messages: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label(presentation.recovery.status, systemImage: "exclamationmark.triangle.fill")
                 .font(.system(size: 11.5))
@@ -584,28 +630,41 @@ struct ProviderCapabilityRecoveryView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel("Claude Code availability. \(presentation.recovery.status)")
-            HStack(spacing: 10) {
-                if presentation.state(for: presentation.recovery.primaryAction) == .enabled {
-                    Button(presentation.recovery.primaryLabel, action: onPrimaryAction)
-                        .buttonStyle(SetupChipButtonStyle())
-                }
-                if let secondaryLabel = presentation.recovery.secondaryLabel,
-                   let secondaryAction = presentation.recovery.secondaryAction,
-                   presentation.state(for: secondaryAction) == .enabled,
-                   let onSecondaryAction {
-                    Button(secondaryLabel, action: onSecondaryAction)
-                        .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
-                }
-                if let stopWaitingAccount {
-                    StopWaitingButton(account: stopWaitingAccount)
-                }
-            }
             if let refusalMessage {
                 Text(refusalMessage)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                     .accessibilityLabel(refusalMessage)
             }
+        }
+    }
+
+    @ViewBuilder private var primaryButton: some View {
+        if presentation.state(for: presentation.recovery.primaryAction) == .enabled {
+            Button(presentation.recovery.primaryLabel, action: onPrimaryAction)
+                .buttonStyle(SetupChipButtonStyle(size: placement.chipSize))
+        }
+    }
+
+    /// B3A: was a bare label with no font or ink of its own sitting beside a filled chip;
+    /// it now takes the same chip so the row speaks one language.
+    @ViewBuilder private var secondaryButton: some View {
+        if let secondaryLabel = presentation.recovery.secondaryLabel,
+           let secondaryAction = presentation.recovery.secondaryAction,
+           presentation.state(for: secondaryAction) == .enabled,
+           let onSecondaryAction {
+            Button(secondaryLabel, action: onSecondaryAction)
+                .buttonStyle(SetupChipButtonStyle(size: placement.chipSize))
+        }
+    }
+
+    @ViewBuilder private var stopWaitingButton: some View {
+        if let stopWaitingAccount {
+            StopWaitingButton(
+                account: stopWaitingAccount,
+                style: placement == .cardFoot ? .chip(.regular) : .bordered
+            )
         }
     }
 
@@ -620,19 +679,23 @@ struct ProviderCapabilityRecoveryView: View {
 }
 
 struct StopWaitingButton: View {
+    /// B3A: one button, two surfaces. Inside a popover card it wears the chip, because a
+    /// card foot must not mix a native bordered control with the chips beside it; a
+    /// Settings row keeps the native small bordered button its neighbours use.
+    enum Style: Equatable {
+        case chip(SetupChipButtonStyle.Size)
+        case bordered
+    }
+
     let account: ProviderAccount
+    var style: Style = .bordered
     var onConfirmationPresented: () -> Void = {}
     var onStop: ((ProviderAccount) -> Void)? = nil
     var onDismiss: () -> Void = {}
     @State private var isConfirming = false
 
     var body: some View {
-        Button("Stop waiting") {
-            onConfirmationPresented()
-            isConfirming = true
-        }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
+        button
             .accessibilityLabel("Stop waiting for setup for \(account.label)")
             .confirmationDialog(
                 "Stop waiting for setup?",
@@ -651,6 +714,39 @@ struct StopWaitingButton: View {
             } message: {
                 Text("Headroom stops waiting immediately. The Terminal window may still be open; close it by hand if you no longer need it.")
             }
+    }
+
+    @ViewBuilder private var button: some View {
+        let action = Button("Stop waiting") {
+            onConfirmationPresented()
+            isConfirming = true
+        }
+        switch style {
+        case .chip(let size):
+            action.buttonStyle(SetupChipButtonStyle(size: size))
+        case .bordered:
+            action
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+    }
+}
+
+/// P4C (Sep 2026): the one action row every card and account section ends with —
+/// trailing-aligned, 8pt under the message it answers, 8pt between chips, the primary chip
+/// trailing-most. Messages keep their own line above it, so nothing sits at the trailing end
+/// of a sentence any more.
+struct CardActionRow<Content: View>: View {
+    /// Only for stacks whose own spacing already supplies the 8pt gap.
+    var topPadding: CGFloat = 8
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Spacer(minLength: 0)
+            content
+        }
+        .padding(.top, topPadding)
     }
 }
 
@@ -677,7 +773,9 @@ struct UsageBarsStack: View {
         if windows.isEmpty {
             Text("No usage data").font(.caption).foregroundStyle(.secondary)
         } else {
-            VStack(spacing: meterStyle.format == .micro ? 12 : 9) {
+            // T1A: Micro tightens 12 → 10 so an account's rows read as one block under its
+            // title; Full stays 9, where the taller row already carries the separation.
+            VStack(spacing: meterStyle.format == .micro ? 10 : 9) {
                 ForEach(Array(windows.enumerated()), id: \.offset) { _, window in
                     UsageBarView(
                         window: window,

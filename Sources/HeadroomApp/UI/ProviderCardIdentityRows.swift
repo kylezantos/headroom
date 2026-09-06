@@ -47,8 +47,10 @@ struct IdentityRow: View {
                 Text(planDisplayName)
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
+                    // T1A: 3pt vertical takes the capsule to ~16pt tall so it reads as a peer
+                    // of the title beside it rather than a hairline sticker stuck to it.
                     .padding(.horizontal, 5)
-                    .padding(.vertical, 1)
+                    .padding(.vertical, 3)
                     .background(
                         ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
                         in: Capsule()
@@ -78,11 +80,14 @@ struct IdentityRow: View {
         .accessibilityLabel(accessibilityIdentity(email: email))
     }
 
+    /// T1A: measured off Kyle's Paper mock — 15pt stays, but the weight drops to `.medium`
+    /// on the `accountTitle` ink so the name labels its meters instead of competing with the
+    /// popover's own 20pt bold header. Kerning is unchanged.
     private var titleText: some View {
         Text(title)
-            .font(.system(size: 15, weight: .semibold))
+            .font(.system(size: 15, weight: .medium))
             .kerning(-0.15)
-            .foregroundStyle(.primary)
+            .foregroundStyle(ProviderStyle.accountTitleInk(scheme: scheme))
             .lineLimit(1)
             .truncationMode(.tail)
     }
@@ -212,10 +217,13 @@ struct AccountSectionView: View {
             )
             if showsStopWaiting,
                SetupSessions.state(for: account) != .blockedByOpenHandoff {
-                HStack {
-                    Spacer(minLength: 0)
-                    StopWaitingButton(account: account)
+                // P4C: the section's one action row. The stack's own 7pt already sets the
+                // gap above it, so it adds none, and it stops at the content trailing edge
+                // so it lines up with the sign-in chips and the meters.
+                CardActionRow(topPadding: 0) {
+                    StopWaitingButton(account: account, style: .chip(.small))
                 }
+                .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
             }
         }
         .accessibilityElement(children: .contain)
@@ -285,103 +293,130 @@ struct AccountSectionView: View {
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 
-    /// Permanent failure on one account: a single compact row — the reason, then the
-    /// Terminal handoff — so one dead login never dominates its healthy siblings.
-    /// While the handoff Terminal is open it becomes a quiet waiting row with a
-    /// real-progress spinner (bound to the retry cycle, not decorative).
+    /// Permanent failure on one account: the reason on its own line, then one
+    /// trailing-aligned action row (P4C) — so a dead login never dominates its healthy
+    /// siblings and no control hides at the end of a sentence. While the handoff Terminal
+    /// is open it becomes a quiet waiting row with a real-progress spinner (bound to the
+    /// retry cycle, not decorative).
     @ViewBuilder private func signInContent(_ reason: FailureReason) -> some View {
         let recoveryPresentation = reason.providerSetupOutcome?.recoveryPresentation
         let setupState = SetupSessions.state(for: account)
         VStack(alignment: .leading, spacing: 7) {
-            if let refusalMessage = setupHandoffRefusalMessage(for: setupState) {
-                HStack(spacing: 7) {
-                    Image(systemName: "terminal")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text(refusalMessage)
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
-                    Spacer(minLength: 6)
-                    StopWaitingButton(account: account)
-                }
-            } else if case .blockedByProviderLogin = setupState {
-                HStack(spacing: 7) {
-                    Image(systemName: "terminal")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                    Text("Another \(providerDisplayName) sign-in is open")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 6)
-                    Button("Continue setup") { SetupSessions.continueSetup(for: account) }
-                        .buttonStyle(SetupChipButtonStyle())
-                        .accessibilityLabel("Continue \(providerDisplayName) setup for \(account.label)")
-                }
-            } else if isWaitingForSetup {
-                HStack(spacing: 7) {
-                    ProgressView()
-                        .controlSize(.mini)
-                    Text(SetupSessions.mode(for: account) == .deviceCode
-                         ? "Waiting for device code…"
-                         : "Waiting for sign-in…")
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                    Spacer(minLength: 6)
-                    Button("Check now") { onRetry() }
-                        .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(ClaudeSetupStyle.accentText(dark: scheme == .dark))
-                }
-            } else {
-                HStack(spacing: 7) {
-                    Image(systemName: "person.crop.circle.badge.exclamationmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
-                    Text(SetupSessions.failureMessage(for: account) ?? reason.message)
-                        .font(.system(size: 11.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Spacer(minLength: 6)
-                    Button {
-                        if let recoveryPresentation {
-                            SetupSessions.performRecovery(
-                                recoveryPresentation.primaryAction,
-                                for: account,
-                                onRetry: onRetry
-                            )
-                        } else {
-                            SetupSessions.openSetup(for: account, onRetry: onRetry)
+            Group {
+                if let refusalMessage = setupHandoffRefusalMessage(for: setupState) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        messageRow(systemImage: "terminal", glyphInk: .secondary) {
+                            Text(refusalMessage)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
                         }
-                    } label: {
-                        Label(recoveryPresentation?.primaryLabel ?? "Sign in", systemImage: "terminal")
-                            .font(.system(size: 11.5, weight: .semibold))
+                        CardActionRow {
+                            StopWaitingButton(account: account, style: .chip(.small))
+                        }
                     }
-                    .buttonStyle(SetupChipButtonStyle())
-                    .accessibilityLabel("\(recoveryPresentation?.primaryLabel ?? "Sign in") for \(account.label)")
-                }
-                if let secondaryLabel = recoveryPresentation?.secondaryLabel,
-                   let secondaryAction = recoveryPresentation?.secondaryAction {
-                    Button(secondaryLabel) {
-                        SetupSessions.performRecovery(
-                            secondaryAction,
-                            for: account,
-                            onRetry: onRetry
-                        )
+                } else if case .blockedByProviderLogin = setupState {
+                    VStack(alignment: .leading, spacing: 0) {
+                        messageRow(systemImage: "terminal", glyphInk: .secondary) {
+                            Text("Another \(providerDisplayName) sign-in is open")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        CardActionRow {
+                            Button("Continue setup") { SetupSessions.continueSetup(for: account) }
+                                .buttonStyle(SetupChipButtonStyle(size: .small))
+                                .accessibilityLabel("Continue \(providerDisplayName) setup for \(account.label)")
+                        }
                     }
-                    .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundStyle(ClaudeSetupStyle.accentText(dark: scheme == .dark))
-                } else if SetupSessions.failureMessage(for: account) != nil {
-                    Button("Check now", action: onRetry)
-                        .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
-                        .font(.system(size: 11.5, weight: .medium))
-                        .foregroundStyle(ClaudeSetupStyle.accentText(dark: scheme == .dark))
+                } else if isWaitingForSetup {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                            ProgressView()
+                                .controlSize(.mini)
+                            Text(SetupSessions.mode(for: account) == .deviceCode
+                                 ? "Waiting for device code…"
+                                 : "Waiting for sign-in…")
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                            Spacer(minLength: 0)
+                        }
+                        // B3A: the bare accent label is gone — a waiting row's one control
+                        // now carries the same resting container as the sign-in chip.
+                        CardActionRow {
+                            Button("Check now") { onRetry() }
+                                .buttonStyle(SetupChipButtonStyle(size: .small))
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 0) {
+                        messageRow(
+                            systemImage: "person.crop.circle.badge.exclamationmark",
+                            glyphInk: ProviderStyle.severityColor(for: .low, scheme: scheme)
+                        ) {
+                            Text(SetupSessions.failureMessage(for: account) ?? reason.message)
+                                .font(.system(size: 11.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                        }
+                        // P4C: the secondary recovery used to hang on its own line beneath a
+                        // filled chip. Both actions share one row now, the primary last.
+                        CardActionRow {
+                            if let secondaryLabel = recoveryPresentation?.secondaryLabel,
+                               let secondaryAction = recoveryPresentation?.secondaryAction {
+                                Button(secondaryLabel) {
+                                    SetupSessions.performRecovery(
+                                        secondaryAction,
+                                        for: account,
+                                        onRetry: onRetry
+                                    )
+                                }
+                                .buttonStyle(SetupChipButtonStyle(size: .small))
+                            } else if SetupSessions.failureMessage(for: account) != nil {
+                                Button("Check now", action: onRetry)
+                                    .buttonStyle(SetupChipButtonStyle(size: .small))
+                            }
+                            Button {
+                                if let recoveryPresentation {
+                                    SetupSessions.performRecovery(
+                                        recoveryPresentation.primaryAction,
+                                        for: account,
+                                        onRetry: onRetry
+                                    )
+                                } else {
+                                    SetupSessions.openSetup(for: account, onRetry: onRetry)
+                                }
+                            } label: {
+                                Label(recoveryPresentation?.primaryLabel ?? "Sign in", systemImage: "terminal")
+                            }
+                            .buttonStyle(SetupChipButtonStyle(size: .small))
+                            .accessibilityLabel("\(recoveryPresentation?.primaryLabel ?? "Sign in") for \(account.label)")
+                        }
+                    }
                 }
             }
+            // P4C: messages and their action row stop level with the meter rows below —
+            // the 21pt content trailing edge, 34pt in from the card's own edge.
+            .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
             if !snapshot.windows.isEmpty {
                 bars(dimmed: true)
             }
+        }
+    }
+
+    /// P4C: the message half of a state row — glyph and copy on their own line, free to wrap
+    /// now that no control shares the line's trailing end.
+    private func messageRow<Message: View>(
+        systemImage: String,
+        glyphInk: Color,
+        @ViewBuilder message: () -> Message
+    ) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 7) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(glyphInk)
+            message()
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
         }
     }
 

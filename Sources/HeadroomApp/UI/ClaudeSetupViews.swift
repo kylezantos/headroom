@@ -297,10 +297,12 @@ struct ClaudeConnectCard: View {
                     .kerning(-0.2)
             }
             Text(outcome == .claudeLoginRequired
-                 ? "Sign in through the official Claude CLI to show this account's usage."
+                 ? "Sign in with the Claude CLI to show this account's usage."
                  : "See your remaining Claude usage right here.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
+                // W2A: the only body copy in this card that was missing the wrap allowance.
+                .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
             reassurance
                 .padding(.top, 11)
@@ -337,10 +339,11 @@ struct ClaudeConnectCard: View {
                     .frame(height: 1)
             }
             step(1, Text("Terminal opens and starts Claude for you"), dark: dark)
+            // W2A: both steps shed a word so neither drops a one-word orphan at 293pt.
             step(2, outcome == .claudeLoginRequired
-                 ? Text("Finish signing in, then approve the workspace if asked")
+                 ? Text("Sign in, then approve the workspace if asked")
                  : Text("Choose \(Text("“Yes, I trust this folder”").fontWeight(.semibold).foregroundColor(.primary)) when asked"), dark: dark)
-            step(3, Text("Come back — your usage appears here automatically"), dark: dark)
+            step(3, Text("Come back — usage appears here automatically"), dark: dark)
         }
     }
 
@@ -381,9 +384,10 @@ struct ClaudeWaitingCard: View {
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(-0.2)
             }
+            // W2A: the trust variant was three lines ending on the single word "approve."
             Text(outcome == .claudeLoginRequired
                  ? "Finish signing in in the Terminal that just opened. Headroom checks this account automatically."
-                 : "In the Terminal that just opened, choose the option below — Headroom connects the moment you approve.")
+                 : "Choose the option below in Terminal. Headroom connects as soon as you approve.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -402,17 +406,17 @@ struct ClaudeWaitingCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
                 .padding(.top, 11)
             }
-            HStack(spacing: 14) {
+            // B3A/P4C: "Reopen Terminal" was a bare accent label standing next to a filled
+            // chip. Both are chips now, trailing-aligned at the card's foot with "Check now"
+            // — the action the waiting state is really about — last.
+            CardActionRow {
+                Button("Reopen Terminal", action: onReopen)
+                    .buttonStyle(SetupChipButtonStyle())
                 Button(action: onCheckNow) {
                     Label("Check now", systemImage: "arrow.clockwise")
                 }
                 .buttonStyle(SetupChipButtonStyle())
-                Button("Reopen Terminal", action: onReopen)
-                    .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 4))
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(ClaudeSetupStyle.accentText(dark: dark))
             }
-            .padding(.top, 14)
             ClaudeManualCommandDisclosure()
                 .padding(.top, 13)
         }

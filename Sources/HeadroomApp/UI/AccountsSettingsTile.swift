@@ -238,6 +238,9 @@ struct AccountsSettingsTile: View {
                     stopWaitingAccount: accounts.first {
                         SetupSessions.hasActiveHandoff(for: $0)
                     },
+                    // B3A: Settings keeps the leading row and the small chip; only the
+                    // popover card foot takes P4C's trailing action row.
+                    placement: .settingsGroup,
                     onPrimaryAction: {
                         AccountsSettingsInteractions.performCapabilityRecovery(
                             capability.recovery.primaryAction,
@@ -277,10 +280,9 @@ struct AccountsSettingsTile: View {
                         )
                     }
                 }
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
-                .controlSize(.small)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                // B3A: quiet still, but a control — the small chip owns its own font and ink,
+                // so the per-site 11pt secondary label goes away.
+                .buttonStyle(SetupChipButtonStyle(size: .small))
                 .help("Track the account your CLI is signed into again")
                 .padding(.leading, 16)
             }
@@ -539,8 +541,9 @@ struct AccountsSettingsTile: View {
                         onRetry: { store.refreshAccountNow(account.key) }
                     )
                 }
-                .buttonStyle(HoverButtonStyle(horizontalPadding: 6, verticalPadding: 3))
-                .controlSize(.small)
+                // B3A: bare beside a bordered primary was the worst mix in Settings; the
+                // small chip gives it a resting container and its own font and ink.
+                .buttonStyle(SetupChipButtonStyle(size: .small))
                 .accessibilityLabel(
                     recoveryActions?.secondaryAccessibilityLabel
                         ?? "\(secondaryLabel) for \(account.label)"

@@ -83,6 +83,16 @@ public enum HeadroomWidgetColorValues {
         dark ? HeadroomTint(color: darkNeutral, opacity: 0.56) : HeadroomTint(color: lightNeutral, opacity: 0.74)
     }
 
+    // T1A (Sep 2026): the account title's ink, taken from Kyle's Paper mock. A cool grey that
+    // sits *below* the countdown in the hierarchy on purpose — the numeral carries the value,
+    // the title only names the account. Dark is the measured #68707A (2.7:1 on the card, a
+    // deliberate de-emphasis); light is the derived #6B7280 (4.8:1 on the light card).
+    public static func accountTitle(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: HeadroomRGBColor(red: 104 / 255, green: 112 / 255, blue: 121 / 255), opacity: 1)
+            : HeadroomTint(color: HeadroomRGBColor(red: 107 / 255, green: 114 / 255, blue: 128 / 255), opacity: 1)
+    }
+
     public static func barTrack(dark: Bool) -> HeadroomTint {
         dark ? HeadroomTint(color: .white, opacity: 0.14) : HeadroomTint(color: .black, opacity: 0.12)
     }

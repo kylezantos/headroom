@@ -50,6 +50,12 @@ enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
+    /// T1A: account-title ink (identity rows and the API spend row names).
+    static func accountTitleInk(scheme: ColorScheme) -> Color {
+        let tint = HeadroomWidgetColorValues.accountTitle(dark: scheme == .dark)
+        return Color(tint.color).opacity(tint.opacity)
+    }
+
     static func barTrack(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.barTrack(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)

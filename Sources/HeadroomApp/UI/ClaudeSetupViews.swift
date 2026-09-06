@@ -534,30 +534,47 @@ struct ClaudePrimaryButtonStyle: ButtonStyle {
     }
 }
 
-/// Quiet bordered chip for the waiting card's secondary action ("Check now").
+/// B3A (Sep 2026): the one secondary button for every text-labelled action inside a card or
+/// tile. A resting container (fill + 1pt border) is what makes it read as a control before the
+/// pointer arrives; the bare `HoverButtonStyle` is now reserved for glyph controls and the
+/// popover footer. Two sizes so the same chip fits a card foot (regular) and an account row
+/// (small).
 struct SetupChipButtonStyle: ButtonStyle {
+    enum Size {
+        case regular
+        case small
+
+        var fontSize: CGFloat { self == .regular ? 12.5 : 11.5 }
+        var horizontalPadding: CGFloat { self == .regular ? 13 : 10 }
+        var verticalPadding: CGFloat { self == .regular ? 6 : 4 }
+        var cornerRadius: CGFloat { self == .regular ? 8 : 7 }
+    }
+
+    var size: Size = .regular
+
     @Environment(\.colorScheme) private var scheme
 
     func makeBody(configuration: Configuration) -> some View {
-        StyleBody(configuration: configuration, dark: scheme == .dark)
+        StyleBody(configuration: configuration, size: size, dark: scheme == .dark)
     }
 
     private struct StyleBody: View {
         let configuration: Configuration
+        let size: Size
         let dark: Bool
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var hovering = false
 
         var body: some View {
-            let shape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+            let shape = RoundedRectangle(cornerRadius: size.cornerRadius, style: .continuous)
             // M11A: the "Check now" chip takes the same S3A pair as the popover's quiet buttons.
             let hoverAnimation = hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
             let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
             configuration.label
-                .font(.system(size: 12.5, weight: .semibold))
+                .font(.system(size: size.fontSize, weight: .semibold))
                 .foregroundStyle(dark ? Color(white: 0.85) : Color(red: 0.24, green: 0.24, blue: 0.26))
-                .padding(.horizontal, 13)
-                .padding(.vertical, 6)
+                .padding(.horizontal, size.horizontalPadding)
+                .padding(.vertical, size.verticalPadding)
                 .background(shape.fill(dark ? Color.white.opacity(hovering ? 0.14 : 0.10) : Color.white.opacity(hovering ? 0.9 : 0.72)))
                 .overlay(shape.strokeBorder(dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 1))
                 .shadow(color: .black.opacity(dark ? 0 : 0.10), radius: 1, y: 1)

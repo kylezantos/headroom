@@ -1,0 +1,1658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headroom · Title, wrapping, buttons, API spend</title>
+<style>
+  /* ============================================================
+     TOKENS
+     Block carried verbatim from design/motion-design-options.html:16-141,
+     which carries it in turn from design/identity-row-title-options.html:16-141.
+     Already reconciled against the shipped code. Severity is split into a FILL
+     tier (bars, caps, segments) and a TEXT tier (numerals, chips); dark keeps
+     them equal, light diverges.
+     ============================================================ */
+  :root {
+    --page-bg: #0a0b0e;
+    --popover-bg: #1d1f23;
+    --tile-top: #25272d;
+    --tile-bottom: #191b21;
+    --ring: rgba(255,255,255,0.065);
+    --card-rim-top: rgba(255,255,255,0.20);
+    --card-rim-bottom: rgba(255,255,255,0.06);
+    --track: rgba(255,255,255,0.14);
+    --hairline: rgba(255,255,255,0.10);
+    --text-primary: #f2f2f7;
+    --text-secondary: rgba(235,235,245,0.66);
+    --text-tertiary: rgba(235,235,245,0.56);
+    --label-90: rgba(235,235,245,0.90);
+    --reset-dim1: rgba(235,235,245,0.53);
+
+    /* severity — dark: fill == text */
+    --sev-h-fill: #33C759; --sev-l-fill: #FF9E0A; --sev-c-fill: #FF574A;
+    --sev-h-text: #33C759; --sev-l-text: #FF9E0A; --sev-c-text: #FF574A;
+    --critical-text: #FF6659;
+
+    --claude-accent: #e88f69;
+    --codex-accent: #96a1ff;
+    --grok-accent: #c7ccd6;
+    --cursor-accent: #cfcfd4;
+    --mono-mark: #f5f5f7;
+    --pill-bg: rgba(255,255,255,0.09);
+    --step-bg: rgba(255,255,255,0.06);
+    --step-border: rgba(255,255,255,0.08);
+    --glass-a: rgba(255,255,255,0.22);
+    --glass-b: rgba(255,255,255,0.11);
+    --glass-rim: rgba(255,255,255,0.25);
+    --tick-off: rgba(255,255,255,0.09);
+    --tick-glass: rgba(255,255,255,0.26);
+    --tick-glass-cap: rgba(255,255,255,0.52);
+    --well-bg: #0F1114;
+    --well-shadow: inset 0 1px 2.5px rgba(0,0,0,0.65), inset 0 -0.5px 0 rgba(255,255,255,0.05), 0 0.5px 0 rgba(255,255,255,0.045);
+    --quarter: rgba(242,242,247,0.11);
+    --ramp-mix: black;
+    --ramp-amt: 42%;
+
+    --window-bg: #323232;
+    --accent: #0A84FF;
+    --seg-track: rgba(255,255,255,0.09);
+    --seg-rim: rgba(255,255,255,0.06);
+    --btn-top: #5c5c60;
+    --btn-bottom: #4e4e53;
+    --btn-rim: rgba(255,255,255,0.10);
+    --field-bg: rgba(0,0,0,0.24);
+    --annot: #7fb2ff;
+    --guide: #ff5a52;
+
+    /* ---- tokens carried from the motion doc, each sourced ---- */
+    --stale-grey:    rgba(235,235,245,0.363);  /* Color.secondary @0.55 — MeterGauge.swift:342 */
+    --stale-tag-bg:  rgba(235,235,245,0.119);  /* Color.secondary @0.18 — ProviderCardIdentityRows.swift:118-120 */
+    --hover-pill:    rgba(255,255,255,0.09);   /* Color.primary @0.09 — HoverButtonStyle.swift:35-36 */
+    --press-pill:    rgba(255,255,255,0.16);   /* Color.primary @0.16 — HoverButtonStyle.swift:37-38 */
+    --conn-ink:      #40DB6B;                  /* rgb(0.25,0.86,0.42) — ProviderCardIdentityRows.swift:148 */
+    --conn-bg:       rgba(51,199,89,0.12);     /* healthy fill @0.12 — ClaudeSetupViews.swift:276-279 */
+    --setup-well:    rgba(0,0,0,0.32);         /* ClaudeSetupStyle.wellBackground — ClaudeSetupViews.swift:262-264 */
+    --setup-hair:    rgba(255,255,255,0.10);   /* ClaudeSetupStyle.hairline — ClaudeSetupViews.swift:268-270 */
+    --tile-opaque-a: rgba(255,255,255,0.08);   /* RaisedTile .opaque top — RaisedTile.swift:73-76 */
+    --tile-opaque-b: rgba(255,255,255,0.05);   /* RaisedTile .opaque bottom */
+    --mb-plate:      #262626;                  /* Color(white:0.15) — SettingsRows.swift:200-208 */
+    --mb-ink:        #ffffff;                  /* MenuBarPalette.ink, dark bar — MenuBarPalette.swift:32-35 */
+    --sep:           rgba(255,255,255,0.13);   /* separatorColor stand-in — PopoverView.swift:433 */
+
+    /* ---- tokens this doc adds, each sourced ---- */
+    --chip-ink:      #D9D9D9;                  /* Color(white:0.85) — ClaudeSetupViews.swift:558 */
+    --chip-fill:     rgba(255,255,255,0.10);   /* ClaudeSetupViews.swift:561 */
+    --chip-fill-hi:  rgba(255,255,255,0.14);   /* hover — ClaudeSetupViews.swift:561 */
+    --chip-border:   rgba(255,255,255,0.12);   /* ClaudeSetupViews.swift:562 */
+    --chip-shadow:   none;                     /* light only — ClaudeSetupViews.swift:563 */
+    --claude-text-accent: #E88F69;             /* rgb(0.91,0.56,0.41) — BrandColorValues.swift:56 */
+    --codex-text-accent:  #96A1FF;             /* rgb(0.59,0.63,1.00) — BrandColorValues.swift:58 */
+    --title-paper:   #68707A;                  /* Kyle's Paper title ink, dark — measured, brief T1 */
+    --divider-08:    rgba(242,242,247,0.08);   /* Divider overlay primary @0.08 — APISpendSectionView.swift:25 */
+
+    --curve-house: cubic-bezier(0.22,1,0.36,1);   /* HeadroomMotion.settle / quickSettle */
+  }
+  .light {
+    --popover-bg: #f1f3f6;
+    --tile-top: #ffffff;
+    --tile-bottom: #fbfbfc;
+    --ring: rgba(0,0,0,0.05);
+    --card-rim-top: rgba(255,255,255,0.90);
+    --card-rim-bottom: rgba(0,0,0,0.07);
+    --track: rgba(0,0,0,0.12);
+    --hairline: rgba(0,0,0,0.09);
+    --text-primary: #1d1f24;
+    --text-secondary: rgba(61,61,66,0.84);
+    --text-tertiary: rgba(61,61,66,0.74);
+    --label-90: rgba(29,31,36,0.90);
+    --reset-dim1: rgba(61,61,66,0.72);
+
+    /* severity — light: fill tier is vivid, text tier is darker for contrast */
+    --sev-h-fill: #29A84D; --sev-l-fill: #E88005; --sev-c-fill: #E63833;
+    --sev-h-text: #178538; --sev-l-text: #B36900; --sev-c-text: #D92921;
+    --critical-text: #D1241C;
+
+    --claude-accent: #B3541C;
+    --codex-accent: #3340d6;
+    --grok-accent: #333840;
+    --cursor-accent: #2b2b2e;
+    --mono-mark: #0d0d0f;
+    --pill-bg: rgba(0,0,0,0.06);
+    --step-bg: rgba(0,0,0,0.045);
+    --step-border: rgba(0,0,0,0.06);
+    --glass-a: #757C86;
+    --glass-b: #666C75;
+    --glass-rim: rgba(255,255,255,0.30);
+    --tick-off: rgba(0,0,0,0.08);
+    --tick-glass: #6B727B;
+    --tick-glass-cap: #474E57;
+    --well-bg: #DFE2E7;
+    --well-shadow: inset 0 1px 2px rgba(0,0,0,0.20), inset 0 -0.5px 0 rgba(255,255,255,0.72), 0 0.5px 0 rgba(255,255,255,0.62);
+    --quarter: rgba(29,31,36,0.14);
+    --ramp-mix: white;
+    --ramp-amt: 25%;
+
+    --window-bg: #ECECEC;
+    --accent: #007AFF;
+    --seg-track: rgba(0,0,0,0.055);
+    --seg-rim: rgba(0,0,0,0.05);
+    --btn-top: #ffffff;
+    --btn-bottom: #f6f6f7;
+    --btn-rim: rgba(0,0,0,0.13);
+    --field-bg: #ffffff;
+    --guide: #d1241c;
+
+    --stale-grey:    rgba(61,61,66,0.462);
+    --stale-tag-bg:  rgba(61,61,66,0.151);
+    --hover-pill:    rgba(0,0,0,0.09);
+    --press-pill:    rgba(0,0,0,0.16);
+    --conn-ink:      #157235;
+    --conn-bg:       rgba(41,168,77,0.12);
+    --setup-well:    rgba(0,0,0,0.05);
+    --setup-hair:    rgba(0,0,0,0.08);
+    --tile-opaque-a: #ffffff;
+    --tile-opaque-b: rgba(236,236,236,0.96);
+    --sep:           rgba(0,0,0,0.14);
+
+    --chip-ink:      #3D3D42;                  /* rgb(0.24,0.24,0.26) — ClaudeSetupViews.swift:558 */
+    --chip-fill:     rgba(255,255,255,0.72);   /* ClaudeSetupViews.swift:561 */
+    --chip-fill-hi:  rgba(255,255,255,0.90);
+    --chip-border:   rgba(0,0,0,0.08);         /* ClaudeSetupViews.swift:562 */
+    --chip-shadow:   0 1px 1px rgba(0,0,0,0.10); /* ClaudeSetupViews.swift:563 */
+    --claude-text-accent: #B3541C;             /* rgb(0.70,0.33,0.11) — BrandColorValues.swift:55 */
+    --codex-text-accent:  #3340D6;             /* rgb(0.20,0.25,0.84) — BrandColorValues.swift:57 */
+    --title-paper:   #6B7280;                  /* DERIVED light counterpart — see the T1A caption */
+    --divider-08:    rgba(29,31,36,0.08);
+    color: var(--text-primary);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    background: var(--page-bg); color: #f2f2f7;
+    -webkit-font-smoothing: antialiased; line-height: 1.5;
+    font-variant-numeric: tabular-nums;
+  }
+  ::selection { background: rgba(10,132,255,0.34); color: #fff; }
+  :focus-visible { outline: 2px solid #0A84FF; outline-offset: 2px; border-radius: 4px; }
+  .page { max-width: 1160px; margin: 0 auto; padding: 30px 32px 120px; }
+
+  /* ---------- sticky control bar ---------- */
+  .topbar { position: sticky; top: 0; z-index: 40; background: rgba(10,11,14,0.88); backdrop-filter: blur(14px); box-shadow: 0 1px 0 rgba(255,255,255,0.07); margin-bottom: 34px; }
+  .topbar-inner { max-width: 1160px; margin: 0 auto; padding: 11px 32px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .tb-title { font-size: 12.5px; font-weight: 600; color: rgba(235,235,245,0.66); letter-spacing: 0.2px; }
+  .tb-note { font-size: 11.5px; color: rgba(235,235,245,0.56); margin-left: auto; }
+  .scheme-toggle { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: rgba(255,255,255,0.07); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+  .scheme-toggle button { font: inherit; font-size: 12px; font-weight: 600; color: rgba(235,235,245,0.66); background: none; border: none; border-radius: 7px; padding: 4px 14px; cursor: pointer; transition: background 180ms cubic-bezier(0.22,1,0.36,1), color 180ms cubic-bezier(0.22,1,0.36,1); }
+  .scheme-toggle button:hover { color: #f2f2f7; background: rgba(255,255,255,0.06); }
+  .scheme-toggle button[aria-pressed="true"] { background: rgba(255,255,255,0.15); color: #f2f2f7; }
+
+  /* ---------- page chrome ---------- */
+  header.masthead { margin-bottom: 34px; }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: rgba(235,235,245,0.56); margin-bottom: 10px; }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin-bottom: 8px; }
+  .lede { font-size: 15px; color: rgba(235,235,245,0.66); max-width: 820px; margin-bottom: 14px; }
+  .lede strong { color: #f2f2f7; font-weight: 600; }
+  section { margin-bottom: 76px; }
+  h2 { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 8px; }
+  .section-head { max-width: 880px; margin-bottom: 22px; }
+  .section-head p { font-size: 14px; color: rgba(235,235,245,0.66); }
+  .section-head p + p { margin-top: 8px; }
+  .section-head strong { color: #f2f2f7; font-weight: 600; }
+  .snum { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(235,235,245,0.5); margin-bottom: 6px; }
+
+  .note-card { background: rgba(255,255,255,0.025); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); border-radius: 18px; padding: 24px; }
+  .note-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 10px; }
+  .note-card p { font-size: 13.5px; color: rgba(235,235,245,0.66); margin-bottom: 10px; }
+  .note-card p:last-child { margin-bottom: 0; }
+  .note-card strong { color: #f2f2f7; font-weight: 600; }
+
+  table.tok { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.tok code { white-space: pre-wrap; overflow-wrap: anywhere; }
+  table.tok th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: rgba(235,235,245,0.5); padding: 0 10px 7px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  table.tok td { padding: 7px 10px 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05); color: rgba(235,235,245,0.66); vertical-align: top; }
+  table.tok td:first-child { color: #f2f2f7; font-weight: 600; }
+  .light table.tok th { color: rgba(61,61,66,0.6); border-bottom-color: rgba(0,0,0,0.10); }
+  .light table.tok td { color: var(--text-secondary); border-bottom-color: rgba(0,0,0,0.06); }
+  .light table.tok td:first-child { color: var(--text-primary); }
+
+  ol.gaps { list-style: none; counter-reset: g; display: flex; flex-direction: column; gap: 11px; font-size: 13px; color: rgba(235,235,245,0.66); }
+  ol.gaps li { counter-increment: g; position: relative; padding-left: 29px; overflow-wrap: anywhere; }
+  ol.gaps li::before { content: counter(g); position: absolute; left: 0; top: 1px; font-size: 10.5px; font-weight: 700; width: 19px; height: 19px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.09); color: #f2f2f7; }
+  ol.gaps b { color: #f2f2f7; font-weight: 600; }
+
+  /* ---------- areas and options ---------- */
+  .item { margin-bottom: 54px; }
+  .item-head { display: flex; align-items: baseline; gap: 11px; flex-wrap: wrap; margin-bottom: 8px; }
+  .item-id { font-size: 12px; font-weight: 700; letter-spacing: 0.6px; padding: 3px 8px; border-radius: 7px; background: rgba(255,255,255,0.10); color: #f2f2f7; flex-shrink: 0; }
+  .item-head h3 { font-size: 19px; font-weight: 700; letter-spacing: -0.2px; }
+  .item-frame { font-size: 13.5px; color: rgba(235,235,245,0.66); max-width: 900px; margin-bottom: 18px; }
+  .item-frame strong { color: #f2f2f7; font-weight: 600; }
+  .item-frame p + p { margin-top: 9px; }
+
+  .stack { display: flex; flex-direction: column; gap: 22px; }
+  .option { background: rgba(255,255,255,0.025); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 15px; transition: box-shadow 140ms cubic-bezier(0.22,1,0.36,1), background-color 140ms cubic-bezier(0.22,1,0.36,1); }
+  .option.rec { box-shadow: inset 0 0 0 1px rgba(51,199,89,0.24); background: rgba(51,199,89,0.035); }
+  .option.picked { box-shadow: inset 0 0 0 2px rgba(10,132,255,0.55); background: rgba(10,132,255,0.05); }
+  .option-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .option-letter { font-size: 11.5px; font-weight: 700; min-width: 42px; height: 22px; border-radius: 7px; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,0.10); color: #f2f2f7; flex-shrink: 0; transform: translateY(3px); padding: 0 6px; }
+  .option-title { font-size: 16px; font-weight: 650; }
+  .option-sub { font-size: 13px; color: rgba(235,235,245,0.66); }
+  .rec-tag { margin-left: auto; font-size: 10px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase; color: #7ee8a2; background: rgba(51,199,89,0.16); box-shadow: inset 0 0 0 1px rgba(51,199,89,0.30); border-radius: 99px; padding: 3px 10px; transform: translateY(1px); white-space: nowrap; }
+
+  /* ---------- demo stage ---------- */
+  .demo-wrap { display: flex; gap: 16px; flex-wrap: wrap; }
+  .demo { flex: 1 1 340px; min-width: 0; background: #0f1116; border-radius: 16px; padding: 22px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); display: flex; flex-direction: column; align-items: flex-start; gap: 14px; overflow-x: auto; }
+  .demo.light { background: #dee2e8; }
+  .demo.center { align-items: center; }
+  .pane-cap { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-tertiary); }
+  .demo-hint { font-size: 11px; color: var(--text-tertiary); max-width: 640px; }
+  .demo-row { display: flex; gap: 22px; flex-wrap: wrap; align-items: flex-start; width: 100%; }
+  .substage { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .substage-cap { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; color: var(--text-tertiary); }
+
+  .ctrl-btn { font: inherit; font-size: 12px; font-weight: 600; color: var(--text-primary); background: linear-gradient(var(--btn-top), var(--btn-bottom)); border: none; box-shadow: inset 0 0 0 1px var(--btn-rim); border-radius: 8px; padding: 6px 13px; cursor: pointer; transition: filter 120ms ease-out; }
+  .ctrl-btn:hover { filter: brightness(1.14); }
+  .ctrl-btn:active { filter: brightness(0.92); }
+
+  .today { font-size: 12.5px; color: var(--text-secondary); background: rgba(255,255,255,0.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); border-radius: 10px; padding: 10px 13px; }
+  .today strong { color: var(--text-primary); font-weight: 600; }
+  .light .today { background: rgba(0,0,0,0.025); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.06); }
+  .honest { font-size: 12.5px; color: #ffc266; background: rgba(255,158,10,0.09); box-shadow: inset 0 0 0 1px rgba(255,158,10,0.18); border-radius: 10px; padding: 10px 13px; }
+  .honest strong { color: #ffd699; font-weight: 700; }
+  .honest a { color: #ffd699; }
+
+  ul.changes { list-style: none; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: rgba(235,235,245,0.66); }
+  ul.changes li { position: relative; padding-left: 17px; overflow-wrap: anywhere; }
+  ul.changes li::before { content: ""; position: absolute; left: 3px; top: 8px; width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.28); }
+  ul.changes b { color: #f2f2f7; font-weight: 600; }
+  ul.changes code { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  code { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 0.88em; color: #f2f2f7; background: rgba(255,255,255,0.07); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+  .light code { color: var(--text-primary); background: rgba(0,0,0,0.05); }
+
+  .footline { font-size: 12px; color: rgba(235,235,245,0.5); border-top: 1px solid rgba(255,255,255,0.07); padding-top: 18px; }
+  .fnote { font-size: 11.5px; color: rgba(235,235,245,0.5); line-height: 1.7; }
+  .fnote a { color: #7fb2ff; text-decoration: none; overflow-wrap: anywhere; }
+  .fnote a:hover { text-decoration: underline; }
+  .fnote li { list-style: none; margin-bottom: 3px; }
+  .fnote b { color: rgba(235,235,245,0.72); font-weight: 600; }
+
+  table.strings { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.strings th { text-align: left; font-size: 10.5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: rgba(235,235,245,0.5); padding: 0 12px 7px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  table.strings td { padding: 8px 12px 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05); color: rgba(235,235,245,0.6); vertical-align: top; width: 46%; }
+  table.strings td.n { width: 8%; color: #f2f2f7; font-weight: 600; }
+  table.strings td.new { color: #f2f2f7; }
+
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+</style>
+<style>
+  /* ============================================================
+     MOCK CHASSIS — 1px = 1pt, drawn from the shipped tokens.
+     PopoverView.swift:153-157 (384 wide, 19 inset, r22),
+     RaisedTile.swift:20-79 (card material, r10) + ProviderCardView.swift:109 (pad 13),
+     ProviderCardIdentityRows.swift:6-15 + :43-151 (identity metrics),
+     UsageBarView.swift:20-26 + :100-242 (row typography and layout),
+     MeterStyle.swift:96-162 (gauge geometry), MeterGauge.swift (fills),
+     HoverButtonStyle.swift:8-75 + ClaudeSetupViews.swift:538-574 (buttons),
+     APISpendSectionView.swift:5-159 (spend card).
+     ============================================================ */
+  .mock { color: var(--text-primary); font-variant-numeric: tabular-nums; flex-shrink: 0; }
+
+  .popover { width: 384px; padding: 19px; border-radius: 22px; background: var(--popover-bg);
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07), 0 22px 54px rgba(0,0,0,0.55); position: relative; }
+  .light .popover { box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.13), 0 22px 44px rgba(0,0,0,0.20); }
+  .pv-head { display: flex; align-items: baseline; gap: 8px; }
+  .pv-title { font-size: 20px; font-weight: 700; letter-spacing: -0.2px; }
+  .pv-status { font-size: 11px; color: var(--text-tertiary); margin-left: auto; }
+  .pv-gear { width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; margin: -8px -8px -8px 0; align-self: center; color: var(--text-secondary); flex-shrink: 0; border-radius: 7px; }
+  .pv-gear svg { width: 15px; height: 15px; display: block; }
+  .pv-cards { display: flex; flex-direction: column; gap: 20px; margin-top: 14px; }
+  .pv-foot { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
+
+  .card { background: linear-gradient(180deg, var(--tile-top), var(--tile-bottom)); border-radius: 10px; padding: 13px;
+    box-shadow: inset 0 1px 0 var(--card-rim-top), inset 0 0 0 1px var(--card-rim-bottom), 0 1px 7px rgba(0,0,0,0.42); position: relative; }
+  .light .card { box-shadow: inset 0 1px 0 var(--card-rim-top), inset 0 0 0 1px var(--card-rim-bottom), 0 1px 5px rgba(0,0,0,0.12); }
+  .card.opaque { background: linear-gradient(180deg, var(--tile-opaque-a), var(--tile-opaque-b)); }
+
+  /* identity row — ProviderCardIdentityRows.swift:43-151 */
+  .idrow { display: flex; align-items: center; gap: 6px; min-height: 18px; }
+  .idmark { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 15px; height: 15px; }
+  .idmark svg { display: block; width: 15px; height: 15px; }
+  .idmark.claude svg { width: 12.6px; height: 12.6px; }  /* 15 x opticalScale 0.84 — BrandColorValues.swift:287-295 */
+  .idname { font-size: 15px; font-weight: 600; letter-spacing: -0.15px; color: var(--text-primary); white-space: nowrap; }
+  .idname.medium { font-weight: 500; }
+  .idname.paper { color: var(--title-paper); }
+  .idname.secondary { color: var(--text-secondary); }
+  .planpill { font-size: 9.5px; font-weight: 500; line-height: 10px; color: var(--text-tertiary); background: var(--step-bg); border-radius: 99px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
+  .planpill.v3 { padding: 3px 5px; }
+  .idsp { flex: 1; min-width: 0; }
+  .staletag { font-size: 10px; font-weight: 600; line-height: 12px; color: var(--text-secondary); background: var(--stale-tag-bg); border-radius: 99px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
+  .tonetag { font-size: 10px; font-weight: 600; line-height: 12px; border-radius: 99px; padding: 1px 5px; white-space: nowrap; flex-shrink: 0; }
+  .tonetag.crit { color: var(--sev-c-text); background: color-mix(in srgb, var(--sev-c-text) 16%, transparent); }
+  .tonetag.warn { color: var(--sev-l-text); background: color-mix(in srgb, var(--sev-l-text) 16%, transparent); }
+
+  /* meter rows — UsageBarView.swift:100-242 */
+  .meters { display: flex; flex-direction: column; gap: 12px; }
+  .mrow-micro { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .mcluster { display: flex; align-items: baseline; gap: 6px; flex-shrink: 0; min-width: 0; }
+  .m-label { font-size: 13px; font-weight: 500; color: var(--label-90); white-space: nowrap; }
+  .m-reset { font-size: 11px; color: var(--reset-dim1); white-space: nowrap; }
+  .m-sp { flex: 1; min-width: 0; }
+  .m-pctwrap { display: inline-flex; align-items: baseline; gap: 5px; justify-content: flex-end; min-width: 71px; flex-shrink: 0; }
+  .m-pct { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+  .m-term { font-size: 11px; color: var(--text-tertiary); }
+
+  /* gauges — MeterStyle.swift:96-162 geometry, MeterGauge.swift fills */
+  .gwrap { position: relative; display: inline-block; flex-shrink: 0; }
+  .gtrack { position: absolute; inset: 0; background: var(--track); }
+  .gfill { position: absolute; }
+  .gfill.neutral { background: linear-gradient(180deg, var(--glass-a), var(--glass-b)); box-shadow: inset 0 0.5px 0 var(--glass-rim); }
+  .gcell { position: absolute; background: var(--tick-off); }
+  .gcell.on.sev-h { background: var(--sev-h-fill); }
+  .gcell.on.sev-l { background: var(--sev-l-fill); }
+  .gcell.on.sev-c { background: var(--sev-c-fill); }
+  .gfill.sev-h { background: var(--sev-h-fill); }
+  .gfill.sev-l { background: var(--sev-l-fill); }
+
+  /* ---------- quiet buttons ---------- */
+  /* HoverButtonStyle — nothing at rest. HoverButtonStyle.swift:34-44 */
+  .hb { white-space: nowrap; flex-shrink: 0; position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 4px; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); padding: 3px 8px; border-radius: 7px; cursor: pointer; user-select: none; background: transparent; border: none; font-family: inherit; }
+  .hb:hover { background: var(--hover-pill); }
+  .hb.accent-claude { color: var(--claude-text-accent); }
+  .hb.accent-codex { color: var(--codex-text-accent); }
+  .hb.s10 { font-size: 10px; padding: 3px 7px; color: var(--text-primary); }
+  .hb.s115 { font-size: 11.5px; padding: 3px 6px; }
+  .hb.plain { color: inherit; }
+
+  /* SetupChipButtonStyle — ClaudeSetupViews.swift:552-563 */
+  .chip { white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; font-weight: 600; line-height: 15px; color: var(--chip-ink);
+    background: var(--chip-fill); border-radius: 8px; padding: 6px 13px; cursor: pointer; user-select: none;
+    border: none; box-shadow: inset 0 0 0 1px var(--chip-border), var(--chip-shadow, none); font-family: inherit; }
+  .light .chip { box-shadow: inset 0 0 0 1px var(--chip-border), var(--chip-shadow); }
+  .chip:hover { background: var(--chip-fill-hi); }
+  .chip.sm { font-size: 11.5px; line-height: 14px; padding: 4px 10px; border-radius: 7px; }   /* B3A small */
+
+  /* SettingsPillBadge grown to button size — B3B */
+  .capbtn { white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500; line-height: 14px; color: var(--text-secondary);
+    background: var(--step-bg); border-radius: 99px; padding: 3.5px 9px; cursor: pointer; user-select: none; border: none; font-family: inherit; }
+  .capbtn:hover { background: var(--hover-pill); }
+
+  /* native .bordered .controlSize(.small) — APPROXIMATION, see caption */
+  .nbtn { display: inline-flex; align-items: center; justify-content: center; height: 20px; font-size: 12px; font-weight: 400; color: var(--text-primary);
+    background: linear-gradient(180deg, var(--btn-top), var(--btn-bottom)); border-radius: 5px; padding: 0 9px; cursor: pointer; user-select: none;
+    border: none; box-shadow: inset 0 0 0 1px var(--btn-rim), 0 0.5px 1px rgba(0,0,0,0.18); font-family: inherit; white-space: nowrap; }
+
+  /* ---------- situation chassis (B3 / P4) ---------- */
+  .sit { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+  .card { flex-shrink: 0; }
+  .sit-cap { font-size: 10px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--text-tertiary); }
+  .warnline { display: flex; align-items: flex-start; gap: 5px; font-size: 11.5px; color: var(--sev-l-text); }
+  .warnline .tri { font-size: 10px; line-height: 15px; }
+  .msg125 { font-size: 12.5px; line-height: 16px; color: var(--text-secondary); }
+  .msg115 { font-size: 11.5px; line-height: 15px; color: var(--text-secondary); }
+  .rowline { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .rowline.base { align-items: baseline; }
+  .actionrow { display: flex; gap: 10px; margin-top: 8px; }
+  .footrow { display: flex; gap: 10px; justify-content: flex-end; margin-top: 12px; padding-top: 10px; }
+
+  /* ---------- API spend card ---------- */
+  .sp-eyebrow { font-size: 11px; font-weight: 600; color: var(--text-secondary); }
+  .sp-div { height: 1px; background: var(--divider-08); margin: 7px 0; }
+  .sp-name14 { font-size: 14px; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+  .sp-ctx { font-size: 11px; color: var(--text-tertiary); }
+  .sp-amt { font-size: 17px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .sp-amt.dim { color: var(--text-secondary); }
+  .sp-amt18 { font-size: 18px; font-weight: 600; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+  .sp-amt18.dim { color: var(--text-secondary); }
+  .sp-qual { font-size: 10px; font-weight: 500; color: var(--text-tertiary); }
+  .sp-qual11 { font-size: 11px; color: var(--text-tertiary); }
+  .sp-badge { font-size: 10px; font-weight: 600; }
+  .sp-badge.crit { color: var(--critical-text); }
+  .sp-badge.warn { color: var(--sev-l-text); }
+  .sp-msg { font-size: 10px; color: var(--text-secondary); }
+  .sp-msg.clip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sp-plus { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 7px; color: var(--text-secondary); cursor: pointer; background: none; border: none; }
+  .sp-plus:hover { background: var(--hover-pill); }
+  .sp-plus svg { width: 10px; height: 10px; display: block; }
+  .sp-amtcol { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; flex-shrink: 0; }
+
+  /* digit roll — approximates contentTransition(.numericText()) */
+  .roll { display: inline-flex; }
+  .roll .ch { display: inline-block; position: relative; overflow: hidden; }
+  .roll .ch > span { display: inline-block; }
+  .roll .ch > span.out { position: absolute; left: 0; top: 0; }
+
+  /* ---------- wrapping specimens ---------- */
+  .wrapbox { position: relative; }
+  .wrapspec { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; color: var(--text-secondary); }
+  .wrapspec.primary { color: var(--text-primary); }
+  .wrapspec.medium { font-weight: 500; }
+  .wrapbox .edge { position: absolute; top: -4px; bottom: -4px; width: 1px; background: repeating-linear-gradient(180deg, var(--guide) 0 3px, transparent 3px 6px); opacity: 0.55; }
+  .wrapbox .edge.l { left: 0; }
+  .wrapbox .edge.r { right: 0; }
+  .meas { font-size: 10.5px; color: var(--text-tertiary); margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .meas b { color: var(--text-secondary); font-weight: 600; }
+  .meas.bad b { color: var(--sev-c-text); }
+  .meas.ok b { color: var(--sev-h-text); }
+  .stepnum { display: inline-flex; align-items: center; justify-content: center; width: 18px; font-size: 12px; font-weight: 600; color: var(--text-tertiary); flex-shrink: 0; }
+
+  /* ---------- Settings tile ---------- */
+  .stile { border-radius: 10px; padding: 13px; background: linear-gradient(180deg, var(--tile-opaque-a), var(--tile-opaque-b)); box-shadow: inset 0 1px 0 var(--card-rim-top), inset 0 0 0 1px var(--card-rim-bottom); }
+  .stile-title { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; margin-bottom: 10px; }
+</style>
+<style>
+  /* ============================================================
+     REVIEW LAYER — one radio group per AREA, one comment per area.
+     Storage + Copy-answers plumbing carried from
+     design/motion-design-options.html:2655-2854; the semantics differ
+     (pick-one-per-area instead of approve/deny/discuss per option).
+     ============================================================ */
+  :root {
+    --dec-approve-ink: #7ee8a2;
+    --dec-hover: rgba(255,255,255,0.06);
+    --dec-rule: rgba(255,255,255,0.07);
+    --dec-pre-bg: rgba(255,255,255,0.025);
+    --dec-pre-rim: rgba(255,255,255,0.05);
+  }
+  .light {
+    --dec-approve-ink: #17753b;
+    --dec-hover: rgba(0,0,0,0.05);
+    --dec-rule: rgba(0,0,0,0.08);
+    --dec-pre-bg: rgba(0,0,0,0.025);
+    --dec-pre-rim: rgba(0,0,0,0.06);
+  }
+  .dec-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+  .pickrow { margin-top: 2px; padding-top: 15px; border-top: 1px solid var(--dec-rule); }
+  .picklabel { display: inline-flex; align-items: center; gap: 9px; font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer; padding: 6px 14px 6px 10px; border-radius: 9px; background: var(--seg-track); box-shadow: inset 0 0 0 1px var(--seg-rim); transition: background-color 120ms ease-out, color 120ms ease-out, box-shadow 120ms ease-out; }
+  .picklabel:hover { color: var(--text-primary); background: var(--dec-hover); }
+  .picklabel input { appearance: none; width: 15px; height: 15px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(235,235,245,0.42); background: transparent; margin: 0; cursor: pointer; flex-shrink: 0; }
+  .light .picklabel input { box-shadow: inset 0 0 0 1.5px rgba(61,61,66,0.45); }
+  .picklabel input:checked { box-shadow: inset 0 0 0 4.5px var(--accent); }
+  .picklabel:has(input:checked) { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 32%, transparent); }
+
+  .areacomment { margin-top: 20px; display: flex; flex-direction: column; gap: 7px; }
+  .areacomment label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: rgba(235,235,245,0.5); }
+  .areacomment textarea { display: block; width: 100%; font: inherit; font-size: 13px; line-height: 19px; color: #f2f2f7; background: rgba(255,255,255,0.03); border: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07); border-radius: 12px; padding: 11px 13px; resize: vertical; min-height: 62px; transition: box-shadow 120ms ease-out; }
+  .areacomment textarea::placeholder { color: rgba(235,235,245,0.4); }
+  .areacomment textarea:focus { outline: none; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 62%, transparent); }
+  .areacomment textarea.filled { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent); }
+
+  .tb-count { font-size: 11.5px; font-weight: 600; color: rgba(235,235,245,0.66); text-decoration: none; border-radius: 7px; padding: 5px 11px; background: rgba(255,255,255,0.07); white-space: nowrap; flex-shrink: 0; transition: background-color 120ms ease-out, color 120ms ease-out; }
+  .tb-count:hover { color: #f2f2f7; background: rgba(255,255,255,0.13); }
+
+  .ans-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .ans-count { font-size: 13.5px; font-weight: 650; color: #f2f2f7; margin-right: auto; }
+  .ans-btn { font: inherit; font-size: 13px; font-weight: 600; color: #f2f2f7; background: linear-gradient(var(--btn-top), var(--btn-bottom)); border: none; box-shadow: inset 0 0 0 1px var(--btn-rim); border-radius: 8px; padding: 8px 16px; cursor: pointer; transition: filter 120ms ease-out; }
+  .ans-btn:hover { filter: brightness(1.14); }
+  .ans-btn.primary { background: var(--accent); color: #fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.14); }
+  .ans-ok { font-size: 12.5px; font-weight: 650; color: var(--dec-approve-ink); min-width: 50px; }
+  .ans-pre { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: 12px; line-height: 1.6; color: rgba(235,235,245,0.72); background: var(--dec-pre-bg); box-shadow: inset 0 0 0 1px var(--dec-pre-rim); border-radius: 14px; padding: 18px 20px; max-height: 460px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="ico-claude" viewBox="0 0 24 24"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z" fill="#D97757" fill-rule="nonzero"/></symbol>
+  <symbol id="ico-codex" viewBox="0 0 10 10">
+    <linearGradient id="cx-grad" x1="5" y1="0.5" x2="5" y2="9.5" gradientUnits="userSpaceOnUse"><stop stop-color="#B1A7FF"/><stop offset="0.5" stop-color="#7A9DFF"/><stop offset="1" stop-color="#3941FF"/></linearGradient>
+    <path d="M3.53191 0.672167C3.89319 0.523523 4.2865 0.469819 4.67441 0.516166C5.17441 0.573666 5.61991 0.786167 6.01091 1.15367C6.01591 1.15867 6.02291 1.16217 6.02941 1.16417C6.03647 1.1659 6.04385 1.1659 6.05091 1.16417C6.55923 1.0329 7.09731 1.08148 7.57391 1.30167L7.59741 1.31267L7.65541 1.34117C8.15429 1.59402 8.54342 2.02067 8.74941 2.54067C8.85391 2.79567 8.90591 3.06117 8.90691 3.33817C8.91442 3.54417 8.89185 3.75017 8.83991 3.94967C8.83735 3.95974 8.83738 3.97029 8.84 3.98035C8.84263 3.9904 8.84775 3.99963 8.85491 4.00717C9.15191 4.31067 9.34891 4.67217 9.44641 5.09217C9.59091 5.80467 9.44291 6.44717 9.00291 7.01917L8.93491 7.10217C8.64349 7.43574 8.261 7.67695 7.83441 7.79617C7.82515 7.79888 7.81666 7.80373 7.80962 7.81033C7.80259 7.81694 7.7972 7.8251 7.79391 7.83417C7.69841 8.10967 7.60241 8.34567 7.42391 8.58117C6.97391 9.17467 6.31291 9.50417 5.56841 9.50017C4.97491 9.49717 4.44891 9.28017 3.98991 8.84917C3.983 8.8427 3.9745 8.83819 3.96528 8.83608C3.95606 8.83397 3.94644 8.83435 3.93741 8.83717C3.74341 8.89967 3.54741 8.90867 3.33541 8.90617C2.99774 8.90346 2.66514 8.82377 2.36291 8.67317C2.04632 8.51629 1.77069 8.28773 1.55791 8.00567C1.48191 7.90467 1.40641 7.80967 1.35091 7.69717C1.27514 7.54279 1.21323 7.38199 1.16591 7.21667C1.06601 6.84048 1.0636 6.44504 1.15891 6.06767C1.16204 6.05869 1.16307 6.04911 1.16191 6.03967C1.1602 6.03039 1.15545 6.02195 1.14841 6.01567C0.917442 5.78189 0.740911 5.50002 0.631408 5.19017C0.558583 4.99931 0.516232 4.79818 0.505908 4.59417C0.487743 4.32546 0.511528 4.05556 0.576408 3.79417C0.744908 3.23817 1.06741 2.80167 1.54291 2.48517C1.64891 2.41467 1.74941 2.35967 1.84341 2.32017C1.95091 2.27567 2.05841 2.23817 2.16641 2.20667C2.17413 2.20427 2.18113 2.20001 2.1868 2.19425C2.19247 2.18849 2.19663 2.18142 2.19891 2.17367C2.28091 1.87919 2.42194 1.60446 2.61341 1.36617C2.85477 1.05967 3.17114 0.820634 3.53191 0.672167ZM5.27291 5.95467C5.19165 5.95922 5.11522 5.99471 5.05931 6.05385C5.0034 6.11299 4.97225 6.19128 4.97225 6.27267C4.97225 6.35405 5.0034 6.43235 5.05931 6.49148C5.11522 6.55062 5.19165 6.58611 5.27291 6.59067H7.09091C7.13417 6.59309 7.17747 6.58667 7.21816 6.57178C7.25885 6.5569 7.29608 6.53387 7.32756 6.5041C7.35905 6.47433 7.38413 6.43846 7.40127 6.39866C7.41841 6.35887 7.42725 6.31599 7.42725 6.27267C7.42725 6.22934 7.41841 6.18647 7.40127 6.14667C7.38413 6.10688 7.35905 6.071 7.32756 6.04123C7.29608 6.01146 7.25885 5.98843 7.21816 5.97355C7.17747 5.95866 7.13417 5.95224 7.09091 5.95467H5.27291ZM3.23091 3.61517C3.18764 3.54469 3.11865 3.49381 3.03854 3.47328C2.95844 3.45275 2.87348 3.46419 2.80165 3.50517C2.72982 3.54615 2.67675 3.61346 2.65366 3.69287C2.63056 3.77228 2.63926 3.85756 2.67791 3.93067L3.31391 5.04267L2.68091 6.11067C2.6596 6.14662 2.64558 6.18641 2.63966 6.22778C2.63373 6.26914 2.63601 6.31127 2.64636 6.35176C2.65671 6.39225 2.67494 6.4303 2.7 6.46374C2.72506 6.49718 2.75646 6.52536 2.79241 6.54667C2.82836 6.56797 2.86815 6.58199 2.90952 6.58792C2.95088 6.59385 2.99301 6.59157 3.0335 6.58121C3.07399 6.57086 3.11204 6.55263 3.14548 6.52758C3.17892 6.50252 3.2071 6.47112 3.22841 6.43517L3.95541 5.20767C3.98407 5.15931 3.9994 5.10422 3.99984 5.048C4.00028 4.99179 3.98581 4.93647 3.95791 4.88767L3.23091 3.61517Z" fill="url(#cx-grad)"/></symbol>
+  <symbol id="ico-grok" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="evenodd" d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"/></symbol>
+  <symbol id="ico-gear" viewBox="0 0 20 20"><g fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="2.6"/><path d="M10 2.6v2M10 15.4v2M17.4 10h-2M4.6 10h-2M15.2 4.8l-1.4 1.4M6.2 13.8l-1.4 1.4M15.2 15.2l-1.4-1.4M6.2 6.2L4.8 4.8" stroke-linecap="round"/></g></symbol>
+  <symbol id="ico-plus" viewBox="0 0 12 12"><path d="M6 1.6v8.8M1.6 6h8.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="ico-reload" viewBox="0 0 14 14"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M12 7a5 5 0 11-1.6-3.7"/><path d="M12.2 1.6v2.8H9.4"/></g></symbol>
+  <symbol id="ico-terminal" viewBox="0 0 14 14"><g fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1.2" y="2.2" width="11.6" height="9.6" rx="2"/><path d="M4 5.6l1.9 1.7L4 9"/><path d="M7.6 9.2h2.6"/></g></symbol>
+</defs></svg>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <span class="tb-title">Headroom · Title, wrapping, buttons, API spend</span>
+    <div class="scheme-toggle" role="group" aria-label="Preview appearance">
+      <button type="button" id="btnDark" aria-pressed="false">Dark</button>
+      <button type="button" id="btnLight" aria-pressed="false">Light</button>
+      <button type="button" id="btnBoth" aria-pressed="true">Both</button>
+    </div>
+    <a class="tb-count" id="tbCount" href="#answers">0/5 areas picked</a>
+    <span class="tb-note">One pick per area. Nothing on this page loops, pulses or autoplays.</span>
+  </div>
+</div>
+
+<div class="page">
+
+<header class="masthead">
+  <div class="eyebrow">Headroom · round 2 · 2026-09-06 · cd596717</div>
+  <h1>Title, wrapping, buttons, API spend</h1>
+  <p class="lede">Five things you flagged, each one turned into a real choice. <strong>T1</strong> is the account title from your Paper mock — how quiet it should get and what does the quieting, weight or ink. <strong>W2</strong> is text that wraps badly, starting with the answer to "what is the thing that makes text wrap symmetrically." <strong>B3</strong> is the quiet button: right now six styles are in the tree and the ones with no container lose every time they sit next to one that has one. <strong>P4</strong> is where an action button sits relative to the sentence it acts on. <strong>S5</strong> is the API spend card, which borrows the provider card's box and almost none of its language.</p>
+  <p class="lede"><strong>Already done, not up for a vote.</strong> M9C landed: the popover opens instantly. The once-per-launch content fade and the session gate behind it are gone (<code>cd596717</code>). Nothing below reintroduces an opening animation.</p>
+  <p class="lede"><strong>How to answer.</strong> Each area has one radio group — pick the single option you want built. One comment box per area at the bottom. Everything is saved in this browser only. When you are done, press <strong>Copy answers</strong> and paste it back into the thread.</p>
+</header>
+
+<section id="ground">
+  <div class="section-head">
+    <div class="snum">Ground rules for every mock below</div>
+    <h2>How to read these</h2>
+  </div>
+  <div class="note-card">
+    <p><strong>1px = 1pt.</strong> Popover 384 wide, 19 inset, radius 22 (<code>PopoverView.swift:153-157</code>). Card padding 13, radius 10 (<code>ProviderCardView.swift:109-111</code>). Identity content axis: 15pt mark + 6pt gap = 21pt inset on both sides (<code>ProviderCardIdentityRows.swift:6-15</code>). Meter row typography from <code>UsageBarView.swift:20-26</code>.</p>
+    <p><strong>Every colour and size is a real token</strong> with a <code>file:line</code>, or is labelled <em>derived</em> where I had to pick a light-mode counterpart that does not exist in the tree yet.</p>
+    <p><strong>Browser line breaking is not SwiftUI's.</strong> The W2 specimens use <code>-apple-system</code> at the real point sizes and the real container widths, so the breaks are close — but SwiftUI's <code>Text</code> lays out through TextKit with its own hyphenation and push-out behaviour. Treat the specimens as a very good approximation, not as a screenshot of the app.</p>
+    <p><strong>The native button is drawn, not real.</strong> AppKit's <code>.bordered</code> <code>.controlSize(.small)</code> cannot be reproduced in a browser. Everywhere it appears below it is a 20pt-tall rounded rect at radius 5 with the system button gradient, and it is labelled as an approximation.</p>
+    <p style="margin-bottom:0"><strong>Meters.</strong> T1 uses <em>Micro · Segmented</em> (5 cells, 6×5, gap 2, r1.5 — <code>MeterStyle.swift:102-104</code>) with a flat severity fill, to match your Paper frame. The shipped default is <code>micro.chip.event</code>, where a healthy bar is neutral grey, not green. Everywhere else on this page uses that default.</p>
+  </div>
+</section>
+
+<div id="sections"></div>
+
+<section id="answers">
+  <div class="section-head">
+    <div class="snum">Your answers</div>
+    <h2>One pick per area</h2>
+    <p>Five areas, five picks. Selecting an option deselects the other options in that area. Comments are per area, not per option. Everything is kept in this browser only (<code>localStorage</code>), so you can close the page and come back. Press <strong>Copy answers</strong> when you are done.</p>
+  </div>
+  <div class="ans-bar">
+    <span class="ans-count" id="ansCount">0 of 5 areas picked</span>
+    <button type="button" class="ans-btn primary" id="btnCopy">Copy answers</button>
+    <span class="ans-ok" id="copyOK" role="status" aria-live="polite"></span>
+    <button type="button" class="ans-btn" id="btnClear">Clear all</button>
+  </div>
+  <pre class="ans-pre" id="ansPre" tabindex="0" aria-label="Preview of the text that will be copied"></pre>
+</section>
+
+<p class="footline">design/round2-title-wrapping-buttons-spend-options.html · drawn from <code>.context/round2-inventory.md</code> and <code>.context/motion-inventory.md</code> at git <code>cd596717</code> · 2026-09-06</p>
+
+</div>
+
+<script>
+/* ============================================================
+   MOCK RENDERERS — 1px = 1pt, every number from the inventories.
+   ============================================================ */
+var UI = (function () {
+  'use strict';
+  var px = function (n) { return (Math.round(n * 100) / 100) + 'px'; };
+  var ico = function (id) { return '<svg aria-hidden="true"><use href="#' + id + '"/></svg>'; };
+  var esc = function (s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+
+  var CARD_W = 346;      /* 384 popover - 2 x 19 shell inset — PopoverView.swift:153-154 */
+  var ID_INSET = 21;     /* markSlot 15 + rowSpacing 6 — ProviderCardIdentityRows.swift:6-15 */
+
+  /* ---------- contrast maths, computed on this page ---------- */
+  function chan(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+  function lum(rgb) { return 0.2126 * chan(rgb[0]) + 0.7152 * chan(rgb[1]) + 0.0722 * chan(rgb[2]); }
+  function contrast(a, b) {
+    var la = lum(a), lb = lum(b), hi = Math.max(la, lb), lo = Math.min(la, lb);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+  function over(fg, alpha, bg) {
+    return [0, 1, 2].map(function (i) { return bg[i] + alpha * (fg[i] - bg[i]); });
+  }
+  function ratio(a, b) { return (Math.round(contrast(a, b) * 100) / 100).toFixed(2); }
+
+  /* Card surface used for every contrast figure below.
+     Dark: white @0.075 composited over the popover surface = rgb(45,47,51) — the value
+     measured off Kyle's Paper frame and quoted in the brief; RaisedTile.swift:65-72.
+     Light: white @0.98 over the light popover surface ≈ rgb(254,254,254). */
+  var CARD_RGB = { dark: [45, 47, 51], light: [254, 254, 254] };
+
+  /* ---------- gauges ---------- */
+  /* Micro segmented — 5 cells, 6 x 5, gap 2, r1.5 (MeterStyle.swift:102-104,
+     MeterGauge.swift:237). Lit = min(5, max(1, round(fraction x 5))) (MeterStyle.swift:250-254). */
+  function segGauge(frac, s) {
+    var cw = 6, ch = 5, gap = 2, r = 1.5, cells = 5;
+    var W = cells * cw + (cells - 1) * gap;
+    var lit = Math.min(cells, Math.max(1, Math.round(frac * cells))), out = '';
+    for (var i = 0; i < cells; i++) {
+      out += '<i class="gcell' + (i < lit ? ' on sev-' + s : '') + '" style="left:' + px(i * (cw + gap)) +
+             ';top:0;width:' + px(cw) + ';height:' + px(ch) + ';border-radius:' + px(r) + '"></i>';
+    }
+    return '<span class="gwrap" style="width:' + px(W) + ';height:' + px(ch) + '">' + out + '</span>';
+  }
+  /* Micro chip — 32 x 5, minimum fill 3, r2.5 (MeterStyle.swift:97-98, :114-115).
+     Default fill is colorAsEvent: neutral glass while healthy, flat severity otherwise
+     (MeterStyle.swift:322-343). */
+  function chipGauge(frac, s) {
+    var W = 32, H = 5, minFill = 3, r = 2.5;
+    var len = Math.min(W, Math.max(minFill, W * Math.min(1, Math.max(0, frac))));
+    var body = (s === 'h') ? 'neutral' : ('sev-' + s);
+    return '<span class="gwrap" style="width:' + px(W) + ';height:' + px(H) + '">' +
+      '<span class="gtrack" style="border-radius:' + px(r) + '"></span>' +
+      '<i class="gfill ' + body + '" style="left:0;top:0;height:' + px(H) + ';width:' + px(len) +
+      ';border-radius:' + px(r) + ' 0 0 ' + px(r) + '"></i></span>';
+  }
+  function sev(remaining) { return remaining <= 15 ? 'c' : (remaining <= 50 ? 'l' : 'h'); }
+
+  /* ---------- identity row ---------- */
+  /* o = { weight: 'semibold'|'medium', ink: ''|'paper'|'secondary', pillV3: bool, mark: 'claude'|'codex'|'grok' } */
+  function idRow(a, o) {
+    o = o || {};
+    var cls = 'idname' + (o.weight === 'medium' ? ' medium' : '') + (o.ink ? ' ' + o.ink : '');
+    return '<div class="idrow" style="padding-right:' + px(ID_INSET) + '">' +
+      '<span class="idmark ' + (o.mark || 'claude') + '">' + ico('ico-' + (o.mark || 'claude')) + '</span>' +
+      '<span class="' + cls + '">' + esc(a.name) + '</span>' +
+      (a.plan ? '<span class="planpill' + (o.pillV3 ? ' v3' : '') + '">' + esc(a.plan) + '</span>' : '') +
+      '<span class="idsp"></span></div>';
+  }
+
+  /* ---------- meter row (micro) — UsageBarView.swift:129-160, :194-217 ---------- */
+  function meterRow(m, o) {
+    o = o || {};
+    var rem = m.rem, s = sev(rem);
+    var g = (o.gauge === 'chip') ? chipGauge(rem / 100, s) : segGauge(rem / 100, s);
+    return '<div class="mrow-micro">' +
+      '<span class="mcluster"><span class="m-label">' + esc(m.label) + '</span>' +
+      (m.cd ? '<span class="m-reset">' + esc(m.cd) + '</span>' : '') + '</span>' +
+      '<span class="m-sp"></span>' + g +
+      '<span class="m-pctwrap"><span class="m-pct">' + rem + '%</span><span class="m-term">left</span></span>' +
+      '</div>';
+  }
+
+  /* Account block = identity row + 7pt gap + meters, meters inset 21 both sides
+     (ProviderCardIdentityRows.swift:186, ProviderCardView.swift:651 micro spacing 12). */
+  function accountBlock(a, rows, o) {
+    return '<div>' + idRow(a, o) +
+      '<div class="meters" style="padding-left:' + px(ID_INSET) + ';padding-right:' + px(ID_INSET) +
+      ';margin-top:7px">' + rows.map(function (m) { return meterRow(m, o); }).join('') + '</div></div>';
+  }
+
+  function card(inner, o) {
+    o = o || {};
+    return '<div class="card' + (o.opaque ? ' opaque' : '') + '" style="width:' + px(o.w || CARD_W) + '">' + inner + '</div>';
+  }
+
+  function popover(cards, o) {
+    o = o || {};
+    return '<div class="mock popover">' +
+      '<div class="pv-head"><span class="pv-title">Usage</span>' +
+      '<span class="pv-status">' + (o.status == null ? 'Updated 2 min ago' : o.status) + '</span>' +
+      '<span class="pv-gear">' + ico('ico-gear') + '</span></div>' +
+      '<div class="pv-cards">' + cards + '</div>' +
+      (o.footer === false ? '' : '<div class="pv-foot"><button type="button" class="hb">Refresh</button>' +
+        '<span class="m-sp"></span><button type="button" class="hb">Quit</button></div>') +
+      '</div>';
+  }
+
+  /* ---------- buttons ---------- */
+  function hb(label, extra) { return '<button type="button" class="hb ' + (extra || '') + '">' + label + '</button>'; }
+  function chip(label, extra) { return '<button type="button" class="chip ' + (extra || '') + '">' + label + '</button>'; }
+  function capbtn(label) { return '<button type="button" class="capbtn">' + label + '</button>'; }
+  function nbtn(label) { return '<button type="button" class="nbtn">' + label + '</button>'; }
+
+  return {
+    px: px, ico: ico, esc: esc, CARD_W: CARD_W, ID_INSET: ID_INSET,
+    contrast: contrast, over: over, ratio: ratio, CARD_RGB: CARD_RGB,
+    segGauge: segGauge, chipGauge: chipGauge, sev: sev,
+    idRow: idRow, meterRow: meterRow, accountBlock: accountBlock,
+    card: card, popover: popover, hb: hb, chip: chip, capbtn: capbtn, nbtn: nbtn
+  };
+})();
+
+/* ---------- The Paper frame, transcribed from
+   .context/attachments/vfZtLz/CleanShot 2026-09-06 at 8.29.50 AM@2x.png ---------- */
+var PAPER = {
+  claude: [
+    { acct: { name: 'Personal', plan: 'Max' }, rows: [
+      { label: 'Weekly', cd: '5d 14h', rem: 94 },
+      { label: '5-hour', cd: '4h 21m', rem: 93 },
+      { label: 'Weekly (Fable)', cd: '5d 14h', rem: 95 }
+    ] },
+    { acct: { name: 'Work', plan: 'Team' }, rows: [
+      { label: 'Weekly', cd: '6d 15h', rem: 98 },
+      { label: '5-hour', cd: '', rem: 100 },
+      { label: 'Weekly (Fable)', cd: '6d 15h', rem: 97 }
+    ] }
+  ],
+  codex: [
+    { acct: { name: 'Personal', plan: 'Pro Lite' }, rows: [
+      { label: 'Weekly', cd: '2d 17h', rem: 53 }
+    ] },
+    { acct: { name: 'Work', plan: 'Team' }, rows: [
+      { label: 'Weekly', cd: '2d 14h', rem: 95 },
+      { label: '5-hour', cd: '4h 57m', rem: 100 }
+    ] }
+  ]
+};
+
+/* One popover reproducing the Paper frame under a given title treatment.
+   o = { weight, ink, pillV3, gap } */
+function paperFrame(o) {
+  function providerCard(blocks, mark) {
+    var opt = { weight: o.weight, ink: o.ink, pillV3: o.pillV3, mark: mark };
+    return UI.card(blocks.map(function (b, i) {
+      return (i ? '<div style="height:' + UI.px(o.gap) + '"></div>' : '') +
+        UI.accountBlock(b.acct, b.rows, opt);
+    }).join(''));
+  }
+  return UI.popover(providerCard(PAPER.claude, 'claude') + providerCard(PAPER.codex, 'codex'), { footer: false });
+}
+
+/* Contrast caption for a title ink, computed here, not quoted. */
+function inkCaption(scheme, label, fg, alpha) {
+  var bg = UI.CARD_RGB[scheme];
+  var composited = alpha == null ? fg : UI.over(fg, alpha, bg);
+  var rgbTxt = composited.map(function (v) { return Math.round(v); }).join(', ');
+  return '<p class="meas">' + label + ' → rgb(' + rgbTxt + ') on the ' + scheme +
+    ' card rgb(' + bg.join(', ') + ') = <b>' + UI.ratio(composited, bg) + ':1</b> · computed on this page</p>';
+}
+</script>
+
+<script>
+/* ============================================================
+   AREA CONTENT — five areas, options in the brief's order,
+   recommended first and tagged.
+   ============================================================ */
+
+/* ---------- W2 specimen helper ---------- */
+function spec(text, size, lh, width, o) {
+  o = o || {};
+  return '<div class="spec" style="margin-bottom:16px">' +
+    (o.cap ? '<div class="substage-cap" style="margin-bottom:6px">' + o.cap + '</div>' : '') +
+    '<div class="wrapbox" style="width:' + width + 'px">' +
+    '<span class="edge l"></span><span class="edge r"></span>' +
+    '<div class="wrapspec' + (o.cls ? ' ' + o.cls : '') + '" data-measure data-width="' + width +
+    '" style="font-size:' + size + 'px;line-height:' + lh + 'px">' + UI.esc(text) + '</div></div>' +
+    '<p class="meas" data-meas></p></div>';
+}
+
+/* The five offenders, exactly as they ship — .context/round2-inventory.md §1.1 rows 1-5 */
+var OFF = [
+  { n: 1, s: 'Sends only the widget-safe usage snapshot through your iCloud account. No provider credentials are synced.',
+    size: 11, lh: 15, w: 518, w2: 574, cls: '', src: 'WidgetSettingsSection.swift:26 · 11pt regular, lineSpacing 2, .secondary · Settings tile, 518pt default / 574pt widened' },
+  { n: 2, s: 'In the Terminal that just opened, choose the option below — Headroom connects the moment you approve.',
+    size: 12.5, lh: 15, w: 320, cls: '', src: 'ClaudeSetupViews.swift:386 · 12.5pt regular, .secondary · popover card content, 320pt' },
+  { n: 3, s: 'Finish signing in, then approve the workspace if asked',
+    size: 12, lh: 14, w: 293, cls: '', src: 'ClaudeSetupViews.swift:341 · 12pt regular, .secondary · numbered step, 293pt' },
+  { n: 4, s: 'Come back — your usage appears here automatically',
+    size: 12, lh: 14, w: 293, cls: '', src: 'ClaudeSetupViews.swift:343 · 12pt regular, .secondary · numbered step, 293pt' },
+  { n: 5, s: "Claude Code location couldn't be confirmed — usage will retry",
+    size: 11.5, lh: 14, w: 299, cls: '', src: 'ProviderCapabilityPresentation.swift:8, drawn at ProviderCardView.swift:581-584 · 11.5pt regular, .secondary · meter content, 299pt' }
+];
+
+/* The rewrites. Written for this doc; same meaning, shorter, no jargon. */
+var REWRITE = [
+  'Sends only your usage numbers through iCloud. Sign-ins are never synced.',
+  'Choose the option below in Terminal. Headroom connects as soon as you approve.',
+  'Sign in, then approve the workspace if asked',
+  'Come back — usage appears here automatically',
+  "Couldn't confirm where Claude Code is — will retry"
+];
+
+/* NBSP-glued variants — the SettingsPanes.swift:73-74 technique, applied to the tail. */
+var GLUED = [
+  'Sends only the widget-safe usage snapshot through your iCloud account. No provider credentials are synced.',
+  'In the Terminal that just opened, choose the option below — Headroom connects the moment you approve.',
+  'Finish signing in, then approve the workspace if asked',
+  'Come back — your usage appears here automatically',
+  "Claude Code location couldn't be confirmed — usage will retry"
+];
+
+function offenderSet(strings, opts) {
+  opts = opts || {};
+  var out = '';
+  strings.forEach(function (s, i) {
+    var o = OFF[i];
+    var w = opts.cap ? Math.min(opts.cap, o.w) : o.w;
+    out += spec(s, o.size, o.lh, w, { cap: '#' + o.n + ' · ' + o.src });
+    if (o.w2) {
+      var w2 = opts.cap ? Math.min(opts.cap, o.w2) : o.w2;
+      out += spec(s, o.size, o.lh, w2, { cap: '#1 again, at the widened window' + (opts.cap ? ' (capped to ' + opts.cap + 'pt)' : ' (574pt)') });
+    }
+  });
+  return out;
+}
+
+/* ---------- B3 / P4 situations ---------- */
+/* v = { primary, secondary, tertiary, cta } — each a rendered button string. */
+function situationOne(v, place) {
+  var row = '<div class="rowline" style="gap:14px">' + v.primary + v.secondary + '</div>';
+  var body = '<p class="msg125">Finish signing in in the Terminal that just opened. Headroom checks this account automatically.</p>';
+  if (place === 'trailing') {
+    return UI.card('<div class="rowline" style="gap:10px;flex-wrap:nowrap;align-items:flex-start">' +
+      '<p class="msg125" style="flex:1;min-width:0">Finish signing in in the Terminal that just opened. Headroom checks this account automatically.</p>' +
+      '<span style="flex-shrink:0;display:inline-flex;gap:8px">' + v.primary + '</span></div>' +
+      '<div style="margin-top:8px">' + v.secondary + '</div>');
+  }
+  if (place === 'foot') {
+    return UI.card(body + '<div class="footrow">' + v.secondary + v.primary + '</div>');
+  }
+  return UI.card(body + '<div class="actionrow">' + v.primary + v.secondary + '</div>');
+}
+
+function situationTwo(v, place) {
+  var msg = '<div class="warnline"><span class="tri">⚠</span><span>Claude Code location couldn’t be confirmed — usage will retry</span></div>';
+  var trio = v.primary + v.secondary + v.tertiary;
+  if (place === 'trailing') {
+    return UI.card('<div class="rowline" style="gap:10px;flex-wrap:nowrap;align-items:flex-start">' +
+      '<div style="flex:1;min-width:0">' + msg + '</div>' +
+      '<span style="flex-shrink:0;display:inline-flex;gap:8px">' + v.primary + '</span></div>' +
+      '<div class="rowline" style="gap:10px;margin-top:8px">' + v.secondary + v.tertiary + '</div>');
+  }
+  if (place === 'foot') {
+    return UI.card(msg + '<div class="footrow">' + trio + '</div>');
+  }
+  return UI.card(msg + '<div class="actionrow">' + trio + '</div>');
+}
+
+function situationThree(v, place) {
+  var head = '<div class="rowline base" style="gap:6px;flex-wrap:nowrap">' +
+    '<span class="sp-name14">Anthropic API</span><span class="sp-ctx">· September</span></div>';
+  var status = '<div class="rowline" style="gap:6px;flex-wrap:nowrap;margin-top:2px">' +
+    '<span class="sp-badge crit">Key rejected</span>' +
+    '<span class="sp-msg">Anthropic didn’t accept the saved admin key</span></div>';
+  if (place === 'trailing') {
+    return UI.card('<div class="rowline" style="gap:8px;flex-wrap:nowrap;align-items:center">' +
+      '<div style="flex:1;min-width:0">' + head + status + '</div>' +
+      '<span class="sp-amt dim">$142.67</span>' + v.cta + '</div>');
+  }
+  if (place === 'foot') {
+    return UI.card('<div class="rowline" style="gap:8px;flex-wrap:nowrap;align-items:center">' +
+      '<div style="flex:1;min-width:0">' + head + status + '</div>' +
+      '<span class="sp-amt dim">$142.67</span></div>' +
+      '<div class="footrow">' + v.cta + '</div>');
+  }
+  if (place === 'today') {
+    return UI.card('<div class="rowline" style="gap:8px;flex-wrap:nowrap;align-items:center">' +
+      '<div style="flex:1;min-width:0">' + head +
+      '<div class="rowline" style="gap:6px;flex-wrap:nowrap;margin-top:2px">' +
+      '<span class="sp-badge crit">Key rejected</span>' +
+      '<span class="sp-msg clip" style="max-width:150px">Anthropic didn’t accept the saved admin key</span></div></div>' +
+      '<span class="sp-amtcol"><span class="sp-amt dim">$142.67</span>' + v.cta + '</span></div>');
+  }
+  return UI.card('<div class="rowline" style="gap:8px;flex-wrap:nowrap;align-items:center">' +
+    '<div style="flex:1;min-width:0">' + head + status + '</div>' +
+    '<span class="sp-amt dim">$142.67</span></div>' +
+    '<div class="actionrow">' + v.cta + '</div>');
+}
+
+function situationRow(v, place) {
+  return '<div class="demo-row">' +
+    '<div class="sit"><div class="sit-cap">1 · Waiting card — ClaudeSetupViews.swift:406-413</div>' + situationOne(v, place) + '</div>' +
+    '<div class="sit"><div class="sit-cap">2 · Capability recovery — ProviderCardView.swift:589-601</div>' + situationTwo(v, place) + '</div>' +
+    '<div class="sit"><div class="sit-cap">3 · API spend CTA — APISpendSectionView.swift:111-122</div>' + situationThree(v, place) + '</div>' +
+    '</div>';
+}
+
+/* Button vocabularies */
+var VOCAB = {
+  today: {
+    primary: UI.chip('<span style="width:12px;height:12px;display:inline-flex">' + UI.ico('ico-reload') + '</span>Check now'),
+    secondary: UI.hb('Reopen Terminal', 'accent-claude'),
+    tertiary: UI.nbtn('Stop waiting'),
+    cta: UI.hb('Replace key…', 's10')
+  },
+  b3a: {
+    primary: UI.chip('<span style="width:12px;height:12px;display:inline-flex">' + UI.ico('ico-reload') + '</span>Check now'),
+    secondary: UI.chip('Reopen Terminal', 'sm'),
+    tertiary: UI.chip('Stop waiting', 'sm'),
+    cta: UI.chip('Replace key…', 'sm')
+  },
+  b3b: {
+    primary: UI.chip('<span style="width:12px;height:12px;display:inline-flex">' + UI.ico('ico-reload') + '</span>Check now'),
+    secondary: UI.capbtn('Reopen Terminal'),
+    tertiary: UI.capbtn('Stop waiting'),
+    cta: UI.capbtn('Replace key…')
+  },
+  b3c: {
+    primary: UI.nbtn('Check now'),
+    secondary: UI.nbtn('Reopen Terminal'),
+    tertiary: UI.nbtn('Stop waiting'),
+    cta: UI.nbtn('Replace key…')
+  }
+};
+
+/* ---------- S5 spend rows ---------- */
+function chipTag(text) { return '<span class="planpill v3">' + UI.esc(text) + '</span>'; }
+
+function amountCluster(r) {
+  var amt = r.amount ? '<span class="rowline" style="gap:3px;flex-wrap:nowrap;align-items:baseline;justify-content:flex-end;width:var(--amtcol);flex-shrink:0">' +
+    '<span class="sp-amt18' + (r.dim ? ' dim' : '') + '"' + (r.roll ? ' data-roll' : '') + '>' + r.amount + '</span></span>' : '';
+  var qual = r.qualifier ? '<span class="sp-qual11">remaining</span>' : '';
+  var plus = r.plus ? '<button type="button" class="sp-plus" aria-label="Add credits">' + UI.ico('ico-plus') + '</button>' : '';
+  return { amt: amt, qual: qual, plus: plus, inline: amt + qual + plus };
+}
+
+function s5aRow(r) {
+  var c = amountCluster(r);
+  /* A .balance row cannot hold the reserved column, the "Remaining balance" chip and the
+     "remaining" qualifier on one 299pt line — measured, it needs about 350pt. So the amount
+     cluster drops to its own right-aligned line. See the S5A note. */
+  var wide = !!r.qualifier;
+  var head = '<div class="idrow" style="padding-right:0">' +
+    '<span class="idmark ' + r.mark + '">' + UI.ico('ico-' + r.mark) + '</span>' +
+    '<span class="idname medium paper">' + r.name + '</span>' +
+    (r.tag ? '<span class="tonetag ' + r.tone + '">' + r.tag + '</span>' : chipTag(r.period)) +
+    '<span class="idsp"></span>' + (wide ? '' : c.inline) + '</div>' +
+    (wide ? '<div class="rowline" style="gap:3px;flex-wrap:nowrap;align-items:baseline;justify-content:flex-end;margin-top:3px">' + c.inline + '</div>' : '');
+  var msg = r.message ? '<p class="msg115" style="margin-left:21px;margin-top:3px;max-width:250px">' + r.message + '</p>' : '';
+  var cta = r.cta ? '<div style="margin-left:21px;margin-top:8px">' + UI.chip(r.cta, 'sm') + '</div>' : '';
+  return '<div>' + head + msg + cta + '</div>';
+}
+
+function s5bRow(r) {
+  var c = amountCluster(r);
+  var wide = !!r.qualifier;
+  var head = '<div class="idrow" style="padding-right:0">' +
+    '<span class="sp-name14" style="white-space:nowrap">' + r.name + '</span>' +
+    (r.tag ? '<span class="tonetag ' + r.tone + '">' + r.tag + '</span>' : chipTag(r.period)) +
+    '<span class="idsp"></span>' + (wide ? '' : c.inline) + '</div>' +
+    (wide ? '<div class="rowline" style="gap:3px;flex-wrap:nowrap;align-items:baseline;justify-content:flex-end;margin-top:3px">' + c.inline + '</div>' : '');
+  var msg = r.message ? '<p class="msg115" style="margin-top:3px;max-width:250px">' + r.message + '</p>' : '';
+  var cta = r.cta ? '<div style="margin-top:8px">' + UI.chip(r.cta, 'sm') + '</div>' : '';
+  return '<div>' + head + msg + cta + '</div>';
+}
+
+var SPEND_ROWS = [
+  { mark: 'claude', name: 'Anthropic API', period: 'September', amount: '$142.67', roll: true },
+  { mark: 'codex', name: 'OpenAI API', period: 'September', amount: '$58.90' },
+  { mark: 'claude', name: 'Anthropic API', tag: 'Key rejected', tone: 'crit',
+    message: 'Anthropic didn’t accept the saved admin key', cta: 'Replace key…' },
+  { mark: 'grok', name: 'xAI API', period: 'Remaining balance', amount: '$58.90', qualifier: true, plus: true }
+];
+
+function collapsedCard(name, plan, mark) {
+  return UI.card(UI.idRow({ name: name, plan: plan }, { weight: 'medium', ink: 'paper', pillV3: true, mark: mark }));
+}
+</script>
+
+<script>
+/* ============================================================
+   THE FIVE AREAS
+   ============================================================ */
+function titleCap(scheme, kind) {
+  if (kind === 'today') {
+    return inkCaption(scheme, 'Title ink <code>.primary</code>', scheme === 'dark' ? [242, 242, 247] : [29, 31, 36]);
+  }
+  if (kind === 'paper') {
+    return inkCaption(scheme, scheme === 'dark'
+      ? 'Title ink <code>#68707A</code> (measured off the Paper frame)'
+      : 'Title ink <code>#6B7280</code> (<b>derived</b> — no light counterpart exists in the tree; this is the value the brief proposes)',
+      scheme === 'dark' ? [104, 112, 122] : [107, 114, 128]);
+  }
+  return inkCaption(scheme, scheme === 'dark'
+    ? 'Title ink <code>.secondary</code> rgb(235,235,245) @0.66 — BrandColorValues.swift:78-80'
+    : 'Title ink <code>.secondary</code> rgb(61,61,66) @0.84 — BrandColorValues.swift:78-80',
+    scheme === 'dark' ? [235, 235, 245] : [61, 61, 66], scheme === 'dark' ? 0.66 : 0.84);
+}
+
+function todaySpendCard() {
+  function row(inner) { return '<div>' + inner + '</div>'; }
+  var div = '<div class="sp-div"></div>';
+  var r1 = row('<div class="rowline" style="gap:6px;flex-wrap:nowrap;align-items:center">' +
+    '<div style="flex:1;min-width:0"><span class="sp-name14">Anthropic API</span> <span class="sp-ctx">· September</span></div>' +
+    '<span class="sp-amt">$142.67</span></div>');
+  var r2 = row('<div class="rowline" style="gap:6px;flex-wrap:nowrap;align-items:center">' +
+    '<div style="flex:1;min-width:0"><span class="sp-name14">OpenAI API</span> <span class="sp-ctx">· September</span></div>' +
+    '<span class="sp-amt">$58.90</span></div>');
+  var r3 = row('<div class="rowline" style="gap:8px;flex-wrap:nowrap;align-items:center">' +
+    '<div style="flex:1;min-width:0"><div><span class="sp-name14">Anthropic API</span> <span class="sp-ctx">· September</span></div>' +
+    '<div class="rowline" style="gap:6px;flex-wrap:nowrap;margin-top:2px"><span class="sp-badge crit">Key rejected</span>' +
+    '<span class="sp-msg clip" style="max-width:135px">Anthropic didn’t accept the saved admin key</span></div></div>' +
+    '<span class="sp-amtcol"><span class="sp-amt dim">$142.67</span>' + UI.hb('Replace key…', 's10') + '</span></div>');
+  var r4 = row('<div class="rowline" style="gap:6px;flex-wrap:nowrap;align-items:center">' +
+    '<div style="flex:1;min-width:0"><span class="sp-name14">xAI API</span> <span class="sp-ctx">· Remaining balance</span></div>' +
+    '<span class="rowline" style="gap:3px;flex-wrap:nowrap;align-items:baseline"><span class="sp-amt">$58.90</span>' +
+    '<span class="sp-qual">remaining</span>' +
+    '<button type="button" class="sp-plus" aria-label="Add credits">' + UI.ico('ico-plus') + '</button></span></div>');
+  return UI.card('<div style="display:flex;flex-direction:column;gap:9px">' +
+    '<span class="sp-eyebrow">API spend</span>' +
+    '<div style="padding-right:' + UI.px(UI.ID_INSET) + '">' + r1 + div + r2 + div + r3 + div + r4 + '</div></div>');
+}
+
+function s5Popover(spendCard, cards) {
+  return UI.popover((cards || (collapsedCard('Personal', 'Max', 'claude') + collapsedCard('Personal', 'Pro Lite', 'codex'))) +
+    spendCard, { footer: false });
+}
+
+function s5aCard() {
+  return UI.card('<div style="display:flex;flex-direction:column;gap:22px;padding-right:' + UI.px(UI.ID_INSET) + '">' +
+    SPEND_ROWS.map(s5aRow).join('') + '</div>');
+}
+function s5bCard(rows) {
+  return UI.card('<div style="display:flex;flex-direction:column;gap:9px">' +
+    '<span class="sp-eyebrow">API spend</span>' +
+    '<div style="display:flex;flex-direction:column;gap:22px;padding-right:' + UI.px(UI.ID_INSET) + '">' +
+    (rows || SPEND_ROWS).map(s5bRow).join('') + '</div></div>');
+}
+function apiMeterRow(label, amount, tag, cta) {
+  return '<div style="padding-left:' + UI.px(UI.ID_INSET) + ';padding-right:' + UI.px(UI.ID_INSET) + ';margin-top:12px">' +
+    '<div class="mrow-micro"><span class="mcluster"><span class="m-label">' + label + '</span>' +
+    (tag ? '<span class="tonetag crit">' + tag + '</span>' : '') + '</span>' +
+    '<span class="m-sp"></span>' +
+    '<span class="m-pctwrap" style="min-width:var(--amtcol)"><span class="sp-amt18">' + amount + '</span></span></div>' +
+    (cta ? '<div style="margin-top:8px">' + UI.chip(cta, 'sm') + '</div>' : '') + '</div>';
+}
+function s5cPopover() {
+  var claude = UI.card(UI.idRow({ name: 'Personal', plan: 'Max' }, { weight: 'medium', ink: 'paper', pillV3: true, mark: 'claude' }) +
+    '<div class="meters" style="padding-left:' + UI.px(UI.ID_INSET) + ';padding-right:' + UI.px(UI.ID_INSET) + ';margin-top:7px">' +
+    UI.meterRow({ label: 'Weekly', cd: '5d 14h', rem: 94 }, { gauge: 'chip' }) +
+    UI.meterRow({ label: '5-hour', cd: '4h 21m', rem: 93 }, { gauge: 'chip' }) + '</div>' +
+    apiMeterRow('API · September', '$142.67'));
+  var codex = UI.card(UI.idRow({ name: 'Personal', plan: 'Pro Lite' }, { weight: 'medium', ink: 'paper', pillV3: true, mark: 'codex' }) +
+    '<div class="meters" style="padding-left:' + UI.px(UI.ID_INSET) + ';padding-right:' + UI.px(UI.ID_INSET) + ';margin-top:7px">' +
+    UI.meterRow({ label: 'Weekly', cd: '2d 17h', rem: 53 }, { gauge: 'chip' }) + '</div>' +
+    apiMeterRow('API · September', '$58.90'));
+  var fallback = s5bCard([SPEND_ROWS[2], SPEND_ROWS[3]]);
+  return UI.popover(claude + codex + fallback, { footer: false });
+}
+
+var AREAS = [
+  /* ================= T1 ================= */
+  {
+    id: 'T1', title: 'Account title',
+    num: 'Area T1 · one pick',
+    frame:
+      '<p>Today the account title is <b>15pt semibold, kerning −0.15, in <code>.primary</code></b> — the same ink as the numerals (<code>ProviderCardIdentityRows.swift:80-87</code>). The plan pill is h5/v1 (<code>:49-51</code>) and accounts inside one card are separated by 22pt (<code>ProviderCardView.swift:355</code>).</p>' +
+      '<p>Your Paper frame keeps the size at 15 and changes three things. The <b>weight drops to Medium</b> (measured stem ≈ 0.088 em, against the 13pt medium label at 0.075 and the semibold numeral at 0.098). The <b>ink goes cool grey</b>, <code>#68707A</code> — dimmer even than the countdown at rgb(146,147,153). The <b>plan pill grows to about 16pt tall</b> (vertical padding ≈ 3 instead of 1), and <b>account sections open to about 26pt</b> from 22. Mark, card geometry, meter rows and numerals are unchanged.</p>' +
+      '<p><b>The honest cost.</b> <code>#68707A</code> on the dark card computes to 2.70:1 — well under the 4.5:1 body-text floor. That is deliberate de-emphasis, and the 18pt numeral beside it still carries the value at full contrast, but it is worth choosing on purpose rather than by accident. T1B is the same design with a compliant ink; T1C isolates whether it is the weight or the ink doing the work.</p>',
+    pre: { label: 'Today, for reference', mock: function () { return paperFrame({ weight: 'semibold', ink: '', pillV3: false, gap: 22 }); },
+      cap: function (s) { return titleCap(s, 'today'); },
+      hint: 'The Paper frame reproduced with today’s shipped title treatment: 15 semibold, .primary, pill h5/v1, 22pt account gap. Meters are Micro · Segmented with a flat severity fill, to match your Paper mock; the shipped default is micro.chip.event.' },
+    options: [
+      { id: 'T1A', title: 'Kyle’s Paper', sub: '15 medium · #68707A · pill v3 · 26pt sections', rec: true,
+        mock: function () { return paperFrame({ weight: 'medium', ink: 'paper', pillV3: true, gap: 26 }); },
+        cap: function (s) { return titleCap(s, 'paper'); },
+        changes:
+          '<li><b>Title weight</b> <code>.semibold</code> → <code>.medium</code>, kerning −0.15 kept — <code>ProviderCardIdentityRows.swift:80-87</code></li>' +
+          '<li><b>Title ink</b> <code>.primary</code> → <code>#68707A</code> dark / <code>#6B7280</code> light. The light value is <b>derived</b> — there is no such token in the tree today, so it needs adding beside the other neutrals in <code>BrandColorValues.swift:70-84</code></li>' +
+          '<li><b>Plan pill</b> vertical padding <code>1</code> → <code>3</code> (pill ≈ 16pt tall) — <code>ProviderCardIdentityRows.swift:49-51</code></li>' +
+          '<li><b>Account section gap</b> <code>22</code> → <code>26</code> — <code>ProviderCardView.swift:355</code></li>' +
+          '<li>Unchanged: mark 15, row pitch 33, identity→first meter 27 centre-to-centre, card geometry, meter rows, numerals</li>' },
+      { id: 'T1B', title: 'Paper, contrast-safe', sub: 'Same geometry, the existing secondary ink',
+        mock: function () { return paperFrame({ weight: 'medium', ink: 'secondary', pillV3: true, gap: 26 }); },
+        cap: function (s) { return titleCap(s, 'secondary') + '<p class="meas">The brief estimated this ink at ≈4.6:1; composited against the same card and computed here it comes out higher. The figure above is the computed one.</p>'; },
+        changes:
+          '<li><b>Title weight</b> and everything geometric identical to T1A</li>' +
+          '<li><b>Title ink</b> <code>.primary</code> → the existing <code>secondaryText</code> token, dark rgb(235,235,245) @0.66 / light rgb(61,61,66) @0.84 — <code>BrandColorValues.swift:78-80</code>. No new token</li>' +
+          '<li>Reads warmer and closer to the numeral than the Paper grey — quieter than today, louder than T1A</li>' },
+      { id: 'T1C', title: 'Ink only', sub: 'Keep semibold; take the grey and the 26pt gap',
+        mock: function () { return paperFrame({ weight: 'semibold', ink: 'paper', pillV3: false, gap: 26 }); },
+        cap: function (s) { return titleCap(s, 'paper') + '<p class="meas">Weight does not change contrast — this is the same ratio as T1A. What differs is stem density at 15pt.</p>'; },
+        changes:
+          '<li><b>Title weight</b> unchanged at <code>.semibold</code></li>' +
+          '<li><b>Title ink</b> → <code>#68707A</code> / <code>#6B7280</code>, as T1A</li>' +
+          '<li><b>Plan pill</b> unchanged at h5/v1</li>' +
+          '<li><b>Account section gap</b> <code>22</code> → <code>26</code></li>' +
+          '<li>Use this to judge the question directly: is the quieting coming from the weight or from the ink?</li>' }
+    ]
+  },
+
+  /* ================= W2 ================= */
+  {
+    id: 'W2', title: 'Text wrapping',
+    num: 'Area W2 · one pick',
+    frame:
+      '<p><b>The answer first.</b> The thing you are describing is <code>text-wrap: balance</code>, and it is a <i>web</i> feature. On the web, <code>balance</code> evens out the line lengths of a short block so no line is much shorter than its neighbours, and <code>text-wrap: pretty</code> does the narrower job of stopping one word being stranded on the last line. <b>macOS has neither.</b> There is no balance equivalent in AppKit, TextKit or SwiftUI on macOS 15 or macOS 26. The nearest shipped concept is <code>NSParagraphStyle.LineBreakStrategy.pushOut</code>, which is orphan avoidance only, has no cost function and no parameters — and SwiftUI’s <code>Text</code> already applies it by default and gives you no way to reach it, because it rebuilds the paragraph style from the environment and discards anything you attach to an <code>AttributedString</code>. There is a private <code>avoidsOrphans</code> flag; it is an App Review risk on the App Store track and an undeclared ABI dependency on the Sparkle track, and it only turns orphan avoidance <i>off</i>. So the awkward breaks you are seeing are, on the best available reading, <b>already push-out doing its job</b>: it pulled a word down to the last line and left a gappy line above it. There is no switch to flip. This is a copy-and-measure problem.</p>' +
+      '<p>Three levers exist, and all three are already in the tree somewhere: cap the measure with <code>.frame(maxWidth:)</code>, glue a two-word tail with <code>\\u{00A0}</code> (the one deliberate anti-orphan measure the app ships, <code>SettingsPanes.swift:73-74</code>), and shorten the copy. The options below are the three combinations worth choosing between.</p>' +
+      '<p><b>One separate bug, not a wrapping bug.</b> <code>APISpendSectionView.swift:88</code> puts <code>.lineLimit(1)</code> on the spend status message inside a row with about 200pt left after the amount, so “Add an admin key to see Anthropic spend” is cut silently. That is truncation, not orphaning, and it is fixed inside area S5 — every S5 option lets the message wrap to two lines.</p>',
+    pre: { label: 'The five worst offenders, as they ship today', single: true,
+      mock: function () { return '<div style="width:100%">' + offenderSet(OFF.map(function (o) { return o.s; })) + '</div>'; },
+      hint: 'Rendered in -apple-system at the real point sizes and the real container widths. Browser line breaking is not byte-identical to SwiftUI’s — treat these as a close approximation. Every caption is measured live in this browser, not quoted. The red dashes are the container edges.' },
+    options: [
+      { id: 'W2A', title: 'Measure + glue + trim', sub: 'All three rules, everywhere', rec: true, single: true,
+        mock: function () {
+          return '<div style="width:100%">' +
+            offenderSet(REWRITE, { cap: 460 }) + '</div>';
+        },
+        hint: 'Settings help text is capped at 460pt (so #1 renders at 460 instead of 518/574); popover strings keep their real widths. Copy is the rewritten set from the table below.',
+        extra:
+          '<table class="strings"><thead><tr><th>#</th><th>Ships today</th><th>Rewritten</th></tr></thead><tbody>' +
+          OFF.map(function (o, i) {
+            return '<tr><td class="n">' + o.n + '</td><td>' + UI.esc(o.s) + '</td><td class="new">' + UI.esc(REWRITE[i]) + '</td></tr>';
+          }).join('') +
+          '</tbody></table>' +
+          '<p class="demo-hint" style="max-width:900px">Strings 1 and 2 are shared with nothing else. Strings 3–5 are provider-setup and capability copy; #5 (<code>ProviderCapabilityPresentation.swift:8</code>) is Core-owned, so check it is not projected to the widget before changing it.</p>',
+        changes:
+          '<li><b>Rule 1 — measure.</b> <code>.frame(maxWidth: 460, alignment: .leading)</code> on <code>SettingsHelpText</code> — <code>SettingsRows.swift:30-40</code>. One line then holds roughly 75 characters and the 640pt pane cap can no longer stretch a line into an orphan</li>' +
+          '<li><b>Rule 2 — glue.</b> <code>\\u{00A0}</code> before the orphan-prone tail wherever the string is fixed, matching the existing precedent at <code>SettingsPanes.swift:73-74</code></li>' +
+          '<li><b>Rule 3 — trim.</b> The ten offenders rewritten so the last line is at least 35% of the measure at both window widths. Exact strings in the table above</li>' +
+          '<li>Also add the missing <code>fixedSize(horizontal: false, vertical: true)</code> at <code>ClaudeSetupViews.swift:299-304</code> — the one body string in the Claude connect card without it</li>' },
+      { id: 'W2B', title: 'Measure + glue only', sub: 'No copy changes', single: true,
+        mock: function () { return '<div style="width:100%">' + offenderSet(GLUED, { cap: 460 }) + '</div>'; },
+        hint: 'Same strings as today, with the measure capped at 460pt for Settings help text and non-breaking spaces gluing the tails. Nothing has been rewritten.',
+        extra:
+          '<table class="strings"><thead><tr><th>#</th><th>Tail glued with <code>\\u{00A0}</code></th><th>Result</th></tr></thead><tbody>' +
+          '<tr><td class="n">1</td><td>credentials\u00A0are\u00A0synced.</td><td class="new">7% → 26% at the 460pt cap — better, still under the 35% bar</td></tr>' +
+          '<tr><td class="n">2</td><td>the moment\u00A0you\u00A0approve.</td><td class="new">16% → 40% — clears the bar, still three lines</td></tr>' +
+          '<tr><td class="n">3</td><td>the workspace\u00A0if\u00A0asked</td><td class="new">11% → 37% — clears the bar</td></tr>' +
+          '<tr><td class="n">4</td><td>usage appears\u00A0here\u00A0automatically</td><td class="new">26% → 52% — clears it comfortably</td></tr>' +
+          '<tr><td class="n">5</td><td>usage\u00A0will\u00A0retry</td><td class="new">16% → 28% — still under the bar</td></tr>' +
+          '</tbody></table>' +
+          '<p class="demo-hint" style="max-width:900px"><b>What remains.</b> The glue does more than I expected — read the captions above the table. It clears the 35% bar on #2, #3 and #4 without touching a word of meaning. What it cannot fix: <b>#1 still ends at 26%</b> even with the 460pt cap (the sentence is simply long for its measure), <b>#5 still ends at 28%</b> in a 299pt container with no width to give back, and #2 is still <b>three lines</b> where the rewritten version is two. Percentages are this browser’s measure of the same strings; write the escape <code>\\u{00A0}</code> in Swift, never a pasted invisible character.</p>',
+        changes:
+          '<li><b>Rule 1 — measure.</b> <code>.frame(maxWidth: 460, alignment: .leading)</code> on <code>SettingsHelpText</code> — <code>SettingsRows.swift:30-40</code></li>' +
+          '<li><b>Rule 2 — glue.</b> <code>\\u{00A0}</code> on the fixed tails</li>' +
+          '<li><b>No copy changes.</b> Nothing shared with the widget, iOS or the companion moves</li>' +
+          '<li>Cheapest to ship and the easiest to review; it does not touch the popover cards</li>' },
+      { id: 'W2C', title: 'Copy only', sub: 'Every offender rewritten; no width cap', single: true,
+        mock: function () { return '<div style="width:100%">' + offenderSet(REWRITE) + '</div>'; },
+        hint: 'The rewritten strings at their real, uncapped widths — including #1 at the widened 574pt window, which is where today’s version degenerates to the single word “synced.”',
+        extra:
+          '<table class="strings"><thead><tr><th>#</th><th>Ships today</th><th>Rewritten</th></tr></thead><tbody>' +
+          OFF.map(function (o, i) {
+            return '<tr><td class="n">' + o.n + '</td><td>' + UI.esc(o.s) + '</td><td class="new">' + UI.esc(REWRITE[i]) + '</td></tr>';
+          }).join('') + '</tbody></table>',
+        changes:
+          '<li><b>Rule 3 only.</b> Every offender rewritten to fit one line or to break cleanly at both window widths</li>' +
+          '<li>No <code>.frame(maxWidth:)</code>, no non-breaking spaces, no new layout rule to remember</li>' +
+          '<li>The risk: it holds only for these strings. The next long string someone writes lands back where we started, because nothing structural changed</li>' +
+          '<li>Localisation would re-break all of it — but so it would with a measure tuned for English</li>' }
+    ],
+    post:
+      '<div class="note-card" style="margin-top:24px"><h3>Sources for the paragraph above</h3><ul class="fnote">' +
+      '<li><b>The four line-break strategies exist as named</b> — <a href="https://developer.apple.com/documentation/appkit/nsparagraphstyle/linebreakstrategy-swift.struct">developer.apple.com/documentation/appkit/nsparagraphstyle/linebreakstrategy-swift.struct</a></li>' +
+      '<li><b>What <code>.pushOut</code> actually does</b> — <a href="https://developer.apple.com/documentation/appkit/nsparagraphstyle/linebreakstrategy-swift.struct/pushout">…/linebreakstrategy-swift.struct/pushout</a></li>' +
+      '<li><b>The property is ignored for single-line modes</b> — <a href="https://developer.apple.com/documentation/appkit/nsparagraphstyle/linebreakstrategy-swift.property">…/linebreakstrategy-swift.property</a></li>' +
+      '<li><b>UIKit page, for the availability comparison</b> — <a href="https://developer.apple.com/documentation/uikit/nsparagraphstyle/linebreakstrategy-swift.struct">developer.apple.com/documentation/uikit/nsparagraphstyle/linebreakstrategy-swift.struct</a></li>' +
+      '<li><b>The <code>.pushOut</code> technique write-up, and the non-breaking-space technique</b> — <a href="https://www.jessesquires.com/blog/2023/04/25/linebreakstrategy-pushout/">jessesquires.com/blog/2023/04/25/linebreakstrategy-pushout/</a></li>' +
+      '<li><b>SwiftUI <code>Text</code> does not honour it, and applies push-out by default; the private <code>avoidsOrphans</code></b> — <a href="https://fatbobman.com/en/posts/controlling-orphans-in-swiftui-text/">fatbobman.com/en/posts/controlling-orphans-in-swiftui-text/</a></li>' +
+      '<li><b>SwiftUI <code>Text</code> dropping paragraph-style attributes</b> — <a href="https://developer.apple.com/forums/thread/765510">forums/thread/765510</a> · <a href="https://developer.apple.com/forums/thread/687473">forums/thread/687473</a></li>' +
+      '<li><b>The complete list of text layout modifiers (no balance, no orphan knob)</b> — <a href="https://developer.apple.com/documentation/swiftui/view/lineheight(_:)">developer.apple.com/documentation/swiftui/view/lineheight(_:)</a> · <a href="https://developer.apple.com/documentation/swiftui/text">…/swiftui/text</a></li>' +
+      '<li><b>macOS 26 / iOS 26 added rich text and line <i>height</i>, not line breaking</b> — <a href="https://developer.apple.com/documentation/Updates/SwiftUI">documentation/Updates/SwiftUI</a> · <a href="https://developer.apple.com/videos/play/wwdc2025/280/">WWDC25 session 280</a> · <a href="https://nilcoalescing.com/blog/AdjustingLineHeightInSwiftUIOniOS26/">nilcoalescing.com/blog/AdjustingLineHeightInSwiftUIOniOS26/</a></li>' +
+      '<li><b><code>typesettingLanguage</code> is script correctness, not aesthetics</b> — <a href="https://developer.apple.com/documentation/swiftui/view/typesettinglanguage(_:isenabled:)">…/typesettinglanguage(_:isenabled:)</a></li>' +
+      '<li><b><code>NSTextView</code> does honour the strategy — the escape hatch we are not taking</b> — <a href="https://developer.apple.com/documentation/appkit/nstextview/defaultparagraphstyle">…/nstextview/defaultparagraphstyle</a></li>' +
+      '<li><b>TextKit 2 has no supported line-breaking extension point</b> — <a href="https://developer.apple.com/forums/thread/732582">forums/thread/732582</a> · <a href="https://developer.apple.com/forums/thread/773479">forums/thread/773479</a> · <a href="https://developer.apple.com/forums/thread/709127">forums/thread/709127</a></li>' +
+      '<li><b><code>fixedSize</code> and <code>allowsTightening</code> solve overflow, not break aesthetics</b> — <a href="https://developer.apple.com/documentation/swiftui/view/fixedsize(horizontal:vertical:)">…/fixedsize(horizontal:vertical:)</a> · <a href="https://developer.apple.com/documentation/swiftui/view/allowstightening(_:)">…/allowstightening(_:)</a></li>' +
+      '<li><b>Non-breaking space in Swift</b> — <a href="https://medium.com/@ant_one/using-non-breaking-space-in-swift-or-how-to-prevents-an-automatic-line-break-645647fe44cc">medium.com/@ant_one/using-non-breaking-space-in-swift…</a></li>' +
+      '</ul><p style="margin-top:12px;font-size:12px;color:rgba(235,235,245,0.5)">Two things stay honest: “<code>.standard</code> includes <code>.pushOut</code>” is one author’s empirical finding, not an Apple statement, and no Sequoia-vs-Tahoe behavioural difference was measured either way.</p></div>'
+  }
+];
+</script>
+
+<script>
+/* ================= B3 ================= */
+AREAS.push({
+  id: 'B3', title: 'Quiet buttons: one secondary style',
+  num: 'Area B3 · one pick',
+  frame:
+    '<p><b>Six button styles are in the tree.</b> <code>HoverButtonStyle</code> draws <i>nothing</i> at rest by policy — the comment at <code>PopoverView.swift:316-318</code> says so out loud: “resting containers are the <i>cards’</i> language (non-clickable). Clickability announces itself on approach.” <code>SetupChipButtonStyle</code> (fill + 1pt border + radius 8, 12.5 semibold, h13/v6 — <code>ClaudeSetupViews.swift:552-563</code>) does the opposite, and the two sit <b>side by side on the same row</b> in three places: <code>ClaudeSetupViews.swift:406-413</code>, <code>CodexSetupViews.swift:279-286</code>, <code>ProviderCardView.swift:589-597</code>. The bare one loses every time.</p>' +
+    '<p><b>And the bare ones do not agree with each other.</b> Seven font/ink combinations: 10pt <code>.primary</code> (the spend CTA), 11pt <code>.secondary</code> (Show CLI Account), 11.5 medium clay/indigo accent (Check now, Reopen Terminal, recovery secondaries), 12 medium indigo (Use Device Code), 12.5 medium <code>.secondary</code> (Refresh / Quit), 12.5 medium accent, and <b>two sites with no font or ink set at all</b> (<code>ProviderCardView.swift:597</code>, <code>AccountsSettingsTile.swift:542</code>). There is no “quiet button” token.</p>' +
+    '<p><b>The sharpest single piece of evidence.</b> The label <code>Replace key…</code> renders as a bare 10pt <code>HoverButtonStyle</code> in the popover (<code>APISpendSectionView.swift:119-120</code>) and as a native <code>.bordered</code> <code>.controlSize(.small)</code> button in Settings (<code>SettingsPanes.swift:625-631</code>). One label, two opposite affordance languages, for the same task.</p>',
+  pre: { label: 'Today, three situations', mock: function () { return situationRow(VOCAB.today, 'today'); },
+    hint: 'Left: the waiting card’s filled chip beside a bare “Reopen Terminal”. Middle: three languages on one line — chip, bare, native bordered. Right: the spend CTA, a bare 10pt label sitting under a 17pt currency figure. The native bordered button is an approximation drawn as a 20pt-tall r5 rect with the system gradient; AppKit’s real one cannot be reproduced in a browser.' },
+  options: [
+    { id: 'B3A', title: 'Chip is the secondary button', sub: 'Two sizes, everywhere inside a card or tile', rec: true,
+      mock: function () { return situationRow(VOCAB.b3a, 'today'); },
+      hint: 'Regular chip (12.5 semibold, h13/v6, r8) for the leading action; small chip (11.5 semibold, h10/v4, r7) for everything after it. Nothing in a card is bare any more except glyphs.',
+      changes:
+        '<li><b>Promote</b> <code>SetupChipButtonStyle</code> to the one secondary button for every text-labelled action inside a card or tile, in two sizes: <b>regular</b> 12.5 semibold h13/v6 r8 (as today) and <b>small</b> 11.5 semibold h10/v4 r7 (new)</li>' +
+        '<li><b>Bare survives only for glyphs</b> — gear (<code>PopoverView.swift:308-319</code>), copy (<code>:768-773</code>, <code>ClaudeSetupViews.swift:471-477</code>, <code>CodexSetupViews.swift:324-333</code>), reset and trash (<code>AccountsSettingsTile.swift:595-600</code>, <code>:668-676</code>) — and for footer Refresh / Quit (<code>PopoverView.swift:432-449</code>)</li>' +
+        '<li><b>To small chip:</b> Reopen Terminal (<code>ClaudeSetupViews.swift:410-413</code>, <code>CodexSetupViews.swift:283-286</code>), Check now in the multi-account waiting and failed rows (<code>ProviderCardIdentityRows.swift:330-333</code>, <code>:376-379</code>), recovery secondaries (<code>:365-374</code>), capability secondary (<code>ProviderCardView.swift:596-597</code>), Use Device Code (<code>CodexSetupViews.swift:155-160</code>), Stop waiting in the popover (<code>ProviderCardView.swift:630-635</code>), the spend CTA (<code>APISpendSectionView.swift:119-121</code>), Show CLI Account (<code>AccountsSettingsTile.swift:270-285</code>), the Settings recovery secondary (<code>:535-542</code>)</li>' +
+        '<li><b>Stays as it is:</b> native <code>.bordered</code> in Settings rows, the two full-width primaries, <code>Rather run it yourself?</code> (it is a disclosure, not an action)</li>' +
+        '<li>Also settles the <code>Replace key…</code> split: chip in the popover, native in Settings — still two treatments, but now each one matches its own surface instead of contradicting it</li>' },
+    { id: 'B3B', title: 'Capsule quiet button', sub: 'The pill badge grown to button size', 
+      mock: function () { return situationRow(VOCAB.b3b, 'today'); },
+      hint: 'A lighter container than the chip, so it stays visibly subordinate to a chip primary sitting next to it.',
+      changes:
+        '<li><b>New style</b> from the existing <code>SettingsPillBadge</code> recipe (<code>SettingsRows.swift:71-83</code>): 11.5 medium, h9/v3.5, <code>ClaudeSetupStyle.stepBackground</code> fill (dark white @0.06 / light black @0.045), <b>no border</b>, <code>Capsule</code>; hover raises the fill to <code>Color.primary.opacity(0.09)</code></li>' +
+        '<li><b>Same call-site list as B3A</b> — every bare text button inside a card or tile becomes a capsule; glyphs and the footer stay bare</li>' +
+        '<li><b>Why it might be better:</b> the chip is already doing primary work in these rows. A capsule differentiates by weight instead of repeating the chip at a smaller size</li>' +
+        '<li><b>Why it might be worse:</b> it is a seventh style, and the capsule shape currently means <i>status</i> everywhere in the app (plan pill, Stale tag, Connected chip, Low chip). Making capsules clickable blurs that</li>' },
+    { id: 'B3C', title: 'Native everywhere', sub: '.bordered .controlSize(.small) inside popover cards too',
+      mock: function () { return situationRow(VOCAB.b3c, 'today'); },
+      hint: 'Drawn approximation of AppKit’s small push button. Note how it reads against the card material — this is the point of showing it.',
+      changes:
+        '<li><b>Replace</b> both quiet styles inside popover cards with <code>.buttonStyle(.bordered)</code> + <code>.controlSize(.small)</code>, so the popover and Settings share one AppKit button</li>' +
+        '<li><b>Gains:</b> free accessibility, free focus ring, free Increase Contrast behaviour, and <code>Replace key…</code> looks the same in both places</li>' +
+        '<li><b>Costs:</b> AppKit’s button chrome is tuned for opaque window backgrounds, not for a glass tile on a Liquid Glass popover. It also brings its own metrics — you no longer control height, radius or padding, so the 8pt and 10pt rhythms in the cards stop lining up</li>' +
+        '<li>Shown here mostly so the mismatch is visible rather than argued about</li>' }
+  ]
+});
+
+/* ================= P4 ================= */
+AREAS.push({
+  id: 'P4', title: 'Where action buttons sit',
+  num: 'Area P4 · one pick',
+  frame:
+    '<p>Separate question from B3: not <i>what the button looks like</i> but <i>where it goes</i>. Two placements are doing the damage today. “Check now” sits at the <b>trailing end of a row whose leading is a warning icon and a sentence</b> (<code>ProviderCardView.swift:335-345</code>) — you read the sentence and stop before your eye reaches the button. And the spend CTA sits <b>under a 17pt semibold currency figure</b> (<code>APISpendSectionView.swift:111-122</code>), where a small label reads as a caption on the number rather than a control.</p>' +
+    '<p>All three options below are drawn in B3A’s button language so the only variable is placement. Whichever B3 option wins, the placement rule applies the same way.</p>',
+  pre: { label: 'Today, three situations', mock: function () { return situationRow(VOCAB.b3a, 'today'); },
+    hint: 'Today’s placements, redrawn with B3A buttons so you are comparing position, not style: buttons at the trailing end of the message row, and the spend CTA stacked under the amount.' },
+  options: [
+    { id: 'P4A', title: 'Action row beneath, leading', sub: 'Its own row, aligned with the message text, 8pt above', rec: true,
+      mock: function () { return situationRow(VOCAB.b3a, 'below'); },
+      hint: 'Every button that acts on a message sits on its own row directly under that message, left-aligned with the message’s first character.',
+      changes:
+        '<li><b>Rule:</b> any button acting on a message sits on its own row directly under it, leading-aligned with the message’s text, never at the trailing end of the sentence line. Spacing 8 above</li>' +
+        '<li><b>Check now under the warning</b> — <code>ProviderCardView.swift:335-345</code>: drop the <code>Spacer(minLength: 4)</code>, move the button to a second row</li>' +
+        '<li><b>The spend CTA</b> — <code>APISpendSectionView.swift:111-122</code>: leaves the amount column entirely and moves under the status message, which also frees the amount column to be width-reserved (see S5)</li>' +
+        '<li><b>Recovery secondaries</b> — <code>ProviderCardIdentityRows.swift:365-379</code> already sit on their own line; this makes that the rule rather than an accident of layout</li>' +
+        '<li>Costs one extra row of height per message. In a 640pt-capped scroll with a handful of cards, that is affordable</li>' },
+    { id: 'P4B', title: 'Trailing on the message line', sub: 'Keep the position, add a resting container',
+      mock: function () { return situationRow(VOCAB.b3a, 'trailing'); },
+      hint: 'The leading action stays on the message row with a Spacer(minLength: 10); anything after it drops to a second row. The message is allowed to wrap to two lines.',
+      changes:
+        '<li><b>Keep</b> the button at the trailing end of the message row, but with B3’s resting container so it reads as a control rather than as the end of the sentence</li>' +
+        '<li><b>Message gets</b> <code>Spacer(minLength: 10)</code> and is allowed to wrap to two lines instead of being squeezed to one</li>' +
+        '<li><b>No height cost</b> — the cheapest option, and it keeps the compact multi-account rows compact</li>' +
+        '<li><b>The risk it does not fix:</b> the eye still finishes the sentence and stops. A container helps; it does not move the button into the reading path</li>' },
+    { id: 'P4C', title: 'Card foot, trailing', sub: 'All card actions collect in one bottom row',
+      mock: function () { return situationRow(VOCAB.b3a, 'foot'); },
+      hint: 'One trailing-aligned action row at the bottom of the card, like the popover footer — regardless of which message each button belongs to.',
+      changes:
+        '<li><b>Rule:</b> every action in a card collects into one trailing-aligned row at its bottom edge, mirroring the popover footer’s Refresh / Quit row</li>' +
+        '<li><b>Predictable:</b> one place to look for controls per card, and cards with several messages stop growing an action row each</li>' +
+        '<li><b>The cost is the whole point of the area:</b> the button loses its attachment to the message it acts on. With two messages in one card — a stale account and a capability warning — you cannot tell which button belongs to which</li>' +
+        '<li>Shown so the tradeoff is visible; it is the option that scales worst as a card gets busier</li>' }
+  ]
+});
+
+/* ================= S5 ================= */
+AREAS.push({
+  id: 'S5', title: 'API spend card',
+  num: 'Area S5 · one pick',
+  frame:
+    '<p>The spend tile inherits the provider card’s <b>container</b> byte for byte — <code>raisedTile(cornerRadius: 10)</code>, padding 13, the same 21pt trailing inset (<code>APISpendSectionView.swift:34-39</code>) — and almost none of its <b>content language</b>.</p>' +
+    '<p><b>What diverges:</b> no provider mark, so the rows do not sit on the popover’s content axis and nothing colours them. A 14pt unkerned title where every other row is 15 semibold kerned −0.15. A bare <code>· September</code> where the card uses a capsule chip. Badge words — <code>Key rejected</code>, <code>Stale</code> — as naked coloured text where the card’s entire tag vocabulary is capsules; the literal string <code>Stale</code> is a capsule in one place and bare text in the other. A 17pt amount with no reserved column and <b>no digit roll</b>, so <code>$142.67 → $151.02</code> hard-cuts while every percentage in the popover rolls. A hairline <code>Divider()</code> — the only one inside any popover tile, where everything else separates by proximity. An eyebrow header — the only one in the popover. Zero animation modifiers in the whole file, the only static tile. And a <code>.lineLimit(1)</code> at <code>:88</code> that truncates the status message silently.</p>' +
+    '<p><b>What is off limits:</b> the strings and the state logic live in Core and are shared with the widgets, the iOS widgets and the iPhone companion (<code>APISpendPresentation.swift</code>). Every option below changes <b>layout, fonts, colours and chrome only</b> — that touches <code>APISpendSectionView.swift</code> and nothing else.</p>' +
+    '<p><b>The rows below are posed.</b> No demo fixture can produce them: every fixture spend row is <code>.live</code>, and there is no Grok or Cursor spend fixture anywhere in the tree (<code>DemoFixture.swift:129-151</code>). The two live rows are the real fixtures; the <code>Key rejected</code> row and the <code>Remaining balance</code> row are built from the strings at <code>APISpendPresentation.swift:265-273</code> and <code>:340-346</code>.</p>',
+  pre: { label: 'Today', mock: function () { return s5Popover(todaySpendCard()); },
+    hint: 'Two provider cards collapsed to their identity rows, then the spend card as it ships: eyebrow, dividers, no marks, bare badge words, 17pt amounts in an unreserved column, and the status message clipped by lineLimit(1).' },
+  options: [
+    { id: 'S5A', title: 'Same language as the provider cards', sub: 'Marks, capsule chips, reserved numeral column, no eyebrow, no divider', rec: true,
+      mock: function () { return s5Popover(s5aCard()); },
+      roll: true,
+      hint: 'Press “Roll the amount” to see the digit transition the card does not have today. It approximates .contentTransition(.numericText()) at HeadroomMotion.valueSpring — one motion, on demand, no loop.',
+      changes:
+        '<li><b>Every row becomes an identity row.</b> 15pt mark on the content axis, 13 / 34 / 34 like every provider row — <code>ProviderCardIdentityRows.swift:6-15</code></li>' +
+        '<li><b>Name</b> 15pt in whatever T1 wins (drawn here in T1A’s treatment), replacing 14 semibold unkerned — <code>APISpendSectionView.swift:59-60</code></li>' +
+        '<li><b>Period becomes a capsule chip</b> in the plan-chip recipe: 9.5 medium tertiary on <code>stepBackground</code> — replaces the bare <code>· September</code> at <code>:61-63</code></li>' +
+        '<li><b>Amount</b> 17 → <b>18pt semibold monospaced in a width-reserved column</b> sized to <code>"$0,000.00"</code>, matching the percentage column at <code>UsageBarView.swift:34-37</code>, with <code>.contentTransition(.numericText())</code> — <code>:128-131</code></li>' +
+        '<li><b>“remaining”</b> 10 → 11pt, matching “left” — <code>UsageBarView.swift:25</code></li>' +
+        '<li><b>Badges become capsule tags:</b> the Stale tag recipe for neutral, and the Low-chip recipe (tone ink on tone @0.16) for warning and critical — <code>ProviderCardIdentityRows.swift:115-120</code>, <code>UsageBarView.swift:232-242</code></li>' +
+        '<li><b>Message wraps to two lines</b> — the <code>.lineLimit(1)</code> at <code>:88</code> goes</li>' +
+        '<li><b>CTA</b> becomes the B3 chip on a P4 action row, out of the amount column</li>' +
+        '<li><b>Rows separated by the 22pt account gap, no divider</b> — matches <code>ProviderCardView.swift:355</code>; the eyebrow goes, because the <code>$</code> and the chip already say what the card is</li>' +
+        '<li><b>Motion:</b> <code>.transition(.settingsReveal)</code> on the card at <code>PopoverView.swift:97</code>, plus the valueSpring / crossfade a provider card already has</li>' +
+        '<li><b>One collision this mock exposes.</b> A <code>.balance</code> row cannot hold all of it on one line: mark 15 + name 49 + the “Remaining balance” chip 99 + the 89pt reserved column + “remaining” 52 + the <code>+</code> glyph 18, with 6pt gaps, needs about <b>350pt in a 299pt row</b> (measured on this page). Here the amount cluster drops to its own right-aligned second line. The cheaper alternative is to stop drawing the “remaining” qualifier on macOS when the chip already says “Remaining balance” — the string stays in Core for the widget and the iPhone, the macOS card just does not render it. <b>Worth a decision either way; say which in the comment.</b></li>' },
+    { id: 'S5B', title: 'Keep the eyebrow, fix the rest', sub: 'A distinct summary block, not more accounts',
+      mock: function () { return s5Popover(s5bCard()); },
+      hint: 'Everything S5A fixes, minus the mark and the 15pt title — so the card still reads as a summary rather than as another list of accounts.',
+      changes:
+        '<li><b>Keeps</b> the <code>API spend</code> eyebrow at 11 semibold <code>.secondary</code> (<code>:18-20</code>) and the name at 14 semibold <code>.primary</code> (<code>:59-60</code>). No provider mark, so rows stay compact</li>' +
+        '<li><b>Takes everything else from S5A:</b> capsule period chip, capsule state tags, 18pt reserved amount column with the digit roll, 11pt “remaining”, wrapping message, chip CTA on its own row, card transition</li>' +
+        '<li><b>Divider → 22pt gap</b> — the one hairline inside a popover tile goes either way</li>' +
+        '<li><b>The argument for it:</b> API spend is not a subscription account. Giving it marks and 15pt titles makes four spend rows look like four more accounts in a popover that is already a list of accounts</li>' },
+    { id: 'S5C', title: 'Fold spend into the provider cards', sub: 'No separate card — one API row per provider',
+      mock: function () { return s5cPopover(); },
+      hint: 'The card count drops by one. Rows that have no provider card to live in — here the xAI balance — fall back to S5B’s card, shown at the bottom. The Anthropic “Key rejected” row is posed there too so its treatment is visible; in the real app it would sit on the Claude card above, tag and all.',
+      changes:
+        '<li><b>No separate spend card.</b> Each provider card with a spend surface gets one trailing <code>API</code> row under its meters: mark-less, label <code>API · September</code> in the meter label style (13 medium, <code>meterLabelInk</code>), amount in the numeral column with the digit roll, tags and CTA as in S5A</li>' +
+        '<li><b>Card count drops by one</b>, and spend stops being a separate thing to scroll to — it sits with the account it belongs to</li>' +
+        '<li><b>The gap it has to handle:</b> a provider can have API spend and <i>no</i> subscription account, so there is no card to put the row in. It falls back to S5B’s card for that provider only — which means the app has to be able to render both shapes</li>' +
+        '<li><b>The other cost:</b> a dollar figure in the numeral column sits where a percentage sits, so <code>$142.67</code> and <code>94%</code> read as the same kind of quantity. They are not</li>' +
+        '<li>Touches <code>ProviderCardView.swift</code> as well as <code>APISpendSectionView.swift</code>, and needs <code>UsageStore.apiSpendProviderOrder</code> (<code>:276-288</code>) cross-referenced against the provider order</li>' }
+  ]
+});
+</script>
+
+<script>
+/* ============================================================
+   PAGE BUILDER — renders the five areas, mounts the mocks,
+   wires the scheme toggle and the one numeral-roll demo.
+   ============================================================ */
+var SCHEME = 'both';
+var MOUNTS = [];
+
+/* Reserved amount column, measured here — the width of "$0,000.00" in
+   18pt semibold. SwiftUI reserves the same way for "100%" at
+   UsageBarView.swift:34-37. Canvas has no tabular-figure switch, so this is
+   a close measure of the same string, not a byte-identical one. */
+var AMT_COL = (function () {
+  try {
+    var c = document.createElement('canvas').getContext('2d');
+    c.font = '600 18px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif';
+    return Math.ceil(c.measureText('$0,000.00').width);
+  } catch (e) { return 86; }
+})();
+document.documentElement.style.setProperty('--amtcol', AMT_COL + 'px');
+
+(function () {
+  'use strict';
+  var host = document.getElementById('sections');
+
+  function schemes() { return SCHEME === 'both' ? ['dark', 'light'] : [SCHEME]; }
+
+  function mountBlock(mock) {
+    var wrap = document.createElement('div');
+    wrap.className = 'demo-wrap';
+    MOUNTS.push({ el: wrap, def: mock });
+    return wrap;
+  }
+
+  function renderMounts() {
+    MOUNTS.forEach(function (m) {
+      var list = m.def.single ? [schemes()[0]] : schemes();
+      m.el.innerHTML = list.map(function (s) {
+        var body = '';
+        try { body = m.def.mock(s); } catch (e) {
+          body = '<span style="color:#ff6659;font-size:12px">mock error: ' + e.message + '</span>';
+          console.error(m.def.label || '', e);
+        }
+        return '<div class="demo' + (s === 'light' ? ' light' : '') + (m.def.center === false ? '' : '') + '">' +
+          '<span class="pane-cap">' + s + (m.def.single ? ' · line breaking is identical in both appearances' : '') + '</span>' +
+          body +
+          (m.def.roll ? '<button type="button" class="ctrl-btn" data-rollbtn>Roll the amount · $142.67 → $151.02</button>' : '') +
+          (m.def.cap ? m.def.cap(s) : '') +
+          (m.def.hint ? '<p class="demo-hint">' + m.def.hint + '</p>' : '') +
+          '</div>';
+      }).join('');
+      wireRoll(m.el);
+    });
+    measureAll();
+  }
+
+  /* ---------- one click-to-run numeral roll ---------- */
+  function wireRoll(root) {
+    root.querySelectorAll('[data-rollbtn]').forEach(function (btn) {
+      var pane = btn.closest('.demo');
+      var target = pane && pane.querySelector('[data-roll]');
+      if (!target) return;
+      var base = target.textContent;
+      var flipped = false;
+      btn.addEventListener('click', function () {
+        var from = flipped ? '$151.02' : base;
+        var to = flipped ? base : '$151.02';
+        flipped = !flipped;
+        rollTo(target, from, to);
+      });
+    });
+  }
+  function rollTo(el, from, to) {
+    var out = '';
+    for (var i = 0; i < to.length; i++) {
+      var a = from[i], b = to[i];
+      if (a === b) { out += '<span class="ch"><span>' + b + '</span></span>'; }
+      else {
+        out += '<span class="ch" data-ch><span class="in" style="transform:translateY(0.72em);opacity:0">' + b + '</span>' +
+          '<span class="out">' + a + '</span></span>';
+      }
+    }
+    el.innerHTML = '<span class="roll">' + out + '</span>';
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        el.querySelectorAll('[data-ch]').forEach(function (ch) {
+          var i = ch.querySelector('.in'), o = ch.querySelector('.out');
+          i.style.transition = 'transform 200ms var(--curve-house), opacity 200ms var(--curve-house)';
+          o.style.transition = 'transform 200ms var(--curve-house), opacity 200ms var(--curve-house)';
+          i.style.transform = 'translateY(0)'; i.style.opacity = '1';
+          o.style.transform = 'translateY(-0.72em)'; o.style.opacity = '0';
+        });
+        setTimeout(function () { el.textContent = to; }, 240);
+      });
+    });
+  }
+
+  /* ---------- live line measurement for the W2 specimens ---------- */
+  function measureAll() {
+    document.querySelectorAll('.spec').forEach(function (spec) {
+      var el = spec.querySelector('[data-measure]');
+      var out = spec.querySelector('[data-meas]');
+      if (!el || !out) return;
+      var width = parseFloat(el.getAttribute('data-width'));
+      var range = document.createRange();
+      range.selectNodeContents(el);
+      var rects = Array.prototype.filter.call(range.getClientRects(), function (r) { return r.width > 0.5 && r.height > 0.5; });
+      if (!rects.length) { out.textContent = ''; return; }
+      var lines = [];
+      rects.forEach(function (r) {
+        var hit = null;
+        for (var i = 0; i < lines.length; i++) { if (Math.abs(lines[i].top - r.top) < 1.5) { hit = lines[i]; break; } }
+        if (hit) { hit.width += r.width; } else { lines.push({ top: r.top, width: r.width }); }
+      });
+      var last = lines[lines.length - 1];
+      var pct = Math.round((last.width / width) * 100);
+      var ok = lines.length === 1 || pct >= 35;
+      out.className = 'meas ' + (ok ? 'ok' : 'bad');
+      out.innerHTML = lines.length + (lines.length === 1 ? ' line' : ' lines') +
+        (lines.length === 1 ? ' · fits the measure' : ' · last line <b>' + pct + '%</b> of ' + width + 'pt') +
+        ' · measured live in this browser';
+    });
+  }
+
+  /* ---------- build ---------- */
+  AREAS.forEach(function (area) {
+    var sec = document.createElement('section');
+    sec.id = area.id;
+    sec.innerHTML = '<div class="section-head"><div class="snum">' + area.num + '</div><h2>' +
+      area.id + ' · ' + area.title + '</h2></div>';
+
+    var item = document.createElement('div');
+    item.className = 'item';
+    var frame = document.createElement('div');
+    frame.className = 'item-frame';
+    frame.innerHTML = area.frame;
+    item.appendChild(frame);
+
+    if (area.pre) {
+      var preWrap = document.createElement('div');
+      preWrap.style.marginBottom = '26px';
+      preWrap.innerHTML = '<div class="substage-cap" style="margin-bottom:8px">' + area.pre.label + '</div>';
+      preWrap.appendChild(mountBlock(area.pre));
+      item.appendChild(preWrap);
+    }
+
+    var stack = document.createElement('div');
+    stack.className = 'stack';
+    area.options.forEach(function (opt) {
+      var block = document.createElement('div');
+      block.className = 'option' + (opt.rec ? ' rec' : '');
+      block.id = opt.id;
+      block.setAttribute('data-option', opt.id);
+      block.setAttribute('data-area', area.id);
+
+      var head = document.createElement('div');
+      head.className = 'option-head';
+      head.innerHTML = '<span class="option-letter">' + opt.id + '</span>' +
+        '<span class="option-title">' + opt.title + '</span>' +
+        '<span class="option-sub">' + opt.sub + '</span>' +
+        (opt.rec ? '<span class="rec-tag">Recommended</span>' : '');
+      block.appendChild(head);
+
+      block.appendChild(mountBlock(opt));
+
+      if (opt.extra) {
+        var ex = document.createElement('div');
+        ex.innerHTML = opt.extra;
+        block.appendChild(ex);
+      }
+
+      var ch = document.createElement('ul');
+      ch.className = 'changes';
+      ch.innerHTML = '<li style="padding-left:0;font-weight:600;color:#f2f2f7;font-size:11px;letter-spacing:0.8px;text-transform:uppercase">What changes</li>' + opt.changes;
+      ch.querySelector('li').style.setProperty('list-style', 'none');
+      block.appendChild(ch);
+
+      var pick = document.createElement('div');
+      pick.className = 'pickrow';
+      pick.innerHTML = '<label class="picklabel"><input type="radio" name="pick-' + area.id + '" value="' + opt.id +
+        '" data-pick><span>Pick this — ' + opt.id + '</span></label>';
+      block.appendChild(pick);
+
+      stack.appendChild(block);
+    });
+    item.appendChild(stack);
+
+    if (area.post) {
+      var post = document.createElement('div');
+      post.innerHTML = area.post;
+      item.appendChild(post);
+    }
+
+    var cmt = document.createElement('div');
+    cmt.className = 'areacomment';
+    cmt.innerHTML = '<label for="cmt-' + area.id + '">Comment on ' + area.id + ' · ' + area.title + '</label>' +
+      '<textarea id="cmt-' + area.id + '" data-comment="' + area.id + '" rows="2" placeholder="Anything you want changed, mixed, or rejected outright."></textarea>';
+    item.appendChild(cmt);
+
+    sec.appendChild(item);
+    host.appendChild(sec);
+  });
+
+  /* ---------- scheme ---------- */
+  function applyScheme() {
+    ['Dark', 'Light', 'Both'].forEach(function (n) {
+      document.getElementById('btn' + n).setAttribute('aria-pressed', String(SCHEME === n.toLowerCase()));
+    });
+    renderMounts();
+  }
+  ['Dark', 'Light', 'Both'].forEach(function (n) {
+    document.getElementById('btn' + n).addEventListener('click', function () { SCHEME = n.toLowerCase(); applyScheme(); });
+  });
+  applyScheme();
+  window.addEventListener('resize', function () { measureAll(); });
+  window.__measureAll = measureAll;
+})();
+</script>
+
+<script>
+/* ============================================================
+   REVIEW LAYER — one radio group per AREA, one comment per area.
+   Storage and Copy-answers plumbing carried from
+   design/motion-design-options.html:2655-2854; the semantics differ.
+   ============================================================ */
+(function () {
+  'use strict';
+  var STORE_KEY = 'headroom-round2-title-wrap-buttons-spend-2026-09-06';
+  var HEAD_SHA = 'cd596717';
+  var DOC = 'design/round2-title-wrapping-buttons-spend-options.html';
+
+  var META = AREAS.map(function (a) {
+    return { id: a.id, title: a.title, options: a.options.map(function (o) { return { id: o.id, title: o.title }; }) };
+  });
+  var TOTAL = META.length;
+
+  function load() {
+    try {
+      var raw = window.localStorage.getItem(STORE_KEY);
+      if (!raw) return {};
+      var obj = JSON.parse(raw);
+      return (obj && typeof obj === 'object') ? obj : {};
+    } catch (e) { return {}; }
+  }
+  function save() {
+    try { window.localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* degrade silently */ }
+  }
+  var state = load();
+  function entry(id) {
+    if (!state[id] || typeof state[id] !== 'object') state[id] = { pick: '', comment: '' };
+    return state[id];
+  }
+
+  function paintPicked() {
+    document.querySelectorAll('.option[data-option]').forEach(function (b) {
+      var e = state[b.getAttribute('data-area')] || {};
+      b.classList.toggle('picked', e.pick === b.getAttribute('data-option'));
+    });
+  }
+
+  document.querySelectorAll('input[data-pick]').forEach(function (input) {
+    var area = input.closest('.option').getAttribute('data-area');
+    var e = entry(area);
+    input.checked = (e.pick === input.value);
+    input.addEventListener('change', function () {
+      entry(area).pick = input.value;
+      save(); paintPicked(); render();
+    });
+  });
+
+  document.querySelectorAll('textarea[data-comment]').forEach(function (ta) {
+    var area = ta.getAttribute('data-comment');
+    var e = entry(area);
+    ta.value = e.comment || '';
+    ta.classList.toggle('filled', !!ta.value.trim());
+    ta.addEventListener('input', function () {
+      entry(area).comment = ta.value;
+      ta.classList.toggle('filled', !!ta.value.trim());
+      save(); render();
+    });
+  });
+
+  function titleOf(areaId, optId) {
+    var a = META.filter(function (m) { return m.id === areaId; })[0];
+    if (!a) return '';
+    var o = a.options.filter(function (x) { return x.id === optId; })[0];
+    return o ? o.title : '';
+  }
+
+  function buildText() {
+    var out = [];
+    out.push('# Headroom · Title, wrapping, buttons, API spend — 2026-09-06');
+    out.push('Source: ' + DOC + ' (git ' + HEAD_SHA + ')');
+    out.push('');
+    var unpicked = [];
+    META.forEach(function (a) {
+      var e = state[a.id] || {};
+      out.push('## ' + a.id + ' · ' + a.title);
+      if (e.pick) {
+        out.push('- Pick: ' + e.pick + ' — ' + titleOf(a.id, e.pick));
+      } else {
+        out.push('- Pick: none');
+        unpicked.push(a.id);
+      }
+      var c = (e.comment || '').replace(/\s+/g, ' ').trim();
+      out.push('- Comment: ' + (c || 'none'));
+      out.push('');
+    });
+    out.push('## Unpicked (' + unpicked.length + ' of ' + TOTAL + ')');
+    out.push('- ' + (unpicked.length ? unpicked.join(', ') : 'none'));
+    return out.join('\n') + '\n';
+  }
+
+  var tbCount = document.getElementById('tbCount');
+  var ansCount = document.getElementById('ansCount');
+  var ansPre = document.getElementById('ansPre');
+  function render() {
+    var picked = 0;
+    META.forEach(function (a) { if (state[a.id] && state[a.id].pick) picked++; });
+    tbCount.textContent = picked + '/' + TOTAL + ' areas picked';
+    ansCount.textContent = picked + ' of ' + TOTAL + ' areas picked';
+    ansPre.textContent = buildText();
+  }
+
+  var btnCopy = document.getElementById('btnCopy');
+  var btnClear = document.getElementById('btnClear');
+  var copyOK = document.getElementById('copyOK');
+  var okTimer = null;
+  function flashOK(msg) {
+    copyOK.textContent = msg;
+    if (okTimer) clearTimeout(okTimer);
+    okTimer = setTimeout(function () { copyOK.textContent = ''; okTimer = null; }, 1500);
+  }
+  function legacyCopy() {
+    try {
+      var sel = window.getSelection();
+      var range = document.createRange();
+      range.selectNodeContents(ansPre);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      var ok = document.execCommand('copy');
+      sel.removeAllRanges();
+      return ok;
+    } catch (e) { return false; }
+  }
+  btnCopy.addEventListener('click', function () {
+    var text = buildText();
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { flashOK('Copied'); },
+        function () { flashOK(legacyCopy() ? 'Copied' : 'Copy failed — select the text below'); });
+    } else {
+      flashOK(legacyCopy() ? 'Copied' : 'Copy failed — select the text below');
+    }
+  });
+  btnClear.addEventListener('click', function () {
+    if (!window.confirm('Clear every pick and comment on this page?')) return;
+    state = {};
+    save();
+    document.querySelectorAll('input[data-pick]').forEach(function (i) { i.checked = false; });
+    document.querySelectorAll('textarea[data-comment]').forEach(function (t) { t.value = ''; t.classList.remove('filled'); });
+    paintPicked();
+    render();
+  });
+
+  paintPicked();
+  render();
+})();
+</script>
+</body>
+</html>

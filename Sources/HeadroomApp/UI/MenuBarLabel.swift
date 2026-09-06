@@ -8,6 +8,11 @@ import HeadroomCore
 /// close is my weekly allotment to running out" at a glance; a small warning dot appears
 /// when a provider needs re-auth, so a dead provider isn't silently invisible. Static
 /// only — no pulsing (user's standing rule).
+///
+/// M10A (Sep 2026): the numeral hard-cuts on every poll, and that is a decision, not a gap.
+/// The label is one rasterized `NSImage` swapped whole, so `contentTransition` has nothing to
+/// attach to; faking a digit roll would mean re-rasterizing frames on a timer in the menu
+/// bar — looping work for a change nobody is watching. Do not add motion here.
 struct MenuBarLabel: View {
     /// Which appearance the label paints for (L1A).
     enum Appearance {

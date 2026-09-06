@@ -397,3 +397,16 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **Unavailable → live rolls the numeral from "—".** The reverse direction is a crossfade. Forcing
   a crossfade both ways needs an `.id()` swap on the numeral that risks the layout shift M4A
   forbids; flag if it looks wrong in acceptance.
+
+## Round-2 residuals (2026-09-06, T1A–S5A)
+
+- **`ProviderSetupRecoveryCard`'s primary is still `.borderedProminent` beside a chip secondary.**
+  B3A reassigned every bare `HoverButtonStyle` text button to the chip, but no anchor covered
+  restyling a native prominent primary, so that one card foot still mixes languages. Decide
+  whether the popover's primaries become a filled chip variant or the card keeps AppKit's button.
+- **`APISpendPresentation.qualifier(kind:)` has no call sites.** S5A stopped drawing "remaining"
+  on macOS (the "Remaining balance" chip says it) and the widgets append " left" through
+  `amountText(_ summary:)`. Kept because it is public Core API; delete on the next Core sweep.
+- **The stale and balance spend rows have no fixture outside `--demo spend-states`.** Every
+  other scenario ships the same two live rows, so the state tags, wrapping message, and CTA row
+  are only reviewable there or against the round-2 options doc.

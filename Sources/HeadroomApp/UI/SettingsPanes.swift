@@ -660,7 +660,7 @@ struct APISpendSettingsPane: View {
             )
         case .xAI:
             (
-                "A regular API key cannot read team spend. Use a dedicated management key with only the required ACLs so you can revoke it independently.",
+                "A regular API key can't read team spend. Use a dedicated management key with only the ACLs it needs, so you can revoke it on its own.",
                 "Open xAI Console",
                 URL(string: "https://console.x.ai/team/default/settings/management-keys")!
             )

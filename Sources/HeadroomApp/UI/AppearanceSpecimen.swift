@@ -22,6 +22,7 @@ struct AppearanceSpecimen: View {
     let percentageMode: UsagePercentageMode
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One fixture entry, rebuilt per render so the card's `now`-driven reset text stays
     /// honest without a timeline tick (Settings is not a live-data surface).
@@ -55,7 +56,55 @@ struct AppearanceSpecimen: View {
         ]
     }
 
+    /// M5A: the specimen dissolves old recipe → new recipe instead of hard-cutting, the
+    /// Menu Bar preview's `.id` + `.transition(.opacity)` pattern
+    /// (`SettingsPanes.swift:209-217`). Its invisible-twin trick needs one change here:
+    /// Full and Micro are genuinely different heights (Full stacks the label over a
+    /// full-width gauge, Micro is one line), so a twin pinned at the *widest* state would
+    /// leave a permanent Full-sized gap under a Micro card. This twin **tracks** the
+    /// current style and is the only copy that sizes the well, so the height travels on
+    /// `settle` as `.movement` (instant under Reduce Motion) while the two cards cross-fade
+    /// on `settle` as `.crossfade` (always animated) in an overlay that doesn't affect
+    /// layout. A plain `ZStack` would hold the taller card's height for the whole fade and
+    /// then snap the pane below it.
     var body: some View {
+        specimen
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .hidden()
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
+                value: recipeKey
+            )
+            .overlay(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) {
+                    specimen
+                        .id(recipeKey)
+                        .transition(.opacity)
+                }
+                // The outgoing and incoming cards keep their own natural heights and
+                // overflow the contracting box rather than fighting it for the well's size.
+                .fixedSize(horizontal: false, vertical: true)
+                .animation(
+                    HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                    value: recipeKey
+                )
+            }
+            .clipped()
+            .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 8)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Preview of a provider card in the selected style")
+    }
+
+    /// `MeterStyle` is `Equatable`, not `Hashable`, so the swap keys on the drawn recipe.
+    /// `resolvedShape` rather than `shape` is deliberate: Tube stays *stored* while Full is
+    /// selected but renders as Chip, so keying on the raw shape would cross-fade a card
+    /// into an identical copy of itself.
+    private var recipeKey: String {
+        "\(meterStyle.format.rawValue).\(meterStyle.resolvedShape.rawValue).\(meterStyle.fill.rawValue)"
+    }
+
+    private var specimen: some View {
         VStack(alignment: .leading, spacing: 9) {
             ProviderCardView(
                 providerID: .claude,
@@ -82,10 +131,5 @@ struct AppearanceSpecimen: View {
                 Spacer(minLength: 0)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 8)
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Preview of a provider card in the selected style")
     }
 }

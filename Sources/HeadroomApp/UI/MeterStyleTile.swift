@@ -20,6 +20,7 @@ struct MeterStyleTile: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// L12B: one fixed column rhythm across all three rows. Five 76pt columns on 8pt gaps
     /// need 412pt; at the 720pt minimum window the detail column is 504pt, so the tile is
@@ -128,7 +129,7 @@ struct MeterStyleTile: View {
                 }
                 .frame(width: 60, alignment: .leading)
             }
-            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme)
+            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
         }
         .buttonStyle(.plain)
         .help(format.label)
@@ -169,7 +170,7 @@ struct MeterStyleTile: View {
                 )
             }
             .opacity(isAvailable ? 1 : 0.45)
-            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme)
+            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
         }
         .buttonStyle(.plain)
         .disabled(!isAvailable)
@@ -190,7 +191,7 @@ struct MeterStyleTile: View {
                     referenceGauge(fill: fill, fraction: 0.38, severity: .low)
                 }
             }
-            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme)
+            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
         }
         .buttonStyle(.plain)
         .help(fill.label)
@@ -242,7 +243,8 @@ struct MeterStyleTile: View {
 private extension View {
     func meterStyleSwatchChrome(
         isSelected: Bool,
-        colorScheme: ColorScheme
+        colorScheme: ColorScheme,
+        reduceMotion: Bool
     ) -> some View {
         frame(maxWidth: .infinity)
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
@@ -259,5 +261,12 @@ private extension View {
                         lineWidth: isSelected ? 2 : 1
                     )
             }
+            // M5A: the swatch ring picked up no motion at all when the theme thumbnails
+            // beside it already tinted and thickened on the press token. Same token, same
+            // 100ms, so the two pickers in one pane answer a click identically.
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.pressDown, .crossfade, reduceMotion: reduceMotion),
+                value: isSelected
+            )
     }
 }

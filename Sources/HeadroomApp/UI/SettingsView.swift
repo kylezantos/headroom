@@ -115,7 +115,7 @@ struct SettingsView: View {
                 // window the navigation can claim; the extra width belongs to the panes.
                 .navigationSplitViewColumnWidth(min: 216, ideal: 216, max: 250)
         } detail: {
-            detail
+            detailColumn
         }
         // KTD8: no `.navigationTitle` anywhere in the split view — the window title
         // string set in `HeadroomApp` is what `placeSettingsWindowOnActiveScreen()`
@@ -182,6 +182,25 @@ struct SettingsView: View {
                 guard let newValue else { return }
                 sidebarSelection = newValue
             }
+        )
+    }
+
+    /// M6B: 120ms opacity-only dissolve between destinations. Nothing travels — a pane is a
+    /// different room, not the same content moving — and the sidebar's native selection
+    /// highlight is left alone. The `ZStack` is what makes the `.id` swap a transition
+    /// rather than a hard cut: it is the stable container the outgoing and incoming panes
+    /// overlap inside, the same shape as the Menu Bar preview at `SettingsPanes.swift:209`.
+    /// Panes stay stateless (KTD3), so nothing is lost when one is rebuilt.
+    private var detailColumn: some View {
+        ZStack(alignment: .topLeading) {
+            detail
+                .id(selectedPane)
+                .transition(.opacity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.quickSettle, .crossfade, reduceMotion: reduceMotion),
+            value: selectedPane
         )
     }
 

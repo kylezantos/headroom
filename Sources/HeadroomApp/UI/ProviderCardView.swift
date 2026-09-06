@@ -480,6 +480,14 @@ struct ProviderCardView: View {
         }
     }
 
+    /// M4A: the Appearance specimen is inert (KTD4) and W4's `.id(meterStyle)` crossfade
+    /// rebuilds it on every style change, so it never stages an arrival — the same
+    /// `announcesAccessibilityEvents: false` that keeps the preview out of the real
+    /// accessibility and setup state keeps it out of the arrival registry.
+    private var meterArrivalKey: AccountKey? {
+        announcesAccessibilityEvents ? primaryAccount.key : nil
+    }
+
     private func bars(for snapshot: UsageSnapshot, dimmed: Bool) -> some View {
         // Single-account keeps the "Low" chip (chiplessCriticalInk defaults off).
         UsageBarsStack(
@@ -487,7 +495,8 @@ struct ProviderCardView: View {
             percentageMode: percentageMode,
             now: now,
             dimmed: dimmed,
-            meterStyle: meterStyle
+            meterStyle: meterStyle,
+            arrivalKey: meterArrivalKey
         )
         .padding(.leading, IdentityRowMetrics.meterContentInset)
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
@@ -660,6 +669,9 @@ struct UsageBarsStack: View {
     /// H3a: multi-account sections opt into chipless critical numerals; single-account keeps
     /// the "Low" chip. Threaded down to every row so a stack renders one way.
     var chiplessCriticalInk: Bool = false
+    /// M4A: passed straight through so both of an account's rows draw in together on the
+    /// first live view of that account this launch. `nil` keeps a stack static.
+    var arrivalKey: AccountKey? = nil
 
     var body: some View {
         if windows.isEmpty {
@@ -673,7 +685,8 @@ struct UsageBarsStack: View {
                         now: now,
                         meterStyle: meterStyle,
                         dimmed: dimmed,
-                        chiplessCriticalInk: chiplessCriticalInk
+                        chiplessCriticalInk: chiplessCriticalInk,
+                        arrivalKey: arrivalKey
                     )
                 }
             }

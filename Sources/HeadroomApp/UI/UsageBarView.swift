@@ -2,6 +2,32 @@ import AppKit
 import SwiftUI
 import HeadroomCore
 
+/// M4A: which accounts have already shown their arrival this launch. Session-scoped, in
+/// memory, exactly like `PopoverEntranceAnimation` — and for the same reason. The popover
+/// rebuilds its content on every open, so a draw-in keyed only to view lifetime would
+/// replay on every open; the Appearance specimen would replay it again on every
+/// `.id(meterStyle)` crossfade. An arrival is a once-per-launch event per account.
+///
+/// The trigger is "the first time this account's live windows are actually shown this
+/// launch" rather than the literal `.pending → .live` flip. The flip commonly happens
+/// while the popover is closed, and `.pending` renders the card's skeleton rather than
+/// this view, so from here the flip is neither observable nor the thing the user sees
+/// arrive.
+@MainActor
+private enum ArrivalRegistry {
+    private static var landed: Set<AccountKey> = []
+
+    static func hasLanded(_ key: AccountKey) -> Bool { landed.contains(key) }
+
+    /// Claimed *after* the current update finishes, never during it. Both meter rows of an
+    /// account are built in one body pass and their `onAppear`s run in that same turn, so a
+    /// synchronous claim would let the first row lock the key and leave the second — already
+    /// painted empty — with nothing left to animate to.
+    static func claim(_ key: AccountKey) {
+        Task { @MainActor in landed.insert(key) }
+    }
+}
+
 /// One usage row in either the full two-line frame or the compact micro frame.
 /// The row owns text, accessibility, and value motion; `MeterGauge` owns every
 /// shape × fill rendering decision.
@@ -15,6 +41,10 @@ struct UsageBarView: View {
     /// band drops the "Low" chip and paints the percentage numeral a decoupled critical text
     /// color instead. Single-account rows keep the chip exactly as before.
     var chiplessCriticalInk: Bool = false
+    /// M4A: the account this row belongs to, and the row's opt-in to the once-per-launch
+    /// draw-in. `nil` — the default — means "paint the final value immediately", which is
+    /// what every preview, specimen, and non-account surface wants.
+    var arrivalKey: AccountKey? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
@@ -129,12 +159,17 @@ struct UsageBarView: View {
 
     // MARK: - What the row paints
 
-    /// M4A: a freshly inserted row paints empty first — fill at 0, numeral at "0%" — so the
-    /// first live data draws in once on `valueSpring` instead of snapping into place. A row
-    /// that arrives already stale or unavailable has no arrival to stage, and Reduce Motion
-    /// paints the final value outright.
+    /// M4A: an arriving row paints empty first — fill at 0, numeral at "0%" — so the first
+    /// live data draws in once on `valueSpring` instead of snapping into place. Everything
+    /// else paints its final value on the first frame: a row with no `arrivalKey`, an
+    /// account that already arrived this launch, a window that shows up already stale or
+    /// unavailable and so has no arrival to stage, and every row under Reduce Motion.
     private var firstPaintValue: RowValue {
-        guard window.freshness.isLive, !reduceMotion else { return liveValue }
+        guard let arrivalKey,
+              !ArrivalRegistry.hasLanded(arrivalKey),
+              window.freshness.isLive,
+              !reduceMotion
+        else { return liveValue }
         return RowValue(fraction: 0, pct: 0)
     }
 
@@ -184,10 +219,17 @@ struct UsageBarView: View {
     private func land() {
         let chip = chipIsWarranted
         let state = stateText
+        // Read what the row is currently showing before touching the registry, so the
+        // comparison below is against the frame the user actually saw.
+        let from = displayedValue
+        // M4A: this account has now shown its arrival, so no later row for it draws in again.
+        if landedValue == nil, let arrivalKey {
+            ArrivalRegistry.claim(arrivalKey)
+        }
         // M3A′: on the way to `.unavailable` the fill keeps its length and fades out, so
         // nothing travels and a return to live crossfades back at the same length.
         let value = window.freshness.isUnavailable
-            ? RowValue(fraction: displayedValue.fraction, pct: nil)
+            ? RowValue(fraction: from.fraction, pct: nil)
             : liveValue
 
         // M1A: severity colour is the same cause as the fill and rides the same spring, but
@@ -207,7 +249,7 @@ struct UsageBarView: View {
         // already landed, so the entrances have nothing to wait behind. Deciding that here
         // rather than leaning on a completion callback for a transaction that animates
         // nothing keeps the sequencing true under Reduce Motion too.
-        guard let valueMovement, value != displayedValue else {
+        guard let valueMovement, value != from else {
             landedValue = value
             withAnimation(settleCrossfade) {
                 showsChip = chip

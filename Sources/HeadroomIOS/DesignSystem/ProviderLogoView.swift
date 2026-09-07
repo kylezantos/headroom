@@ -7,13 +7,15 @@ struct ProviderLogoView: View {
 
     @Environment(\.colorScheme) private var scheme
 
-    // The raw brand mark, no tinted container — matching the Mac popover. The mark scales
-    // by a per-provider optical factor inside a *fixed* slot, so Claude's edge-to-edge
-    // starburst and Codex's inset blob read as equal-sized while the icon column stays
-    // aligned across rows.
+    // The raw brand mark, no tinted container — matching the Mac popover. OA2: the imageset
+    // artwork is trimmed to its ink, so the mark is sized by the shared measured rule
+    // (`HeadroomBrandMark`: larger ink dimension = 13/15 of the slot, aspect preserved) and
+    // leading-aligned inside the fixed slot. Every provider's ink then hangs on one mark
+    // axis and the leftover slot falls on the trailing side, so the icon column stays
+    // aligned across rows — including for a reduced (`visualScale`) mark.
     var body: some View {
         let slot = size * 1.35
-        let opticalSlot = slot * opticalScale
+        let mark = HeadroomBrandMark.markSize(for: providerID, slot: Double(slot))
         Group {
             if let assetName {
                 Image(assetName)
@@ -21,20 +23,13 @@ struct ProviderLogoView: View {
                     .scaledToFit()
             } else {
                 Image(systemName: symbolName)
-                    .font(.system(size: size * 0.9, weight: .semibold))
+                    .font(.system(size: CGFloat(mark.height), weight: .semibold))
                     .foregroundStyle(HeadroomTheme.providerTextAccent(for: providerID, scheme: scheme))
             }
         }
-        .frame(width: opticalSlot * visualScale, height: opticalSlot * visualScale)
-        // Keep a reduced mark pinned to the same optical leading edge as the full-size
-        // provider mark. The outer slot remains identical, so adjacent titles align too.
-        .frame(width: opticalSlot, height: opticalSlot, alignment: .leading)
-        .frame(width: slot, height: slot)
+        .frame(width: CGFloat(mark.width) * visualScale, height: CGFloat(mark.height) * visualScale)
+        .frame(width: slot, height: slot, alignment: .leading)
         .accessibilityHidden(true)
-    }
-
-    private var opticalScale: CGFloat {
-        CGFloat(HeadroomBrandMark.opticalScale(for: providerID))
     }
 
     private var assetName: String? {

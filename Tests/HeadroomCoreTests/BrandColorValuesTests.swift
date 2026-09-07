@@ -19,13 +19,50 @@ struct BrandColorValuesTests {
 
     /// Guards the P1 "grey-identity default arm" class of bug: every registered provider
     /// must resolve a real title accent (both schemes), not fall through to `.secondary`.
-    /// Cursor's mark is inset like Claude's, so its optical scale must be corrected too.
     @Test func everyRegisteredProviderHasABrandTextAccent() {
         for id in [ProviderID.claude, .codex, .grok, .cursor] {
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: false) != nil, "\(id.raw) light")
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: true) != nil, "\(id.raw) dark")
         }
-        #expect(HeadroomBrandMark.opticalScale(for: ProviderID.cursor.raw) == 0.9)
+    }
+
+    // MARK: - OA2 brand-mark sizing rule
+
+    /// The rule is one number for everyone: the ink's larger dimension is 13/15 of the slot.
+    /// `massCorrection` is the only per-provider dial and every entry is 1.0 today, so any
+    /// provider drifting off 13/15 is a deliberate edit that has to land here first.
+    @Test func everyProviderRendersItsInkAtThirteenFifteenthsOfTheSlot() {
+        #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
+        for id in [ProviderID.claude, .codex, .grok, .cursor] {
+            #expect(HeadroomBrandMark.massCorrection(for: id.raw) == 1.0, "\(id.raw) mass")
+            #expect(HeadroomBrandMark.inkScale(for: id.raw) == 13.0 / 15.0, "\(id.raw) scale")
+        }
+        #expect(HeadroomBrandMark.inkScale(for: "unknown-provider") == 13.0 / 15.0)
+    }
+
+    /// The larger dimension lands on 13pt in the card's 15pt slot for every provider, the
+    /// aspect is preserved rather than padded back to square, and the shorter dimension is
+    /// what shrinks (Grok's slash vertically, Cursor's cube horizontally).
+    @Test func markSizeFitsTheLargerInkDimensionAndKeepsAspect() {
+        for id in [ProviderID.claude, .codex, .grok, .cursor] {
+            let mark = HeadroomBrandMark.markSize(for: id.raw, slot: 15)
+            #expect(abs(max(mark.width, mark.height) - 13) < 0.0001, "\(id.raw) larger dimension")
+            #expect(min(mark.width, mark.height) <= 13.0001, "\(id.raw) shorter dimension")
+            let aspect = HeadroomBrandMark.inkAspect(for: id.raw)
+            #expect(abs(mark.width / mark.height - aspect) < 0.0001, "\(id.raw) aspect")
+        }
+        // Square marks fill the 13pt box in both axes; the two non-square marks do not.
+        #expect(HeadroomBrandMark.markSize(for: ProviderID.claude.raw, slot: 15).height == 13)
+        #expect(HeadroomBrandMark.markSize(for: ProviderID.codex.raw, slot: 15).height == 13)
+        #expect(HeadroomBrandMark.markSize(for: ProviderID.grok.raw, slot: 15).height < 13)
+        #expect(HeadroomBrandMark.markSize(for: ProviderID.cursor.raw, slot: 15).width < 13)
+    }
+
+    @Test func markSizeScalesLinearlyWithTheSlot() {
+        let small = HeadroomBrandMark.markSize(for: ProviderID.cursor.raw, slot: 15)
+        let large = HeadroomBrandMark.markSize(for: ProviderID.cursor.raw, slot: 30)
+        #expect(abs(large.width - small.width * 2) < 0.0001)
+        #expect(abs(large.height - small.height * 2) < 0.0001)
     }
 
     @Test func usageSeverityColorsMatchCanonicalSpec() {

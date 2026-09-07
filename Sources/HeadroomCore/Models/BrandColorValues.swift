@@ -290,22 +290,81 @@ public enum HeadroomMeterColorValues {
     }
 }
 
+/// The rendered size of one brand mark's *ink*, in points.
+public struct HeadroomBrandMarkSize: Sendable, Equatable {
+    public let width: Double
+    public let height: Double
+
+    public init(width: Double, height: Double) {
+        self.width = width
+        self.height = height
+    }
+}
+
 /// Layout metrics for the bare (no-container) brand marks, shared by every surface — the
 /// iOS app + widget, and the Mac popover + widget — so they stay visually identical.
+///
+/// OA2 (Sep 2026) replaced a by-eye per-provider `opticalScale` with a measured rule. The
+/// brand SVGs are now trimmed so the path's tight bounding box *is* the viewBox, which
+/// makes "how big is this mark" a property of the artwork rather than of each surface's
+/// guess about it. Every surface then applies the same rule below and leading-aligns the
+/// result inside its slot, so all four marks hang on one mark axis at one ink size.
 public enum HeadroomBrandMark {
-    /// Per-provider optical-size correction. Claude's starburst radiates to the edges of
-    /// its viewBox, so at an equal frame it reads larger than Codex's inset blob;
-    /// scaling it down inside a fixed slot makes the two read as equal weight.
-    /// (0.87 → 0.84, Jul 2026: at the larger 19–20pt card-header size the starburst
-    /// still read slightly bigger.)
-    public static func opticalScale(for providerID: String) -> Double {
+    /// The ink's larger dimension as a fraction of the slot: 13pt of ink in the card's
+    /// 15pt mark slot. That is what the accepted Claude/Codex rendering already measured
+    /// at, so it is the rule the other two marks are brought onto rather than a new look.
+    public static let inkFraction: Double = 13.0 / 15.0
+
+    /// Per-provider shape-mass tuning, applied on top of `inkFraction`.
+    ///
+    /// Every value is 1.0 today and the table is expected to stay that way: equal ink boxes
+    /// are the rule. It exists because equal *boxes* are not always equal *mass* — a spiky
+    /// starburst and a solid square at the same bounding box can still read unequal — so a
+    /// mark can be dialled from the live preview without anyone editing the rule itself.
+    public static func massCorrection(for providerID: String) -> Double {
         switch providerID {
-        case ProviderID.claude.raw: 0.84
-        // Cursor's cube fills its 24pt viewBox edge-to-edge like Claude's starburst; inset
-        // it so it reads at the same weight as the other marks in the fixed icon slot.
-        case ProviderID.cursor.raw: 0.9
+        case ProviderID.claude.raw: 1.0
+        case ProviderID.codex.raw: 1.0
+        case ProviderID.grok.raw: 1.0
+        case ProviderID.cursor.raw: 1.0
         default: 1.0
         }
+    }
+
+    /// The fraction of the slot the mark's ink should occupy along its larger dimension.
+    public static func inkScale(for providerID: String) -> Double {
+        inkFraction * massCorrection(for: providerID)
+    }
+
+    /// The trimmed ink box's aspect (width ÷ height), measured from the brand SVG viewBoxes
+    /// after OA2 trimmed them to their ink. Kept here rather than read from the artwork so
+    /// the asset-catalog surfaces (iOS, both widget families), which only ever see an
+    /// `Image(name)`, size their marks by exactly the same numbers the Mac popover does.
+    /// `BrandMarkInkTests` re-measures the SVGs and fails if a mark is re-cut without this
+    /// table following it.
+    public static func inkAspect(for providerID: String) -> Double {
+        switch providerID {
+        case ProviderID.claude.raw: 1.0
+        case ProviderID.codex.raw: 1.0
+        // Grok's slash is wider than it is tall; Cursor's cube is taller than it is wide.
+        // Neither is padded back to square — the slot's leftover goes on the trailing side.
+        case ProviderID.grok.raw: 24.0 / 23.0332
+        case ProviderID.cursor.raw: 21.0586 / 24.0
+        default: 1.0
+        }
+    }
+
+    /// The mark's rendered ink size inside a square `slot`: the larger dimension is
+    /// `inkScale × slot`, the other follows from `inkAspect`, and the aspect is preserved.
+    public static func markSize(for providerID: String, slot: Double) -> HeadroomBrandMarkSize {
+        let ink = slot * inkScale(for: providerID)
+        let aspect = inkAspect(for: providerID)
+        guard aspect.isFinite, aspect > 0 else {
+            return HeadroomBrandMarkSize(width: ink, height: ink)
+        }
+        return aspect >= 1
+            ? HeadroomBrandMarkSize(width: ink, height: ink / aspect)
+            : HeadroomBrandMarkSize(width: ink * aspect, height: ink)
     }
 }
 

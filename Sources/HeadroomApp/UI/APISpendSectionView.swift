@@ -146,6 +146,9 @@ struct APISpendSectionView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .layoutPriority(1)
+                // OA1: the spend title shares the account titles' axis, so it shares their
+                // optical alignment too.
+                .opticalLeading(model.title, size: 15, weight: .semibold)
             // X5 (Kyle): the state tag stands exactly where the period chip stands, in line
             // with the title it belongs to — a billing period is meaningless once the figure
             // is stale or absent. Live and pending rows keep the chip and carry no tag.

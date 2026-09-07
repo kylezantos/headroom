@@ -355,6 +355,9 @@ struct UsageBarView: View {
             .foregroundStyle(ProviderStyle.meterLabelInk(scheme: scheme))
             .lineLimit(1)
             .truncationMode(.tail)
+            // OA1: "Weekly" (a diagonal) against "5-hour" (a flat stem) is the widest
+            // stagger in the card — 1.25pt apart at this size before the correction.
+            .opticalLeading(label, size: labelSize, weight: .medium)
     }
 
     /// M3A′: Full has a row wide enough for the state, so it keeps the label — it fades in

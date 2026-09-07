@@ -11,23 +11,29 @@ struct ProviderLogoView: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        // Per-provider optical-size correction inside a fixed slot (shared with iOS via
-        // HeadroomCore), so Claude's edge-to-edge starburst and Codex's inset blob read as
-        // equal weight across every surface.
-        let scale = CGFloat(HeadroomBrandMark.opticalScale(for: providerID.raw))
+        // OA2: the SVGs are trimmed to their ink, so the mark's rendered size is the shared
+        // measured rule (`HeadroomBrandMark`) rather than a per-provider guess — larger ink
+        // dimension = 13/15 of the slot, aspect preserved. The slot frame still owns layout,
+        // but the mark is *leading*-aligned inside it so every provider's ink hangs on the
+        // same left edge (the card's mark axis) and the leftover slot falls on the trailing
+        // side. Vertical stays centred: that already lines the mark up on the title's cap.
+        let mark = HeadroomBrandMark.markSize(for: providerID.raw, slot: Double(size))
+        let markWidth = CGFloat(mark.width)
+        let markHeight = CGFloat(mark.height)
         if let image = BrandIconImage.image(for: providerID, scheme: scheme) {
             Image(nsImage: image)
                 .resizable()
                 .renderingMode(.original)
                 .scaledToFit()
-                .frame(width: size * scale, height: size * scale)
-                .frame(width: size, height: size)
+                .frame(width: markWidth, height: markHeight)
+                .frame(width: size, height: size, alignment: .leading)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: ProviderStyle.symbol(for: providerID))
-                .font(.system(size: size, weight: .semibold))
+                .font(.system(size: markHeight, weight: .semibold))
                 .foregroundStyle(ProviderStyle.accent(for: providerID))
-                .frame(width: size, height: size)
+                .frame(width: markWidth, height: markHeight)
+                .frame(width: size, height: size, alignment: .leading)
                 .accessibilityHidden(true)
         }
     }
@@ -40,13 +46,22 @@ private enum BrandIconImage {
               let svg = NSImage(contentsOf: url) else {
             return nil
         }
-        // The brand SVGs are a 10pt viewBox. `ImageRenderer` (the marketing hero export)
-        // rasterizes nested images at their intrinsic size and upscales — blurring a 10pt
-        // mark ~8×. Bake a high-res bitmap once so the offscreen export stays crisp; the
+        // The brand SVGs are small (a 9–24pt viewBox). `ImageRenderer` (the marketing hero
+        // export) rasterizes nested images at their intrinsic size and upscales — blurring a
+        // 10pt mark ~8×. Bake a high-res bitmap once so the offscreen export stays crisp; the
         // live app draws this `.resizable()` and downsamples cleanly, so it's unaffected.
-        let hi = NSImage(size: NSSize(width: 256, height: 256))
+        //
+        // OA2: bake at the SVG's own aspect, not a square. `NSImage.draw(in:)` *stretches*
+        // rather than letterboxes, so squaring the bake would distort the trimmed non-square
+        // marks (Grok, Cursor) instead of preserving the ink box we just measured.
+        let side = 256.0
+        let aspect = svg.size.height > 0 ? svg.size.width / svg.size.height : 1
+        let pixels = aspect >= 1
+            ? NSSize(width: side, height: side / aspect)
+            : NSSize(width: side * aspect, height: side)
+        let hi = NSImage(size: pixels)
         hi.lockFocus()
-        svg.draw(in: NSRect(x: 0, y: 0, width: 256, height: 256))
+        svg.draw(in: NSRect(origin: .zero, size: pixels))
         hi.unlockFocus()
         return hi
     }

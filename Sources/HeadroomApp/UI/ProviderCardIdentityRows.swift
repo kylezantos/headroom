@@ -82,6 +82,9 @@ struct StatusSentence: View {
             .font(.system(size: 11.5, weight: .medium))
             .foregroundStyle(severity.ink(scheme: scheme))
             .fixedSize(horizontal: false, vertical: true)
+            // OA1: the sentence starts a line on the same content axis as the titles and
+            // meter labels above it, so it hangs on the same optical edge they do.
+            .opticalLeading(text, size: 11.5, weight: .medium)
             .padding(.leading, indented ? IdentityRowMetrics.meterContentInset : 0)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -163,6 +166,9 @@ struct IdentityRow: View {
             .accountTitleInk(for: providerID)
             .lineLimit(1)
             .truncationMode(.tail)
+            // OA1: "Personal" and "Work" carry side bearings 0.66pt apart at this size, so
+            // without this the title column visibly jitters account to account.
+            .opticalLeading(title, size: 15, weight: .semibold)
     }
 
     /// L5D: the main account carries no visible marker. Order already says it — main is

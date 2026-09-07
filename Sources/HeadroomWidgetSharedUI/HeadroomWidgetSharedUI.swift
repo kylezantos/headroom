@@ -90,21 +90,27 @@ public struct HeadroomWidgetProviderIcon: View {
         self.size = size
     }
 
+    // OA2: same measured rule and leading alignment as the popover and the iOS app — the
+    // imageset artwork is trimmed to its ink, the larger ink dimension is 13/15 of the slot
+    // with the aspect preserved, and the leftover slot falls on the trailing side so every
+    // provider's mark hangs on one axis.
     public var body: some View {
-        let scale = CGFloat(HeadroomBrandMark.opticalScale(for: providerID))
+        let mark = HeadroomBrandMark.markSize(for: providerID, slot: Double(size))
+        let markWidth = CGFloat(mark.width)
+        let markHeight = CGFloat(mark.height)
         if let assetName = HeadroomWidgetStyle.assetName(for: providerID) {
             Image(assetName)
                 .resizable()
                 .scaledToFit()
-                .frame(width: size * scale, height: size * scale)
-                .frame(width: size, height: size)
+                .frame(width: markWidth, height: markHeight)
+                .frame(width: size, height: size, alignment: .leading)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: HeadroomWidgetStyle.symbol(for: providerID))
                 .resizable()
                 .scaledToFit()
-                .frame(width: size * scale, height: size * scale)
-                .frame(width: size, height: size)
+                .frame(width: markWidth, height: markHeight)
+                .frame(width: size, height: size, alignment: .leading)
                 .foregroundStyle(HeadroomWidgetStyle.accent(for: providerID))
                 .accessibilityHidden(true)
         }

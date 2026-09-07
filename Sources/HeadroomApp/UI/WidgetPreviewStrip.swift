@@ -81,7 +81,7 @@ struct WidgetPreviewStrip: View {
 
     /// The app has no `BrandIcons.xcassets` — its marks are the bundled SVGs the popover
     /// draws — so the shared widget bodies get the app's own renderer injected. Same
-    /// artwork, same optical-scale table (`HeadroomBrandMark`), different loader.
+    /// artwork, same measured mark rule (`HeadroomBrandMark`), different loader.
     private func brandMark(_ providerID: String, _ size: CGFloat) -> some View {
         ProviderLogoView(providerID: ProviderID(providerID), size: size)
     }

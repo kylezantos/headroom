@@ -116,6 +116,8 @@
 		7DA9475C063F5AEF3D4522E4 /* AccountsSettingsInteractions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0AA4563CCCC6ACDAD77D34 /* AccountsSettingsInteractions.swift */; };
 		80916D058A17FA99064557F0 /* DemoFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65084FF4FFAFB83B11B7601E /* DemoFixture.swift */; };
 		80F20CC2F1292AB610A972D5 /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
+		821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */; };
+		BE3049BEB6DE2867D7D20350 /* BrandMarkInkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95202D60D21937DBE0466A56 /* BrandMarkInkTests.swift */; };
 		84BF1E0A9D00D681D45F2959 /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
 		8734D2763F3EA91CBB32E3CE /* IOSWidgetStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2279E17039A179D85F6D0AB8 /* IOSWidgetStatusView.swift */; };
 		898AC9E2DA72AE3F4FFF0FE8 /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */; };
@@ -175,6 +177,7 @@
 		CF22CB3A48143FC447489CDE /* PlanLabelPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */; };
 		D0B44D71908CF77FFDA51644 /* LargeWidgetDensity.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22F7A5E48B198FF02F4A1C58 /* LargeWidgetDensity.swift */; };
 		D13E8EE9A513FB1311992870 /* AppearanceSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ACD1DA362EC2FD0CB1EC33E /* AppearanceSetting.swift */; };
+		D2AFD603422063F0D8C5566A /* OpticalLeading.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E898AC2EE39858F1970170 /* OpticalLeading.swift */; };
 		D3F3534EAFDA072660FF15DD /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
 		D4487583EBB5122570323276 /* IOSWidgetTimelineMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */; };
 		D4ACD733FFC836F06D43FDC1 /* HeadroomWidgetFamilyViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F49506C3D72F15656A00B3D9 /* HeadroomWidgetFamilyViews.swift */; };
@@ -330,6 +333,7 @@
 		2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderID.swift; sourceTree = "<group>"; };
 		316B9C4940604D925421AD2A /* UsageStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStore.swift; sourceTree = "<group>"; };
 		31905E608D2582B426A35B21 /* HeadroomAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HeadroomAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		31E898AC2EE39858F1970170 /* OpticalLeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpticalLeading.swift; sourceTree = "<group>"; };
 		3231CDC5E0AF2C8DE6B924FD /* UsageDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDTOs.swift; sourceTree = "<group>"; };
 		32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = BrandIcons.xcassets; sourceTree = "<group>"; };
 		35FDD3E9954F1D0C7FE0BC7B /* SetupCompletionCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCompletionCommand.swift; sourceTree = "<group>"; };
@@ -355,6 +359,8 @@
 		517F99ED6491D1BC1A6858EF /* GrokProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokProvider.swift; sourceTree = "<group>"; };
 		55DBC87E82459F7596B60C0E /* ClaudeSetupCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSetupCommand.swift; sourceTree = "<group>"; };
 		5B3D491D8D8B855C6182DF43 /* HeadroomWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HeadroomWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpticalLeadingTests.swift; sourceTree = "<group>"; };
+		95202D60D21937DBE0466A56 /* BrandMarkInkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMarkInkTests.swift; sourceTree = "<group>"; };
 		5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountEmailReader.swift; sourceTree = "<group>"; };
 		60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreAccountLifecycle.swift; sourceTree = "<group>"; };
 		6378187F940FD56B1A363971 /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
@@ -483,6 +489,8 @@
 				BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */,
 				4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */,
 				1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */,
+				5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */,
+				95202D60D21937DBE0466A56 /* BrandMarkInkTests.swift */,
 			);
 			path = HeadroomAppTests;
 			sourceTree = "<group>";
@@ -696,6 +704,7 @@
 				CAAC30B235FDF373550D04AD /* MenuBarLabel.swift */,
 				D15A53AE4F679F87EABE633E /* MeterGauge.swift */,
 				7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */,
+				31E898AC2EE39858F1970170 /* OpticalLeading.swift */,
 				864FC2FB47A9E7D44E659809 /* PopoverView.swift */,
 				489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */,
 				E542DE434B4A2F1EA525110E /* ProviderCardView.swift */,
@@ -1143,6 +1152,8 @@
 				CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */,
 				B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */,
 				EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */,
+				821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */,
+				BE3049BEB6DE2867D7D20350 /* BrandMarkInkTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1282,6 +1293,7 @@
 				F4D04A6771D231DB885D09E5 /* MenuBarLabel.swift in Sources */,
 				9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */,
 				64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */,
+				D2AFD603422063F0D8C5566A /* OpticalLeading.swift in Sources */,
 				2FF5F97796EE9B85A1379553 /* PopoverRenderHarness.swift in Sources */,
 				E8F06C1901BA60D02C5F964C /* PopoverView.swift in Sources */,
 				08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */,

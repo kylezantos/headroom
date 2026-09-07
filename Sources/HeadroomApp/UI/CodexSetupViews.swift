@@ -144,7 +144,7 @@ struct CodexConnectCard: View {
             Button(action: onOpenSetup) {
                 Label(
                     presentation?.primaryLabel
-                        ?? (reconnecting ? "Open Codex login" : "Connect with Codex"),
+                        ?? (reconnecting ? "Open Codex Login" : "Connect with Codex"),
                     systemImage: "terminal"
                 )
             }
@@ -152,10 +152,11 @@ struct CodexConnectCard: View {
             .padding(.top, 12)
             if let secondaryLabel = presentation?.secondaryLabel,
                let onSecondaryAction {
-                // B3A/P4C/B3: "Use device code" was a bare indigo label hanging under the
+                // B3A/P4C/B3: "Use Device Code" was a bare indigo label hanging under the
                 // full-width primary. The primary keeps its width; the secondary becomes a
                 // thin chip in the leading action row beneath it.
-                CardActionRow {
+                // B3X: this card's prose starts at its own leading edge, not the 34pt axis.
+                CardActionRow(labelInset: 0) {
                     Button(secondaryLabel, action: onSecondaryAction)
                         .buttonStyle(SetupChipButtonStyle(size: .small))
                         .accessibilityLabel(secondaryLabel)
@@ -231,15 +232,16 @@ struct CodexAccessRecoveryCard: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
             // P4C/B3: the full-width primary keeps its own line, as in `CodexConnectCard`;
-            // "Check now" drops to the card's leading action row.
+            // "Check Now" drops to the card's leading action row.
             VStack(alignment: .leading, spacing: 0) {
-                Button(kind == .permission ? "Open Privacy & Security" : "Resolve storage", action: onPrimaryAction)
+                Button(kind == .permission ? "Open Privacy & Security" : "Resolve Storage", action: onPrimaryAction)
                     .buttonStyle(CodexPrimaryButtonStyle())
                     .accessibilityLabel(kind == .permission
                                         ? "Open Privacy and Security for Codex file access"
                                         : "Resolve Codex storage for this account")
-                CardActionRow {
-                    Button("Check now", action: onCheckNow)
+                // B3X: aligned with the card's prose, which starts at its own edge.
+                CardActionRow(labelInset: 0) {
+                    Button("Check Now", action: onCheckNow)
                         .buttonStyle(SetupChipButtonStyle(size: .small))
                 }
             }
@@ -282,9 +284,10 @@ struct CodexWaitingCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
                 .padding(.top, 11)
             // B3A/P4C/B3: same as the Claude waiting card — two thin chips, leading-aligned
-            // at the card's foot, with "Check now" first and no icon inside either one.
-            CardActionRow {
-                Button("Check now", action: onCheckNow)
+            // at the card's foot, with "Check Now" first and no icon inside either one.
+            // B3X: same as the Claude waiting card — the guided card's own leading edge.
+            CardActionRow(labelInset: 0) {
+                Button("Check Now", action: onCheckNow)
                     .buttonStyle(SetupChipButtonStyle(size: .small))
                 Button("Reopen Terminal", action: onReopen)
                     .buttonStyle(SetupChipButtonStyle(size: .small))

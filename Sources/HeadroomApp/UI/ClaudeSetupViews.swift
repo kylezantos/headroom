@@ -408,10 +408,12 @@ struct ClaudeWaitingCard: View {
             }
             // B3A/P4C/B3: "Reopen Terminal" was a bare accent label standing next to a filled
             // chip. Both are thin chips now, leading-aligned at the card's foot with
-            // "Check now" — the action the waiting state is really about — first, and no
+            // "Check Now" — the action the waiting state is really about — first, and no
             // icon inside either one.
-            CardActionRow {
-                Button("Check now", action: onCheckNow)
+            // B3X: a guided setup card lays its prose out at its own leading edge, so its
+            // chip labels start there too.
+            CardActionRow(labelInset: 0) {
+                Button("Check Now", action: onCheckNow)
                     .buttonStyle(SetupChipButtonStyle(size: .small))
                 Button("Reopen Terminal", action: onReopen)
                     .buttonStyle(SetupChipButtonStyle(size: .small))
@@ -538,10 +540,16 @@ struct ClaudePrimaryButtonStyle: ButtonStyle {
 }
 
 /// B3A (Sep 2026): the one secondary button for every text-labelled action inside a card or
-/// tile. A resting container (fill + 1pt border) is what makes it read as a control before the
-/// pointer arrives; the bare `HoverButtonStyle` is now reserved for glyph controls and the
-/// popover footer. Two sizes so the same chip fits a card foot (regular) and an account row
-/// (small).
+/// tile. The bare `HoverButtonStyle` is reserved for glyph controls and the popover footer.
+/// Two sizes so the same chip fits a card foot (regular) and an account row (small).
+///
+/// B3H (Kyle, Sep 2026): "only have the button chrome show up on hover (like Refresh and
+/// Quit)". Two chromes now. `.hover` — the popover — starts with **no** container at all and
+/// brings today's hover fill, border and shadow up from zero when the pointer arrives, so a
+/// card foot reads as sentence → action rather than sentence → boxes; the label stays 11.5
+/// semibold in the chip ink, which is what still marks it as a control at rest. `.resting`
+/// — Settings — keeps the container, because a bare label sitting beside a native bordered
+/// button on a pane reads as text, not as something clickable.
 struct SetupChipButtonStyle: ButtonStyle {
     enum Size {
         case regular
@@ -553,24 +561,33 @@ struct SetupChipButtonStyle: ButtonStyle {
         var cornerRadius: CGFloat { self == .regular ? 8 : 7 }
     }
 
+    /// B3H: `.hover` is the default — every chip in the popover takes it, which is all but
+    /// three call sites, and only Settings has to ask for the resting container by name.
+    enum Chrome {
+        case hover
+        case resting
+    }
+
     var size: Size = .regular
+    var chrome: Chrome = .hover
 
     @Environment(\.colorScheme) private var scheme
 
     func makeBody(configuration: Configuration) -> some View {
-        StyleBody(configuration: configuration, size: size, dark: scheme == .dark)
+        StyleBody(configuration: configuration, size: size, chrome: chrome, dark: scheme == .dark)
     }
 
     private struct StyleBody: View {
         let configuration: Configuration
         let size: Size
+        let chrome: Chrome
         let dark: Bool
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var hovering = false
 
         var body: some View {
             let shape = RoundedRectangle(cornerRadius: size.cornerRadius, style: .continuous)
-            // M11A: the "Check now" chip takes the same S3A pair as the popover's quiet buttons.
+            // M11A: the "Check Now" chip takes the same S3A pair as the popover's quiet buttons.
             let hoverAnimation = hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
             let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
             configuration.label
@@ -578,17 +595,63 @@ struct SetupChipButtonStyle: ButtonStyle {
                 .foregroundStyle(dark ? Color(white: 0.85) : Color(red: 0.24, green: 0.24, blue: 0.26))
                 .padding(.horizontal, size.horizontalPadding)
                 .padding(.vertical, size.verticalPadding)
-                .background(shape.fill(dark ? Color.white.opacity(hovering ? 0.14 : 0.10) : Color.white.opacity(hovering ? 0.9 : 0.72)))
-                .overlay(shape.strokeBorder(dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08), lineWidth: 1))
-                .shadow(color: .black.opacity(dark ? 0 : 0.10), radius: 1, y: 1)
+                .background {
+                    shape
+                        .fill(fillColor)
+                        .overlay(shape.strokeBorder(borderColor, lineWidth: 1))
+                        .shadow(color: .black.opacity(dark ? 0 : 0.10), radius: 1, y: 1)
+                        // B3H: one opacity on the whole container, so the `.hover` chrome
+                        // arrives and leaves as a single object rather than three fades.
+                        .opacity(chromeOpacity)
+                }
                 // S2A: the fill is a colour change and survives Reduce Motion; the 0.98 scale
                 // below is the only movement here, so it resolves separately.
                 .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: hovering)
+                .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
+                           value: configuration.isPressed)
+                // B3H: borrowed verbatim from `HoverButtonStyle` — extend the hit target 8pt
+                // past the visible chip so a 22pt chip still clears the 40pt floor, then pull
+                // the padding back out of layout so `ActionChipFlow` measures the chip alone.
+                .padding(8)
+                .contentShape(Rectangle())
+                .padding(-8)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1)
                 .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
                 .onHover { hovering = $0 }
+        }
+
+        /// `.resting` keeps round 3's two-step fill. `.hover` reuses the *same* hover value
+        /// as its arrival state and goes one step deeper while pressed, so the two chromes
+        /// are the one recipe seen from different rest positions.
+        private var fillColor: Color {
+            switch chrome {
+            case .resting:
+                dark ? Color.white.opacity(hovering ? 0.14 : 0.10)
+                     : Color.white.opacity(hovering ? 0.9 : 0.72)
+            case .hover:
+                if configuration.isPressed {
+                    dark ? Color.white.opacity(0.20) : Color.white.opacity(1.0)
+                } else {
+                    dark ? Color.white.opacity(0.14) : Color.white.opacity(0.9)
+                }
+            }
+        }
+
+        private var borderColor: Color {
+            dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        }
+
+        /// The whole container is absent at rest in `.hover` — that absence is the point of
+        /// B3H, and it is what lets the chip's label sit on the 34pt content axis (B3X).
+        private var chromeOpacity: Double {
+            switch chrome {
+            case .resting:
+                1
+            case .hover:
+                (hovering || configuration.isPressed) ? 1 : 0
+            }
         }
     }
 }

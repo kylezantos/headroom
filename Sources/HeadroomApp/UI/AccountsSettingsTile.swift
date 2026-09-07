@@ -281,8 +281,10 @@ struct AccountsSettingsTile: View {
                     }
                 }
                 // B3A: quiet still, but a control — the small chip owns its own font and ink,
-                // so the per-site 11pt secondary label goes away.
-                .buttonStyle(SetupChipButtonStyle(size: .small))
+                // so the per-site 11pt secondary label goes away. B3H keeps the resting
+                // container here: on a Settings pane, beside native bordered controls, a
+                // hover-only chip would read as a line of text until the pointer found it.
+                .buttonStyle(SetupChipButtonStyle(size: .small, chrome: .resting))
                 .help("Track the account your CLI is signed into again")
                 .padding(.leading, 16)
             }
@@ -541,9 +543,10 @@ struct AccountsSettingsTile: View {
                         onRetry: { store.refreshAccountNow(account.key) }
                     )
                 }
-                // B3A: bare beside a bordered primary was the worst mix in Settings; the
-                // small chip gives it a resting container and its own font and ink.
-                .buttonStyle(SetupChipButtonStyle(size: .small))
+                // B3A/B3H: bare beside a bordered primary was the worst mix in Settings; the
+                // small chip gives it a resting container and its own font and ink, and it
+                // keeps that container — its neighbour is a `.bordered` button.
+                .buttonStyle(SetupChipButtonStyle(size: .small, chrome: .resting))
                 .accessibilityLabel(
                     recoveryActions?.secondaryAccessibilityLabel
                         ?? "\(secondaryLabel) for \(account.label)"

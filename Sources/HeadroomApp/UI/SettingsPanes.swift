@@ -642,7 +642,7 @@ struct APISpendSettingsPane: View {
             HStack(spacing: 8) {
                 SavedCredentialStatus()
                 Spacer(minLength: 12)
-                Button("Replace key") {
+                Button("Replace Key") {
                     credentialMessages[provider] = nil
                     cancelMessageDismissal(provider)
                     replacingKeyProviders.insert(provider)

@@ -1,4 +1,5 @@
 public extension ProviderCapabilityState {
+    /// B3T: Title Case, like every other button label (see `ProviderSetupOutcome`).
     var recoveryPresentation: ProviderRecoveryPresentation? {
         switch self {
         case .unknown, .discovering, .available:
@@ -6,9 +7,9 @@ public extension ProviderCapabilityState {
         case .inconclusive:
             .init(
                 status: "Couldn't confirm where Claude Code is — will retry",
-                primaryLabel: "Check again",
+                primaryLabel: "Check Again",
                 primaryAction: .checkNow,
-                secondaryLabel: "Open guided setup",
+                secondaryLabel: "Open Guided Setup",
                 secondaryAction: .openClaudeSetup
             )
         case .confirmedAbsent:
@@ -18,7 +19,7 @@ public extension ProviderCapabilityState {
                 primaryAction: .installClaudeCLI,
                 // R7: a confirmed-absent CLI has no manual command to copy; the only
                 // useful second action is a fresh forced discovery search.
-                secondaryLabel: "Check again",
+                secondaryLabel: "Check Again",
                 secondaryAction: .checkNow
             )
         }

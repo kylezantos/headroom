@@ -395,7 +395,7 @@ struct AccountSectionView: View {
                             severity: .attention
                         )
                         CardActionRow {
-                            Button("Continue setup") { SetupSessions.continueSetup(for: account) }
+                            Button("Continue Setup") { SetupSessions.continueSetup(for: account) }
                                 .buttonStyle(SetupChipButtonStyle(size: .small))
                                 .accessibilityLabel("Continue \(providerDisplayName) setup for \(account.label)")
                         }
@@ -420,7 +420,7 @@ struct AccountSectionView: View {
                         // B3A: the bare accent label is gone — a waiting row's one control
                         // now carries the same resting container as the sign-in chip.
                         CardActionRow {
-                            Button("Check now") { onRetry() }
+                            Button("Check Now") { onRetry() }
                                 .buttonStyle(SetupChipButtonStyle(size: .small))
                         }
                     }
@@ -446,10 +446,10 @@ struct AccountSectionView: View {
                                     SetupSessions.openSetup(for: account, onRetry: onRetry)
                                 }
                             } label: {
-                                Text(recoveryPresentation?.primaryLabel ?? "Sign in")
+                                Text(recoveryPresentation?.primaryLabel ?? "Sign In")
                             }
                             .buttonStyle(SetupChipButtonStyle(size: .small))
-                            .accessibilityLabel("\(recoveryPresentation?.primaryLabel ?? "Sign in") for \(account.label)")
+                            .accessibilityLabel("\(recoveryPresentation?.primaryLabel ?? "Sign In") for \(account.label)")
                             if let secondaryLabel = recoveryPresentation?.secondaryLabel,
                                let secondaryAction = recoveryPresentation?.secondaryAction {
                                 Button(secondaryLabel) {
@@ -461,7 +461,7 @@ struct AccountSectionView: View {
                                 }
                                 .buttonStyle(SetupChipButtonStyle(size: .small))
                             } else if SetupSessions.failureMessage(for: account) != nil {
-                                Button("Check now", action: onRetry)
+                                Button("Check Now", action: onRetry)
                                     .buttonStyle(SetupChipButtonStyle(size: .small))
                             }
                         }

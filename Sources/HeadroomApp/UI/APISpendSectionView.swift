@@ -75,7 +75,7 @@ struct APISpendSectionView: View {
             periodLabel: store.apiSpendPeriod.displayLabel(now: now)
         )
         // Badge, sub-line and button title all come from one Core decision, so a rejected
-        // key can no longer be badged "Needs setup" next to an "Add key" button.
+        // key can no longer be badged "Needs setup" next to an "Add Key" button.
         return SpendRowModel(
             snapshot: snapshot,
             status: APISpendPresentation.rowStatus(
@@ -298,7 +298,8 @@ struct APISpendSectionView: View {
     /// P4C: every action the card offers collects in one row at the bottom of the card
     /// instead of hanging off the end of a row's sentence. B3 (Kyle): the shared
     /// `CardActionRow` owns the alignment and the gap above it, and the chips are `.small`
-    /// like every other card foot.
+    /// like every other card foot. B3X: no `labelInset` here — the spend sentences already
+    /// sit on `IdentityRowMetrics.meterContentInset`, which is the row's default.
     @ViewBuilder private func actionRow(_ models: [SpendRowModel]) -> some View {
         let actionable = models.filter { $0.showsCTA && $0.status.callToAction != nil }
         if !actionable.isEmpty {
@@ -315,13 +316,14 @@ struct APISpendSectionView: View {
         }
     }
 
-    /// Two chips reading "Add key" side by side are indistinguishable, so a duplicated label
-    /// takes its vendor. Core's CTAs are all "<verb> key", so the vendor slots in before the
-    /// noun ("Replace Anthropic key"); anything else falls back to a parenthetical.
+    /// Two chips reading "Add Key" side by side are indistinguishable, so a duplicated label
+    /// takes its vendor. Core's CTAs are all "<Verb> Key", so the vendor slots in before the
+    /// noun ("Replace Anthropic Key"); anything else falls back to a parenthetical.
+    /// B3T: the qualified form stays Title Case too — it is the same button, just longer.
     private func qualified(_ cta: String, for model: SpendRowModel) -> String {
         let vendor = APISpendPresentation.vendorName(from: model.snapshot.displayName)
-        guard cta.hasSuffix(" key") else { return "\(cta) (\(vendor))" }
-        return "\(cta.dropLast(4)) \(vendor) key"
+        guard cta.hasSuffix(" Key") else { return "\(cta) (\(vendor))" }
+        return "\(cta.dropLast(4)) \(vendor) Key"
     }
 
     // MARK: - Accessibility

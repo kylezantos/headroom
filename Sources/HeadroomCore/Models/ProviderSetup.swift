@@ -87,68 +87,71 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         }
     }
 
+    /// B3T (Kyle, Sep 2026): every label here is a button on some surface, so all of them
+    /// are Title Case — round 3's sentence case made them read as prose beside the sentences
+    /// they answer, which is exactly what a chip must not do once B3H removes its resting box.
     public var recoveryPresentation: ProviderRecoveryPresentation {
         switch self {
         case .claudeCLIMissing:
             // R7: mirrors the capability presentation — install guidance plus a fresh
             // discovery check, never a copied bare-name command.
             .init(status: message, primaryLabel: "Install Claude Code", primaryAction: .installClaudeCLI,
-                  secondaryLabel: "Check again", secondaryAction: .checkNow)
+                  secondaryLabel: "Check Again", secondaryAction: .checkNow)
         case .claudeLoginRequired:
-            .init(status: message, primaryLabel: "Open Claude setup", primaryAction: .openClaudeSetup,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow,
+            .init(status: message, primaryLabel: "Open Claude Setup", primaryAction: .openClaudeSetup,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .claudeTrustRequired:
-            .init(status: message, primaryLabel: "Open Claude workspace", primaryAction: .openClaudeSetup,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow,
+            .init(status: message, primaryLabel: "Open Claude Workspace", primaryAction: .openClaudeSetup,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .claudeUnknownUI, .claudeTransientCapture:
-            .init(status: message, primaryLabel: "Check again", primaryAction: .checkNow,
-                  secondaryLabel: "Open guided setup", secondaryAction: .openClaudeSetup)
+            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow,
+                  secondaryLabel: "Open Guided Setup", secondaryAction: .openClaudeSetup)
         case .codexCLIMissing:
             .init(status: message, primaryLabel: "Install Codex CLI", primaryAction: .installCodexCLI)
         case .codexAuthAbsent:
             .init(status: message, primaryLabel: "Connect Codex", primaryAction: .connectCodex,
-                  secondaryLabel: "Use device code", secondaryAction: .connectCodexDeviceCode,
+                  secondaryLabel: "Use Device Code", secondaryAction: .connectCodexDeviceCode,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .codexPermissionDenied:
-            .init(status: message, primaryLabel: "Privacy & Security help", primaryAction: .showPrivacyGuidance,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Privacy & Security Help", primaryAction: .showPrivacyGuidance,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .codexUnsafePermissions, .codexMalformedAuth, .codexRejectedAuth:
             .init(status: message, primaryLabel: "Reconnect Codex", primaryAction: .reconnectCodex,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .codexCredentialIO:
-            .init(status: message, primaryLabel: "Check again", primaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow)
         case .codexStorageMismatch:
-            .init(status: message, primaryLabel: "Resolve storage", primaryAction: .resolveCodexStorage,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Resolve Storage", primaryAction: .resolveCodexStorage,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .codexCallbackIncomplete:
-            .init(status: message, primaryLabel: "Reopen Codex login", primaryAction: .reconnectCodex,
-                  secondaryLabel: "Use device code", secondaryAction: .connectCodexDeviceCode)
+            .init(status: message, primaryLabel: "Reopen Codex Login", primaryAction: .reconnectCodex,
+                  secondaryLabel: "Use Device Code", secondaryAction: .connectCodexDeviceCode)
         case .grokCLIMissing:
             .init(status: message, primaryLabel: "Install Grok Build", primaryAction: .installGrokCLI)
         case .grokAuthAbsent:
             .init(status: message, primaryLabel: "Connect Grok", primaryAction: .connectGrok,
-                  secondaryLabel: "Use device code", secondaryAction: .connectGrokDeviceCode,
+                  secondaryLabel: "Use Device Code", secondaryAction: .connectGrokDeviceCode,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .grokPermissionDenied:
-            .init(status: message, primaryLabel: "Privacy & Security help", primaryAction: .showPrivacyGuidance,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Privacy & Security Help", primaryAction: .showPrivacyGuidance,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .grokUnsafePermissions, .grokMalformedAuth, .grokRejectedAuth:
             .init(status: message, primaryLabel: "Reconnect Grok", primaryAction: .reconnectGrok,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .grokCredentialIO, .grokTransientCapture:
-            .init(status: message, primaryLabel: "Check again", primaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow)
         case .cursorCLIMissing:
             .init(status: message, primaryLabel: "Install Cursor Agent", primaryAction: .installCursorAgent)
         case .cursorAuthAbsent:
             .init(status: message, primaryLabel: "Connect Cursor", primaryAction: .connectCursor,
-                  secondaryLabel: "Check now", secondaryAction: .checkNow,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .cursorUnknownUI, .cursorTransientCapture:
-            .init(status: message, primaryLabel: "Check again", primaryAction: .checkNow,
+            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow,
                   secondaryLabel: "Reconnect Cursor", secondaryAction: .connectCursor)
         }
     }

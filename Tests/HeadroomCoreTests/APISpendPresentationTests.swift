@@ -109,7 +109,7 @@ struct APISpendPresentationTests {
         #expect(status.badge == "Needs setup")
         #expect(status.tone == .warning)
         #expect(status.message == "Add an admin key to see Anthropic spend")
-        #expect(status.callToAction == "Add key")
+        #expect(status.callToAction == "Add Key")
         #expect(status.remoteHint == "Set up on Mac")
     }
 
@@ -183,7 +183,7 @@ struct APISpendPresentationTests {
     }
 
     /// The reported contradiction: a saved key the provider rejected was badged
-    /// "Needs setup" next to an "Add key" button. Badge, message and CTA must all agree.
+    /// "Needs setup" next to an "Add Key" button. Badge, message and CTA must all agree.
     @Test func rejectedKeyReadsAsRejectedNotAsMissing() {
         let status = APISpendPresentation.rowStatus(
             freshness: .stale(.needsReauth("Anthropic admin key rejected")),
@@ -194,7 +194,7 @@ struct APISpendPresentationTests {
         #expect(status.badge == "Key rejected")
         #expect(status.tone == .critical)
         #expect(status.message == "Anthropic didn't accept the saved admin key")
-        #expect(status.callToAction == "Replace key")
+        #expect(status.callToAction == "Replace Key")
     }
 
     @Test func rejectedKeyCopyNamesEachProvider() {
@@ -221,7 +221,7 @@ struct APISpendPresentationTests {
         #expect(status.badge == "Key lacks access")
         #expect(status.tone == .warning)
         #expect(status.message == "Key can't read the cost report")
-        #expect(status.callToAction == "Fix key")
+        #expect(status.callToAction == "Fix Key")
     }
 
     /// The 403 line names the surface each vendor actually refused.

@@ -130,8 +130,10 @@ public struct APISpendRowStatus: Sendable, Equatable {
     public let tone: Tone
     public let message: String?
     /// Title for the button that opens Settings → API Spend; nil renders no button.
+    /// B3T: Title Case — it is a button, unlike `remoteHint` below.
     public let callToAction: String?
     /// Companion/widget wording for the same action, which can only be taken on the Mac.
+    /// B3T deliberately leaves this in sentence case: it is a hint *line*, not a control.
     public let remoteHint: String?
     /// The stored (or absent) key is itself the problem — see `APISpendAttention.isKeyProblem`.
     public let keyNeedsAttention: Bool
@@ -242,7 +244,7 @@ public enum APISpendPresentation {
         badge: nil,
         tone: .quiet,
         message: "Waiting for cost data",
-        callToAction: "Add key",
+        callToAction: "Add Key",
         remoteHint: nil
     )
 
@@ -267,7 +269,7 @@ public enum APISpendPresentation {
                 shortBadge: "Setup",
                 tone: .warning,
                 message: "Add \(credential.credentialNoun) to see \(vendor) spend",
-                callToAction: "Add key",
+                callToAction: "Add Key",
                 remoteHint: "Set up on Mac",
                 keyNeedsAttention: true
             )
@@ -277,7 +279,7 @@ public enum APISpendPresentation {
                 shortBadge: "Rejected",
                 tone: .critical,
                 message: "\(vendor) didn't accept the saved \(credential.noun)",
-                callToAction: "Replace key",
+                callToAction: "Replace Key",
                 remoteHint: "Replace key on Mac",
                 keyNeedsAttention: true
             )
@@ -287,7 +289,7 @@ public enum APISpendPresentation {
                 shortBadge: "Denied",
                 tone: .warning,
                 message: "Key can't read \(credential.reportNoun)",
-                callToAction: "Fix key",
+                callToAction: "Fix Key",
                 remoteHint: "Fix key on Mac",
                 keyNeedsAttention: true
             )
@@ -297,7 +299,7 @@ public enum APISpendPresentation {
                 shortBadge: "Setup",
                 tone: .warning,
                 message: sourceMessage,
-                callToAction: "Add key",
+                callToAction: "Add Key",
                 remoteHint: "Set up on Mac"
             )
         case .retryable:
@@ -306,7 +308,7 @@ public enum APISpendPresentation {
                 shortBadge: "Stale",
                 tone: .neutral,
                 message: sourceMessage,
-                callToAction: "Add key",
+                callToAction: "Add Key",
                 remoteHint: nil
             )
         }

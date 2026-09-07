@@ -154,7 +154,7 @@ public enum DemoFixture {
     /// the shape Kyle photographed — no figure at all. `.needsReauth` is what
     /// `APISpendAttention(reason:)` maps to `.keyRejected`
     /// (`APISpendPresentation.swift:22`), the status that pairs a "Rejected" identity-line
-    /// tag with a "Replace key" chip — the popover renders Core's own copy here, so the
+    /// tag with a "Replace Key" chip — the popover renders Core's own copy here, so the
     /// reason's message is provenance rather than the line the card shows. With `amount` nil
     /// the amount column and the top-up slot collapse (X5), which is the whole point of the
     /// fixture.

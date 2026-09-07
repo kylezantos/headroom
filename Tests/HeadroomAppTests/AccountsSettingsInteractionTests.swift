@@ -869,9 +869,9 @@ struct AccountsSettingsInteractionTests {
             hasActiveSetupSession: false
         )
 
-        #expect(presentation?.recovery.primaryLabel == "Check again")
+        #expect(presentation?.recovery.primaryLabel == "Check Again")
         #expect(presentation?.recovery.primaryAction == .checkNow)
-        #expect(presentation?.recovery.secondaryLabel == "Open guided setup")
+        #expect(presentation?.recovery.secondaryLabel == "Open Guided Setup")
         #expect(presentation?.recovery.secondaryAction == .openClaudeSetup)
     }
 
@@ -888,8 +888,8 @@ struct AccountsSettingsInteractionTests {
         )
 
         #expect(actions?.usesSecondLine == true)
-        #expect(actions?.secondaryLabel == "Use device code")
-        #expect(actions?.secondaryAccessibilityLabel == "Use device code for Work")
+        #expect(actions?.secondaryLabel == "Use Device Code")
+        #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for Work")
         #expect(actions?.secondaryAction == .connectCodexDeviceCode)
         #expect(actions?.secondaryAction.map(SetupSessions.recoveryRoute(for:)) == .setup(.deviceCode))
     }
@@ -911,8 +911,8 @@ struct AccountsSettingsInteractionTests {
                 account: account
             )
             #expect(actions?.primaryLabel == "Connect Grok")
-            #expect(actions?.secondaryLabel == "Use device code")
-            #expect(actions?.secondaryAccessibilityLabel == "Use device code for \(account.label)")
+            #expect(actions?.secondaryLabel == "Use Device Code")
+            #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for \(account.label)")
             #expect(actions?.secondaryAction == .connectGrokDeviceCode)
             guard let action = actions?.secondaryAction,
                   case .setup(let mode) = SetupSessions.recoveryRoute(for: action)
@@ -945,7 +945,7 @@ struct AccountsSettingsInteractionTests {
         )
 
         #expect(actions?.usesSecondLine == false)
-        #expect(actions?.primaryLabel == "Check again")
+        #expect(actions?.primaryLabel == "Check Again")
         #expect(actions?.secondaryAction == nil)
     }
 

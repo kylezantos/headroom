@@ -194,10 +194,26 @@ struct ProviderCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             singleAccountContent
             if let activeSetupAccount {
-                CardActionRow {
+                // B3X: this row follows whichever body rendered above it, and the four
+                // bodies do not share one content axis — a guided setup card lays out at
+                // its own edge, the compact recovery card behind its own 18pt mark, an
+                // identity row on the 21pt axis. Ask the body rather than assume.
+                CardActionRow(labelInset: singleAccountLabelInset) {
                     StopWaitingButton(account: activeSetupAccount, style: .chip(.small))
                 }
             }
+        }
+    }
+
+    /// B3X: mirrors the branch order of `singleAccountContent` exactly — change one and the
+    /// other has to move with it, or the Stop Waiting chip drifts off the card's own axis.
+    private var singleAccountLabelInset: CGFloat {
+        if claudeGuidedSetupOutcome != nil || snapshot.codexConnectionAction != nil {
+            0
+        } else if providerSetupOutcome != nil {
+            ProviderSetupRecoveryCard.contentInset
+        } else {
+            IdentityRowMetrics.meterContentInset
         }
     }
 
@@ -337,15 +353,17 @@ struct ProviderCardView: View {
     ) -> some View {
         if let message = SetupSessions.failureMessage(for: account) {
             // P4C/S2B: the warning keeps the whole line and wraps, with the critical ink
-            // carrying the severity now the triangle is gone; "Check now" drops to the
+            // carrying the severity now the triangle is gone; "Check Now" drops to the
             // notice's own action row instead of sitting at the end of the sentence.
             // `indented: false` on purpose — this notice heads a guided Connect card whose
             // own content starts at the card's 13pt edge, so 34 would misalign the pair.
             VStack(alignment: .leading, spacing: 0) {
                 StatusSentence(text: message, severity: .critical, indented: false)
                     .accessibilityLabel("Setup failed. \(message)")
-                CardActionRow {
-                    Button("Check now", action: onCheckNow)
+                // B3X: the sentence above is `indented: false`, so the chip label matches it
+                // at the card's own edge rather than the 34pt axis it never reaches here.
+                CardActionRow(labelInset: 0) {
+                    Button("Check Now", action: onCheckNow)
                         .buttonStyle(SetupChipButtonStyle(size: .small))
                 }
             }
@@ -559,11 +577,17 @@ private struct ProviderSetupRecoveryCard: View {
     let onPrimaryAction: () -> Void
     let onSecondaryAction: (() -> Void)?
 
+    /// B3X: this card carries its own mark column rather than the identity row's, so its
+    /// content axis is its own 18pt mark plus 7pt gap — not `IdentityRowMetrics`' 21.
+    private static let markSlotWidth: CGFloat = 18
+    private static let markGap: CGFloat = 7
+    static let contentInset = markSlotWidth + markGap
+
     var body: some View {
         // P4C/B3: status line first, then one leading action row — the primary first.
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 7) {
-                ProviderLogoView(providerID: providerID, size: 18)
+            HStack(spacing: Self.markGap) {
+                ProviderLogoView(providerID: providerID, size: Self.markSlotWidth)
                 Text(presentation.status)
                     .font(.system(size: 12.5, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
@@ -571,7 +595,8 @@ private struct ProviderSetupRecoveryCard: View {
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Setup needed. \(presentation.status)")
-            CardActionRow {
+            // B3X: the chip labels land under the status text, not under the mark.
+            CardActionRow(labelInset: Self.contentInset) {
                 // B3: the last native control inside a popover card — a `.borderedProminent`
                 // button beside two chips — becomes a chip. One recipe, position carries
                 // primacy.
@@ -598,6 +623,13 @@ struct ProviderCapabilityRecoveryView: View {
         /// B3: one chip recipe everywhere — the thin one. The property survives so the two
         /// placements still read as a deliberate pair rather than an accident.
         var chipSize: SetupChipButtonStyle.Size { .small }
+
+        /// B3H: the same block renders in two rooms. In a popover card the chrome only
+        /// appears on hover, like the footer's Refresh/Quit; in the Settings group it keeps
+        /// its resting container so it matches the bordered controls beside it.
+        var chipChrome: SetupChipButtonStyle.Chrome {
+            self == .cardFoot ? .hover : .resting
+        }
     }
 
     let presentation: CapabilityRecoveryPresentation
@@ -657,7 +689,7 @@ struct ProviderCapabilityRecoveryView: View {
     @ViewBuilder private var primaryButton: some View {
         if presentation.state(for: presentation.recovery.primaryAction) == .enabled {
             Button(presentation.recovery.primaryLabel, action: onPrimaryAction)
-                .buttonStyle(SetupChipButtonStyle(size: placement.chipSize))
+                .buttonStyle(SetupChipButtonStyle(size: placement.chipSize, chrome: placement.chipChrome))
         }
     }
 
@@ -669,7 +701,7 @@ struct ProviderCapabilityRecoveryView: View {
            presentation.state(for: secondaryAction) == .enabled,
            let onSecondaryAction {
             Button(secondaryLabel, action: onSecondaryAction)
-                .buttonStyle(SetupChipButtonStyle(size: placement.chipSize))
+                .buttonStyle(SetupChipButtonStyle(size: placement.chipSize, chrome: placement.chipChrome))
         }
     }
 
@@ -731,7 +763,7 @@ struct StopWaitingButton: View {
     }
 
     @ViewBuilder private var button: some View {
-        let action = Button("Stop waiting") {
+        let action = Button("Stop Waiting") {
             onConfirmationPresented()
             isConfirming = true
         }
@@ -747,13 +779,26 @@ struct StopWaitingButton: View {
 }
 
 /// P4C/B3 (Sep 2026): the one action row every card and account section ends with —
-/// **leading**-aligned at the mark column (13pt from the card edge, flush under the brand
-/// mark), R4A's 12pt under the sentence it answers, 8pt between chips, the primary chip
-/// first because a leading row reads left to right. Messages keep their own line above it,
-/// so nothing sits at the trailing end of a sentence any more.
+/// **leading**-aligned, R4A's 12pt under the sentence it answers, 8pt between chips, the
+/// primary chip first because a leading row reads left to right. Messages keep their own line
+/// above it, so nothing sits at the trailing end of a sentence any more.
+///
+/// B3X (Kyle, Sep 2026): "have it line up with the messages and service title instead of the
+/// icon." B3 aligned the chip's *box* to the mark column; what the eye reads is the chip's
+/// **label**, and B3H just deleted the resting box that made the box edge visible at all. So
+/// the row aligns its first label, not its first frame: it insets itself by `labelInset`
+/// minus the chip's own horizontal padding, which lands the label exactly on `labelInset`.
+/// At the default that is the 34pt content axis (13 card padding + 21) shared by the identity
+/// title, the status sentence and every meter label. The hover pill then overhangs 10pt to
+/// the left, the same way the footer's Refresh/Quit pills overhang their text.
 struct CardActionRow<Content: View>: View {
     /// Only for stacks whose own spacing already supplies part of R4A's 12pt gap.
     var topPadding: CGFloat = 12
+    /// B3X: where the first chip's *label* starts, measured from this row's own leading edge.
+    /// Cards whose sentences sit at their own edge (the guided setup cards, the setup-failure
+    /// notice) pass 0; the inset then goes negative and the pill overhangs into the card's
+    /// 13pt padding, which is the correct trade — the label is what has to agree.
+    var labelInset: CGFloat = IdentityRowMetrics.meterContentInset
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -761,6 +806,10 @@ struct CardActionRow<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Every popover chip is `.small`, so its horizontal padding is the constant to
+        // subtract; wrapped lines inherit it because `ActionChipFlow` starts each line at
+        // `bounds.minX`.
+        .padding(.leading, labelInset - SetupChipButtonStyle.Size.small.horizontalPadding)
         .padding(.top, topPadding)
     }
 }

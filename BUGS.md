@@ -410,3 +410,28 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **The stale and balance spend rows have no fixture outside `--demo spend-states`.** Every
   other scenario ships the same two live rows, so the state tags, wrapping message, and CTA row
   are only reviewable there or against the round-2 options doc.
+
+## Round-3 residuals (2026-09-06, G1A–C6A)
+
+- **Demo mode reads the theme from the swift-run defaults domain, not the isolated suite.**
+  `HeadroomApp.init` builds its `Preferences()` on `.standard`, so `--demo` follows whatever
+  `appearancePreference` a previous `swift run` Settings session wrote to the `Headroom` domain
+  (it was `dark`, which is why flipping the OS appearance never changed a demo capture). Route
+  the App-level appearance read through the same suite `demoMultiAccountStore` uses, or clear
+  the key when demo mode starts.
+- **The Brand account-title ink has no sanctioned visual review path.** The demo's per-launch
+  prefs suite cannot be preset, the `MenuBarExtra` popover is not an accessibility window, and
+  AGENTS.md forbids brute-forcing the menu bar, so `AccountTitleInk.brand` was accepted on
+  code and tests only. Add a `--account-title-ink brand` launch token beside `--meter-style`.
+- **The spend card's action row is far from the row it answers.** P4C collects every CTA at
+  the card foot, so in a four-row spend card "Replace key" sits three rows below the rejected
+  Anthropic line (and past the 640pt scroll cap in `spend-states`). Decide whether spend CTAs
+  belong to the row or the card.
+- **The rejected spend row double-codes severity.** X5 (Kyle) put the "Rejected" tag on the
+  identity line and S2B inks the sentence, so that one row carries both. Drop one once Kyle
+  has seen it live.
+- **`StatusSentenceSeverity` has no `.quiet` / `.neutral` cases**, so `APISpendSectionView`
+  spells the same 11.5-medium sentence recipe out again for its four tones. Add the two cases
+  and fold the spend sentence into `StatusSentence`.
+- **`SetupChipButtonStyle.Size.regular` is unreferenced** after B3 moved every popover chip to
+  `.small`. Delete the case or keep it for a future card-foot primary — decide, don't drift.

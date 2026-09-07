@@ -12,6 +12,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let appearancePreference = "appearancePreference"
         static let showMenuBarPercentage = "showMenuBarPercentage"
         static let usagePercentageMode = "usagePercentageMode"
+        static let accountTitleInk = "accountTitleInk"
         static let meterFormat = "meterFormat"
         static let meterShape = "meterShape"
         static let meterFill = "meterFill"
@@ -65,6 +66,17 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return mode
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.usagePercentageMode) }
+    }
+
+    /// G1A: popover-only, like `meterStyle` — no widget/phone/menu-bar projection reads it.
+    public var accountTitleInk: AccountTitleInk {
+        get {
+            guard let raw = defaults.string(forKey: Key.accountTitleInk),
+                  let ink = AccountTitleInk(rawValue: raw)
+            else { return .neutral }
+            return ink
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.accountTitleInk) }
     }
 
     public var meterFormat: GaugeFormat {

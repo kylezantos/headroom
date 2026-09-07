@@ -100,6 +100,27 @@ public enum UsagePercentageMode: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// How account names are inked in the macOS popover. `.neutral` is the G1A grey — the
+/// title labels its meters instead of competing with them; `.brand` restores the
+/// pre-round-2 per-provider tint (`HeadroomWidgetColorValues.textAccent`) for people who
+/// want the popover colored the way they are used to (G1A, Sep 2026).
+///
+/// Popover-only, exactly like `MeterStyle`: the widgets, the iPhone mirror, and the menu
+/// bar carry no title ink, so no projection reads this preference.
+public enum AccountTitleInk: String, CaseIterable, Identifiable, Sendable {
+    case neutral
+    case brand
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .neutral: return "Neutral"
+        case .brand: return "Brand"
+        }
+    }
+}
+
 /// Per-window provenance for snapshots that mix a fresh provider capture with a
 /// retained model-specific sub-limit. A last-known percentage remains displayable but
 /// must never inherit a newer snapshot timestamp; once its validity window expires it

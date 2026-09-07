@@ -14,12 +14,14 @@ import HeadroomCore
 ///   capability announcements *per provider*, so a preview on a synthetic account id
 ///   would still clear the real Claude entry and make the popover re-announce it.
 ///
-/// The card follows Theme (via the window's color scheme), meter style, and Percentages.
+/// The card follows Theme (via the window's color scheme), meter style, Percentages, and
+/// the account-name ink.
 /// The menu bar strip follows Percentages only: the menu bar projection deliberately
 /// carries no meter style, so pretending otherwise here would be a lie.
 struct AppearanceSpecimen: View {
     let meterStyle: MeterStyle
     let percentageMode: UsagePercentageMode
+    let accountTitleInk: AccountTitleInk
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -119,6 +121,9 @@ struct AppearanceSpecimen: View {
                 onRetryAccount: { _ in },
                 announcesAccessibilityEvents: false
             )
+            // G1A: the specimen is the popover's card, so it reads the ink from the
+            // environment the same way — set here because Settings is not the popover.
+            .environment(\.accountTitleInk, accountTitleInk)
 
             HStack(spacing: 10) {
                 // The label renderer pins its palette dark (white ink + dark severity

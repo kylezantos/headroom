@@ -813,6 +813,16 @@ enum AppComposition {
                 DemoSpendProvider(id: .grok, displayName: "xAI API", snapshot: DemoFixture.xaiBalanceSpend),
                 DemoSpendProvider(id: .cursor, displayName: "Cursor on-demand", snapshot: DemoFixture.cursorOnDemandSpend),
             ]
+        // X5: the retained-figure counterpart — a rejected key that still shows its last
+        // total (so the column and the glyph-less top-up slot hold) beside a retryable stale
+        // row. `spend-states` poses the nil-amount collapse; one row cannot show both.
+        case .spendRetained:
+            [
+                DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpendKeyRejectedRetained),
+                DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpendStaleRetained),
+                DemoSpendProvider(id: .grok, displayName: "xAI API", snapshot: DemoFixture.xaiBalanceSpend),
+                DemoSpendProvider(id: .cursor, displayName: "Cursor on-demand", snapshot: DemoFixture.cursorOnDemandSpend),
+            ]
         default:
             [
                 DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),

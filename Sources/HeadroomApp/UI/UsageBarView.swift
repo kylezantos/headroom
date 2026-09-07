@@ -437,11 +437,11 @@ struct UsageBarView: View {
             .font(.system(size: 10.5, weight: .semibold))
             .kerning(0.2)
             .foregroundStyle(ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(
-                ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme).opacity(0.16),
-                in: Capsule()
+            // C6A: was 15pt from vPad 1 — one shared 18pt capsule now, so it reads as a peer
+            // of the plan pill and Stale tag rather than a second, shorter tier.
+            .identityCapsule(
+                fill: ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme).opacity(0.16),
+                horizontalPadding: 5
             )
     }
 

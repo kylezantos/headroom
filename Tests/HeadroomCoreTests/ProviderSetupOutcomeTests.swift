@@ -14,12 +14,12 @@ import Testing
         let presentation = ProviderCapabilityState.confirmedAbsent.recoveryPresentation
         #expect(presentation?.primaryAction == .installClaudeCLI)
         #expect(presentation?.secondaryAction == .checkNow)
-        #expect(presentation?.secondaryLabel == "Check Again")
+        #expect(presentation?.secondaryLabel == "Check again")
 
         let outcome = ProviderSetupOutcome.claudeCLIMissing.recoveryPresentation
         #expect(outcome.primaryAction == .installClaudeCLI)
         #expect(outcome.secondaryAction == .checkNow)
-        #expect(outcome.secondaryLabel == "Check Again")
+        #expect(outcome.secondaryLabel == "Check again")
     }
 
     // AE7/R7: incomplete discovery keeps the retry-oriented message and never claims
@@ -28,7 +28,7 @@ import Testing
         for issue in [CLIExecutableDiscoveryIssue.shellTimeout, .npmPrefixUnresolved] {
             let presentation = ProviderCapabilityState.inconclusive(issue).recoveryPresentation
             #expect(presentation?.primaryAction == .checkNow)
-            #expect(presentation?.primaryLabel == "Check Again")
+            #expect(presentation?.primaryLabel == "Check again")
             #expect(presentation?.secondaryAction == .openClaudeSetup)
             #expect(presentation?.status != ProviderCapabilityState.confirmedAbsent.recoveryPresentation?.status)
             #expect(presentation?.status.localizedCaseInsensitiveContains("install") == false)

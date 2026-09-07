@@ -83,14 +83,18 @@ public enum HeadroomWidgetColorValues {
         dark ? HeadroomTint(color: darkNeutral, opacity: 0.56) : HeadroomTint(color: lightNeutral, opacity: 0.74)
     }
 
-    // T1A (Sep 2026): the account title's ink, taken from Kyle's Paper mock. A cool grey that
-    // sits *below* the countdown in the hierarchy on purpose — the numeral carries the value,
-    // the title only names the account. Dark is the measured #68707A (2.7:1 on the card, a
-    // deliberate de-emphasis); light is the derived #6B7280 (4.8:1 on the light card).
+    // G1A (Sep 2026): the account title's ink — a cool grey that sits *below* the countdown
+    // in the hierarchy on purpose (the numeral carries the value, the title only names the
+    // account). T1A's grey read as too recessive in the live build, so this step lightens
+    // dark to #7B838D: still a deliberate de-emphasis under the 4.5:1 body-text floor, but
+    // now it closes roughly half the contrast gap up to the 11.5pt status sentence instead
+    // of the whole gap. Light #5F6771 is *derived*, not measured — the dark step mirrored
+    // across the card (darker rather than lighter, because the light card inverts which
+    // direction "more legible" runs), so neither scheme recedes further than the other.
     public static func accountTitle(dark: Bool) -> HeadroomTint {
         dark
-            ? HeadroomTint(color: HeadroomRGBColor(red: 104 / 255, green: 112 / 255, blue: 121 / 255), opacity: 1)
-            : HeadroomTint(color: HeadroomRGBColor(red: 107 / 255, green: 114 / 255, blue: 128 / 255), opacity: 1)
+            ? HeadroomTint(color: HeadroomRGBColor(red: 123 / 255, green: 131 / 255, blue: 141 / 255), opacity: 1)
+            : HeadroomTint(color: HeadroomRGBColor(red: 95 / 255, green: 103 / 255, blue: 113 / 255), opacity: 1)
     }
 
     public static func barTrack(dark: Bool) -> HeadroomTint {

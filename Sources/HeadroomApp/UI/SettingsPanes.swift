@@ -129,6 +129,7 @@ struct AppearanceSettingsPane: View {
     @Binding var appearancePreference: AppearancePreference
     @Binding var meterStyle: MeterStyle
     @Binding var usagePercentageMode: UsagePercentageMode
+    @Binding var accountTitleInk: AccountTitleInk
     @Binding var showCodexSparkCountersInApp: Bool
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
@@ -139,7 +140,8 @@ struct AppearanceSettingsPane: View {
             // the subject of the pane, not another setting.
             AppearanceSpecimen(
                 meterStyle: meterStyle,
-                percentageMode: usagePercentageMode
+                percentageMode: usagePercentageMode,
+                accountTitleInk: accountTitleInk
             )
 
             SettingsTile("Theme") {
@@ -174,6 +176,24 @@ struct AppearanceSettingsPane: View {
                         }
                     }
                     SettingsHelpText(text: "Changes the numbers, words, and meter direction in the app and menu bar.")
+                }
+                // G1A: the popover's account names read as a recessive grey by default;
+                // Brand puts them back in each provider's color for people who want it.
+                VStack(alignment: .leading, spacing: 4) {
+                    ResponsiveControlRow(label: "Account names") {
+                        Picker("Account names", selection: $accountTitleInk) {
+                            ForEach(AccountTitleInk.allCases) { ink in
+                                Text(ink.label).tag(ink)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .labelsHidden()
+                        .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
+                        .onChange(of: accountTitleInk) { _, newValue in
+                            store.setAccountTitleInk(newValue)
+                        }
+                    }
+                    SettingsHelpText(text: "Brand colors each account name in its provider's color.")
                 }
                 Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
                     .onChange(of: showCodexSparkCountersInApp) { _, newValue in

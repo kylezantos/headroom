@@ -6,9 +6,9 @@ public extension ProviderCapabilityState {
         case .inconclusive:
             .init(
                 status: "Couldn't confirm where Claude Code is — will retry",
-                primaryLabel: "Check Again",
+                primaryLabel: "Check again",
                 primaryAction: .checkNow,
-                secondaryLabel: "Open Guided Setup",
+                secondaryLabel: "Open guided setup",
                 secondaryAction: .openClaudeSetup
             )
         case .confirmedAbsent:
@@ -18,7 +18,7 @@ public extension ProviderCapabilityState {
                 primaryAction: .installClaudeCLI,
                 // R7: a confirmed-absent CLI has no manual command to copy; the only
                 // useful second action is a fresh forced discovery search.
-                secondaryLabel: "Check Again",
+                secondaryLabel: "Check again",
                 secondaryAction: .checkNow
             )
         }

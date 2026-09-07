@@ -74,7 +74,9 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .multiTwo).accounts.count == 3)   // 2 Claude + 1 Codex
         #expect(DemoFixture.multiFixture(for: .multiThree).accounts.count == 5)
         #expect(DemoFixture.multiFixture(for: .multiFive).accounts.count == 8)  // 5 Claude + 3 Codex (past the cap for scroll)
-        #expect(DemoFixture.multiFixture(for: .multiMixed).accounts.count == 4)
+        // S2B/B3: 3 Claude + 1 Codex — the third Claude row poses the typed
+        // `.claudeLoginRequired` outcome, the only state with a two-chip action row.
+        #expect(DemoFixture.multiFixture(for: .multiMixed).accounts.count == 5)
         #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.count == 4)  // one built-in per provider
         #expect(DemoFixture.multiFixture(for: .fourDefault).accounts.count == 4)
         #expect(DemoFixture.multiFixture(for: .duplicateLabels).accounts.count == 4)

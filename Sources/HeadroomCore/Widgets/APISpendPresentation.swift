@@ -121,6 +121,12 @@ public struct APISpendRowStatus: Sendable, Equatable {
     }
 
     public let badge: String?
+    /// X5 (Kyle): the same state, short enough to stand on the identity line where the
+    /// period chip stands. The macOS popover puts the tag beside the title — a billing
+    /// period is meaningless once the figure is stale or absent — and the measured 320pt
+    /// line cannot hold "Needs setup" or "Key lacks access". Every other surface (widgets,
+    /// phone mirror, VoiceOver) keeps the full `badge`.
+    public let shortBadge: String?
     public let tone: Tone
     public let message: String?
     /// Title for the button that opens Settings → API Spend; nil renders no button.
@@ -132,6 +138,7 @@ public struct APISpendRowStatus: Sendable, Equatable {
 
     public init(
         badge: String?,
+        shortBadge: String? = nil,
         tone: Tone,
         message: String?,
         callToAction: String?,
@@ -139,6 +146,7 @@ public struct APISpendRowStatus: Sendable, Equatable {
         keyNeedsAttention: Bool = false
     ) {
         self.badge = badge
+        self.shortBadge = shortBadge
         self.tone = tone
         self.message = message
         self.callToAction = callToAction
@@ -256,6 +264,7 @@ public enum APISpendPresentation {
         case .missingKey:
             APISpendRowStatus(
                 badge: "Needs setup",
+                shortBadge: "Setup",
                 tone: .warning,
                 message: "Add \(credential.credentialNoun) to see \(vendor) spend",
                 callToAction: "Add key",
@@ -265,6 +274,7 @@ public enum APISpendPresentation {
         case .keyRejected:
             APISpendRowStatus(
                 badge: "Key rejected",
+                shortBadge: "Rejected",
                 tone: .critical,
                 message: "\(vendor) didn't accept the saved \(credential.noun)",
                 callToAction: "Replace key",
@@ -274,6 +284,7 @@ public enum APISpendPresentation {
         case .keyLacksAccess:
             APISpendRowStatus(
                 badge: "Key lacks access",
+                shortBadge: "Denied",
                 tone: .warning,
                 message: "Key can't read \(credential.reportNoun)",
                 callToAction: "Fix key",
@@ -283,6 +294,7 @@ public enum APISpendPresentation {
         case .setupRequired:
             APISpendRowStatus(
                 badge: "Needs setup",
+                shortBadge: "Setup",
                 tone: .warning,
                 message: sourceMessage,
                 callToAction: "Add key",
@@ -291,6 +303,7 @@ public enum APISpendPresentation {
         case .retryable:
             APISpendRowStatus(
                 badge: "Stale",
+                shortBadge: "Stale",
                 tone: .neutral,
                 message: sourceMessage,
                 callToAction: "Add key",
@@ -335,6 +348,36 @@ public enum APISpendPresentation {
     public static func amountText(_ summary: WidgetAPISpendSummary) -> String? {
         guard let amount = amountText(amount: summary.amount, currency: summary.currency) else { return nil }
         return summary.semanticKind == .balance ? "\(amount) left" : amount
+    }
+
+    /// The macOS popover's own name/chip split for a spend row's identity line. Core's
+    /// `displayName` is the wire name ("Cursor on-demand"), and X5 measured it clipping the
+    /// 320pt identity line by 35pt — so the popover renders the vendor as the title and
+    /// moves the trailing qualifier into the chip slot the period would occupy. The rule is
+    /// derived rather than a per-provider table: a final word that starts lowercase is a
+    /// qualifier ("on-demand"), while an initialism stays part of the name ("Anthropic API",
+    /// "xAI API"). `displayName` itself is untouched, so widgets and the phone mirror keep
+    /// the full string.
+    public struct PopoverIdentity: Sendable, Equatable {
+        public let title: String
+        /// Replaces the period chip's label, or nil when the name carried no qualifier.
+        public let chipOverride: String?
+    }
+
+    public static func popoverIdentity(displayName: String) -> PopoverIdentity {
+        let trimmed = displayName.trimmingCharacters(in: .whitespaces)
+        guard let separator = trimmed.lastIndex(of: " ") else {
+            return PopoverIdentity(title: trimmed, chipOverride: nil)
+        }
+        let qualifier = String(trimmed[trimmed.index(after: separator)...])
+        let title = String(trimmed[..<separator]).trimmingCharacters(in: .whitespaces)
+        guard let first = qualifier.first, first.isLowercase, !title.isEmpty else {
+            return PopoverIdentity(title: trimmed, chipOverride: nil)
+        }
+        return PopoverIdentity(
+            title: title,
+            chipOverride: first.uppercased() + String(qualifier.dropFirst())
+        )
     }
 
     public static func contextLabel(kind: APISpendKind, periodLabel: String) -> String {

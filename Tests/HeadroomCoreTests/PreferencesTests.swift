@@ -73,6 +73,18 @@ struct PreferencesTests {
         #expect(prefs.usagePercentageMode == .remaining)
     }
 
+    @Test func accountTitleInkDefaultsPersistsAndIgnoresUnknownValues() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.accountTitleInk == .neutral)
+
+        prefs.accountTitleInk = .brand
+        #expect(prefs.accountTitleInk == .brand)
+
+        defaults.set("tinted", forKey: "accountTitleInk")
+        #expect(prefs.accountTitleInk == .neutral)
+    }
+
     @Test func meterStyleComponentsDefaultPersistAndIgnoreUnknownValuesIndependently() {
         let defaults = freshDefaults()
         let prefs = Preferences(defaults: defaults)

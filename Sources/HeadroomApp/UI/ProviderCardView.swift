@@ -76,7 +76,6 @@ struct ProviderCardView: View {
     var announcesAccessibilityEvents: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var scheme
     @State private var showsConnectedChip = false
 
     private var isMultiAccount: Bool { entries.count > 1 }
@@ -190,13 +189,13 @@ struct ProviderCardView: View {
     }
 
     private var singleAccountBody: some View {
-        // P4C: the card's actions end in one trailing row, and `CardActionRow` owns the 8pt
+        // P4C: the card's actions end in one leading row, and `CardActionRow` owns R4A's 12pt
         // above it — so this stack no longer spaces its own children.
         VStack(alignment: .leading, spacing: 0) {
             singleAccountContent
             if let activeSetupAccount {
                 CardActionRow {
-                    StopWaitingButton(account: activeSetupAccount, style: .chip(.regular))
+                    StopWaitingButton(account: activeSetupAccount, style: .chip(.small))
                 }
             }
         }
@@ -315,7 +314,9 @@ struct ProviderCardView: View {
                 }
             )
         } else {
-            VStack(alignment: .leading, spacing: 7) {
+            // R4A: 6, in step with `AccountSectionView`'s identity→body gap — one grouping
+            // rhythm whether the card carries one account or several.
+            VStack(alignment: .leading, spacing: 6) {
                 accountIdentityRow(for: primaryEntry)
                 content
             }
@@ -335,18 +336,17 @@ struct ProviderCardView: View {
         onCheckNow: @escaping () -> Void
     ) -> some View {
         if let message = SetupSessions.failureMessage(for: account) {
-            // P4C: the warning keeps the whole line and wraps; "Check now" drops to the
+            // P4C/S2B: the warning keeps the whole line and wraps, with the critical ink
+            // carrying the severity now the triangle is gone; "Check now" drops to the
             // notice's own action row instead of sitting at the end of the sentence.
+            // `indented: false` on purpose — this notice heads a guided Connect card whose
+            // own content starts at the card's 13pt edge, so 34 would misalign the pair.
             VStack(alignment: .leading, spacing: 0) {
-                Label(message, systemImage: "exclamationmark.triangle.fill")
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityElement(children: .combine)
+                StatusSentence(text: message, severity: .critical, indented: false)
                     .accessibilityLabel("Setup failed. \(message)")
                 CardActionRow {
                     Button("Check now", action: onCheckNow)
-                        .buttonStyle(SetupChipButtonStyle())
+                        .buttonStyle(SetupChipButtonStyle(size: .small))
                 }
             }
         }
@@ -527,12 +527,16 @@ struct ProviderCardView: View {
     /// Permanent failure the user can fix (UI-05) that is not one of the guided setup
     /// states: message + compact copyable command.
     @ViewBuilder private func actionable(_ reason: FailureReason) -> some View {
+        // S2B: the triangle goes; the sentence's attention ink is the whole signal, and it
+        // starts on the 34pt content axis with the meters and command row below it.
         VStack(alignment: .leading, spacing: 8) {
-            Label(reason.message, systemImage: "exclamationmark.triangle.fill")
-                .font(.caption)
-                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
+            StatusSentence(
+                text: reason.message,
+                severity: .forSetupOutcome(reason.providerSetupOutcome)
+            )
             if let command = recoveryCommand {
                 CommandRecoveryRow(command: command)
+                    .padding(.leading, IdentityRowMetrics.meterContentInset)
             }
         }
     }
@@ -556,7 +560,7 @@ private struct ProviderSetupRecoveryCard: View {
     let onSecondaryAction: (() -> Void)?
 
     var body: some View {
-        // P4C: status line first, then one trailing action row — the primary trailing-most.
+        // P4C/B3: status line first, then one leading action row — the primary first.
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 7) {
                 ProviderLogoView(providerID: providerID, size: 18)
@@ -568,13 +572,16 @@ private struct ProviderSetupRecoveryCard: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel("Setup needed. \(presentation.status)")
             CardActionRow {
+                // B3: the last native control inside a popover card — a `.borderedProminent`
+                // button beside two chips — becomes a chip. One recipe, position carries
+                // primacy.
+                Button(presentation.primaryLabel, action: onPrimaryAction)
+                    .buttonStyle(SetupChipButtonStyle(size: .small))
                 if let secondaryLabel = presentation.secondaryLabel,
                    let onSecondaryAction {
                     Button(secondaryLabel, action: onSecondaryAction)
-                        .buttonStyle(SetupChipButtonStyle())
+                        .buttonStyle(SetupChipButtonStyle(size: .small))
                 }
-                Button(presentation.primaryLabel, action: onPrimaryAction)
-                    .buttonStyle(.borderedProminent)
             }
         }
     }
@@ -588,7 +595,9 @@ struct ProviderCapabilityRecoveryView: View {
         case cardFoot
         case settingsGroup
 
-        var chipSize: SetupChipButtonStyle.Size { self == .cardFoot ? .regular : .small }
+        /// B3: one chip recipe everywhere — the thin one. The property survives so the two
+        /// placements still read as a deliberate pair rather than an accident.
+        var chipSize: SetupChipButtonStyle.Size { .small }
     }
 
     let presentation: CapabilityRecoveryPresentation
@@ -598,19 +607,19 @@ struct ProviderCapabilityRecoveryView: View {
     let onSecondaryAction: (() -> Void)?
 
     var body: some View {
-        // P4C: three button languages used to share one leading row. Every message keeps its
-        // own line now and, at a card foot, all three actions collect in one trailing row
-        // ending level with the identity row above (21pt content inset), primary last.
+        // P4C/B3: three button languages used to share one row at three sizes. Every message
+        // keeps its own line now and, at a card foot, all three actions collect in one
+        // leading row starting at the mark column, primary first — the same order the
+        // Settings group already used.
         VStack(alignment: .leading, spacing: 0) {
             messages
             switch placement {
             case .cardFoot:
                 CardActionRow {
+                    primaryButton
                     secondaryButton
                     stopWaitingButton
-                    primaryButton
                 }
-                .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
             case .settingsGroup:
                 HStack(spacing: 8) {
                     primaryButton
@@ -622,20 +631,25 @@ struct ProviderCapabilityRecoveryView: View {
         }
     }
 
+    /// S2B: the triangle is gone from both lines. A missing or unconfirmed CLI is an
+    /// attention state, and so is a handoff standing in the way of the retry — the same
+    /// "Close setup, then retry" sentence an account row shows, so it takes the same ink.
+    /// Indented only at a card foot, where an identity row sets the 34pt axis above it.
     private var messages: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(presentation.recovery.status, systemImage: "exclamationmark.triangle.fill")
-                .font(.system(size: 11.5))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("Claude Code availability. \(presentation.recovery.status)")
+            StatusSentence(
+                text: presentation.recovery.status,
+                severity: .attention,
+                indented: placement == .cardFoot
+            )
+            .accessibilityLabel("Claude Code availability. \(presentation.recovery.status)")
             if let refusalMessage {
-                Text(refusalMessage)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(refusalMessage)
+                StatusSentence(
+                    text: refusalMessage,
+                    severity: .attention,
+                    indented: placement == .cardFoot
+                )
+                .accessibilityLabel(refusalMessage)
             }
         }
     }
@@ -663,7 +677,7 @@ struct ProviderCapabilityRecoveryView: View {
         if let stopWaitingAccount {
             StopWaitingButton(
                 account: stopWaitingAccount,
-                style: placement == .cardFoot ? .chip(.regular) : .bordered
+                style: placement == .cardFoot ? .chip(.small) : .bordered
             )
         }
     }
@@ -732,21 +746,87 @@ struct StopWaitingButton: View {
     }
 }
 
-/// P4C (Sep 2026): the one action row every card and account section ends with —
-/// trailing-aligned, 8pt under the message it answers, 8pt between chips, the primary chip
-/// trailing-most. Messages keep their own line above it, so nothing sits at the trailing end
-/// of a sentence any more.
+/// P4C/B3 (Sep 2026): the one action row every card and account section ends with —
+/// **leading**-aligned at the mark column (13pt from the card edge, flush under the brand
+/// mark), R4A's 12pt under the sentence it answers, 8pt between chips, the primary chip
+/// first because a leading row reads left to right. Messages keep their own line above it,
+/// so nothing sits at the trailing end of a sentence any more.
 struct CardActionRow<Content: View>: View {
-    /// Only for stacks whose own spacing already supplies the 8pt gap.
-    var topPadding: CGFloat = 8
+    /// Only for stacks whose own spacing already supplies part of R4A's 12pt gap.
+    var topPadding: CGFloat = 12
     @ViewBuilder let content: Content
 
     var body: some View {
-        HStack(spacing: 8) {
-            Spacer(minLength: 0)
+        ActionChipFlow(spacing: 8, lineSpacing: 8) {
             content
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, topPadding)
+    }
+}
+
+/// B3: a row that runs out of width wraps to a second leading-aligned line rather than
+/// shrinking a chip or truncating a label — so every subview is measured at its ideal size
+/// and a line break is the only thing that gives. Three chips only co-occur while a handoff
+/// is open (`StopWaitingButton`), so the second line is the exception, not the resting state.
+struct ActionChipFlow: Layout {
+    var spacing: CGFloat = 8
+    var lineSpacing: CGFloat = 8
+
+    struct Line {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) -> CGSize {
+        let lines = lines(subviews: subviews, maxWidth: proposal.width ?? .infinity)
+        let width = lines.map(\.width).max() ?? 0
+        let height = lines.map(\.height).reduce(0, +)
+            + lineSpacing * CGFloat(max(0, lines.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout Void
+    ) {
+        var y = bounds.minY
+        for line in lines(subviews: subviews, maxWidth: bounds.width) {
+            var x = bounds.minX
+            for index in line.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (line.height - size.height) / 2),
+                    proposal: ProposedViewSize(size)
+                )
+                x += size.width + spacing
+            }
+            y += line.height + lineSpacing
+        }
+    }
+
+    private func lines(subviews: Subviews, maxWidth: CGFloat) -> [Line] {
+        var lines: [Line] = []
+        var current = Line()
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            let extended = current.indices.isEmpty
+                ? size.width
+                : current.width + spacing + size.width
+            if !current.indices.isEmpty, extended > maxWidth {
+                lines.append(current)
+                current = Line(indices: [index], width: size.width, height: size.height)
+            } else {
+                current.indices.append(index)
+                current.width = extended
+                current.height = max(current.height, size.height)
+            }
+        }
+        if !current.indices.isEmpty { lines.append(current) }
+        return lines
     }
 }
 

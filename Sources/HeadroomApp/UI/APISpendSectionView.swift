@@ -57,6 +57,9 @@ struct APISpendSectionView: View {
     private struct SpendRowModel: Identifiable {
         let snapshot: APISpendSnapshot
         let status: APISpendRowStatus
+        /// The popover's own title (X5): Core's `displayName` minus any trailing qualifier
+        /// that the chip now carries.
+        let title: String
         let contextLabel: String
         let amount: String?
 
@@ -66,6 +69,11 @@ struct APISpendSectionView: View {
 
     private func rowModel(for id: ProviderID) -> SpendRowModel {
         let snapshot = store.apiSpendSnapshot(for: id)
+        let identity = APISpendPresentation.popoverIdentity(displayName: snapshot.displayName)
+        let context = APISpendPresentation.contextLabel(
+            kind: snapshot.kind,
+            periodLabel: store.apiSpendPeriod.displayLabel(now: now)
+        )
         // Badge, sub-line and button title all come from one Core decision, so a rejected
         // key can no longer be badged "Needs setup" next to an "Add key" button.
         return SpendRowModel(
@@ -75,10 +83,10 @@ struct APISpendSectionView: View {
                 providerID: snapshot.providerID,
                 displayName: snapshot.displayName
             ),
-            contextLabel: APISpendPresentation.contextLabel(
-                kind: snapshot.kind,
-                periodLabel: store.apiSpendPeriod.displayLabel(now: now)
-            ),
+            title: identity.title,
+            // X5: a balance row's "Remaining balance" outranks the name's qualifier — it is
+            // the one thing that explains what the figure beside it means.
+            contextLabel: snapshot.kind == .balance ? context : (identity.chipOverride ?? context),
             amount: APISpendPresentation.amountText(amount: snapshot.amount, currency: snapshot.currency)
         )
     }
@@ -87,23 +95,31 @@ struct APISpendSectionView: View {
 
     @ViewBuilder private func spendRow(_ model: SpendRowModel) -> some View {
         let snapshot = model.snapshot
-        // S5A: the state line sits where an account's meters sit — indented to the content
-        // axis, one identity-to-meters gap below the name — so a stale spend row and a stale
-        // account row have the same silhouette.
-        VStack(alignment: .leading, spacing: 7) {
+        // S5A: the sentence sits where an account's meters sit — indented to the content
+        // axis, below the name — so a stale spend row and a stale account row have the same
+        // silhouette. R4A sets the rhythm: 6 inside the group (title → sentence), 12 outside
+        // it (sentence → action row, from `CardActionRow`), 13 to the card edge.
+        VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: Self.topUpGap) {
                 identityLine(model)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(accessibilityLabel(model))
-                topUpSlot(snapshot)
+                // X5 (Kyle): with no figure there is nothing to reserve. The amount column
+                // and the top-up slot collapse together rather than leaving 112pt of
+                // reserved-and-empty line to the right of the title.
+                if model.amount != nil {
+                    topUpSlot(model)
+                }
             }
             // The live "Updated N min ago" sub-line is dropped — the popover header
             // already carries one consolidated stamp. Non-live states keep their
             // status line because it carries information the header does not (U2).
-            if snapshot.freshness != .live {
-                statusLine(model.status)
+            if snapshot.freshness != .live, let message = model.status.message {
+                sentence(message, tone: model.status.tone)
+                    // X5 (Kyle): leading on the content axis, trailing inset 0 — the
+                    // sentence runs to 13pt from the card edge, so it wraps on measure
+                    // instead of tearing at 155pt.
                     .padding(.leading, IdentityRowMetrics.meterContentInset)
-                    .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
                     .accessibilityHidden(true)
                     // M4A: freshness is a colour-and-presence change, so the line fades in
                     // and out rather than sliding.
@@ -121,19 +137,30 @@ struct APISpendSectionView: View {
     private func identityLine(_ model: SpendRowModel) -> some View {
         HStack(spacing: IdentityRowMetrics.spacing) {
             ProviderLogoView(providerID: model.snapshot.providerID, size: IdentityRowMetrics.markSlotWidth)
-            Text(model.snapshot.displayName)
-                .font(.system(size: 15, weight: .medium))
+            Text(model.title)
+                // G1: semibold, matching the account titles above.
+                .font(.system(size: 15, weight: .semibold))
                 .kerning(-0.15)
-                .foregroundStyle(ProviderStyle.accountTitleInk(scheme: scheme))
+                // G1: the same neutral-or-brand ink preference the account titles read.
+                .accountTitleInk(for: model.snapshot.providerID)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .layoutPriority(1)
-            periodChip(model.contextLabel)
+            // X5 (Kyle): the state tag stands exactly where the period chip stands, in line
+            // with the title it belongs to — a billing period is meaningless once the figure
+            // is stale or absent. Live and pending rows keep the chip and carry no tag.
+            if let shortBadge = model.status.shortBadge {
+                stateTag(shortBadge, tone: model.status.tone)
+            } else {
+                periodChip(model.contextLabel)
+            }
             Spacer(minLength: 6)
-            amountColumn(model)
-                // S5A (Kyle): the amount never gives up width and never drops to a second
-                // line — at the popover's 299pt content width the chip truncates first.
-                .layoutPriority(2)
+            if model.amount != nil {
+                amountColumn(model)
+                    // S5A (Kyle): the amount never gives up width and never drops to a second
+                    // line — at the popover's 299pt content width the chip truncates first.
+                    .layoutPriority(2)
+            }
         }
     }
 
@@ -144,13 +171,11 @@ struct APISpendSectionView: View {
             .font(.system(size: 9.5, weight: .medium))
             .foregroundStyle(.tertiary)
             .lineLimit(1)
-            .truncationMode(.tail)
-            .padding(.horizontal, 5)
-            // T1A: the plan pill's vertical padding, so both chips are ~16pt tall.
-            .padding(.vertical, 3)
-            .background(
-                ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
-                in: Capsule()
+            // C6A: the shared identity-line capsule, so the period chip and the state tag
+            // that stands in for it are the same object at the same height.
+            .identityCapsule(
+                fill: ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
+                horizontalPadding: 5
             )
     }
 
@@ -179,8 +204,13 @@ struct APISpendSectionView: View {
     /// Quiet escape hatch to top up: opens the provider's billing page (the screen with the
     /// actual "Buy credits" control) — we never run the purchase ourselves. Bare glyph per
     /// the popover's control language; B3A keeps `HoverButtonStyle` for glyph controls.
-    @ViewBuilder private func topUpSlot(_ snapshot: APISpendSnapshot) -> some View {
-        if let url = APISpendPresentation.addCreditsURL(for: snapshot.providerID) {
+    @ViewBuilder private func topUpSlot(_ model: SpendRowModel) -> some View {
+        let snapshot = model.snapshot
+        // X5 (Kyle): a rejected or unscoped key has no balance to top up, so the glyph goes —
+        // but the 18pt slot stays reserved, which is what keeps a retained amount on the same
+        // right edge as the live ones (Cursor's URL-less row already proves the empty slot).
+        let offersTopUp = snapshot.freshness == .live || !model.status.keyNeedsAttention
+        if let url = APISpendPresentation.addCreditsURL(for: snapshot.providerID), offersTopUp {
             Button {
                 NSWorkspace.shared.open(url)
             } label: {
@@ -203,44 +233,52 @@ struct APISpendSectionView: View {
 
     // MARK: - State line
 
-    @ViewBuilder private func statusLine(_ status: APISpendRowStatus) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            if let badge = status.badge {
-                stateTag(badge, tone: status.tone)
-            }
-            if let message = status.message {
-                Text(message)
-                    .font(.caption2)
-                    .foregroundStyle(status.tone == .quiet ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.secondary))
-                    // S5A: the message wraps instead of truncating — a clipped instruction
-                    // is worse than a second line.
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    /// S2B: colour does the work. No glyph, and no tag at the head of the line — the tag has
+    /// moved up to the identity line, and the sentence carries its own severity in ink. Same
+    /// recipe as the account rows' `StatusSentence`; it is spelled out here rather than
+    /// reused because two of the four spend tones (`.quiet`'s first-run line, `.neutral`'s
+    /// retryable staleness) are hierarchical inks that `StatusSentenceSeverity` has no case
+    /// for. The two that do overlap read their ink from that one table.
+    private func sentence(_ message: String, tone: APISpendRowStatus.Tone) -> some View {
+        Text(message)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(sentenceInk(tone))
+            // S5A: the message wraps instead of truncating — a clipped instruction is worse
+            // than a second line.
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sentenceInk(_ tone: APISpendRowStatus.Tone) -> AnyShapeStyle {
+        switch tone {
+        case .quiet:
+            AnyShapeStyle(.tertiary)
+        case .neutral:
+            AnyShapeStyle(.secondary)
+        case .warning:
+            AnyShapeStyle(StatusSentenceSeverity.attention.ink(scheme: scheme))
+        case .critical:
+            AnyShapeStyle(StatusSentenceSeverity.critical.ink(scheme: scheme))
         }
     }
 
     /// S5A: every tag in the popover is a capsule, so these are too. Neutral and quiet take
     /// the identity row's "Stale" recipe; warning and critical take the meter's "Low" chip
-    /// recipe, tinted by the tone's own text ink.
-    @ViewBuilder private func stateTag(_ badge: String, tone: APISpendRowStatus.Tone) -> some View {
-        switch tone {
-        case .quiet, .neutral:
-            Text(badge)
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(Color.secondary.opacity(0.18), in: Capsule())
-        case .warning, .critical:
-            let ink = badgeColor(tone)
-            Text(badge)
-                .font(.system(size: 10.5, weight: .semibold))
-                .kerning(0.2)
-                .foregroundStyle(ink)
-                .padding(.horizontal, 5)
-                .padding(.vertical, 1)
-                .background(ink.opacity(0.16), in: Capsule())
-        }
+    /// recipe, tinted by the tone's own text ink. C6A fixes the height for all four.
+    private func stateTag(_ badge: String, tone: APISpendRowStatus.Tone) -> some View {
+        let ink = badgeColor(tone)
+        return Text(badge)
+            .font(.system(size: 10.5, weight: .semibold))
+            .kerning(0.2)
+            .foregroundStyle(ink)
+            .lineLimit(1)
+            // C6A: the same shared capsule as the period chip it stands in for.
+            .identityCapsule(
+                fill: tone == .quiet || tone == .neutral
+                    ? Color.secondary.opacity(0.18)
+                    : ink.opacity(0.16),
+                horizontalPadding: 5
+            )
     }
 
     private func badgeColor(_ tone: APISpendRowStatus.Tone) -> Color {
@@ -257,24 +295,23 @@ struct APISpendSectionView: View {
 
     // MARK: - Card foot (P4C)
 
-    /// P4C: every action the card offers collects in one trailing-aligned row at the bottom
-    /// of the card, 8pt below the last row and 8pt apart, instead of hanging off the end of
-    /// a row's sentence. B3A's regular chip is the card-foot size.
+    /// P4C: every action the card offers collects in one row at the bottom of the card
+    /// instead of hanging off the end of a row's sentence. B3 (Kyle): the shared
+    /// `CardActionRow` owns the alignment and the gap above it, and the chips are `.small`
+    /// like every other card foot.
     @ViewBuilder private func actionRow(_ models: [SpendRowModel]) -> some View {
         let actionable = models.filter { $0.showsCTA && $0.status.callToAction != nil }
         if !actionable.isEmpty {
             let counts = actionable.reduce(into: [String: Int]()) { counts, model in
                 counts[model.status.callToAction ?? "", default: 0] += 1
             }
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
+            CardActionRow {
                 ForEach(actionable) { model in
                     let cta = model.status.callToAction ?? ""
                     Button(counts[cta, default: 0] > 1 ? qualified(cta, for: model) : cta, action: onOpenSettings)
-                        .buttonStyle(SetupChipButtonStyle(size: .regular))
+                        .buttonStyle(SetupChipButtonStyle(size: .small))
                 }
             }
-            .padding(.top, 8)
         }
     }
 

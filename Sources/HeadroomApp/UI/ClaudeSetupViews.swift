@@ -406,16 +406,15 @@ struct ClaudeWaitingCard: View {
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
                 .padding(.top, 11)
             }
-            // B3A/P4C: "Reopen Terminal" was a bare accent label standing next to a filled
-            // chip. Both are chips now, trailing-aligned at the card's foot with "Check now"
-            // — the action the waiting state is really about — last.
+            // B3A/P4C/B3: "Reopen Terminal" was a bare accent label standing next to a filled
+            // chip. Both are thin chips now, leading-aligned at the card's foot with
+            // "Check now" — the action the waiting state is really about — first, and no
+            // icon inside either one.
             CardActionRow {
+                Button("Check now", action: onCheckNow)
+                    .buttonStyle(SetupChipButtonStyle(size: .small))
                 Button("Reopen Terminal", action: onReopen)
-                    .buttonStyle(SetupChipButtonStyle())
-                Button(action: onCheckNow) {
-                    Label("Check now", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(SetupChipButtonStyle())
+                    .buttonStyle(SetupChipButtonStyle(size: .small))
             }
             ClaudeManualCommandDisclosure()
                 .padding(.top, 13)

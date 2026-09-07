@@ -1026,6 +1026,39 @@ struct UsageStoreTests {
         #expect(store.menuBarSummary.severity == severity)
     }
 
+    /// G1A: popover-only, so the store mirrors the choice and writes it back without
+    /// touching any projection — and a repeat set is a no-op.
+    @Test func accountTitleInkSeedsPersistsAndNoOpsWhenUnchanged() {
+        let preferences = freshPreferences()
+        preferences.accountTitleInk = .brand
+        let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyWidgetExporter()
+        let store = UsageStore(
+            providers: [
+                StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            ],
+            preferences: preferences,
+            widgetExporter: exporter,
+            phoneSyncExporter: phoneExporter
+        )
+
+        #expect(store.accountTitleInk == .brand)
+
+        store.setAccountTitleInk(.neutral)
+        #expect(store.accountTitleInk == .neutral)
+        #expect(preferences.accountTitleInk == .neutral)
+
+        // Proof the repeat set really short-circuits: nudge the stored value behind the
+        // store's back, then re-set the value the store already holds. A guard-less
+        // implementation would write `.neutral` back over it.
+        preferences.accountTitleInk = .brand
+        store.setAccountTitleInk(.neutral)
+        #expect(store.accountTitleInk == .neutral)
+        #expect(preferences.accountTitleInk == .brand)
+        #expect(exporter.exports.isEmpty)
+        #expect(phoneExporter.exports.isEmpty)
+    }
+
     @Test func meterStyleSeedsPersistsAndNeverTriggersWidgetExport() {
         let preferences = freshPreferences()
         preferences.meterFormat = .full

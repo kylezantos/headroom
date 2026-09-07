@@ -95,6 +95,9 @@ public final class UsageStore {
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
     public private(set) var usagePercentageMode: UsagePercentageMode
+    /// G1A: popover-only account-title ink, mirrored the same way `meterStyle` is — the
+    /// menu bar, widgets, and phone projections deliberately carry no title ink.
+    public private(set) var accountTitleInk: AccountTitleInk
     public private(set) var meterStyle: MeterStyle
     public private(set) var menuBarFillSource: MenuBarFillSource
     public private(set) var menuBarWindowSources: [ProviderID: MenuBarWindowSource]
@@ -198,6 +201,7 @@ public final class UsageStore {
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
         self.usagePercentageMode = preferences.usagePercentageMode
+        self.accountTitleInk = preferences.accountTitleInk
         self.meterStyle = preferences.meterStyle
         let registeredProviderIDs = providers.map(\.id).uniqued()
         self.composedProviderOrder = registeredProviderIDs
@@ -329,6 +333,12 @@ public final class UsageStore {
     public func setUsagePercentageMode(_ mode: UsagePercentageMode) {
         preferences.usagePercentageMode = mode
         usagePercentageMode = mode
+    }
+
+    public func setAccountTitleInk(_ ink: AccountTitleInk) {
+        guard accountTitleInk != ink else { return }
+        preferences.accountTitleInk = ink
+        accountTitleInk = ink
     }
 
     public func setMeterStyle(_ style: MeterStyle) {

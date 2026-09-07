@@ -50,7 +50,19 @@ enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
-    /// T1A: account-title ink (identity rows and the API spend row names).
+    /// G1A: account-title ink (identity rows and the API spend row names) in the user's
+    /// chosen mode — `.neutral` is the recessive grey token, `.brand` is the per-provider
+    /// tint the widget headers use, for people who want the popover colored the way they
+    /// are used to.
+    static func accountTitleInk(for id: ProviderID, ink: AccountTitleInk, scheme: ColorScheme) -> Color {
+        switch ink {
+        case .neutral: return accountTitleInk(scheme: scheme)
+        case .brand: return textAccent(for: id, scheme: scheme)
+        }
+    }
+
+    /// T1A: the neutral grey on its own. Kept for surfaces that are not account titles and
+    /// for the `.neutral` branch above.
     static func accountTitleInk(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.accountTitle(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)
@@ -180,5 +192,43 @@ enum ProviderStyle {
 private extension Color {
     init(_ rgb: HeadroomRGBColor) {
         self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
+    }
+}
+
+// MARK: - Account-title ink propagation (G1A)
+
+/// The popover's account-title ink travels through the environment rather than through
+/// every card/section initializer: `IdentityRow` is reached at three nesting depths (single
+/// account, account section, spend row) and none of them already carry a display
+/// preference, so threading one would add a parameter to four types to deliver a value that
+/// only ever changes in Settings. The popover root and the Settings specimen are the only
+/// two places that set it; everything below just reads it.
+private struct AccountTitleInkKey: EnvironmentKey {
+    static let defaultValue: AccountTitleInk = .neutral
+}
+
+extension EnvironmentValues {
+    var accountTitleInk: AccountTitleInk {
+        get { self[AccountTitleInkKey.self] }
+        set { self[AccountTitleInkKey.self] = newValue }
+    }
+}
+
+/// Applies the resolved title ink for `providerID`, reading both the scheme and the user's
+/// choice itself so a call site is a single modifier.
+private struct AccountTitleInkStyle: ViewModifier {
+    let providerID: ProviderID
+
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.accountTitleInk) private var ink
+
+    func body(content: Content) -> some View {
+        content.foregroundStyle(ProviderStyle.accountTitleInk(for: providerID, ink: ink, scheme: scheme))
+    }
+}
+
+extension View {
+    func accountTitleInk(for providerID: ProviderID) -> some View {
+        modifier(AccountTitleInkStyle(providerID: providerID))
     }
 }

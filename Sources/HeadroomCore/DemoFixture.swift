@@ -150,12 +150,30 @@ public enum DemoFixture {
         )
     }
 
-    /// S5A review fixture: the key stopped working but continuity keeps the last total on
-    /// screen. `.needsReauth` is what `APISpendAttention(reason:)` maps to `.keyRejected`
-    /// (`APISpendPresentation.swift:22`), the only status that pairs a "Key rejected" tag
-    /// with a retained amount and a "Replace key" chip — the popover renders Core's own copy
-    /// here, so the reason's message is provenance rather than the line the card shows.
+    /// X5 review fixture: the key was rejected and nothing was ever retained, so the row is
+    /// the shape Kyle photographed — no figure at all. `.needsReauth` is what
+    /// `APISpendAttention(reason:)` maps to `.keyRejected`
+    /// (`APISpendPresentation.swift:22`), the status that pairs a "Rejected" identity-line
+    /// tag with a "Replace key" chip — the popover renders Core's own copy here, so the
+    /// reason's message is provenance rather than the line the card shows. With `amount` nil
+    /// the amount column and the top-up slot collapse (X5), which is the whole point of the
+    /// fixture.
     public static var anthropicSpendKeyRejected: APISpendSnapshot {
+        APISpendSnapshot(
+            providerID: .claude,
+            displayName: "Anthropic API",
+            amount: nil,
+            currency: "usd",
+            periodLabel: APISpendPeriod.currentMonth.label,
+            capturedAt: Date().addingTimeInterval(-3 * 3_600),
+            freshness: .stale(.needsReauth("Anthropic admin key rejected"))
+        )
+    }
+
+    /// X5 review fixture: the other half of the rejected-key story — continuity kept the last
+    /// total, so the column and the reserved (glyph-less) top-up slot both hold. Only the
+    /// `spend-retained` scenario poses this, because the two shapes cannot coexist on one row.
+    public static var anthropicSpendKeyRejectedRetained: APISpendSnapshot {
         APISpendSnapshot(
             providerID: .claude,
             displayName: "Anthropic API",
@@ -164,6 +182,21 @@ public enum DemoFixture {
             periodLabel: APISpendPeriod.currentMonth.label,
             capturedAt: Date().addingTimeInterval(-3 * 3_600),
             freshness: .stale(.needsReauth("Anthropic admin key rejected"))
+        )
+    }
+
+    /// X5 review fixture: retryable staleness with the figure retained — the neutral "Stale"
+    /// tag, a `.secondary` sentence and no action chip (the next poll may clear it on its
+    /// own), which no shipped fixture reaches.
+    public static var openAISpendStaleRetained: APISpendSnapshot {
+        APISpendSnapshot(
+            providerID: .codex,
+            displayName: "OpenAI API",
+            amount: 58.90,
+            currency: "usd",
+            periodLabel: APISpendPeriod.currentMonth.label,
+            capturedAt: Date().addingTimeInterval(-2 * 3_600),
+            freshness: .stale(.transient("Couldn't reach OpenAI — will retry"))
         )
     }
 
@@ -267,6 +300,11 @@ extension DemoFixture {
         /// period spend, so the tag, the wrapping message, the card-foot chip and the
         /// balance row's column alignment had no way to be seen in the live popover.
         case spendStates = "spend-states"
+        /// X5: the same four rows, but with both retained-figure states posed — a rejected
+        /// key still showing its last total (column and reserved top-up slot held), and a
+        /// retryable stale row. `spend-states` can only pose one shape per row, and the
+        /// nil-amount collapse is the shape it exists to show.
+        case spendRetained = "spend-retained"
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
@@ -406,6 +444,12 @@ extension DemoFixture {
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
                 demoAccount(provider: .claude, id: "work", label: "Work", plan: "Pro", fiveHour: 0, weekly: 0,
                             freshness: .stale(.notLoggedIn(UsageStore.finishSignInMessage))),
+                // S2B/B3: the only state that renders a *two*-chip action row — a typed
+                // setup outcome carries both a primary and a secondary recovery, where the
+                // bare `.notLoggedIn` row above it carries one. No `--demo` scenario reached
+                // it, so the leading two-chip row had no way to be seen live.
+                demoAccount(provider: .claude, id: "studio", label: "Studio", plan: "Max", fiveHour: 0, weekly: 0,
+                            freshness: .stale(.providerSetup(.claudeLoginRequired))),
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
                 demoAccount(provider: .codex, id: "codex-work", label: "Work", plan: "Pro", fiveHour: 54, weekly: 79,
                             freshness: .stale(.transient("Couldn't reach Codex — will retry"))),
@@ -425,7 +469,7 @@ extension DemoFixture {
             ]
         // S5A: `spend-states` differs from `multi-4` only in the spend snapshots the app
         // wires beside it, so the two share one account list — a second copy would drift.
-        case .multiProviders, .spendStates:
+        case .multiProviders, .spendStates, .spendRetained:
             pairs = [
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),

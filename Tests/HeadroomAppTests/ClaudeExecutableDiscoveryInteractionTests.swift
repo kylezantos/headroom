@@ -26,7 +26,7 @@ import HeadroomCore
             == .documentation(URL(string: "https://code.claude.com/docs/en/installation")!))
         #expect(SetupSessions.recoveryRoute(for: recovery!.secondaryAction!) == .checkNow)
         #expect(actions.primaryAccessibilityLabel == "Install Claude Code for Personal")
-        #expect(actions.secondaryAccessibilityLabel == "Check Again for Personal")
+        #expect(actions.secondaryAccessibilityLabel == "Check again for Personal")
         #expect(actions.usesSecondLine)
     }
 
@@ -40,8 +40,8 @@ import HeadroomCore
             )?.recovery
             #expect(recovery?.primaryAction == .checkNow)
             #expect(recovery?.secondaryAction == .openClaudeSetup)
-            #expect(recovery?.primaryLabel == "Check Again")
-            #expect(recovery?.secondaryLabel == "Open Guided Setup")
+            #expect(recovery?.primaryLabel == "Check again")
+            #expect(recovery?.secondaryLabel == "Open guided setup")
             #expect(recovery?.status.localizedCaseInsensitiveContains("install") == false)
         }
     }

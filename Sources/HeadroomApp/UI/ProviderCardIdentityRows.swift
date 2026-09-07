@@ -12,6 +12,79 @@ enum IdentityRowMetrics {
     /// the card's right edge — the same 34pt the titles and meter labels start at — and
     /// leaves the provider mark hanging alone in its 13pt gutter.
     static let contentTrailingInset = meterContentInset
+    /// C6A: one capsule height for everything that rides an identity line. Vertical padding
+    /// could not deliver it — a 10.5pt tag's line box is taller than a 9.5pt pill's, so the
+    /// same `vPad 3` produced 18/19/20 — and the drift is invisible until two capsules sit
+    /// side by side. An explicit height with centred text cannot drift.
+    static let capsuleHeight: CGFloat = 18
+}
+
+extension View {
+    /// C6A: the one identity-line capsule. Each recipe keeps its own horizontal padding and
+    /// fill; the height is not negotiable.
+    func identityCapsule<Fill: ShapeStyle>(fill: Fill, horizontalPadding: CGFloat) -> some View {
+        fixedSize()
+            .frame(height: IdentityRowMetrics.capsuleHeight)
+            .padding(.horizontal, horizontalPadding)
+            .background(fill, in: Capsule())
+    }
+}
+
+// MARK: - S2B status sentence
+
+/// S2B: severity lives in the sentence's ink, so the mapping from state to ink is stated
+/// once here rather than re-decided at each of the six former glyph sites.
+enum StatusSentenceSeverity {
+    /// Something needs the user, and the account is otherwise intact: sign in needed, a
+    /// stale capture, a missing CLI, a handoff standing in the way.
+    case attention
+    /// The provider or the OS said no: a rejected sign-in, a denied read, a failed handoff.
+    case critical
+    /// A handoff is running. Not a severity at all — the row is mid-flight.
+    case progress
+
+    func ink(scheme: ColorScheme) -> Color {
+        switch self {
+        case .attention: ProviderStyle.severityColor(for: .low, scheme: scheme)
+        case .critical: ProviderStyle.criticalText(scheme: scheme)
+        case .progress: Color.secondary
+        }
+    }
+
+    /// S2B: only the provider's own refusals earn the critical ink. Everything else is a
+    /// state the user can walk out of, so it stays attention rather than shouting.
+    static func forSetupOutcome(_ outcome: ProviderSetupOutcome?) -> StatusSentenceSeverity {
+        switch outcome {
+        case .codexRejectedAuth, .codexPermissionDenied, .codexUnsafePermissions,
+             .grokRejectedAuth, .grokPermissionDenied, .grokUnsafePermissions:
+            .critical
+        default:
+            .attention
+        }
+    }
+}
+
+/// S2B: the whole status line — no glyph, no state tag. 11.5 medium, inked by severity,
+/// starting on the 34pt content axis (the 21pt inset inside the card's own 13pt padding),
+/// wrapping freely and stopping at the card's own 13pt trailing edge.
+struct StatusSentence: View {
+    let text: String
+    let severity: StatusSentenceSeverity
+    /// False where the row supplies the axis itself — the waiting row's spinner occupies
+    /// the 15pt mark slot, and the single-account setup notice sits above a guided card
+    /// that starts at the card's own 13pt edge.
+    var indented: Bool = true
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11.5, weight: .medium))
+            .foregroundStyle(severity.ink(scheme: scheme))
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, indented ? IdentityRowMetrics.meterContentInset : 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 }
 
 /// The one identity treatment used for provider-name and account-name rows (KTD9).
@@ -47,15 +120,13 @@ struct IdentityRow: View {
                 Text(planDisplayName)
                     .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
-                    // T1A: 3pt vertical takes the capsule to ~16pt tall so it reads as a peer
-                    // of the title beside it rather than a hairline sticker stuck to it.
-                    .padding(.horizontal, 5)
-                    .padding(.vertical, 3)
-                    .background(
-                        ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
-                        in: Capsule()
+                    // T1A/C6A: the capsule reads as a peer of the title beside it rather than
+                    // a hairline sticker stuck to it — now from an explicit height, so it
+                    // cannot drift away from the tags sharing this line.
+                    .identityCapsule(
+                        fill: ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
+                        horizontalPadding: 5
                     )
-                    .fixedSize()
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -80,14 +151,16 @@ struct IdentityRow: View {
         .accessibilityLabel(accessibilityIdentity(email: email))
     }
 
-    /// T1A: measured off Kyle's Paper mock — 15pt stays, but the weight drops to `.medium`
-    /// on the `accountTitle` ink so the name labels its meters instead of competing with the
-    /// popover's own 20pt bold header. Kerning is unchanged.
+    /// T1A sized this off Kyle's Paper mock at 15pt on the `accountTitle` ink so the name
+    /// labels its meters instead of competing with the popover's own 20pt bold header. G1
+    /// restored `.semibold` — `.medium` on a recessive grey lost the row's anchor — and the
+    /// ink is now the user's `AccountTitleInk` choice (neutral grey or the provider's brand
+    /// tint). Kerning is unchanged throughout.
     private var titleText: some View {
         Text(title)
-            .font(.system(size: 15, weight: .medium))
+            .font(.system(size: 15, weight: .semibold))
             .kerning(-0.15)
-            .foregroundStyle(ProviderStyle.accountTitleInk(scheme: scheme))
+            .accountTitleInk(for: providerID)
             .lineLimit(1)
             .truncationMode(.tail)
     }
@@ -117,13 +190,15 @@ struct IdentityRow: View {
         PlanLabelPresentation.displayName(planLabel)
     }
 
+    /// S2B removed the status glyphs and left severity to the sentence's ink — but a
+    /// transient-stale row renders no sentence at all (`stateContent` keeps its dimmed
+    /// meters), so this tag survives as that state's only visible signal. C6A gives it the
+    /// same 18pt as the plan pill beside it.
     private var staleTag: some View {
         Text("Stale")
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .background(Color.secondary.opacity(0.18), in: Capsule())
+            .identityCapsule(fill: Color.secondary.opacity(0.18), horizontalPadding: 5)
     }
 
     /// L5D: with the badge gone, the row tooltip and this VoiceOver phrase are the only
@@ -165,9 +240,11 @@ private struct ConnectedChip: View {
                 .font(.system(size: 11, weight: .semibold))
         }
         .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
-        .padding(.horizontal, 8)
-        .padding(.vertical, 2.5)
-        .background(ClaudeSetupStyle.connectedBackground(dark: scheme == .dark), in: Capsule())
+        // C6A: was the tallest of the three capsules at ~19–20pt; now the same 18 as the rest.
+        .identityCapsule(
+            fill: ClaudeSetupStyle.connectedBackground(dark: scheme == .dark),
+            horizontalPadding: 8
+        )
     }
 }
 
@@ -191,24 +268,25 @@ struct AccountSectionView: View {
     let onRetry: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var scheme
     @State private var showsConnectedChip = false
 
     private var snapshot: UsageSnapshot { entry.snapshot }
     private var account: ProviderAccount { entry.account }
 
     var body: some View {
-        // G3: 7pt binds the identity to its meters; the 22pt inter-section gap in
-        // `multiAccountBody` does the separating (proximity, not chrome). The whole section
-        // is one VoiceOver container so the rotor can jump account-to-account instead of
-        // the meters floating free of their identity row.
-        VStack(alignment: .leading, spacing: 7) {
+        // G3/R4A: 6pt binds the identity to its meters; the 26pt inter-section gap in
+        // `multiAccountBody` does the separating (proximity, not chrome). 6-inside against
+        // 12-to-the-action-row is the 2× the grouping rule wants — the old 7/8 was 1.14×,
+        // which read as four evenly stacked lines. The whole section is one VoiceOver
+        // container so the rotor can jump account-to-account instead of the meters floating
+        // free of their identity row.
+        VStack(alignment: .leading, spacing: 6) {
             identityRow
             // M4A/S2A: the innermost scope around the switching body, so the crossfade —
             // not the section's height change — is what this animation drives. The wrapper
-            // repeats the parent's 7pt spacing so it stays layout-neutral for the
+            // repeats the parent's 6pt spacing so it stays layout-neutral for the
             // multi-view `signInContent` branch. Fill and numeral roll are `UsageBarView`'s.
-            VStack(alignment: .leading, spacing: 7) {
+            VStack(alignment: .leading, spacing: 6) {
                 stateContent
             }
             .animation(
@@ -217,13 +295,13 @@ struct AccountSectionView: View {
             )
             if showsStopWaiting,
                SetupSessions.state(for: account) != .blockedByOpenHandoff {
-                // P4C: the section's one action row. The stack's own 7pt already sets the
-                // gap above it, so it adds none, and it stops at the content trailing edge
-                // so it lines up with the sign-in chips and the meters.
-                CardActionRow(topPadding: 0) {
+                // P4C/R4A/B3: the section's one action row, leading-aligned at the mark
+                // column. The stack's own 6pt supplies half of R4A's 12pt gap, so the row
+                // adds the other 6, and it takes no trailing inset — a leading row ends
+                // wherever its last chip ends.
+                CardActionRow(topPadding: 6) {
                     StopWaitingButton(account: account, style: .chip(.small))
                 }
-                .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
             }
         }
         .accessibilityElement(children: .contain)
@@ -293,34 +371,29 @@ struct AccountSectionView: View {
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 
-    /// Permanent failure on one account: the reason on its own line, then one
-    /// trailing-aligned action row (P4C) — so a dead login never dominates its healthy
-    /// siblings and no control hides at the end of a sentence. While the handoff Terminal
-    /// is open it becomes a quiet waiting row with a real-progress spinner (bound to the
-    /// retry cycle, not decorative).
+    /// Permanent failure on one account: one inked sentence on its own line (S2B — no glyph,
+    /// no tag), then one leading-aligned action row (P4C/B3) — so a dead login never
+    /// dominates its healthy siblings and no control hides at the end of a sentence. While
+    /// the handoff Terminal is open it becomes a quiet waiting row with a real-progress
+    /// spinner (bound to the retry cycle, not decorative).
     @ViewBuilder private func signInContent(_ reason: FailureReason) -> some View {
         let recoveryPresentation = reason.providerSetupOutcome?.recoveryPresentation
         let setupState = SetupSessions.state(for: account)
-        VStack(alignment: .leading, spacing: 7) {
+        VStack(alignment: .leading, spacing: 6) {
             Group {
                 if let refusalMessage = setupHandoffRefusalMessage(for: setupState) {
                     VStack(alignment: .leading, spacing: 0) {
-                        messageRow(systemImage: "terminal", glyphInk: .secondary) {
-                            Text(refusalMessage)
-                                .font(.system(size: 11.5, weight: .medium))
-                                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: scheme))
-                        }
+                        StatusSentence(text: refusalMessage, severity: .attention)
                         CardActionRow {
                             StopWaitingButton(account: account, style: .chip(.small))
                         }
                     }
                 } else if case .blockedByProviderLogin = setupState {
                     VStack(alignment: .leading, spacing: 0) {
-                        messageRow(systemImage: "terminal", glyphInk: .secondary) {
-                            Text("Another \(providerDisplayName) sign-in is open")
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
-                        }
+                        StatusSentence(
+                            text: "Another \(providerDisplayName) sign-in is open",
+                            severity: .attention
+                        )
                         CardActionRow {
                             Button("Continue setup") { SetupSessions.continueSetup(for: account) }
                                 .buttonStyle(SetupChipButtonStyle(size: .small))
@@ -329,16 +402,20 @@ struct AccountSectionView: View {
                     }
                 } else if isWaitingForSetup {
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        // S2B: the spinner is the one thing besides a brand mark allowed in
+                        // the mark column — it reports progress, not severity — and taking
+                        // the 15pt slot still lands the sentence on the 34pt content axis.
+                        HStack(alignment: .top, spacing: IdentityRowMetrics.spacing) {
                             ProgressView()
                                 .controlSize(.mini)
-                            Text(SetupSessions.mode(for: account) == .deviceCode
-                                 ? "Waiting for device code…"
-                                 : "Waiting for sign-in…")
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                            Spacer(minLength: 0)
+                                .frame(width: IdentityRowMetrics.markSlotWidth, height: 15)
+                            StatusSentence(
+                                text: SetupSessions.mode(for: account) == .deviceCode
+                                    ? "Waiting for device code…"
+                                    : "Waiting for sign-in…",
+                                severity: .progress,
+                                indented: false
+                            )
                         }
                         // B3A: the bare accent label is gone — a waiting row's one control
                         // now carries the same resting container as the sign-in chip.
@@ -349,18 +426,30 @@ struct AccountSectionView: View {
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
-                        messageRow(
-                            systemImage: "person.crop.circle.badge.exclamationmark",
-                            glyphInk: ProviderStyle.severityColor(for: .low, scheme: scheme)
-                        ) {
-                            Text(SetupSessions.failureMessage(for: account) ?? reason.message)
-                                .font(.system(size: 11.5))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(2)
-                        }
-                        // P4C: the secondary recovery used to hang on its own line beneath a
-                        // filled chip. Both actions share one row now, the primary last.
+                        StatusSentence(
+                            text: SetupSessions.failureMessage(for: account) ?? reason.message,
+                            severity: SetupSessions.failureMessage(for: account) != nil
+                                ? .critical
+                                : .forSetupOutcome(reason.providerSetupOutcome)
+                        )
+                        // P4C/B3: both actions share one row, and a leading row reads in
+                        // reading order — the primary first, its alternative after it.
                         CardActionRow {
+                            Button {
+                                if let recoveryPresentation {
+                                    SetupSessions.performRecovery(
+                                        recoveryPresentation.primaryAction,
+                                        for: account,
+                                        onRetry: onRetry
+                                    )
+                                } else {
+                                    SetupSessions.openSetup(for: account, onRetry: onRetry)
+                                }
+                            } label: {
+                                Text(recoveryPresentation?.primaryLabel ?? "Sign in")
+                            }
+                            .buttonStyle(SetupChipButtonStyle(size: .small))
+                            .accessibilityLabel("\(recoveryPresentation?.primaryLabel ?? "Sign in") for \(account.label)")
                             if let secondaryLabel = recoveryPresentation?.secondaryLabel,
                                let secondaryAction = recoveryPresentation?.secondaryAction {
                                 Button(secondaryLabel) {
@@ -375,48 +464,13 @@ struct AccountSectionView: View {
                                 Button("Check now", action: onRetry)
                                     .buttonStyle(SetupChipButtonStyle(size: .small))
                             }
-                            Button {
-                                if let recoveryPresentation {
-                                    SetupSessions.performRecovery(
-                                        recoveryPresentation.primaryAction,
-                                        for: account,
-                                        onRetry: onRetry
-                                    )
-                                } else {
-                                    SetupSessions.openSetup(for: account, onRetry: onRetry)
-                                }
-                            } label: {
-                                Label(recoveryPresentation?.primaryLabel ?? "Sign in", systemImage: "terminal")
-                            }
-                            .buttonStyle(SetupChipButtonStyle(size: .small))
-                            .accessibilityLabel("\(recoveryPresentation?.primaryLabel ?? "Sign in") for \(account.label)")
                         }
                     }
                 }
             }
-            // P4C: messages and their action row stop level with the meter rows below —
-            // the 21pt content trailing edge, 34pt in from the card's own edge.
-            .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
             if !snapshot.windows.isEmpty {
                 bars(dimmed: true)
             }
-        }
-    }
-
-    /// P4C: the message half of a state row — glyph and copy on their own line, free to wrap
-    /// now that no control shares the line's trailing end.
-    private func messageRow<Message: View>(
-        systemImage: String,
-        glyphInk: Color,
-        @ViewBuilder message: () -> Message
-    ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 7) {
-            Image(systemName: systemImage)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(glyphInk)
-            message()
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
         }
     }
 

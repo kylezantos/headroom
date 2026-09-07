@@ -32,6 +32,7 @@ struct SettingsView: View {
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var showMenuBarPercentage = false
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
+    @State private var accountTitleInk: AccountTitleInk = .neutral
     @State private var meterStyle: MeterStyle = .default
     @State private var menuBarFillSource: MenuBarFillSource = .auto
     @State private var menuBarWindowSources: [ProviderID: MenuBarWindowSource] = [:]
@@ -229,6 +230,7 @@ struct SettingsView: View {
                 appearancePreference: $appearancePreference,
                 meterStyle: $meterStyle,
                 usagePercentageMode: $usagePercentageMode,
+                accountTitleInk: $accountTitleInk,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
                 onAppearanceChange: { newValue in
                     preferences.appearancePreference = newValue
@@ -337,6 +339,7 @@ struct SettingsView: View {
         appearancePreference = preferences.appearancePreference
         showMenuBarPercentage = store.showMenuBarPercentage
         usagePercentageMode = store.usagePercentageMode
+        accountTitleInk = store.accountTitleInk
         meterStyle = store.meterStyle
         menuBarFillSource = store.menuBarFillSource
         menuBarWindowSources = Dictionary(uniqueKeysWithValues: store.registeredProviderOrder.map {

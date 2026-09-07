@@ -180,6 +180,9 @@ struct PopoverView: View {
             .modifier(PopoverSurfaceModifier(cornerRadius: 22, forceSolid: forceSolidSurface))
             // Capture the popover's hosting window so opening Settings can dismiss it.
             .background(WindowAccessor { configurePopoverWindow($0) })
+            // G1A: the popover is the only surface with a title-ink choice, so this is the
+            // one place it enters the view tree (the Settings specimen sets its own).
+            .environment(\.accountTitleInk, store.accountTitleInk)
         }
     }
 

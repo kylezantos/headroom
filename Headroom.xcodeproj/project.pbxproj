@@ -117,7 +117,6 @@
 		80916D058A17FA99064557F0 /* DemoFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65084FF4FFAFB83B11B7601E /* DemoFixture.swift */; };
 		80F20CC2F1292AB610A972D5 /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
 		821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */; };
-		BE3049BEB6DE2867D7D20350 /* BrandMarkInkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95202D60D21937DBE0466A56 /* BrandMarkInkTests.swift */; };
 		84BF1E0A9D00D681D45F2959 /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
 		8734D2763F3EA91CBB32E3CE /* IOSWidgetStatusView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2279E17039A179D85F6D0AB8 /* IOSWidgetStatusView.swift */; };
 		898AC9E2DA72AE3F4FFF0FE8 /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */; };
@@ -148,6 +147,7 @@
 		A60D076A272E45CCFCC05E74 /* IOSWidgetTimelineMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */; };
 		AC0331D17112DB32C3311741 /* WidgetSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D996992FCBD0C9F54F348C /* WidgetSettingsSection.swift */; };
 		AC30D16374782EE1F93EFB99 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 647B97436A2026E1B0F66065 /* SettingsView.swift */; };
+		ACF9F9B5B18478A30632C3A5 /* BrandMarkInkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FBA8CE415A23CC256D0BC4 /* BrandMarkInkTests.swift */; };
 		AD3E4560009B235BD443F798 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */; };
 		AD98038B98D014D9ABB12124 /* ProviderID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */; };
 		ADEFB16F5E7CF386F72C58D8 /* HoverButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */; };
@@ -160,6 +160,7 @@
 		B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */; };
 		B92EA7C9D22387D7A4A9D88F /* VesselMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9574D232CF05C00E2B526408 /* VesselMark.swift */; };
 		BAA0B4FCCEB2537768033FC5 /* BrandIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */; };
+		BBA4810865B29C46A518F02E /* InAppDisplayTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */; };
 		BDA68D06C64C691567AD5B71 /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
 		BF15CFCAEF6CF7181D91A6F7 /* SettingsRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744C00250970DA4405528A9E /* SettingsRows.swift */; };
 		C000604822EDE36CCB99D307 /* ProviderCapabilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */; };
@@ -336,6 +337,8 @@
 		31E898AC2EE39858F1970170 /* OpticalLeading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpticalLeading.swift; sourceTree = "<group>"; };
 		3231CDC5E0AF2C8DE6B924FD /* UsageDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDTOs.swift; sourceTree = "<group>"; };
 		32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = BrandIcons.xcassets; sourceTree = "<group>"; };
+		33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InAppDisplayTile.swift; sourceTree = "<group>"; };
+		34FBA8CE415A23CC256D0BC4 /* BrandMarkInkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMarkInkTests.swift; sourceTree = "<group>"; };
 		35FDD3E9954F1D0C7FE0BC7B /* SetupCompletionCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCompletionCommand.swift; sourceTree = "<group>"; };
 		38B4DB6BBC85EE182B8E5F23 /* CredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStore.swift; sourceTree = "<group>"; };
 		38D1ABBFC7400DB7B365ADAF /* AppearanceSpecimen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSpecimen.swift; sourceTree = "<group>"; };
@@ -360,7 +363,6 @@
 		55DBC87E82459F7596B60C0E /* ClaudeSetupCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSetupCommand.swift; sourceTree = "<group>"; };
 		5B3D491D8D8B855C6182DF43 /* HeadroomWidgets.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = HeadroomWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpticalLeadingTests.swift; sourceTree = "<group>"; };
-		95202D60D21937DBE0466A56 /* BrandMarkInkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMarkInkTests.swift; sourceTree = "<group>"; };
 		5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountEmailReader.swift; sourceTree = "<group>"; };
 		60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreAccountLifecycle.swift; sourceTree = "<group>"; };
 		6378187F940FD56B1A363971 /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
@@ -487,10 +489,10 @@
 			isa = PBXGroup;
 			children = (
 				BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */,
+				34FBA8CE415A23CC256D0BC4 /* BrandMarkInkTests.swift */,
 				4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */,
 				1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */,
 				5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */,
-				95202D60D21937DBE0466A56 /* BrandMarkInkTests.swift */,
 			);
 			path = HeadroomAppTests;
 			sourceTree = "<group>";
@@ -701,6 +703,7 @@
 				8884B8D5664E9FA9DC416556 /* CodexSetupViews.swift */,
 				6BECE3EB6F9311F47B82E8D1 /* HeadroomMotion.swift */,
 				1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */,
+				33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */,
 				CAAC30B235FDF373550D04AD /* MenuBarLabel.swift */,
 				D15A53AE4F679F87EABE633E /* MeterGauge.swift */,
 				7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */,
@@ -1150,10 +1153,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */,
+				ACF9F9B5B18478A30632C3A5 /* BrandMarkInkTests.swift in Sources */,
 				B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */,
 				EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */,
 				821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */,
-				BE3049BEB6DE2867D7D20350 /* BrandMarkInkTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -1290,6 +1293,7 @@
 				D4ACD733FFC836F06D43FDC1 /* HeadroomWidgetFamilyViews.swift in Sources */,
 				37CAAD4A4F8C640CFA6B1EAF /* HeadroomWidgetSharedUI.swift in Sources */,
 				ADEFB16F5E7CF386F72C58D8 /* HoverButtonStyle.swift in Sources */,
+				BBA4810865B29C46A518F02E /* InAppDisplayTile.swift in Sources */,
 				F4D04A6771D231DB885D09E5 /* MenuBarLabel.swift in Sources */,
 				9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */,
 				64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */,

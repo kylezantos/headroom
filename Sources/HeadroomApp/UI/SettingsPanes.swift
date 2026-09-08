@@ -159,47 +159,14 @@ struct AppearanceSettingsPane: View {
 
             // R8: the two display preferences that used to hide inside "Subscription
             // Usage", beside the switches that decide whether a provider is polled at
-            // all. They change how numbers read, not what is fetched.
-            SettingsTile("In-app display") {
-                VStack(alignment: .leading, spacing: 4) {
-                    ResponsiveControlRow(label: "Percentages") {
-                        Picker("Percentages", selection: $usagePercentageMode) {
-                            ForEach(UsagePercentageMode.allCases) { mode in
-                                Text(mode.label).tag(mode)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
-                        .onChange(of: usagePercentageMode) { _, newValue in
-                            store.setUsagePercentageMode(newValue)
-                        }
-                    }
-                    SettingsHelpText(text: "Changes the numbers, words, and meter direction in the app and menu bar.")
-                }
-                // G1A: the popover's account names read as a recessive grey by default;
-                // Brand puts them back in each provider's color for people who want it.
-                VStack(alignment: .leading, spacing: 4) {
-                    ResponsiveControlRow(label: "Account names") {
-                        Picker("Account names", selection: $accountTitleInk) {
-                            ForEach(AccountTitleInk.allCases) { ink in
-                                Text(ink.label).tag(ink)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .labelsHidden()
-                        .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
-                        .onChange(of: accountTitleInk) { _, newValue in
-                            store.setAccountTitleInk(newValue)
-                        }
-                    }
-                    SettingsHelpText(text: "Brand colors each account name in its provider's color.")
-                }
-                Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
-                    .onChange(of: showCodexSparkCountersInApp) { _, newValue in
-                        store.setShowCodexSparkCountersInApp(newValue)
-                    }
-            }
+            // all. They change how numbers read, not what is fetched — and each previews
+            // itself as a swatch, matching Theme and Meter style above.
+            InAppDisplayTile(
+                store: store,
+                usagePercentageMode: $usagePercentageMode,
+                accountTitleInk: $accountTitleInk,
+                showCodexSparkCountersInApp: $showCodexSparkCountersInApp
+            )
         }
     }
 }

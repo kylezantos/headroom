@@ -181,7 +181,8 @@ struct IdentityRow: View {
             titleText
             if let planDisplayName {
                 Text(planDisplayName)
-                    .foregroundStyle(.tertiary)
+                    // PA13: the plan pill carries its own token so the dark step is set by |Lc|, not system `.tertiary`.
+                    .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
                     // T1A/C6A: the capsule reads as a peer of the title beside it rather than
                     // a hairline sticker stuck to it — now from an explicit height, so it
                     // cannot drift away from the tags sharing this line.

@@ -869,7 +869,7 @@ struct AccountsSettingsInteractionTests {
             hasActiveSetupSession: false
         )
 
-        #expect(presentation?.recovery.primaryLabel == "Check Again")
+        #expect(presentation?.recovery.primaryLabel == "Check Now")
         #expect(presentation?.recovery.primaryAction == .checkNow)
         #expect(presentation?.recovery.secondaryLabel == "Open Guided Setup")
         #expect(presentation?.recovery.secondaryAction == .openClaudeSetup)
@@ -945,7 +945,7 @@ struct AccountsSettingsInteractionTests {
         )
 
         #expect(actions?.usesSecondLine == false)
-        #expect(actions?.primaryLabel == "Check Again")
+        #expect(actions?.primaryLabel == "Check Now")
         #expect(actions?.secondaryAction == nil)
     }
 
@@ -1475,7 +1475,7 @@ private final class GrokDeviceCodeSetupHarness {
         #expect(dedupe.announcement(
             for: .claude,
             state: .inconclusive(.shellTimeout)
-        ) == "Claude Code availability. Couldn't confirm where Claude Code is — will retry")
+        ) == "Claude Code availability. Couldn’t confirm where Claude Code is — will retry")
         #expect(dedupe.announcement(for: .claude, state: .inconclusive(.shellTimeout)) == nil)
     }
 }

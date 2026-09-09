@@ -26,11 +26,11 @@ import HeadroomCore
             == .documentation(URL(string: "https://code.claude.com/docs/en/installation")!))
         #expect(SetupSessions.recoveryRoute(for: recovery!.secondaryAction!) == .checkNow)
         #expect(actions.primaryAccessibilityLabel == "Install Claude Code for Personal")
-        #expect(actions.secondaryAccessibilityLabel == "Check Again for Personal")
+        #expect(actions.secondaryAccessibilityLabel == "Check Now for Personal")
         #expect(actions.usesSecondLine)
     }
 
-    /// AE7: incomplete discovery keeps Check Again + Open Guided Setup and never shows
+    /// AE7: incomplete discovery keeps Check Now + Open Guided Setup and never shows
     /// confirmed-absence installation copy.
     @MainActor @Test func inconclusiveDiscoveryKeepsRetryActionsWithoutInstallCopy() {
         for issue in [CLIExecutableDiscoveryIssue.shellTimeout, .npmPrefixUnresolved] {
@@ -40,7 +40,7 @@ import HeadroomCore
             )?.recovery
             #expect(recovery?.primaryAction == .checkNow)
             #expect(recovery?.secondaryAction == .openClaudeSetup)
-            #expect(recovery?.primaryLabel == "Check Again")
+            #expect(recovery?.primaryLabel == "Check Now")
             #expect(recovery?.secondaryLabel == "Open Guided Setup")
             #expect(recovery?.status.localizedCaseInsensitiveContains("install") == false)
         }

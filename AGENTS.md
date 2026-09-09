@@ -150,7 +150,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   fixtures with `swift run Headroom --demo <scenario> --meter-style
   <format>.<shape>.<fill>` and inspect the native popover in both appearances. Do not accept
   `--render-popover` output as evidence while the Xcode 26.5 appearance-capture bug remains in
-  `BUGS.md`; Core recipe tests prove decisions, not SwiftUI rendering or window sizing.
+  `BUGS.md`; Core recipe tests prove decisions, not SwiftUI rendering or window sizing. The
+  harness does honour `--meter-style`, so `--render-popover <dir> --meter-style full.segmented.ghost`
+  is the way to sanity-check the Settings swatches and specimen in a non-default style headlessly.
 
 - **The Claude probe is print-first, PTY-fallback.** `ClaudeUsageCLIProbe` first runs
   `claude -p "/usage" --no-session-persistence` (non-interactive, ~2s, atomic report — no

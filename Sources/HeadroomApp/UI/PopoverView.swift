@@ -282,11 +282,11 @@ struct PopoverView: View {
     private func header(now: Date) -> some View {
         let statusBaselineOffset = Self.baselineOffsetMatchingTitle(for: Self.statusFont)
         let gearBaselineOffset = Self.inkCenterAboveBaseline(Self.titleFont)
-        // All three elements align on one *ink-center* axis (measured against real
+        // All three elements align on one *cap-centre* axis (measured against real
         // renders): pure `.center` leaves the title ~2pt low (descender + line box),
         // pure baseline leaves the 11pt status visibly low. So: baseline row, with the
-        // status raised 2pt (its ink center then matches the title's) and the gear
-        // centered 5pt above the baseline (the title's ink center).
+        // status raised so its cap centre matches the title's, and the gear centred at
+        // the title's cap centre above the baseline.
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Usage")
                 .font(.system(size: 20, weight: .bold))
@@ -332,11 +332,19 @@ struct PopoverView: View {
     }
 
     private static func inkCenterAboveBaseline(_ font: NSFont) -> CGFloat {
-        (font.capHeight + font.descender) / 2
+        // Cap centre, not the cap-to-descender midpoint: the header is Title Case, so its
+        // optical centre is half the cap height. The old midpoint folded the descender in and
+        // sat the gear and the status ~2pt below the title (measured on a live 2× capture).
+        OpticalCentering.capHeightCenter(of: font)
     }
 
+    /// Measured residual on a live 2× capture: with the pure cap-centre difference the 11pt
+    /// stamp's cap centre still sat 0.75pt below the title's (the raised baseline snaps to
+    /// the pixel grid). Re-measure if either font changes.
+    private static let statusBaselineResidual: CGFloat = 0.75
+
     private static func baselineOffsetMatchingTitle(for font: NSFont) -> CGFloat {
-        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font)
+        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font) + statusBaselineResidual
     }
 
     /// M2A: the header's one status slot carries either the numeric "Updated N …" stamp or

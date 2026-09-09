@@ -238,20 +238,20 @@ enum SetupSessions {
             case .cursor: "Cursor Agent"
             default: account.providerID.raw.capitalized
             }
-            return "\(name) CLI wasn't found. Install or update it, then try again."
+            return "\(name) CLI wasn’t found. Install or update it, then try again."
         case .stagingFailed:
-            return "Headroom couldn't prepare the Terminal handoff. Try again."
+            return "Headroom couldn’t prepare the Terminal handoff. Try again."
         case .terminalRejected:
-            return "Terminal didn't open. The official CLI command was copied for you."
+            return "Terminal didn’t open. The official CLI command was copied for you."
         case .pasteboardFailed:
-            return "Terminal didn't open, and the recovery command couldn't be copied. Try again."
+            return "Terminal didn’t open, and the recovery command couldn’t be copied. Try again."
         case .retryExhausted:
-            return "Sign-in wasn't confirmed. Check now or reopen the official CLI."
+            return "Sign-in wasn’t confirmed. Check now or reopen the official CLI."
         case .provider(let outcome):
             return outcome.message
         case .providerCapability(let capability):
             return capability.recoveryPresentation?.status
-                ?? "Claude Code availability couldn't be confirmed. Try again."
+                ?? "Claude Code availability couldn’t be confirmed. Try again."
         }
     }
 

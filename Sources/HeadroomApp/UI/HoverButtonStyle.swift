@@ -1,10 +1,16 @@
 import SwiftUI
 
 /// A quiet button style that finally makes the popover's controls *feel* clickable
-/// (UI-06). The stock `.plain` text buttons had no hover, no pressed state, and no
-/// pointer cursor, so gear/Refresh/Quit/Copy read as static labels. This adds a subtle
-/// rounded highlight on hover and a deeper one while pressed. Purely input-driven
-/// (no idle motion), so it stays inside the no-pulsing rule.
+/// (UI-06). The stock `.plain` buttons had no hover, no pressed state, and no pointer
+/// cursor, so they read as static labels. This adds a subtle rounded highlight on hover and
+/// a deeper one while pressed. Purely input-driven (no idle motion), so it stays inside the
+/// no-pulsing rule.
+///
+/// PA11b narrowed its remit to **glyph-only** controls — gear, `+`, `…`, copy, trash, reset,
+/// the disclosure chevrons. Every text-labelled button, the footer's Refresh and Quit
+/// included, moved to `SetupChipButtonStyle`'s resting container. A borderless icon in a
+/// title or toolbar row is the macOS HIG's own convention; a borderless *word* beside prose
+/// is not, which is the trade B3H had made and PA11b reversed.
 struct HoverButtonStyle: ButtonStyle {
     var horizontalPadding: CGFloat = 8
     var verticalPadding: CGFloat = 3
@@ -57,11 +63,11 @@ struct HoverButtonStyle: ButtonStyle {
                 .padding(8)
                 .contentShape(Rectangle())
                 .padding(-8)
-                // Tactile press: a subtle 0.96 scale (never below 0.95, which reads as
-                // exaggerated). S2A: scaling is movement, so Reduce Motion drops it outright
-                // while the pill above still cross-fades — still input-driven, no idle
-                // motion, so it stays inside the no-pulsing rule.
-                .scaleEffect(configuration.isPressed ? 0.96 : 1)
+                // Tactile press: PB12's one `pressScale` for every button style in the app.
+                // S2A: scaling is movement, so Reduce Motion drops it outright while the
+                // pill above still cross-fades — still input-driven, no idle motion, so it
+                // stays inside the no-pulsing rule.
+                .scaleEffect(configuration.isPressed ? HeadroomMotion.pressScale : 1)
                 .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
                 .onHover { hovering = $0 }
@@ -100,6 +106,7 @@ private struct DelayedHelpModifier: ViewModifier {
 
     @State private var hovering = false
     @State private var showingHelp = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
         content
@@ -123,24 +130,40 @@ private struct DelayedHelpModifier: ViewModifier {
             }
             .overlay(alignment: .topTrailing) {
                 if showingHelp {
-                    Text(text)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.primary)
-                        .fixedSize()
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 5)
-                        .background(.regularMaterial,
-                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
-                        }
-                        .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
-                        .offset(y: -29)
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
+                    tooltip
                 }
             }
+            // PB12/S2A: the tooltip was the only thing left in the popover that hard-cut in
+            // and out. It is opacity only, so it keeps its timing under Reduce Motion, and
+            // 120ms still feels immediate after the full second this modifier already waits.
+            .animation(
+                HeadroomMotion.resolved(
+                    HeadroomMotion.quickSettle,
+                    .crossfade,
+                    reduceMotion: reduceMotion
+                ),
+                value: showingHelp
+            )
             .zIndex(showingHelp ? 1 : 0)
+    }
+
+    private var tooltip: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.primary)
+            .fixedSize()
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(.regularMaterial,
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+            }
+            .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
+            .offset(y: -29)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .transition(.opacity)
     }
 }

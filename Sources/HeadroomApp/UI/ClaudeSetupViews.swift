@@ -239,7 +239,12 @@ enum ClaudeSetupSession {
 }
 
 /// Setup-flow palette, transferred from the mockup's OKLCH light palette (WCAG-checked:
-/// button label ≥4.6:1, accent text 6.3:1, chip ink 5.1:1) and its dark equivalents.
+/// button label ≥4.6:1, chip ink 5.1:1) and its dark equivalents.
+///
+/// PB13 removed `accentText`: S2B retired the last accent-inked label in the setup flow, so
+/// the token had been a duplicate of `ProviderStyle.textAccent(for: .claude)` with no call
+/// site left. Codex's CTA gradient lives in its own `CodexSetupStyle` rather than here —
+/// mirrored deliberately, so the two provider streams stay decoupled.
 enum ClaudeSetupStyle {
     /// Dark values darkened (audit): the original dark gradient left the white 13pt
     /// label at 3.1–3.8:1; this ramp averages ≈4.5:1 across the button face.
@@ -248,10 +253,6 @@ enum ClaudeSetupStyle {
     }
     static func buttonBottom(dark: Bool) -> Color {
         dark ? Color(red: 0.69, green: 0.34, blue: 0.17) : Color(red: 0.663, green: 0.302, blue: 0.110)
-    }
-    /// Clay accent used as *text* — darker than the brand fill so it passes AA.
-    static func accentText(dark: Bool) -> Color {
-        dark ? Color(red: 0.910, green: 0.561, blue: 0.369) : Color(red: 0.604, green: 0.282, blue: 0.106)
     }
     static func stepBackground(dark: Bool) -> Color {
         dark ? Color.white.opacity(0.06) : Color.black.opacity(0.045)
@@ -297,10 +298,12 @@ struct ClaudeConnectCard: View {
                     .kerning(-0.2)
             }
             Text(outcome == .claudeLoginRequired
-                 ? "Sign in with the Claude CLI to show this account's usage."
+                 ? "Sign in with the Claude CLI to show this account’s usage."
                  : "See your remaining Claude usage right here.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 // W2A: the only body copy in this card that was missing the wrap allowance.
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
@@ -321,9 +324,12 @@ struct ClaudeConnectCard: View {
     /// "official /usage · no login · never spends usage" — the trust line that makes a
     /// first-run user comfortable pressing the button.
     private var reassurance: some View {
-        Text("Reads Claude's official \(Text("/usage").font(.system(size: 10.5, design: .monospaced))) panel through its CLI. Headroom never receives your password or tokens, and the check never spends usage.")
+        Text("Reads Claude’s official \(Text("/usage").font(.system(size: 10.5, design: .monospaced))) panel through its CLI. Headroom never receives your password or tokens, and the check never spends usage.")
             .font(.system(size: 11.5))
             .foregroundStyle(.tertiary)
+            // PB11: the longest prose in the popover — three lines at 293pt — and the line
+            // the audit measured at 1.22 leading against Settings' 1.4.
+            .lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -358,6 +364,8 @@ struct ClaudeConnectCard: View {
             text
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -390,6 +398,8 @@ struct ClaudeWaitingCard: View {
                  : "Choose the option below in Terminal. Headroom connects as soon as you approve.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
             if outcome == .claudeTrustRequired {
@@ -492,8 +502,8 @@ struct ClaudeManualCommandDisclosure: View {
     }
 }
 
-/// Full-width clay gradient primary — the card's one unmistakable action. Hover
-/// brightens, press settles 0.98; both input-driven (no idle motion).
+/// Full-width clay gradient primary — the card's one unmistakable action. Hover brightens,
+/// press settles on PB12's shared `pressScale`; both input-driven (no idle motion).
 struct ClaudePrimaryButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var scheme
 
@@ -526,12 +536,13 @@ struct ClaudePrimaryButtonStyle: ButtonStyle {
                 .shadow(color: .black.opacity(0.20), radius: 1, y: 1)
                 .brightness(configuration.isPressed ? -0.03 : (hovering ? 0.04 : 0))
                 // S2A: brightness is a colour change and keeps its timing under Reduce Motion;
-                // the 0.98 scale below is movement, so it carries its own modifier.
+                // the press scale below is movement, so it carries its own modifier.
                 .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: hovering)
                 .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
-                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                // PB12: one press scale across all four button styles.
+                .scaleEffect(configuration.isPressed ? HeadroomMotion.pressScale : 1)
                 .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
                 .onHover { hovering = $0 }
@@ -540,16 +551,23 @@ struct ClaudePrimaryButtonStyle: ButtonStyle {
 }
 
 /// B3A (Sep 2026): the one secondary button for every text-labelled action inside a card or
-/// tile. The bare `HoverButtonStyle` is reserved for glyph controls and the popover footer.
-/// Two sizes so the same chip fits a card foot (regular) and an account row (small).
+/// tile. The bare `HoverButtonStyle` is reserved for glyph controls. Two sizes so the same
+/// chip fits a card foot (regular) and an account row (small).
 ///
-/// B3H (Kyle, Sep 2026): "only have the button chrome show up on hover (like Refresh and
-/// Quit)". Two chromes now. `.hover` — the popover — starts with **no** container at all and
-/// brings today's hover fill, border and shadow up from zero when the pointer arrives, so a
-/// card foot reads as sentence → action rather than sentence → boxes; the label stays 11.5
-/// semibold in the chip ink, which is what still marks it as a control at rest. `.resting`
-/// — Settings — keeps the container, because a bare label sitting beside a native bordered
-/// button on a pane reads as text, not as something clickable.
+/// **PA11b (Kyle, Sep 2026) supersedes B3H.** B3H had made the popover's chrome hover-only
+/// — "only have the button chrome show up on hover (like Refresh and Quit)" — and shipping
+/// it showed the cost: at rest, "Install Claude Code" and "Check Again" read as wrapped
+/// prose, and the audit caught a half-visible one bisected by the 640pt scroll cap with
+/// every signal that it was a control removed. Kyle's call on review: "we do need the
+/// resting container for all our buttons." That also lines up with the macOS HIG — push
+/// buttons carry a visible border, every custom button needs a press state, and borderless
+/// buttons belong in toolbars and status bars, which is exactly where the glyph-only
+/// controls (gear, `+`, `…`, copy, trash, reset) still live on `HoverButtonStyle`.
+///
+/// So there is one chrome now: a resting container everywhere, hover lifts the fill one
+/// step, pressed goes one step further plus `HeadroomMotion.pressScale`. `Chrome` survives
+/// as a single case because call sites that spell out `chrome: .resting` are stating the
+/// decision, and because dropping the parameter would churn files this change does not own.
 struct SetupChipButtonStyle: ButtonStyle {
     enum Size {
         case regular
@@ -561,15 +579,13 @@ struct SetupChipButtonStyle: ButtonStyle {
         var cornerRadius: CGFloat { self == .regular ? 8 : 7 }
     }
 
-    /// B3H: `.hover` is the default — every chip in the popover takes it, which is all but
-    /// three call sites, and only Settings has to ask for the resting container by name.
+    /// PA11b: B3H's `.hover` case is gone with the behaviour it named.
     enum Chrome {
-        case hover
         case resting
     }
 
     var size: Size = .regular
-    var chrome: Chrome = .hover
+    var chrome: Chrome = .resting
 
     @Environment(\.colorScheme) private var scheme
 
@@ -599,12 +615,8 @@ struct SetupChipButtonStyle: ButtonStyle {
                     shape
                         .fill(fillColor)
                         .overlay(shape.strokeBorder(borderColor, lineWidth: 1))
-                        .shadow(color: .black.opacity(dark ? 0 : 0.10), radius: 1, y: 1)
-                        // B3H: one opacity on the whole container, so the `.hover` chrome
-                        // arrives and leaves as a single object rather than three fades.
-                        .opacity(chromeOpacity)
                 }
-                // S2A: the fill is a colour change and survives Reduce Motion; the 0.98 scale
+                // S2A: the fill is a colour change and survives Reduce Motion; the press scale
                 // below is the only movement here, so it resolves separately.
                 .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: hovering)
@@ -616,42 +628,35 @@ struct SetupChipButtonStyle: ButtonStyle {
                 .padding(8)
                 .contentShape(Rectangle())
                 .padding(-8)
-                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                // PB12: the same `pressScale` every other button style uses. This was 0.98,
+                // which on an 11.5pt chip was close enough to nothing that the press barely
+                // registered next to a `HoverButtonStyle` glyph at 0.96.
+                .scaleEffect(configuration.isPressed ? HeadroomMotion.pressScale : 1)
                 .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
                 .onHover { hovering = $0 }
         }
 
-        /// `.resting` keeps round 3's two-step fill. `.hover` reuses the *same* hover value
-        /// as its arrival state and goes one step deeper while pressed, so the two chromes
-        /// are the one recipe seen from different rest positions.
+        /// PA11b: one three-step ladder — rest, hover one step up, pressed one step further.
+        ///
+        /// Light goes **subtractive**. B3H's light fills were white-on-white (ΔL 0.012 over a
+        /// Settings tile), so the resting container the chrome exists to guarantee did not
+        /// render at all; black-alpha over the tile is the mirror of the dark branch's
+        /// white-alpha and reads at every step. The drop shadow went with it — a recessed
+        /// fill lit from above is a contradiction, and the 1pt border already carries the
+        /// edge.
         private var fillColor: Color {
-            switch chrome {
-            case .resting:
-                dark ? Color.white.opacity(hovering ? 0.14 : 0.10)
-                     : Color.white.opacity(hovering ? 0.9 : 0.72)
-            case .hover:
-                if configuration.isPressed {
-                    dark ? Color.white.opacity(0.20) : Color.white.opacity(1.0)
-                } else {
-                    dark ? Color.white.opacity(0.14) : Color.white.opacity(0.9)
-                }
-            }
+            let step = configuration.isPressed ? 2 : (hovering ? 1 : 0)
+            return dark
+                ? Color.white.opacity(Self.darkFillSteps[step])
+                : Color.black.opacity(Self.lightFillSteps[step])
         }
+
+        private static let darkFillSteps: [Double] = [0.10, 0.14, 0.18]
+        private static let lightFillSteps: [Double] = [0.06, 0.10, 0.14]
 
         private var borderColor: Color {
             dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
-        }
-
-        /// The whole container is absent at rest in `.hover` — that absence is the point of
-        /// B3H, and it is what lets the chip's label sit on the 34pt content axis (B3X).
-        private var chromeOpacity: Double {
-            switch chrome {
-            case .resting:
-                1
-            case .hover:
-                (hovering || configuration.isPressed) ? 1 : 0
-            }
         }
     }
 }

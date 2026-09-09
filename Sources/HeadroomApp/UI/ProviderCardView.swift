@@ -536,7 +536,11 @@ struct ProviderCardView: View {
             SkeletonMeter(labelWidth: 72, valueWidth: 42, format: meterStyle.format)
             SkeletonMeter(labelWidth: 86, valueWidth: 36, format: meterStyle.format)
             Text("Fetching usage…")
-                .font(.caption2).foregroundStyle(.tertiary)
+                // PB11: was `.caption2`, the only Dynamic-Type-scaled font in a card whose
+                // every other size is fixed — so it drifted out of step with the meters
+                // above it under a non-default text size.
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.tertiary)
         }
         .padding(.leading, IdentityRowMetrics.meterContentInset)
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
@@ -624,12 +628,11 @@ struct ProviderCapabilityRecoveryView: View {
         /// placements still read as a deliberate pair rather than an accident.
         var chipSize: SetupChipButtonStyle.Size { .small }
 
-        /// B3H: the same block renders in two rooms. In a popover card the chrome only
-        /// appears on hover, like the footer's Refresh/Quit; in the Settings group it keeps
-        /// its resting container so it matches the bordered controls beside it.
-        var chipChrome: SetupChipButtonStyle.Chrome {
-            self == .cardFoot ? .hover : .resting
-        }
+        /// PA11b: B3H's per-room chrome is gone. Both rooms now carry the resting container,
+        /// so the placement no longer has an opinion about it — this was the split that let
+        /// "Install Claude Code" read as prose at a card foot while the same block read as a
+        /// button in Settings.
+        var chipChrome: SetupChipButtonStyle.Chrome { .resting }
     }
 
     let presentation: CapabilityRecoveryPresentation
@@ -785,12 +788,15 @@ struct StopWaitingButton: View {
 ///
 /// B3X (Kyle, Sep 2026): "have it line up with the messages and service title instead of the
 /// icon." B3 aligned the chip's *box* to the mark column; what the eye reads is the chip's
-/// **label**, and B3H just deleted the resting box that made the box edge visible at all. So
-/// the row aligns its first label, not its first frame: it insets itself by `labelInset`
-/// minus the chip's own horizontal padding, which lands the label exactly on `labelInset`.
-/// At the default that is the 34pt content axis (13 card padding + 21) shared by the identity
-/// title, the status sentence and every meter label. The hover pill then overhangs 10pt to
-/// the left, the same way the footer's Refresh/Quit pills overhang their text.
+/// **label**. So the row aligns its first label, not its first frame: it insets itself by
+/// `labelInset` minus the chip's own horizontal padding, which lands the label exactly on
+/// `labelInset`. At the default that is the 34pt content axis (13 card padding + 21) shared
+/// by the identity title, the status sentence and every meter label.
+///
+/// PA11b brought the chip's container back at rest, so the box now overhangs the axis by its
+/// own 10pt at all times rather than only on hover. That is still the right trade — B3X's
+/// point was that the *label* is what has to agree with the sentence above it — and it is
+/// the same overhang the footer's chips carry against the shell margin.
 struct CardActionRow<Content: View>: View {
     /// Only for stacks whose own spacing already supplies part of R4A's 12pt gap.
     var topPadding: CGFloat = 12
@@ -900,7 +906,10 @@ struct UsageBarsStack: View {
 
     var body: some View {
         if windows.isEmpty {
-            Text("No usage data").font(.caption).foregroundStyle(.secondary)
+            // PB11: fixed size, in step with every other line in the card.
+            Text("No usage data")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.secondary)
         } else {
             // T1A: Micro tightens 12 → 10 so an account's rows read as one block under its
             // title; Full stays 9, where the taller row already carries the separation.
@@ -986,7 +995,8 @@ private struct CommandRecoveryRow: View {
     var body: some View {
         HStack(spacing: 8) {
             Text("$ \(command)")
-                .font(.caption.monospaced())
+                // PB11: the same 11pt monospaced the setup cards' command disclosure uses.
+                .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.primary)
                 .lineLimit(2)
                 .truncationMode(.middle)

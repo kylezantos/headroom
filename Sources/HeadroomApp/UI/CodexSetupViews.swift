@@ -134,11 +134,15 @@ struct CodexConnectCard: View {
                  : "See your remaining Codex usage right here.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
             Text("Sign-in stays in the official Codex CLI and browser. Headroom never sees your password.")
                 .font(.system(size: 11.5))
                 .foregroundStyle(.tertiary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 11)
             Button(action: onOpenSetup) {
@@ -197,6 +201,8 @@ struct CodexConnectCard: View {
             Text(text)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -227,9 +233,11 @@ struct CodexAccessRecoveryCard: View {
             }
             Text(kind == .permission
                  ? "Headroom found the Codex sign-in file but macOS did not allow it to be read. Signing in again cannot repair this permission."
-                 : "Codex did not leave a readable file for this account. Reopen its official login with Headroom's account-specific file-storage setting.")
+                 : "Codex did not leave a readable file for this account. Reopen its official login with Headroom’s account-specific file-storage setting.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
             // P4C/B3: the full-width primary keeps its own line, as in `CodexConnectCard`;
             // "Check Now" drops to the card's leading action row.
@@ -272,6 +280,8 @@ struct CodexWaitingCard: View {
                  : "Complete the ChatGPT sign-in in your browser. Headroom will reconnect when Codex confirms it.")
                 .font(.system(size: 12.5))
                 .foregroundStyle(.secondary)
+                // PB11: 2pt on every line of popover prose that is allowed to wrap.
+                .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 6)
             Label(mode == .deviceCode
@@ -349,6 +359,21 @@ struct CodexManualCommandDisclosure: View {
     }
 }
 
+/// PB13: Codex's half of the setup palette, mirroring `ClaudeSetupStyle`. The CTA gradient
+/// used to be four raw RGB literals inside the button's own body, which made it the one
+/// brand colour in the app with no name and no shared home. It stays a *local* enum rather
+/// than a Core token on purpose: the two provider setup flows are deliberately decoupled, so
+/// a Codex tweak must never reach into Claude's ramp.
+enum CodexSetupStyle {
+    static func buttonTop(dark: Bool) -> Color {
+        dark ? Color(red: 0.40, green: 0.45, blue: 0.95) : Color(red: 0.30, green: 0.35, blue: 0.90)
+    }
+
+    static func buttonBottom(dark: Bool) -> Color {
+        dark ? Color(red: 0.29, green: 0.34, blue: 0.82) : Color(red: 0.20, green: 0.24, blue: 0.76)
+    }
+}
+
 struct CodexPrimaryButtonStyle: ButtonStyle {
     @Environment(\.colorScheme) private var scheme
 
@@ -364,12 +389,8 @@ struct CodexPrimaryButtonStyle: ButtonStyle {
 
         var body: some View {
             let shape = RoundedRectangle(cornerRadius: 9, style: .continuous)
-            let top = dark
-                ? Color(red: 0.40, green: 0.45, blue: 0.95)
-                : Color(red: 0.30, green: 0.35, blue: 0.90)
-            let bottom = dark
-                ? Color(red: 0.29, green: 0.34, blue: 0.82)
-                : Color(red: 0.20, green: 0.24, blue: 0.76)
+            let top = CodexSetupStyle.buttonTop(dark: dark)
+            let bottom = CodexSetupStyle.buttonBottom(dark: dark)
             // S3A: hover in fast, out slow; press lands inside 100ms and returns on settle.
             let hoverAnimation = hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
             let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
@@ -383,12 +404,13 @@ struct CodexPrimaryButtonStyle: ButtonStyle {
                 .shadow(color: .black.opacity(0.20), radius: 1, y: 1)
                 .brightness(configuration.isPressed ? -0.03 : (hovering ? 0.04 : 0))
                 // S2A: brightness is a colour change and keeps its timing under Reduce Motion;
-                // the 0.98 scale below is movement, so it carries its own modifier.
+                // the press scale below is movement, so it carries its own modifier.
                 .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: hovering)
                 .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
-                .scaleEffect(configuration.isPressed ? 0.98 : 1)
+                // PB12: one press scale across all four button styles.
+                .scaleEffect(configuration.isPressed ? HeadroomMotion.pressScale : 1)
                 .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
                 .onHover { hovering = $0 }

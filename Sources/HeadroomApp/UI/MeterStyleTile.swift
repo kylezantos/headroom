@@ -41,6 +41,9 @@ struct MeterStyleTile: View {
     private let rowSpacing: CGFloat = 16
     private let captionSpacing: CGFloat = 6
     private let columnCount = 5
+    /// The width of the mini card fragment inside a Format swatch. AP2 reads it too, so the
+    /// swatch's segment pitch is derived from the same number that sizes the fragment.
+    private let fragmentWidth: CGFloat = 60
 
     var body: some View {
         VStack(alignment: .leading, spacing: rowSpacing) {
@@ -146,7 +149,7 @@ struct MeterStyleTile: View {
                         }
                     }
                 }
-                .frame(width: 60, alignment: .leading)
+                .frame(width: fragmentWidth, alignment: .leading)
             }
             .selectionChrome(isSelected: isSelected)
         }
@@ -167,12 +170,21 @@ struct MeterStyleTile: View {
     /// PA5: shape and fill ride the live selection (`MeterGauge` resolves Tube to Chip for
     /// Full itself), so the Format row compares two *layouts* of the meter the user actually
     /// has rather than two drawings of a chip/solid meter they may never have chosen.
+    ///
+    /// AP2 (Kyle): "show the same little segment chips as in the micro version — there are
+    /// just more of them and they're placed differently." Full's real 20 cells inside a 60pt
+    /// fragment are 2pt ticks, so Segmented Full asks for however many *micro-sized* cells
+    /// fit the fragment instead. Only the count is overridden: the cells keep Full's taller
+    /// `fullCellHeight` and full-width spread, so the swatch still reads as the Full row.
     private func fragmentGauge(format: GaugeFormat) -> some View {
         MeterGauge(
             style: MeterStyle(format: format, shape: meterStyle.shape, fill: meterStyle.fill),
             fraction: 0.62,
             severity: .healthy,
-            freshness: .live
+            freshness: .live,
+            segmentCount: format == .full
+                ? MeterGeometry.segmentCount(fittingWidth: Double(fragmentWidth))
+                : nil
         )
     }
 

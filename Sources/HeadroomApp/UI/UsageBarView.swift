@@ -37,10 +37,6 @@ struct UsageBarView: View {
     let now: Date
     let meterStyle: MeterStyle
     var dimmed: Bool = false
-    /// H3a (Jul 2026 multi-account design review): in the multi-account meter the critical
-    /// band drops the "Low" chip and paints the percentage numeral a decoupled critical text
-    /// color instead. Single-account rows keep the chip exactly as before.
-    var chiplessCriticalInk: Bool = false
     /// M4A: the account this row belongs to, and the row's opt-in to the once-per-launch
     /// draw-in. `nil` — the default — means "paint the final value immediately", which is
     /// what every preview, specimen, and non-account surface wants.
@@ -53,11 +49,10 @@ struct UsageBarView: View {
     /// only while a capture lands. Two reasons the paint is mirrored instead of read
     /// straight from the props: S2A needs each motion kind on its own animation, and the
     /// fill has to live inside a `withAnimation` transaction so its completion is a genuine
-    /// "the bar landed" signal for the chip and the state label — never a guessed delay.
+    /// "the bar landed" signal for the state label — never a guessed delay.
     @State private var landedValue: RowValue?
     @State private var landedSeverity: UsageSeverity?
     @State private var landedTone: RowTone?
-    @State private var showsChip = false
     @State private var visibleStateText: String?
 
     private let labelSize: CGFloat = 13
@@ -84,7 +79,6 @@ struct UsageBarView: View {
         var value: RowValue
         var tone: RowTone
         var severity: UsageSeverity
-        var chip: Bool
         var state: String?
     }
 
@@ -116,12 +110,6 @@ struct UsageBarView: View {
 
     private var tone: RowTone { RowTone(freshness: window.freshness, dimmed: dimmed) }
 
-    /// The chip's gate is unchanged: critical band only, never on a dimmed or non-live row,
-    /// never in the chipless multi-account meter (H3a).
-    private var chipIsWarranted: Bool {
-        !(dimmed || !window.freshness.isLive) && severity == .critical && !chiplessCriticalInk
-    }
-
     private var stateText: String? {
         switch window.freshness {
         case .live:
@@ -152,7 +140,6 @@ struct UsageBarView: View {
             value: liveValue,
             tone: tone,
             severity: severity,
-            chip: chipIsWarranted,
             state: stateText
         )
     }
@@ -181,8 +168,13 @@ struct UsageBarView: View {
         displayedTone.dimmed || !displayedTone.freshness.isLive
     }
 
+    /// AP1 (Kyle, Sep 2026): critical is one treatment everywhere now — the numeral goes red
+    /// and the meter's own critical indicators carry the rest. The "Low" capsule that used to
+    /// stand beside single-account rows (H3a kept it there while multi-account rows went
+    /// chipless) said the same thing a third time, so it is gone and every row reads the way
+    /// the multi-account meter already did.
     private var usesCriticalInk: Bool {
-        chiplessCriticalInk && !isEffectivelyDimmed && displayedSeverity == .critical
+        !isEffectivelyDimmed && displayedSeverity == .critical
     }
 
     private var percentText: String { displayedValue.pct.map { "\($0)%" } ?? "—" }
@@ -213,11 +205,10 @@ struct UsageBarView: View {
         HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion)
     }
 
-    /// One capture, one landing. The fill leads; the "Low" chip and Full's state label enter
-    /// only once it has settled (M1A, M3A′). Exits never wait — they leave on the way in,
-    /// which is the subtler half of the pair.
+    /// One capture, one landing. The fill leads; Full's state label enters only once it has
+    /// settled (M1A, M3A′). Exits never wait — they leave on the way in, which is the subtler
+    /// half of the pair. AP1 removed the "Low" chip from this sequence; the rest is intact.
     private func land() {
-        let chip = chipIsWarranted
         let state = stateText
         // Read what the row is currently showing before touching the registry, so the
         // comparison below is against the frame the user actually saw.
@@ -241,9 +232,6 @@ struct UsageBarView: View {
         // until `numeralInk` started consulting `landedTone` too.
         withAnimation(settleCrossfade) { landedTone = tone }
 
-        if !chip {
-            withAnimation(settleCrossfade) { showsChip = false }
-        }
         if state == nil || visibleStateText != nil {
             withAnimation(settleCrossfade) { visibleStateText = state }
         }
@@ -254,19 +242,13 @@ struct UsageBarView: View {
         // nothing keeps the sequencing true under Reduce Motion too.
         guard let valueMovement, value != from else {
             landedValue = value
-            withAnimation(settleCrossfade) {
-                showsChip = chip
-                visibleStateText = state
-            }
+            withAnimation(settleCrossfade) { visibleStateText = state }
             return
         }
         withAnimation(valueMovement) {
             landedValue = value
         } completion: {
-            withAnimation(settleCrossfade) {
-                showsChip = chip
-                visibleStateText = state
-            }
+            withAnimation(settleCrossfade) { visibleStateText = state }
         }
     }
 
@@ -305,7 +287,6 @@ struct UsageBarView: View {
                 stateLabel
                 if inlineReset { resetLabel(fixedSize: true) }
                 Spacer(minLength: 6)
-                urgencyChip
                 numeralCluster(capCentred: false)
             }
 
@@ -334,7 +315,6 @@ struct UsageBarView: View {
                 labelCluster(fixedReset: true, capCentred: true)
                     .fixedSize(horizontal: true, vertical: false)
                 Spacer(minLength: 6)
-                urgencyChip
                 gauge
                 numeralCluster(capCentred: true)
             }
@@ -343,7 +323,6 @@ struct UsageBarView: View {
                 HStack(alignment: .center, spacing: 6) {
                     labelCluster(fixedReset: false, capCentred: true)
                     Spacer(minLength: 6)
-                    urgencyChip
                 }
                 HStack(alignment: .center, spacing: 6) {
                     Spacer(minLength: 0)
@@ -415,16 +394,6 @@ struct UsageBarView: View {
         }
     }
 
-    /// M1A: the chip is a consequence of the fill, not a peer of it, so `land()` reveals it
-    /// only after the bar settles. Opacity only, and it leaves without waiting.
-    @ViewBuilder
-    private var urgencyChip: some View {
-        if showsChip {
-            lowChip
-                .transition(.opacity)
-        }
-    }
-
     /// PA6: Micro asks for cap centres — the figure and its term each land on the row's one
     /// optical axis — while Full keeps the shared baseline that makes "72% used" read as one
     /// phrase across a wide row.
@@ -476,21 +445,6 @@ struct UsageBarView: View {
             severity: displayedSeverity,
             freshness: gaugeFreshness
         )
-    }
-
-    /// Small static "Low" flag shown only for the critical band (≤15% left).
-    private var lowChip: some View {
-        Text("Low")
-            .kerning(IdentityRowMetrics.capsuleLabelKerning)
-            // PA7: the type is the capsule's now — C6A unified the six capsules' height but
-            // left four sizes and two weights inside them, so they still read as tiers.
-            .foregroundStyle(ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme))
-            // C6A: was 15pt from vPad 1 — one shared 18pt capsule now, so it reads as a peer
-            // of the plan pill and Stale tag rather than a second, shorter tier.
-            .identityCapsule(
-                fill: ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme).opacity(0.16),
-                horizontalPadding: 5
-            )
     }
 
     private var label: String {

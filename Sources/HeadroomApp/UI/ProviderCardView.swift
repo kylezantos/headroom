@@ -515,7 +515,6 @@ struct ProviderCardView: View {
     }
 
     private func bars(for snapshot: UsageSnapshot, dimmed: Bool) -> some View {
-        // Single-account keeps the "Low" chip (chiplessCriticalInk defaults off).
         UsageBarsStack(
             windows: snapshot.windows,
             percentageMode: percentageMode,
@@ -897,9 +896,6 @@ struct UsageBarsStack: View {
     let now: Date
     let dimmed: Bool
     let meterStyle: MeterStyle
-    /// H3a: multi-account sections opt into chipless critical numerals; single-account keeps
-    /// the "Low" chip. Threaded down to every row so a stack renders one way.
-    var chiplessCriticalInk: Bool = false
     /// M4A: passed straight through so both of an account's rows draw in together on the
     /// first live view of that account this launch. `nil` keeps a stack static.
     var arrivalKey: AccountKey? = nil
@@ -921,7 +917,6 @@ struct UsageBarsStack: View {
                         now: now,
                         meterStyle: meterStyle,
                         dimmed: dimmed,
-                        chiplessCriticalInk: chiplessCriticalInk,
                         arrivalKey: arrivalKey
                     )
                 }

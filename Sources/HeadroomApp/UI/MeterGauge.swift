@@ -9,6 +9,12 @@ struct MeterGauge: View {
     let fraction: Double
     let severity: UsageSeverity
     let freshness: UsageWindowFreshness
+    /// AP2: swatch-only override for how many cells a segmented gauge draws. `nil` — the
+    /// default, and the only value any real meter uses — means `MeterRecipe.cellCount`.
+    /// The Settings Format swatch is the one caller: it renders Full inside a 60pt fragment,
+    /// where the real 20 cells comb into 2pt ticks, so it asks for the count that keeps the
+    /// cells at micro size. Non-segmented shapes ignore it.
+    var segmentCount: Int? = nil
 
     @Environment(\.colorScheme) private var scheme
     // Fill tier lookup: Increase Contrast swaps the vivid light bar fills back to the
@@ -50,7 +56,7 @@ struct MeterGauge: View {
         case .chip: return CGFloat(MeterGeometry.microChipWidth)
         case .machined: return CGFloat(MeterGeometry.microMachinedWidth)
         case .segmented:
-            let cells = CGFloat(MeterRecipe.cellCount(for: .micro))
+            let cells = CGFloat(resolvedCellCount)
             return cells * CGFloat(MeterGeometry.microCellWidth)
                 + (cells - 1) * CGFloat(MeterGeometry.microCellGap)
         case .tube: return CGFloat(MeterGeometry.microTubeWidth)
@@ -212,8 +218,12 @@ struct MeterGauge: View {
         }
     }
 
+    private var resolvedCellCount: Int {
+        segmentCount ?? MeterRecipe.cellCount(for: style.format)
+    }
+
     private var segmentedGauge: some View {
-        let cells = MeterRecipe.cellCount(for: style.format)
+        let cells = resolvedCellCount
         let lit = freshness.isUnavailable
             ? 0
             : MeterRecipe.litCellCount(fraction: clampedFraction, cells: cells)

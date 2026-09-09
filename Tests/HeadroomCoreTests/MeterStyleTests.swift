@@ -90,6 +90,23 @@ struct MeterStyleTests {
         #expect(MeterRecipe.cellCount(for: .full) == 20)
     }
 
+    /// AP2: the Format › Full swatch derives its cell count from the fragment width instead
+    /// of drawing Full's real 20 cells as 2pt ticks. In the 60pt fragment the micro pitch
+    /// (6pt cell + 2pt gap) fits exactly 7 — 7 × 6 + 6 × 2 = 54, and an 8th would need 62.
+    @Test func swatchSegmentCountFitsMicroSizedCellsInTheFragment() {
+        #expect(MeterGeometry.segmentCount(fittingWidth: 60) == 7)
+        // Exactly-fitting and just-short widths land on either side of the same boundary.
+        #expect(MeterGeometry.segmentCount(fittingWidth: 62) == 8)
+        #expect(MeterGeometry.segmentCount(fittingWidth: 61.9) == 7)
+        // The micro gauge's own width is the round trip of this math.
+        #expect(MeterGeometry.segmentCount(fittingWidth: 38) == MeterRecipe.cellCount(for: .micro))
+        // Degenerate widths still yield a drawable gauge rather than an empty HStack.
+        #expect(MeterGeometry.segmentCount(fittingWidth: 0) == 1)
+        #expect(MeterGeometry.segmentCount(fittingWidth: 1) == 1)
+        // The pitch is a parameter, not a constant baked into the helper.
+        #expect(MeterGeometry.segmentCount(fittingWidth: 60, cellWidth: 4, gap: 1) == 12)
+    }
+
     /// L7B: the cap is its own marker with Kyle's approved constants, not a slice of the fill.
     /// It is longer than its track on purpose — 1pt proud on each side of the 8pt full track
     /// and of the 5pt micro chip and tube.

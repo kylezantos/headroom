@@ -297,9 +297,17 @@ extension View {
     }
 
     /// The recessed well behind a settings preview (specimen or menu-bar strip).
-    func settingsPreviewWell(dark: Bool, verticalPadding: CGFloat) -> some View {
+    ///
+    /// AP3: the horizontal inset is a parameter now. 9pt is right for the narrow menu-bar
+    /// strips — the plate is nearly the whole content — but the Appearance specimen holds a
+    /// full provider card, which read as jammed against the well's edge; it passes more.
+    func settingsPreviewWell(
+        dark: Bool,
+        verticalPadding: CGFloat,
+        horizontalPadding: CGFloat = 9
+    ) -> some View {
         self
-            .padding(.horizontal, 9)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
             .background(
                 ClaudeSetupStyle.wellBackground(dark: dark),

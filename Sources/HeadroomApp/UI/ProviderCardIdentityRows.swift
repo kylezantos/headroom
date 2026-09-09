@@ -458,8 +458,6 @@ struct AccountSectionView: View {
     }
 
     private func bars(dimmed: Bool) -> some View {
-        // Multi-account meters go chipless: critical windows paint the numeral instead of
-        // stacking a "Low" chip beside the identity row's account-scoped state.
         // M4A: account sections only ever render real accounts — the Appearance specimen is
         // single-account and never reaches here — so the arrival key is unconditional.
         UsageBarsStack(
@@ -468,7 +466,6 @@ struct AccountSectionView: View {
             now: now,
             dimmed: dimmed,
             meterStyle: meterStyle,
-            chiplessCriticalInk: true,
             arrivalKey: account.key
         )
         .padding(.leading, IdentityRowMetrics.meterContentInset)

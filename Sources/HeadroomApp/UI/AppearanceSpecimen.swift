@@ -92,7 +92,15 @@ struct AppearanceSpecimen: View {
                 )
             }
             .clipped()
-            .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 8)
+            // AP3 (Kyle): the specimen holds a whole provider card and a menu-bar strip, so
+            // the strip-sized 9 × 8 inset left both nearly touching the well's edge. Only the
+            // well's padding changes — what it frames is still the real card and the real
+            // `MenuBarLabel` renderer.
+            .settingsPreviewWell(
+                dark: colorScheme == .dark,
+                verticalPadding: 14,
+                horizontalPadding: 16
+            )
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Preview of a provider card in the selected style")

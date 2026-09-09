@@ -109,6 +109,22 @@ public enum MeterGeometry {
     public static let fullCellHeight = 7.0
     public static let fullCellGap = 2.5
 
+    /// AP2 (Kyle, Sep 2026): how many segmented cells fit across a fixed-width swatch at a
+    /// given cell pitch. The Format › Full swatch draws its 20 real cells inside a 60pt
+    /// fragment, which combs them down to ~2pt ticks and reads as a barcode rather than as
+    /// the segmented meter it is previewing; it instead asks for the count that keeps each
+    /// cell at the micro cell size, so the swatch shows "the same little segment chips, just
+    /// more of them". Geometry only — the shipped meter still uses `MeterRecipe.cellCount`.
+    public static func segmentCount(
+        fittingWidth width: Double,
+        cellWidth: Double = microCellWidth,
+        gap: Double = microCellGap
+    ) -> Int {
+        let pitch = cellWidth + gap
+        guard width > 0, pitch > 0 else { return 1 }
+        return max(1, Int(((width + gap) / pitch).rounded(.down)))
+    }
+
     /// L8A: a nonzero value always shows a visible stub. The floor is measured along the
     /// fill's travel axis, inside the track's inset.
     public static let fullMinimumFillLength = 6.0

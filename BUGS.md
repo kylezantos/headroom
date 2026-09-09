@@ -435,3 +435,16 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   and fold the spend sentence into `StatusSentence`.
 - **`SetupChipButtonStyle.Size.regular` is unreferenced** after B3 moved every popover chip to
   `.small`. Delete the case or keep it for a future card-foot primary — decide, don't drift.
+
+## Pre-ship craft audit residuals (2026-09-08)
+
+- **The `--demo` Claude fixture orders Weekly before 5-hour; the parser never does.**
+  `DemoFixture.swift:20-24` lists `.weekly` first, but `ClaudeUsageParser.rank` puts `.fiveHour`
+  at 0 and `.weekly` at 1, so every real popover shows "5-hour" first while every `--demo`
+  capture (and therefore every marketing shot from `capture-demo-screenshots.sh`) shows "Weekly"
+  first. The Settings `AppearanceSpecimen` uses the parser order and disagrees with the demo
+  popover on the same screen. Sort the fixture through the same rank before the next release shoot.
+- **`HoverButtonStyle` hover band vs hit band is unverified.** The `.padding(8) → contentShape →
+  padding(-8)` trick grows the click target to the 40pt floor, but `.onHover` attaches after the
+  negative padding, so the pill may not appear in the added 8pt band. Needs a live pointer check
+  on the popover gear and spend `+`; no capture path exists for hover states.

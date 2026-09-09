@@ -440,7 +440,7 @@ struct AccountsSettingsInteractionTests {
         // L11A: the button is still drawn — it dims with the group rather than vanishing.
         #expect(presentation.showsAddAction)
         #expect(!presentation.addAction.isEnabled)
-        #expect(presentation.addAction.helpText == "Turn Grok on to add an account.")
+        #expect(presentation.addAction.helpText == "Turn Grok on to add an account")
         // The switch is the way back out, so it must not dim with everything else.
         #expect(presentation.subscriptionSwitch.isEnabled)
     }
@@ -501,7 +501,7 @@ struct AccountsSettingsInteractionTests {
             hasActiveHandoff: { $0.id == AccountID("second") }
         )
         #expect(!midHandoffOff.addAction.isEnabled)
-        #expect(midHandoffOff.addAction.helpText == "Turn Grok on to add an account.")
+        #expect(midHandoffOff.addAction.helpText == "Turn Grok on to add an account")
     }
 
     @Test func singleAccountProviderHeaderDropsTheCounterAndAddButKeepsTheSwitch() {

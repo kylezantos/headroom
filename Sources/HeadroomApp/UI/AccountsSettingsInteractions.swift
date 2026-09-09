@@ -221,7 +221,9 @@ enum AccountsSettingsInteractions {
             return .disabled(help: "Up to \(capacity) accounts per provider")
         }
         guard isSurfaceEnabled else {
-            return .disabled(help: "Turn \(providerDisplayName) on to add an account.")
+            // PB9: no full stop — the other two tooltips in this very function have none, and
+            // a single-sentence tooltip is a label, not prose.
+            return .disabled(help: "Turn \(providerDisplayName) on to add an account")
         }
         return .enabled(help: "Sign in another account via the official CLI")
     }

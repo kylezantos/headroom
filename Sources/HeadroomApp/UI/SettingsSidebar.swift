@@ -15,8 +15,8 @@ struct SettingsSidebar: View {
     /// so this is measured from the top of the sidebar column and has two jobs at once —
     /// clear the floating traffic lights, and land the logo's vertical centre on the same
     /// line as the detail pane's title, which sits at `SettingsPaneScaffold`'s 20pt top
-    /// padding at 15pt semibold. The old 30pt only did the first, which is the "weird
-    /// relationship with the top of the content" in the review.
+    /// padding. The old 30pt only did the first, which is the "weird relationship with the
+    /// top of the content" in the review.
     ///
     /// **Measured, not derived.** `NavigationSplitView` gives the two columns different
     /// top insets under a hidden title bar — the sidebar's content starts 10pt lower than
@@ -27,6 +27,13 @@ struct SettingsSidebar: View {
     /// below; 5.5 wins because the title's box carries descender space its glyphs don't,
     /// putting its optical centre slightly above its box centre. Re-measure if the pane
     /// title's size or the scaffold's top padding changes.
+    ///
+    /// **Stale as of PB2** — that measurement was taken with the pane title at 15 semibold;
+    /// it is now 17, so the title's box grows ~2pt and its centre drops ~1pt below the mark.
+    /// The value is deliberately left at the measured 5.5 rather than replaced with a guess:
+    /// re-read both accessibility frames in the live 800 × 700 window and set it from that,
+    /// not by arithmetic (the two columns' insets do not close, which is why this note
+    /// exists at all).
     private static let identityTopInset: CGFloat = 5.5
 
     /// L10A: gap between the identity block and the first navigation row.
@@ -121,7 +128,9 @@ extension SettingsPane {
     var symbolName: String {
         switch self {
         case .general: "slider.horizontal.3"
-        case .appearance: "circle.lefthalf.filled"
+        // PB12: striped, not filled. Appearance was the one solid glyph in a sidebar of
+        // outlines, so it read as the selected row even when it wasn't.
+        case .appearance: "circle.lefthalf.striped.horizontal"
         case .menuBar: "menubar.rectangle"
         case .widgets: "square.grid.2x2"
         case .accounts: "person"

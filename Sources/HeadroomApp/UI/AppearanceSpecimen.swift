@@ -126,9 +126,8 @@ struct AppearanceSpecimen: View {
             .environment(\.accountTitleInk, accountTitleInk)
 
             HStack(spacing: 10) {
-                // The label renderer pins its palette dark (white ink + dark severity
-                // colors) because that's what the Tahoe menu bar shows; the shared plate
-                // keeps it legible on a light well.
+                // PB13: the pill and its plate both follow the *live* menu bar, so this
+                // previews the bar the user has rather than the dark one they might not.
                 MenuBarPreviewPill(meters: menuBarMeters, showsPercentage: true)
                 Text("Follows the choices below.")
                     .font(.system(size: 10))

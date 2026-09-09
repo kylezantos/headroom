@@ -13,7 +13,6 @@ struct ThemeThumbnailPicker: View {
     @Binding var selection: AppearancePreference
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // The row is a `LazyVGrid`, matching `MeterStyleTile`'s swatch rows, and that is
@@ -48,6 +47,7 @@ struct ThemeThumbnailPicker: View {
     /// Same chrome as `MeterStyleTile`'s shape/fill swatches — 8pt continuous ring, 2pt
     /// accent when selected and a 1pt hairline otherwise, 10.5pt medium caption — so the
     /// Appearance pane reads as one family of choices rather than two control languages.
+    /// PB13: that chrome is now literally the same code (`selectionChrome`), not a copy.
     private func thumbnail(_ preference: AppearancePreference) -> some View {
         let isSelected = selection == preference
 
@@ -70,28 +70,12 @@ struct ThemeThumbnailPicker: View {
                     .minimumScaleFactor(0.8)
             }
             .padding(5)
-            .frame(maxWidth: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(
-                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected ? Color.accentColor : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            }
+            .selectionChrome(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .help(preference.themeHelpText)
         .accessibilityLabel("\(preference.label) theme")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
-        // S1A/S2A: the ring's tint, its 1↔2pt width, and the 8% accent fill are all colour
-        // work, so the house press curve carries them and Reduce Motion keeps the cross-fade.
-        .animation(HeadroomMotion.resolved(HeadroomMotion.pressDown, .crossfade, reduceMotion: reduceMotion),
-                   value: isSelected)
     }
 
     static let artWidth: CGFloat = 96

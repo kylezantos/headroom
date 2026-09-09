@@ -7,6 +7,18 @@ import HeadroomCore
 /// L12B: three homogeneous swatch rows. Format lost its segmented control — Full and Micro
 /// are swatches showing a mini card fragment each — and the row names became captions above
 /// their rows instead of a 46pt left label column, so the tile has one rhythm instead of three.
+///
+/// PA5: a swatch previews against the **live** selection. Each row varies exactly one axis
+/// and takes the other drawn axes from `meterStyle`, so nothing on screen is a style the
+/// user's meters would never draw. (Before this, every Shape swatch wore a Glass end cap and
+/// three rows painted healthy green while the specimen above them painted the same window
+/// grey, because the swatches hard-coded chip/solid/glass.) Only the 0.62/0.38 fractions and
+/// their severities stay literal — those are the *subject* of the comparison, not a setting.
+///
+/// The Shape and Fill rows still draw at `.micro`. That is a rendering scale, not a pinned
+/// preview axis: a 66 × 26pt well cannot show a Full-format bar at anything near its real
+/// cell pitch (Full segmented is 20 cells, which would comb down to ~3pt each), and Format is
+/// previewed by the row that owns it.
 struct MeterStyleTile: View {
     let meterStyle: MeterStyle
     let onChange: (MeterStyle) -> Void
@@ -20,7 +32,6 @@ struct MeterStyleTile: View {
     }
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// L12B: one fixed column rhythm across all three rows. Five 76pt columns on 8pt gaps
     /// need 412pt; at the 720pt minimum window the detail column is 504pt, so the tile is
@@ -71,6 +82,14 @@ struct MeterStyleTile: View {
             ForEach(GaugeFill.allCases) { fill in
                 fillSwatch(fill)
             }
+        } footer: {
+            // PB7: the Fill row shipped five renderer names and no help line while every
+            // other row in the window had one. Copy is the decided wording — Glass and
+            // Ghost share a clause because they differ only in track weight.
+            SettingsHelpText(
+                text: "Solid is always coloured. Color as event stays neutral until usage runs low. "
+                    + "Hue ramp shifts colour as it empties. Glass and Ghost add a bright end cap."
+            )
         }
     }
 
@@ -129,7 +148,7 @@ struct MeterStyleTile: View {
                 }
                 .frame(width: 60, alignment: .leading)
             }
-            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
+            .selectionChrome(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .help(format.label)
@@ -145,9 +164,12 @@ struct MeterStyleTile: View {
             .fixedSize()
     }
 
+    /// PA5: shape and fill ride the live selection (`MeterGauge` resolves Tube to Chip for
+    /// Full itself), so the Format row compares two *layouts* of the meter the user actually
+    /// has rather than two drawings of a chip/solid meter they may never have chosen.
     private func fragmentGauge(format: GaugeFormat) -> some View {
         MeterGauge(
-            style: MeterStyle(format: format, shape: .chip, fill: .solid),
+            style: MeterStyle(format: format, shape: meterStyle.shape, fill: meterStyle.fill),
             fraction: 0.62,
             severity: .healthy,
             freshness: .live
@@ -162,15 +184,17 @@ struct MeterStyleTile: View {
             onChange(MeterStyle(format: meterStyle.format, shape: shape, fill: meterStyle.fill))
         } label: {
             swatchBody(label: shape.label) {
+                // PA5: fill follows the live selection. Pinned to Glass, all four shapes wore
+                // an end cap the shipping default never draws.
                 MeterGauge(
-                    style: MeterStyle(format: .micro, shape: shape, fill: .glass),
+                    style: MeterStyle(format: .micro, shape: shape, fill: meterStyle.fill),
                     fraction: 0.62,
                     severity: .healthy,
                     freshness: .live
                 )
             }
             .opacity(isAvailable ? 1 : 0.45)
-            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
+            .selectionChrome(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .disabled(!isAvailable)
@@ -186,12 +210,16 @@ struct MeterStyleTile: View {
             onChange(MeterStyle(format: meterStyle.format, shape: meterStyle.shape, fill: fill))
         } label: {
             swatchBody(label: fill.label, labelLines: 2) {
-                VStack(spacing: 4) {
+                // The healthy/low pair is the subject of this row, so the two fractions and
+                // severities stay literal (PA5) — only the shape they are drawn on follows
+                // the live selection. Tube is vertical, so the pair sits side by side there;
+                // stacked it would need 36pt inside a 26pt well.
+                referencePair {
                     referenceGauge(fill: fill, fraction: 0.62, severity: .healthy)
                     referenceGauge(fill: fill, fraction: 0.38, severity: .low)
                 }
             }
-            .meterStyleSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
+            .selectionChrome(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .help(fill.label)
@@ -226,47 +254,33 @@ struct MeterStyleTile: View {
         .padding(5)
     }
 
+    /// The shape the user's meters are *drawing*, which is what the Fill row previews on:
+    /// Tube stays stored while Full is selected but renders as Chip, so the raw `shape`
+    /// would preview a tube nothing on the popover shows.
+    private var drawnShape: GaugeShape { meterStyle.shape.resolved(for: meterStyle.format) }
+
+    /// Stacks the healthy/low pair for the horizontal shapes and sets them abreast for Tube,
+    /// which is drawn bottom-up.
+    @ViewBuilder private func referencePair<Content: View>(
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        if drawnShape == .tube {
+            HStack(spacing: 8) { content() }
+        } else {
+            VStack(spacing: 4) { content() }
+        }
+    }
+
     private func referenceGauge(
         fill: GaugeFill,
         fraction: Double,
         severity: UsageSeverity
     ) -> some View {
         MeterGauge(
-            style: MeterStyle(format: .micro, shape: .chip, fill: fill),
+            style: MeterStyle(format: .micro, shape: drawnShape, fill: fill),
             fraction: fraction,
             severity: severity,
             freshness: .live
         )
-    }
-}
-
-private extension View {
-    func meterStyleSwatchChrome(
-        isSelected: Bool,
-        colorScheme: ColorScheme,
-        reduceMotion: Bool
-    ) -> some View {
-        frame(maxWidth: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(
-                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? Color.accentColor
-                            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            }
-            // M5A: the swatch ring picked up no motion at all when the theme thumbnails
-            // beside it already tinted and thickened on the press token. Same token, same
-            // 100ms, so the two pickers in one pane answer a click identically.
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.pressDown, .crossfade, reduceMotion: reduceMotion),
-                value: isSelected
-            )
     }
 }

@@ -28,13 +28,11 @@ struct SettingsSidebar: View {
     /// putting its optical centre slightly above its box centre. Re-measure if the pane
     /// title's size or the scaffold's top padding changes.
     ///
-    /// **Stale as of PB2** — that measurement was taken with the pane title at 15 semibold;
-    /// it is now 17, so the title's box grows ~2pt and its centre drops ~1pt below the mark.
-    /// The value is deliberately left at the measured 5.5 rather than replaced with a guess:
-    /// re-read both accessibility frames in the live 800 × 700 window and set it from that,
-    /// not by arithmetic (the two columns' insets do not close, which is why this note
-    /// exists at all).
-    private static let identityTopInset: CGFloat = 5.5
+    /// Re-measured after PB2 (pane title 15 → 17 semibold) on the harness render: the
+    /// identity row's cap centre sat at 27.5pt and the pane title's at 29.5pt, so the inset
+    /// grew by that 2pt. Still a measurement, not arithmetic — the two columns' insets do
+    /// not close, which is why this note exists at all.
+    private static let identityTopInset: CGFloat = 7.5
 
     /// L10A: gap between the identity block and the first navigation row.
     private static let navigationGap: CGFloat = 14

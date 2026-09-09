@@ -448,3 +448,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   padding(-8)` trick grows the click target to the 40pt floor, but `.onHover` attaches after the
   negative padding, so the pill may not appear in the added 8pt band. Needs a live pointer check
   on the popover gear and spend `+`; no capture path exists for hover states.
+- **"Anthropic API" truncates beside a "Last 30 days" period chip.** The spend identity line is
+  exactly tight: 299pt content minus the 15pt mark, the reserved 91pt "$0,000.00" amount column,
+  the fixed-size period capsule and four 6pt spacings leaves the 15pt semibold title ≈94pt when
+  the chip reads "Last 30 days" (≈75pt boxed) — it needs 96.5. PA7 dropped the spacer floor to 0,
+  which covers "September" with 4pt to spare, but the 30-day period still clips. Options: size the
+  amount column to the widest *actual* total in the card (min "$0.00") instead of a pre-reserved
+  "$0,000.00" — amounts stay aligned, the column only grows when a total earns a digit — or
+  shorten the chip ("30 days"). Both touch S5A; decide with Kyle.

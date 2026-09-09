@@ -481,6 +481,7 @@ struct UsageBarView: View {
     /// Small static "Low" flag shown only for the critical band (≤15% left).
     private var lowChip: some View {
         Text("Low")
+            .kerning(IdentityRowMetrics.capsuleLabelKerning)
             // PA7: the type is the capsule's now — C6A unified the six capsules' height but
             // left four sizes and two weights inside them, so they still read as tiers.
             .foregroundStyle(ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme))

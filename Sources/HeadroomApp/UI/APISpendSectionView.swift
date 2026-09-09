@@ -160,7 +160,10 @@ struct APISpendSectionView: View {
             } else {
                 periodChip(model.contextLabel)
             }
-            Spacer(minLength: 6)
+            // PA7: zero, not 6 — the HStack already spends 6pt on either side of this spacer,
+            // so a 6pt floor double-counted the gap and, once the capsule grew to 10.5pt, left
+            // "Anthropic API" 2pt short beside the reserved "$0,000.00" column.
+            Spacer(minLength: 0)
             if model.amount != nil {
                 amountColumn(model)
                     // S5A (Kyle): the amount never gives up width and never drops to a second
@@ -174,6 +177,7 @@ struct APISpendSectionView: View {
     /// are the same kind of object in the same slot.
     private func periodChip(_ label: String) -> some View {
         Text(label)
+            .kerning(IdentityRowMetrics.capsuleLabelKerning)
             // PA7: the capsule owns the type; this row only chooses the ink.
             .foregroundStyle(.tertiary)
             .lineLimit(1)
@@ -290,6 +294,7 @@ struct APISpendSectionView: View {
     private func stateTag(_ badge: String, tone: APISpendRowStatus.Tone) -> some View {
         let ink = badgeColor(tone)
         return Text(badge)
+            .kerning(IdentityRowMetrics.capsuleLabelKerning)
             // PA7: the tag stands in the period chip's own slot, so it must not change size
             // or weight in place — "Rejected" is now the same object as "September".
             .foregroundStyle(ink)

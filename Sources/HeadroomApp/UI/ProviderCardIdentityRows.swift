@@ -40,7 +40,8 @@ extension View {
             size: IdentityRowMetrics.capsuleLabelSize,
             weight: IdentityRowMetrics.capsuleLabelWeight
         ))
-        .kerning(IdentityRowMetrics.capsuleLabelKerning)
+        // PA7: kerning is applied on each capsule Text at the call site, not here — as a
+        // View modifier it leaked into the sibling layout and truncated the spend title.
         .fixedSize()
         .frame(height: IdentityRowMetrics.capsuleHeight)
         .padding(.horizontal, horizontalPadding)
@@ -181,6 +182,7 @@ struct IdentityRow: View {
             titleText
             if let planDisplayName {
                 Text(planDisplayName)
+                    .kerning(IdentityRowMetrics.capsuleLabelKerning)
                     // PA13: the plan pill carries its own token so the dark step is set by |Lc|, not system `.tertiary`.
                     .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
                     // T1A/C6A: the capsule reads as a peer of the title beside it rather than
@@ -295,6 +297,7 @@ struct IdentityRow: View {
     /// same 18pt as the plan pill beside it.
     private var staleTag: some View {
         Text("Stale")
+            .kerning(IdentityRowMetrics.capsuleLabelKerning)
             // PA7: type comes from `identityCapsule` now.
             .foregroundStyle(.secondary)
             .identityCapsule(fill: Color.secondary.opacity(0.18), horizontalPadding: 5)
@@ -338,6 +341,7 @@ private struct ConnectedChip: View {
             // PA7: the tallest label of the six took the shared role too; only the
             // checkmark keeps a font of its own, because it is a glyph, not a label.
             Text("Connected")
+                .kerning(IdentityRowMetrics.capsuleLabelKerning)
         }
         .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
         // C6A: was the tallest of the three capsules at ~19–20pt; now the same 18 as the rest.

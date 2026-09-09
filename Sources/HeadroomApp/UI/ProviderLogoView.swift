@@ -40,7 +40,28 @@ struct ProviderLogoView: View {
 }
 
 private enum BrandIconImage {
+    /// PA15: the bake below is a bundle lookup, an SVG decode, and a 256px offscreen
+    /// rasterization, and it ran from `body` — up to ~24 marks every time the popover opens,
+    /// on a surface whose entrance animation was deleted because any delay there reads as
+    /// latency. Same static cache as `VesselGlyph`, keyed on the two things that change the
+    /// bitmap: which provider, and which of the light/dark monochrome pairs is showing.
+    @MainActor private static var cache: [Key: NSImage] = [:]
+
+    private struct Key: Hashable {
+        let providerID: String
+        let isDark: Bool
+    }
+
+    @MainActor
     static func image(for providerID: ProviderID, scheme: ColorScheme) -> NSImage? {
+        let key = Key(providerID: providerID.raw, isDark: scheme == .dark)
+        if let cached = cache[key] { return cached }
+        guard let baked = bake(for: providerID, scheme: scheme) else { return nil }
+        cache[key] = baked
+        return baked
+    }
+
+    private static func bake(for providerID: ProviderID, scheme: ColorScheme) -> NSImage? {
         guard let name = ProviderStyle.svgResourceName(for: providerID, scheme: scheme),
               let url = url(forResource: name),
               let svg = NSImage(contentsOf: url) else {

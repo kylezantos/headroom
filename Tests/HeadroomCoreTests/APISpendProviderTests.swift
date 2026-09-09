@@ -103,7 +103,7 @@ struct APISpendProviderTests {
 
         let snapshot = await provider.fetchSpend(period: .currentMonth)
 
-        #expect(snapshot.freshness == .stale(.decode("Couldn't read Anthropic cost response")))
+        #expect(snapshot.freshness == .stale(.decode("Couldn’t read Anthropic cost response")))
         #expect(snapshot.amount == nil)
         #expect(fetcher.requestCount == 1)
     }
@@ -115,7 +115,7 @@ struct APISpendProviderTests {
 
         let snapshot = await provider.fetchSpend(period: .currentMonth)
 
-        #expect(snapshot.freshness == .stale(.decode("Couldn't read Anthropic cost response")))
+        #expect(snapshot.freshness == .stale(.decode("Couldn’t read Anthropic cost response")))
         #expect(snapshot.amount == nil)
         #expect(fetcher.requestCount == 1)
     }
@@ -134,7 +134,7 @@ struct APISpendProviderTests {
 
         let snapshot = await provider.fetchSpend(period: .currentMonth)
 
-        #expect(snapshot.freshness == .stale(.decode("Couldn't read Anthropic cost response")))
+        #expect(snapshot.freshness == .stale(.decode("Couldn’t read Anthropic cost response")))
         #expect(snapshot.amount == nil)
         #expect(fetcher.requestCount == 2)
     }
@@ -211,7 +211,7 @@ struct APISpendProviderTests {
             Issue.record("expected stale")
             return
         }
-        #expect(reason == .decode("Couldn't read OpenAI cost response"))
+        #expect(reason == .decode("Couldn’t read OpenAI cost response"))
     }
 
     @Test func xAIPrepaidBalanceUsesValidatedTeamAndCachesIt() async {

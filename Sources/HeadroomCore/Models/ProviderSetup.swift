@@ -38,30 +38,30 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         switch self {
         case .claudeCLIMissing: "Install Claude Code to show usage"
         case .claudeLoginRequired: "Sign in with the official Claude CLI"
-        case .claudeTrustRequired: "Approve Headroom's workspace in\u{00A0}the\u{00A0}Claude\u{00A0}CLI"
+        case .claudeTrustRequired: "Approve Headroom’s workspace in\u{00A0}the\u{00A0}Claude\u{00A0}CLI"
         case .claudeUnknownUI: "Claude opened an unrecognized setup screen"
-        case .claudeTransientCapture: "Couldn't read Claude usage — will retry"
+        case .claudeTransientCapture: "Couldn’t read Claude usage — will retry"
         case .codexCLIMissing: "Install Codex CLI to connect"
         case .codexAuthAbsent: "Connect with the official Codex CLI"
         case .codexPermissionDenied: "Allow Headroom to read the Codex sign-in file"
-        case .codexUnsafePermissions: "Codex sign-in isn't stored privately\u{00A0}—\u{00A0}reconnect"
+        case .codexUnsafePermissions: "Codex sign-in isn’t stored privately\u{00A0}—\u{00A0}reconnect"
         case .codexMalformedAuth: "Codex sign-in data is unreadable — reconnect"
-        case .codexCredentialIO: "Couldn't read Codex sign-in data"
+        case .codexCredentialIO: "Couldn’t read Codex sign-in data"
         case .codexRejectedAuth: "Codex sign-in expired — reconnect"
-        case .codexStorageMismatch: "Codex saved this login where Headroom can't\u{00A0}read\u{00A0}it"
+        case .codexStorageMismatch: "Codex saved this login where Headroom can’t\u{00A0}read\u{00A0}it"
         case .codexCallbackIncomplete: "Codex sign-in did not finish"
         case .grokCLIMissing: "Install Grok Build to show usage"
         case .grokAuthAbsent: "Connect with the official Grok Build CLI"
         case .grokPermissionDenied: "Allow Headroom to read the Grok sign-in file"
-        case .grokUnsafePermissions: "Grok sign-in isn't stored privately\u{00A0}—\u{00A0}reconnect"
+        case .grokUnsafePermissions: "Grok sign-in isn’t stored privately\u{00A0}—\u{00A0}reconnect"
         case .grokMalformedAuth: "Grok sign-in data is unreadable — reconnect"
-        case .grokCredentialIO: "Couldn't read Grok sign-in data"
+        case .grokCredentialIO: "Couldn’t read Grok sign-in data"
         case .grokRejectedAuth: "Grok sign-in expired — reconnect"
-        case .grokTransientCapture: "Couldn't read Grok usage — will retry"
+        case .grokTransientCapture: "Couldn’t read Grok usage — will retry"
         case .cursorCLIMissing: "Install Cursor Agent to show usage"
         case .cursorAuthAbsent: "Connect with the official Cursor Agent CLI"
         case .cursorUnknownUI: "Cursor Agent opened an unrecognized screen"
-        case .cursorTransientCapture: "Couldn't read Cursor usage — will retry"
+        case .cursorTransientCapture: "Couldn’t read Cursor usage — will retry"
         }
     }
 
@@ -90,13 +90,17 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// B3T (Kyle, Sep 2026): every label here is a button on some surface, so all of them
     /// are Title Case — round 3's sentence case made them read as prose beside the sentences
     /// they answer, which is exactly what a chip must not do once B3H removes its resting box.
+    ///
+    /// PA11: one label per action — `.checkNow` is always "Check Now". The old split ("Check
+    /// Again" in a primary slot, "Check Now" in a secondary one) named the same forced poll two
+    /// ways on adjacent cards. "Refresh" stays reserved for the footer's whole-app poll.
     public var recoveryPresentation: ProviderRecoveryPresentation {
         switch self {
         case .claudeCLIMissing:
             // R7: mirrors the capability presentation — install guidance plus a fresh
             // discovery check, never a copied bare-name command.
             .init(status: message, primaryLabel: "Install Claude Code", primaryAction: .installClaudeCLI,
-                  secondaryLabel: "Check Again", secondaryAction: .checkNow)
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .claudeLoginRequired:
             .init(status: message, primaryLabel: "Open Claude Setup", primaryAction: .openClaudeSetup,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
@@ -106,7 +110,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .claudeUnknownUI, .claudeTransientCapture:
-            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow,
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
                   secondaryLabel: "Open Guided Setup", secondaryAction: .openClaudeSetup)
         case .codexCLIMissing:
             .init(status: message, primaryLabel: "Install Codex CLI", primaryAction: .installCodexCLI)
@@ -122,7 +126,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .codexCredentialIO:
-            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         case .codexStorageMismatch:
             .init(status: message, primaryLabel: "Resolve Storage", primaryAction: .resolveCodexStorage,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
@@ -143,7 +147,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .grokCredentialIO, .grokTransientCapture:
-            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow)
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         case .cursorCLIMissing:
             .init(status: message, primaryLabel: "Install Cursor Agent", primaryAction: .installCursorAgent)
         case .cursorAuthAbsent:
@@ -151,7 +155,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .cursorUnknownUI, .cursorTransientCapture:
-            .init(status: message, primaryLabel: "Check Again", primaryAction: .checkNow,
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
                   secondaryLabel: "Reconnect Cursor", secondaryAction: .connectCursor)
         }
     }

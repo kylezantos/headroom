@@ -171,14 +171,14 @@ public struct GrokACPUsageSource: GrokUsageSource {
     ) -> GrokUsageSourceResult {
         var input = [Int32](repeating: -1, count: 2)
         var output = [Int32](repeating: -1, count: 2)
-        guard pipe(&input) == 0 else { return .failure(.transient("Couldn't start Grok usage probe")) }
+        guard pipe(&input) == 0 else { return .failure(.transient("Couldn’t start Grok usage probe")) }
         guard pipe(&output) == 0 else {
             close(input[0]); close(input[1])
-            return .failure(.transient("Couldn't start Grok usage probe"))
+            return .failure(.transient("Couldn’t start Grok usage probe"))
         }
         guard fcntl(input[1], F_SETNOSIGPIPE, 1) != -1 else {
             close(input[0]); close(input[1]); close(output[0]); close(output[1])
-            return .failure(.transient("Couldn't start Grok usage probe"))
+            return .failure(.transient("Couldn’t start Grok usage probe"))
         }
         let devNull = open("/dev/null", O_WRONLY)
 
@@ -224,7 +224,7 @@ public struct GrokACPUsageSource: GrokUsageSource {
         if devNull >= 0 { close(devNull) }
         guard spawnStatus == 0 else {
             close(input[1]); close(output[0])
-            return .failure(.transient("Couldn't start Grok usage probe"))
+            return .failure(.transient("Couldn’t start Grok usage probe"))
         }
         defer {
             close(input[1]); close(output[0])
@@ -255,14 +255,14 @@ public struct GrokACPUsageSource: GrokUsageSource {
         guard writeJSONLine(initialize, to: input[1]),
               let initializeResponse = readResponse(id: 1, from: output[0], buffer: &buffer, deadline: deadline),
               initializeResponse["result"] != nil
-        else { return .failure(.transient("Couldn't initialize Grok usage probe")) }
+        else { return .failure(.transient("Couldn’t initialize Grok usage probe")) }
 
         let billing: [String: Any] = [
             "jsonrpc": "2.0", "id": 2, "method": "x.ai/billing", "params": [:],
         ]
         guard writeJSONLine(billing, to: input[1]),
               let response = readResponse(id: 2, from: output[0], buffer: &buffer, deadline: deadline)
-        else { return .failure(.transient("Couldn't read Grok usage")) }
+        else { return .failure(.transient("Couldn’t read Grok usage")) }
 
         if let error = response["error"] as? [String: Any],
            (error["code"] as? NSNumber)?.intValue == -32601 {
@@ -271,7 +271,7 @@ public struct GrokACPUsageSource: GrokUsageSource {
         guard let rawResult = response["result"], !(rawResult is NSNull),
               JSONSerialization.isValidJSONObject(rawResult),
               let data = try? JSONSerialization.data(withJSONObject: rawResult)
-        else { return .failure(.transient("Couldn't read Grok usage")) }
+        else { return .failure(.transient("Couldn’t read Grok usage")) }
         return .payload(data, transport: .stdio)
     }
 

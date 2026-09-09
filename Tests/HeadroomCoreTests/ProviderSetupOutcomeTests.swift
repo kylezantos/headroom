@@ -14,12 +14,12 @@ import Testing
         let presentation = ProviderCapabilityState.confirmedAbsent.recoveryPresentation
         #expect(presentation?.primaryAction == .installClaudeCLI)
         #expect(presentation?.secondaryAction == .checkNow)
-        #expect(presentation?.secondaryLabel == "Check Again")
+        #expect(presentation?.secondaryLabel == "Check Now")
 
         let outcome = ProviderSetupOutcome.claudeCLIMissing.recoveryPresentation
         #expect(outcome.primaryAction == .installClaudeCLI)
         #expect(outcome.secondaryAction == .checkNow)
-        #expect(outcome.secondaryLabel == "Check Again")
+        #expect(outcome.secondaryLabel == "Check Now")
     }
 
     // AE7/R7: incomplete discovery keeps the retry-oriented message and never claims
@@ -28,7 +28,7 @@ import Testing
         for issue in [CLIExecutableDiscoveryIssue.shellTimeout, .npmPrefixUnresolved] {
             let presentation = ProviderCapabilityState.inconclusive(issue).recoveryPresentation
             #expect(presentation?.primaryAction == .checkNow)
-            #expect(presentation?.primaryLabel == "Check Again")
+            #expect(presentation?.primaryLabel == "Check Now")
             #expect(presentation?.secondaryAction == .openClaudeSetup)
             #expect(presentation?.status != ProviderCapabilityState.confirmedAbsent.recoveryPresentation?.status)
             #expect(presentation?.status.localizedCaseInsensitiveContains("install") == false)
@@ -93,6 +93,42 @@ import Testing
         #expect(FailureReason.providerSetup(.cursorAuthAbsent).isPermanent)
     }
 
+    /// PA11: one label per action. `.checkNow` used to read "Check Again" in a primary slot
+    /// and "Check Now" in a secondary one — the same forced poll named two ways on adjacent
+    /// cards. Every slot on both presentation surfaces now says "Check Now", and no label
+    /// anywhere says "Check Again". "Refresh" stays reserved for the footer's whole-app poll
+    /// and is deliberately never produced here.
+    @Test func checkNowCarriesOneLabelInEverySlot() {
+        var labels: [(String, SetupRecoveryAction?)] = []
+        for outcome in allSetupOutcomes {
+            let presentation = outcome.recoveryPresentation
+            labels.append((presentation.primaryLabel, presentation.primaryAction))
+            if let secondary = presentation.secondaryLabel {
+                labels.append((secondary, presentation.secondaryAction))
+            }
+        }
+        for state in [ProviderCapabilityState.inconclusive(.shellTimeout),
+                      .inconclusive(.npmPrefixUnresolved),
+                      .confirmedAbsent] {
+            guard let presentation = state.recoveryPresentation else { continue }
+            labels.append((presentation.primaryLabel, presentation.primaryAction))
+            if let secondary = presentation.secondaryLabel {
+                labels.append((secondary, presentation.secondaryAction))
+            }
+        }
+
+        #expect(labels.contains { $0.1 == .checkNow })
+        for (label, action) in labels {
+            if action == .checkNow {
+                #expect(label == "Check Now", "\(label) is bound to .checkNow")
+            } else {
+                #expect(label != "Check Now", "\(label) borrows the .checkNow label")
+            }
+            #expect(label != "Check Again")
+            #expect(label != "Refresh")
+        }
+    }
+
     @Test func neverSignedInClassificationIsTyped() {
         #expect(ProviderSetupOutcome.claudeLoginRequired.isNeverSignedIn)
         #expect(ProviderSetupOutcome.codexAuthAbsent.isNeverSignedIn)
@@ -102,3 +138,16 @@ import Testing
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
 }
+
+/// Every `ProviderSetupOutcome`, so a copy rule can be asserted across all of them without
+/// the enum having to become `CaseIterable` in shipping code.
+private let allSetupOutcomes: [ProviderSetupOutcome] = [
+    .claudeCLIMissing, .claudeLoginRequired, .claudeTrustRequired, .claudeUnknownUI,
+    .claudeTransientCapture,
+    .codexCLIMissing, .codexAuthAbsent, .codexPermissionDenied, .codexUnsafePermissions,
+    .codexMalformedAuth, .codexCredentialIO, .codexRejectedAuth, .codexStorageMismatch,
+    .codexCallbackIncomplete,
+    .grokCLIMissing, .grokAuthAbsent, .grokPermissionDenied, .grokUnsafePermissions,
+    .grokMalformedAuth, .grokCredentialIO, .grokRejectedAuth, .grokTransientCapture,
+    .cursorCLIMissing, .cursorAuthAbsent, .cursorUnknownUI, .cursorTransientCapture,
+]

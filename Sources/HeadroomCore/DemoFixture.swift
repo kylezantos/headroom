@@ -196,7 +196,7 @@ public enum DemoFixture {
             currency: "usd",
             periodLabel: APISpendPeriod.currentMonth.label,
             capturedAt: Date().addingTimeInterval(-2 * 3_600),
-            freshness: .stale(.transient("Couldn't reach OpenAI — will retry"))
+            freshness: .stale(.transient("Couldn’t reach OpenAI — will retry"))
         )
     }
 
@@ -452,7 +452,7 @@ extension DemoFixture {
                             freshness: .stale(.providerSetup(.claudeLoginRequired))),
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
                 demoAccount(provider: .codex, id: "codex-work", label: "Work", plan: "Pro", fiveHour: 54, weekly: 79,
-                            freshness: .stale(.transient("Couldn't reach Codex — will retry"))),
+                            freshness: .stale(.transient("Couldn’t reach Codex — will retry"))),
             ]
         case .capabilityFailure:
             pairs = [

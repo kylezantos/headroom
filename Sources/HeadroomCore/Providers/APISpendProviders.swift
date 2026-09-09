@@ -49,7 +49,7 @@ public struct OpenAIAPISpendProvider: APISpendProvider {
     private func decode(_ body: Data, range: APISpendRange) -> APISpendSnapshot {
         guard let dto = try? JSONDecoder().decode(OpenAICostsDTO.self, from: body),
               let total = CostAccumulator.total(from: dto.data.flatMap(\.results), emptyIsZero: true)
-        else { return stale(range, .decode("Couldn't read OpenAI cost response")) }
+        else { return stale(range, .decode("Couldn’t read OpenAI cost response")) }
         return APISpendSnapshot(
             providerID: id,
             displayName: displayName,
@@ -118,7 +118,7 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
                 switch result.status {
                 case 200:
                     guard let dto = try? JSONDecoder().decode(AnthropicCostReportDTO.self, from: result.body)
-                    else { return stale(range, .decode("Couldn't read Anthropic cost response")) }
+                    else { return stale(range, .decode("Couldn’t read Anthropic cost response")) }
                     results.append(contentsOf: dto.data.flatMap(\.results))
                     guard dto.hasMore else {
                         return snapshot(from: results, range: range)
@@ -126,7 +126,7 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
                     guard let nextPage = dto.nextPage?.trimmingCharacters(in: .whitespacesAndNewlines),
                           !nextPage.isEmpty,
                           seenPageTokens.insert(nextPage).inserted
-                    else { return stale(range, .decode("Couldn't read Anthropic cost response")) }
+                    else { return stale(range, .decode("Couldn’t read Anthropic cost response")) }
                     url = url.withAnthropicPage(nextPage)
                 case 401:
                     return stale(range, .needsReauth("Anthropic admin key rejected"))
@@ -138,7 +138,7 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
             }
         }
 
-        return stale(range, .decode("Couldn't read Anthropic cost response"))
+        return stale(range, .decode("Couldn’t read Anthropic cost response"))
     }
 
     private func snapshot(
@@ -146,7 +146,7 @@ public struct AnthropicAPISpendProvider: APISpendProvider {
         range: APISpendRange
     ) -> APISpendSnapshot {
         guard let total = CostAccumulator.total(from: results, emptyIsZero: true)
-        else { return stale(range, .decode("Couldn't read Anthropic cost response")) }
+        else { return stale(range, .decode("Couldn’t read Anthropic cost response")) }
         return APISpendSnapshot(
             providerID: id,
             displayName: displayName,
@@ -222,7 +222,7 @@ public struct XAIAPISpendProvider: APISpendProvider {
             case 200:
                 guard let dto = try? JSONDecoder().decode(XAIPrepaidBalanceDTO.self, from: result.body),
                       let signedCents = dto.total?.val
-                else { return stale("Prepaid balance", .decode("Couldn't read xAI prepaid balance")) }
+                else { return stale("Prepaid balance", .decode("Couldn’t read xAI prepaid balance")) }
                 // The documented ledger represents available prepaid credit as a
                 // negative liability (for example -1000 means $10 remaining).
                 let remainingCents = max(0, -signedCents)
@@ -250,7 +250,7 @@ public struct XAIAPISpendProvider: APISpendProvider {
             case 200:
                 guard let dto = try? JSONDecoder().decode(XAIInvoicePreviewDTO.self, from: result.body),
                       let cents = dto.coreInvoice?.amountAfterVAT ?? dto.coreInvoice?.totalWithCorrections?.val
-                else { return stale("Current billing period", .decode("Couldn't read xAI invoice preview")) }
+                else { return stale("Current billing period", .decode("Couldn’t read xAI invoice preview")) }
                 return live(amount: max(0, cents) / 100, label: "Current billing period", kind: .periodSpend)
             case 401:
                 return zeroPrepaidBalance(reason: .needsReauth("xAI management key rejected"))
@@ -315,7 +315,7 @@ private actor XAIManagementContext {
             switch result.status {
             case 200:
                 guard let dto = try? JSONDecoder().decode(XAIManagementKeyValidationDTO.self, from: result.body)
-                else { return .failure(.decode("Couldn't validate xAI management key")) }
+                else { return .failure(.decode("Couldn’t validate xAI management key")) }
                 let teamID: String?
                 switch dto.scope?.uppercased() {
                 case "SCOPE_TEAM":

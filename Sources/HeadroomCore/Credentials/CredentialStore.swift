@@ -74,7 +74,7 @@ public actor CredentialStore {
             try apiKeyStore.saveAPIKey(trimmed, for: provider)
             return .success(())
         } catch {
-            return .failure(.transient("Couldn't save \(provider.displayName) API key"))
+            return .failure(.transient("Couldn’t save \(provider.displayName) API key"))
         }
     }
 
@@ -83,7 +83,7 @@ public actor CredentialStore {
             try apiKeyStore.deleteAPIKey(for: provider)
             return .success(())
         } catch {
-            return .failure(.transient("Couldn't delete \(provider.displayName) API key"))
+            return .failure(.transient("Couldn’t delete \(provider.displayName) API key"))
         }
     }
 }

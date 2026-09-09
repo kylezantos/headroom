@@ -145,7 +145,7 @@ struct APISpendPresentationTests {
             freshness: .stale(.scopeDenied("no access")),
             providerID: ProviderID("someday"),
             displayName: "Someday API"
-        ).message == "Key can't read cost data")
+        ).message == "Key can’t read cost data")
     }
 
     /// The article belongs to the credential, never to the vendor: "a xAI"/"an xAI" is the
@@ -193,7 +193,7 @@ struct APISpendPresentationTests {
 
         #expect(status.badge == "Key rejected")
         #expect(status.tone == .critical)
-        #expect(status.message == "Anthropic didn't accept the saved admin key")
+        #expect(status.message == "Anthropic didn’t accept the saved admin key")
         #expect(status.callToAction == "Replace Key")
     }
 
@@ -202,13 +202,13 @@ struct APISpendPresentationTests {
             freshness: .stale(.needsReauth("OpenAI admin key rejected")),
             providerID: .codex,
             displayName: "OpenAI API"
-        ).message == "OpenAI didn't accept the saved admin key")
+        ).message == "OpenAI didn’t accept the saved admin key")
         // xAI's endpoints never saw an admin key — the pane asks for a management key.
         #expect(APISpendPresentation.rowStatus(
             freshness: .stale(.needsReauth("xAI management key rejected")),
             providerID: .grok,
             displayName: "xAI API"
-        ).message == "xAI didn't accept the saved management key")
+        ).message == "xAI didn’t accept the saved management key")
     }
 
     @Test func scopeDeniedKeyReadsAsAnAccessProblem() {
@@ -220,8 +220,9 @@ struct APISpendPresentationTests {
 
         #expect(status.badge == "Key lacks access")
         #expect(status.tone == .warning)
-        #expect(status.message == "Key can't read the cost report")
-        #expect(status.callToAction == "Fix Key")
+        #expect(status.message == "Key can’t read the cost report")
+        // PA3: the pane has Replace and Remove, so "Fix Key" named a control that is not there.
+        #expect(status.callToAction == "Replace Key")
     }
 
     /// The 403 line names the surface each vendor actually refused.
@@ -230,16 +231,16 @@ struct APISpendPresentationTests {
             freshness: .stale(.scopeDenied("OpenAI key lacks organization cost access")),
             providerID: .codex,
             displayName: "OpenAI API"
-        ).message == "Key can't read organization costs")
+        ).message == "Key can’t read organization costs")
         #expect(APISpendPresentation.rowStatus(
             freshness: .stale(.scopeDenied("xAI key lacks billing read access")),
             providerID: .grok,
             displayName: "xAI API"
-        ).message == "Key can't read team billing")
+        ).message == "Key can’t read team billing")
     }
 
     @Test func transientFailureKeepsTheStaleBehaviour() {
-        for reason in [FailureReason.transient("Network unavailable"), .decode("Couldn't read Anthropic cost response")] {
+        for reason in [FailureReason.transient("Network unavailable"), .decode("Couldn’t read Anthropic cost response")] {
             let status = APISpendPresentation.rowStatus(
                 freshness: .stale(reason),
                 providerID: .claude,
@@ -263,6 +264,10 @@ struct APISpendPresentationTests {
         #expect(pending.badge == nil)
         #expect(pending.message == "Waiting for cost data")
         #expect(pending.tone == .quiet)
+        // PA3: the first fetch after a key is saved has no retained amount, so a CTA here
+        // would render — telling someone who just saved a key to add one.
+        #expect(pending.callToAction == nil)
+        #expect(!pending.showsCTA(hasAmount: false))
 
         let live = APISpendPresentation.rowStatus(
             freshness: .live,
@@ -373,10 +378,11 @@ struct APISpendPresentationTests {
         }
     }
 
-    /// Retryable staleness keeps the old rule: the next poll may clear it, so a row that
-    /// still has a number stays a plain number.
-    @Test func retryableStalenessOnlyOffersTheActionWithoutAnAmount() {
-        for reason in [FailureReason.transient("Network unavailable"), .decode("Couldn't read Anthropic cost response")] {
+    /// PA3: retryable staleness is the app’s problem, not the key’s — the next poll may clear
+    /// it on its own — so the row names no action at all, with or without a retained amount.
+    /// It used to offer "Add Key" to a user who already had one saved.
+    @Test func retryableStalenessOffersNoAction() {
+        for reason in [FailureReason.transient("Network unavailable"), .decode("Couldn’t read Anthropic cost response")] {
             let status = APISpendPresentation.rowStatus(
                 freshness: .stale(reason),
                 providerID: .claude,
@@ -384,8 +390,9 @@ struct APISpendPresentationTests {
             )
 
             #expect(!status.keyNeedsAttention)
+            #expect(status.callToAction == nil)
             #expect(!status.showsCTA(hasAmount: true))
-            #expect(status.showsCTA(hasAmount: false))
+            #expect(!status.showsCTA(hasAmount: false))
         }
     }
 
@@ -483,6 +490,6 @@ struct APISpendPresentationTests {
             attention: .keyLacksAccess,
             capturedAt: now,
             now: now
-        ) == "Fix key on Mac")
+        ) == "Replace key on Mac")
     }
 }

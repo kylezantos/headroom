@@ -314,7 +314,7 @@ struct MeterGauge: View {
         ZStack {
             ForEach([0.25, 0.5, 0.75], id: \.self) { fraction in
                 Rectangle()
-                    .fill(Color.primary.opacity(scheme == .dark ? 0.11 : 0.14))
+                    .fill(ProviderStyle.meterQuarterMark(scheme: scheme))
                     .frame(width: 1, height: max(0, size.height - 4))
                     .position(x: size.width * fraction, y: size.height / 2)
             }
@@ -339,7 +339,7 @@ struct MeterGauge: View {
         return severityFillColor.opacity(opacity)
     }
 
-    private var staleColor: Color { Color.secondary.opacity(0.55) }
+    private var staleColor: Color { ProviderStyle.meterStaleFill }
 
     private func continuousFillLength(available: CGFloat) -> CGFloat {
         guard !freshness.isUnavailable else { return 0 }

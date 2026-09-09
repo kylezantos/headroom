@@ -214,8 +214,8 @@ struct CodexAccountEmailTests {
             codexIDTokenWithoutEmailFixture,   // valid JWT, no email claim
             "not-a-jwt",                       // no segments
             "only.two",                        // wrong segment count
-            "aaa.!!!not-base64!!!.bbb",        // payload isn't base64url
-            "aaa.bm90IGpzb24.bbb",             // payload decodes but isn't JSON
+            "aaa.!!!not-base64!!!.bbb",        // payload isn’t base64url
+            "aaa.bm90IGpzb24.bbb",             // payload decodes but isn’t JSON
             "aaa..bbb",                        // empty payload
         ] {
             let json = """
@@ -299,7 +299,7 @@ struct AccountEmailContinuityTests {
 
     @Test func staleMergePreservesLastKnownEmail() {
         let merged = UsageContinuityPolicy.mergedSnapshot(
-            .stale(for: .claude, reason: .transient("Couldn't reach Claude")),
+            .stale(for: .claude, reason: .transient("Couldn’t reach Claude")),
             with: priorSnapshot(),
             at: capturedAt.addingTimeInterval(300)
         )

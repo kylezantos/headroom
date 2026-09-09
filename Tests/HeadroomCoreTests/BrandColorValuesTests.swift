@@ -168,8 +168,9 @@ struct BrandColorValuesTests {
 
         // FS1: the segmented body dim. It must be a genuine step back from the tip — never
         // 1 (no separation at all) and never 0 (the trail would vanish and the meter would
-        // read as a single lit cell).
-        #expect(HeadroomMeterColorValues.segmentBodyAttenuation == 0.72)
+        // read as a single lit cell). FS2 retuned it 0.72 → 0.70 with the larger Full cell,
+        // and kept it a single number shared by both formats on purpose.
+        #expect(HeadroomMeterColorValues.segmentBodyAttenuation == 0.70)
         #expect(HeadroomMeterColorValues.segmentBodyAttenuation > 0)
         #expect(HeadroomMeterColorValues.segmentBodyAttenuation < 1)
 

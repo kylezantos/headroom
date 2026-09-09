@@ -9,12 +9,16 @@ struct MeterGauge: View {
     let fraction: Double
     let severity: UsageSeverity
     let freshness: UsageWindowFreshness
-    /// AP2: swatch-only override for how many cells a segmented gauge draws. `nil` — the
-    /// default, and the only value any real meter uses — means `MeterRecipe.cellCount`.
-    /// The Settings Format swatch is the one caller: it renders Full inside a 60pt fragment,
-    /// where Full's real cells comb down below micro size, so it asks for the count that keeps
-    /// the cells at micro size. Non-segmented shapes ignore it.
-    var segmentCount: Int? = nil
+    /// AP2 / FS2: swatch-only request for a *miniature* segmented gauge. `nil` — the default,
+    /// and the only value any real meter uses — means the shipped cell count and the format's
+    /// own cell metrics. Non-nil means "draw this many cells at Micro's cell height, gap, and
+    /// radius, whatever the format is", still laid out full-width for Full.
+    ///
+    /// The Settings Format swatch is the one caller: it renders Full inside a 60pt fragment.
+    /// FS2 made the Full cell 14.5pt tall, so overriding only the count would comb the swatch
+    /// into micro-width × full-height slivers; the swatch's whole point is "the same little
+    /// chips, just more of them, placed differently". Non-segmented shapes ignore it.
+    var miniatureSegmentCount: Int? = nil
 
     @Environment(\.colorScheme) private var scheme
     // Fill tier lookup: Increase Contrast swaps the vivid light bar fills back to the
@@ -65,11 +69,12 @@ struct MeterGauge: View {
 
     private var gaugeHeight: CGFloat {
         switch (style.format, resolvedShape) {
+        // FS2: segmented rows size to the *cell* format, which the miniature override can
+        // pull back to Micro — so the swatch's frame reserves 5pt, not Full's 14.5pt.
+        case (_, .segmented): return CGFloat(MeterGeometry.cellHeight(for: segmentedCellFormat))
         case (.micro, .chip): return CGFloat(MeterGeometry.microChipHeight)
         case (.micro, .machined): return CGFloat(MeterGeometry.microMachinedHeight)
-        case (.micro, .segmented): return CGFloat(MeterGeometry.microCellHeight)
         case (.micro, .tube): return CGFloat(MeterGeometry.microTubeHeight)
-        case (.full, .segmented): return CGFloat(MeterGeometry.fullCellHeight)
         case (.full, _): return CGFloat(MeterGeometry.fullTrackHeight)
         }
     }
@@ -219,15 +224,24 @@ struct MeterGauge: View {
     }
 
     private var resolvedCellCount: Int {
-        segmentCount ?? MeterRecipe.cellCount(for: style.format)
+        miniatureSegmentCount ?? MeterRecipe.cellCount(for: style.format)
+    }
+
+    /// FS2: which format's cell metrics (height, gap, radius) a segmented gauge draws with.
+    /// It is the style's own format everywhere except a miniature swatch, which asks for
+    /// Micro's cell at any format so it stays a strip of little chips.
+    private var segmentedCellFormat: GaugeFormat {
+        miniatureSegmentCount == nil ? style.format : .micro
     }
 
     private var segmentedGauge: some View {
         let cells = resolvedCellCount
+        let cellFormat = segmentedCellFormat
         let lit = freshness.isUnavailable
             ? 0
             : MeterRecipe.litCellCount(fraction: clampedFraction, cells: cells)
-        let gap = CGFloat(style.format == .micro ? MeterGeometry.microCellGap : MeterGeometry.fullCellGap)
+        let gap = CGFloat(MeterGeometry.cellGap(for: cellFormat))
+        let radius = CGFloat(MeterGeometry.cellRadius(for: cellFormat))
         let fillRecipe = MeterRecipe.fillRecipe(
             fill: style.fill,
             severity: severity,
@@ -244,7 +258,7 @@ struct MeterGauge: View {
 
         return HStack(spacing: gap) {
             ForEach(0..<cells, id: \.self) { index in
-                RoundedRectangle(cornerRadius: style.format == .micro ? 1.5 : 2, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(segmentedCellColor(
                         index: index,
                         lit: lit,

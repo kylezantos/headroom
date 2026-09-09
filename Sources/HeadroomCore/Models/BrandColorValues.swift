@@ -293,7 +293,12 @@ public enum HeadroomMeterColorValues {
     /// reading — had nothing to stand out against. Body cells drop to this fraction of their
     /// own colour so the tip reads as the value and the trail reads as context. `.staleGrey`
     /// is exempt (it is already a dim), and `.off` cells never see it.
-    public static let segmentBodyAttenuation: Double = 0.72
+    ///
+    /// FS2 (Kyle, Sep 2026): retuned 0.72 → 0.70 alongside the larger Full cell. Deliberately
+    /// one number shared by both formats — Full is the Micro cell scaled up, so the trail
+    /// should sit the same distance behind its tip at either size rather than reading as two
+    /// different meters.
+    public static let segmentBodyAttenuation: Double = 0.70
 
     /// PB13: the quarter-mark hairline. Same split as `staleFillOpacity` — the base is the
     /// system primary label at the SwiftUI edge, the per-scheme number lives here.

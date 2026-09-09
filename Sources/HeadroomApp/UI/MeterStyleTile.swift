@@ -174,15 +174,20 @@ struct MeterStyleTile: View {
     /// AP2 (Kyle): "show the same little segment chips as in the micro version — there are
     /// just more of them and they're placed differently." Full's real 20 cells inside a 60pt
     /// fragment are 2pt ticks, so Segmented Full asks for however many *micro-sized* cells
-    /// fit the fragment instead. Only the count is overridden: the cells keep Full's taller
-    /// `fullCellHeight` and full-width spread, so the swatch still reads as the Full row.
+    /// fit the fragment instead.
+    ///
+    /// FS2 (Kyle, Sep 2026): the Full cell is now 14.5pt tall, so a count override on its own
+    /// would draw micro-width × full-height slivers inside a 26pt well. `miniatureSegmentCount`
+    /// therefore carries the whole miniature cell — Micro's height, gap, and radius — while the
+    /// row keeps Full's full-width spread under the caption, which is the layout difference the
+    /// swatch is actually previewing.
     private func fragmentGauge(format: GaugeFormat) -> some View {
         MeterGauge(
             style: MeterStyle(format: format, shape: meterStyle.shape, fill: meterStyle.fill),
             fraction: 0.62,
             severity: .healthy,
             freshness: .live,
-            segmentCount: format == .full
+            miniatureSegmentCount: format == .full
                 ? MeterGeometry.segmentCount(fittingWidth: Double(fragmentWidth))
                 : nil
         )

@@ -82,8 +82,12 @@ struct MeterStyleTests {
         #expect(MeterGeometry.microTubeHeight == 16)
         #expect(MeterGeometry.fullTrackHeight == 8)
         #expect(MeterGeometry.fullTrackInset == 1.5)
-        #expect(MeterGeometry.fullCellHeight == 7)
-        #expect(MeterGeometry.fullCellGap == 2.5)
+        // FS2: the Full cell is the Micro cell scaled up (~2.9×), not its own drawing.
+        #expect(MeterGeometry.fullCellHeight == 14.5)
+        #expect(MeterGeometry.fullCellGap == 6.4)
+        #expect(MeterGeometry.microCellRadius == 1.5)
+        #expect(MeterGeometry.fullCellRadius == 3.75)
+        #expect(MeterGeometry.fullCellNominalWidth == 22)
         #expect(MeterGeometry.fullMinimumFillLength == 6)
         #expect(MeterGeometry.microMinimumFillLength == 3)
         #expect(MeterRecipe.cellCount(for: .micro) == 5)
@@ -91,9 +95,61 @@ struct MeterStyleTests {
         #expect(MeterRecipe.cellCount(for: .full) == 10)
     }
 
+    /// FS2 (Kyle, Sep 2026): "I want them to feel basically the same but adapted for their
+    /// size." The Full segmented cell is the Micro cell scaled up (~2.9×), so the two
+    /// proportions that carry the family have to hold in *both* formats: the gap is a fifth
+    /// to a third of the cell pitch, and the corner radius is roughly a quarter to a third of
+    /// the cell height. This test is the guard rail on a later retune of one format alone —
+    /// it fails if Micro or Full drifts out of the shared band, not if either number moves.
+    @Test func segmentedCellsAreOneFamilyAcrossFormats() {
+        let widths: [(format: GaugeFormat, width: Double)] = [
+            (.micro, MeterGeometry.microCellWidth),
+            // Full cells flex to fill the row; this is the width 10 of them land on across the
+            // popover's measured 278pt meter run — (278 − 9 × 6.4) / 10 ≈ 22.
+            (.full, MeterGeometry.fullCellNominalWidth),
+        ]
+        // Both formats are covered, so adding a third can't quietly skip the family check.
+        #expect(Set(widths.map(\.format)) == Set(GaugeFormat.allCases))
+
+        for (format, width) in widths {
+            let gap = MeterGeometry.cellGap(for: format)
+            let height = MeterGeometry.cellHeight(for: format)
+            let radius = MeterGeometry.cellRadius(for: format)
+
+            let gapShare = gap / (width + gap)
+            #expect(gapShare >= 0.20, "\(format) gap/pitch \(gapShare) is below the family band")
+            #expect(gapShare <= 0.30, "\(format) gap/pitch \(gapShare) is above the family band")
+
+            let radiusShare = radius / height
+            #expect(radiusShare >= 0.25, "\(format) radius/height \(radiusShare) is below the family band")
+            #expect(radiusShare <= 0.32, "\(format) radius/height \(radiusShare) is above the family band")
+        }
+
+        // The nominal Full width is the run the ratios are stated at, not a rendering
+        // constant — it has to keep agreeing with the shipped count and gap.
+        let run = Double(MeterRecipe.cellCount(for: .full)) * MeterGeometry.fullCellNominalWidth
+            + Double(MeterRecipe.cellCount(for: .full) - 1) * MeterGeometry.fullCellGap
+        #expect(abs(run - 278) < 1)
+
+        // The accessors are the family's one source; they must agree with the stored values.
+        #expect(MeterGeometry.cellHeight(for: .micro) == MeterGeometry.microCellHeight)
+        #expect(MeterGeometry.cellHeight(for: .full) == MeterGeometry.fullCellHeight)
+        #expect(MeterGeometry.cellGap(for: .micro) == MeterGeometry.microCellGap)
+        #expect(MeterGeometry.cellGap(for: .full) == MeterGeometry.fullCellGap)
+        #expect(MeterGeometry.cellRadius(for: .micro) == MeterGeometry.microCellRadius)
+        #expect(MeterGeometry.cellRadius(for: .full) == MeterGeometry.fullCellRadius)
+
+        // Full is the Micro cell scaled up, so every dimension has to grow together.
+        #expect(MeterGeometry.fullCellHeight > MeterGeometry.microCellHeight)
+        #expect(MeterGeometry.fullCellGap > MeterGeometry.microCellGap)
+        #expect(MeterGeometry.fullCellRadius > MeterGeometry.microCellRadius)
+    }
+
     /// AP2: the Format › Full swatch derives its cell count from the fragment width instead
     /// of drawing Full's real cells at whatever size a 60pt fragment leaves them (FS1's 10
-    /// cells still comb to ~3.75pt there). In the 60pt fragment the micro pitch
+    /// cells combed to ~3.75pt there, and under FS2's 6.4pt gap they would be ~0.24pt slivers
+    /// 14.5pt tall — which is why the override now carries the whole miniature cell, not just
+    /// the count). In the 60pt fragment the micro pitch
     /// (6pt cell + 2pt gap) fits exactly 7 — 7 × 6 + 6 × 2 = 54, and an 8th would need 62.
     @Test func swatchSegmentCountFitsMicroSizedCellsInTheFragment() {
         #expect(MeterGeometry.segmentCount(fittingWidth: 60) == 7)

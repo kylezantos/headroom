@@ -65,6 +65,7 @@
 		4590C3DC405F2F052A5EE7C8 /* ProviderSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */; };
 		461264D34984B04423E2C1F1 /* ProviderAccountConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFD57C46D795C9775A1357F3 /* ProviderAccountConfiguration.swift */; };
 		46BD02EFDD1709E853B5CA73 /* UsageBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378187F940FD56B1A363971 /* UsageBarView.swift */; };
+		4A24CB563FBA33154A7C025E /* MenuBarLabelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */; };
 		4B4C9CAB4F37C267CE7FAF7E /* AccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7339860B2F91C83B1108CED /* AccountStorage.swift */; };
 		4BF249D4C7CEAE5DA58A40ED /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		4C0935F10F089C904FBDC937 /* ClaudeCapabilityDiagnostic.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6EC7DBD45EA74BD368DAB59 /* ClaudeCapabilityDiagnostic.swift */; };
@@ -379,6 +380,7 @@
 		744C00250970DA4405528A9E /* SettingsRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRows.swift; sourceTree = "<group>"; };
 		77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScreenshotData.swift; sourceTree = "<group>"; };
 		78B924E019B9A132CE8FA1FB /* WidgetAPISpendView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetAPISpendView.swift; sourceTree = "<group>"; };
+		79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarLabelGeometry.swift; sourceTree = "<group>"; };
 		7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandColorValues.swift; sourceTree = "<group>"; };
 		7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterStyleTile.swift; sourceTree = "<group>"; };
 		80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeThumbnailPicker.swift; sourceTree = "<group>"; };
@@ -801,6 +803,7 @@
 				7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */,
 				87284976C67D36ECE2DD747F /* Countdown.swift */,
 				917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */,
+				79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */,
 				9DFEA65CFC6937B636FFEACE /* MenuBarPalette.swift */,
 				FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */,
 				45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */,
@@ -1203,6 +1206,7 @@
 				26A70E96DCC281DF9BDD869A /* IdentityRowResolver.swift in Sources */,
 				95463E3DC5B6918C5EC2768C /* LargeWidgetDensity.swift in Sources */,
 				C7E68A38A0A0E0D2CDC8A213 /* LaunchAtLogin.swift in Sources */,
+				4A24CB563FBA33154A7C025E /* MenuBarLabelGeometry.swift in Sources */,
 				665DCA78AFDF861D24572C15 /* MenuBarPalette.swift in Sources */,
 				27CDCE72E58279D40ED689EE /* MeterStyle.swift in Sources */,
 				84BF1E0A9D00D681D45F2959 /* MirrorPresentation.swift in Sources */,

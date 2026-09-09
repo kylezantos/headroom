@@ -456,3 +456,7 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   amount column to the widest *actual* total in the card (min "$0.00") instead of a pre-reserved
   "$0,000.00" — amounts stay aligned, the column only grows when a total earns a digit — or
   shorten the chip ("30 days"). Both touch S5A; decide with Kyle.
+- **The iOS mirror still shows its own "Low" chip.** AP1 removed the macOS popover chip in favour
+  of red critical ink, but `Sources/HeadroomIOS/Views/UsageBarView.swift` keeps a `lowChip` driven by
+  `MirrorPresentation.showsLowChip` (`MirrorPresentationTests.swift:70`). Bring the phone surface in line
+  or decide it keeps the chip deliberately.

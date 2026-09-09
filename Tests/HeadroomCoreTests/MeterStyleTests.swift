@@ -494,6 +494,7 @@ struct MeterStyleTests {
         for window in [rolling, billing] {
             #expect(window.resetSchedule.meterResetLine(now: now) == MeterResetLine(
                 countdown: "3h 11m",
+                shortCountdown: "3h",
                 tooltip: "Resets in 3h 11m"
             ))
         }

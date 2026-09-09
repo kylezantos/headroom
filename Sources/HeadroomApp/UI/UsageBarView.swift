@@ -61,9 +61,9 @@ struct UsageBarView: View {
     private let termSize: CGFloat = 11
     /// FS1 (Kyle, Sep 2026): Full sat its full-width gauge 5pt under the label it belongs
     /// to, which crowded the two into one band; 7 lets the bar breathe without breaking the
-    /// pairing. Micro keeps 5 — that value only applies to its wrapped fallback, where the
-    /// gauge is already on its own line.
-    private var rowSpacing: CGFloat { meterStyle.format == .full ? 7 : 5 }
+    /// pairing. Only Full stacks a gauge under its label now — Micro is always a single row —
+    /// so this is Full's label→gauge gap.
+    private var rowSpacing: CGFloat { 7 }
 
     /// Fill length and numeral — one cause, one motion (M1A). Both are `.movement`.
     private struct RowValue: Equatable {
@@ -302,8 +302,13 @@ struct UsageBarView: View {
         }
     }
 
-    /// Micro tries the approved one-line reading cluster first. Its fallback preserves
-    /// the same information while moving only the gauge + numeral to a second line.
+    /// Micro is always one row (Kyle, Sep 2026: "should always be 1 row"). The ladder degrades
+    /// the row within its single line rather than dropping the gauge + numeral to a second one:
+    /// first the full countdown, then the coarse countdown ("22h 54m" → "22h"), and finally —
+    /// when even that overruns — the label truncates with a tail ellipsis. The last rung is the
+    /// guaranteed fit: `ViewThatFits` falls to it when none fit, and there the label is the only
+    /// flexible element, so it gives while the gauge, numeral, and (short) countdown stay whole.
+    /// The full label and countdown always remain in the tooltip (`microHelp`).
     ///
     /// PA6 (Kyle): "center aligned with each other, not the bottom baseline." The row keeps
     /// `.center` — a shared baseline would leave the 18pt numeral riding visibly high over a
@@ -315,38 +320,32 @@ struct UsageBarView: View {
     /// guide: its geometric centre is the axis every cap centre is measured against.
     private var microRow: some View {
         ViewThatFits(in: .horizontal) {
-            HStack(alignment: .center, spacing: 6) {
-                labelCluster(fixedReset: true, capCentred: true)
-                    .fixedSize(horizontal: true, vertical: false)
-                Spacer(minLength: 6)
-                gauge
-                numeralCluster(capCentred: true)
-            }
-
-            VStack(alignment: .leading, spacing: rowSpacing) {
-                HStack(alignment: .center, spacing: 6) {
-                    labelCluster(fixedReset: false, capCentred: true)
-                    Spacer(minLength: 6)
-                }
-                HStack(alignment: .center, spacing: 6) {
-                    Spacer(minLength: 0)
-                    gauge
-                    numeralCluster(capCentred: true)
-                }
-            }
+            microLine(short: false, truncatesLabel: false)
+            microLine(short: true, truncatesLabel: false)
+            microLine(short: true, truncatesLabel: true)
         }
     }
 
-    /// PA6: Micro asks for cap centres; Full keeps the shared baseline, which is the right
-    /// answer on a wide row where the label and its countdown read as one phrase. The
-    /// per-element guides below are inert under `.firstTextBaseline`, so both callers can
-    /// carry them.
-    private func labelCluster(fixedReset: Bool, capCentred: Bool = false) -> some View {
-        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: 6) {
+    private func microLine(short: Bool, truncatesLabel: Bool) -> some View {
+        HStack(alignment: .center, spacing: 6) {
+            labelCluster(short: short, truncatesLabel: truncatesLabel)
+            Spacer(minLength: 6)
+            gauge
+            numeralCluster(capCentred: true)
+        }
+    }
+
+    /// Micro's label + countdown. `truncatesLabel` decides whether the pair pins to its ideal
+    /// width (the label never truncates) or yields to the proposed width — where the label is
+    /// the sole flexible element, so it truncates while the countdown stays whole. `short`
+    /// selects the coarse countdown. Cap centres keep the pair on the row's one optical axis.
+    private func labelCluster(short: Bool, truncatesLabel: Bool) -> some View {
+        HStack(alignment: .center, spacing: 6) {
             labelText
                 .capHeightCentered(size: labelSize, weight: .medium)
-            resetLabel(fixedSize: fixedReset)
+            resetLabel(fixedSize: true, short: short)
         }
+        .fixedSize(horizontal: !truncatesLabel, vertical: false)
     }
 
     private var labelText: some View {
@@ -378,9 +377,9 @@ struct UsageBarView: View {
     }
 
     @ViewBuilder
-    private func resetLabel(fixedSize: Bool) -> some View {
+    private func resetLabel(fixedSize: Bool, short: Bool = false) -> some View {
         if let resetLine {
-            Text(resetLine.countdown)
+            Text(short ? resetLine.shortCountdown : resetLine.countdown)
                 .font(.system(size: resetSize).monospacedDigit())
                 .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
                 .lineLimit(1)

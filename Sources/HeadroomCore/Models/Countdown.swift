@@ -2,10 +2,16 @@ import Foundation
 
 public struct MeterResetLine: Sendable, Equatable {
     public let countdown: String
+    /// The coarsest single-unit form of `countdown` ("22h 54m" → "22h"). A Micro row shows
+    /// this instead of the full countdown when the full precision would push the meter off the
+    /// row; the full countdown and reset time still live in the tooltip. Defaults to
+    /// `countdown` so callers that never shorten stay unchanged.
+    public let shortCountdown: String
     public let tooltip: String
 
-    public init(countdown: String, tooltip: String) {
+    public init(countdown: String, shortCountdown: String? = nil, tooltip: String) {
         self.countdown = countdown
+        self.shortCountdown = shortCountdown ?? countdown
         self.tooltip = tooltip
     }
 }
@@ -33,6 +39,24 @@ public enum Countdown {
         return "<1m"
     }
 
+    /// The coarsest single-unit countdown — "22h 54m" → "22h", "1d 23h" → "1d". A tight Micro
+    /// row shows this so the label, meter, and percentage stay on one line; the full precision
+    /// remains in the tooltip.
+    public static func shortString(to resetsAt: Date, now: Date) -> String {
+        let seconds = resetsAt.timeIntervalSince(now)
+        if seconds <= 0 { return "resets now" }
+
+        let totalMinutes = Int(seconds / 60)
+        let days = totalMinutes / (60 * 24)
+        let hours = (totalMinutes % (60 * 24)) / 60
+        let minutes = totalMinutes % 60
+
+        if days > 0 { return "\(days)d" }
+        if hours > 0 { return "\(hours)h" }
+        if minutes > 0 { return "\(minutes)m" }
+        return "<1m"
+    }
+
     /// Complete provider-independent reset sentence for subscription presentation.
     /// Deliberately derives from scheduled evidence instead of `resetLabel`, so Claude and Codex
     /// use the same compact relative grammar while source labels remain available to
@@ -48,7 +72,11 @@ public enum Countdown {
         }
         guard interval > 60 else { return nil }
         let countdown = string(to: resetsAt, now: now)
-        return MeterResetLine(countdown: countdown, tooltip: "Resets in \(countdown)")
+        return MeterResetLine(
+            countdown: countdown,
+            shortCountdown: shortString(to: resetsAt, now: now),
+            tooltip: "Resets in \(countdown)"
+        )
     }
 
     public static func resetText(for window: UsageWindow, now: Date) -> String {

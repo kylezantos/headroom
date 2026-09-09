@@ -83,16 +83,16 @@ struct MeterStyleTests {
         #expect(MeterGeometry.fullTrackHeight == 8)
         #expect(MeterGeometry.fullTrackInset == 1.5)
         // FS2: the Full cell is the Micro cell scaled up (~2.9×), not its own drawing.
-        #expect(MeterGeometry.fullCellHeight == 14.5)
-        #expect(MeterGeometry.fullCellGap == 6.4)
+        #expect(MeterGeometry.fullCellHeight == 10)
+        #expect(MeterGeometry.fullCellGap == 4.5)
         #expect(MeterGeometry.microCellRadius == 1.5)
-        #expect(MeterGeometry.fullCellRadius == 3.75)
-        #expect(MeterGeometry.fullCellNominalWidth == 22)
+        #expect(MeterGeometry.fullCellRadius == 2.6)
+        #expect(MeterGeometry.fullCellNominalWidth == 15.7)
         #expect(MeterGeometry.fullMinimumFillLength == 6)
         #expect(MeterGeometry.microMinimumFillLength == 3)
         #expect(MeterRecipe.cellCount(for: .micro) == 5)
         // FS1: Full is one cell per 10%, down from 20 cells at 5% each.
-        #expect(MeterRecipe.cellCount(for: .full) == 10)
+        #expect(MeterRecipe.cellCount(for: .full) == 14)
     }
 
     /// FS2 (Kyle, Sep 2026): "I want them to feel basically the same but adapted for their
@@ -105,7 +105,7 @@ struct MeterStyleTests {
         let widths: [(format: GaugeFormat, width: Double)] = [
             (.micro, MeterGeometry.microCellWidth),
             // Full cells flex to fill the row; this is the width 10 of them land on across the
-            // popover's measured 278pt meter run — (278 − 9 × 6.4) / 10 ≈ 22.
+            // popover's measured 278pt meter run — (278 − 13 × 4.5) / 14 ≈ 15.7.
             (.full, MeterGeometry.fullCellNominalWidth),
         ]
         // Both formats are covered, so adding a third can't quietly skip the family check.
@@ -276,6 +276,8 @@ struct MeterStyleTests {
         #expect(MeterRecipe.litCellCount(fraction: 0.72, cells: 10) == 7)
         #expect(MeterRecipe.litCellCount(fraction: 0.62, cells: 10) == 6)
         #expect(MeterRecipe.litCellCount(fraction: 0.72, cells: 20) == 14)
+        #expect(MeterRecipe.litCellCount(fraction: 0.72, cells: 14) == 10)
+        #expect(MeterRecipe.litCellCount(fraction: 0.12, cells: 14) == 2)
         #expect(MeterRecipe.litCellCount(fraction: .nan, cells: 5) == 0)
         #expect(MeterRecipe.litCellCount(fraction: 0.5, cells: 0) == 0)
     }

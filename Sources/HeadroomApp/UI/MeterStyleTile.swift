@@ -187,8 +187,14 @@ struct MeterStyleTile: View {
             fraction: 0.62,
             severity: .healthy,
             freshness: .live,
+            // FS3: count as many *miniature Full* cells (the real cell scaled to Micro height)
+            // as the fragment fits, so the swatch is the shipped row in small.
             miniatureSegmentCount: format == .full
-                ? MeterGeometry.segmentCount(fittingWidth: Double(fragmentWidth))
+                ? MeterGeometry.segmentCount(
+                    fittingWidth: Double(fragmentWidth),
+                    cellWidth: MeterGeometry.miniatureCell(for: .full).width,
+                    gap: MeterGeometry.miniatureCell(for: .full).gap
+                )
                 : nil
         )
     }

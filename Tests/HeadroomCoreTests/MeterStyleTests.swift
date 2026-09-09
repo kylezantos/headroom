@@ -165,6 +165,26 @@ struct MeterStyleTests {
         #expect(MeterGeometry.segmentCount(fittingWidth: 60, cellWidth: 4, gap: 1) == 12)
     }
 
+    /// FS3: the Format › Full swatch previews the real Full row in small — the shipped cell
+    /// scaled uniformly to Micro's height, so aspect, gap-to-pitch and radius-to-height match.
+    @Test func miniatureFullCellIsTheRealCellScaledToMicroHeight() {
+        let real = (
+            w: MeterGeometry.fullCellNominalWidth, h: MeterGeometry.fullCellHeight,
+            g: MeterGeometry.fullCellGap, r: MeterGeometry.fullCellRadius
+        )
+        let mini = MeterGeometry.miniatureCell(for: .full)
+        let scale = MeterGeometry.microCellHeight / real.h
+        #expect(mini.height == MeterGeometry.microCellHeight)
+        #expect(abs(mini.width - real.w * scale) < 0.001)
+        #expect(abs(mini.gap - real.g * scale) < 0.001)
+        #expect(abs(mini.radius - real.r * scale) < 0.001)
+        #expect(abs(mini.width / mini.height - real.w / real.h) < 0.001)
+        #expect(abs(mini.gap / (mini.width + mini.gap) - real.g / (real.w + real.g)) < 0.001)
+        #expect(MeterGeometry.miniatureCell(for: .micro).width == MeterGeometry.microCellWidth)
+        // Six miniature Full cells fit the 60pt Format fragment at the shipped proportions.
+        #expect(MeterGeometry.segmentCount(fittingWidth: 60, cellWidth: mini.width, gap: mini.gap) == 6)
+    }
+
     /// L7B: the cap is its own marker with Kyle's approved constants, not a slice of the fill.
     /// It is longer than its track on purpose — 1pt proud on each side of the 8pt full track
     /// and of the 5pt micro chip and tube.

@@ -147,6 +147,33 @@ public enum MeterGeometry {
         }
     }
 
+    /// FS3 (Kyle, Sep 2026): the Settings Format swatch must preview the *real* Full row in
+    /// small — "update the preview to be accurate too". A miniature cell is therefore the
+    /// format's own cell scaled uniformly down to the Micro cell height, so its proportions
+    /// (aspect, gap-to-pitch, radius-to-height) are exactly the shipped row's, only smaller.
+    /// Micro is already miniature-sized and scales by 1.
+    public struct MiniatureCell: Sendable, Equatable {
+        public let width: Double
+        public let height: Double
+        public let gap: Double
+        public let radius: Double
+    }
+
+    public static func miniatureCell(for format: GaugeFormat) -> MiniatureCell {
+        switch format {
+        case .micro:
+            return MiniatureCell(width: microCellWidth, height: microCellHeight, gap: microCellGap, radius: microCellRadius)
+        case .full:
+            let scale = microCellHeight / fullCellHeight
+            return MiniatureCell(
+                width: fullCellNominalWidth * scale,
+                height: fullCellHeight * scale,
+                gap: fullCellGap * scale,
+                radius: fullCellRadius * scale
+            )
+        }
+    }
+
     /// AP2 (Kyle, Sep 2026): how many segmented cells fit across a fixed-width swatch at a
     /// given cell pitch. The Format › Full swatch draws its real cells inside a 60pt
     /// fragment, which combs them down to ~2pt ticks at the old 20 (~3.75pt at FS1's 10) and

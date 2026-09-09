@@ -11,8 +11,9 @@ struct MeterGauge: View {
     let freshness: UsageWindowFreshness
     /// AP2 / FS2: swatch-only request for a *miniature* segmented gauge. `nil` — the default,
     /// and the only value any real meter uses — means the shipped cell count and the format's
-    /// own cell metrics. Non-nil means "draw this many cells at Micro's cell height, gap, and
-    /// radius, whatever the format is", still laid out full-width for Full.
+    /// own cell metrics. Non-nil means "draw this many cells as the format's *miniature* cell
+    /// (`MeterGeometry.miniatureCell`: the real cell scaled to Micro height)", still laid out
+    /// full-width for Full.
     ///
     /// The Settings Format swatch is the one caller: it renders Full inside a 60pt fragment.
     /// FS2 made the Full cell 14.5pt tall, so overriding only the count would comb the swatch
@@ -71,7 +72,8 @@ struct MeterGauge: View {
         switch (style.format, resolvedShape) {
         // FS2: segmented rows size to the *cell* format, which the miniature override can
         // pull back to Micro — so the swatch's frame reserves 5pt, not Full's 14.5pt.
-        case (_, .segmented): return CGFloat(MeterGeometry.cellHeight(for: segmentedCellFormat))
+        case (_, .segmented):
+            return CGFloat(miniatureCell?.height ?? MeterGeometry.cellHeight(for: style.format))
         case (.micro, .chip): return CGFloat(MeterGeometry.microChipHeight)
         case (.micro, .machined): return CGFloat(MeterGeometry.microMachinedHeight)
         case (.micro, .tube): return CGFloat(MeterGeometry.microTubeHeight)
@@ -227,21 +229,20 @@ struct MeterGauge: View {
         miniatureSegmentCount ?? MeterRecipe.cellCount(for: style.format)
     }
 
-    /// FS2: which format's cell metrics (height, gap, radius) a segmented gauge draws with.
-    /// It is the style's own format everywhere except a miniature swatch, which asks for
-    /// Micro's cell at any format so it stays a strip of little chips.
-    private var segmentedCellFormat: GaugeFormat {
-        miniatureSegmentCount == nil ? style.format : .micro
+    /// FS3: a miniature swatch draws the format's own cell scaled down to Micro height
+    /// (`MeterGeometry.miniatureCell`), so the Full swatch is the real Full row in small —
+    /// same aspect, same gap-to-pitch, same radius-to-height — rather than Micro's chip.
+    private var miniatureCell: MeterGeometry.MiniatureCell? {
+        miniatureSegmentCount == nil ? nil : MeterGeometry.miniatureCell(for: style.format)
     }
 
     private var segmentedGauge: some View {
         let cells = resolvedCellCount
-        let cellFormat = segmentedCellFormat
         let lit = freshness.isUnavailable
             ? 0
             : MeterRecipe.litCellCount(fraction: clampedFraction, cells: cells)
-        let gap = CGFloat(MeterGeometry.cellGap(for: cellFormat))
-        let radius = CGFloat(MeterGeometry.cellRadius(for: cellFormat))
+        let gap = CGFloat(miniatureCell?.gap ?? MeterGeometry.cellGap(for: style.format))
+        let radius = CGFloat(miniatureCell?.radius ?? MeterGeometry.cellRadius(for: style.format))
         let fillRecipe = MeterRecipe.fillRecipe(
             fill: style.fill,
             severity: severity,

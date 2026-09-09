@@ -74,26 +74,46 @@ public enum HeadroomWidgetColorValues {
     // role sits on: tertiary needs 0.74 to clear the white tile fill (4.96) and the light
     // container bottom where the widget footer lives (4.56); secondary steps to 0.84 so the
     // two-level gray hierarchy survives the tertiary bump (6.63 on white, 5.44 on the plan
-    // capsule's bar-track). Dark passes at the existing values (worst case 4.99).
+    // capsule's bar-track).
+    //
+    // PA13 (Sep 2026): the dark steps were originally matched to light on WCAG *ratio*, which
+    // is polarity-blind — the same ratio buys far less separation on a dark surface. Re-derived
+    // on APCA |Lc| against the RaisedTile card fills, tertiary moves 0.56 → 0.68 (|Lc| 41.8 →
+    // 54.3 vs light's 74.4) and secondary follows it to 0.76 (|Lc| 52.2 → 63.4 vs light's 82.8)
+    // for exactly the reason the light branch already documents: the two-level grey hierarchy
+    // has to survive the tertiary bump, and at the old 0.66 secondary would have landed *below*
+    // the new tertiary.
     public static func secondaryText(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: darkNeutral, opacity: 0.66) : HeadroomTint(color: lightNeutral, opacity: 0.84)
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.76) : HeadroomTint(color: lightNeutral, opacity: 0.84)
     }
 
     public static func tertiaryText(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: darkNeutral, opacity: 0.56) : HeadroomTint(color: lightNeutral, opacity: 0.74)
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.68) : HeadroomTint(color: lightNeutral, opacity: 0.74)
+    }
+
+    /// PA13: the plan pill's own ink. It used to take the system `.tertiary`, which measured
+    /// |Lc| ≈ 20 on the dark card — below APCA's placeholder floor — against ≈ 40 in light, and
+    /// the plan name is the only thing that says which subscription a meter is measuring. This
+    /// token lands both schemes at |Lc| ≈ 46–50 *on the identity capsule* (which is itself only
+    /// white @ 0.06 / black @ 0.045 over the card), so the pill reads the same in either
+    /// appearance instead of dissolving in one of them.
+    public static func planLabel(dark: Bool) -> HeadroomTint {
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.60) : HeadroomTint(color: lightNeutral, opacity: 0.52)
     }
 
     // G1A (Sep 2026): the account title's ink — a cool grey that sits *below* the countdown
     // in the hierarchy on purpose (the numeral carries the value, the title only names the
-    // account). T1A's grey read as too recessive in the live build, so this step lightens
-    // dark to #7B838D: still a deliberate de-emphasis under the 4.5:1 body-text floor, but
-    // now it closes roughly half the contrast gap up to the 11.5pt status sentence instead
-    // of the whole gap. Light #5F6771 is *derived*, not measured — the dark step mirrored
-    // across the card (darker rather than lighter, because the light card inverts which
-    // direction "more legible" runs), so neither scheme recedes further than the other.
+    // account). Light #5F6771 measures |Lc| ≈ 78 on the card.
+    //
+    // PA13: the dark step was #7B838D, derived by mirroring the light step across the card on
+    // WCAG ratio. Ratio is polarity-blind, and that mirror actually measured |Lc| ≈ 33 — less
+    // than half of light's separation, on the one label that names the account a meter belongs
+    // to. Re-derived on APCA against the same card fills, #9AA2AC measures |Lc| ≈ 48–50: still
+    // deliberately under the 15pt title's full-primary ink, but no longer recessive in dark
+    // only.
     public static func accountTitle(dark: Bool) -> HeadroomTint {
         dark
-            ? HeadroomTint(color: HeadroomRGBColor(red: 123 / 255, green: 131 / 255, blue: 141 / 255), opacity: 1)
+            ? HeadroomTint(color: HeadroomRGBColor(red: 154 / 255, green: 162 / 255, blue: 172 / 255), opacity: 1)
             : HeadroomTint(color: HeadroomRGBColor(red: 95 / 255, green: 103 / 255, blue: 113 / 255), opacity: 1)
     }
 
@@ -174,33 +194,33 @@ public enum HeadroomMeterColorValues {
 
     public static func countdownInk(dark: Bool) -> HeadroomTint {
         // The round-4 D2 values clear 4.5:1 against both RaisedTile fill endpoints.
-        HeadroomTint(color: dark ? darkText : lightMetadata, opacity: dark ? 0.53 : 0.72)
+        //
+        // PA13: dark stepped 0.53 → 0.66. The pair was matched on WCAG ratio, which is
+        // polarity-blind — at 0.53 the dark countdown measured |Lc| ≈ 39 against light's ≈ 71,
+        // so the reset time was noticeably fainter in one appearance than the other. 0.66
+        // lands at |Lc| ≈ 52 and still clears 4.5:1 (6.33–6.95) on both card fills.
+        HeadroomTint(color: dark ? darkText : lightMetadata, opacity: dark ? 0.66 : 0.72)
     }
 
+    // PA1: the neutral (no-event) meter greys.
+    //
+    // Light used to be *opaque* mid-greys (#757C86 / #666C75, #6B727B / #474E57) while dark was
+    // white-alpha over the card. Alpha over an opaque literal is not a cosmetic difference: on
+    // the shipping default (micro · chip · color-as-event) the light neutral body measured APCA
+    // |Lc| ≈ 72 on the card while the amber "running low" fill measured ≈ 52, so a healthy 72%
+    // bar visibly outweighed the low 38% bar above it and "color as event" inverted its own
+    // meaning. Light now mirrors dark's construction — black-alpha over the card — which puts
+    // the neutral body below every severity fill in both schemes.
+    //
+    // Body ≈ black @ 0.24, end stop ≈ black @ 0.36; the amber is untouched. These are the
+    // starting values from the decision, tuned from live `--demo multi-4` captures.
+    // `BrandColorValuesTests` pins the ordering, not the literals.
     public static func glassA(dark: Bool) -> HeadroomTint {
-        dark
-            ? HeadroomTint(color: .white, opacity: 0.22)
-            : HeadroomTint(
-                color: HeadroomRGBColor(
-                    red: 117.0 / 255.0,
-                    green: 124.0 / 255.0,
-                    blue: 134.0 / 255.0
-                ),
-                opacity: 1
-            )
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.22 : 0.24)
     }
 
     public static func glassB(dark: Bool) -> HeadroomTint {
-        dark
-            ? HeadroomTint(color: .white, opacity: 0.11)
-            : HeadroomTint(
-                color: HeadroomRGBColor(
-                    red: 102.0 / 255.0,
-                    green: 108.0 / 255.0,
-                    blue: 117.0 / 255.0
-                ),
-                opacity: 1
-            )
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.11 : 0.36)
     }
 
     public static func glassRim(dark: Bool) -> HeadroomTint {
@@ -231,30 +251,17 @@ public enum HeadroomMeterColorValues {
             : HeadroomTint(color: .black, opacity: 0.08)
     }
 
+    /// PA1: the segmented neutral body — same mirror as `glassA`.
     public static func tickGlass(dark: Bool) -> HeadroomTint {
-        dark
-            ? HeadroomTint(color: .white, opacity: 0.26)
-            : HeadroomTint(
-                color: HeadroomRGBColor(
-                    red: 107.0 / 255.0,
-                    green: 114.0 / 255.0,
-                    blue: 123.0 / 255.0
-                ),
-                opacity: 1
-            )
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.26 : 0.24)
     }
 
+    /// PA1: the segmented neutral *tip*. Deliberately heavier than the body in both schemes —
+    /// it is a one-cell end marker, not the fill's weight — so it is the one neutral token
+    /// exempt from the body-below-severity ordering (dark's 0.52 cap already measures above
+    /// the dark critical fill and always has).
     public static func tickGlassCap(dark: Bool) -> HeadroomTint {
-        dark
-            ? HeadroomTint(color: .white, opacity: 0.52)
-            : HeadroomTint(
-                color: HeadroomRGBColor(
-                    red: 71.0 / 255.0,
-                    green: 78.0 / 255.0,
-                    blue: 87.0 / 255.0
-                ),
-                opacity: 1
-            )
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.52 : 0.36)
     }
 
     /// How much of the severity *fill* survives in the Hue ramp's start stop (the rest is
@@ -273,6 +280,18 @@ public enum HeadroomMeterColorValues {
     ) -> Double {
         guard dark else { return increasedContrast ? 0.55 : 0.75 }
         return surface == .flat ? 0.58 : 0.42
+    }
+
+    /// PB13: the dim a `.staleGrey` fill paints at. The *base* stays the system secondary
+    /// label at the SwiftUI edge (this is the one meter fill that follows the system label
+    /// colour rather than a fixed grey); only the number lives here, with the rest of the
+    /// meter chrome, instead of inline in `MeterGauge`.
+    public static let staleFillOpacity: Double = 0.55
+
+    /// PB13: the quarter-mark hairline. Same split as `staleFillOpacity` — the base is the
+    /// system primary label at the SwiftUI edge, the per-scheme number lives here.
+    public static func quarterMarkOpacity(dark: Bool) -> Double {
+        dark ? 0.11 : 0.14
     }
 
     /// Opacity applied to the severity *fill* token for the Ghost body. Left at the round-6
@@ -308,25 +327,32 @@ public struct HeadroomBrandMarkSize: Sendable, Equatable {
 /// brand SVGs are now trimmed so the path's tight bounding box *is* the viewBox, which
 /// makes "how big is this mark" a property of the artwork rather than of each surface's
 /// guess about it. Every surface then applies the same rule below and leading-aligns the
-/// result inside its slot, so all four marks hang on one mark axis at one ink size.
+/// result inside its slot, so all four marks hang on one mark axis. PA9 then layered a
+/// per-provider ink-mass correction on top of that shared box, because equal boxes of very
+/// unequal coverage do not read as one size.
 public enum HeadroomBrandMark {
-    /// The ink's larger dimension as a fraction of the slot: 13pt of ink in the card's
-    /// 15pt mark slot. That is what the accepted Claude/Codex rendering already measured
-    /// at, so it is the rule the other two marks are brought onto rather than a new look.
+    /// The ink's larger dimension as a fraction of the slot *before* mass correction: 13pt of
+    /// ink in the card's 15pt mark slot. That is what the accepted Claude/Codex rendering
+    /// already measured at, so it is the rule the other two marks are brought onto rather
+    /// than a new look.
     public static let inkFraction: Double = 13.0 / 15.0
 
     /// Per-provider shape-mass tuning, applied on top of `inkFraction`.
     ///
-    /// Every value is 1.0 today and the table is expected to stay that way: equal ink boxes
-    /// are the rule. It exists because equal *boxes* are not always equal *mass* — a spiky
-    /// starburst and a solid square at the same bounding box can still read unequal — so a
-    /// mark can be dialled from the live preview without anyone editing the rule itself.
+    /// This is the dial the rule's own comment predicted: equal ink *boxes* are not equal ink
+    /// *mass*. Measured coverage inside the same 13pt box — Codex 0.71, Cursor 0.56, Claude
+    /// 0.42, Grok 0.25 — put Grok's hairline slash directly under Cursor's solid cube in the
+    /// four-provider card list, so equal geometry read as four different sizes.
+    ///
+    /// PA9 (Sep 2026): first correction pass, weighting each mark against its coverage —
+    /// the sparse marks grow, the dense ones shrink. These are starting values; live
+    /// `--demo multi-4` captures in both appearances are what settles them.
     public static func massCorrection(for providerID: String) -> Double {
         switch providerID {
-        case ProviderID.claude.raw: 1.0
-        case ProviderID.codex.raw: 1.0
-        case ProviderID.grok.raw: 1.0
-        case ProviderID.cursor.raw: 1.0
+        case ProviderID.claude.raw: 1.05
+        case ProviderID.codex.raw: 0.92
+        case ProviderID.grok.raw: 1.10
+        case ProviderID.cursor.raw: 0.94
         default: 1.0
         }
     }

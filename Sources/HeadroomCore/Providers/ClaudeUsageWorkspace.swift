@@ -4,7 +4,7 @@ import Foundation
 /// Claude Code records trust per working directory, so using a Headroom-owned empty
 /// folder avoids asking users to trust transient locations like the DMG or /Applications.
 public enum ClaudeUsageWorkspace {
-    public static let trustRequiredMessage = "Open Claude setup to trust Headroom's Claude folder"
+    public static let trustRequiredMessage = "Open Claude setup to trust Headroom’s Claude folder"
 
     public static var defaultDirectoryURL: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)

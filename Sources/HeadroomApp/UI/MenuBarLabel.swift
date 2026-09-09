@@ -158,11 +158,11 @@ struct MenuBarLabelRenderResult {
 
 @MainActor
 enum MenuBarLabelRenderer {
-    private static let height: CGFloat = 18
-    private static let vesselWidth: CGFloat = 11
-    private static let vesselTextGap: CGFloat = 7
-    private static let meterGapWithPercentage: CGFloat = 16
-    private static let meterGapIconOnly: CGFloat = 8
+    // PB5: the numbers and the layout pass both live in `MenuBarLabelGeometry` now, so the
+    // measured image width and the drawn positions cannot disagree (they did: the attention
+    // dot's 3pt overhang was drawn but never measured, clipping it on the trailing mark).
+    private static let height = CGFloat(MenuBarLabelGeometry.height)
+    private static let vesselWidth = CGFloat(MenuBarLabelGeometry.vesselWidth)
     private static let font = NSFont.monospacedDigitSystemFont(ofSize: 13.5, weight: .medium)
 
     static func render(
@@ -171,20 +171,25 @@ enum MenuBarLabelRenderer {
         palette: MenuBarPalette
     ) -> MenuBarLabelRenderResult {
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
-        let meterGap = showsPercentage ? meterGapWithPercentage : meterGapIconOnly
         let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?) in
             guard showsPercentage, !meter.summary.isNeutral else { return (meter, nil) }
             return (meter, textSize(for: meter.summary.text))
         }
-        let width = measured.reduce(CGFloat.zero) { total, item in
-            let textWidth = item.textSize.map { vesselTextGap + ceil($0.width) } ?? 0
-            let gap = total > 0 ? meterGap : 0
-            return total + gap + vesselWidth + textWidth
-        }
-        let image = NSImage(size: NSSize(width: max(vesselWidth, ceil(width)), height: height), flipped: false) { bounds in
-            var x = bounds.minX
-            for item in measured {
-                if x > bounds.minX { x += meterGap }
+        let layout = MenuBarLabelGeometry.layout(
+            items: measured.map {
+                MenuBarLabelGeometry.Item(
+                    textWidth: $0.textSize.map { Double(ceil($0.width)) },
+                    needsAttention: $0.meter.summary.needsAttention
+                )
+            },
+            showsPercentage: showsPercentage
+        )
+        let image = NSImage(
+            size: NSSize(width: layout.imageWidth, height: height),
+            flipped: false
+        ) { bounds in
+            for (item, placement) in zip(measured, layout.placements) {
+                let x = bounds.minX + CGFloat(placement.vesselX)
                 let vessel = VesselGlyph.menuBarImage(
                     fill: item.meter.fill,
                     severity: item.meter.summary.severity,
@@ -195,15 +200,19 @@ enum MenuBarLabelRenderer {
                 if item.meter.summary.needsAttention {
                     // The dot is a graphic mark, not ink, so it stays on the severity fill
                     // tier — critical red in whichever appearance the menu bar is (L1A).
+                    let diameter = CGFloat(MenuBarLabelGeometry.attentionDotDiameter)
                     palette.liquid(for: .critical).menuBarColor.setFill()
-                    NSBezierPath(ovalIn: NSRect(x: x + vesselWidth - 2, y: height - 5, width: 5, height: 5)).fill()
+                    NSBezierPath(ovalIn: NSRect(
+                        x: x + vesselWidth - CGFloat(MenuBarLabelGeometry.attentionDotInset),
+                        y: height - diameter,
+                        width: diameter,
+                        height: diameter
+                    )).fill()
                 }
-                x += vesselWidth
-                if let textSize = item.textSize {
-                    x += vesselTextGap
+                if let textSize = item.textSize, let textX = placement.textX {
                     let textHeight = ceil(textSize.height)
                     let rect = NSRect(
-                        x: x,
+                        x: bounds.minX + CGFloat(textX),
                         y: (height - textHeight) / 2,
                         width: ceil(textSize.width),
                         height: textHeight
@@ -212,7 +221,6 @@ enum MenuBarLabelRenderer {
                         .font: font,
                         .foregroundColor: textColor(for: item.meter.summary, palette: palette)
                     ])
-                    x += ceil(textSize.width)
                 }
             }
             return true

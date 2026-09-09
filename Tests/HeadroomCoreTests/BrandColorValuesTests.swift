@@ -28,34 +28,69 @@ struct BrandColorValuesTests {
 
     // MARK: - OA2 brand-mark sizing rule
 
-    /// The rule is one number for everyone: the ink's larger dimension is 13/15 of the slot.
-    /// `massCorrection` is the only per-provider dial and every entry is 1.0 today, so any
-    /// provider drifting off 13/15 is a deliberate edit that has to land here first.
-    @Test func everyProviderRendersItsInkAtThirteenFifteenthsOfTheSlot() {
+    /// The shared rule is still one number for everyone — the ink's larger dimension is 13/15
+    /// of the slot — and `massCorrection` is the only per-provider dial on top of it, so any
+    /// provider drifting off `13/15 × its correction` is a deliberate edit that has to land
+    /// here first.
+    ///
+    /// PA9 set the first non-1.0 corrections. Equal ink *boxes* turned out not to be equal ink
+    /// *mass*: measured coverage inside the same 13pt box ran Codex 0.71, Cursor 0.56, Claude
+    /// 0.42, Grok 0.25, which put Grok's hairline slash directly under Cursor's solid cube in
+    /// the four-provider card list. The corrections therefore have to run *opposite* to
+    /// coverage — sparse marks grow, dense marks shrink — and that direction is asserted here
+    /// so a later re-tune from live captures can move the magnitudes without silently
+    /// inverting the intent.
+    @Test func everyProviderRendersItsInkAtThirteenFifteenthsOfTheSlotTimesItsMassCorrection() {
         #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
-        for id in [ProviderID.claude, .codex, .grok, .cursor] {
-            #expect(HeadroomBrandMark.massCorrection(for: id.raw) == 1.0, "\(id.raw) mass")
-            #expect(HeadroomBrandMark.inkScale(for: id.raw) == 13.0 / 15.0, "\(id.raw) scale")
+        let corrections: [(ProviderID, Double)] = [
+            (.claude, 1.05), (.codex, 0.92), (.grok, 1.10), (.cursor, 0.94),
+        ]
+        for (id, correction) in corrections {
+            #expect(HeadroomBrandMark.massCorrection(for: id.raw) == correction, "\(id.raw) mass")
+            #expect(
+                abs(HeadroomBrandMark.inkScale(for: id.raw) - 13.0 / 15.0 * correction) < 1e-12,
+                "\(id.raw) scale"
+            )
         }
+        // Sparse ink grows, dense ink shrinks.
+        #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw) > 1)
+        #expect(HeadroomBrandMark.massCorrection(for: ProviderID.claude.raw) > 1)
+        #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw) < 1)
+        #expect(HeadroomBrandMark.massCorrection(for: ProviderID.cursor.raw) < 1)
+        // Grok is the sparsest mark, Codex the densest, so they bound the table.
+        for id in [ProviderID.claude, .codex, .cursor] {
+            #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw)
+                >= HeadroomBrandMark.massCorrection(for: id.raw))
+            #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw)
+                <= HeadroomBrandMark.massCorrection(for: id.raw))
+        }
+        // An unregistered provider gets the uncorrected shared rule.
+        #expect(HeadroomBrandMark.massCorrection(for: "unknown-provider") == 1.0)
         #expect(HeadroomBrandMark.inkScale(for: "unknown-provider") == 13.0 / 15.0)
     }
 
-    /// The larger dimension lands on 13pt in the card's 15pt slot for every provider, the
-    /// aspect is preserved rather than padded back to square, and the shorter dimension is
-    /// what shrinks (Grok's slash vertically, Cursor's cube horizontally).
+    /// The larger dimension lands on the provider's mass-corrected share of 13pt in the card's
+    /// 15pt slot, the aspect is preserved rather than padded back to square, and the shorter
+    /// dimension is what shrinks (Grok's slash vertically, Cursor's cube horizontally).
     @Test func markSizeFitsTheLargerInkDimensionAndKeepsAspect() {
         for id in [ProviderID.claude, .codex, .grok, .cursor] {
             let mark = HeadroomBrandMark.markSize(for: id.raw, slot: 15)
-            #expect(abs(max(mark.width, mark.height) - 13) < 0.0001, "\(id.raw) larger dimension")
-            #expect(min(mark.width, mark.height) <= 13.0001, "\(id.raw) shorter dimension")
+            let box = 13 * HeadroomBrandMark.massCorrection(for: id.raw)
+            #expect(abs(max(mark.width, mark.height) - box) < 0.0001, "\(id.raw) larger dimension")
+            #expect(min(mark.width, mark.height) <= box + 0.0001, "\(id.raw) shorter dimension")
             let aspect = HeadroomBrandMark.inkAspect(for: id.raw)
             #expect(abs(mark.width / mark.height - aspect) < 0.0001, "\(id.raw) aspect")
         }
-        // Square marks fill the 13pt box in both axes; the two non-square marks do not.
-        #expect(HeadroomBrandMark.markSize(for: ProviderID.claude.raw, slot: 15).height == 13)
-        #expect(HeadroomBrandMark.markSize(for: ProviderID.codex.raw, slot: 15).height == 13)
-        #expect(HeadroomBrandMark.markSize(for: ProviderID.grok.raw, slot: 15).height < 13)
-        #expect(HeadroomBrandMark.markSize(for: ProviderID.cursor.raw, slot: 15).width < 13)
+        // Square marks fill their corrected box in both axes; the two non-square marks do not.
+        for id in [ProviderID.claude, .codex] {
+            let mark = HeadroomBrandMark.markSize(for: id.raw, slot: 15)
+            #expect(abs(mark.height - 13 * HeadroomBrandMark.massCorrection(for: id.raw)) < 0.0001)
+            #expect(abs(mark.width - mark.height) < 0.0001)
+        }
+        #expect(HeadroomBrandMark.markSize(for: ProviderID.grok.raw, slot: 15).height
+            < 13 * HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw))
+        #expect(HeadroomBrandMark.markSize(for: ProviderID.cursor.raw, slot: 15).width
+            < 13 * HeadroomBrandMark.massCorrection(for: ProviderID.cursor.raw))
     }
 
     @Test func markSizeScalesLinearlyWithTheSlot() {
@@ -95,19 +130,16 @@ struct BrandColorValuesTests {
             color: HeadroomRGBColor(red: 29.0 / 255.0, green: 31.0 / 255.0, blue: 36.0 / 255.0),
             opacity: 0.90
         ))
-        #expect(HeadroomMeterColorValues.countdownInk(dark: true).opacity == 0.53)
+        // PA13: dark stepped 0.53 → 0.66; ratio-matched pairs left it ~half of light's |Lc|.
+        #expect(HeadroomMeterColorValues.countdownInk(dark: true).opacity == 0.66)
         #expect(HeadroomMeterColorValues.countdownInk(dark: false).opacity == 0.72)
 
+        // PA1: light is black-alpha over the card, mirroring dark's white-alpha (it used to be
+        // opaque mid-greys, which is what let the neutral fill outshout the amber one).
         #expect(HeadroomMeterColorValues.glassA(dark: true) == HeadroomTint(color: .white, opacity: 0.22))
         #expect(HeadroomMeterColorValues.glassB(dark: true) == HeadroomTint(color: .white, opacity: 0.11))
-        #expect(HeadroomMeterColorValues.glassA(dark: false) == HeadroomTint(
-            color: HeadroomRGBColor(red: 117.0 / 255.0, green: 124.0 / 255.0, blue: 134.0 / 255.0),
-            opacity: 1
-        ))
-        #expect(HeadroomMeterColorValues.glassB(dark: false) == HeadroomTint(
-            color: HeadroomRGBColor(red: 102.0 / 255.0, green: 108.0 / 255.0, blue: 117.0 / 255.0),
-            opacity: 1
-        ))
+        #expect(HeadroomMeterColorValues.glassA(dark: false) == HeadroomTint(color: .black, opacity: 0.24))
+        #expect(HeadroomMeterColorValues.glassB(dark: false) == HeadroomTint(color: .black, opacity: 0.36))
         #expect(HeadroomMeterColorValues.glassRim(dark: true) == HeadroomTint(color: .white, opacity: 0.25))
         #expect(HeadroomMeterColorValues.glassRim(dark: false) == HeadroomTint(color: .white, opacity: 0.30))
 
@@ -123,15 +155,16 @@ struct BrandColorValuesTests {
         #expect(HeadroomMeterColorValues.tickOff(dark: true) == HeadroomTint(color: .white, opacity: 0.09))
         #expect(HeadroomMeterColorValues.tickOff(dark: false) == HeadroomTint(color: .black, opacity: 0.08))
         #expect(HeadroomMeterColorValues.tickGlass(dark: true) == HeadroomTint(color: .white, opacity: 0.26))
-        #expect(HeadroomMeterColorValues.tickGlass(dark: false) == HeadroomTint(
-            color: HeadroomRGBColor(red: 107.0 / 255.0, green: 114.0 / 255.0, blue: 123.0 / 255.0),
-            opacity: 1
-        ))
+        #expect(HeadroomMeterColorValues.tickGlass(dark: false) == HeadroomTint(color: .black, opacity: 0.24))
         #expect(HeadroomMeterColorValues.tickGlassCap(dark: true) == HeadroomTint(color: .white, opacity: 0.52))
-        #expect(HeadroomMeterColorValues.tickGlassCap(dark: false) == HeadroomTint(
-            color: HeadroomRGBColor(red: 71.0 / 255.0, green: 78.0 / 255.0, blue: 87.0 / 255.0),
-            opacity: 1
-        ))
+        #expect(HeadroomMeterColorValues.tickGlassCap(dark: false) == HeadroomTint(color: .black, opacity: 0.36))
+
+        // PB13: the stale dim and the quarter-mark hairline moved out of `MeterGauge` and in
+        // here with the rest of the meter chrome; only the numbers travel, the bases stay the
+        // system label colours at the SwiftUI edge.
+        #expect(HeadroomMeterColorValues.staleFillOpacity == 0.55)
+        #expect(HeadroomMeterColorValues.quarterMarkOpacity(dark: true) == 0.11)
+        #expect(HeadroomMeterColorValues.quarterMarkOpacity(dark: false) == 0.14)
 
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .well) == 0.42)
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .flat) == 0.58)
@@ -314,13 +347,133 @@ struct BrandColorValuesTests {
         #expect(measuredGhostRatios(dark: false, increasedContrast: true).max().map { abs($0 - 1.6345) < 0.0001 } == true)
     }
 
-    /// Glass is also recorded rather than promoted to a blanket pass: its dark-scheme
-    /// gradient measures below 3:1, while both light-scheme endpoints clear it.
+    /// Glass is recorded rather than promoted to a blanket pass. Dark is unchanged. The light
+    /// band moved 3.0986–4.0254 → 1.7514–2.4396 under PA1: the old light glass was an opaque
+    /// mid-grey that measured *higher* against its own track than any severity fill did, which
+    /// is precisely the inversion PA1 removes. Glass is decorative chrome — the percent numeral
+    /// beside it carries the value at full text contrast — so the drop is the fix, not a
+    /// regression.
     @Test func healthyGlassContrastOnTrackIsRecorded() {
         #expect(measuredGlassRatios(dark: true).min().map { abs($0 - 1.3782) < 0.0001 } == true)
         #expect(measuredGlassRatios(dark: true).max().map { abs($0 - 1.9544) < 0.0001 } == true)
-        #expect(measuredGlassRatios(dark: false).min().map { abs($0 - 3.0986) < 0.0001 } == true)
-        #expect(measuredGlassRatios(dark: false).max().map { abs($0 - 4.0254) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: false).min().map { abs($0 - 1.7514) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: false).max().map { abs($0 - 2.4396) < 0.0001 } == true)
+    }
+
+    // MARK: - PA1: neutral never outshouts an event
+
+    /// "Colour as event" means a neutral meter says *nothing is happening* and a coloured one
+    /// says something is. That only reads if the neutral fill is the quietest thing in the
+    /// list. In light it was not: the neutral greys were opaque mid-greys measuring APCA
+    /// |Lc| ≈ 72 against the card while the amber "running low" fill measured ≈ 52, so on the
+    /// shipping default a healthy 72% bar visibly outweighed a low 38% bar above it and the
+    /// mode inverted its own meaning.
+    ///
+    /// Measured the way it renders: the neutral fill is an alpha over the bar track, which is
+    /// itself an alpha over the card; the severity fills paint opaque over that same track.
+    /// The ordering is what is pinned here — the literals stay tunable from live captures.
+    ///
+    /// The two *end* tokens are exempt and stay exempt. `tickGlassCap` is a one-cell tip
+    /// marker, not the fill's weight, and dark's 0.52 cap has always measured above the dark
+    /// critical fill; `glassB` is the glass gradient's shaded foot for the same reason.
+    @Test func theNeutralMeterBodyNeverOutweighsASeverityFillInEitherScheme() {
+        for dark in [true, false] {
+            for card in raisedTileFillColors(dark: dark) {
+                let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: card)
+                let quietestEvent = [UsageSeverity.healthy, .low, .critical]
+                    .map { severity in
+                        abs(apcaLc(
+                            text: HeadroomSeverityColorValues.fill(
+                                for: severity,
+                                dark: dark,
+                                increasedContrast: false
+                            ),
+                            background: card
+                        ))
+                    }
+                    .min() ?? 0
+                let bodies = [
+                    ("glassA", HeadroomMeterColorValues.glassA(dark: dark)),
+                    ("tickGlass", HeadroomMeterColorValues.tickGlass(dark: dark)),
+                ]
+                for (name, tint) in bodies {
+                    let neutral = abs(apcaLc(text: composite(tint, over: track), background: card))
+                    #expect(
+                        neutral < quietestEvent,
+                        "\(name) |Lc| \(neutral) vs quietest severity \(quietestEvent), dark=\(dark)"
+                    )
+                }
+            }
+        }
+    }
+
+    /// The structural half of PA1: light is *authored* the way dark is, an alpha over the card,
+    /// so the two branches cannot drift back apart into "opaque grey here, translucent white
+    /// there". A future opaque literal fails here even if it happens to measure quietly on the
+    /// two card fills this suite samples.
+    @Test func lightNeutralMeterTokensMirrorDarksAlphaConstruction() {
+        let tokens: [(String, (Bool) -> HeadroomTint)] = [
+            ("glassA", HeadroomMeterColorValues.glassA),
+            ("glassB", HeadroomMeterColorValues.glassB),
+            ("tickGlass", HeadroomMeterColorValues.tickGlass),
+            ("tickGlassCap", HeadroomMeterColorValues.tickGlassCap),
+        ]
+        for (name, token) in tokens {
+            #expect(token(true).color == .white, "\(name) dark base")
+            #expect(token(false).color == .black, "\(name) light base")
+            #expect(token(true).opacity < 1, "\(name) dark is an alpha")
+            #expect(token(false).opacity < 1, "\(name) light is an alpha")
+        }
+        // Each scheme's end stop is heavier than its body, in both branches.
+        #expect(HeadroomMeterColorValues.tickGlassCap(dark: true).opacity
+            > HeadroomMeterColorValues.tickGlass(dark: true).opacity)
+        #expect(HeadroomMeterColorValues.tickGlassCap(dark: false).opacity
+            > HeadroomMeterColorValues.tickGlass(dark: false).opacity)
+    }
+
+    // MARK: - PA13: dark muted text re-derived by |Lc|
+
+    /// The dark muted-text steps were matched to their light partners on WCAG *ratio*, which is
+    /// polarity-blind — the same ratio buys much less separation on a dark surface. Measured on
+    /// APCA against the same card fills, the dark account title came out at |Lc| 33 against
+    /// light's 79 (41%), and the plan pill, on the system `.tertiary`, at ≈ 20.
+    ///
+    /// Two relationships are pinned rather than the literals: every muted role clears APCA's
+    /// Lc 45 tier in *both* schemes, and no dark role keeps less than 55% of its light partner's
+    /// separation. Re-tuning the numbers is fine; letting one scheme recede again is not.
+    @Test func everyMutedTextRoleHoldsItsSeparationInBothSchemes() {
+        for (name, measured) in mutedTextSeparations() {
+            for (dark, values) in measured {
+                for value in values {
+                    #expect(value >= 45, "\(name) |Lc| \(value), dark=\(dark)")
+                }
+            }
+            for (darkValue, lightValue) in zip(measured[true] ?? [], measured[false] ?? []) {
+                #expect(
+                    darkValue / lightValue >= 0.55,
+                    "\(name) keeps \(darkValue / lightValue) of its light separation"
+                )
+            }
+        }
+    }
+
+    /// The two-level grey hierarchy the light branch documents has to hold in dark too — the
+    /// tertiary bump would otherwise have pushed tertiary *past* secondary, which is why
+    /// secondary moved with it.
+    @Test func secondaryTextStaysAboveTertiaryTextInBothSchemes() {
+        for dark in [true, false] {
+            for card in raisedTileFillColors(dark: dark) {
+                let secondary = abs(apcaLc(
+                    text: composite(HeadroomWidgetColorValues.secondaryText(dark: dark), over: card),
+                    background: card
+                ))
+                let tertiary = abs(apcaLc(
+                    text: composite(HeadroomWidgetColorValues.tertiaryText(dark: dark), over: card),
+                    background: card
+                ))
+                #expect(secondary > tertiary, "dark=\(dark): secondary \(secondary), tertiary \(tertiary)")
+            }
+        }
     }
 
     @Test func widgetContainerBackgroundMatchesCanonicalSpec() {
@@ -421,4 +574,63 @@ private func measuredGlassRatios(dark: Bool) -> [Double] {
         let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
         return glass.map { contrastRatio(composite($0, over: track), track) }
     }
+}
+
+/// APCA-W3 (0.0.98 G-4g) lightness contrast, signed: positive for dark-on-light, negative for
+/// light-on-dark. WCAG's ratio is polarity-blind, which is exactly what let the dark muted text
+/// and the light neutral meter greys drift (PA1, PA13), so those two decisions are measured
+/// here instead. Inputs are already-composited opaque sRGB.
+private func apcaLc(text: HeadroomRGBColor, background: HeadroomRGBColor) -> Double {
+    let textY = apcaScreenLuminance(text)
+    let backgroundY = apcaScreenLuminance(background)
+    guard abs(backgroundY - textY) >= 0.0005 else { return 0 }
+    if backgroundY > textY {
+        let sapc = (pow(backgroundY, 0.56) - pow(textY, 0.57)) * 1.14
+        return sapc < 0.1 ? 0 : (sapc - 0.027) * 100
+    }
+    let sapc = (pow(backgroundY, 0.65) - pow(textY, 0.62)) * 1.14
+    return sapc > -0.1 ? 0 : (sapc + 0.027) * 100
+}
+
+private func apcaScreenLuminance(_ color: HeadroomRGBColor) -> Double {
+    let y = 0.2126729 * pow(color.red, 2.4)
+        + 0.7151522 * pow(color.green, 2.4)
+        + 0.0721750 * pow(color.blue, 2.4)
+    // APCA's soft black clamp.
+    return y < 0.022 ? y + pow(0.022 - y, 1.414) : y
+}
+
+/// Every muted text role's |Lc| on both card fills, per scheme. The plan pill is measured on
+/// the identity capsule it actually sits in (white @ 0.06 dark / black @ 0.045 light over the
+/// card) rather than on the bare card, because that is the surface it has to read against.
+private func mutedTextSeparations() -> [(String, [Bool: [Double]])] {
+    func onCard(_ tint: @escaping (Bool) -> HeadroomTint) -> [Bool: [Double]] {
+        var result: [Bool: [Double]] = [:]
+        for dark in [true, false] {
+            result[dark] = raisedTileFillColors(dark: dark).map { card in
+                abs(apcaLc(text: composite(tint(dark), over: card), background: card))
+            }
+        }
+        return result
+    }
+
+    var planPill: [Bool: [Double]] = [:]
+    for dark in [true, false] {
+        let capsule = HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.06 : 0.045)
+        planPill[dark] = raisedTileFillColors(dark: dark).map { card in
+            let surface = composite(capsule, over: card)
+            return abs(apcaLc(
+                text: composite(HeadroomWidgetColorValues.planLabel(dark: dark), over: surface),
+                background: surface
+            ))
+        }
+    }
+
+    return [
+        ("accountTitle", onCard(HeadroomWidgetColorValues.accountTitle)),
+        ("secondaryText", onCard(HeadroomWidgetColorValues.secondaryText)),
+        ("tertiaryText", onCard(HeadroomWidgetColorValues.tertiaryText)),
+        ("countdownInk", onCard(HeadroomMeterColorValues.countdownInk)),
+        ("planLabel", planPill),
+    ]
 }

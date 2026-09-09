@@ -68,6 +68,14 @@ enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
+    /// PA13: the plan pill's ink. It used to be the system `.tertiary`, which measured
+    /// |Lc| ≈ 20 on the dark card against ≈ 40 in light — the plan name is the only thing
+    /// saying which subscription a meter measures, so it now has a token that reads the same
+    /// in both appearances. See `HeadroomWidgetColorValues.planLabel`.
+    static func planLabelInk(scheme: ColorScheme) -> Color {
+        color(HeadroomWidgetColorValues.planLabel(dark: scheme == .dark))
+    }
+
     static func barTrack(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.barTrack(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)
@@ -111,6 +119,18 @@ enum ProviderStyle {
 
     static func meterTickGlassCap(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.tickGlassCap(dark: scheme == .dark))
+    }
+
+    /// PB13: the `.staleGrey` fill. The base follows the system secondary label — a stale
+    /// meter should recede exactly as far as stale text does — and the dim it takes lives in
+    /// `HeadroomMeterColorValues` with the rest of the meter chrome.
+    static var meterStaleFill: Color {
+        Color.secondary.opacity(HeadroomMeterColorValues.staleFillOpacity)
+    }
+
+    /// PB13: the quarter-mark hairline, same split as `meterStaleFill`.
+    static func meterQuarterMark(scheme: ColorScheme) -> Color {
+        Color.primary.opacity(HeadroomMeterColorValues.quarterMarkOpacity(dark: scheme == .dark))
     }
 
     static func meterRampStart(

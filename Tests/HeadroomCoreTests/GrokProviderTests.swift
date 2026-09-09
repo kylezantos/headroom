@@ -70,7 +70,7 @@ struct GrokProviderTests {
             Issue.record("expected stale snapshot")
             return
         }
-        #expect(reason == .decode("Couldn't read Grok usage response"))
+        #expect(reason == .decode("Couldn’t read Grok usage response"))
     }
 
     @Test func wrappedACPResultDecodes() async {

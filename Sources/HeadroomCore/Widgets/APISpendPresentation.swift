@@ -159,7 +159,8 @@ public struct APISpendRowStatus: Sendable, Equatable {
     /// Whether the row renders its button. A row with an amount normally stays a plain
     /// number, but continuity keeps showing the last total after the key stops working —
     /// and a retained amount beside a "Key rejected" badge with no button is a dead end.
-    /// Retryable staleness keeps the old rule: the next poll may clear it on its own.
+    /// PA3: pending and retryable rows now carry no `callToAction` at all, so they fall out
+    /// here on the first line rather than on the amount rule.
     public func showsCTA(hasAmount: Bool) -> Bool {
         guard callToAction != nil else { return false }
         return keyNeedsAttention || !hasAmount
@@ -240,11 +241,14 @@ public enum APISpendPresentation {
         }
     }
 
+    /// PA3: no call to action. This is the *first* fetch after a key is saved, and with no
+    /// retained amount the chip renders — telling a user who has just saved a key to add one,
+    /// on a pane that says "Saved securely". Waiting is not a state anyone can act on.
     private static let pendingStatus = APISpendRowStatus(
         badge: nil,
         tone: .quiet,
         message: "Waiting for cost data",
-        callToAction: "Add Key",
+        callToAction: nil,
         remoteHint: nil
     )
 
@@ -278,7 +282,7 @@ public enum APISpendPresentation {
                 badge: "Key rejected",
                 shortBadge: "Rejected",
                 tone: .critical,
-                message: "\(vendor) didn't accept the saved \(credential.noun)",
+                message: "\(vendor) didn’t accept the saved \(credential.noun)",
                 callToAction: "Replace Key",
                 remoteHint: "Replace key on Mac",
                 keyNeedsAttention: true
@@ -288,9 +292,10 @@ public enum APISpendPresentation {
                 badge: "Key lacks access",
                 shortBadge: "Denied",
                 tone: .warning,
-                message: "Key can't read \(credential.reportNoun)",
-                callToAction: "Fix Key",
-                remoteHint: "Fix key on Mac",
+                message: "Key can’t read \(credential.reportNoun)",
+                // PA3: the pane offers Replace and Remove — there is no "fix" to press.
+                callToAction: "Replace Key",
+                remoteHint: "Replace key on Mac",
                 keyNeedsAttention: true
             )
         case .setupRequired:
@@ -303,12 +308,14 @@ public enum APISpendPresentation {
                 remoteHint: "Set up on Mac"
             )
         case .retryable:
+            // PA3: retryable staleness is the app's problem, not the key's — the next poll may
+            // clear it on its own — so it names no action the user could take.
             APISpendRowStatus(
                 badge: "Stale",
                 shortBadge: "Stale",
                 tone: .neutral,
                 message: sourceMessage,
-                callToAction: "Add Key",
+                callToAction: nil,
                 remoteHint: nil
             )
         }

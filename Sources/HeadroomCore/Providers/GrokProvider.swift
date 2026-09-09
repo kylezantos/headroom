@@ -47,7 +47,7 @@ public struct GrokProvider: UsageProvider {
               let dto = try? JSONDecoder().decode(GrokBillingResponseDTO.self, from: normalized),
               let config = dto.config,
               let window = usageWindow(config)
-        else { return stale(.decode("Couldn't read Grok usage response")) }
+        else { return stale(.decode("Couldn’t read Grok usage response")) }
 
         return UsageSnapshot(
             providerID: id,

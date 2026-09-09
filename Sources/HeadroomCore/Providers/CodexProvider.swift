@@ -49,7 +49,7 @@ public struct CodexProvider: UsageProvider {
 
     private func decode(_ body: Data, accountEmail: String?) -> UsageSnapshot {
         guard let dto = try? JSONDecoder().decode(CodexUsageDTO.self, from: body) else {
-            return stale(.decode("Couldn't read Codex usage response"))
+            return stale(.decode("Couldn’t read Codex usage response"))
         }
         var windows: [UsageWindow] = []
         // Kind comes from each window's own `limit_window_seconds`, not its slot — see

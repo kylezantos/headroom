@@ -50,7 +50,7 @@ struct CodexConnectionTests {
                 freshness: .live
             ),
             .stale(for: .codex, reason: .transient("Network unavailable")),
-            .stale(for: .codex, reason: .decode("Couldn't decode")),
+            .stale(for: .codex, reason: .decode("Couldn’t decode")),
             .stale(for: .codex, reason: .scopeDenied("Scope unavailable")),
             .stale(for: .claude, reason: .notLoggedIn("Run Claude")),
         ]

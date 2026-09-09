@@ -12,15 +12,18 @@ import HeadroomCore
 ///   the recessive grey for Neutral, each provider's brand tint for Brand.
 ///
 /// Chrome, captions, and the selection ring match `MeterStyleTile` / `ThemeThumbnailPicker`
-/// so the Appearance pane reads as one family of choices.
+/// so the Appearance pane reads as one family of choices (PB13 gives all three the one
+/// `selectionChrome` modifier).
 struct InAppDisplayTile: View {
     let store: UsageStore
+    /// PA5: the Percentages swatch draws the meter the user actually has, not a chip/solid
+    /// stand-in — the axis under test here is the reading, not the meter.
+    let meterStyle: MeterStyle
     @Binding var usagePercentageMode: UsagePercentageMode
     @Binding var accountTitleInk: AccountTitleInk
     @Binding var showCodexSparkCountersInApp: Bool
 
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Two fixed columns on the same centers for both rows, so Percentages and Account
     /// names line up the way Format / Shape / Fill do in the meter tile.
@@ -53,7 +56,7 @@ struct InAppDisplayTile: View {
 
             swatchRow(
                 "Account names",
-                help: "Brand colors each account name in its provider's color."
+                help: "Brand colors each account name in its provider’s color."
             ) {
                 ForEach(AccountTitleInk.allCases) { ink in
                     accountNameSwatch(ink)
@@ -122,8 +125,16 @@ struct InAppDisplayTile: View {
             }
         ) {
             HStack(spacing: 8) {
+                // PA5: shape and fill come from the live selection; the fraction is the axis
+                // under test and stays literal. Drawn at Micro because this is a 150 × 36pt
+                // swatch, and resolved against the live format so Tube-under-Full previews
+                // the Chip the popover would actually draw.
                 MeterGauge(
-                    style: MeterStyle(format: .micro, shape: .chip, fill: .solid),
+                    style: MeterStyle(
+                        format: .micro,
+                        shape: meterStyle.shape.resolved(for: meterStyle.format),
+                        fill: meterStyle.fill
+                    ),
                     fraction: fraction,
                     severity: .healthy,
                     freshness: .live
@@ -197,41 +208,11 @@ struct InAppDisplayTile: View {
                     .minimumScaleFactor(0.8)
             }
             .padding(5)
-            .inAppSwatchChrome(isSelected: isSelected, colorScheme: colorScheme, reduceMotion: reduceMotion)
+            .selectionChrome(isSelected: isSelected)
         }
         .buttonStyle(.plain)
         .help(label)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
-    }
-}
-
-private extension View {
-    /// Same selection ring, accent fill, and press-token animation as the meter-style and
-    /// theme swatches, so all three pickers in the Appearance pane answer a click identically.
-    func inAppSwatchChrome(
-        isSelected: Bool,
-        colorScheme: ColorScheme,
-        reduceMotion: Bool
-    ) -> some View {
-        frame(maxWidth: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(
-                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? Color.accentColor
-                            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                        lineWidth: isSelected ? 2 : 1
-                    )
-            }
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.pressDown, .crossfade, reduceMotion: reduceMotion),
-                value: isSelected
-            )
     }
 }

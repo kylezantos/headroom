@@ -255,7 +255,11 @@ struct SettingsView: View {
                 store: store,
                 widgetsEnabled: $widgetsEnabled,
                 showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
-                syncToIPhoneEnabled: $syncToIPhoneEnabled
+                syncToIPhoneEnabled: $syncToIPhoneEnabled,
+                // PB8: goes through the same selection the sidebar writes, so the visit is
+                // persisted to `settingsPane` by the `onChange` above and the pane cross-fade
+                // plays exactly as if the row had been clicked.
+                onShowMenuBarPane: { sidebarSelection = .menuBar }
             )
         case .accounts:
             AccountsSettingsPane(

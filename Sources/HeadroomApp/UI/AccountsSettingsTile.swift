@@ -512,10 +512,14 @@ struct AccountsSettingsTile: View {
         recoveryActions: AccountsSettingsInteractions.RecoveryRowActions?
     ) -> some View {
         if status.needsRecovery || recoveryActions != nil {
+            // PA12: no ellipsis on "Sign In". The popover's button for the same action has
+            // never had one, and two surfaces spelling one action two ways reads as two
+            // actions. ("Add Account…" and "Check for Updates…" keep theirs — those open a
+            // further choice; signing in is the whole action.)
             Button(status == .blocked
                    ? "Continue…"
                    : (recoveryActions?.primaryLabel
-                      ?? (status == .setupFailed ? "Retry…" : "Sign In…"))) {
+                      ?? (status == .setupFailed ? "Retry…" : "Sign In"))) {
                 if status == .blocked {
                     SetupSessions.continueSetup(for: account)
                 } else if let recoveryActions {
@@ -756,9 +760,10 @@ struct AccountsSettingsTile: View {
     ) -> some View {
         switch status {
         case .connected:
-            Text("Connected")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+            // PB13: the window's one affirmative-state treatment, shared with "Saved
+            // securely" in API Spend. Plain secondary text rendered identically to Stale,
+            // which is the opposite state.
+            SettingsSuccessStatus(text: "Connected")
         case .fetching:
             Text("Fetching…")
                 .font(.system(size: 11))
@@ -786,7 +791,9 @@ struct AccountsSettingsTile: View {
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
         case .blocked:
-            Text("Another \(providerDisplayName) login is open")
+            // PB9: "sign-in", the word the popover and every other status here uses for this
+            // event. "login" was the only place it was called something else.
+            Text("Another \(providerDisplayName) sign-in is open")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
         case .setupFailed:

@@ -22,8 +22,11 @@ struct SettingsPaneScaffold<Content: View>: View {
     var body: some View {
         ScrollView(.vertical) {
             VStack(alignment: .leading, spacing: 14) {
+                // PB2: 17, one step above the 15pt tile headers under it. At 15 the two were
+                // byte-identical, so "Appearance" and "Theme" differed only by indent and the
+                // pane had no top of its hierarchy.
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 17, weight: .semibold))
                     .kerning(-0.2)
                 content
             }
@@ -163,6 +166,7 @@ struct AppearanceSettingsPane: View {
             // itself as a swatch, matching Theme and Meter style above.
             InAppDisplayTile(
                 store: store,
+                meterStyle: meterStyle,
                 usagePercentageMode: $usagePercentageMode,
                 accountTitleInk: $accountTitleInk,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp
@@ -193,16 +197,24 @@ struct MenuBarSettingsPane: View {
                         // Invisible percentage-on twin reserves the slot at its widest
                         // state, so toggling the percentage never reflows the caption or
                         // changes the strip height — the swap happens inside a fixed box.
-                        MenuBarLabel(meters: store.menuBarMeters, showsPercentage: true)
-                            .hidden()
+                        MenuBarLabel(
+                            meters: store.menuBarMeters,
+                            showsPercentage: true,
+                            appearance: .menuBar
+                        )
+                        .hidden()
                         // `.id` swap: the outgoing and incoming pills overlap leading-
                         // aligned and dissolve, instead of the NSImage hard-cutting.
-                        MenuBarLabel(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
-                            .id(menuBarPreviewKey)
-                            .transition(.opacity)
+                        MenuBarLabel(
+                            meters: store.menuBarMeters,
+                            showsPercentage: store.showMenuBarPercentage,
+                            appearance: .menuBar
+                        )
+                        .id(menuBarPreviewKey)
+                        .transition(.opacity)
                     }
                     .animation(reduceMotion ? nil : HeadroomMotion.settle, value: menuBarPreviewKey)
-                    .menuBarPreviewPlate()
+                    .menuBarPreviewPlate(darkMenuBar: MenuBarAppearanceMonitor.shared.isDarkMenuBar)
                     Text("Live preview — follows the choices below")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
@@ -219,7 +231,11 @@ struct MenuBarSettingsPane: View {
                     ResponsiveControlRow(label: "Priority providers") {
                         menuBarProviderSelectionMenu
                     }
-                    SettingsHelpText(text: "Sets the menu-bar number and widget tiles. Auto picks the tightest limit; widgets show the first two enabled providers.")
+                    // PB8: this pane owns the widget rule; the Widgets pane points back here
+                    // instead of restating it in different words ("first two enabled
+                    // providers" vs "up to 2 of your priority providers" was one rule
+                    // described twice, and the two descriptions disagreed).
+                    SettingsHelpText(text: "Sets the menu-bar number and the first two widget tiles. Auto picks whichever provider is closest to its limit.")
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -236,15 +252,18 @@ struct MenuBarSettingsPane: View {
                         }
                     }
 
-                    SettingsHelpText(text: "Each provider's percentage, fill, and color follow its preferred window.")
+                    // PB7: "level", not "fill" — Fill is the Appearance pane's meter recipe,
+                    // and this sentence means how full the vessel is drawn.
+                    SettingsHelpText(text: "Each provider’s percentage, level, and color follow its preferred window.")
                 }
             }
         }
     }
 
     /// Keys the preview pill's cross-fade to the preference changes that re-render it
-    /// (live data ticks don't need choreography). The specimen's palette is pinned dark to
-    /// match the real menu bar, so it no longer depends on `colorScheme`.
+    /// (live data ticks don't need choreography). PB13: the palette follows the live menu
+    /// bar rather than `colorScheme` or a pinned dark, so an appearance flip repaints
+    /// through observation instead of this key — it is not a choice the user just made.
     private var menuBarPreviewKey: String {
         let windows = store.registeredProviderOrder.map { id in
             "\(id.raw)=\(menuBarWindowSources[id, default: .weekly].rawValue)"
@@ -371,7 +390,8 @@ struct MenuBarSettingsPane: View {
             }
             if !isFetched {
                 SettingsPillBadge(text: "Off")
-                    .help("Not fetched while this provider is off.")
+                    // PB9: single-sentence tooltips carry no full stop.
+                    .help("Not fetched while this provider is off")
                     .accessibilityLabel("Off — not fetched while this provider is off")
             }
         }
@@ -400,7 +420,14 @@ struct MenuBarSettingsPane: View {
         }
         .pickerStyle(.segmented)
         .labelsHidden()
-        .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
+        // PB3: `width`, not `maxWidth`, so the slot is one declared size instead of whatever
+        // the labels happen to need. The trailing alignment is the other half of the fix and
+        // is load-bearing: an AppKit segmented control does *not* stretch to a proposal wider
+        // than its intrinsic width, so "Weekly | 5-hour" (127pt) sat centred in the 220pt box
+        // and still ended ~45pt short of the rail every other control in the tile lands on.
+        // Measured in the harness render at 800 × 700. A longer set of labels (the API Spend
+        // Period picker, 217pt) fills the box and is unaffected.
+        .frame(width: SettingsMetrics.segmentedMaxWidth, alignment: .trailing)
         .onChange(of: selection.wrappedValue) { _, newValue in
             store.setMenuBarWindowSource(newValue, for: providerID)
         }
@@ -422,6 +449,10 @@ struct WidgetsSettingsPane: View {
     @Binding var widgetsEnabled: Bool
     @Binding var showCodexSparkCountersInWidgets: Bool
     @Binding var syncToIPhoneEnabled: Bool
+    /// PB8: the widget rule lives in Menu Bar, so the help line there links to it. The root
+    /// owns the sidebar selection (KTD3) and persists it through `settingsPane`, so this
+    /// pane asks rather than navigating itself.
+    let onShowMenuBarPane: () -> Void
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.widgets.label) {
@@ -433,7 +464,8 @@ struct WidgetsSettingsPane: View {
                 WidgetSettingsSection(
                     widgetsEnabled: $widgetsEnabled,
                     showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
-                    syncToIPhoneEnabled: $syncToIPhoneEnabled
+                    syncToIPhoneEnabled: $syncToIPhoneEnabled,
+                    onShowMenuBarPane: onShowMenuBarPane
                 )
                 .onChange(of: widgetsEnabled) { _, newValue in
                     store.setWidgetsEnabled(newValue)
@@ -504,7 +536,9 @@ struct APISpendSettingsPane: View {
                         )
                     }
                 }
-                // Period trails the provider rows it modifies (it used to lead them).
+                // Period trails the provider rows it modifies (it used to lead them). PB4:
+                // it is a sibling of those rows, not part of the last one — the tile's 18pt
+                // between-group gap against their 8pt internal gap is what says so.
                 ResponsiveControlRow(label: "Period") {
                     Picker("Period", selection: $apiSpendPeriod) {
                         ForEach(APISpendPeriod.allCases, id: \.self) { period in
@@ -513,7 +547,8 @@ struct APISpendSettingsPane: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
-                    .frame(maxWidth: SettingsMetrics.segmentedMaxWidth)
+                    // PB3: pinned, not capped — see `menuBarWindowPicker`.
+                    .frame(width: SettingsMetrics.segmentedMaxWidth, alignment: .trailing)
                     .onChange(of: apiSpendPeriod) { _, newValue in
                         store.setAPISpendPeriod(newValue)
                         store.refreshAPISpendNow()
@@ -632,22 +667,27 @@ struct APISpendSettingsPane: View {
         text: Binding<String>,
         replacing: Bool
     ) -> some View {
+        // PA2: no engineering status in this copy. Two of these sentences reported the state
+        // of our own implementation ("known request-format issue", "isn't live-verified yet")
+        // at the exact moment the user is pasting an org-wide admin key — one of them already
+        // false — and neither named an action. Real failures are reported on the row that
+        // fails ("Anthropic didn't accept the saved admin key"), where they can be acted on.
         let guidance: (text: String, linkLabel: String, url: URL) = switch provider {
         case .anthropic:
             (
-                "A regular API key can't read organization spend. Use a dedicated admin key you can revoke on its own. Spend retrieval has a known request-format issue.",
+                "A regular API key can’t read organization spend. Use a dedicated admin key you can revoke on its own.",
                 "Open Anthropic Console",
                 URL(string: "https://platform.claude.com/settings/admin-keys")!
             )
         case .openAI:
             (
-                "A regular API key can't read organization spend. Use a dedicated admin key with the narrowest access, so you can revoke it by itself. Spend retrieval isn't live-verified yet.",
+                "A regular API key can’t read organization spend. Use a dedicated admin key with the narrowest access, so you can revoke it by itself.",
                 "Open OpenAI Platform",
                 URL(string: "https://platform.openai.com/settings/organization/admin-keys")!
             )
         case .xAI:
             (
-                "A regular API key can't read team spend. Use a dedicated management key with only the ACLs it needs, so you can revoke it on its own.",
+                "A regular API key can’t read team spend. Use a dedicated management key with only the ACLs it needs, so you can revoke it on its own.",
                 "Open xAI Console",
                 URL(string: "https://console.x.ai/team/default/settings/management-keys")!
             )

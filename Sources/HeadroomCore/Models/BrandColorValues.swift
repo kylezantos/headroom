@@ -288,6 +288,13 @@ public enum HeadroomMeterColorValues {
     /// meter chrome, instead of inline in `MeterGauge`.
     public static let staleFillOpacity: Double = 0.55
 
+    /// FS1 (Kyle, Sep 2026): how strongly a segmented *body* cell paints its fill colour.
+    /// Every lit cell used to sit at full strength, so the tip — the cell that carries the
+    /// reading — had nothing to stand out against. Body cells drop to this fraction of their
+    /// own colour so the tip reads as the value and the trail reads as context. `.staleGrey`
+    /// is exempt (it is already a dim), and `.off` cells never see it.
+    public static let segmentBodyAttenuation: Double = 0.72
+
     /// PB13: the quarter-mark hairline. Same split as `staleFillOpacity` — the base is the
     /// system primary label at the SwiftUI edge, the per-scheme number lives here.
     public static func quarterMarkOpacity(dark: Bool) -> Double {

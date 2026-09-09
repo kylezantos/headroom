@@ -87,11 +87,13 @@ struct MeterStyleTests {
         #expect(MeterGeometry.fullMinimumFillLength == 6)
         #expect(MeterGeometry.microMinimumFillLength == 3)
         #expect(MeterRecipe.cellCount(for: .micro) == 5)
-        #expect(MeterRecipe.cellCount(for: .full) == 20)
+        // FS1: Full is one cell per 10%, down from 20 cells at 5% each.
+        #expect(MeterRecipe.cellCount(for: .full) == 10)
     }
 
     /// AP2: the Format › Full swatch derives its cell count from the fragment width instead
-    /// of drawing Full's real 20 cells as 2pt ticks. In the 60pt fragment the micro pitch
+    /// of drawing Full's real cells at whatever size a 60pt fragment leaves them (FS1's 10
+    /// cells still comb to ~3.75pt there). In the 60pt fragment the micro pitch
     /// (6pt cell + 2pt gap) fits exactly 7 — 7 × 6 + 6 × 2 = 54, and an 8th would need 62.
     @Test func swatchSegmentCountFitsMicroSizedCellsInTheFragment() {
         #expect(MeterGeometry.segmentCount(fittingWidth: 60) == 7)
@@ -204,7 +206,9 @@ struct MeterStyleTests {
     }
 
     @Test func segmentedCellCountsClampAndKeepANonzeroFloor() {
-        for cells in [5, 20] {
+        // Both shipped counts (FS1: Micro 5, Full 10) plus a larger one, because the helper
+        // is generic over cell count and the swatch asks it for fragment-derived counts.
+        for cells in [5, 10, 20] {
             #expect(MeterRecipe.litCellCount(fraction: 0, cells: cells) == 0)
             #expect(MeterRecipe.litCellCount(fraction: -0.1, cells: cells) == 0)
             #expect(MeterRecipe.litCellCount(fraction: 0.03, cells: cells) == 1)
@@ -212,6 +216,9 @@ struct MeterStyleTests {
             #expect(MeterRecipe.litCellCount(fraction: 1.1, cells: cells) == cells)
         }
         #expect(MeterRecipe.litCellCount(fraction: 0.72, cells: 5) == 4)
+        // FS1: at Full's 10 cells a reading rounds to the nearest tenth.
+        #expect(MeterRecipe.litCellCount(fraction: 0.72, cells: 10) == 7)
+        #expect(MeterRecipe.litCellCount(fraction: 0.62, cells: 10) == 6)
         #expect(MeterRecipe.litCellCount(fraction: 0.72, cells: 20) == 14)
         #expect(MeterRecipe.litCellCount(fraction: .nan, cells: 5) == 0)
         #expect(MeterRecipe.litCellCount(fraction: 0.5, cells: 0) == 0)

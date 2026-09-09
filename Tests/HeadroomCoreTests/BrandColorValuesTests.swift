@@ -166,6 +166,13 @@ struct BrandColorValuesTests {
         #expect(HeadroomMeterColorValues.quarterMarkOpacity(dark: true) == 0.11)
         #expect(HeadroomMeterColorValues.quarterMarkOpacity(dark: false) == 0.14)
 
+        // FS1: the segmented body dim. It must be a genuine step back from the tip — never
+        // 1 (no separation at all) and never 0 (the trail would vanish and the meter would
+        // read as a single lit cell).
+        #expect(HeadroomMeterColorValues.segmentBodyAttenuation == 0.72)
+        #expect(HeadroomMeterColorValues.segmentBodyAttenuation > 0)
+        #expect(HeadroomMeterColorValues.segmentBodyAttenuation < 1)
+
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .well) == 0.42)
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .flat) == 0.58)
         // Light retuned 0.55 → 0.75 with the vivid fill tier (the lighter fills washed the

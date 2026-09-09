@@ -110,8 +110,9 @@ public enum MeterGeometry {
     public static let fullCellGap = 2.5
 
     /// AP2 (Kyle, Sep 2026): how many segmented cells fit across a fixed-width swatch at a
-    /// given cell pitch. The Format › Full swatch draws its 20 real cells inside a 60pt
-    /// fragment, which combs them down to ~2pt ticks and reads as a barcode rather than as
+    /// given cell pitch. The Format › Full swatch draws its real cells inside a 60pt
+    /// fragment, which combs them down to ~2pt ticks at the old 20 (~3.75pt at FS1's 10) and
+    /// reads as a barcode rather than as
     /// the segmented meter it is previewing; it instead asks for the count that keeps each
     /// cell at the micro cell size, so the swatch shows "the same little segment chips, just
     /// more of them". Geometry only — the shipped meter still uses `MeterRecipe.cellCount`.
@@ -256,10 +257,13 @@ public enum MeterCellRecipe: Sendable, Equatable {
 
 /// Pure decisions shared by the full-width and micro renderers.
 public enum MeterRecipe {
+    /// FS1 (Kyle, Sep 2026): Full segmented was 20 cells at 5% each, three rows deep per
+    /// account — dense enough that the row read as a barcode rather than as a meter. Ten
+    /// cells is one per 10%, which the eye can count. Micro stays 5.
     public static func cellCount(for format: GaugeFormat) -> Int {
         switch format {
         case .micro: 5
-        case .full: 20
+        case .full: 10
         }
     }
 

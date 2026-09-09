@@ -12,8 +12,8 @@ struct MeterGauge: View {
     /// AP2: swatch-only override for how many cells a segmented gauge draws. `nil` — the
     /// default, and the only value any real meter uses — means `MeterRecipe.cellCount`.
     /// The Settings Format swatch is the one caller: it renders Full inside a 60pt fragment,
-    /// where the real 20 cells comb into 2pt ticks, so it asks for the count that keeps the
-    /// cells at micro size. Non-segmented shapes ignore it.
+    /// where Full's real cells comb down below micro size, so it asks for the count that keeps
+    /// the cells at micro size. Non-segmented shapes ignore it.
     var segmentCount: Int? = nil
 
     @Environment(\.colorScheme) private var scheme
@@ -276,9 +276,14 @@ struct MeterGauge: View {
         case .off:
             return ProviderStyle.meterTickOff(scheme: scheme)
         case .body(let fill):
+            // FS1 (Kyle, Sep 2026): the tip is the reading; the body is the trail behind it.
+            // Body cells step back to `segmentBodyAttenuation` of their own colour so the tip
+            // has something to read against. `.staleGrey` is exempt — it is already a dim, and
+            // dimming a dim would blur the live/stale distinction.
             return fillRecipe == .staleGrey
                 ? staleColor
                 : cellColor(fill, isTip: false, rampStops: rampStops)
+                    .opacity(HeadroomMeterColorValues.segmentBodyAttenuation)
         case .tip(let fill):
             return fillRecipe == .staleGrey
                 ? staleColor

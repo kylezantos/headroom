@@ -59,7 +59,11 @@ struct UsageBarView: View {
     private let resetSize: CGFloat = 11
     private static let percentSize: CGFloat = 18
     private let termSize: CGFloat = 11
-    private let rowSpacing: CGFloat = 5
+    /// FS1 (Kyle, Sep 2026): Full sat its full-width gauge 5pt under the label it belongs
+    /// to, which crowded the two into one band; 7 lets the bar breathe without breaking the
+    /// pairing. Micro keeps 5 — that value only applies to its wrapped fallback, where the
+    /// gauge is already on its own line.
+    private var rowSpacing: CGFloat { meterStyle.format == .full ? 7 : 5 }
 
     /// Fill length and numeral — one cause, one motion (M1A). Both are `.movement`.
     private struct RowValue: Equatable {

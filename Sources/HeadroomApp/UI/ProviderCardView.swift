@@ -908,8 +908,10 @@ struct UsageBarsStack: View {
                 .foregroundStyle(.secondary)
         } else {
             // T1A: Micro tightens 12 → 10 so an account's rows read as one block under its
-            // title; Full stays 9, where the taller row already carries the separation.
-            VStack(spacing: meterStyle.format == .micro ? 10 : 9) {
+            // title. FS1 (Kyle, Sep 2026): Full goes the other way, 9 → 12 — three stacked
+            // label-over-gauge rows at 9 packed into a wall, and the row's own internal gap
+            // grew to 7, so the gap *between* rows has to stay clearly the larger of the two.
+            VStack(spacing: meterStyle.format == .micro ? 10 : 12) {
                 ForEach(Array(windows.enumerated()), id: \.offset) { _, window in
                     UsageBarView(
                         window: window,

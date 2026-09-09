@@ -27,6 +27,9 @@ struct APISpendSectionView: View {
     /// where the provider has no billing page), so no amount shifts because its neighbour
     /// can be topped up and this one cannot.
     private static let topUpSlotSize: CGFloat = 18
+    /// PB12: the glyph's own size, matched to the numerals it sits beside rather than to
+    /// its slot.
+    private static let topUpGlyphSize: CGFloat = 13
     private static let topUpGap = IdentityRowMetrics.contentTrailingInset - topUpSlotSize
 
     var body: some View {
@@ -171,7 +174,7 @@ struct APISpendSectionView: View {
     /// are the same kind of object in the same slot.
     private func periodChip(_ label: String) -> some View {
         Text(label)
-            .font(.system(size: 9.5, weight: .medium))
+            // PA7: the capsule owns the type; this row only chooses the ink.
             .foregroundStyle(.tertiary)
             .lineLimit(1)
             // C6A: the shared identity-line capsule, so the period chip and the state tag
@@ -218,7 +221,20 @@ struct APISpendSectionView: View {
                 NSWorkspace.shared.open(url)
             } label: {
                 Image(systemName: "plus")
-                    .font(.system(size: 10, weight: .semibold))
+                    // PB12: was 10pt against the 18pt semibold amount it belongs to — half
+                    // the stroke weight of its own row, which read as a stray hairline
+                    // rather than the amount's own affordance.
+                    .font(.system(size: Self.topUpGlyphSize, weight: .semibold))
+                    // PB12: and centred on the amount's ink, not on the slot's box. The two
+                    // sit in `.center`-aligned stacks sharing one alignment line, but SF's
+                    // cap centre rides lower inside a 13pt line box than inside an 18pt one,
+                    // so box centring left the glyph ~0.3pt low. Measured, not nudged.
+                    .offset(y: OpticalCentering.inkCenterAlignment(
+                        size: Self.topUpGlyphSize,
+                        weight: .semibold,
+                        matching: Self.amountSize,
+                        referenceWeight: .semibold
+                    ))
                     .frame(width: Self.topUpSlotSize, height: Self.topUpSlotSize)
             }
             .buttonStyle(HoverButtonStyle(
@@ -246,6 +262,9 @@ struct APISpendSectionView: View {
         Text(message)
             .font(.system(size: 11.5, weight: .medium))
             .foregroundStyle(sentenceInk(tone))
+            // PB11: the same 2pt leading `StatusSentence` takes — this is the account rows'
+            // sentence recipe spelled out locally, so it wraps at the same rhythm.
+            .lineSpacing(2)
             // S5A: the message wraps instead of truncating — a clipped instruction is worse
             // than a second line.
             .fixedSize(horizontal: false, vertical: true)
@@ -271,8 +290,8 @@ struct APISpendSectionView: View {
     private func stateTag(_ badge: String, tone: APISpendRowStatus.Tone) -> some View {
         let ink = badgeColor(tone)
         return Text(badge)
-            .font(.system(size: 10.5, weight: .semibold))
-            .kerning(0.2)
+            // PA7: the tag stands in the period chip's own slot, so it must not change size
+            // or weight in place — "Rejected" is now the same object as "September".
             .foregroundStyle(ink)
             .lineLimit(1)
             // C6A: the same shared capsule as the period chip it stands in for.

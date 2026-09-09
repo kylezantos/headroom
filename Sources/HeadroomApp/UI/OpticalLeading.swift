@@ -34,8 +34,13 @@ enum OpticalLeading {
     }
 
     private static let diagonals: Set<Character> = ["A", "V", "W", "X", "Y", "v", "w", "x", "y"]
+    /// PB11: `a d g q` joined the set. Each carries a full round bowl on its left side — SF's
+    /// `a` and `g` are double-storey but still meet the axis on a curve — so they were the
+    /// only lowercase rounds the table was treating as flats.
     private static let rounds: Set<Character> = [
-        "C", "G", "O", "Q", "S", "c", "e", "o", "s", "0", "3", "6", "8", "9", "(",
+        "C", "G", "O", "Q", "S",
+        "a", "c", "d", "e", "g", "o", "q", "s",
+        "0", "3", "6", "8", "9", "(",
     ]
 
     /// OA1: half a point at 2× is a visible seam, so corrections land on the 0.25pt grid the
@@ -102,26 +107,115 @@ enum OpticalLeading {
         let weight: CGFloat
     }
 
-    /// OA1: CoreText's per-glyph metrics are cheap but not free, and this is on the render
-    /// path of every row. The key space is bounded by (first characters actually seen) ×
-    /// (the handful of sizes and weights the popover uses), so a plain dictionary behind a
-    /// lock is the whole story; the cap only guards against pathological account names.
-    private final class Cache: @unchecked Sendable {
-        private let lock = NSLock()
-        private var storage: [Key: CGFloat] = [:]
+    private static let cache = FontMetricCache<Key>()
+}
 
-        func value(for key: Key, compute: () -> CGFloat) -> CGFloat {
-            lock.lock()
-            defer { lock.unlock() }
-            if let hit = storage[key] { return hit }
-            let value = compute()
-            if storage.count >= 512 { storage.removeAll(keepingCapacity: true) }
-            storage[key] = value
-            return value
+/// OA1: CoreText's per-glyph metrics are cheap but not free, and this is on the render path
+/// of every row. The key space is bounded by (the glyphs and type roles actually seen) ×
+/// (the handful of sizes and weights the popover uses), so a plain dictionary behind a lock
+/// is the whole story; the cap only guards against pathological account names.
+final class FontMetricCache<Key: Hashable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [Key: CGFloat] = [:]
+
+    func value(for key: Key, compute: () -> CGFloat) -> CGFloat {
+        lock.lock()
+        defer { lock.unlock() }
+        if let hit = storage[key] { return hit }
+        let value = compute()
+        if storage.count >= 512 { storage.removeAll(keepingCapacity: true) }
+        storage[key] = value
+        return value
+    }
+}
+
+/// PA6: the vertical companion to `OpticalLeading` — cap-height centring for a row that
+/// mixes type sizes.
+///
+/// Kyle's call on the Micro meter row: "center aligned with each other, not the bottom
+/// baseline." A shared baseline is right for one type size; it is wrong here, because a
+/// Micro row hangs a 13pt label, an 11pt countdown, an 18pt numeral, an 11pt term and a
+/// geometric gauge on one line, and a baseline would leave the big numeral sitting visibly
+/// high. But SwiftUI's plain `.center` is not the answer either: it centres each element's
+/// *line box*, and a line box is asymmetric about the ink it holds — SF's cap-height centre
+/// sits 0.68pt below the box centre at 13pt and only 0.36pt below it at 18pt, so a
+/// box-centred row puts the label 0.3pt lower than the numeral it labels.
+///
+/// So the row stays `.center` and every text element states where its **cap-height centre**
+/// is, measured from the same real `NSFont` metrics `OpticalLeading` reads. The gauge needs
+/// no guide: its default `.center` is its geometric centre, which is exactly what it should
+/// land on.
+enum OpticalCentering {
+    /// Distance from a font's baseline up to the middle of its capital letters. Uppercase
+    /// (and the digits the numerals are made of) span baseline → cap height, so this is the
+    /// half-height the eye reads as the type's middle.
+    static func capHeightCenter(size: CGFloat, weight: NSFont.Weight) -> CGFloat {
+        capCache.value(for: MetricKey(size: size, weight: weight.rawValue)) {
+            capHeightCenter(of: .systemFont(ofSize: size, weight: weight))
         }
     }
 
-    private static let cache = Cache()
+    static func capHeightCenter(of font: NSFont) -> CGFloat { font.capHeight / 2 }
+
+    /// The value a `VerticalAlignment.center` guide should report so this text's cap-height
+    /// centre lands on the row's alignment line. `firstTextBaseline` is the rendered
+    /// baseline SwiftUI hands the guide closure, so nothing here assumes a line-box height.
+    static func centerGuide(
+        firstTextBaseline: CGFloat,
+        size: CGFloat,
+        weight: NSFont.Weight
+    ) -> CGFloat {
+        firstTextBaseline - capHeightCenter(size: size, weight: weight)
+    }
+
+    /// How far a glyph's cap-height centre sits **below** the centre of the line box SwiftUI
+    /// lays it out in. Positive means the ink rides low in its own box.
+    ///
+    /// TextKit's convention places the baseline `lineHeight + descender` below the box top,
+    /// and `lineHeight` is a rounded whole number — which is why the drop is not the same
+    /// fraction at every size and why box centring is not ink centring.
+    static func inkCenterDrop(size: CGFloat, weight: NSFont.Weight) -> CGFloat {
+        dropCache.value(for: MetricKey(size: size, weight: weight.rawValue)) {
+            let font = NSFont.systemFont(ofSize: size, weight: weight)
+            let lineHeight = NSLayoutManager().defaultLineHeight(for: font)
+            let baselineFromTop = lineHeight + font.descender
+            return (baselineFromTop - capHeightCenter(of: font)) - lineHeight / 2
+        }
+    }
+
+    /// PB12: the vertical nudge that puts one glyph's ink centre on another's when the two
+    /// sit in `.center`-aligned stacks that share an alignment line — the spend row's `+`
+    /// against the amount it belongs to. Negative moves the glyph up.
+    static func inkCenterAlignment(
+        size: CGFloat,
+        weight: NSFont.Weight,
+        matching referenceSize: CGFloat,
+        referenceWeight: NSFont.Weight
+    ) -> CGFloat {
+        inkCenterDrop(size: referenceSize, weight: referenceWeight)
+            - inkCenterDrop(size: size, weight: weight)
+    }
+
+    private struct MetricKey: Hashable {
+        let size: CGFloat
+        let weight: CGFloat
+    }
+
+    private static let capCache = FontMetricCache<MetricKey>()
+    private static let dropCache = FontMetricCache<MetricKey>()
+}
+
+extension View {
+    /// PA6: hang this text's cap-height centre on the enclosing `.center` row.
+    func capHeightCentered(size: CGFloat, weight: Font.Weight) -> some View {
+        alignmentGuide(VerticalAlignment.center) { dimensions in
+            OpticalCentering.centerGuide(
+                firstTextBaseline: dimensions[.firstTextBaseline],
+                size: size,
+                weight: .from(weight)
+            )
+        }
+    }
 }
 
 extension View {

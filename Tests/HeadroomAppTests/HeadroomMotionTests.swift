@@ -35,6 +35,16 @@ struct HeadroomMotionTests {
         #expect(HeadroomMotion.pressDown != Animation.easeOut(duration: 0.12))
     }
 
+    /// PB12: one press scale for every button style. It was 0.96 in `HoverButtonStyle` and
+    /// 0.98 in the three chip/CTA styles, so two neighbouring controls gave different amounts
+    /// of give. Pinned to the literal, and to the 0.95 floor below which a press reads as
+    /// exaggerated rather than tactile.
+    @Test func everyButtonStyleSharesOnePressScale() {
+        #expect(HeadroomMotion.pressScale == 0.96)
+        #expect(HeadroomMotion.pressScale > 0.95)
+        #expect(HeadroomMotion.pressScale < 1)
+    }
+
     /// M2A/S2A: the digit roll is movement, so Reduce Motion swaps the text outright.
     @Test func numericTextCollapsesToAPlainSwapUnderReduceMotion() {
         #expect(HeadroomMotion.numericText(value: 12, reduceMotion: true) == .identity)

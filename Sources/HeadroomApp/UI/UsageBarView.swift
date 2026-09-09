@@ -235,7 +235,10 @@ struct UsageBarView: View {
         // M1A: severity colour is the same cause as the fill and rides the same spring, but
         // as its own kind so Reduce Motion keeps the colour while the length snaps.
         withAnimation(valueCrossfade) { landedSeverity = severity }
-        // M3A′: stale grey, the unavailable fade-out, and the dimmed numeral ink are colour.
+        // M3A′/PA8: stale grey, the unavailable fade-out, and the dimmed numeral ink are
+        // colour. The numeral only joined this transaction with PA8 — M3A′ described it, but
+        // `numeral` was reading `.primary` unconditionally, so the claim was aspirational
+        // until `numeralInk` started consulting `landedTone` too.
         withAnimation(settleCrossfade) { landedTone = tone }
 
         if !chip {
@@ -303,7 +306,7 @@ struct UsageBarView: View {
                 if inlineReset { resetLabel(fixedSize: true) }
                 Spacer(minLength: 6)
                 urgencyChip
-                numeral
+                numeralCluster(capCentred: false)
             }
 
             gauge
@@ -316,35 +319,49 @@ struct UsageBarView: View {
 
     /// Micro tries the approved one-line reading cluster first. Its fallback preserves
     /// the same information while moving only the gauge + numeral to a second line.
+    ///
+    /// PA6 (Kyle): "center aligned with each other, not the bottom baseline." The row keeps
+    /// `.center` — a shared baseline would leave the 18pt numeral riding visibly high over a
+    /// 13pt label — but every text element now declares where its **cap-height centre** is,
+    /// measured from the real `NSFont` (`OpticalCentering`), instead of leaning on its line
+    /// box. SwiftUI's plain `.center` centres line boxes, and a line box is asymmetric about
+    /// its ink by a different amount at each size (0.68pt at 13, 0.36pt at 18), so the label
+    /// was sitting ~0.3pt below the numeral it labels. The gauge keeps the default `.center`
+    /// guide: its geometric centre is the axis every cap centre is measured against.
     private var microRow: some View {
         ViewThatFits(in: .horizontal) {
             HStack(alignment: .center, spacing: 6) {
-                labelCluster(fixedReset: true)
+                labelCluster(fixedReset: true, capCentred: true)
                     .fixedSize(horizontal: true, vertical: false)
                 Spacer(minLength: 6)
                 urgencyChip
                 gauge
-                numeral
+                numeralCluster(capCentred: true)
             }
 
             VStack(alignment: .leading, spacing: rowSpacing) {
-                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    labelCluster(fixedReset: false)
+                HStack(alignment: .center, spacing: 6) {
+                    labelCluster(fixedReset: false, capCentred: true)
                     Spacer(minLength: 6)
                     urgencyChip
                 }
                 HStack(alignment: .center, spacing: 6) {
                     Spacer(minLength: 0)
                     gauge
-                    numeral
+                    numeralCluster(capCentred: true)
                 }
             }
         }
     }
 
-    private func labelCluster(fixedReset: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+    /// PA6: Micro asks for cap centres; Full keeps the shared baseline, which is the right
+    /// answer on a wide row where the label and its countdown read as one phrase. The
+    /// per-element guides below are inert under `.firstTextBaseline`, so both callers can
+    /// carry them.
+    private func labelCluster(fixedReset: Bool, capCentred: Bool = false) -> some View {
+        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: 6) {
             labelText
+                .capHeightCentered(size: labelSize, weight: .medium)
             resetLabel(fixedSize: fixedReset)
         }
     }
@@ -366,7 +383,10 @@ struct UsageBarView: View {
     private var stateLabel: some View {
         if let visibleStateText {
             Text("· \(visibleStateText)")
-                .font(.system(size: resetSize, weight: .medium))
+                // PB11: "Last known 4 min ago" ticks a digit at a time beside a countdown
+                // that already sets its digits monospaced, so it takes the same tabular
+                // figures — otherwise the whole label re-flows every minute.
+                .font(.system(size: resetSize, weight: .medium).monospacedDigit())
                 .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
                 .lineLimit(1)
                 .fixedSize()
@@ -389,6 +409,9 @@ struct UsageBarView: View {
                 )
                 .animation(countdownMovement, value: minutesUntilReset)
                 .help(resetLine.tooltip)
+                // PA6: inert in Full's baseline row; in Micro it puts the countdown's cap
+                // centre on the same axis as the label beside it.
+                .capHeightCentered(size: resetSize, weight: .regular)
         }
     }
 
@@ -402,20 +425,41 @@ struct UsageBarView: View {
         }
     }
 
-    private var numeral: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 5) {
+    /// PA6: Micro asks for cap centres — the figure and its term each land on the row's one
+    /// optical axis — while Full keeps the shared baseline that makes "72% used" read as one
+    /// phrase across a wide row.
+    private func numeralCluster(capCentred: Bool) -> some View {
+        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: 5) {
             Text(percentText)
                 .font(.system(size: Self.percentSize, weight: .semibold).monospacedDigit())
-                .foregroundStyle(usesCriticalInk ? ProviderStyle.criticalText(scheme: scheme) : .primary)
+                .foregroundStyle(numeralInk)
                 .contentTransition(numeralTransition)
                 .frame(minWidth: Self.percentColumnWidth, alignment: .trailing)
+                .capHeightCentered(size: Self.percentSize, weight: .semibold)
             if displayedValue.pct != nil {
                 Text(percentageMode.term)
                     .font(.system(size: termSize))
                     .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                    .capHeightCentered(size: termSize, weight: .regular)
             }
         }
         .fixedSize()
+    }
+
+    /// PA8: the numeral is the loudest thing in the row, and it was the only element still
+    /// painting live ink on a stale one — the meter dimmed, the "Stale" capsule appeared, and
+    /// the figure carried on at full contrast. It now dims with everything else, riding
+    /// `landedTone` and therefore `land()`'s `settleCrossfade`. Critical ink still wins:
+    /// `usesCriticalInk` is already false on a dimmed row, so the order below is what keeps a
+    /// live critical numeral red rather than merely secondary.
+    private var numeralInk: AnyShapeStyle {
+        if usesCriticalInk {
+            AnyShapeStyle(ProviderStyle.criticalText(scheme: scheme))
+        } else if isEffectivelyDimmed {
+            AnyShapeStyle(.secondary)
+        } else {
+            AnyShapeStyle(.primary)
+        }
     }
 
     /// M1A: the roll's direction follows the value. M3A′: the swap to "—" is a crossfade —
@@ -437,8 +481,8 @@ struct UsageBarView: View {
     /// Small static "Low" flag shown only for the critical band (≤15% left).
     private var lowChip: some View {
         Text("Low")
-            .font(.system(size: 10.5, weight: .semibold))
-            .kerning(0.2)
+            // PA7: the type is the capsule's now — C6A unified the six capsules' height but
+            // left four sizes and two weights inside them, so they still read as tiers.
             .foregroundStyle(ProviderStyle.severityColor(for: displayedSeverity, scheme: scheme))
             // C6A: was 15pt from vPad 1 — one shared 18pt capsule now, so it reads as a peer
             // of the plan pill and Stale tag rather than a second, shorter tier.

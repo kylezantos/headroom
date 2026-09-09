@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import HeadroomCore
 
@@ -17,20 +18,71 @@ enum IdentityRowMetrics {
     /// same `vPad 3` produced 18/19/20 — and the drift is invisible until two capsules sit
     /// side by side. An explicit height with centred text cannot drift.
     static let capsuleHeight: CGFloat = 18
+
+    /// PA7: one capsule *label* role to go with C6A's one capsule height. The six capsules
+    /// were sharing a box while running 9.5 medium / 10 semibold / 10.5 semibold / 11
+    /// semibold inside it, with kerning on two of the six — and the spend state tag swaps
+    /// into the period chip's own slot, so "Rejected" changed size and weight in place where
+    /// "September" had been. Capsules only read as peers if their labels are peers. Ink and
+    /// fill stay per-recipe; only the type is shared.
+    static let capsuleLabelSize: CGFloat = 10.5
+    static let capsuleLabelWeight: Font.Weight = .medium
+    static let capsuleLabelKerning: CGFloat = 0.2
 }
 
 extension View {
     /// C6A: the one identity-line capsule. Each recipe keeps its own horizontal padding and
-    /// fill; the height is not negotiable.
+    /// fill; the height is not negotiable. PA7 added the label role — set through the
+    /// environment, so a call site that still declares `Text.font(_:)` would silently win.
+    /// None do: the six recipes were stripped when this took the type over.
     func identityCapsule<Fill: ShapeStyle>(fill: Fill, horizontalPadding: CGFloat) -> some View {
-        fixedSize()
-            .frame(height: IdentityRowMetrics.capsuleHeight)
-            .padding(.horizontal, horizontalPadding)
-            .background(fill, in: Capsule())
+        font(.system(
+            size: IdentityRowMetrics.capsuleLabelSize,
+            weight: IdentityRowMetrics.capsuleLabelWeight
+        ))
+        .kerning(IdentityRowMetrics.capsuleLabelKerning)
+        .fixedSize()
+        .frame(height: IdentityRowMetrics.capsuleHeight)
+        .padding(.horizontal, horizontalPadding)
+        .background(fill, in: Capsule())
     }
 }
 
 // MARK: - S2B status sentence
+
+/// PA12: the outcome a sign-in row should *present*, which is not always the one Core
+/// typed.
+///
+/// A just-added account carries the untyped `UsageStore.finishSignInMessage` preset until
+/// its first probe returns, so two never-signed-in rows in the same card described one state
+/// as two problems with two fixes: "Finish sign-in to add this account" + a bare **Sign In**
+/// beside the typed "Sign in with the official Claude CLI" + **Open Claude Setup** /
+/// **Check Now**. The preset now borrows its own provider's never-signed-in outcome, so both
+/// rows read the same sentence and offer the same pair of actions. Anything Core already
+/// typed passes through untouched, and an untyped failure that is *not* the add-account
+/// preset still gets no invented recovery.
+func presentedSetupOutcome(
+    for reason: FailureReason,
+    providerID: ProviderID
+) -> ProviderSetupOutcome? {
+    if let typed = reason.providerSetupOutcome { return typed }
+    guard reason.message == UsageStore.finishSignInMessage else { return nil }
+    return neverSignedInOutcome(for: providerID)
+}
+
+/// The typed "this account has never signed in" outcome per provider — the same four
+/// `ProviderSetupOutcome.isNeverSignedIn` reports true for. Provider-scoped rather than
+/// hard-wired to Claude's, because `UsageStore.addAccount` hands the preset to every
+/// provider that can carry an extra account.
+func neverSignedInOutcome(for providerID: ProviderID) -> ProviderSetupOutcome? {
+    switch providerID {
+    case .claude: .claudeLoginRequired
+    case .codex: .codexAuthAbsent
+    case .grok: .grokAuthAbsent
+    case .cursor: .cursorAuthAbsent
+    default: nil
+    }
+}
 
 /// S2B: severity lives in the sentence's ink, so the mapping from state to ink is stated
 /// once here rather than re-decided at each of the six former glyph sites.
@@ -81,6 +133,10 @@ struct StatusSentence: View {
         Text(text)
             .font(.system(size: 11.5, weight: .medium))
             .foregroundStyle(severity.ink(scheme: scheme))
+            // PB11: this sentence routinely runs to three lines in a 299pt card, and at
+            // SF's default it was setting at ~1.22 leading while Settings' help text gets
+            // 1.4. Two points brings the popover's wrapping prose into the same band.
+            .lineSpacing(2)
             .fixedSize(horizontal: false, vertical: true)
             // OA1: the sentence starts a line on the same content axis as the titles and
             // meter labels above it, so it hangs on the same optical edge they do.
@@ -104,6 +160,10 @@ struct IdentityRow: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// PB11: whether the tail truncation actually bit. Measured, not guessed — SwiftUI has
+    /// no "did this Text truncate" signal, so the rendered width is compared against the
+    /// string's intrinsic width in the same font.
+    @State private var titleIsTruncated = false
 
     @ViewBuilder var body: some View {
         let email = normalizedEmail
@@ -121,7 +181,6 @@ struct IdentityRow: View {
             titleText
             if let planDisplayName {
                 Text(planDisplayName)
-                    .font(.system(size: 9.5, weight: .medium))
                     .foregroundStyle(.tertiary)
                     // T1A/C6A: the capsule reads as a peer of the title beside it rather than
                     // a hairline sticker stuck to it — now from an explicit height, so it
@@ -161,14 +220,44 @@ struct IdentityRow: View {
     /// tint). Kerning is unchanged throughout.
     private var titleText: some View {
         Text(title)
-            .font(.system(size: 15, weight: .semibold))
-            .kerning(-0.15)
+            .font(.system(size: Self.titleSize, weight: .semibold))
+            .kerning(Self.titleKerning)
             .accountTitleInk(for: providerID)
             .lineLimit(1)
             .truncationMode(.tail)
+            // PB11: measured on the Text itself, before the optical pull-back, so the
+            // comparison is against the width the string was actually given.
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
+                titleIsTruncated = Self.titleIsTruncated(title, renderedWidth: width)
+            }
             // OA1: "Personal" and "Work" carry side bearings 0.66pt apart at this size, so
             // without this the title column visibly jitters account to account.
-            .opticalLeading(title, size: 15, weight: .semibold)
+            .opticalLeading(title, size: Self.titleSize, weight: .semibold)
+            // PB11: the account name identifies the row; the email is a detail the tooltip
+            // has always carried anyway. Outranking the email's `layoutPriority(1)` stops a
+            // long address eating the name it belongs to.
+            .layoutPriority(2)
+    }
+
+    private static let titleSize: CGFloat = 15
+    private static let titleKerning: CGFloat = -0.15
+
+    /// PB11: the width the title wants, from the same real font metrics `OpticalLeading`
+    /// reads. Kept separate from the comparison below so the predicate is testable without
+    /// a render.
+    static func titleIntrinsicWidth(_ title: String) -> CGFloat {
+        (title as NSString).size(withAttributes: [
+            .font: NSFont.systemFont(ofSize: titleSize, weight: .semibold),
+            .kern: titleKerning,
+        ]).width
+    }
+
+    /// True once the row is narrower than the string needs. The half-point slack keeps
+    /// sub-pixel layout rounding from claiming a truncation that never happened; a zero
+    /// width is the pre-layout pass, not a truncation.
+    static func titleIsTruncated(_ title: String, renderedWidth: CGFloat) -> Bool {
+        guard renderedWidth > 0 else { return false }
+        return renderedWidth + 0.5 < titleIntrinsicWidth(title)
     }
 
     /// L5D: the main account carries no visible marker. Order already says it — main is
@@ -176,13 +265,16 @@ struct IdentityRow: View {
     /// busy title cluster busier, so the fact moves to this row's tooltip and to VoiceOver.
     /// One `.help` per row: nested help modifiers let the innermost win on macOS, so a
     /// separate tooltip on the title would swallow the email the row has always shown.
+    ///
+    /// PB11: a truncated title joins it. The tail ellipsis is the only place the row loses
+    /// information the user cannot recover any other way, and the row already owns the one
+    /// tooltip on this line.
     private func rowHelp(email: String?) -> String? {
-        switch (email, isMenuBarAccount) {
-        case (let email?, true): return "\(email)\n\(Self.mainAccountHelp)"
-        case (let email?, false): return email
-        case (nil, true): return Self.mainAccountHelp
-        case (nil, false): return nil
-        }
+        var lines: [String] = []
+        if titleIsTruncated { lines.append(title) }
+        if let email { lines.append(email) }
+        if isMenuBarAccount { lines.append(Self.mainAccountHelp) }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
     private var normalizedEmail: String? {
@@ -202,7 +294,7 @@ struct IdentityRow: View {
     /// same 18pt as the plan pill beside it.
     private var staleTag: some View {
         Text("Stale")
-            .font(.system(size: 10, weight: .semibold))
+            // PA7: type comes from `identityCapsule` now.
             .foregroundStyle(.secondary)
             .identityCapsule(fill: Color.secondary.opacity(0.18), horizontalPadding: 5)
     }
@@ -242,8 +334,9 @@ private struct ConnectedChip: View {
         HStack(spacing: 4) {
             Image(systemName: "checkmark")
                 .font(.system(size: 9, weight: .bold))
+            // PA7: the tallest label of the six took the shared role too; only the
+            // checkmark keeps a font of its own, because it is a glyph, not a label.
             Text("Connected")
-                .font(.system(size: 11, weight: .semibold))
         }
         .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
         // C6A: was the tallest of the three capsules at ~19–20pt; now the same 18 as the rest.
@@ -383,7 +476,10 @@ struct AccountSectionView: View {
     /// the handoff Terminal is open it becomes a quiet waiting row with a real-progress
     /// spinner (bound to the retry cycle, not decorative).
     @ViewBuilder private func signInContent(_ reason: FailureReason) -> some View {
-        let recoveryPresentation = reason.providerSetupOutcome?.recoveryPresentation
+        // PA12: the add-account preset borrows its provider's typed never-signed-in outcome,
+        // so an untyped row stops being its own third dialect of "sign in".
+        let outcome = presentedSetupOutcome(for: reason, providerID: account.providerID)
+        let recoveryPresentation = outcome?.recoveryPresentation
         let setupState = SetupSessions.state(for: account)
         VStack(alignment: .leading, spacing: 6) {
             Group {
@@ -433,10 +529,14 @@ struct AccountSectionView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         StatusSentence(
-                            text: SetupSessions.failureMessage(for: account) ?? reason.message,
+                            // PA12: the presented outcome's own message, so the borrowed
+                            // recovery below is answering the sentence above it.
+                            text: SetupSessions.failureMessage(for: account)
+                                ?? outcome?.message
+                                ?? reason.message,
                             severity: SetupSessions.failureMessage(for: account) != nil
                                 ? .critical
-                                : .forSetupOutcome(reason.providerSetupOutcome)
+                                : .forSetupOutcome(outcome)
                         )
                         // P4C/B3: both actions share one row, and a leading row reads in
                         // reading order — the primary first, its alternative after it.

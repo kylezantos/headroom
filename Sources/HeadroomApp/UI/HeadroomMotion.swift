@@ -14,6 +14,15 @@ enum HeadroomMotion {
     /// Release returns on `settle`, so the pair is `isPressed ? pressDown : settle`.
     static let pressDown = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.10)
 
+    // MARK: Press geometry (PB12)
+
+    /// PB12: how far a pressed control shrinks. It was 0.96 in `HoverButtonStyle` and 0.98 in
+    /// the three chip/CTA styles, so pressing two neighbouring buttons gave two different
+    /// amounts of give. One number, and 0.96 is the one that reads — 0.98 is close enough to
+    /// nothing that a small chip barely registers the press. Never below 0.95, which reads as
+    /// exaggerated.
+    static let pressScale: CGFloat = 0.96
+
     /// S3A: hover in fast, out slow — the pill should be there when the pointer arrives and
     /// linger a beat when it leaves. `hoverOut` is a zero-bounce spring, not a bezier.
     static let hoverIn = quickSettle

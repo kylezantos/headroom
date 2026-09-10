@@ -61,6 +61,22 @@ that make sense inside Sparkle's standard update prompt. Do not add scripts, tra
 assets. The release script fails if this exact file is missing or empty; a note for another build
 does not satisfy the gate.
 
+**Proofread the notes against the shipping UI before continuing (R2B1).** They are the
+widest-audience copy Headroom publishes and the surface easiest to leave behind when a
+setting is renamed.
+
+- **Curly punctuation.** Apostrophes and quotes must be typographic (`’` `“` `”`), as in
+  every user-facing string in the app. The check is a search for straight `'` and `"`
+  *inside* the prose — attribute quotes in the HTML tags themselves stay straight:
+
+  ```bash
+  grep -n "[^=]'" docs/release/sparkle/Headroom-<version>-<build>.html
+  ```
+
+- **Names match the build.** Every setting, control, or option named in the notes must
+  read exactly as the release renders it. Open the relevant Settings pane and compare;
+  a note describing the previous name is a support ticket.
+
 ## 2. Seed the release staging folder from production
 
 `Scripts/release-app.sh` generates the appcast from `dist/headroom.zantos.co`. That directory

@@ -1,3 +1,76 @@
+/// R2C6 — one verb for the whole flow: **sign in**. The app used to name one act four ways
+/// ("sign in" / "connect" / "set up" / "needs sign-in"), so a status sentence, a card title,
+/// the popover header and a Settings row could each call it something different and the
+/// reader had to work out whether the buttons did different things. All four CLIs call it
+/// `login`; "connect" describes nothing the user actually does.
+///
+/// The wording lives in Core rather than in a view because four surfaces render it — the
+/// popover card, the popover header, the guided setup card and the Settings account row —
+/// and a rename that reaches three of them is how the four names happened the first time.
+public enum ProviderSignInCopy {
+    /// B3T: every label here is a button on some surface, so both are Title Case.
+    public static let button = "Sign In"
+    public static let buttonAgain = "Sign In Again"
+
+    /// The official CLI a provider's sign-in runs in, named the way its own docs name it.
+    public static func cliName(for providerID: ProviderID) -> String {
+        switch providerID {
+        case .claude: "Claude CLI"
+        case .codex: "Codex CLI"
+        case .grok: "Grok Build CLI"
+        case .cursor: "Cursor Agent CLI"
+        default: "\(providerID.displayName) CLI"
+        }
+    }
+
+    /// The name install and discovery copy uses. Claude's command ships inside the Claude
+    /// Code product, so "not installed" has to name the product a user would go and get;
+    /// the sign-in sentence names the command they run.
+    public static func cliProductName(for providerID: ProviderID) -> String {
+        providerID == .claude ? "Claude Code CLI" : cliName(for: providerID)
+    }
+
+    /// The account-state sentence shared by the popover card and the Settings account row.
+    public static func status(for providerID: ProviderID, again: Bool = false) -> String {
+        "\(again ? "Sign in again" : "Sign in") with the official \(cliName(for: providerID))"
+    }
+
+    /// PA10's one-line popover header, derived from the same state the card switches on.
+    public static func header(for providerID: ProviderID, again: Bool = false) -> String {
+        again
+            ? "Sign in to \(providerID.displayName) again"
+            : "Sign in to \(providerID.displayName) to begin"
+    }
+
+    /// The guided setup card's title.
+    public static func cardTitle(for providerID: ProviderID, again: Bool = false) -> String {
+        again
+            ? "Sign in to \(providerID.displayName) again"
+            : "Sign in to \(providerID.displayName)"
+    }
+
+    /// R2C7: the sentence states the cause; the button beside it names the act. "Install
+    /// Claude Code to show usage" sat directly above **Install Claude Code**, spending the
+    /// card's one explanatory line restating its own button.
+    ///
+    /// Claude's reads as a failed *search* because Headroom's locator can also come back
+    /// inconclusive (`ProviderCapabilityState`) and neither state may claim more than it
+    /// knows; the other three read a file their CLI either wrote or didn't.
+    ///
+    /// `hasRetainedReading` is true when the card is still showing numbers from an earlier
+    /// capture. A "can't find the CLI" sentence above three live-looking percentages leaves
+    /// the reader to decide which one to believe, so the sentence reconciles them itself.
+    public static func cliMissing(for providerID: ProviderID, hasRetainedReading: Bool = false) -> String {
+        let name = cliProductName(for: providerID)
+        if hasRetainedReading {
+            return "Headroom can’t find the \(name)\u{00A0}—\u{00A0}showing the last reading"
+        }
+        return providerID == .claude
+            ? "Headroom can’t find the \(name) on this Mac"
+            : "\(name) isn’t installed on this Mac"
+    }
+}
+
 /// A provider/setup condition that changes which recovery action Headroom may offer.
 /// These values deliberately carry no provider output, paths, account identity, or
 /// caught errors. Presentation copy is derived separately so behavior never depends
@@ -34,34 +107,44 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     // since S2B, in a ≈197pt account state row. The `\u{00A0}` runs glue tails that would otherwise
     // wrap to a bare orphan at 295 ("CLI" at 7%, "read it" at 13%) and keep an em dash
     // off the start of a line; they are inert at the narrower measure.
+    //
+    // R2B1: the nbsp-around-em-dash rule now covers the whole set rather than a sample of
+    // it — five of the nine dashes were bare, so the same construction wrapped two ways
+    // depending on which case produced it.
+    //
+    // R2C6: the sign-in sentences come from `ProviderSignInCopy`. The "— reconnect" tails
+    // became "— sign in again" for the same reason: they are the prose half of a button
+    // that now reads "Sign In Again".
     public var message: String {
         switch self {
-        case .claudeCLIMissing: "Install Claude Code to show usage"
-        case .claudeLoginRequired: "Sign in with the official Claude CLI"
+        case .claudeCLIMissing: ProviderSignInCopy.cliMissing(for: .claude)
+        case .claudeLoginRequired: ProviderSignInCopy.status(for: .claude)
         case .claudeTrustRequired: "Approve Headroom’s workspace in\u{00A0}the\u{00A0}Claude\u{00A0}CLI"
         case .claudeUnknownUI: "Claude opened an unrecognized setup screen"
-        case .claudeTransientCapture: "Couldn’t read Claude usage — will retry"
-        case .codexCLIMissing: "Install Codex CLI to connect"
-        case .codexAuthAbsent: "Connect with the official Codex CLI"
+        case .claudeTransientCapture: "Couldn’t read Claude usage\u{00A0}—\u{00A0}will retry"
+        case .codexCLIMissing: ProviderSignInCopy.cliMissing(for: .codex)
+        case .codexAuthAbsent: ProviderSignInCopy.status(for: .codex)
         case .codexPermissionDenied: "Allow Headroom to read the Codex sign-in file"
-        case .codexUnsafePermissions: "Codex sign-in isn’t stored privately\u{00A0}—\u{00A0}reconnect"
-        case .codexMalformedAuth: "Codex sign-in data is unreadable — reconnect"
+        case .codexUnsafePermissions: "Codex sign-in isn’t stored privately\u{00A0}—\u{00A0}sign in again"
+        case .codexMalformedAuth: "Codex sign-in data is unreadable\u{00A0}—\u{00A0}sign in again"
         case .codexCredentialIO: "Couldn’t read Codex sign-in data"
-        case .codexRejectedAuth: "Codex sign-in expired — reconnect"
+        // R2C6: the canonical re-auth state, so it carries the re-auth sentence verbatim;
+        // the two diagnostic siblings above keep their cause and take only the new tail.
+        case .codexRejectedAuth: ProviderSignInCopy.status(for: .codex, again: true)
         case .codexStorageMismatch: "Codex saved this login where Headroom can’t\u{00A0}read\u{00A0}it"
         case .codexCallbackIncomplete: "Codex sign-in did not finish"
-        case .grokCLIMissing: "Install Grok Build to show usage"
-        case .grokAuthAbsent: "Connect with the official Grok Build CLI"
+        case .grokCLIMissing: ProviderSignInCopy.cliMissing(for: .grok)
+        case .grokAuthAbsent: ProviderSignInCopy.status(for: .grok)
         case .grokPermissionDenied: "Allow Headroom to read the Grok sign-in file"
-        case .grokUnsafePermissions: "Grok sign-in isn’t stored privately\u{00A0}—\u{00A0}reconnect"
-        case .grokMalformedAuth: "Grok sign-in data is unreadable — reconnect"
+        case .grokUnsafePermissions: "Grok sign-in isn’t stored privately\u{00A0}—\u{00A0}sign in again"
+        case .grokMalformedAuth: "Grok sign-in data is unreadable\u{00A0}—\u{00A0}sign in again"
         case .grokCredentialIO: "Couldn’t read Grok sign-in data"
-        case .grokRejectedAuth: "Grok sign-in expired — reconnect"
-        case .grokTransientCapture: "Couldn’t read Grok usage — will retry"
-        case .cursorCLIMissing: "Install Cursor Agent to show usage"
-        case .cursorAuthAbsent: "Connect with the official Cursor Agent CLI"
+        case .grokRejectedAuth: ProviderSignInCopy.status(for: .grok, again: true)
+        case .grokTransientCapture: "Couldn’t read Grok usage\u{00A0}—\u{00A0}will retry"
+        case .cursorCLIMissing: ProviderSignInCopy.cliMissing(for: .cursor)
+        case .cursorAuthAbsent: ProviderSignInCopy.status(for: .cursor)
         case .cursorUnknownUI: "Cursor Agent opened an unrecognized screen"
-        case .cursorTransientCapture: "Couldn’t read Cursor usage — will retry"
+        case .cursorTransientCapture: "Couldn’t read Cursor usage\u{00A0}—\u{00A0}will retry"
         }
     }
 
@@ -94,6 +177,11 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// PA11: one label per action — `.checkNow` is always "Check Now". The old split ("Check
     /// Again" in a primary slot, "Check Now" in a secondary one) named the same forced poll two
     /// ways on adjacent cards. "Refresh" stays reserved for the footer's whole-app poll.
+    ///
+    /// R2C6 extends PA11 one level up, on the most consequential action: signing in is
+    /// **Sign In** the first time and **Sign In Again** on a re-auth, on every provider and
+    /// every surface. "Connect Codex", "Connect Grok", "Connect Cursor", "Reconnect …" and
+    /// "Open Claude Setup" were five names for those two acts.
     public var recoveryPresentation: ProviderRecoveryPresentation {
         switch self {
         case .claudeCLIMissing:
@@ -102,7 +190,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
             .init(status: message, primaryLabel: "Install Claude Code", primaryAction: .installClaudeCLI,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .claudeLoginRequired:
-            .init(status: message, primaryLabel: "Open Claude Setup", primaryAction: .openClaudeSetup,
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .openClaudeSetup,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .claudeTrustRequired:
@@ -115,14 +203,14 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .codexCLIMissing:
             .init(status: message, primaryLabel: "Install Codex CLI", primaryAction: .installCodexCLI)
         case .codexAuthAbsent:
-            .init(status: message, primaryLabel: "Connect Codex", primaryAction: .connectCodex,
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectCodex,
                   secondaryLabel: "Use Device Code", secondaryAction: .connectCodexDeviceCode,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .codexPermissionDenied:
             .init(status: message, primaryLabel: "Privacy & Security Help", primaryAction: .showPrivacyGuidance,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .codexUnsafePermissions, .codexMalformedAuth, .codexRejectedAuth:
-            .init(status: message, primaryLabel: "Reconnect Codex", primaryAction: .reconnectCodex,
+            .init(status: message, primaryLabel: ProviderSignInCopy.buttonAgain, primaryAction: .reconnectCodex,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .codexCredentialIO:
@@ -136,14 +224,14 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .grokCLIMissing:
             .init(status: message, primaryLabel: "Install Grok Build", primaryAction: .installGrokCLI)
         case .grokAuthAbsent:
-            .init(status: message, primaryLabel: "Connect Grok", primaryAction: .connectGrok,
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectGrok,
                   secondaryLabel: "Use Device Code", secondaryAction: .connectGrokDeviceCode,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .grokPermissionDenied:
             .init(status: message, primaryLabel: "Privacy & Security Help", primaryAction: .showPrivacyGuidance,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .grokUnsafePermissions, .grokMalformedAuth, .grokRejectedAuth:
-            .init(status: message, primaryLabel: "Reconnect Grok", primaryAction: .reconnectGrok,
+            .init(status: message, primaryLabel: ProviderSignInCopy.buttonAgain, primaryAction: .reconnectGrok,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .grokCredentialIO, .grokTransientCapture:
@@ -151,12 +239,12 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .cursorCLIMissing:
             .init(status: message, primaryLabel: "Install Cursor Agent", primaryAction: .installCursorAgent)
         case .cursorAuthAbsent:
-            .init(status: message, primaryLabel: "Connect Cursor", primaryAction: .connectCursor,
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectCursor,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .cursorUnknownUI, .cursorTransientCapture:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
-                  secondaryLabel: "Reconnect Cursor", secondaryAction: .connectCursor)
+                  secondaryLabel: ProviderSignInCopy.buttonAgain, secondaryAction: .connectCursor)
         }
     }
 }

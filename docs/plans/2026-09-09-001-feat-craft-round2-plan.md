@@ -126,4 +126,6 @@ appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
 | CMM9 | **Plan and period back in their own pill, Stale inline.** `identityMetadataLabel` is a filled capsule again (`secondary 0.12`, no ring); state chips keep fill + hairline. Stale / Connected sit right after the plan pill, leading-aligned, instead of at the row's trailing edge. |
 
 | CMM10 | **Spend title = account title, verbatim** (size, kerning `−0.15`, `accountTitleInk`); the setup-card kerning had leaked in. The top-up glyph's hit frame is 22pt so its hover pill is whole; the hover area carries the standard `.help` tooltip ("Opens X billing to add API funds") so the reveal explains itself after the system delay. |
+
+| CMM11 | **Suffix column sized to the terms on screen.** Kyle: content rows are inset 34 on both sides, mark at 13 — the code already did that via the 21pt trailing gutter; the leak was the suffix column fixed to "used" while rows said "left". `PopoverView` injects `meterSuffixColumnWidth` from the percentage-mode term plus the visible spend rows' direction terms; other surfaces keep the widest-of-all default. |
 \n

@@ -44,11 +44,30 @@ enum MeterSuffixColumn {
     static let gap: CGFloat = 5
     static let terms = ["used", "left"]
 
-    static let width: CGFloat = {
+    /// The widest of *every* term — the safe default for surfaces that don't know which
+    /// terms they will print (the Appearance specimen, the render harness).
+    static let width: CGFloat = width(for: terms)
+
+    /// CMM11 (Kyle, 2026-09-10): the column is only as wide as the widest term actually on
+    /// screen. Sized to "used" while every row said "left", the suffix stopped 8–10pt short
+    /// of the 34pt trailing axis and the right side read looser than the left.
+    static func width(for terms: [String]) -> CGFloat {
         let font = NSFont.systemFont(ofSize: size)
         let widths = terms.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
         return ceil(widths.max() ?? 0)
-    }()
+    }
+}
+
+/// CMM11: the popover sets this once from the terms it is about to print; rows read it.
+private struct MeterSuffixColumnWidthKey: EnvironmentKey {
+    static let defaultValue: CGFloat = MeterSuffixColumn.width
+}
+
+extension EnvironmentValues {
+    var meterSuffixColumnWidth: CGFloat {
+        get { self[MeterSuffixColumnWidthKey.self] }
+        set { self[MeterSuffixColumnWidthKey.self] = newValue }
+    }
 }
 
 /// The suffix itself.
@@ -60,6 +79,7 @@ struct MeterSuffixLabel: View {
     var isVisible: Bool = true
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.meterSuffixColumnWidth) private var columnWidth
 
     var body: some View {
         Text(term)
@@ -69,7 +89,7 @@ struct MeterSuffixLabel: View {
             // PA6: inert in Full's baseline row; in Micro it puts the term's cap centre on
             // the row's one optical axis.
             .capHeightCentered(size: MeterSuffixColumn.size, weight: .regular)
-            .frame(width: MeterSuffixColumn.width, alignment: .leading)
+            .frame(width: columnWidth, alignment: .leading)
             .accessibilityHidden(!isVisible)
     }
 }

@@ -21,14 +21,19 @@ struct SettingsPaneScaffold<Content: View>: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(alignment: .leading, spacing: 14) {
+            // R2C19: the pane's two levels no longer share one 14. The title sits close to
+            // the tile it heads and the tiles stand well apart, so which level a gap
+            // separates is legible from the gap alone.
+            VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
                 // PB2: 17, one step above the 15pt tile headers under it. At 15 the two were
                 // byte-identical, so "Appearance" and "Theme" differed only by indent and the
                 // pane had no top of its hierarchy.
                 Text(title)
                     .font(.system(size: 17, weight: .semibold))
                     .kerning(-0.2)
-                content
+                VStack(alignment: .leading, spacing: SettingsMetrics.tileToTile) {
+                    content
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 20)
@@ -60,15 +65,31 @@ struct GeneralSettingsPane: View {
     var body: some View {
         SettingsPaneScaffold(SettingsPane.general.label) {
             SettingsTile {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     ResponsiveControlRow(label: "Refresh every") {
                         Stepper(value: $intervalMinutes, in: 2...60) {
                             Text("\(intervalMinutes) min")
                                 // Tabular digits so 5 → 10 doesn't reflow the row.
                                 .monospacedDigit()
-                                .contentTransition(.numericText(value: Double(intervalMinutes)))
+                                // R2M7/S2A: the roll is movement, so Reduce Motion swaps the
+                                // text outright — via the helper, not a hand-rolled literal.
+                                .contentTransition(
+                                    HeadroomMotion.numericText(
+                                        value: Double(intervalMinutes),
+                                        reduceMotion: reduceMotion
+                                    )
+                                )
                         }
-                        .animation(reduceMotion ? nil : HeadroomMotion.press, value: intervalMinutes)
+                        // R2M7: `pressDown`, not the `press` compat alias, and resolved as
+                        // `.movement` to match the digit roll it drives.
+                        .animation(
+                            HeadroomMotion.resolved(
+                                HeadroomMotion.pressDown,
+                                .movement,
+                                reduceMotion: reduceMotion
+                            ),
+                            value: intervalMinutes
+                        )
                         .onChange(of: intervalMinutes) { _, newValue in
                             onIntervalChange(newValue)
                         }
@@ -98,7 +119,7 @@ struct GeneralSettingsPane: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                     }
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                         SettingsSwitchRow(
                             title: "Automatically check for updates",
                             isOn: $automaticUpdateChecks
@@ -213,21 +234,28 @@ struct MenuBarSettingsPane: View {
                         .id(menuBarPreviewKey)
                         .transition(.opacity)
                     }
-                    .animation(reduceMotion ? nil : HeadroomMotion.settle, value: menuBarPreviewKey)
+                    // R2M7/S2A: the swap is a pure `.transition(.opacity)` between two
+                    // overlapping pills, so it keeps its timing under Reduce Motion —
+                    // `reduceMotion ? nil :` hard-cut the one thing S2A says must not.
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                        value: menuBarPreviewKey
+                    )
                     .menuBarPreviewPlate(darkMenuBar: MenuBarAppearanceMonitor.shared.isDarkMenuBar)
                     Text("Live preview — follows the choices below")
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                     Spacer(minLength: 0)
                 }
-                .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 6)
+                // R2C9: r14 around the r6 menu-bar plate at 9/6pt of padding.
+                .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 6, cornerRadius: 14)
 
                 SettingsSwitchRow(title: "Show percentage", isOn: $showMenuBarPercentage)
                     .onChange(of: showMenuBarPercentage) { _, newValue in
                         store.setShowMenuBarPercentage(newValue)
                     }
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     ResponsiveControlRow(label: "Priority providers") {
                         menuBarProviderSelectionMenu
                     }
@@ -239,8 +267,14 @@ struct MenuBarSettingsPane: View {
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
+                    // R2B2: a sub-group header that is smaller *and* lighter than the 13pt
+                    // rows beneath it reads as a caption belonging to the row above, not as
+                    // the head of what follows. Uppercase + tracking is the sidebar's own
+                    // section idiom, so the level is carried by treatment instead of size.
                     Text("Preferred window")
                         .font(.system(size: 11, weight: .semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.3)
                         .foregroundStyle(.secondary)
 
                     ForEach(store.registeredProviderOrder, id: \.self) { providerID in
@@ -353,7 +387,7 @@ struct MenuBarSettingsPane: View {
         // reflowing the list.
         let isFetched = isProviderFetched(providerID)
 
-        return VStack(alignment: .leading, spacing: 4) {
+        return VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 12) {
                     providerWindowLabel(providerID, isFetched: isFetched)
@@ -362,7 +396,7 @@ struct MenuBarSettingsPane: View {
                         .disabled(!isFetched)
                 }
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
                     providerWindowLabel(providerID, isFetched: isFetched)
                     menuBarWindowPicker(providerID: providerID, selection: selection)
                         .disabled(!isFetched)
@@ -390,9 +424,10 @@ struct MenuBarSettingsPane: View {
             }
             if !isFetched {
                 SettingsPillBadge(text: "Off")
-                    // PB9: single-sentence tooltips carry no full stop.
-                    .help("Not fetched while this provider is off")
-                    .accessibilityLabel("Off — not fetched while this provider is off")
+                    // R2B1/PB9: one constant, shared with the Accounts help line, so the two
+                    // statements of this rule cannot drift (they disagreed on the full stop).
+                    .help(SettingsCopy.providerOffNotice)
+                    .accessibilityLabel(SettingsCopy.providerOffAccessibilityLabel)
             }
         }
         // Matches the dimmed-row step Accounts uses for the same "off" state.
@@ -584,32 +619,56 @@ struct APISpendSettingsPane: View {
                     .controlSize(.small)
                     .labelsHidden()
             }
-            if store.isSurfaceEnabled(surface) {
-                if saved && !replacing {
-                    configuredAPIKeyRow(provider: provider, title: title)
-                        .transition(.settingsReveal)
-                } else {
-                    apiKeyEditor(
-                        provider: provider,
-                        title: title,
-                        placeholder: placeholder,
-                        text: text,
-                        replacing: replacing
-                    )
-                    .transition(.settingsReveal)
+            // R2B2: the group's children sit on the header's *text* axis with the mark
+            // hanging in the margin — the Accounts convention. Left flush with the mark, the
+            // provider name floated 22.5pt right of everything it heads.
+            VStack(alignment: .leading, spacing: 8) {
+                if store.isSurfaceEnabled(surface) {
+                    if saved && !replacing {
+                        configuredAPIKeyRow(provider: provider, title: title)
+                            .transition(.settingsReveal(reduceMotion: reduceMotion))
+                    } else {
+                        apiKeyEditor(
+                            provider: provider,
+                            title: title,
+                            placeholder: placeholder,
+                            text: text,
+                            replacing: replacing
+                        )
+                        .transition(.settingsReveal(reduceMotion: reduceMotion))
+                    }
+                }
+                if let message = credentialMessages[provider] {
+                    // Result feedback lives on the acted-on row (the old shared line
+                    // rendered far away, under the other provider's rows).
+                    SettingsHelpText(text: message)
+                        .transition(.settingsReveal(reduceMotion: reduceMotion))
                 }
             }
-            if let message = credentialMessages[provider] {
-                // Result feedback lives on the acted-on row (the old shared line
-                // rendered far away, under the other provider's rows).
-                SettingsHelpText(text: message)
-                    .transition(.settingsReveal)
-            }
+            .padding(.leading, Self.groupTextAxisInset)
         }
-        .animation(reduceMotion ? nil : HeadroomMotion.settle, value: savedKeyProviders)
-        .animation(reduceMotion ? nil : HeadroomMotion.settle, value: replacingKeyProviders)
-        .animation(reduceMotion ? nil : HeadroomMotion.settle, value: credentialMessages)
+        // R2M7/S2A: through the resolver as `.crossfade`, so the editor⇄configured swap keeps
+        // its fade under Reduce Motion; `reduceMotion ? nil :` killed the transition outright.
+        // The reveal's own rise and blur are the movement half and drop inside the transition
+        // (`settingsReveal(reduceMotion:)`) — an `.animation` scope cannot split a transition
+        // from the height change beside it.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: savedKeyProviders
+        )
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: replacingKeyProviders
+        )
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: credentialMessages
+        )
     }
+
+    /// R2B2: the provider mark (15pt) plus the 7pt gap to its name — the inset that lands a
+    /// group's children on the header's text axis.
+    private static let groupTextAxisInset: CGFloat = 22
 
     private func apiSurfaceBinding(_ surface: UsageSurface, provider: APIKeyProvider) -> Binding<Bool> {
         let binding = surfaceBinding(surface)

@@ -223,6 +223,15 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.settingsPane) }
     }
 
+    /// R2B1: the destination Settings opens on. Once the user has visited a pane the stored
+    /// choice always wins (R4). Only the *first* open has a decision to make, and General is
+    /// the wrong answer there — it holds two controls and several hundred points of empty
+    /// pane, while a Mac with nothing signed in has all of its work in Accounts.
+    public func initialSettingsPane(hasSignedInAccount: Bool) -> SettingsPane {
+        guard defaults.object(forKey: Key.settingsPane) == nil else { return settingsPane }
+        return hasSignedInAccount ? .general : .accounts
+    }
+
     public func isSurfaceEnabled(_ surface: UsageSurface) -> Bool {
         let key = Key.surfaceEnabled(surface)
         guard defaults.object(forKey: key) != nil else {

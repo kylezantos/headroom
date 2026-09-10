@@ -31,17 +31,20 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Sidebar section headers: what the app does (`Preferences`) versus where the
-    /// numbers come from (`Sources`).
+    /// Sidebar section headers: what the app does (`App`) versus where the numbers come
+    /// from (`Sources`).
     public enum Group: String, CaseIterable, Identifiable, Sendable {
         case preferences
         case sources
 
         public var id: String { rawValue }
 
+        /// R2B1: "App", not "Preferences" — the latter is the pre-Ventura word for the whole
+        /// window, so it read as a section named after its own container inside "Headroom
+        /// Settings". The raw value stays `preferences` so nothing persisted migrates.
         public var label: String {
             switch self {
-            case .preferences: "Preferences"
+            case .preferences: "App"
             case .sources: "Sources"
             }
         }

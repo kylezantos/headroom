@@ -72,7 +72,7 @@ struct ThemeThumbnailPicker: View {
             .padding(5)
             .selectionChrome(isSelected: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsSwatchButtonStyle())
         .help(preference.themeHelpText)
         .accessibilityLabel("\(preference.label) theme")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")

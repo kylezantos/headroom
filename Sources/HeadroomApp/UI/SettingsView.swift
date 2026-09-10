@@ -77,7 +77,15 @@ struct SettingsView: View {
     /// reads the min and max off this frame; leaving max unset is what makes the window
     /// resizable at all.
     static let windowWidth: CGFloat = 800
-    static let windowHeight: CGFloat = 700
+    /// R2B2: 770, up from 700. The opening height of a resizable window matters only for
+    /// where it *cuts*, and 700 cut through the middle of the Fill swatch row — a half-drawn
+    /// control is the one thing an opening frame must not show. Measured off the harness
+    /// render of Appearance (the tallest pane) after R2C19's spacing: the Fill grid's last
+    /// swatch ends at ≈766pt and its help line starts 6pt later, so 770 puts the fold in that
+    /// gap. Every control in the pane is whole; only prose waits below it. 760 was two points
+    /// short and clipped the second line of the wrapped swatch labels. Re-measure if the
+    /// pane's spacing or content changes again.
+    static let windowHeight: CGFloat = 770
     static let minimumWindowWidth: CGFloat = 720
     static let minimumWindowHeight: CGFloat = 600
     /// L9A: leading-aligned cap on a pane's content so a window dragged to 1200pt does
@@ -304,9 +312,13 @@ struct SettingsView: View {
         Binding(
             get: { store.isSurfaceEnabled(surface) },
             set: { newValue in
-                // Animated so the key-entry reveal below an API row settles instead
-                // of hard-cutting; `withAnimation(nil)` is a no-op under Reduce Motion.
-                withAnimation(reduceMotion ? nil : Self.settleAnimation) {
+                // Animated so the key-entry reveal below an API row settles instead of
+                // hard-cutting. R2M7/S2A: through the resolver as `.crossfade` — the fade is
+                // what must survive Reduce Motion, and the reveal's rise and blur drop inside
+                // `settingsReveal(reduceMotion:)` rather than by killing the whole animation.
+                withAnimation(
+                    HeadroomMotion.resolved(Self.settleAnimation, .crossfade, reduceMotion: reduceMotion)
+                ) {
                     store.setSurfaceEnabled(newValue, for: surface)
                 }
                 if surface.isSubscription {
@@ -327,6 +339,22 @@ struct SettingsView: View {
 
     // MARK: - State
 
+    /// R2B1: "signed in" for the first-open default means at least one configured account has
+    /// produced a reading. A never-signed-in stale reason — or nothing fetched at all — is the
+    /// case Accounts exists to answer, so that is the room the window opens in.
+    private var hasSignedInAccount: Bool {
+        store.registeredProviderOrder.contains { providerID in
+            store.accounts(for: providerID).contains { account in
+                let snapshot = store.snapshot(for: account.key)
+                if case .stale(let reason) = snapshot.freshness,
+                   reason.providerSetupOutcome?.isNeverSignedIn == true {
+                    return false
+                }
+                return snapshot.freshness == .live || !snapshot.windows.isEmpty
+            }
+        }
+    }
+
     private func loadPreferences() {
         // Clamp any legacy sub-2-minute interval up to the new floor.
         let saved = max(2, preferences.pollIntervalMinutes)
@@ -336,8 +364,9 @@ struct SettingsView: View {
         }
         intervalMinutes = saved
         // R4: reopen on the last-visited destination; an unknown stored value already
-        // decodes to General in `Preferences`.
-        let storedPane = preferences.settingsPane
+        // decodes to General in `Preferences`. R2B1: on the *first* open — nothing stored —
+        // a Mac with no account signed in opens on Accounts instead, where all of its work is.
+        let storedPane = preferences.initialSettingsPane(hasSignedInAccount: hasSignedInAccount)
         sidebarSelection = storedPane
         if storedPane == .accounts { hasVisitedAccounts = true }
         appearancePreference = preferences.appearancePreference

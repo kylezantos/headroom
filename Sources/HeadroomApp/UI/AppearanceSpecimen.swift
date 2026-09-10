@@ -71,14 +71,16 @@ struct AppearanceSpecimen: View {
     /// then snap the pane below it.
     var body: some View {
         specimen
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // R2C20: centred in the well at the popover's true card width, not stretched to
+            // the detail column. See `specimen` for why the width is the fidelity fix.
+            .frame(maxWidth: .infinity, alignment: .center)
             .hidden()
             .animation(
                 HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
                 value: recipeKey
             )
-            .overlay(alignment: .topLeading) {
-                ZStack(alignment: .topLeading) {
+            .overlay(alignment: .top) {
+                ZStack(alignment: .top) {
                     specimen
                         .id(recipeKey)
                         .transition(.opacity)
@@ -96,10 +98,13 @@ struct AppearanceSpecimen: View {
             // the strip-sized 9 × 8 inset left both nearly touching the well's edge. Only the
             // well's padding changes — what it frames is still the real card and the real
             // `MenuBarLabel` renderer.
+            // R2C9: r16 around an r10 card at 16/14pt of padding. The old fixed r7 well was
+            // *less* round than the card inside it, visible at the first corner on the pane.
             .settingsPreviewWell(
                 dark: colorScheme == .dark,
                 verticalPadding: 14,
-                horizontalPadding: 16
+                horizontalPadding: 16,
+                cornerRadius: 16
             )
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
@@ -114,6 +119,12 @@ struct AppearanceSpecimen: View {
         "\(meterStyle.format.rawValue).\(meterStyle.resolvedShape.rawValue).\(meterStyle.fill.rawValue)"
     }
 
+    /// R2C20: the specimen is drawn at the popover's own card width. Stretched to the detail
+    /// column it measured 506pt against the real card's 346 — 1.46× — which put ~260pt
+    /// between a Micro row's label and its gauge where the popover puts ~100, so Micro
+    /// previewed airy here and tight there and `ViewThatFits` could pick a branch the popover
+    /// never draws. R6/KD4 says a meter style can never preview as something the popover
+    /// doesn't draw, and width is part of what it draws.
     private var specimen: some View {
         VStack(alignment: .leading, spacing: 9) {
             ProviderCardView(
@@ -143,5 +154,17 @@ struct AppearanceSpecimen: View {
                 Spacer(minLength: 0)
             }
         }
+        .frame(width: PopoverCardMetrics.cardWidth, alignment: .leading)
     }
+}
+
+/// R2C20: the popover geometry the Appearance specimen has to match. Mirrors
+/// `PopoverView.swift`'s shell (`.padding(19)` inside `.frame(width: 384)`) and derives the
+/// card width rather than restating 346, so a change to either number here is one edit and
+/// not a silent 1.46× preview. Ideally these live on `PopoverView` itself and this reads
+/// them; that file belongs to another workstream this round.
+enum PopoverCardMetrics {
+    static let shellWidth: CGFloat = 384
+    static let shellMargin: CGFloat = 19
+    static let cardWidth: CGFloat = shellWidth - 2 * shellMargin
 }

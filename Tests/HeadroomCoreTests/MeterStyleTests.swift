@@ -16,12 +16,16 @@ struct MeterStyleTests {
             (.segmented, "segmented", "Segmented"),
             (.tube, "tube", "Tube"),
         ]
+        // R2C12: the labels name the behavior; the raw values are the stored preference and
+        // deliberately did *not* change, so no one's chosen fill migrates on update. This
+        // pairing is the whole point of the test — a rename that touched a raw value would
+        // silently reset every install to the default.
         let fills: [(GaugeFill, String, String)] = [
-            (.solid, "solid", "Solid"),
-            (.glass, "glass", "Glass + cap"),
-            (.ghost, "ghost", "Ghost + cap"),
-            (.colorAsEvent, "event", "Color as event"),
-            (.hueRamp, "hue", "Hue ramp"),
+            (.solid, "solid", "Always colored"),
+            (.glass, "glass", "Glass"),
+            (.ghost, "ghost", "Ghost"),
+            (.colorAsEvent, "event", "Only when low"),
+            (.hueRamp, "hue", "Fade"),
         ]
 
         for (value, rawValue, label) in formats {

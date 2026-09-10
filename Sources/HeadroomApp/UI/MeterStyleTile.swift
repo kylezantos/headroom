@@ -38,26 +38,21 @@ struct MeterStyleTile: View {
     /// 464pt wide and its 438pt interior clears that without wrapping or shrinking.
     private let swatchWidth: CGFloat = 76
     private let swatchSpacing: CGFloat = 8
-    private let rowSpacing: CGFloat = 16
     private let captionSpacing: CGFloat = 6
     private let columnCount = 5
     /// The width of the mini card fragment inside a Format swatch. AP2 reads it too, so the
     /// swatch's segment pitch is derived from the same number that sizes the fragment.
     private let fragmentWidth: CGFloat = 60
 
+    /// R2C19/R2B1: the tile's container is `SettingsTile` now, not a third hand-maintained
+    /// copy of the same padding, radius, title font, and spacing — so its title case ("Meter
+    /// Style", one policy) and its group rhythm come from the one place that owns them.
     var body: some View {
-        VStack(alignment: .leading, spacing: rowSpacing) {
-            Text("Meter style")
-                .font(.system(size: 15, weight: .semibold))
-                .kerning(-0.2)
-
+        SettingsTile("Meter Style") {
             formatRow
             shapeRow
             fillRow
         }
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .raisedTile(cornerRadius: 10, surface: .opaque)
     }
 
     private var formatRow: some View {
@@ -87,11 +82,13 @@ struct MeterStyleTile: View {
             }
         } footer: {
             // PB7: the Fill row shipped five renderer names and no help line while every
-            // other row in the window had one. Copy is the decided wording — Glass and
-            // Ghost share a clause because they differ only in track weight.
+            // other row in the window had one. R2C12 cuts it to the two options whose names
+            // can't carry themselves — the swatch labels say the rest — and settles the
+            // spelling: "coloured" and "Color" appeared in one pair of sentences, in an app
+            // that is American everywhere else.
             SettingsHelpText(
-                text: "Solid is always coloured. Color as event stays neutral until usage runs low. "
-                    + "Hue ramp shifts colour as it empties. Glass and Ghost add a bright end cap."
+                text: "Only when low keeps meters neutral until usage runs low. "
+                    + "Glass and Ghost add a bright end cap."
             )
         }
     }
@@ -153,7 +150,7 @@ struct MeterStyleTile: View {
             }
             .selectionChrome(isSelected: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsSwatchButtonStyle())
         .help(format.label)
         .accessibilityLabel("\(format.label) format")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
@@ -219,7 +216,7 @@ struct MeterStyleTile: View {
             .opacity(isAvailable ? 1 : 0.45)
             .selectionChrome(isSelected: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsSwatchButtonStyle())
         .disabled(!isAvailable)
         .help(isAvailable ? shape.label : "Tube is available only with Micro format.")
         .accessibilityLabel("\(shape.label) shape")
@@ -244,7 +241,7 @@ struct MeterStyleTile: View {
             }
             .selectionChrome(isSelected: isSelected)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(SettingsSwatchButtonStyle())
         .help(fill.label)
         .accessibilityLabel("\(fill.label) fill")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")

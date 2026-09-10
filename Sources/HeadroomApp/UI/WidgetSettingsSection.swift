@@ -18,21 +18,17 @@ struct WidgetSettingsSection: View {
         // PB4: two groups, not three peers. The Spark-counter checkbox is a sub-option of
         // widget export, so it nests inside that group; floating between the two switches at
         // the same gap, it read as belonging to neither.
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.groupToGroup) {
             VStack(alignment: .leading, spacing: 8) {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     SettingsSwitchRow(title: "Share data with widgets", isOn: $widgetsEnabled)
-                    // Leads with what the switch does; the old copy opened with an
-                    // instruction ("Add or remove widgets from macOS") this window
-                    // can't perform.
-                    SettingsHelpText(text: "Controls whether Headroom supplies usage data to macOS widgets.")
-                    providerRule
+                    helpText
                 }
 
                 Toggle("Show Codex Spark counters in widgets", isOn: $showCodexSparkCountersInWidgets)
             }
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                 // PB9: "usage", not "snapshot" — the user has no snapshot in their vocabulary,
                 // and the next line already says what travels.
                 SettingsSwitchRow(title: "Sync usage to iPhone", isOn: $syncToIPhoneEnabled)
@@ -41,10 +37,16 @@ struct WidgetSettingsSection: View {
         }
     }
 
-    /// PB8: the widget-provider rule is stated once, in the Menu Bar pane that owns it; this
-    /// line points there instead of paraphrasing it into a second, differently-worded rule.
-    private var providerRule: some View {
-        SettingsHelpText(attributed: ruleText)
+    /// R2B2: one help block under the switch, not two. Two `SettingsHelpText` views 4pt
+    /// apart with 2pt of internal leading rendered as two paragraphs of one thought at
+    /// almost the same gap as the lines inside them; as one string the sentences wrap into
+    /// a single block on the shared measure.
+    ///
+    /// PB8: the widget-provider rule is stated once, in the Menu Bar pane that owns it; the
+    /// second sentence points there instead of paraphrasing it into a second,
+    /// differently-worded rule.
+    private var helpText: some View {
+        SettingsHelpText(attributed: helpString)
             .environment(\.openURL, OpenURLAction { url in
                 guard url == Self.menuBarPaneURL else { return .systemAction }
                 onShowMenuBarPane()
@@ -52,8 +54,13 @@ struct WidgetSettingsSection: View {
             })
     }
 
-    private var ruleText: AttributedString {
-        var sentence = AttributedString("Widgets follow the priority providers you choose in ")
+    private var helpString: AttributedString {
+        // Leads with what the switch does; the old copy opened with an instruction ("Add or
+        // remove widgets from macOS") this window can't perform.
+        var sentence = AttributedString(
+            "Controls whether Headroom supplies usage data to macOS widgets. "
+                + "Widgets follow the priority providers you choose in "
+        )
         var link = AttributedString("Menu Bar")
         link.link = Self.menuBarPaneURL
         sentence.append(link)

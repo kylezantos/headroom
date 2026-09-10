@@ -368,6 +368,13 @@ struct AccountsSettingsTile: View {
         )
         let isEditingLabel = focusedLabel == account.key || hoveredLabel == account.key
         let email = accountEmail(from: snapshot)
+        // R2C6: the row prints the *popover's* sentence for this state ("Sign in with the
+        // official Claude CLI") rather than a Settings-only "Needs sign-in". One act, one
+        // wording — and read from Core's `ProviderSetupOutcome`, never duplicated here.
+        let setupSentence: String? = {
+            guard case .stale(let reason) = snapshot.freshness else { return nil }
+            return reason.providerSetupOutcome?.message
+        }()
         let usesSecondLine = capability == nil
             && removalState == nil
             && recoveryActions?.usesSecondLine == true
@@ -387,23 +394,26 @@ struct AccountsSettingsTile: View {
                     )
                 }
                 Spacer(minLength: 8)
-                if !usesSecondLine {
-                    if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
-                        accountStatus(
-                            capabilityRow,
-                            snapshot: snapshot,
-                            status: status,
-                            setupFailure: setupFailure,
-                            account: account
-                        )
-                    }
-                    if capability == nil, removalState == nil {
-                        recoveryButtons(
-                            for: account,
-                            status: status,
-                            recoveryActions: recoveryActions
-                        )
-                    }
+                // R2C11: the status stays in the trailing column whichever silhouette the row
+                // takes. Only the *buttons* drop to a second line when there are two of them.
+                // Moving the status with them meant two never-signed-in rows in one list
+                // printed the same state in two different places, which reads as two states.
+                if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
+                    accountStatus(
+                        capabilityRow,
+                        snapshot: snapshot,
+                        status: status,
+                        setupFailure: setupFailure,
+                        setupSentence: setupSentence,
+                        account: account
+                    )
+                }
+                if !usesSecondLine, capability == nil, removalState == nil {
+                    recoveryButtons(
+                        for: account,
+                        status: status,
+                        recoveryActions: recoveryActions
+                    )
                 }
                 removalActions(
                     for: account,
@@ -413,13 +423,6 @@ struct AccountsSettingsTile: View {
             }
             if usesSecondLine {
                 HStack(spacing: 8) {
-                    accountStatus(
-                        capabilityRow,
-                        snapshot: snapshot,
-                        status: status,
-                        setupFailure: setupFailure,
-                        account: account
-                    )
                     Spacer(minLength: 8)
                     recoveryButtons(
                         for: account,
@@ -463,6 +466,17 @@ struct AccountsSettingsTile: View {
                         Color.primary.opacity(isEditingLabel ? 0.06 : 0),
                         in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                     )
+                    // R2M10/S3A: the fill's whole job is to reveal on approach, and it was the
+                    // one hover in the app that snapped both ways — the only one outside a
+                    // button style. Opacity only, so it keeps its timing under Reduce Motion.
+                    .animation(
+                        HeadroomMotion.resolved(
+                            isEditingLabel ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
+                            .crossfade,
+                            reduceMotion: reduceMotion
+                        ),
+                        value: isEditingLabel
+                    )
                     .onHover { hovering in
                         hoveredLabel = hovering ? account.key : (hoveredLabel == account.key ? nil : hoveredLabel)
                     }
@@ -493,6 +507,7 @@ struct AccountsSettingsTile: View {
         snapshot: UsageSnapshot,
         status: AccountStatus,
         setupFailure: String?,
+        setupSentence: String?,
         account: ProviderAccount
     ) -> some View {
         capabilityStatusLabel(
@@ -500,6 +515,7 @@ struct AccountsSettingsTile: View {
             snapshot: snapshot,
             fallbackStatus: status,
             setupFailure: setupFailure,
+            setupSentence: setupSentence,
             setupMode: SetupSessions.mode(for: account),
             providerDisplayName: store.displayNames[account.providerID]
                 ?? account.providerID.raw.capitalized
@@ -516,8 +532,13 @@ struct AccountsSettingsTile: View {
             // never had one, and two surfaces spelling one action two ways reads as two
             // actions. ("Add Account…" and "Check for Updates…" keep theirs — those open a
             // further choice; signing in is the whole action.)
+            //
+            // R2B1: "Continue Setup", not "Continue…". The ellipsis promised a further choice
+            // that never arrives — the button resumes the handoff already open — and a bare
+            // "Continue" doesn't say what it continues. R2C6: the primary label otherwise
+            // comes from Core's `ProviderSetupOutcome`, which owns the one sign-in verb.
             Button(status == .blocked
-                   ? "Continue…"
+                   ? "Continue Setup"
                    : (recoveryActions?.primaryLabel
                       ?? (status == .setupFailed ? "Retry…" : "Sign In"))) {
                 if status == .blocked {
@@ -621,12 +642,9 @@ struct AccountsSettingsTile: View {
                                 removalCandidate = account
                             }
                         } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 11, weight: .semibold))
-                                .frame(width: 22, height: 22)
+                            AccountActionsMenuGlyph()
                         }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
+                        .accountActionsMenuChrome()
                         .help("Account actions")
                         .accessibilityLabel("Actions for \(account.label)")
                         .focused($focusedRemovalAction, equals: account.key)
@@ -641,12 +659,9 @@ struct AccountsSettingsTile: View {
                                 removalCandidate = account
                             }
                         } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 11, weight: .semibold))
-                                .frame(width: 22, height: 22)
+                            AccountActionsMenuGlyph()
                         }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
+                        .accountActionsMenuChrome()
                         .help("Account actions")
                         .accessibilityLabel("Actions for \(account.label), including Make Main")
                         .focused($focusedRemovalAction, equals: account.key)
@@ -660,17 +675,18 @@ struct AccountsSettingsTile: View {
                         Menu {
                             Button("Make Main") { makeMain(account) }
                             Divider()
-                            Button("Remove Account") {
+                            // R2B1: the act deletes this account's sign-in on the Mac, and its
+                            // own confirmation is already `.destructive` — the menu item that
+                            // opens it should look like what it opens. (Stop Tracking stays
+                            // plain: it hides a row and deletes nothing.)
+                            Button("Remove Account", role: .destructive) {
                                 removalOrigin = account.key
                                 removalCandidate = account
                             }
                         } label: {
-                            Image(systemName: "ellipsis")
-                                .font(.system(size: 11, weight: .semibold))
-                                .frame(width: 22, height: 22)
+                            AccountActionsMenuGlyph()
                         }
-                        .menuStyle(.borderlessButton)
-                        .fixedSize()
+                        .accountActionsMenuChrome()
                         .help("Account actions")
                         .accessibilityLabel("Actions for \(account.label), including Make Main")
                         .focused($focusedRemovalAction, equals: account.key)
@@ -692,6 +708,17 @@ struct AccountsSettingsTile: View {
                     }
                 }
             }
+    }
+
+    /// R2C21: the `•••` glyph, drawn to the same spec as the row's `arrow.clockwise` and
+    /// `trash` — 11pt **regular**, not semibold. One stroke weight per icon set; the menus
+    /// were the only heavier glyph in the column, which read as emphasis they don't carry.
+    fileprivate struct AccountActionsMenuGlyph: View {
+        var body: some View {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 11))
+                .frame(width: 22, height: 22)
+        }
     }
 
     /// The row-tag capsule shared by "CLI login" and "Same login as X". Tokens live in
@@ -720,6 +747,7 @@ struct AccountsSettingsTile: View {
         snapshot: UsageSnapshot,
         fallbackStatus: AccountStatus,
         setupFailure: String?,
+        setupSentence: String?,
         setupMode: SetupHandoffMode,
         providerDisplayName: String
     ) -> some View {
@@ -728,11 +756,14 @@ struct AccountsSettingsTile: View {
             statusLabel(
                 fallbackStatus,
                 setupFailure: setupFailure,
+                setupSentence: setupSentence,
                 setupMode: setupMode,
                 providerDisplayName: providerDisplayName
             )
         case .waitingForClaudeCode:
-            Text("Waiting for Claude Code")
+            // R2B1: the ellipsis says the wait is ongoing, matching every other waiting
+            // status in the window ("Waiting for sign-in…", "Fetching…").
+            Text("Waiting for Claude Code…")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(.secondary)
         case .retainedUsage:
@@ -755,6 +786,7 @@ struct AccountsSettingsTile: View {
     @ViewBuilder private func statusLabel(
         _ status: AccountStatus,
         setupFailure: String?,
+        setupSentence: String?,
         setupMode: SetupHandoffMode,
         providerDisplayName: String
     ) -> some View {
@@ -787,9 +819,15 @@ struct AccountsSettingsTile: View {
             }
             .foregroundStyle(.secondary)
         case .needsSignIn:
-            Text("Needs sign-in")
+            // R2C6: the popover's own sentence, read from Core. Settings used to print
+            // "Needs sign-in" beside a row whose button said "Sign In" and whose popover card
+            // said "Sign in with the official Claude CLI" — one act under three names, which
+            // makes people ask whether the three do different things.
+            Text(setupSentence ?? "Sign in with the official \(providerDisplayName) CLI")
                 .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
+                .lineLimit(2)
+                .multilineTextAlignment(.trailing)
         case .blocked:
             // PB9: "sign-in", the word the popover and every other status here uses for this
             // event. "login" was the only place it was called something else.
@@ -997,5 +1035,21 @@ struct AccountsSettingsTile: View {
             await Task.yield()
             focusedRemovalAction = key
         }
+    }
+}
+
+private extension View {
+    /// R2C21: one control language in the Accounts action column. The `•••` menus get the
+    /// same chrome as the `arrow.clockwise` and `trash` glyphs beside them — `.button` menu
+    /// style routed through `HoverButtonStyle`, so one hover pill, one press, and one ~38pt
+    /// target serve all three. `.borderlessButton` gave the menus no hover, no press, a bare
+    /// 22pt target, and an AppKit `⌄` the glyph set has nowhere else.
+    func accountActionsMenuChrome() -> some View {
+        self
+            .menuStyle(.button)
+            .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
+            .foregroundStyle(.secondary)
+            .menuIndicator(.hidden)
+            .fixedSize()
     }
 }

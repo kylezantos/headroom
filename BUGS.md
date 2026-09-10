@@ -157,39 +157,54 @@ official `claude` CLI's `/usage` panel instead.
   Regenerate all sizes with `node Scripts/gen-app-icon.mjs` (master:
   `design/vessel-app-icon.svg`).
 - `MenuBarLabel` uses a fixed font size (menu bar height is OS-constrained).
-- **`--demo` writes Settings preferences to the standard defaults domain.** `HeadroomApp.init`
-  builds `Preferences()` (`.standard`) and hands it to `SettingsView`, while
-  `AppComposition.store` routes the store to the isolated per-launch demo suite, so in demo
-  mode `appearancePreference`, `settingsPane`, `showMenuBarPercentage`, and
-  `menuBarFillSource` land in the real domain despite the comment saying demo runs never
-  touch user settings. Harmless for the unsigned debug binary (its own `Headroom` domain),
-  but `Headroom.app --demo` would write into the user's settings. Found during the sidebar
-  acceptance pass (2026-09-03).
-- **A focused, uncommitted account rename can still be lost on ⌘Q.** R12's backstop commits
-  pending renames in `AccountsSettingsTile.onDisappear`, which fires on pane switch and
-  window close but is not guaranteed on app termination. Add an `NSApplication.willTerminate`
-  commit if it matters in practice (code-review residual, 2026-09-03).
-- **Reopening Settings after ⌘W restores keyboard focus into a renamed account field.** The
-  rename commits correctly (R12), but SwiftUI restores focus to the last focused
-  `TextField`, so that row reopens with its editing chrome while siblings look static.
-  Cosmetic; consider clearing `focusedLabel` on disappear.
-- **Menu Bar pane still lists providers whose subscription is switched off.** "Priority
-  providers" and "Preferred window" iterate `registeredProviderOrder`, which ignores the
-  per-provider surface switches now living in Settings → Accounts, so an off provider can be
-  chosen as a priority and renders a neutral meter. Pre-existing before the sidebar redesign
-  (2026-09-02); filter both rows by `isSurfaceEnabled` or show the off state inline.
+- ~~**`--demo` writes Settings preferences to the standard defaults domain.**~~ Resolved
+  2026-09-10: `AppComposition.launchDefaults` resolves one domain per launch (`.standard` without
+  `--demo`, the stable demo suite for a bare `--demo`, a per-launch suite per scenario) and the
+  App, Settings, and both demo stores all read it. Verified: `defaults read Headroom` is
+  byte-identical before and after a `--demo multi-2` run. The four keys earlier runs leaked into
+  the debug binary's `Headroom` domain were left in place.
+- **Each `--demo <scenario>` launch leaks a `co.zantos.headroom.demo.multi.<uuid>` defaults
+  suite** (plus an accounts suite); ~1,170 such domains exist in `~/Library/Preferences` as of
+  2026-09-10. Pre-existing and growing. Either name the suite per scenario or remove the
+  persistent domain on quit.
+- ~~**A focused, uncommitted account rename can still be lost on ⌘Q.**~~ Resolved 2026-09-10:
+  the tile also commits on `NSApplication.willTerminateNotification` (R12).
+- ~~**Reopening Settings after ⌘W restores keyboard focus into a renamed account field.**~~
+  Resolved 2026-09-10: `focusedLabel` clears on disappear after the commit.
+- ~~**Menu Bar pane still lists providers whose subscription is switched off.**~~ Corrected and
+  resolved 2026-09-10. Two of the three claims were already handled before this batch: priority
+  menu items are disabled for unfetched providers and Preferred-window rows render off providers
+  dimmed with an "Off" badge (listed-but-greyed is deliberate). The remaining hole was the
+  priority *label*, which named switched-off picks; `MenuBarPrioritySelection.label` now feeds
+  from the fetched order and reads "None" when every pick is off. The stored preference keeps
+  the off pick so re-enabling restores it.
+- **The iOS targets compile a hand-picked list of Core files, so a new Core file can break the
+  phone build silently.** `HeadroomIOS` and `HeadroomIOSWidgets` enumerate individual
+  `Sources/HeadroomCore/Models/*.swift` paths in `project.yml`; the Sep 9 fill-tier split added
+  a `UsageSeverity` overload in `UsageSeverityColorValues.swift` that the lists lacked, and
+  `HeadroomIOS` did not build from 2026-09-09 until 2026-09-10. Nothing in `swift test` or the
+  macOS app-test scheme exercises the iOS targets. Add an iOS simulator build to the pre-PR
+  check, or move the shared Core files into a folder the targets include wholesale.
 - **App-boundary tests emit an AppKit re-entrant-layout warning under Xcode 26.5.** All six
   `HeadroomAppTests` pass, but loading the app test bundle logs that `layoutSubtreeIfNeeded` was
   called while a view was already being laid out. No failure or production symptom was observed;
   isolate the responsible test-host/view initialization before a future AppKit release turns the
   warning into an error.
-- **The offscreen popover render harness produces invalid appearance captures on Xcode 26.5.**
-  Reproduced 2026-08-08 with `swift run Headroom --render-popover <dir>`: the command exits 0 and
-  writes every expected PNG, but repeatedly logs `could not create image from window`; light-mode
-  captures are blank/transparent and dark-mode captures render light-mode semantic ink over the
-  dark surface. Runtime fixture tests still pass, so this blocks trustworthy visual evidence rather
-  than app behavior. Re-characterize `NSWindow` capture and effective `NSAppearance` propagation
-  on the current SDK before relying on these PNGs for design acceptance.
+- ~~**The offscreen popover render harness produces invalid appearance captures on Xcode 26.5.**~~
+  Re-characterized 2026-09-10 on Xcode 26.6 (17F113): `swift run Headroom --render-popover <dir>`
+  exits 0, logs no `could not create image from window`, and both appearances render correctly
+  (light ink on the light surface, dark ink on the dark surface; `multi-2` inspected by eye). The
+  2026-08-08 symptom (blank light captures, light ink over dark) did not reproduce. AGENTS.md's
+  "do not accept `--render-popover` output as evidence" gotcha can be relaxed once one more run
+  confirms it; live `MenuBarExtra` acceptance stays the bar for window sizing.
+- **The harness's multi-account path renders neither Grok/Cursor nor the spend card.**
+  `renderMulti` in `PopoverRenderHarness.swift` passes `apiSpendProviders: []` and
+  `renderPreferences` enables only the Anthropic/OpenAI spend surfaces, so
+  `popover-multi-4`, `popover-four-default`, `popover-spend-states`, and `popover-spend-retained`
+  come out as the plain two-provider Claude + Codex popover (the four light PNGs are
+  byte-identical). The names promise scenarios the harness never draws; anything touching the
+  Grok/Cursor cards or the spend rows has no headless visual evidence. Wire the fixture's spend
+  providers and enable the Grok/Cursor surfaces in the multi path.
 
 ## iPhone sync — Mac needs the iCloud-KVS entitlement (provisioning-gated)
 
@@ -248,23 +263,19 @@ official `claude` CLI's `/usage` panel instead.
 Soft-bucket items from the built-in stop-tracking + duplicate-login-badge review (all 8
 primary findings were applied; these are the demoted coverage/advisory notes):
 
-- **`providerFactory == nil` guard coverage is partial.** The lifecycle-overhaul interaction
-  tests now construct factory-less demo stores and prove built-in reset and Make Main are inert.
-  `canStopTrackingBuiltInAccount` / `resumeTrackingBuiltInAccount` / `attachBuiltInProvider`
-  still lack a direct factory-less store assertion; keep this narrower residual until those
-  paths explicitly prove `.notAllowed`/nil without changing registry state.
-- **`readAccountUUID()` real file-read path untested.** Detector tests stub the read
-  closure; only the pure `ClaudeAccountBlob.accountUUID(in:)` decoder is file-fixture
-  tested. Mirror `readAccountEmail()`'s file-backed tests.
-- **`resumeTrackingBuiltIn`'s `refreshAccountNow` side effect remains unasserted.** Promotion
-  now has targeted-refresh coverage, but `AccountsSettingsInteractionTests` would still pass if
-  the resume helper stopped refreshing. Add a counting provider at the app boundary before
-  closing this residual.
+- ~~**`providerFactory == nil` guard coverage is partial.**~~ Resolved 2026-09-10: three
+  factory-less `MultiAccountTests` prove stop-track is `.notAllowed` with no tombstone written,
+  resume returns nil with the tombstone intact, and the reinstate path attaches no provider.
+- ~~**`readAccountUUID()` real file-read path untested.**~~ Resolved 2026-09-10: temp-directory
+  `.claude.json` tests in `AccountEmailTests` cover present, missing, malformed, and key-absent.
+- ~~**`resumeTrackingBuiltIn`'s `refreshAccountNow` side effect remains unasserted.**~~ Resolved
+  2026-09-10: a counting provider in `AccountsSettingsInteractionTests` asserts exactly one fetch
+  for the resumed row and none for siblings.
 - **`oauthAccount.accountUuid` decode is speculative** against a live `.claude.json`
   capture (repo convention is to verify JSON shapes against real captures). The
   fail-safe design means a shape change degrades to "no badge", not breakage.
-- **Detector accepts any non-empty `accountUuid` string** without UUID-syntax validation;
-  a hand-edited local file can create a false badge (detection-only, so no data risk).
+- ~~**Detector accepts any non-empty `accountUuid` string**~~ Resolved 2026-09-10: the detector
+  canonicalises through `UUID(uuidString:)` and treats a non-UUID as absent (no badge).
 - ~~**`UsageStore` account lifecycle needed extraction.**~~ Resolved 2026-08-20:
   add/remove/stop-track/resume/reset/promotion now live in
   `UsageStoreAccountLifecycle.swift`; the store retains polling and merge orchestration.
@@ -301,21 +312,22 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   total, the card shows the amount and the corrected "Key rejected" badge but no "Replace key…"
   button; the button only appears when there is no amount to show. Decide whether the CTA should
   also appear beside a retained amount.
-- **`APISpendPresentation.statusText` has no production callers** after the row-status refactor;
-  it is exercised only by tests and can likely be deleted.
+- ~~**`APISpendPresentation.statusText` has no production callers**~~ Deleted 2026-09-10 along
+  with `qualifier(kind:)`; the `remoteHint` coverage moved onto `rowStatus`.
 - ~~**Per-pane Settings heights are budgets, not measurements.**~~ Resolved by L9A: the window is
   a single resizable 800 × 700 frame (min 720 × 600) and `SettingsPane.preferredContentHeight`
   is gone. Verified live at 800 × 700, 1100 × 800 and the clamped floor.
 - **`supergrokheavy` → "SuperGrok Heavy" plan mapping is unconfirmed** against a live Grok tier
   id; the fallback capitalization renders any real value sensibly either way.
-- **`CredentialStore` still says "xAI API API key".** `APIKeyProvider.displayName` for `.xAI`
-  is "xAI API", so the empty/unreadable-key messages double the word. The missing-key message
-  was fixed via `APISpendCredentialDescriptor`; the other two were left alone.
-- **Settings → API Spend guidance is stale.** The Anthropic field still warns of a "known
-  request-format issue" (resolved 2026-08-10, see above) and OpenAI says "not live-verified";
-  both undercut the now-precise failure copy on the popover card.
-- **xAI missing-key line says "spend" for a prepaid balance.** "Add a management key to see
-  xAI spend" follows the shared sentence shape; branching on `APISpendKind` would say "balance".
+- ~~**`CredentialStore` still says "xAI API API key".**~~ Resolved 2026-09-10: every
+  `CredentialStore` message names the provider's own credential ("xAI management key",
+  "Anthropic admin key") through the descriptor vocabulary; a guard test rejects "API API".
+- ~~**Settings → API Spend guidance is stale.**~~ Resolved by PA2 (`SettingsPanes.swift`
+  `apiKeyEditor`): the engineering-status sentences are gone; each field now says only what a
+  regular key cannot do and links to the vendor console. Confirmed 2026-09-10.
+- ~~**xAI missing-key line says "spend" for a prepaid balance.**~~ Resolved 2026-09-10:
+  `rowStatus` takes the `APISpendKind` and says "balance" on prepaid rows; the iOS mirror passes
+  `semanticKind` too.
 
 ## L4B's 34pt right edge stops at the card's transient recovery rows
 
@@ -341,15 +353,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 
 ## Settings window residuals (2026-09-04, W4a / L9A–L11A)
 
-- **A fresh worktree cannot run the `HeadroomAppTests` xcodebuild scheme without a manual
-  Sparkle fetch.** `project.yml` points the framework at
-  `.xcode-derived/SourcePackages/artifacts/sparkle/Sparkle/Sparkle.xcframework`, which only
-  `Scripts/build-app.sh` creates (curl + ditto of the 2.9.4 release zip);
-  `-resolvePackageDependencies` does not produce it. Worse, once xcodebuild has cached a
-  "no XCFramework found" build description in the *shared* DerivedData it keeps failing even
-  after the framework exists — the run only succeeds with an explicit `-derivedDataPath`.
-  Either give `build-app.sh` a deps-only mode the documented test command can call, or move the
-  prefetch into the scheme's pre-action.
+- ~~**A fresh worktree cannot run the `HeadroomAppTests` xcodebuild scheme without a manual
+  Sparkle fetch.**~~ Resolved 2026-09-10: `./Scripts/build-app.sh --deps-only` prepares the
+  Sparkle artifact alone, and the documented test command (AGENTS.md, README) chains it with an
+  explicit `-derivedDataPath ./.xcode-derived`. The shared-DerivedData cache trap still exists if
+  the explicit path is dropped.
 - **The measured vertical resize floor is 632pt, not the declared 600.** `SettingsView` asks for
   `minHeight: 600` and `.windowResizability(.contentSize)` clamps the live window at 632 — 32pt
   more, exactly the hidden title bar's height. Harmless (the effective floor is still above the
@@ -358,10 +366,8 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   `CFBundleShortVersionString`, which a SwiftPM binary has no Info.plist for, so L10A's 10.5pt
   monospaced-digit line is absent from every `--demo` capture. Accept it on a
   `Scripts/build-app.sh` bundle instead.
-- **The demo fixture gives Cursor an account capacity of 5.** `--demo multi-4` renders Cursor
-  with "1 of 5" and an "Add Account…" button, but the shipping Cursor provider is deliberately
-  single-account (no config-home isolation), so its real header carries the switch alone. The
-  fixture provider should declare a capacity of 1 or the demo misrepresents the pane.
+- ~~**The demo fixture gives Cursor an account capacity of 5.**~~ Resolved 2026-09-10:
+  `DemoUsageProvider.accountCapacity` is 1 for Cursor.
 
 - **The Widgets & iPhone preview strip has no iPhone tile (L9P).** L9P asked for one "if a
   shared, WidgetKit-free rendering path exists". None does: the companion tile lives in
@@ -378,10 +384,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 
 ## Motion system residuals (2026-09-04, S1A–M11A)
 
-- **The live popover does not crossfade on a meter-style change.** M5A landed on the Appearance
-  specimen (`AppearanceSpecimen.swift`) and the swatch ring, but `PopoverView`/`ProviderCardView`
-  still hard-cut when `store.meterStyle` changes. Usually invisible (Settings is open, the popover
-  is closed); add the same `.id(recipeKey)` + `.transition(.opacity)` on the card list if it shows.
+- ~~**The live popover does not crossfade on a meter-style change.**~~ Resolved 2026-09-10: each
+  card sits in a ZStack keyed by the shared `MeterRecipeKey` with an opacity transition under the
+  Reduce Motion-aware crossfade scope; the M4A arrival registry is keyed by account, so a rebuilt
+  row does not re-run its draw-in. Residual: a Full↔Micro change holds the taller height for the
+  200ms fade and then settles rather than animating height travel.
 - **The specimen's static-meter gate reuses `announcesAccessibilityEvents`.** `ProviderCardView`
   derives `meterArrivalKey` from the KTD4 inert-preview flag so the M4A draw-in never fires in the
   specimen. A dedicated `stagesArrival` parameter would be clearer; it was avoided only to keep the
@@ -404,25 +411,20 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   B3A reassigned every bare `HoverButtonStyle` text button to the chip, but no anchor covered
   restyling a native prominent primary, so that one card foot still mixes languages. Decide
   whether the popover's primaries become a filled chip variant or the card keeps AppKit's button.
-- **`APISpendPresentation.qualifier(kind:)` has no call sites.** S5A stopped drawing "remaining"
-  on macOS (the "Remaining balance" chip says it) and the widgets append " left" through
-  `amountText(_ summary:)`. Kept because it is public Core API; delete on the next Core sweep.
+- ~~**`APISpendPresentation.qualifier(kind:)` has no call sites.**~~ Deleted 2026-09-10.
 - **The stale and balance spend rows have no fixture outside `--demo spend-states`.** Every
   other scenario ships the same two live rows, so the state tags, wrapping message, and CTA row
   are only reviewable there or against the round-2 options doc.
 
 ## Round-3 residuals (2026-09-06, G1A–C6A)
 
-- **Demo mode reads the theme from the swift-run defaults domain, not the isolated suite.**
-  `HeadroomApp.init` builds its `Preferences()` on `.standard`, so `--demo` follows whatever
-  `appearancePreference` a previous `swift run` Settings session wrote to the `Headroom` domain
-  (it was `dark`, which is why flipping the OS appearance never changed a demo capture). Route
-  the App-level appearance read through the same suite `demoMultiAccountStore` uses, or clear
-  the key when demo mode starts.
-- **The Brand account-title ink has no sanctioned visual review path.** The demo's per-launch
-  prefs suite cannot be preset, the `MenuBarExtra` popover is not an accessibility window, and
-  AGENTS.md forbids brute-forcing the menu bar, so `AccountTitleInk.brand` was accepted on
-  code and tests only. Add a `--account-title-ink brand` launch token beside `--meter-style`.
+- ~~**Demo mode reads the theme from the swift-run defaults domain, not the isolated suite.**~~
+  Resolved 2026-09-10 by the same `launchDefaults` fix as the Polish entry above; demo now
+  resolves `.system` and follows the OS appearance.
+- ~~**The Brand account-title ink has no sanctioned visual review path.**~~ Resolved 2026-09-10:
+  `--account-title-ink <neutral|brand>` is validated beside `--meter-style` and honoured by both
+  demo stores and `--render-popover`. Like `--meter-style`, it is only validated when `--demo` is
+  present, so a bad value under `--render-popover` silently falls back to the default.
 - **The spend card's action row is far from the row it answers.** P4C collects every CTA at
   the card foot, so in a four-row spend card "Replace key" sits three rows below the rejected
   Anthropic line (and past the 640pt scroll cap in `spend-states`). Decide whether spend CTAs
@@ -430,20 +432,24 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **The rejected spend row double-codes severity.** X5 (Kyle) put the "Rejected" tag on the
   identity line and S2B inks the sentence, so that one row carries both. Drop one once Kyle
   has seen it live.
-- **`StatusSentenceSeverity` has no `.quiet` / `.neutral` cases**, so `APISpendSectionView`
-  spells the same 11.5-medium sentence recipe out again for its four tones. Add the two cases
-  and fold the spend sentence into `StatusSentence`.
-- **`SetupChipButtonStyle.Size.regular` is unreferenced** after B3 moved every popover chip to
-  `.small`. Delete the case or keep it for a future card-foot primary — decide, don't drift.
+- ~~**`StatusSentenceSeverity` has no `.quiet` / `.neutral` cases**~~ Resolved 2026-09-10: the
+  two cases exist and the spend sentence is a `StatusSentence`. One deliberate delta: the spend
+  sentence now takes the OA1 optical-leading pad the local copy lacked (the spend title above it
+  already had it). Eyeball on the next `--demo spend-states` look.
+- ~~**`SetupChipButtonStyle.Size.regular` is unreferenced**~~ No longer true: the popover
+  footer chip uses `.regular` (`PopoverView.swift`, CMM round). Struck 2026-09-10.
 
 ## Pre-ship craft audit residuals (2026-09-08)
 
-- **The `--demo` Claude fixture orders Weekly before 5-hour; the parser never does.**
-  `DemoFixture.swift:20-24` lists `.weekly` first, but `ClaudeUsageParser.rank` puts `.fiveHour`
-  at 0 and `.weekly` at 1, so every real popover shows "5-hour" first while every `--demo`
-  capture (and therefore every marketing shot from `capture-demo-screenshots.sh`) shows "Weekly"
-  first. The Settings `AppearanceSpecimen` uses the parser order and disagrees with the demo
-  popover on the same screen. Sort the fixture through the same rank before the next release shoot.
+- ~~**The `--demo` Claude fixture orders Weekly before 5-hour; the parser never does.**~~
+  Resolved 2026-09-10, with the premise corrected: the popover *does* show Weekly first —
+  `UsageStore.appDisplaySnapshot` re-ranks every snapshot weekly-first (PR #35, matching the
+  widgets' `displaySubscriptionWindows`), so `--demo` captures and real popovers always agreed.
+  The surface that drifted was the Settings `AppearanceSpecimen`, which rendered the raw fixture
+  (5-hour first). Now: fixtures sort through the public `ClaudeUsageParser.sortedForDisplay`
+  (provider order), and the specimen applies the new shared `UsageSnapshot.weeklyFirst()` that
+  the store also uses. The `DemoScreenshotData` envelopes were re-sorted to provider order too;
+  the phone mirror shows a projection as-is, so that is what a real phone shows.
 - **`HoverButtonStyle` hover band vs hit band is unverified.** The `.padding(8) → contentShape →
   padding(-8)` trick grows the click target to the 40pt floor, but `.onHover` attaches after the
   negative padding, so the pill may not appear in the added 8pt band. Needs a live pointer check
@@ -467,9 +473,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **Setup disclosures under Reduce Motion (R2M7).** The chevron snaps and the well crossfades, but
   the container height rides the 200ms crossfade rather than snapping: SwiftUI resolves an
   insertion's layout and transition in one transaction. Same family as the M4A/M7A residuals.
-- **Waiting clock skips restored handoffs (R2M12).** A handoff restored from a durable marker on
-  relaunch has no trustworthy start, so the header keeps the card-derived line instead of a stale
-  "Waiting 3s". Persist the start with the marker if the clock should survive relaunch.
+- ~~**Waiting clock skips restored handoffs (R2M12).**~~ Resolved 2026-09-10: the generation
+  state file carries the start (`active:<generation>:<epochSeconds>`), the zsh wrapper pins the
+  whole line it read at startup, and `SetupSessions` seeds the clock from it on restore. Missing,
+  legacy two-field, unparseable, cancelled, or future starts fall back to no clock. A downgrade
+  reads the three-field file as fail-closed "handoff active" until the marker is cleaned up.
 - **R2M1 window resize.** The setup-session tile now rides `valueSpring`; if the ~88pt NSWindow
   step looks wrong live, drop the tile's session scope to `settle` (one line, marked in the comment).
 - **Glyph pills derive their radius (R2B3)** as `min(w,h) × 0.30` rather than pinning 26×26; sizes

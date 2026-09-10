@@ -825,7 +825,9 @@ struct AccountsSettingsTile: View {
             // makes people ask whether the three do different things.
             Text(setupSentence ?? "Sign in with the official \(providerDisplayName) CLI")
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
+                // R2C5: a lifecycle sentence, not a measurement — it stays off the amber ramp
+                // here as it does in the popover.
+                .foregroundStyle(ProviderStyle.meterLabelInk(scheme: colorScheme))
                 .lineLimit(2)
                 .multilineTextAlignment(.trailing)
         case .blocked:

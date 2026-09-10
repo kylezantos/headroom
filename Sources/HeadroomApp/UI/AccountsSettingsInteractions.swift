@@ -23,11 +23,14 @@ struct CapabilityRecoveryPresentation: Equatable {
     }
 }
 
+/// R2C7: `hasRetainedReading` is true when the same card still draws usage from an earlier
+/// capture, so the sentence can say the reading is the last one rather than ignore it.
 func capabilityRecoveryPresentation(
     state: ProviderCapabilityState?,
-    hasActiveSetupSession: Bool
+    hasActiveSetupSession: Bool,
+    hasRetainedReading: Bool = false
 ) -> CapabilityRecoveryPresentation? {
-    guard let recovery = state?.recoveryPresentation else { return nil }
+    guard let recovery = state?.recoveryPresentation(hasRetainedReading: hasRetainedReading) else { return nil }
     return CapabilityRecoveryPresentation(
         recovery: recovery,
         hasActiveSetupSession: hasActiveSetupSession

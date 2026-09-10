@@ -441,7 +441,7 @@ extension View {
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
             .background(
-                ClaudeSetupStyle.wellBackground(dark: dark),
+                ProviderStyle.recessedWell(dark: dark),
                 in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             )
     }

@@ -193,7 +193,7 @@ struct InAppDisplayTile: View {
                     .frame(maxWidth: .infinity)
                     .frame(height: 36)
                     .background(
-                        ClaudeSetupStyle.wellBackground(dark: colorScheme == .dark),
+                        ProviderStyle.recessedWell(dark: colorScheme == .dark),
                         in: RoundedRectangle(cornerRadius: 6, style: .continuous)
                     )
 

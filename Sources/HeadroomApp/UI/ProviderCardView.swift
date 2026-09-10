@@ -113,7 +113,8 @@ struct ProviderCardView: View {
         Group {
             if let presentation = capabilityRecoveryPresentation(
                    state: capabilityStatus?.state,
-                   hasActiveSetupSession: hasActiveSetupSession
+                   hasActiveSetupSession: hasActiveSetupSession,
+                   hasRetainedReading: entries.contains { !$0.snapshot.windows.isEmpty }
                ) {
                 capabilityBody(presentation)
             } else if isMultiAccount {

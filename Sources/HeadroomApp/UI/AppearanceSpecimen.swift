@@ -157,14 +157,3 @@ struct AppearanceSpecimen: View {
         .frame(width: PopoverCardMetrics.cardWidth, alignment: .leading)
     }
 }
-
-/// R2C20: the popover geometry the Appearance specimen has to match. Mirrors
-/// `PopoverView.swift`'s shell (`.padding(19)` inside `.frame(width: 384)`) and derives the
-/// card width rather than restating 346, so a change to either number here is one edit and
-/// not a silent 1.46× preview. Ideally these live on `PopoverView` itself and this reads
-/// them; that file belongs to another workstream this round.
-enum PopoverCardMetrics {
-    static let shellWidth: CGFloat = 384
-    static let shellMargin: CGFloat = 19
-    static let cardWidth: CGFloat = shellWidth - 2 * shellMargin
-}

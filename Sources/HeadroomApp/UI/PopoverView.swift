@@ -177,8 +177,8 @@ struct PopoverView: View {
             // the popover is opened dozens of times a day and any fade reads as latency.
             // 19pt inset / 20pt tile gap / 384pt overall — tuned in the onboarding HTML
             // mockup (Jul 2026); roomier than the original concentric 12pt scheme.
-            .padding(19)
-            .frame(width: 384)
+            .padding(PopoverCardMetrics.shellMargin)
+            .frame(width: PopoverCardMetrics.shellWidth)
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.
             .modifier(PopoverSurfaceModifier(cornerRadius: 22, forceSolid: forceSolidSurface))
@@ -709,6 +709,15 @@ enum PopoverHeaderStatusResolver {
     }
 }
 
+/// The popover shell: 19pt inset / 384pt overall, tuned in the onboarding HTML mockup
+/// (Jul 2026). R2C20: the Appearance specimen derives its card width from these so a
+/// preview can never draw a card the popover doesn't.
+enum PopoverCardMetrics {
+    static let shellWidth: CGFloat = 384
+    static let shellMargin: CGFloat = 19
+    static let cardWidth: CGFloat = shellWidth - 2 * shellMargin
+}
+
 /// L2A geometry. The gutter offset is measured from the scroll viewport's trailing edge,
 /// which coincides with the cards' right edge 19pt inside the shell: pushing the 3pt
 /// capsule out by 12.5pt lands its centre 8pt from the shell edge.
@@ -716,7 +725,7 @@ private enum PopoverScrollIndicatorMetrics {
     static let width: CGFloat = 3
     static let minimumLength: CGFloat = 24
     static let endInset: CGFloat = 6
-    static let shellMargin: CGFloat = 19
+    static let shellMargin: CGFloat = PopoverCardMetrics.shellMargin
     static let centreFromShellEdge: CGFloat = 8
     static let gutterOffset: CGFloat = shellMargin - centreFromShellEdge + width / 2
 }

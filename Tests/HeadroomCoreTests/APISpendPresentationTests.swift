@@ -94,26 +94,6 @@ struct APISpendPresentationTests {
         #expect(APISpendPresentation.amountText(spend) == "$58.90")
     }
 
-    @Test func statusTextUsesFreshness() {
-        #expect(APISpendPresentation.statusText(freshness: WidgetProviderFreshness.pending, capturedAt: nil, now: now) == "Waiting for cost data")
-        #expect(APISpendPresentation.statusText(freshness: WidgetProviderFreshness.live, capturedAt: now.addingTimeInterval(-60), now: now) == "Updated 1 min ago")
-        #expect(APISpendPresentation.statusText(
-            freshness: WidgetProviderFreshness.stale(message: "Add API key", needsAttention: true),
-            capturedAt: now,
-            now: now
-        ) == "Set up on Mac")
-        #expect(APISpendPresentation.statusText(
-            freshness: WidgetProviderFreshness.stale(message: "Temporary issue", needsAttention: false),
-            capturedAt: now.addingTimeInterval(-120),
-            now: now
-        ) == "Updated 2 min ago")
-        #expect(APISpendPresentation.statusText(
-            freshness: WidgetProviderFreshness.stale(message: "Temporary issue", needsAttention: false),
-            capturedAt: nil,
-            now: now
-        ) == "Not updated")
-    }
-
     @Test func companionStatusMatchesCurrentMacRows() {
         #expect(APISpendPresentation.companionStatusText(freshness: .pending) == "Waiting for cost data")
         #expect(APISpendPresentation.companionStatusText(freshness: .live) == nil)
@@ -165,6 +145,55 @@ struct APISpendPresentationTests {
                 displayName: displayName
             ).message == message)
         }
+    }
+
+    /// R2C8: a prepaid row's figure is money remaining, so the ask names a balance. xAI's
+    /// row said "to see xAI spend" beside a chip reading "Remaining balance".
+    @Test func missingKeyNamesTheFigureTheKeyWouldUnlock() {
+        let reason = FailureReason.notLoggedIn("Add a key in Settings")
+
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(reason),
+            providerID: .grok,
+            displayName: "xAI API",
+            kind: .balance
+        ).message == "Add a management key to see xAI balance")
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(reason),
+            providerID: .claude,
+            displayName: "Anthropic API",
+            kind: .periodSpend
+        ).message == "Add an admin key to see Anthropic spend")
+        // The wire-format overload takes the same branch.
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Add a key in Settings", needsAttention: true),
+            attention: .missingKey,
+            providerID: .grok,
+            displayName: "xAI API",
+            kind: .balance
+        ).message == "Add a management key to see xAI balance")
+        // Period spend stays the default, so a caller that ships no kind is unchanged.
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(reason),
+            providerID: .codex,
+            displayName: "OpenAI API"
+        ).message == "Add an admin key to see OpenAI spend")
+    }
+
+    /// Only the Mac can fix a key, so the companion/widget hint says where.
+    @Test func widgetRowStatusNamesTheMacOnlyFix() {
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Anthropic admin key rejected", needsAttention: true),
+            attention: .keyRejected
+        ).remoteHint == "Replace key on Mac")
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Anthropic key lacks cost report access", needsAttention: true),
+            attention: .keyLacksAccess
+        ).remoteHint == "Replace key on Mac")
+        #expect(APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Add API key", needsAttention: true),
+            attention: .missingKey
+        ).remoteHint == "Set up on Mac")
     }
 
     /// A spend provider we haven't declared a credential for reads plainly rather than
@@ -512,20 +541,5 @@ struct APISpendPresentationTests {
         #expect(APISpendPresentation.rowStatus(
             freshness: WidgetProviderFreshness.stale(message: "Add API key", needsAttention: true)
         ).message == "Add API key")
-    }
-
-    @Test func widgetStatusTextNamesTheMacOnlyFix() {
-        #expect(APISpendPresentation.statusText(
-            freshness: .stale(message: "Anthropic admin key rejected", needsAttention: true),
-            attention: .keyRejected,
-            capturedAt: now,
-            now: now
-        ) == "Replace key on Mac")
-        #expect(APISpendPresentation.statusText(
-            freshness: .stale(message: "Anthropic key lacks cost report access", needsAttention: true),
-            attention: .keyLacksAccess,
-            capturedAt: now,
-            now: now
-        ) == "Replace key on Mac")
     }
 }

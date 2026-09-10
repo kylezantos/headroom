@@ -144,6 +144,10 @@ enum StatusSentenceSeverity {
     case critical
     /// A handoff is running. Not a severity at all — the row is mid-flight.
     case progress
+    /// Informational and nobody's fault: retryable staleness the next poll may clear.
+    case neutral
+    /// Below informational — a first-run line with nothing to report yet.
+    case quiet
 
     /// R2C5: `.attention` used to paint with the meter's Low amber, so an amber 38% Weekly bar
     /// could sit two rows above an amber "Sign in with the official Claude CLI" with no
@@ -151,11 +155,18 @@ enum StatusSentenceSeverity {
     /// severity ramp onto the neutral label ink; the sentence is already 11.5 medium against
     /// 11 regular metadata, so weight and position carry it. `.critical` keeps the red,
     /// because a provider refusal genuinely is an error and is the card's only red.
-    func ink(scheme: ColorScheme) -> Color {
+    ///
+    /// `AnyShapeStyle` rather than `Color` because `.neutral`/`.quiet` are the *hierarchical*
+    /// inks the spend card was already painting with, and flattening them to `Color.secondary`
+    /// / a tertiary literal would shift those two rows. `.progress` keeps `Color.secondary`
+    /// for the same reason in reverse — that is the ink it has always drawn.
+    func ink(scheme: ColorScheme) -> AnyShapeStyle {
         switch self {
-        case .attention: ProviderStyle.meterLabelInk(scheme: scheme)
-        case .critical: ProviderStyle.criticalText(scheme: scheme)
-        case .progress: Color.secondary
+        case .attention: AnyShapeStyle(ProviderStyle.meterLabelInk(scheme: scheme))
+        case .critical: AnyShapeStyle(ProviderStyle.criticalText(scheme: scheme))
+        case .progress: AnyShapeStyle(Color.secondary)
+        case .neutral: AnyShapeStyle(.secondary)
+        case .quiet: AnyShapeStyle(.tertiary)
         }
     }
 
@@ -168,6 +179,19 @@ enum StatusSentenceSeverity {
             .critical
         default:
             .attention
+        }
+    }
+
+    /// P4C: the API-spend card's four tones land on this same table, so its sentence is the
+    /// account rows' `StatusSentence` rather than a second copy of the recipe. `.warning`
+    /// is `.attention` by construction — R2C5 already took both off the severity ramp onto
+    /// `meterLabelInk`.
+    static func forSpendTone(_ tone: APISpendRowStatus.Tone) -> StatusSentenceSeverity {
+        switch tone {
+        case .quiet: .quiet
+        case .neutral: .neutral
+        case .warning: .attention
+        case .critical: .critical
         }
     }
 }

@@ -999,21 +999,20 @@ private struct CommandRecoveryRow: View {
                 .truncationMode(.middle)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .textSelection(.enabled)
-            Button(action: copy) {
-                Image(systemName: "doc.on.doc")
-                    .frame(width: 22, height: 22)
-            }
-            .buttonStyle(HoverButtonStyle(horizontalPadding: 4, verticalPadding: 4))
-            .foregroundStyle(.secondary)
-            .help("Copy command")
-            .accessibilityLabel("Copy command")
+            // R2M9: the third of the app's copy buttons, on the same shared confirmation.
+            CopyFeedbackButton(
+                copy: copy,
+                label: "Copy command",
+                horizontalPadding: 4,
+                verticalPadding: 4
+            )
         }
         .padding(.horizontal, 9).padding(.vertical, 6)
         .background(ClaudeSetupStyle.codeBackground(dark: scheme == .dark), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 
-    private func copy() {
+    private func copy() -> Bool {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command, forType: .string)
+        return NSPasteboard.general.setString(command, forType: .string)
     }
 }

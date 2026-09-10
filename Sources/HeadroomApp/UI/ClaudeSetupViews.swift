@@ -2,8 +2,8 @@ import SwiftUI
 import AppKit
 import HeadroomCore
 
-/// First-run Claude connection flow (onboarding redesign, Jul 2026): the trust-required
-/// failure renders as a calm, guided "Connect Claude" card — value proposition, one
+/// First-run Claude sign-in flow (onboarding redesign, Jul 2026): the trust-required
+/// failure renders as a calm, guided "Sign in to Claude" card — value proposition, one
 /// primary action, three numbered steps — instead of an amber error. After the user
 /// opens setup it becomes a "Waiting for approval…" card, so the existing silent
 /// auto-retries (12/35/75s) have visible feedback. Values were tuned in the HTML
@@ -280,7 +280,27 @@ enum ClaudeSetupStyle {
     }
 }
 
-/// State 1 — "Connect Claude": value first, one primary action, guided steps, and the
+/// R2B2: the two guided setup cards ran a five-value top-padding ladder (6/11/12/14/13) and
+/// a five-value body band (12.5/11.5/12/11/10.5). Five gaps inside a 7pt spread say nothing
+/// about which boundaries are group breaks, so the stack read as one undifferentiated list.
+/// The ladder is two values — 12 between siblings, 20 before the steps block, which is the
+/// card's one real section break — and the band is two: 12.5 for the lead and the steps that
+/// answer it, 11 for the tertiary notes.
+enum SetupCardMetrics {
+    /// Title → its own subtitle; the tightest bind in the card, unchanged.
+    static let leadGap: CGFloat = 6
+    static let siblingGap: CGFloat = 12
+    static let sectionGap: CGFloat = 20
+
+    static let bodySize: CGFloat = 12.5
+    static let noteSize: CGFloat = 11
+
+    /// R2B2: one kerning for the 15/semibold card titles. The app carried −0.15 and −0.2 at
+    /// the same size and weight, which is a difference nobody chose.
+    static let titleKerning: CGFloat = -0.2
+}
+
+/// State 1 — the first-run card: value first, one primary action, guided steps, and the
 /// raw command demoted behind a disclosure.
 struct ClaudeConnectCard: View {
     var outcome: ProviderSetupOutcome = .claudeTrustRequired
@@ -293,39 +313,44 @@ struct ClaudeConnectCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .claude, size: 20)
-                Text(outcome == .claudeLoginRequired ? "Sign in to Claude" : "Connect Claude")
+                // R2C6: one title in both branches. The card used to say "Sign in to Claude"
+                // for a login and "Connect Claude" for a workspace approval — two verbs for
+                // the same guided handoff, in the same card, on the same run.
+                Text(ProviderSignInCopy.cardTitle(for: .claude))
                     .font(.system(size: 15, weight: .semibold))
-                    .kerning(-0.2)
+                    .kerning(SetupCardMetrics.titleKerning)
             }
             Text(outcome == .claudeLoginRequired
                  ? "Sign in with the Claude CLI to show this account’s usage."
                  : "See your remaining Claude usage right here.")
-                .font(.system(size: 12.5))
+                .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 // W2A: the only body copy in this card that was missing the wrap allowance.
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
+                .padding(.top, SetupCardMetrics.leadGap)
             reassurance
-                .padding(.top, 11)
+                .padding(.top, SetupCardMetrics.siblingGap)
             Button(action: onOpenSetup) {
                 Label(outcome.recoveryPresentation.primaryLabel, systemImage: "terminal")
             }
             .buttonStyle(ClaudePrimaryButtonStyle())
-            .padding(.top, 12)
+            .padding(.top, SetupCardMetrics.siblingGap)
             steps(dark: dark)
-                .padding(.top, 14)
+                .padding(.top, SetupCardMetrics.sectionGap)
             ClaudeManualCommandDisclosure()
-                .padding(.top, 13)
+                .padding(.top, SetupCardMetrics.siblingGap)
         }
     }
 
     /// "official /usage · no login · never spends usage" — the trust line that makes a
     /// first-run user comfortable pressing the button.
     private var reassurance: some View {
+        // R2B2: the tertiary note tier. The inline command run stays 0.5pt under the prose
+        // around it — monospace at a matched point size reads a size larger.
         Text("Reads Claude’s official \(Text("/usage").font(.system(size: 10.5, design: .monospaced))) panel through its CLI. Headroom never receives your password or tokens, and the check never spends usage.")
-            .font(.system(size: 11.5))
+            .font(.system(size: SetupCardMetrics.noteSize))
             .foregroundStyle(.tertiary)
             // PB11: the longest prose in the popover — three lines at 293pt — and the line
             // the audit measured at 1.22 leading against Settings' 1.4.
@@ -337,7 +362,7 @@ struct ClaudeConnectCard: View {
         VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
                 Text("Takes about 20 seconds")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: SetupCardMetrics.noteSize, weight: .semibold))
                     .foregroundStyle(.tertiary)
                     .layoutPriority(1)
                 Rectangle()
@@ -356,13 +381,14 @@ struct ClaudeConnectCard: View {
     private func step(_ number: Int, _ text: Text, dark: Bool) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Text("\(number)")
-                .font(.system(size: 10.5, weight: .bold).monospacedDigit())
+                .font(.system(size: SetupCardMetrics.noteSize, weight: .bold).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 18, height: 18)
                 .background(ClaudeSetupStyle.stepBackground(dark: dark), in: Circle())
                 .overlay(Circle().strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
+            // R2B2: the steps answer the lead, so they read at the lead's size.
             text
-                .font(.system(size: 12))
+                .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
@@ -390,31 +416,31 @@ struct ClaudeWaitingCard: View {
                     .controlSize(.small)
                 Text(outcome == .claudeLoginRequired ? "Waiting for sign-in…" : "Waiting for approval…")
                     .font(.system(size: 15, weight: .semibold))
-                    .kerning(-0.2)
+                    .kerning(SetupCardMetrics.titleKerning)
             }
             // W2A: the trust variant was three lines ending on the single word "approve."
             Text(outcome == .claudeLoginRequired
                  ? "Finish signing in in the Terminal that just opened. Headroom checks this account automatically."
                  : "Choose the option below in Terminal. Headroom connects as soon as you approve.")
-                .font(.system(size: 12.5))
+                .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
+                .padding(.top, SetupCardMetrics.leadGap)
             if outcome == .claudeTrustRequired {
                 HStack(spacing: 7) {
                     Image(systemName: "checkmark")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(.tertiary)
                     Text("“Yes, I trust this folder”")
-                        .font(.system(size: 12.5, weight: .semibold))
+                        .font(.system(size: SetupCardMetrics.bodySize, weight: .semibold))
                 }
                 .padding(.vertical, 6)
                 .padding(.leading, 9).padding(.trailing, 11)
                 .background(ClaudeSetupStyle.stepBackground(dark: dark), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
-                .padding(.top, 11)
+                .padding(.top, SetupCardMetrics.siblingGap)
             }
             // B3A/P4C/B3: "Reopen Terminal" was a bare accent label standing next to a filled
             // chip. Both are thin chips now, leading-aligned at the card's foot with
@@ -429,7 +455,7 @@ struct ClaudeWaitingCard: View {
                     .buttonStyle(SetupChipButtonStyle(size: .small))
             }
             ClaudeManualCommandDisclosure()
-                .padding(.top, 13)
+                .padding(.top, SetupCardMetrics.siblingGap)
         }
     }
 }
@@ -461,20 +487,29 @@ struct ClaudeManualCommandDisclosure: View {
 
     private func disclosure(for command: String) -> some View {
         let dark = scheme == .dark
+        // R2M7/S2A: one toggle, two kinds of motion, so it needs two resolved scopes rather
+        // than the `reduceMotion ? nil : token` this used to carry — `nil` kills the fade as
+        // well as the travel, and S2A says a crossfade keeps its timing under Reduce Motion.
+        // The revealed well is the crossfade; the chevron's rotation is movement and takes
+        // its own scope below so it snaps.
+        let crossfade = HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
+        let movement = HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion)
         return VStack(alignment: .leading, spacing: 9) {
             Button {
-                withAnimation(reduceMotion ? nil : HeadroomMotion.settle) { open.toggle() }
+                open.toggle()
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(open ? 90 : 0))
+                        .animation(movement, value: open)
                     Text("Rather run it yourself?")
                         .font(.system(size: 11.5, weight: .medium))
                 }
                 .foregroundStyle(.tertiary)
             }
             .buttonStyle(HoverButtonStyle(horizontalPadding: 5, verticalPadding: 3))
+            .accessibilityLabel(open ? "Hide manual Claude login command" : "Show manual Claude login command")
             if open {
                 HStack(alignment: .top, spacing: 8) {
                     Text(ClaudeSetupSession.displayForm(of: command))
@@ -483,22 +518,17 @@ struct ClaudeManualCommandDisclosure: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
-                    Button {
-                        ClaudeSetupSession.copy(command, for: account)
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
-                    .foregroundStyle(.secondary)
-                    .help("Copy command")
-                    .accessibilityLabel("Copy command")
+                    CopyFeedbackButton(
+                        copy: { ClaudeSetupSession.copy(command, for: account) },
+                        label: "Copy command"
+                    )
                 }
                 .padding(.horizontal, 9).padding(.vertical, 8)
                 .background(ClaudeSetupStyle.codeBackground(dark: dark), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .transition(.opacity)
             }
         }
+        .animation(crossfade, value: open)
     }
 }
 

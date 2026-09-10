@@ -910,7 +910,7 @@ struct AccountsSettingsInteractionTests {
                 snapshot: .stale(for: .grok, reason: .providerSetup(.grokAuthAbsent)),
                 account: account
             )
-            #expect(actions?.primaryLabel == "Connect Grok")
+            #expect(actions?.primaryLabel == ProviderSignInCopy.button)
             #expect(actions?.secondaryLabel == "Use Device Code")
             #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for \(account.label)")
             #expect(actions?.secondaryAction == .connectGrokDeviceCode)
@@ -1469,13 +1469,13 @@ private final class GrokDeviceCodeSetupHarness {
         #expect(dedupe.announcement(
             for: .claude,
             state: .confirmedAbsent
-        ) == "Claude Code availability. Install Claude Code to show usage")
+        ) == "Claude Code availability. Headroom can’t find the Claude Code CLI on this Mac")
         #expect(dedupe.announcement(for: .claude, state: .confirmedAbsent) == nil)
         #expect(dedupe.announcement(for: .claude, state: .available) == nil)
         #expect(dedupe.announcement(
             for: .claude,
             state: .inconclusive(.shellTimeout)
-        ) == "Claude Code availability. Couldn’t confirm where Claude Code is — will retry")
+        ) == "Claude Code availability. Couldn’t confirm where Claude Code is\u{00A0}—\u{00A0}will retry")
         #expect(dedupe.announcement(for: .claude, state: .inconclusive(.shellTimeout)) == nil)
     }
 }

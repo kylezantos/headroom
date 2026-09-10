@@ -13,6 +13,7 @@
 		032216F6B5B8BCFA1E29DA2E /* PlanLabelPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */; };
 		03791D53F1365C381DB88FE4 /* ClaudeUsageWorkspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = C90C09F55109393B2A7C0AC1 /* ClaudeUsageWorkspace.swift */; };
 		04F8A1034625A64E10FE2179 /* Elevation.swift in Sources */ = {isa = PBXBuildFile; fileRef = F550600E287E34F7124E73AA /* Elevation.swift */; };
+		05084A1F94C75B3721E938C1 /* CopyFeedbackButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */; };
 		06769F1846A5C3F03083EFBE /* HeadroomIOSWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE287C9A19A4E94BB93E88F /* HeadroomIOSWidgets.swift */; };
 		079F32150EB353B7459F9A1E /* VesselMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0627C951970F44087A8EE593 /* VesselMark.swift */; };
 		07FEC9311797B972C4DBC492 /* GrokDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2DD5C8BCCC8BADC9508D07 /* GrokDTOs.swift */; };
@@ -309,6 +310,7 @@
 		0A96F8FE3BA28A1820259476 /* HeadroomIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HeadroomIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B1C4C6BA491BBBFD084C67C /* HeadroomWidgetEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetEntry.swift; sourceTree = "<group>"; };
 		0CE3E0A64B321BCD7FDD13A6 /* UsageContinuityCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageContinuityCache.swift; sourceTree = "<group>"; };
+		0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyFeedbackButton.swift; sourceTree = "<group>"; };
 		0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderLogoView.swift; sourceTree = "<group>"; };
 		12CF08DF6A70B0CE97F1C590 /* ClaudeUsageCLIProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageCLIProbe.swift; sourceTree = "<group>"; };
 		130BB6361A694CF7B316C2EA /* SettingsPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanes.swift; sourceTree = "<group>"; };
@@ -709,6 +711,7 @@
 				38D1ABBFC7400DB7B365ADAF /* AppearanceSpecimen.swift */,
 				28FECE6C7A3D1E55E26A7C55 /* ClaudeSetupViews.swift */,
 				8884B8D5664E9FA9DC416556 /* CodexSetupViews.swift */,
+				0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */,
 				6BECE3EB6F9311F47B82E8D1 /* HeadroomMotion.swift */,
 				1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */,
 				33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */,
@@ -1300,6 +1303,7 @@
 				6B344BCC0AF722731067E9B1 /* AppearanceSpecimen.swift in Sources */,
 				66CAF608E41C4A15D88CCF2E /* ClaudeSetupViews.swift in Sources */,
 				66BA4AA745FB0E91177156D3 /* CodexSetupViews.swift in Sources */,
+				05084A1F94C75B3721E938C1 /* CopyFeedbackButton.swift in Sources */,
 				E34A369D991B59A298AFC73A /* HeadroomApp.swift in Sources */,
 				7418A0A724FCE0A54421AC9A /* HeadroomMotion.swift in Sources */,
 				D4ACD733FFC836F06D43FDC1 /* HeadroomWidgetFamilyViews.swift in Sources */,

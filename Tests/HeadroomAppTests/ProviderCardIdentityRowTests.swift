@@ -35,7 +35,8 @@ struct PresentedSetupOutcomeTests {
         #expect(outcome?.message == ProviderSetupOutcome.claudeLoginRequired.message)
         #expect(outcome?.message != UsageStore.finishSignInMessage)
         let recovery = outcome?.recoveryPresentation
-        #expect(recovery?.primaryLabel == "Open Claude Setup")
+        // R2C6: one verb — a first sign-in is "Sign In" on every provider and surface.
+        #expect(recovery?.primaryLabel == ProviderSignInCopy.button)
         #expect(recovery?.secondaryLabel == "Check Now")
     }
 

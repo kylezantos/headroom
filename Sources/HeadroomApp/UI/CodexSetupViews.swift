@@ -33,12 +33,17 @@ enum CodexSetupSession {
         CodexCLI.accountLoginCommand(codexHome: codexHome(for: account))
     }
 
-    static func copyCommand(for account: ProviderAccount = .builtIn(for: .codex)) {
+    /// R2M9: reports whether the write landed, so the copy button only confirms a copy that
+    /// actually happened. The Terminal-handoff fallbacks below still ignore the result —
+    /// there is nothing better to offer them if the pasteboard refuses.
+    @discardableResult
+    static func copyCommand(for account: ProviderAccount = .builtIn(for: .codex)) -> Bool {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(loginCommand(for: account), forType: .string)
+        return NSPasteboard.general.setString(loginCommand(for: account), forType: .string)
     }
 
-    static func copyCommand() { copyCommand(for: .builtIn(for: .codex)) }
+    @discardableResult
+    static func copyCommand() -> Bool { copyCommand(for: .builtIn(for: .codex)) }
 
     static func openSetup(for account: ProviderAccount = .builtIn(for: .codex), onRetry: @escaping () -> Void) {
         guard openingTasks[account.id] == nil else { return }
@@ -124,36 +129,39 @@ struct CodexConnectCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .codex, size: 20)
-                Text(reconnecting ? "Reconnect Codex" : "Connect Codex")
+                // R2C6: one verb. "Connect Codex" / "Reconnect Codex" named the same act
+                // the Claude card next to it called signing in.
+                Text(ProviderSignInCopy.cardTitle(for: .codex, again: reconnecting))
                     .font(.system(size: 15, weight: .semibold))
-                    .kerning(-0.2)
+                    .kerning(SetupCardMetrics.titleKerning)
                     .foregroundStyle(ProviderStyle.textAccent(for: .codex, scheme: scheme))
             }
             Text(reconnecting
                  ? "Your Codex session needs a quick sign-in before usage can refresh."
                  : "See your remaining Codex usage right here.")
-                .font(.system(size: 12.5))
+                .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
+                .padding(.top, SetupCardMetrics.leadGap)
+            // R2B2: the tertiary note tier, matching the Claude card's reassurance line.
             Text("Sign-in stays in the official Codex CLI and browser. Headroom never sees your password.")
-                .font(.system(size: 11.5))
+                .font(.system(size: SetupCardMetrics.noteSize))
                 .foregroundStyle(.tertiary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 11)
+                .padding(.top, SetupCardMetrics.siblingGap)
             Button(action: onOpenSetup) {
                 Label(
                     presentation?.primaryLabel
-                        ?? (reconnecting ? "Open Codex Login" : "Connect with Codex"),
+                        ?? (reconnecting ? ProviderSignInCopy.buttonAgain : ProviderSignInCopy.button),
                     systemImage: "terminal"
                 )
             }
             .buttonStyle(CodexPrimaryButtonStyle())
-            .padding(.top, 12)
+            .padding(.top, SetupCardMetrics.siblingGap)
             if let secondaryLabel = presentation?.secondaryLabel,
                let onSecondaryAction {
                 // B3A/P4C/B3: "Use Device Code" was a bare indigo label hanging under the
@@ -167,9 +175,9 @@ struct CodexConnectCard: View {
                 }
             }
             steps
-                .padding(.top, 14)
+                .padding(.top, SetupCardMetrics.sectionGap)
             CodexManualCommandDisclosure()
-                .padding(.top, 13)
+                .padding(.top, SetupCardMetrics.siblingGap)
         }
     }
 
@@ -178,7 +186,7 @@ struct CodexConnectCard: View {
         return VStack(alignment: .leading, spacing: 9) {
             HStack(spacing: 6) {
                 Text("A minute or less")
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: SetupCardMetrics.noteSize, weight: .semibold))
                     .foregroundStyle(.tertiary)
                 Rectangle()
                     .fill(ClaudeSetupStyle.hairline(dark: dark))
@@ -193,13 +201,14 @@ struct CodexConnectCard: View {
     private func step(_ number: Int, _ text: String, dark: Bool) -> some View {
         HStack(alignment: .top, spacing: 9) {
             Text("\(number)")
-                .font(.system(size: 10.5, weight: .bold).monospacedDigit())
+                .font(.system(size: SetupCardMetrics.noteSize, weight: .bold).monospacedDigit())
                 .foregroundStyle(.secondary)
                 .frame(width: 18, height: 18)
                 .background(ClaudeSetupStyle.stepBackground(dark: dark), in: Circle())
                 .overlay(Circle().strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
+            // R2B2: the steps answer the lead, so they read at the lead's size.
             Text(text)
-                .font(.system(size: 12))
+                .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
@@ -272,27 +281,27 @@ struct CodexWaitingCard: View {
                 ProgressView().controlSize(.small)
                 Text(mode == .deviceCode ? "Finish device-code sign-in…" : "Finish signing in…")
                     .font(.system(size: 15, weight: .semibold))
-                    .kerning(-0.2)
+                    .kerning(SetupCardMetrics.titleKerning)
                     .foregroundStyle(ProviderStyle.textAccent(for: .codex, scheme: scheme))
             }
             Text(mode == .deviceCode
                  ? "Follow the device-code instructions in Terminal. Headroom will reconnect when Codex confirms it."
                  : "Complete the ChatGPT sign-in in your browser. Headroom will reconnect when Codex confirms it.")
-                .font(.system(size: 12.5))
+                .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 6)
+                .padding(.top, SetupCardMetrics.leadGap)
             Label(mode == .deviceCode
                   ? "Official Codex CLI · device code · file-backed sign-in"
                   : "Official Codex CLI · file-backed sign-in", systemImage: "lock.shield")
-                .font(.system(size: 11.5, weight: .medium))
+                .font(.system(size: SetupCardMetrics.noteSize, weight: .medium))
                 .padding(.vertical, 6)
                 .padding(.horizontal, 9)
                 .background(ClaudeSetupStyle.stepBackground(dark: dark), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
-                .padding(.top, 11)
+                .padding(.top, SetupCardMetrics.siblingGap)
             // B3A/P4C/B3: same as the Claude waiting card — two thin chips, leading-aligned
             // at the card's foot, with "Check Now" first and no icon inside either one.
             // B3X: same as the Claude waiting card — the guided card's own leading edge.
@@ -303,7 +312,7 @@ struct CodexWaitingCard: View {
                     .buttonStyle(SetupChipButtonStyle(size: .small))
             }
             CodexManualCommandDisclosure()
-                .padding(.top, 13)
+                .padding(.top, SetupCardMetrics.siblingGap)
         }
     }
 }
@@ -315,14 +324,20 @@ struct CodexManualCommandDisclosure: View {
 
     var body: some View {
         let dark = scheme == .dark
+        // R2M7/S2A: see `ClaudeManualCommandDisclosure` — the revealed well is a crossfade
+        // and keeps its timing under Reduce Motion; the chevron's rotation is movement and
+        // snaps. `reduceMotion ? nil : token` silenced both, so the disclosure blinked.
+        let crossfade = HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
+        let movement = HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion)
         VStack(alignment: .leading, spacing: 9) {
             Button {
-                withAnimation(reduceMotion ? nil : HeadroomMotion.settle) { open.toggle() }
+                open.toggle()
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .rotationEffect(.degrees(open ? 90 : 0))
+                        .animation(movement, value: open)
                     Text("Rather run it yourself?")
                         .font(.system(size: 11.5, weight: .medium))
                 }
@@ -337,25 +352,17 @@ struct CodexManualCommandDisclosure: View {
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .textSelection(.enabled)
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(
-                            CodexCLI.accountLoginCommand(codexHome: nil),
-                            forType: .string
-                        )
-                    } label: {
-                        Image(systemName: "doc.on.doc").frame(width: 22, height: 22)
-                    }
-                    .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
-                    .foregroundStyle(.secondary)
-                    .help("Copy Codex login command")
-                    .accessibilityLabel("Copy Codex login command")
+                    CopyFeedbackButton(
+                        copy: { CodexSetupSession.copyCommand() },
+                        label: "Copy Codex login command"
+                    )
                 }
                 .padding(.horizontal, 9).padding(.vertical, 8)
                 .background(ClaudeSetupStyle.codeBackground(dark: dark), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 .transition(.opacity)
             }
         }
+        .animation(crossfade, value: open)
     }
 }
 

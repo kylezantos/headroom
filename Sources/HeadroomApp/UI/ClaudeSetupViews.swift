@@ -659,13 +659,31 @@ struct SetupChipButtonStyle: ButtonStyle {
                 .padding(.horizontal, size.horizontalPadding)
                 .padding(.vertical, size.verticalPadding)
                 .background {
+                    // CMM1 → CMM3 (Kyle, 2026-09-09): "a bit too bright now … more
+                    // restrained in a James McDonald way." Four quiet layers instead of one
+                    // loud rim: a low-alpha fill, a 1pt *inset* highlight along the top edge
+                    // (the light catching the lip), a faint ring for the edge, and a 1pt
+                    // shadow underneath so the chip sits *on* the card rather than being
+                    // outlined on it. Each layer is near-invisible alone; together they read
+                    // as a physical control.
                     shape
                         .fill(fillColor)
-                        // CMM1: the rim is lit from above — a bright top hairline fading to
-                        // almost nothing at the bottom — instead of one uniform stroke. That
-                        // gradient is what makes the reference read as a raised control on a
-                        // dark surface (the same lighting `RaisedTile` gives the cards).
-                        .overlay(shape.strokeBorder(rimGradient, lineWidth: 1))
+                        .overlay {
+                            shape
+                                .inset(by: 1)
+                                .strokeBorder(topHighlight, lineWidth: 1)
+                                // Fade the lip out down the sides rather than cutting it —
+                                // a hard mask leaves a ledge where the highlight stops.
+                                .mask {
+                                    LinearGradient(
+                                        colors: [.white, .clear],
+                                        startPoint: .top,
+                                        endPoint: .init(x: 0.5, y: 0.55)
+                                    )
+                                }
+                        }
+                        .overlay(shape.strokeBorder(ringColor, lineWidth: 1))
+                        .shadow(color: shadowColor, radius: 0.5, y: 1)
                 }
                 // S2A: the fill is a colour change and survives Reduce Motion; the press scale
                 // below is the only movement here, so it resolves separately.
@@ -703,26 +721,25 @@ struct SetupChipButtonStyle: ButtonStyle {
                 : Color.black.opacity(Self.lightFillSteps[step])
         }
 
-        // CMM1: dark rests a step brighter (the reference fill measures ≈ white @ 0.145 over
-        // its shell against our old 0.10) so the container reads at rest without the rim.
-        private static let darkFillSteps: [Double] = [0.14, 0.18, 0.22]
-        private static let lightFillSteps: [Double] = [0.06, 0.10, 0.14]
+        // CMM3: quiet steps — rest barely lifts off the card; hover and press add one step
+        // each so the ladder still reads in motion.
+        private static let darkFillSteps: [Double] = [0.07, 0.11, 0.15]
+        private static let lightFillSteps: [Double] = [0.04, 0.07, 0.10]
 
-        /// CMM1: top-lit rim. Dark: white ≈ 0.42 at the top edge (the reference's ≈122 on a
-        /// 56 fill) falling to 0.06 at the bottom. Light mirrors it subtractively — a faint top
-        /// and a shadowed bottom edge — so the chip is raised in both schemes.
-        private var rimGradient: LinearGradient {
-            LinearGradient(
-                stops: dark
-                    ? [.init(color: Color.white.opacity(0.42), location: 0),
-                       .init(color: Color.white.opacity(0.28), location: 0.6),
-                       .init(color: Color.white.opacity(0.06), location: 1)]
-                    : [.init(color: Color.black.opacity(0.04), location: 0),
-                       .init(color: Color.black.opacity(0.10), location: 0.6),
-                       .init(color: Color.black.opacity(0.18), location: 1)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
+        /// CMM3: the inset top lip. Dark catches white light; light catches a whiter white
+        /// on the near-white tile, which is what makes a light chip look raised at all.
+        private var topHighlight: Color {
+            dark ? Color.white.opacity(0.12) : Color.white.opacity(0.70)
+        }
+
+        /// CMM3: the edge ring, a hair above the fill so the box still has a boundary.
+        private var ringColor: Color {
+            dark ? Color.white.opacity(0.08) : Color.black.opacity(0.09)
+        }
+
+        /// CMM3: one point of shadow, just enough to seat the chip.
+        private var shadowColor: Color {
+            dark ? Color.black.opacity(0.35) : Color.black.opacity(0.08)
         }
     }
 }

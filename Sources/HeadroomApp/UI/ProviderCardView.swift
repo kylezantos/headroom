@@ -862,10 +862,13 @@ struct StopWaitingButton: View {
 /// `labelInset`. At the default that is the 34pt content axis (13 card padding + 21) shared
 /// by the identity title, the status sentence and every meter label.
 ///
-/// PA11b brought the chip's container back at rest, so the box now overhangs the axis by its
-/// own 10pt at all times rather than only on hover. That is still the right trade — B3X's
-/// point was that the *label* is what has to agree with the sentence above it — and it is
-/// the same overhang the footer's chips carry against the shell margin.
+/// PA11b brought the chip's container back at rest, so the box overhung the axis by its own
+/// padding at all times rather than only on hover.
+///
+/// **CMM2 (Kyle, 2026-09-09) supersedes B3X's overhang:** "the edge should be left aligned
+/// with the account title." With a resting container on every chip the box *is* the thing the
+/// eye lines up, so the row now insets by `labelInset` itself and the chip's leading edge
+/// lands on the title's text axis; the trailing edge likewise stops on the meters' right edge.
 struct CardActionRow<Content: View>: View {
     /// Only for stacks whose own spacing already supplies part of R4A's 12pt gap.
     var topPadding: CGFloat = 12
@@ -887,18 +890,11 @@ struct CardActionRow<Content: View>: View {
             content
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Every popover chip is `.small`, so its horizontal padding is the constant to
-        // subtract; wrapped lines inherit it because `ActionChipFlow` starts each line at
-        // `bounds.minX`.
-        .padding(.leading, labelInset - SetupChipButtonStyle.Size.small.horizontalPadding)
-        // R2C11: the same subtraction on the trailing side, so it is the chip's *label* that
-        // agrees with the meter column's right edge — the mirror of what B3X did on the left.
-        .padding(
-            .trailing,
-            trailingInset > 0
-                ? trailingInset - SetupChipButtonStyle.Size.small.horizontalPadding
-                : 0
-        )
+        // CMM2: the chip *box* sits on the axis; wrapped lines inherit it because
+        // `ActionChipFlow` starts each line at `bounds.minX`.
+        .padding(.leading, labelInset)
+        // R2C11: the trailing bound is the meter column's right edge, box-to-edge as well.
+        .padding(.trailing, trailingInset)
         .padding(.top, topPadding)
     }
 }

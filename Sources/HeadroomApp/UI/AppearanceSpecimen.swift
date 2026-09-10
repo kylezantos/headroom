@@ -35,29 +35,6 @@ struct AppearanceSpecimen: View {
         )
     }
 
-    /// The menu bar's own summary shape, built from the same fixture window the strip
-    /// would show in production (weekly is the default preferred menu-bar window), so
-    /// flipping Percentages flips the strip's numeral the way it does in the bar.
-    private var menuBarMeters: [MenuBarMeter] {
-        let snapshot = DemoFixture.settingsSpecimenSnapshot
-        guard let weekly = snapshot.windows.first(where: { $0.kind == .weekly }) else {
-            return [MenuBarMeter(summary: .neutral, fill: nil)]
-        }
-        return [
-            MenuBarMeter(
-                summary: MenuBarSummary(
-                    text: "\(percentageMode.roundedPercentage(for: weekly))%",
-                    providerID: .claude,
-                    detail: "\(ProviderID.claude.displayName) \(WindowKind.weekly.shortLabel.lowercased())",
-                    isNeutral: false,
-                    percentageMode: percentageMode,
-                    severity: weekly.severity
-                ),
-                fill: percentageMode.fraction(for: weekly)
-            )
-        ]
-    }
-
     /// M5A: the specimen dissolves old recipe → new recipe instead of hard-cutting, the
     /// Menu Bar preview's `.id` + `.transition(.opacity)` pattern
     /// (`SettingsPanes.swift:209-217`). Its invisible-twin trick needs one change here:

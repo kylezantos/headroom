@@ -47,18 +47,6 @@ struct PopoverView: View {
     private static let titleFont = NSFont.systemFont(ofSize: 20, weight: .bold)
     private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
-    /// CMM11: the suffix terms this popover is about to print.
-    private var suffixTermsOnScreen: [String] {
-        var terms = [store.usagePercentageMode.term]
-        for id in store.apiSpendProviderOrder {
-            let snapshot = store.apiSpendSnapshot(for: id)
-            if snapshot.amount != nil {
-                terms.append(APISpendPresentation.directionTerm(kind: snapshot.kind))
-            }
-        }
-        return terms
-    }
-
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let accountsByVisibleProvider = store.providerOrder.reduce(
@@ -115,11 +103,6 @@ struct PopoverView: View {
                             // leaves the same way the provider cards above it do.
                             .transition(.settingsReveal)
                     }
-                    // CMM11: one suffix column for the whole popover, sized to the terms it
-                    // prints — "left"/"used" from the percentage mode plus whichever direction
-                    // the visible spend rows carry — so every row's suffix ends on the same
-                    // 34pt trailing axis that mirrors the left text axis.
-                    .environment(\.meterSuffixColumnWidth, MeterSuffixColumn.width(for: suffixTermsOnScreen))
                     // M7A: the popover had no reorder animation at all, so a Make Main
                     // promotion teleported its card to the top. The stack's own layout change
                     // rides this scope, and it is also what the measured `cardsHeight` below

@@ -127,5 +127,7 @@ appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
 
 | CMM10 | **Spend title = account title, verbatim** (size, kerning `−0.15`, `accountTitleInk`); the setup-card kerning had leaked in. The top-up glyph's hit frame is 22pt so its hover pill is whole; the hover area carries the standard `.help` tooltip ("Opens X billing to add API funds") so the reveal explains itself after the system delay. |
 
-| CMM11 | **Suffix column sized to the terms on screen.** Kyle: content rows are inset 34 on both sides, mark at 13 — the code already did that via the 21pt trailing gutter; the leak was the suffix column fixed to "used" while rows said "left". `PopoverView` injects `meterSuffixColumnWidth` from the percentage-mode term plus the visible spend rows' direction terms; other surfaces keep the widest-of-all default. |
+| CMM11 | ~~Suffix column sized to the terms on screen.~~ Superseded by CMM12 the same hour. Kyle: content rows are inset 34 on both sides, mark at 13 — the code already did that via the 21pt trailing gutter; the leak was the suffix column fixed to "used" while rows said "left". `PopoverView` injects `meterSuffixColumnWidth` from the percentage-mode term plus the visible spend rows' direction terms; other surfaces keep the widest-of-all default. |
+
+| CMM12 | **No suffix column at all.** Kyle: "why can't the meter rows just be evenly gapped from the left edge and the right edge." The suffix takes its natural width and the row is trailing-aligned, so every row's last glyph lands on the 34pt axis. Rows printing the same word share a numeral edge (all meter rows, via the one percentage mode); a "used" spend row beside "left" meters has its numerals 8pt left of theirs, which Kyle prefers over a ragged right edge. |
 \n

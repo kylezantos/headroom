@@ -28,12 +28,10 @@ private enum ArrivalRegistry {
     }
 }
 
-/// R2C8: the one suffix column every figure in the popover shares. A meter row prints
+/// R2C8: the one suffix recipe every figure in the popover shares. A meter row prints
 /// "used"/"left" after its percentage and a spend row prints "used"/"left" after its
-/// amount; both sit in a slot measured from the widest of the two terms, behind the same
-/// gap. Because the slot and the gap are identical, an amount in a "$0,000.00" column and a
-/// percentage in a "100%" column end their digits on the same x by construction, rather than
-/// by two independently tuned literals that drift apart.
+/// amount, at the same size behind the same gap. CMM12: the term takes its natural width
+/// and the row ends on the trailing axis; rows printing the same word share a numeral edge.
 ///
 /// R2B2: the slot is reserved even when there is no term to print — an `.unavailable` row
 /// that dropped its suffix used to pull its gauge and numeral ≈22.5pt right of the rows above
@@ -42,32 +40,6 @@ enum MeterSuffixColumn {
     static let size: CGFloat = 11
     /// The gap the numeral cluster already spent between figure and term.
     static let gap: CGFloat = 5
-    static let terms = ["used", "left"]
-
-    /// The widest of *every* term — the safe default for surfaces that don't know which
-    /// terms they will print (the Appearance specimen, the render harness).
-    static let width: CGFloat = width(for: terms)
-
-    /// CMM11 (Kyle, 2026-09-10): the column is only as wide as the widest term actually on
-    /// screen. Sized to "used" while every row said "left", the suffix stopped 8–10pt short
-    /// of the 34pt trailing axis and the right side read looser than the left.
-    static func width(for terms: [String]) -> CGFloat {
-        let font = NSFont.systemFont(ofSize: size)
-        let widths = terms.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
-        return ceil(widths.max() ?? 0)
-    }
-}
-
-/// CMM11: the popover sets this once from the terms it is about to print; rows read it.
-private struct MeterSuffixColumnWidthKey: EnvironmentKey {
-    static let defaultValue: CGFloat = MeterSuffixColumn.width
-}
-
-extension EnvironmentValues {
-    var meterSuffixColumnWidth: CGFloat {
-        get { self[MeterSuffixColumnWidthKey.self] }
-        set { self[MeterSuffixColumnWidthKey.self] = newValue }
-    }
 }
 
 /// The suffix itself.
@@ -79,7 +51,6 @@ struct MeterSuffixLabel: View {
     var isVisible: Bool = true
 
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.meterSuffixColumnWidth) private var columnWidth
 
     var body: some View {
         Text(term)
@@ -89,7 +60,13 @@ struct MeterSuffixLabel: View {
             // PA6: inert in Full's baseline row; in Micro it puts the term's cap centre on
             // the row's one optical axis.
             .capHeightCentered(size: MeterSuffixColumn.size, weight: .regular)
-            .frame(width: columnWidth, alignment: .leading)
+            // CMM12 (Kyle, 2026-09-10): natural width, no reserved column. The row is
+            // trailing-aligned, so its last glyph always lands on the 34pt axis — evenly
+            // gapped left and right — and rows that print the same word (every meter row in
+            // a popover, since the term comes from one percentage mode) still share a
+            // numeral edge. A fixed column sized to the widest word left "left" rows 8pt
+            // short of the axis whenever "used" was on screen.
+            .fixedSize()
             .accessibilityHidden(!isVisible)
     }
 }

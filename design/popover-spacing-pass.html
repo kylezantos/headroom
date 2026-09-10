@@ -44,7 +44,7 @@
     --s-account: 26;   /* account → account */
     --s-chips: 12;     /* sentence → chip row */
     --s-plan: 2;       /* title → plan label */
-    --chip-pad-v: 4; --chip-pad-h: 8; --chip-r: 6;
+    --chip-pad-v: 4; --chip-pad-h: 8; --chip-r: 6; --outdent: 0;
     --card-pad: 13;
     --plan-pill: 0;    /* 1 = pre-round filled pill */
     --chip-old: 0;     /* 1 = pre-round chrome + label alignment */
@@ -90,7 +90,7 @@
   .meter .gutter { width: 21px; }
   .meter.is-stale .num { color: var(--stale-numeral); } .meter.is-stale .gauge i.on { background: var(--stale-amber); }
   .sentence { font-size: 11.5px; font-weight: 500; color: var(--sentence); line-height: 14px; padding-left: 21px; }
-  .chips { display: flex; gap: 8px; padding-left: 21px; margin-top: calc(var(--s-chips) * 1px); }
+  .chips { display: flex; gap: 8px; padding-left: calc((21 - var(--outdent)) * 1px); margin-top: calc(var(--s-chips) * 1px); }
   .chip { font-size: 11.5px; font-weight: 600; color: var(--chip-text); line-height: 14px; padding: calc(var(--chip-pad-v) * 1px) calc(var(--chip-pad-h) * 1px); border-radius: calc(var(--chip-r) * 1px);
     background: var(--chip-fill); box-shadow: inset 0 0 0 1px var(--chip-ring), inset 0 1px 0 var(--chip-lip), 0 1px 0.5px var(--chip-shadow); }
   .pop[data-chipold="1"] .chips { padding-left: calc(21px - var(--chip-pad-h) * 1px); }
@@ -103,6 +103,9 @@
   .srow .amt { margin-left: auto; font-size: 18px; font-weight: 600; color: var(--numeral); letter-spacing: -0.3px; }
   .srow .sfx { width: 28.5px; margin-left: 5px; font-size: 11px; font-weight: 500; color: var(--suffix); }
   .srow .plus { width: 21px; display: flex; justify-content: flex-end; }
+  .srow .plus.left { width: auto; margin-left: auto; margin-right: 7px; }
+  .srow .plus.left + .amt { margin-left: 0; }
+  .srow .gutter { width: 21px; }
   .srow .plus i { width: 13px; height: 13px; border: 1.3px solid var(--plus); border-radius: 50%; box-sizing: border-box; position: relative; display: block; }
   .srow .plus i::before, .srow .plus i::after { content: ""; position: absolute; background: var(--plus); left: 50%; top: 50%; }
   .srow .plus i::before { width: 6px; height: 1.3px; transform: translate(-50%,-50%); } .srow .plus i::after { width: 1.3px; height: 6px; transform: translate(-50%,-50%); }
@@ -114,9 +117,13 @@
   .g { position: absolute; left: 0; right: 0; top: 0; bottom: 0; pointer-events: none; display: none; }
   .pop.guides .g { display: block; }
   .g .band { position: absolute; left: 60px; right: 40px; background: rgba(242,162,60,0.14); border-top: 1px dashed rgba(242,162,60,0.6); border-bottom: 1px dashed rgba(242,162,60,0.6); }
+  .g .axis { position: absolute; top: 60px; bottom: 60px; width: 0; border-left: 1px dashed rgba(100,196,102,0.8); }
   .g .lab { position: absolute; right: 8px; font-size: 9.5px; font-weight: 600; color: var(--accent); background: rgba(20,20,20,0.85); padding: 1px 4px; border-radius: 3px; transform: translateY(-50%); font-variant-numeric: tabular-nums; }
   .pop.light .g .lab { background: rgba(255,255,255,0.9); }
 
+  .zoom { margin-top: 12px; width: 384px; height: 0; overflow: hidden; border-radius: 8px; background: var(--card); }
+  .zoom.on { height: 236px; }
+  .zoom .inner { transform: scale(2); transform-origin: 0 0; width: 192px; }
   .tune { margin-top: 12px; display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 11.5px; color: var(--ink-2); }
   .tune label { display: grid; grid-template-columns: 120px 1fr 34px; align-items: center; gap: 8px; }
   .tune input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -130,11 +137,11 @@
 <p class="sub">Drawn at <b>1px = 1pt</b> from the popover's own geometry (384 shell, 19 inset, 346 cards, 13 card padding, 34pt text axis, 26 account gap) and colours sampled from your live screenshot. Numbers below are <b>ink-to-ink</b> gaps measured on the live captures; the mock's guides show <b>box gaps</b>, which run ~3–9pt tighter than ink because of line-box slack. The two knobs that moved today are the identity→content step (6 → 2) and, indirectly, how far the chips sit from their sentence.</p>
 
 <table class="ladder">
-  <tr><th>Ink gap (pt)</th><th>Before (#115)</th><th>Now (live)</th><th>Proposed A</th><th>Proposed B</th></tr>
-  <tr><td>Title → first meter</td><td class="n">16</td><td class="hot">12</td><td class="n">14</td><td class="n">16</td></tr>
-  <tr><td>Meter → meter</td><td class="n">19</td><td class="n">19</td><td class="n">19</td><td class="n">19</td></tr>
+  <tr><th>Ink gap (pt)</th><th>Before (#115)</th><th>Now (live)</th><th>Proposed A</th><th>A′ (Kyle)</th></tr>
+  <tr><td>Title → first meter</td><td class="n">16</td><td class="hot">12</td><td class="n">14</td><td class="n">14</td></tr>
+  <tr><td>Meter → meter</td><td class="n">19</td><td class="n">19</td><td class="n">19</td><td class="n">17 (A′: frame 10)</td></tr>
   <tr><td>Meters → next account title</td><td class="n">35</td><td class="n">35</td><td class="n">35</td><td class="n">35</td></tr>
-  <tr><td>Title → sign-in sentence</td><td class="n">12.5</td><td class="hot">8.5</td><td class="n">10.5</td><td class="n">12.5</td></tr>
+  <tr><td>Title → sign-in sentence</td><td class="n">12.5</td><td class="hot">8.5</td><td class="n">10.5</td><td class="n">10.5</td></tr>
   <tr><td>Sentence → chip box</td><td class="n">14.5</td><td class="hot">15</td><td class="n">11</td><td class="n">11</td></tr>
   <tr><td>Chips → next account title</td><td class="n">30.5</td><td class="n">31.5</td><td class="n">31.5</td><td class="n">31.5</td></tr>
   <tr><td>Title → plan label</td><td class="n">11 (pill)</td><td class="hot">1.5</td><td class="n">5</td><td class="n">5</td></tr>
@@ -143,30 +150,39 @@
 <div class="bar">
   <button id="scheme" class="on">Dark</button>
   <button id="guides">Show gap guides</button>
+  <button id="zoom">Zoom the Work block ×2</button>
   <button id="copy">Copy custom values</button>
   <span id="copied" style="color:var(--ink-3)"></span>
 </div>
 
 <div class="cols" id="cols"></div>
 
+<p class="note"><b>Left alignment.</b> On the live build the title ink, the sentence ink, the meter labels and the chip's box edge all measure within 0.5pt of one x. That is mechanically aligned and optically not quite: a filled box with a ring reads heavier than a glyph's edge, so its edge wants to sit a hair <i>outside</i> the text axis, the same way a bullet or a quote mark hangs. A′ outdents the chip box by 1pt (slider on Custom, 0–4). The green dashed line in guide mode is the 34pt text axis; zoom the Work block to judge it at 2×.</p>
 <p class="note"><b>What to look at.</b> In "Now", squint at the Claude card: "Personal" glues to "Weekly" and "5-hour" hangs alone, and the Work/Studio buttons sit further from their sentence than the sentence sits from its title. A and B put the title a touch tighter than the row step (not half of it) and pull the chips up under the sentence. A is the recommendation; B is the pre-round title gap with only the chip and plan fixes. The Custom column takes any values you like — Copy exports them in the form the code takes (frame spacing, not ink).</p>
 
 <script>
 const PRESETS = [
-  { id: 'before',  name: 'Before (#115)',  meta: 'title→content <code>6</code> · chips <code>12</code> · plan pill filled · chips label-aligned (B3X)', v: { title: 6, meter: 12, account: 26, chips: 12, plan: 6, pad: 13, chipv: 4 }, pill: 1, chipold: 1 },
-  { id: 'now',     name: 'Now (live)',     meta: 'title→content <code>2</code> · chips <code>12</code> · plan flat, gap <code>2</code> · chip box on the axis', v: { title: 2, meter: 12, account: 26, chips: 12, plan: 2, pad: 13, chipv: 4 }, pill: 0, chipold: 0 },
-  { id: 'a',       name: 'Proposed A (recommended)', meta: 'title→content <code>4</code> · chips <code>8</code> · plan gap <code>5</code>', v: { title: 4, meter: 12, account: 26, chips: 8, plan: 5, pad: 13, chipv: 4 }, pill: 0, chipold: 0 },
-  { id: 'b',       name: 'Proposed B',     meta: 'title→content <code>6</code> (pre-round) · chips <code>8</code> · plan gap <code>5</code>', v: { title: 6, meter: 12, account: 26, chips: 8, plan: 5, pad: 13, chipv: 4 }, pill: 0, chipold: 0 },
-  { id: 'custom',  name: 'Custom',         meta: 'tune below', v: { title: 4, meter: 12, account: 26, chips: 8, plan: 5, pad: 13, chipv: 4 }, pill: 0, chipold: 0, tune: true },
+  { id: 'before',  name: 'Before (#115)',  meta: 'title→content <code>6</code> · meters <code>12</code> · chips <code>12</code> · plan pill filled · chips label-aligned (B3X)', v: { title: 6, meter: 12, account: 26, chips: 12, plan: 6, pad: 13, chipv: 4, outdent: 0 }, pill: 1, chipold: 1, plusLeft: 0, abbr: 0 },
+  { id: 'now',     name: 'Now (live)',     meta: 'title→content <code>2</code> · meters <code>12</code> · chips <code>12</code> · plan gap <code>2</code> · chip box on the axis', v: { title: 2, meter: 12, account: 26, chips: 12, plan: 2, pad: 13, chipv: 4, outdent: 0 }, pill: 0, chipold: 0, plusLeft: 0, abbr: 0 },
+  { id: 'a',       name: 'Proposed A',     meta: 'title→content <code>4</code> · meters <code>12</code> · chips <code>8</code> · plan gap <code>5</code>', v: { title: 4, meter: 12, account: 26, chips: 8, plan: 5, pad: 13, chipv: 4, outdent: 0 }, pill: 0, chipold: 0, plusLeft: 0, abbr: 0 },
+  { id: 'kyle',    name: 'A′ — Kyle (2026-09-10)', meta: 'A with meters <code>10</code> · chip box outdent <code>1</code> · <code>+</code> left of the amount · month as <code>Sep</code>', v: { title: 4, meter: 10, account: 26, chips: 8, plan: 5, pad: 13, chipv: 4, outdent: 1 }, pill: 0, chipold: 0, plusLeft: 1, abbr: 1 },
+  { id: 'custom',  name: 'Custom',         meta: 'tune below', v: { title: 4, meter: 10, account: 26, chips: 8, plan: 5, pad: 13, chipv: 4, outdent: 1 }, pill: 0, chipold: 0, plusLeft: 1, abbr: 1, tune: true },
 ];
 const KNOBS = [
   ['title', 'title → content', 0, 12, 1], ['meter', 'meter → meter', 6, 16, 1], ['account', 'account → account', 16, 34, 1],
-  ['chips', 'sentence → chips', 2, 16, 1], ['plan', 'title → plan', 0, 10, 1], ['chipv', 'chip vertical pad', 2, 7, 0.5], ['pad', 'card padding', 10, 16, 1],
+  ['chips', 'sentence → chips', 2, 16, 1], ['plan', 'title → plan', 0, 10, 1], ['outdent', 'chip box outdent', 0, 4, 0.5], ['chipv', 'chip vertical pad', 2, 7, 0.5], ['pad', 'card padding', 10, 16, 1],
 ];
 const claude = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><g transform="translate(12 12)">${[0,30,60,90,120,150].map(a=>`<line x1="0" y1="-10" x2="0" y2="10" transform="rotate(${a})"/>`).join('')}<line x1="-7" y1="-7" x2="7" y2="7"/><line x1="7" y1="-7" x2="-7" y2="7"/></g></svg>`;
 const codex = `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5c1.3 0 2.4.7 3 1.8 1.2-.3 2.5 0 3.4.9.9.9 1.2 2.2.9 3.4 1.1.6 1.8 1.7 1.8 3s-.7 2.4-1.8 3c.3 1.2 0 2.5-.9 3.4-.9.9-2.2 1.2-3.4.9-.6 1.1-1.7 1.8-3 1.8s-2.4-.7-3-1.8c-1.2.3-2.5 0-3.4-.9-.9-.9-1.2-2.2-.9-3.4C3.6 14 2.9 12.9 2.9 11.6s.7-2.4 1.8-3c-.3-1.2 0-2.5.9-3.4.9-.9 2.2-1.2 3.4-.9.6-1.1 1.7-1.8 3-1.8z"/></svg>`;
 function gauge(on, cls){ return `<span class="gauge" style="--fill:${cls}">${[0,1,2,3,4].map(i=>`<i class="${i<on?'on':''}"></i>`).join('')}</span>`; }
 function meter(lbl, cd, on, fill, num, stale){ return `<div class="meter ${stale?'is-stale':''}"><span class="lbl">${lbl}</span><span class="cd">${cd}</span>${gauge(on, fill)}<span class="num">${num}%</span><span class="sfx">left</span><span class="gutter"></span></div>`; }
+function srow(p, mark, title, amt){
+  const period = p.abbr ? 'Sep' : 'September';
+  const m = mark==='claude' ? claude : codex;
+  return p.plusLeft
+    ? `<div class="srow"><span class="mark ${mark}">${m}</span><span class="title">${title}</span><span class="period">${period}</span><span class="plus left"><i></i></span><span class="amt">${amt}</span><span class="sfx">used</span><span class="gutter"></span></div>`
+    : `<div class="srow"><span class="mark ${mark}">${m}</span><span class="title">${title}</span><span class="period">${period}</span><span class="amt">${amt}</span><span class="sfx">used</span><span class="plus"><i></i></span></div>`;
+}
 function pop(p){
   return `<div class="pop" data-pill="${p.pill}" data-chipold="${p.chipold}" style="${Object.entries(p.v).map(([k,v])=>`--s-${k==='pad'?'x':k}:${v}`).join(';')};--card-pad:${p.v.pad};--chip-pad-v:${p.v.chipv}">
     <div class="hdr"><span class="t">Usage</span><span class="u">Updated 15 min ago</span><span class="gear"></span></div>
@@ -185,8 +201,8 @@ function pop(p){
         <div class="meters">${meter('Weekly','3d 23h',1,'var(--stale-amber)',21,true)}${meter('5-hour','2h 58m',2,'var(--stale-amber)',46,true)}</div></div>
     </div></div>
     <div class="card"><div class="spend">
-      <div class="srow"><span class="mark claude">${claude}</span><span class="title">Anthropic API</span><span class="period">September</span><span class="amt">$142.67</span><span class="sfx">used</span><span class="plus"><i></i></span></div>
-      <div class="srow"><span class="mark codex">${codex}</span><span class="title">OpenAI API</span><span class="period">September</span><span class="amt">$58.90</span><span class="sfx">used</span><span class="plus"><i></i></span></div>
+      ${srow(p,'claude','Anthropic API','$142.67')}
+      ${srow(p,'codex','OpenAI API','$58.90')}
     </div></div>
     <div class="foot"><span class="chip">Refresh</span><span class="chip">Quit</span></div>
     <div class="g"></div>
@@ -195,14 +211,14 @@ function pop(p){
 const cols = document.getElementById('cols');
 for (const p of PRESETS) {
   const el = document.createElement('div'); el.className = 'col'; el.dataset.id = p.id;
-  el.innerHTML = `<h2>${p.name}</h2><p class="meta">${p.meta}</p>${pop(p)}` + (p.tune ? `<div class="tune">${KNOBS.map(([k,l,mn,mx,st])=>`<label><span>${l}</span><input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${p.v[k]}"><output>${p.v[k]}</output></label>`).join('')}</div>` : '');
+  el.innerHTML = `<h2>${p.name}</h2><p class="meta">${p.meta}</p>${pop(p)}<div class="zoom"><div class="inner"></div></div>` + (p.tune ? `<div class="tune">${KNOBS.map(([k,l,mn,mx,st])=>`<label><span>${l}</span><input type="range" data-k="${k}" min="${mn}" max="${mx}" step="${st}" value="${p.v[k]}"><output>${p.v[k]}</output></label>`).join('')}</div>` : '');
   cols.appendChild(el);
   // apply vars properly (the inline style above is a fallback; set real names here)
   applyVars(el.querySelector('.pop'), p.v);
 }
 function applyVars(pop, v){
   pop.style.setProperty('--s-title', v.title); pop.style.setProperty('--s-meter', v.meter); pop.style.setProperty('--s-account', v.account);
-  pop.style.setProperty('--s-chips', v.chips); pop.style.setProperty('--s-plan', v.plan); pop.style.setProperty('--card-pad', v.pad); pop.style.setProperty('--chip-pad-v', v.chipv);
+  pop.style.setProperty('--s-chips', v.chips); pop.style.setProperty('--s-plan', v.plan); pop.style.setProperty('--card-pad', v.pad); pop.style.setProperty('--chip-pad-v', v.chipv); pop.style.setProperty('--outdent', v.outdent);
 }
 const custom = PRESETS.find(p=>p.tune);
 document.querySelectorAll('.tune input').forEach(inp => inp.addEventListener('input', e => {
@@ -219,9 +235,22 @@ document.getElementById('guides').addEventListener('click', e => {
   document.querySelectorAll('.pop').forEach(p => p.classList.toggle('guides', on));
   e.target.classList.toggle('on', on); drawGuides();
 });
+document.getElementById('zoom').addEventListener('click', e => {
+  const on = !document.querySelector('.zoom').classList.contains('on');
+  e.target.classList.toggle('on', on);
+  document.querySelectorAll('.col').forEach(col => {
+    const z = col.querySelector('.zoom'); z.classList.toggle('on', on); const inner = z.querySelector('.inner'); inner.innerHTML = '';
+    if (!on) return;
+    const pop = col.querySelector('.pop'); const acc = pop.querySelectorAll('.account')[1];
+    const clone = acc.cloneNode(true); clone.style.padding = '10px 0 10px 13px'; clone.style.width = '170px';
+    const wrap = document.createElement('div'); wrap.className = 'pop ' + (pop.classList.contains('light') ? 'light' : ''); wrap.style.cssText = pop.style.cssText; wrap.style.width='192px'; wrap.style.padding='0'; wrap.style.background='var(--card)'; wrap.style.borderRadius='0';
+    wrap.dataset.pill = pop.dataset.pill; wrap.dataset.chipold = pop.dataset.chipold;
+    wrap.appendChild(clone); inner.appendChild(wrap);
+  });
+});
 document.getElementById('copy').addEventListener('click', () => {
   const v = custom.v;
-  const txt = `Popover spacing (frame pt): identity→content ${v.title} · meter→meter ${v.meter} · account→account ${v.account} · sentence→chips ${v.chips} · title→plan ${v.plan} · chip vertical pad ${v.chipv} · card padding ${v.pad}`;
+  const txt = `Popover spacing (frame pt): identity→content ${v.title} · meter→meter ${v.meter} · account→account ${v.account} · sentence→chips ${v.chips} · title→plan ${v.plan} · chip box outdent ${v.outdent} · chip vertical pad ${v.chipv} · card padding ${v.pad} · plus-left ${custom.plusLeft} · month abbreviated ${custom.abbr}`;
   navigator.clipboard.writeText(txt).then(()=>{ document.getElementById('copied').textContent = 'copied'; setTimeout(()=>document.getElementById('copied').textContent='', 1500); });
 });
 function drawGuides(){
@@ -229,6 +258,7 @@ function drawGuides(){
     const g = pop.querySelector('.g'); g.innerHTML = '';
     if (!pop.classList.contains('guides')) return;
     const r0 = pop.getBoundingClientRect();
+    g.insertAdjacentHTML('beforeend', `<div class="axis" style="left:${19 + parseFloat(getComputedStyle(pop).getPropertyValue('--card-pad')) + 21}px"></div>`);
     const card = pop.querySelector('.card');
     const accounts = card.querySelectorAll('.account');
     const pairs = [];

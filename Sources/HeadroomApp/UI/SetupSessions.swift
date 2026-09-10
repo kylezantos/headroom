@@ -18,6 +18,18 @@ final class SetupSessionActivity {
     func openedAt(for key: AccountKey) -> Date? { openedAt[key] }
 
     func set(_ date: Date?, for key: AccountKey) { openedAt[key] = date }
+
+    /// R2M12: when the account's current Terminal handoff was opened, so the popover
+    /// header can carry a clock instead of echoing the card's own title. The coordinator's
+    /// `.waiting(attempt:)` carries a retry counter, not a start instant, so the stamp is
+    /// taken at the app boundary where the handoff is actually kicked off.
+    private var waitingSince: [AccountKey: Date] = [:]
+
+    func waitingSince(for key: AccountKey) -> Date? { waitingSince[key] }
+
+    func beginWaiting(for key: AccountKey, at date: Date) { waitingSince[key] = date }
+
+    func endWaiting(for key: AccountKey) { waitingSince.removeValue(forKey: key) }
 }
 
 /// The single provider→session routing switch. Views call these instead of
@@ -119,6 +131,7 @@ enum SetupSessions {
     }
 
     static func openSetup(for account: ProviderAccount, onRetry: @escaping () -> Void) {
+        noteHandoffBegan(for: account)
         if let coordinator {
             coordinator.begin(for: account)
             return
@@ -135,7 +148,25 @@ enum SetupSessions {
     }
 
     static func resetSetup(for account: ProviderAccount) {
+        noteHandoffBegan(for: account)
         coordinator?.beginReset(for: account)
+    }
+
+    /// R2M12: stamp the start of a handoff. Idempotent while a wait is already running, so
+    /// "Reopen" and "Continue Setup" keep the clock the user has been reading rather than
+    /// restarting it. Deliberately *not* called when `configure` restores a handoff from a
+    /// durable marker: that start is unknown, and inventing one would make an hour-old wait
+    /// read "Waiting 3s". A restored wait simply keeps the card-derived header line.
+    static func noteHandoffBegan(for account: ProviderAccount, at date: Date = .now) {
+        guard !isWaiting(for: account) else { return }
+        SetupSessionActivity.shared.beginWaiting(for: account.key, at: date)
+    }
+
+    /// R2M12: how long the account's current handoff has been open, or nil when it is not
+    /// waiting — or when the wait was restored from disk and its start instant is unknown.
+    static func waitingStart(for account: ProviderAccount) -> Date? {
+        guard isWaiting(for: account) else { return nil }
+        return SetupSessionActivity.shared.waitingSince(for: account.key)
     }
 
     /// Execute the action selected by the core recovery table. Keeping this switch at
@@ -152,6 +183,7 @@ enum SetupSessions {
         case .setup(.standard):
             openSetup(for: account, onRetry: onRetry)
         case .setup(.deviceCode):
+            noteHandoffBegan(for: account)
             if let coordinator {
                 coordinator.begin(for: account, mode: .deviceCode)
             } else {
@@ -246,7 +278,9 @@ enum SetupSessions {
         case .pasteboardFailed:
             return "Terminal didn’t open, and the recovery command couldn’t be copied. Try again."
         case .retryExhausted:
-            return "Sign-in wasn’t confirmed. Check now or reopen the official CLI."
+            // R2B1: prose names the button it points at, so "Check Now" is capitalised the
+            // way the chip beside this sentence is.
+            return "Sign-in wasn’t confirmed. Check Now, or reopen the official CLI."
         case .provider(let outcome):
             return outcome.message
         case .providerCapability(let capability):
@@ -304,6 +338,7 @@ enum SetupSessions {
     /// flag. Called when the account goes live — and when it's removed, so orphaned
     /// retry tasks can't keep spawning poll cycles for a deleted account.
     static func settle(for account: ProviderAccount) {
+        SetupSessionActivity.shared.endWaiting(for: account.key)
         if let coordinator {
             coordinator.settleConnected(account.key)
             return
@@ -319,6 +354,7 @@ enum SetupSessions {
     static func cancel(for account: ProviderAccount) {
         coordinator?.cancel(account.key)
         SetupSessionActivity.shared.set(nil, for: account.key)
+        SetupSessionActivity.shared.endWaiting(for: account.key)
     }
 
     /// Stop waiting for an external CLI handoff without attempting to terminate its
@@ -339,6 +375,7 @@ enum SetupSessions {
         coordinator?.forceCancel(account.key)
         store?.cancelAccountRemoval(account.key)
         SetupSessionActivity.shared.set(nil, for: account.key)
+        SetupSessionActivity.shared.endWaiting(for: account.key)
     }
 
     static func prepareHandoff(

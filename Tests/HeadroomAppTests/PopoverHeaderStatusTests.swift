@@ -1,3 +1,4 @@
+import Foundation
 import HeadroomCore
 import Testing
 @testable import Headroom
@@ -68,5 +69,159 @@ struct PopoverHeaderStatusTests {
             lines.append(PopoverHeaderStatusText.codex(action: action, isWaiting: false))
         }
         #expect(lines.allSatisfy { !$0.contains("Watching") })
+    }
+}
+
+/// R2M5: the slot used to collect `.live` captures and return nil for everything else, so
+/// first run, an all-stale popover and a capability failure showed a card full of retained
+/// numbers with no visible age anywhere. These pin the six lines it can now show, and the
+/// precedence between them.
+@Suite
+struct PopoverHeaderStatusResolverTests {
+    private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func input(
+        setupText: String? = nil,
+        waitingElapsed: TimeInterval? = nil,
+        oldestLiveCapture: Date? = nil,
+        newestCheck: Date? = nil,
+        isRefreshing: Bool = false
+    ) -> PopoverHeaderStatusResolver.Input {
+        PopoverHeaderStatusResolver.Input(
+            setupText: setupText,
+            waitingElapsed: waitingElapsed,
+            oldestLiveCapture: oldestLiveCapture,
+            newestCheck: newestCheck,
+            isRefreshing: isRefreshing,
+            now: now
+        )
+    }
+
+    @Test func aLiveCaptureStillReadsAsTheUpdatedStamp() {
+        let status = PopoverHeaderStatusResolver.status(
+            input(oldestLiveCapture: now.addingTimeInterval(-8 * 60))
+        )
+        #expect(status.kind == .updated)
+        #expect(status.text == "Updated 8 min ago")
+        #expect(status.rollValue == 8)
+    }
+
+    /// The whole point of R2M5: retained numbers on screen now carry a date.
+    @Test func nothingLiveFallsBackToTheNewestObservation() {
+        let status = PopoverHeaderStatusResolver.status(
+            input(newestCheck: now.addingTimeInterval(-12 * 60))
+        )
+        #expect(status.kind == .lastChecked)
+        #expect(status.text == "Last checked 12 min ago")
+        #expect(status.rollValue == 12)
+    }
+
+    @Test func firstRunSaysSoRatherThanGoingSilent() {
+        let status = PopoverHeaderStatusResolver.status(input())
+        #expect(status.kind == .never)
+        #expect(status.text == "Not checked yet")
+        #expect(status.rollValue == nil)
+    }
+
+    @Test func aCycleInFlightWithNothingLiveReportsItself() {
+        let status = PopoverHeaderStatusResolver.status(
+            input(newestCheck: now.addingTimeInterval(-12 * 60), isRefreshing: true)
+        )
+        #expect(status.kind == .checking)
+        #expect(status.text == "Checking…")
+    }
+
+    /// A cycle in flight never hides a *live* stamp: the age is the more useful of the two.
+    @Test func aLiveStampOutranksACycleInFlight() {
+        let status = PopoverHeaderStatusResolver.status(
+            input(oldestLiveCapture: now.addingTimeInterval(-60), isRefreshing: true)
+        )
+        #expect(status.kind == .updated)
+    }
+
+    @Test func aSetupCardOwnsTheSlotWhileItIsOnScreen() {
+        let status = PopoverHeaderStatusResolver.status(
+            input(setupText: "Sign in to Claude to begin", oldestLiveCapture: now)
+        )
+        #expect(status.kind == .setup)
+        #expect(status.text == "Sign in to Claude to begin")
+        // A phrase must never try to roll its letters into a number.
+        #expect(status.rollValue == nil)
+    }
+
+    /// R2M12: the clock replaces the card's own title rather than repeating it.
+    @Test func anOpenHandoffReplacesTheEchoWithAClock() {
+        let status = PopoverHeaderStatusResolver.status(
+            input(setupText: "Waiting for approval…", waitingElapsed: 45)
+        )
+        #expect(status.kind == .waiting)
+        #expect(status.text == "Waiting 45s")
+        #expect(status.rollValue == 45)
+    }
+
+    /// R2M5: the slot's identity changes with the *kind* of line, which is what makes the
+    /// swap a view replacement rather than a letter-by-letter roll.
+    @Test func aPhraseAndAStampAreDifferentSlotIdentities() {
+        let waiting = PopoverHeaderStatusResolver.status(
+            input(setupText: "Waiting for approval…", waitingElapsed: 0)
+        )
+        let updated = PopoverHeaderStatusResolver.status(input(oldestLiveCapture: now))
+        #expect(waiting.kind != updated.kind)
+    }
+}
+
+/// R2M12: an open-ended wait needs a clock (Apple §16 status). The Connect card is explicit
+/// about "Takes about 20 seconds" and the waiting state used to drop the thread entirely.
+@Suite
+struct PopoverWaitingClockTests {
+    @Test func secondsReadPlainlyForTheFirstMinute() {
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 0) == "Waiting 0s")
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 45) == "Waiting 45s")
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 59.9) == "Waiting 59s")
+    }
+
+    /// Zero-padded past the minute so the digits roll in place instead of the column
+    /// jittering one glyph wider every ten seconds.
+    @Test func pastAMinuteTheSecondsArePadded() {
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 60) == "Waiting 1m 00s")
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 125) == "Waiting 2m 05s")
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 3_599) == "Waiting 59m 59s")
+    }
+
+    @Test func anAbandonedHandoffDegradesToHoursAndMinutes() {
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 3_600) == "Waiting 1h 00m")
+        #expect(PopoverHeaderStatusText.waiting(elapsed: 7_980) == "Waiting 2h 13m")
+    }
+
+    /// A clock is never negative, whatever the clock does behind it.
+    @Test func aBackwardsClockNeverShowsNegativeTime() {
+        #expect(PopoverHeaderStatusText.waiting(elapsed: -30) == "Waiting 0s")
+    }
+}
+
+/// R2M1: the card's second animation scope keys on this, so a retry counter that changes
+/// nothing on screen must not restage the crossfade.
+@Suite
+struct ProviderCardSessionKeyTests {
+    @Test func retryAttemptsCollapseToOneWaitingKey() {
+        #expect(providerCardSessionKey(.waiting(attempt: 0)) == .waiting(attempt: 0))
+        #expect(providerCardSessionKey(.waiting(attempt: 7)) == .waiting(attempt: 0))
+    }
+
+    @Test func everyOtherStateIsItsOwnKey() {
+        let states: [SetupSessionState] = [
+            .idle, .preparing, .verifying, .blockedByOpenHandoff, .connected,
+            .cancelled, .removing, .removalFailed, .removed,
+            .failed(.retryExhausted),
+        ]
+        for state in states {
+            #expect(providerCardSessionKey(state) == state)
+        }
+        // The states the card actually swaps bodies between stay distinguishable.
+        #expect(providerCardSessionKey(.idle) != providerCardSessionKey(.waiting(attempt: 3)))
+        #expect(
+            providerCardSessionKey(.failed(.terminalRejected))
+                != providerCardSessionKey(.failed(.retryExhausted))
+        )
     }
 }

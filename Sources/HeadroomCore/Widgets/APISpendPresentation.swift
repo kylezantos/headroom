@@ -358,11 +358,12 @@ public enum APISpendPresentation {
     /// "$58.90" alone means money gone on a period-spend row and money remaining on a balance
     /// row, and the two render identically; the chip beside them carries "September",
     /// "On-demand" and "Pro Lite" too, so it cannot be the thing that disambiguates. The term
-    /// is the meters' own "used"/"left" suffix vocabulary, kept here so every surface —
-    /// popover, widget, phone — spells the direction the same way.
+    /// is the meters' own "used"/"left" suffix vocabulary (Kyle, 2026-09-09: "used", not
+    /// "spent", so a spend row and a meter row read as the same kind of figure), kept here so
+    /// every surface — popover, widget, phone — spells the direction the same way.
     public static func directionTerm(kind: APISpendKind) -> String {
         switch kind {
-        case .periodSpend: "spent"
+        case .periodSpend: "used"
         case .balance: "left"
         }
     }

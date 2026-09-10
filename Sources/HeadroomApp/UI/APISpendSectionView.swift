@@ -15,12 +15,24 @@ struct APISpendSectionView: View {
     private static let amountSize: CGFloat = 18
 
     /// Measured from the same font the numeral renders in (mirrors
-    /// `UsageBarView.percentColumnWidth`) rather than a hard-coded guess. "$0,000.00" is the
-    /// widest total the card is designed to hold on one line.
-    private static let amountColumnWidth: CGFloat = {
+    /// `UsageBarView.percentColumnWidth`) rather than a hard-coded guess.
+    ///
+    /// R2C8 (Fable, post-merge): the column reserves the widest total the card is *showing*
+    /// (floor "$0.00"), not a fixed "$0,000.00". The direction suffix Kyle asked for costs
+    /// the row ~33pt, and with the fixed reservation every spend title truncated in the live
+    /// capture ("Anthropi…", "OpenAI…", "xA…"). Every amount still shares one right edge
+    /// because all rows reserve the same measured width.
+    private static func amountColumnWidth(for amounts: [String]) -> CGFloat {
         let font = NSFont.monospacedDigitSystemFont(ofSize: amountSize, weight: .semibold)
-        return ceil(("$0,000.00" as NSString).size(withAttributes: [.font: font]).width)
-    }()
+        let widest = (amounts + ["$0.00"])
+            .map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }
+            .max() ?? 0
+        return widest
+    }
+
+    private var amountColumnWidth: CGFloat {
+        Self.amountColumnWidth(for: store.apiSpendProviderOrder.compactMap { rowModel(for: $0).amount })
+    }
 
     /// S5A: the top-up glyph lives in the identity row's 21pt trailing gutter, to the right
     /// of the amount — 3pt gap plus an 18pt slot. The slot is reserved on every row (empty
@@ -215,7 +227,7 @@ struct APISpendSectionView: View {
                     value: model.snapshot.amount
                 )
                 .privacySensitive()
-                .frame(width: Self.amountColumnWidth, alignment: .trailing)
+                .frame(width: amountColumnWidth, alignment: .trailing)
             MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
         }
     }

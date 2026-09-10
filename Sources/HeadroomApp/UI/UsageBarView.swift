@@ -29,8 +29,8 @@ private enum ArrivalRegistry {
 }
 
 /// R2C8: the one suffix column every figure in the popover shares. A meter row prints
-/// "used"/"left" after its percentage and a spend row prints "spent"/"left" after its
-/// amount; both sit in a slot measured from the widest of the three terms, behind the same
+/// "used"/"left" after its percentage and a spend row prints "used"/"left" after its
+/// amount; both sit in a slot measured from the widest of the two terms, behind the same
 /// gap. Because the slot and the gap are identical, an amount in a "$0,000.00" column and a
 /// percentage in a "100%" column end their digits on the same x by construction, rather than
 /// by two independently tuned literals that drift apart.
@@ -42,7 +42,7 @@ enum MeterSuffixColumn {
     static let size: CGFloat = 11
     /// The gap the numeral cluster already spent between figure and term.
     static let gap: CGFloat = 5
-    static let terms = ["used", "left", "spent"]
+    static let terms = ["used", "left"]
 
     static let width: CGFloat = {
         let font = NSFont.systemFont(ofSize: size)

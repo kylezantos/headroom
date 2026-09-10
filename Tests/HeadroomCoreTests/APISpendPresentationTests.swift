@@ -63,7 +63,7 @@ struct APISpendPresentationTests {
     /// so the popover prints the term after the amount; the term itself lives in Core so the
     /// popover, the widgets and the phone mirror all spell it the same way.
     @Test func directionTermNamesWhichWayTheFigurePoints() {
-        #expect(APISpendPresentation.directionTerm(kind: .periodSpend) == "spent")
+        #expect(APISpendPresentation.directionTerm(kind: .periodSpend) == "used")
         #expect(APISpendPresentation.directionTerm(kind: .balance) == "left")
     }
 

@@ -159,9 +159,9 @@ struct APISpendSectionView: View {
             ProviderLogoView(providerID: model.snapshot.providerID, size: IdentityRowMetrics.markSlotWidth)
             Text(model.title)
                 // G1: semibold, matching the account titles above.
-                .font(.system(size: 15, weight: .semibold))
-                // R2B2: one 15/semibold kerning across the popover's titles.
-                .kerning(SetupCardMetrics.titleKerning)
+                // CMM10: the account title's own size, kerning and ink token, verbatim.
+                .font(.system(size: IdentityRowMetrics.titleSize, weight: .semibold))
+                .kerning(IdentityRowMetrics.titleKerning)
                 // G1: the same neutral-or-brand ink preference the account titles read.
                 .accountTitleInk(for: model.snapshot.providerID)
                 .lineLimit(1)
@@ -169,7 +169,7 @@ struct APISpendSectionView: View {
                 .layoutPriority(1)
                 // OA1: the spend title shares the account titles' axis, so it shares their
                 // optical alignment too.
-                .opticalLeading(model.title, size: 15, weight: .semibold)
+                .opticalLeading(model.title, size: IdentityRowMetrics.titleSize, weight: .semibold)
             // X5 (Kyle): the state tag stands exactly where the period chip stands, in line
             // with the title it belongs to — a billing period is meaningless once the figure
             // is stale or absent. Live and pending rows keep the chip and carry no tag.
@@ -225,7 +225,10 @@ struct APISpendSectionView: View {
         let amount = model.amount
         let providerID = model.snapshot.providerID
         let revealed = hoveredTopUp == providerID
-        let glyphSpan = Self.topUpGlyphSize + Self.topUpToAmountGap
+        // CMM10: the glyph's hit frame is 22pt so its hover pill is a real pill, not a sliver
+        // clipped against the digits; the frame overhangs the 7pt gap by its own margin so
+        // the "+" ink still sits `topUpToAmountGap` off the first digit.
+        let glyphSpan = Self.topUpHitSize + Self.topUpToAmountGap - (Self.topUpHitSize - Self.topUpGlyphSize) / 2
         HStack(spacing: MeterSuffixColumn.gap) {
             Text(amount ?? "")
                 .font(.system(size: Self.amountSize, weight: .semibold).monospacedDigit())
@@ -259,6 +262,10 @@ struct APISpendSectionView: View {
                         hoveredTopUp = nil
                     }
                 }
+                // CMM10: the standard AppKit tooltip on the hover area itself, so the reveal
+                // explains the "+" after the system delay without the pointer having to
+                // reach the glyph. Only where a billing page exists.
+                .help(topUpHelp(for: model) ?? "")
                 // S5A: every row's last digit lands on the numeral column's right edge.
                 .frame(width: amountColumnWidth, alignment: .trailing)
             MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
@@ -268,8 +275,18 @@ struct APISpendSectionView: View {
     /// Quiet escape hatch to top up: opens the provider's billing page (the screen with the
     /// actual "Buy credits" control) — we never run the purchase ourselves. Bare glyph per
     /// the popover's control language; B3A keeps `HoverButtonStyle` for glyph controls.
-    /// CMM5: the gap between the glyph and the amount it belongs to.
+    /// CMM5: the gap between the glyph's ink and the amount it belongs to.
     private static let topUpToAmountGap: CGFloat = 7
+    /// CMM10: the glyph's hit frame and hover pill.
+    private static let topUpHitSize: CGFloat = 22
+
+    /// CMM10: one sentence for the tooltip on both the amount and the glyph.
+    private func topUpHelp(for model: SpendRowModel) -> String? {
+        let snapshot = model.snapshot
+        let offersTopUp = snapshot.freshness == .live || !model.status.keyNeedsAttention
+        guard APISpendPresentation.addCreditsURL(for: snapshot.providerID) != nil, offersTopUp else { return nil }
+        return "Opens \(snapshot.displayName) billing to add API funds"
+    }
 
     @ViewBuilder private func topUpGlyph(_ model: SpendRowModel, revealed: Bool) -> some View {
         let snapshot = model.snapshot
@@ -291,7 +308,7 @@ struct APISpendSectionView: View {
                         matching: Self.amountSize,
                         referenceWeight: .semibold
                     ))
-                    .frame(width: Self.topUpGlyphSize, height: Self.topUpSlotSize)
+                    .frame(width: Self.topUpHitSize, height: Self.topUpHitSize)
             }
             .buttonStyle(HoverButtonStyle(
                 horizontalPadding: 0,
@@ -299,8 +316,8 @@ struct APISpendSectionView: View {
                 hoverForegroundColor: ProviderStyle.textAccent(for: snapshot.providerID, scheme: scheme)
             ))
             // R2M13: the app's other affordances use `.help(_:)`; AppKit's own delay is the delay.
-            .help("Open \(snapshot.displayName) billing to add credits")
-            .accessibilityLabel("Add \(snapshot.displayName) credits")
+            .help(topUpHelp(for: model) ?? "")
+            .accessibilityLabel("Add \(snapshot.displayName) API funds")
             // CMM8: the reveal. Scale and slide are `.movement` on the S3A hover pair (in on
             // `hoverIn`, out on `hoverOut`) and snap under Reduce Motion; the fade is
             // `.crossfade` and keeps its timing (S2A). A hidden glyph takes no clicks.

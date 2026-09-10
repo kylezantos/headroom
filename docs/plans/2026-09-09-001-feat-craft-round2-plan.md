@@ -124,4 +124,6 @@ appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
 | CMM7 | **The spend card takes the usage cards' rhythm** (Kyle, 2026-09-10: "match the usage cards on all of its spacing, margins, and padding"): rows 26 apart like accounts, same 13pt card padding, same identity-row recipe, same figure / suffix / gutter columns. |
 | CMM8 | **Hover-only top-up glyph.** The bare "+" (PB12) reserves no width; it sits in an overlay 7pt off the amount's first digit and reveals only while the pointer is over the figure — scale 0.6 → 1 and a 6pt slide on `hoverIn`/`hoverOut` as `.movement`, fade as `.crossfade` (S2A). Hidden glyph takes no clicks. Supersedes CMM5's always-visible placement. |
 | CMM9 | **Plan and period back in their own pill, Stale inline.** `identityMetadataLabel` is a filled capsule again (`secondary 0.12`, no ring); state chips keep fill + hairline. Stale / Connected sit right after the plan pill, leading-aligned, instead of at the row's trailing edge. |
+
+| CMM10 | **Spend title = account title, verbatim** (size, kerning `−0.15`, `accountTitleInk`); the setup-card kerning had leaked in. The top-up glyph's hit frame is 22pt so its hover pill is whole; the hover area carries the standard `.help` tooltip ("Opens X billing to add API funds") so the reveal explains itself after the system delay. |
 \n

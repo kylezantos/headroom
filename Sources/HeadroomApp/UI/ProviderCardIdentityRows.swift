@@ -11,6 +11,10 @@ enum IdentityRowMetrics {
     /// 6 over a sign-in sentence. Frame units; ≈14pt / ≈12.5pt of ink in Micro.
     static let identityToMetersGap: CGFloat = 4
     static let identityToSentenceGap: CGFloat = 6
+    /// CMM10 (Kyle, 2026-09-10): one title recipe for account rows *and* spend rows — same
+    /// ink token, same size, same kerning — so "Anthropic API" and "Personal" are one object.
+    static let titleSize: CGFloat = 15
+    static let titleKerning: CGFloat = -0.15
     /// CMM6: how far a chip row's first box hangs outside the text axis.
     static let chipBoxOutdent: CGFloat = 1
     static let meterContentInset = markSlotWidth + spacing
@@ -305,8 +309,8 @@ struct IdentityRow: View {
             .layoutPriority(2)
     }
 
-    private static let titleSize: CGFloat = 15
-    private static let titleKerning: CGFloat = -0.15
+    private static let titleSize = IdentityRowMetrics.titleSize
+    private static let titleKerning = IdentityRowMetrics.titleKerning
 
     /// PB11: the width the title wants, from the same real font metrics `OpticalLeading`
     /// reads. Kept separate from the comparison below so the predicate is testable without

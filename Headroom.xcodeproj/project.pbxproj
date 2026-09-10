@@ -80,6 +80,7 @@
 		5620F4F237849FCB69F90A1C /* CompanionDemoModeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */; };
 		5688973702693C0623291B4C /* HeadroomWidgetSharedUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */; };
 		56BAE387366F3D2ABFBDBBE1 /* PollingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 432AF864130D5870A2FC78CF /* PollingEngine.swift */; };
+		56BC0DD96F23154A14FBE2A8 /* MeterRecipeKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BF35817C4883CC85B58CA6D /* MeterRecipeKeyTests.swift */; };
 		58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */; };
 		5AEA213A9A00A042EED6986D /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
 		5B66665B700965FBCFC93DBE /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
@@ -220,6 +221,7 @@
 		F89AF3D1FF6B5D5A36FE9DA3 /* ProviderTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011EA7A2C3C7BB00DFF35A3F /* ProviderTileView.swift */; };
 		FB691B1472F1760604B183E4 /* HeadroomWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5B3D491D8D8B855C6182DF43 /* HeadroomWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FC1910FB7A698BF47840498B /* APISpendMirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0818290921E94A9AA9B67C17 /* APISpendMirrorView.swift */; };
+		FE1967B59E9E2C4E27FF31DD /* SetupWaitingClockRestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */; };
 		FF0A564EBBE31782DE36A152 /* CursorAccountEmailReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BCC5DAE24A255072D6B1B0 /* CursorAccountEmailReader.swift */; };
 		FF3FBC74B1AA0603DA851D0F /* Sparkle.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
@@ -320,6 +322,7 @@
 		130BB6361A694CF7B316C2EA /* SettingsPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanes.swift; sourceTree = "<group>"; };
 		1516F991C6C196F0CDF676CC /* StatusScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusScreen.swift; sourceTree = "<group>"; };
 		181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverHeaderStatusTests.swift; sourceTree = "<group>"; };
+		18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWaitingClockRestoreTests.swift; sourceTree = "<group>"; };
 		1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomTimelineProvider.swift; sourceTree = "<group>"; };
 		1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
 		1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomMotionTests.swift; sourceTree = "<group>"; };
@@ -368,6 +371,7 @@
 		4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountEmail.swift; sourceTree = "<group>"; };
 		4B371EDE73E7D7D689ADFED6 /* GrokAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokAccountEmailReader.swift; sourceTree = "<group>"; };
 		4BE9F956D9F249904E8CE412 /* DemoModeUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeUITests.swift; sourceTree = "<group>"; };
+		4BF35817C4883CC85B58CA6D /* MeterRecipeKeyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterRecipeKeyTests.swift; sourceTree = "<group>"; };
 		4E052D0EBE1013A87240C92E /* Account.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Account.swift; sourceTree = "<group>"; };
 		4E183F0455865C4FBEE66030 /* CursorConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorConnection.swift; sourceTree = "<group>"; };
 		517F99ED6491D1BC1A6858EF /* GrokProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokProvider.swift; sourceTree = "<group>"; };
@@ -508,9 +512,11 @@
 				C164E052923C8290A6B7C208 /* DemoLaunchTokenTests.swift */,
 				1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */,
 				8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */,
+				4BF35817C4883CC85B58CA6D /* MeterRecipeKeyTests.swift */,
 				5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */,
 				181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */,
 				38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */,
+				18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */,
 			);
 			path = HeadroomAppTests;
 			sourceTree = "<group>";
@@ -1178,9 +1184,11 @@
 				9BD2988769C7AD1C495D078C /* DemoLaunchTokenTests.swift in Sources */,
 				EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */,
 				CD24B67069EE1BA13C0693C3 /* MenuBarPrioritySelectionTests.swift in Sources */,
+				56BC0DD96F23154A14FBE2A8 /* MeterRecipeKeyTests.swift in Sources */,
 				821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */,
 				DAF8C9B5E2CCBBEAA4547D02 /* PopoverHeaderStatusTests.swift in Sources */,
 				58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */,
+				FE1967B59E9E2C4E27FF31DD /* SetupWaitingClockRestoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

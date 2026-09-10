@@ -170,7 +170,8 @@ public enum AccountStorage {
     public static func prepareSetupCompletionMarker(
         _ marker: SetupCompletionMarker,
         mode: SetupHandoffMode = .standard,
-        purpose: SetupHandoffPurpose = .setup
+        purpose: SetupHandoffPurpose = .setup,
+        startedAt: Date = .now
     ) throws -> String {
         let manager = FileManager.default
         let generation = UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
@@ -183,10 +184,14 @@ public enum AccountStorage {
         if let previous = parseGenerationState(marker: marker) {
             removeGeneratedMarkers(marker, generation: previous.generation)
         }
-        let opening = "opening:\(purpose.rawValue):\(markerName(for: mode)):\(generation):\(Date().timeIntervalSince1970)\n"
+        let opening = "opening:\(purpose.rawValue):\(markerName(for: mode)):\(generation):\(startedAt.timeIntervalSince1970)\n"
         do {
             try writeOwnerOnly(opening, to: pendingURL)
-            try writeGenerationState(.active(generation), marker: marker)
+            // R2M12: the generation state is the only handoff file the wrapper never
+            // rewrites, so it is where the waiting clock's start survives. The opening
+            // marker carries the same instant but zsh replaces it with its PID as soon as
+            // Terminal is up, which is exactly the window a relaunch lands in.
+            try writeGenerationState(.active(generation), marker: marker, startedAt: startedAt)
         } catch {
             try? manager.removeItem(at: pendingURL)
             throw error
@@ -345,6 +350,22 @@ public enum AccountStorage {
         }
     }
 
+    /// R2M12: when the current handoff started, so a wait restored after a relaunch can keep
+    /// counting instead of falling back to the card-derived header line. Fails safe to `nil`
+    /// — a cancelled generation, a state file written before the start was persisted, an
+    /// unparseable timestamp, or a start in the future all mean "no clock", never a
+    /// fabricated one.
+    public static func setupHandoffStartedAt(
+        marker: SetupCompletionMarker,
+        now: Date = .now
+    ) -> Date? {
+        guard case .active = parseGenerationState(marker: marker),
+              let startedAt = parseGenerationStart(marker: marker),
+              startedAt <= now
+        else { return nil }
+        return startedAt
+    }
+
     /// Restore the explicit login mode after an app relaunch while Terminal remains
     /// open. New opening markers include mode; legacy PID-only markers are standard.
     public static func setupHandoffMode(marker: SetupCompletionMarker) -> SetupHandoffMode? {
@@ -466,8 +487,10 @@ public enum AccountStorage {
     private static func parseGenerationState(marker: SetupCompletionMarker) -> SetupGenerationState? {
         guard let value = markerValue(atPath: generationStatePath(marker)) else { return nil }
         let parts = value.split(separator: ":", omittingEmptySubsequences: false)
-        guard parts.count == 2 else { return nil }
-        if parts[0] == "cancelled", parts[1] == "legacy" { return .cancelled("legacy") }
+        // R2M12 appended an optional start to the active form; a two-field file is a state
+        // written before that and still names a valid generation.
+        guard parts.count == 2 || parts.count == 3 else { return nil }
+        if parts.count == 2, parts[0] == "cancelled", parts[1] == "legacy" { return .cancelled("legacy") }
         guard let generation = markerGeneration(parts[1]) else { return nil }
         switch parts[0] {
         case "active": return .active(generation)
@@ -476,20 +499,35 @@ public enum AccountStorage {
         }
     }
 
+    private static func parseGenerationStart(marker: SetupCompletionMarker) -> Date? {
+        guard let value = markerValue(atPath: generationStatePath(marker)) else { return nil }
+        let parts = value.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              parts[0] == "active",
+              markerGeneration(parts[1]) != nil,
+              let timestamp = markerTimestamp(parts[2])
+        else { return nil }
+        return Date(timeIntervalSince1970: timestamp)
+    }
+
     private static func generationStateExists(_ marker: SetupCompletionMarker) -> Bool {
         FileManager.default.fileExists(atPath: generationStatePath(marker))
     }
 
     private static func writeGenerationState(
         _ state: SetupGenerationState,
-        marker: SetupCompletionMarker
+        marker: SetupCompletionMarker,
+        startedAt: Date? = nil
     ) throws {
         let kind = switch state {
         case .active: "active"
         case .cancelled: "cancelled"
         }
+        // R2M12: a cancellation tombstone deliberately carries no start — the wait it
+        // describes is over, so there is nothing left to clock.
+        let start = startedAt.map { ":\($0.timeIntervalSince1970)" } ?? ""
         try writeOwnerOnly(
-            "\(kind):\(state.generation)\n",
+            "\(kind):\(state.generation)\(start)\n",
             to: URL(fileURLWithPath: generationStatePath(marker))
         )
     }

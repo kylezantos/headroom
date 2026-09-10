@@ -200,7 +200,8 @@ public enum APISpendPresentation {
     public static func rowStatus(
         freshness: Freshness,
         providerID: ProviderID? = nil,
-        displayName: String
+        displayName: String,
+        kind: APISpendKind = .periodSpend
     ) -> APISpendRowStatus {
         switch freshness {
         case .pending:
@@ -212,7 +213,8 @@ public enum APISpendPresentation {
                 APISpendAttention(reason: reason),
                 sourceMessage: reason.message,
                 vendor: vendorName(from: displayName),
-                credential: .forProvider(providerID)
+                credential: .forProvider(providerID),
+                kind: kind
             )
         }
     }
@@ -224,7 +226,8 @@ public enum APISpendPresentation {
         freshness: WidgetProviderFreshness,
         attention: APISpendAttention? = nil,
         providerID: ProviderID? = nil,
-        displayName: String = ""
+        displayName: String = "",
+        kind: APISpendKind = .periodSpend
     ) -> APISpendRowStatus {
         switch freshness {
         case .pending:
@@ -236,7 +239,8 @@ public enum APISpendPresentation {
                 attention ?? (needsAttention ? .setupRequired : .retryable),
                 sourceMessage: message,
                 vendor: vendorName(from: displayName),
-                credential: .forProvider(providerID)
+                credential: .forProvider(providerID),
+                kind: kind
             )
         }
     }
@@ -260,11 +264,22 @@ public enum APISpendPresentation {
         remoteHint: nil
     )
 
+    /// R2C8 vocabulary again, this time as the noun the missing-key line promises. A balance
+    /// row's figure is money *remaining*, so "to see xAI spend" named a number the key would
+    /// never produce — the popover chip on that same row reads "Remaining balance".
+    private static func figureNoun(kind: APISpendKind) -> String {
+        switch kind {
+        case .periodSpend: "spend"
+        case .balance: "balance"
+        }
+    }
+
     private static func attentionStatus(
         _ attention: APISpendAttention,
         sourceMessage: String,
         vendor: String,
-        credential: APISpendCredentialDescriptor
+        credential: APISpendCredentialDescriptor,
+        kind: APISpendKind
     ) -> APISpendRowStatus {
         switch attention {
         case .missingKey:
@@ -272,7 +287,7 @@ public enum APISpendPresentation {
                 badge: "Needs setup",
                 shortBadge: "Setup",
                 tone: .warning,
-                message: "Add \(credential.credentialNoun) to see \(vendor) spend",
+                message: "Add \(credential.credentialNoun) to see \(vendor) \(figureNoun(kind: kind))",
                 callToAction: "Add Key",
                 remoteHint: "Set up on Mac",
                 keyNeedsAttention: true
@@ -318,23 +333,6 @@ public enum APISpendPresentation {
                 callToAction: nil,
                 remoteHint: nil
             )
-        }
-    }
-
-    public static func statusText(
-        freshness: WidgetProviderFreshness,
-        attention: APISpendAttention? = nil,
-        capturedAt: Date?,
-        now: Date
-    ) -> String? {
-        switch freshness {
-        case .pending:
-            "Waiting for cost data"
-        case .live:
-            Countdown.updatedLabel(capturedAt: capturedAt, now: now).map { "Updated \($0)" }
-        case .stale:
-            rowStatus(freshness: freshness, attention: attention).remoteHint
-                ?? (Countdown.updatedLabel(capturedAt: capturedAt, now: now).map { "Updated \($0)" } ?? "Not updated")
         }
     }
 
@@ -408,10 +406,6 @@ public enum APISpendPresentation {
 
     public static func contextLabel(kind: APISpendKind, periodLabel: String) -> String {
         kind == .balance ? "Remaining balance" : periodLabel
-    }
-
-    public static func qualifier(kind: APISpendKind) -> String? {
-        kind == .balance ? "remaining" : nil
     }
 
     /// The exact page where a user tops up prepaid API credits — the billing screen that

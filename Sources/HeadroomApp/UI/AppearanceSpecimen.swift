@@ -70,42 +70,20 @@ struct AppearanceSpecimen: View {
     /// layout. A plain `ZStack` would hold the taller card's height for the whole fade and
     /// then snap the pane below it.
     var body: some View {
-        // CMM13 (Kyle, 2026-09-10): the preview is a scene — a menu-bar strip bleeding to
-        // the well's top edge with the live status item at its leading inset, and the
-        // popover card hanging beneath it, left-aligned with the tiles below. Centred, the
-        // card "looked goofy" against a left-aligned pane; the strip gives the pill the
-        // context it previews instead of a caption.
-        VStack(alignment: .leading, spacing: 14) {
-            menuBarStrip
-                .padding(.horizontal, -16)
-                .padding(.top, -14)
-            cardPreview
-        }
-        .settingsPreviewWell(
-            dark: colorScheme == .dark,
-            verticalPadding: 14,
-            horizontalPadding: 16,
-            cornerRadius: 16
-        )
-        // The strip overflows the well's padding on purpose; the well's own radius clips it.
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Preview of the menu bar item and a provider card in the selected style")
-    }
-
-    /// CMM13: a 24pt bar in the live menu bar's tint (PB13's plate colours) with the real
-    /// `MenuBarLabel` sitting where a status item sits.
-    private var menuBarStrip: some View {
-        let darkMenuBar = MenuBarAppearanceMonitor.shared.isDarkMenuBar
-        return HStack(spacing: 0) {
-            MenuBarLabel(meters: menuBarMeters, showsPercentage: true, appearance: .menuBar)
-                .padding(.leading, 16)
-            Spacer(minLength: 0)
-        }
-        .frame(height: 24)
-        .frame(maxWidth: .infinity)
-        .background(darkMenuBar ? Color(white: 0.15) : Color(white: 0.93))
+        // CMM13 (Kyle, 2026-09-10): the card sits left-aligned on the pane's own axis —
+        // centred it "looked goofy" against the left-aligned tiles below. CMM14: the
+        // menu-bar pill is gone from this well; nothing below it changes the menu bar, only
+        // the card, so the pill was previewing a choice this pane doesn't make.
+        cardPreview
+            .settingsPreviewWell(
+                dark: colorScheme == .dark,
+                verticalPadding: 14,
+                horizontalPadding: 16,
+                cornerRadius: 16
+            )
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Preview of a provider card in the selected style")
     }
 
     private var cardPreview: some View {
@@ -169,8 +147,7 @@ struct AppearanceSpecimen: View {
             // G1A: the specimen is the popover's card, so it reads the ink from the
             // environment the same way — set here because Settings is not the popover.
             .environment(\.accountTitleInk, accountTitleInk)
-            // CMM13: the menu-bar pill moved up into `menuBarStrip`; the caption went with
-            // it — a status item sitting in a bar explains itself.
+            // CMM14: the menu-bar pill and its caption left this well — see `body`.
         }
         .frame(width: PopoverCardMetrics.cardWidth, alignment: .leading)
     }

@@ -131,5 +131,7 @@ appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
 
 | CMM12 | **No suffix column at all.** Kyle: "why can't the meter rows just be evenly gapped from the left edge and the right edge." The suffix takes its natural width and the row is trailing-aligned, so every row's last glyph lands on the 34pt axis. Rows printing the same word share a numeral edge (all meter rows, via the one percentage mode); a "used" spend row beside "left" meters has its numerals 8pt left of theirs, which Kyle prefers over a ragged right edge. |
 
-| CMM13 | **Appearance specimen is a scene.** Kyle: left-align the preview with the tiles below, and put the pill "on a macOS menu bar". A 24pt strip in the live menu-bar tint bleeds to the well's top edge with the real `MenuBarLabel` at its leading inset; the popover card hangs 14pt beneath, leading-aligned at the well's 16pt padding. The "Follows the choices below." caption is gone. Supersedes R2C20's centring. |
+| CMM13 | ~~Appearance specimen is a scene.~~ The strip lasted an hour — see CMM14. Left alignment stays. Kyle: left-align the preview with the tiles below, and put the pill "on a macOS menu bar". A 24pt strip in the live menu-bar tint bleeds to the well's top edge with the real `MenuBarLabel` at its leading inset; the popover card hangs 14pt beneath, leading-aligned at the well's 16pt padding. The "Follows the choices below." caption is gone. Supersedes R2C20's centring. |
+
+| CMM14 | **No menu-bar pill in the Appearance well.** Kyle: "the stuff below only affects the card itself." The well holds the left-aligned popover card and nothing else; the Menu Bar pane keeps its own live strip. |
 \n

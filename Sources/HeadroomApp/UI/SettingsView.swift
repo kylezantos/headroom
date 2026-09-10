@@ -19,7 +19,9 @@ struct SettingsView: View {
     let store: UsageStore
     @Binding var appearancePreference: AppearancePreference
     var softwareUpdates: SoftwareUpdateControlling = DisabledSoftwareUpdateController()
-    var preferences = Preferences()
+    // The launch domain, not `.standard`: production passes this in, but a fallback on
+    // `.standard` would put a `--demo` Settings session back in the user's real defaults.
+    var preferences = AppComposition.launchPreferences
     var credentialStore = CredentialStore()
     var launchControl: LaunchAtLoginControlling = LaunchAtLogin()
     /// Injection seam (unused in production wiring); the default reads each account's

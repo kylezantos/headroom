@@ -62,7 +62,7 @@ public enum ClaudeUsageParser {
         }
 
         // Stable order: 5-hour, weekly, then any extras alphabetically.
-        return byKind.values.sorted { rank($0.kind) < rank($1.kind) }
+        return byKind.values.sorted { displayRank($0.kind) < displayRank($1.kind) }
     }
 
     /// Best-effort subscription tier from the panel header (e.g. the
@@ -151,13 +151,30 @@ public enum ClaudeUsageParser {
         return String(line[line.index(after: open)..<close]).trimmingCharacters(in: .whitespaces)
     }
 
-    private static func rank(_ kind: WindowKind) -> Int {
+    /// The one window order every Claude surface renders: 5-hour, then the weekly/billing
+    /// pool, then model-specific extras. Exposed (rather than kept private to `parse`)
+    /// because the demo fixtures must sort through the same rule — hand-ordered fixture
+    /// literals drifted from it and shipped marketing captures with Weekly first while
+    /// every live popover showed 5-hour first (pre-ship craft audit, 2026-09-08).
+    public static func displayRank(_ kind: WindowKind) -> Int {
         switch kind {
         case .fiveHour: return 0
         case .weekly: return 1
         case .billingPeriod: return 1
         case .other: return 2
         }
+    }
+
+    /// `displayRank` applied to already-built windows, preserving the caller's order
+    /// within a rank so equal-rank rows keep the sequence the source produced.
+    public static func sortedForDisplay(_ windows: [UsageWindow]) -> [UsageWindow] {
+        windows.enumerated()
+            .sorted { lhs, rhs in
+                let left = displayRank(lhs.element.kind)
+                let right = displayRank(rhs.element.kind)
+                return left == right ? lhs.offset < rhs.offset : left < right
+            }
+            .map(\.element)
     }
 }
 

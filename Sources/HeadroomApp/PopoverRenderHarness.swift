@@ -458,6 +458,8 @@ enum PopoverRenderHarness {
         // Diagnostic seam: `--meter-style <format.shape.fill>` renders the Settings swatches and
         // the specimen in that style (the demo parser rejects malformed tokens → default).
         preferences.meterStyle = AppComposition.demoMeterStyle()
+        // Same seam for `AccountTitleInk.brand`, which otherwise has no capture path.
+        preferences.accountTitleInk = AppComposition.demoAccountTitleInk()
         // API spend surfaces are off by default (`isSurfaceEnabled` → `isSubscription`),
         // so the store's `apiSpendProviderOrder` is empty and the section renders nothing.
         // Enable both so the connected hero shows the API Spend section — wiring the

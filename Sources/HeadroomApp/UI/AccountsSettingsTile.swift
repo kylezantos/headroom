@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Combine
 import HeadroomCore
 
 @MainActor
@@ -165,7 +166,18 @@ struct AccountsSettingsTile: View {
         // R12: leaving Accounts — pane switch or window close — commits a typed rename
         // instead of discarding it. Focus loss already commits, but ⌘W tears the tile
         // down without moving focus first.
-        .onDisappear { commitPendingLabels() }
+        .onDisappear {
+            commitPendingLabels()
+            // R12 follow-up: SwiftUI restores focus to the last focused `TextField`, so
+            // without this the renamed row reopened wearing its editing chrome while its
+            // siblings looked static.
+            focusedLabel = nil
+        }
+        // R12: `onDisappear` is not guaranteed on app termination, so ⌘Q with a focused,
+        // uncommitted draft could still discard it. Same single commit path, one more trigger.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            commitPendingLabels()
+        }
     }
 
     private func account(for key: AccountKey) -> ProviderAccount? {

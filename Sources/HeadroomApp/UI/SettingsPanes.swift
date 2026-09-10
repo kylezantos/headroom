@@ -198,6 +198,27 @@ struct AppearanceSettingsPane: View {
 
 // MARK: - Menu Bar
 
+/// What the "Priority providers" control claims the menu bar is showing. A provider whose
+/// subscription switch is off is never fetched, so `UsageStore.menuBarMeters` and
+/// `menuBarBestWindow` already drop it from the effective selection — the menu title used
+/// to keep naming it, so a switched-off pick read as the live source of a pill that had
+/// gone neutral. The stored preference is deliberately left alone (R11: "off" means "not
+/// fetched", not "forgotten"), so switching the provider back on restores it as a priority
+/// without re-picking it; only the reported selection narrows.
+enum MenuBarPrioritySelection {
+    static func label(
+        source: MenuBarFillSource,
+        fetchedOrder: [ProviderID],
+        displayName: (ProviderID) -> String
+    ) -> String {
+        guard let selected = source.providerIDs else { return "Auto" }
+        let names = fetchedOrder.filter(selected.contains).map(displayName)
+        // Every stored pick is switched off. The pill is neutral, so neither "Auto" (a
+        // different, live behavior) nor the provider's name is true.
+        return names.isEmpty ? "None" : names.joined(separator: " + ")
+    }
+}
+
 struct MenuBarSettingsPane: View {
     let store: UsageStore
     @Binding var showMenuBarPercentage: Bool
@@ -338,11 +359,11 @@ struct MenuBarSettingsPane: View {
     }
 
     private var menuBarSelectionLabel: String {
-        guard let selected = menuBarFillSource.providerIDs else { return "Auto" }
-        let names = store.registeredProviderOrder.filter { selected.contains($0) }.map {
-            store.displayNames[$0] ?? $0.raw.capitalized
-        }
-        return names.isEmpty ? "Auto" : names.joined(separator: " + ")
+        MenuBarPrioritySelection.label(
+            source: menuBarFillSource,
+            fetchedOrder: store.providerOrder,
+            displayName: { store.displayNames[$0] ?? $0.raw.capitalized }
+        )
     }
 
     private func toggleMenuBarProvider(_ providerID: ProviderID) {

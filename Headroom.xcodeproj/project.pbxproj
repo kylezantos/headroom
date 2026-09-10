@@ -139,6 +139,7 @@
 		9B0A49EAC79591A254CAF37D /* HeadroomWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9965B78C8766A7FA857A6F6D /* HeadroomWidgets.swift */; };
 		9B189F289227E2BDD02849FA /* ProviderSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */; };
 		9B3365C1C18476765DAE92B2 /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
+		9BD2988769C7AD1C495D078C /* DemoLaunchTokenTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C164E052923C8290A6B7C208 /* DemoLaunchTokenTests.swift */; };
 		9D992181780CEEF21E07FEF0 /* ProviderStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 271BAABD34D394E2014676BC /* ProviderStyle.swift */; };
 		9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15A53AE4F679F87EABE633E /* MeterGauge.swift */; };
 		9FB9D89CA5CCEC804645882A /* UsageContinuityCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CE3E0A64B321BCD7FDD13A6 /* UsageContinuityCache.swift */; };
@@ -177,6 +178,7 @@
 		C89159D02864CC6512B83D8C /* IOSWidgetTimelineMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */; };
 		CA1A83C2FCF419EBC2ABECC1 /* cursor-light.svg in Resources */ = {isa = PBXBuildFile; fileRef = 21DE6A53BF9F70EB068EA592 /* cursor-light.svg */; };
 		CBE071C6D70A1D7452F3C52A /* WidgetPreviewStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1473F524586653EE503553 /* WidgetPreviewStrip.swift */; };
+		CD24B67069EE1BA13C0693C3 /* MenuBarPrioritySelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */; };
 		CD29C4379A86CAC8A03AF46A /* Countdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87284976C67D36ECE2DD747F /* Countdown.swift */; };
 		CE723982BAA7A79F3B71880F /* BrandIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */; };
 		CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */; };
@@ -401,6 +403,7 @@
 		8884B8D5664E9FA9DC416556 /* CodexSetupViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSetupViews.swift; sourceTree = "<group>"; };
 		88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetSchedule.swift; sourceTree = "<group>"; };
 		88E5257FBAB9CE287E59153B /* codex-color.svg */ = {isa = PBXFileReference; path = "codex-color.svg"; sourceTree = "<group>"; };
+		8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPrioritySelectionTests.swift; sourceTree = "<group>"; };
 		8DD7A937E15E5BF9470E4A6B /* WidgetUsageBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetUsageBar.swift; sourceTree = "<group>"; };
 		8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = HeadroomIOSWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityRowResolver.swift; sourceTree = "<group>"; };
@@ -428,6 +431,7 @@
 		C025DD0467C17BEED8A13DCE /* SettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPane.swift; sourceTree = "<group>"; };
 		C08AE77A399A208C20733351 /* CodexAuthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAuthReader.swift; sourceTree = "<group>"; };
 		C12CBFA7FEC91C71F1F13E4A /* CredentialModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialModels.swift; sourceTree = "<group>"; };
+		C164E052923C8290A6B7C208 /* DemoLaunchTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoLaunchTokenTests.swift; sourceTree = "<group>"; };
 		C21C54F0CE85AEC7C48005B1 /* vessel-app-icon.svg */ = {isa = PBXFileReference; path = "vessel-app-icon.svg"; sourceTree = "<group>"; };
 		C3DED341B03E9DB7876BDD8B /* HeadroomLargeWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomLargeWidgetView.swift; sourceTree = "<group>"; };
 		C40B2D2A8F7E2BCA4823C279 /* SetupSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupSessionCoordinator.swift; sourceTree = "<group>"; };
@@ -501,7 +505,9 @@
 				BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */,
 				34FBA8CE415A23CC256D0BC4 /* BrandMarkInkTests.swift */,
 				4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */,
+				C164E052923C8290A6B7C208 /* DemoLaunchTokenTests.swift */,
 				1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */,
+				8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */,
 				5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */,
 				181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */,
 				38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */,
@@ -1169,7 +1175,9 @@
 				CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */,
 				ACF9F9B5B18478A30632C3A5 /* BrandMarkInkTests.swift in Sources */,
 				B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */,
+				9BD2988769C7AD1C495D078C /* DemoLaunchTokenTests.swift in Sources */,
 				EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */,
+				CD24B67069EE1BA13C0693C3 /* MenuBarPrioritySelectionTests.swift in Sources */,
 				821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */,
 				DAF8C9B5E2CCBBEAA4547D02 /* PopoverHeaderStatusTests.swift in Sources */,
 				58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */,

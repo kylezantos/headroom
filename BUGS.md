@@ -448,15 +448,38 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   padding(-8)` trick grows the click target to the 40pt floor, but `.onHover` attaches after the
   negative padding, so the pill may not appear in the added 8pt band. Needs a live pointer check
   on the popover gear and spend `+`; no capture path exists for hover states.
-- **"Anthropic API" truncates beside a "Last 30 days" period chip.** The spend identity line is
-  exactly tight: 299pt content minus the 15pt mark, the reserved 91pt "$0,000.00" amount column,
-  the fixed-size period capsule and four 6pt spacings leaves the 15pt semibold title ≈94pt when
-  the chip reads "Last 30 days" (≈75pt boxed) — it needs 96.5. PA7 dropped the spacer floor to 0,
-  which covers "September" with 4pt to spare, but the 30-day period still clips. Options: size the
-  amount column to the widest *actual* total in the card (min "$0.00") instead of a pre-reserved
-  "$0,000.00" — amounts stay aligned, the column only grows when a total earns a digit — or
-  shorten the chip ("30 days"). Both touch S5A; decide with Kyle.
+- ~~"Anthropic API" truncates beside a "Last 30 days" period chip.~~ **Resolved 2026-09-09
+  (R2C8):** the amount column now measures the widest total the card is showing (floor "$0.00")
+  instead of reserving "$0,000.00"; amounts stay on one right edge and every spend title renders
+  whole in the live `spend-states` capture. Re-check a "Last 30 days" chip on the next shoot.
 - **The iOS mirror still shows its own "Low" chip.** AP1 removed the macOS popover chip in favour
   of red critical ink, but `Sources/HeadroomIOS/Views/UsageBarView.swift` keeps a `lowChip` driven by
   `MirrorPresentation.showsLowChip` (`MirrorPresentationTests.swift:70`). Bring the phone surface in line
   or decide it keeps the chip deliberately.
+
+## Craft round 2 residuals (2026-09-09, R2M1–R2B4)
+
+- **R2M4 deferred.** Kyle noted a signed-in account never shows Check Now (the chip is only on
+  setup/recovery rows). The per-account "Checking…" capsule half of M4 (`refreshingAccounts` in the
+  store, lit only for the serial Claude/Cursor/Grok lane) stands on its own; not built.
+- **Spend `+` placement (R2C8).** Kyle floated moving the top-up glyph left of the amount and/or
+  hover-only. Not built; the S5A gutter stays. Revisit if the row ever crowds again.
+- **Setup disclosures under Reduce Motion (R2M7).** The chevron snaps and the well crossfades, but
+  the container height rides the 200ms crossfade rather than snapping: SwiftUI resolves an
+  insertion's layout and transition in one transaction. Same family as the M4A/M7A residuals.
+- **Waiting clock skips restored handoffs (R2M12).** A handoff restored from a durable marker on
+  relaunch has no trustworthy start, so the header keeps the card-derived line instead of a stale
+  "Waiting 3s". Persist the start with the marker if the clock should survive relaunch.
+- **R2M1 window resize.** The setup-session tile now rides `valueSpring`; if the ~88pt NSWindow
+  step looks wrong live, drop the tile's session scope to `settle` (one line, marked in the comment).
+- **Glyph pills derive their radius (R2B3)** as `min(w,h) × 0.30` rather than pinning 26×26; sizes
+  still vary by call site. One-line follow-up if uniform pills are wanted.
+- **Unverified live:** Settings sidebar glyph ink (inactive-window dimming may explain the report's
+  reading; forcing `.secondary` risks a grey glyph on the selected row), `HoverButtonStyle` hover
+  pill on the Accounts `•••` `Menu` (R2C21), swatch hover/press bands (R2M6), sidebar focus on
+  open (R2M8), and the dark menu-bar vessel, which brightens with the R2C4b dark critical fill.
+- **Reduce Motion pass is Kyle's** (agents do not change accessibility settings).
+- **Setup body prose still says "connect"** as Headroom's own act ("Headroom reconnects
+  automatically", "Headroom connects as soon as you approve"); R2C6 scoped to status, buttons,
+  header and card title. One-line fixes if the verb should go everywhere.
+

@@ -365,12 +365,16 @@ struct CodexManualCommandDisclosure: View {
 /// than a Core token on purpose: the two provider setup flows are deliberately decoupled, so
 /// a Codex tweak must never reach into Claude's ramp.
 enum CodexSetupStyle {
+    /// R2C18: the four literals are stops on Codex's constant-hue ramp (H 271.5°) in
+    /// `HeadroomBrandRamp`; the dark top dropped L 0.611 → 0.565 because white on it measured
+    /// 3.97:1, below AA. This enum stays the call surface, so a Codex tweak still cannot
+    /// reach into Claude's ramp.
     static func buttonTop(dark: Bool) -> Color {
-        dark ? Color(red: 0.40, green: 0.45, blue: 0.95) : Color(red: 0.30, green: 0.35, blue: 0.90)
+        ProviderStyle.codexCTATop(dark: dark)
     }
 
     static func buttonBottom(dark: Bool) -> Color {
-        dark ? Color(red: 0.29, green: 0.34, blue: 0.82) : Color(red: 0.20, green: 0.24, blue: 0.76)
+        ProviderStyle.codexCTABottom(dark: dark)
     }
 }
 

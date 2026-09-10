@@ -246,13 +246,17 @@ enum ClaudeSetupSession {
 /// site left. Codex's CTA gradient lives in its own `CodexSetupStyle` rather than here —
 /// mirrored deliberately, so the two provider streams stay decoupled.
 enum ClaudeSetupStyle {
-    /// Dark values darkened (audit): the original dark gradient left the white 13pt
-    /// label at 3.1–3.8:1; this ramp averages ≈4.5:1 across the button face.
+    /// R2C18: the four CTA literals moved to `HeadroomBrandRamp` as stops on Claude's
+    /// constant-hue ramp (H 38.8°, the `claude-color.svg` fill's own hue). The dark top also
+    /// dropped L 0.605 → 0.560: it measured white-on 4.05:1, below AA, while the comment here
+    /// claimed the ramp "averages ≈4.5:1". It is 4.92:1 now, asserted in
+    /// `BrandColorValuesTests`. This enum stays the setup flow's call surface — the two
+    /// provider streams remain decoupled — but the numbers have one home.
     static func buttonTop(dark: Bool) -> Color {
-        dark ? Color(red: 0.75, green: 0.40, blue: 0.22) : Color(red: 0.733, green: 0.345, blue: 0.133)
+        ProviderStyle.claudeCTATop(dark: dark)
     }
     static func buttonBottom(dark: Bool) -> Color {
-        dark ? Color(red: 0.69, green: 0.34, blue: 0.17) : Color(red: 0.663, green: 0.302, blue: 0.110)
+        ProviderStyle.claudeCTABottom(dark: dark)
     }
     static func stepBackground(dark: Bool) -> Color {
         dark ? Color.white.opacity(0.06) : Color.black.opacity(0.045)
@@ -260,8 +264,11 @@ enum ClaudeSetupStyle {
     static func stepBorder(dark: Bool) -> Color {
         dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)
     }
+    /// R2C18: the value now lives in Core as `ProviderStyle.recessedWell`, because the
+    /// Settings preview wells read it too and a Claude-branded token should not own a pane
+    /// with no Claude in it. Those Settings call sites are WS-C's to move.
     static func wellBackground(dark: Bool) -> Color {
-        dark ? Color.black.opacity(0.32) : Color.black.opacity(0.05)
+        ProviderStyle.recessedWell(dark: dark)
     }
     static func codeBackground(dark: Bool) -> Color {
         wellBackground(dark: dark)
@@ -271,8 +278,12 @@ enum ClaudeSetupStyle {
     }
     /// "Connected" chip ink — offset from the bar-fill green so it passes AA as text on
     /// the chip tint in both schemes (light darker, dark brighter + thinner tint).
+    ///
+    /// R2C18: it was a hand-written green sitting beside a chip fill *derived* from
+    /// `healthy` — one chip, two greens. It is now a documented OKLCH lightness offset from
+    /// that same token, so the pair cannot drift apart again.
     static func connectedInk(dark: Bool) -> Color {
-        dark ? Color(red: 0.25, green: 0.86, blue: 0.42) : Color(red: 0.082, green: 0.447, blue: 0.208)
+        ProviderStyle.connectedInk(dark: dark)
     }
     static func connectedBackground(dark: Bool) -> Color {
         let green = HeadroomSeverityColorValues.healthy(dark: dark)
@@ -608,7 +619,9 @@ struct SetupChipButtonStyle: ButtonStyle {
             let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
             configuration.label
                 .font(.system(size: size.fontSize, weight: .semibold))
-                .foregroundStyle(dark ? Color(white: 0.85) : Color(red: 0.24, green: 0.24, blue: 0.26))
+                // R2C18: was a byte-copy of the shared light neutral beside an unrelated
+                // `Color(white: 0.85)`; both steps now read `setupChipInk`.
+                .foregroundStyle(ProviderStyle.setupChipInk(dark: dark))
                 .padding(.horizontal, size.horizontalPadding)
                 .padding(.vertical, size.verticalPadding)
                 .background {

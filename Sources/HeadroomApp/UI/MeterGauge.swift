@@ -128,8 +128,16 @@ struct MeterGauge: View {
                         .strokeBorder(ProviderStyle.meterWellShadow(scheme: scheme), lineWidth: 0.75)
                 }
         } else {
+            // R2C15: at critical the track takes the critical hue at constant lightness, so
+            // the alarm colour survives the ~5pt of fill left at 3%. `.unavailable` opts out
+            // — that row shows no value at all, and a red track under nothing would be
+            // asserting a reading the card does not have. The swap is a colour change on the
+            // same view, so it rides M1A's existing `valueCrossfade` transaction; no new
+            // motion.
             Capsule(style: .continuous)
-                .fill(ProviderStyle.barTrack(scheme: scheme))
+                .fill(freshness.isUnavailable
+                    ? ProviderStyle.barTrack(scheme: scheme)
+                    : ProviderStyle.barTrack(for: severity, scheme: scheme))
         }
     }
 
@@ -210,15 +218,12 @@ struct MeterGauge: View {
             )
         case .ramp:
             LinearGradient(
-                colors: [
-                    ProviderStyle.meterRampStart(
-                        for: severity,
-                        surface: shape == .machined ? .well : .flat,
-                        scheme: scheme,
-                        increasedContrast: increasedContrast
-                    ),
-                    severityFillColor,
-                ],
+                colors: ProviderStyle.meterRampColors(
+                    for: severity,
+                    surface: shape == .machined ? .well : .flat,
+                    scheme: scheme,
+                    increasedContrast: increasedContrast
+                ),
                 startPoint: shape == .tube ? .bottom : .leading,
                 endPoint: shape == .tube ? .top : .trailing
             )
@@ -331,12 +336,11 @@ struct MeterGauge: View {
                 ? ProviderStyle.meterTickGlassCap(scheme: scheme)
                 : ProviderStyle.meterTickGlass(scheme: scheme)
         case .ramp(let progress):
+            // R2C12: the cells sample the same OKLCH path the continuous gradient draws, so
+            // a segmented Fade and a chip Fade are the same ramp at two resolutions.
             guard let stops = rampStops else { return flatSeverityColor }
-            return Color(
-                red: stops.start.red + (stops.end.red - stops.start.red) * progress,
-                green: stops.start.green + (stops.end.green - stops.start.green) * progress,
-                blue: stops.start.blue + (stops.end.blue - stops.start.blue) * progress
-            )
+            let stop = stops.color(at: progress)
+            return Color(red: stop.red, green: stop.green, blue: stop.blue)
         }
     }
 
@@ -365,11 +369,19 @@ struct MeterGauge: View {
     }
 
     private var flatSeverityColor: Color {
-        let opacity = scheme == .dark ? (severity == .critical ? 0.95 : 0.85) : 1
-        return severityFillColor.opacity(opacity)
+        // R2C18: the two dims now live beside `segmentBodyAttenuation` in Core.
+        severityFillColor.opacity(
+            HeadroomMeterColorValues.flatFillAttenuation(for: severity, dark: scheme == .dark)
+        )
     }
 
-    private var staleColor: Color { ProviderStyle.meterStaleFill }
+    private var staleColor: Color {
+        ProviderStyle.meterStaleFill(
+            for: severity,
+            scheme: scheme,
+            increasedContrast: increasedContrast
+        )
+    }
 
     private func continuousFillLength(available: CGFloat) -> CGFloat {
         guard !freshness.isUnavailable else { return 0 }

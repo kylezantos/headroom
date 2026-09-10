@@ -18,11 +18,14 @@ public enum DemoFixture {
     public static var claudeSnapshot: UsageSnapshot {
         UsageSnapshot(
             providerID: .claude,
-            windows: [
-                UsageWindow(kind: .weekly, utilization: 62, resetsAt: soon(days: 4, minutes: 30), resetLabel: "Resets Jul 9"),
+            // Sorted through the parser's own rank so this literal cannot drift from what a
+            // live capture renders again — it had shipped Weekly-before-5-hour into every
+            // marketing shot.
+            windows: ClaudeUsageParser.sortedForDisplay([
                 UsageWindow(kind: .fiveHour, utilization: 28, resetsAt: soon(hours: 3, minutes: 15, seconds: 30), resetLabel: "Resets 2:15pm"),
+                UsageWindow(kind: .weekly, utilization: 62, resetsAt: soon(days: 4, minutes: 30), resetLabel: "Resets Jul 9"),
                 UsageWindow(kind: .other("Weekly (Fable)"), utilization: 46, resetsAt: soon(days: 4, minutes: 30), resetLabel: "Resets Jul 9"),
-            ],
+            ]),
             planLabel: "Max",
             // Placeholder identity — demo fixtures ship in the repo, so they never carry
             // a real address.
@@ -639,6 +642,15 @@ public struct DemoUsageProvider: UsageProvider {
     private let snapshot: UsageSnapshot
     private let capability: ProviderCapabilityState?
     public var reportsProviderCapability: Bool { capability != nil }
+
+    /// Mirrors the shipping capacities so a demo pane cannot advertise an affordance the
+    /// product does not have: Cursor is deliberately single-account (no config-home
+    /// isolation equivalent to `CLAUDE_CONFIG_DIR`), which is why `CursorProvider` pins
+    /// `accountCapacity` to 1. `--demo multi-4` was rendering it as "1 of 5" with an
+    /// "Add Account…" button.
+    public var accountCapacity: Int {
+        id == .cursor ? 1 : AccountRegistry.maxPerProvider
+    }
 
     public init(
         id: ProviderID,

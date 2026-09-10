@@ -7,9 +7,10 @@ import Foundation
 /// the macOS widgets, and the iPhone all show the same moment.
 public enum DemoScreenshotData {
     // Window order matches `ClaudeUsageParser.displayRank` (5-hour, then the weekly pool,
-    // then model rows) because these envelopes stand in for a real projection, which
-    // inherits the parser's order. They had drifted to Weekly-first (pre-ship craft audit,
-    // 2026-09-08); `DemoScenarioParityTests` holds the "full" envelope to the Mac fixture.
+    // then model rows) because these envelopes stand in for a real projection, which carries
+    // the provider's order; the macOS widgets re-rank weekly-first at display time and the
+    // phone mirror shows the projection as-is. `DemoScenarioParityTests` holds the "full"
+    // envelope to the Mac fixture.
     /// True when the app was launched with `--demo` (e.g. `simctl launch booted <id> --demo`).
     public static var isEnabled: Bool { CommandLine.arguments.contains("--demo") }
 

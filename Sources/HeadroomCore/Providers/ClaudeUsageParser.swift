@@ -151,11 +151,12 @@ public enum ClaudeUsageParser {
         return String(line[line.index(after: open)..<close]).trimmingCharacters(in: .whitespaces)
     }
 
-    /// The one window order every Claude surface renders: 5-hour, then the weekly/billing
-    /// pool, then model-specific extras. Exposed (rather than kept private to `parse`)
-    /// because the demo fixtures must sort through the same rule — hand-ordered fixture
-    /// literals drifted from it and shipped marketing captures with Weekly first while
-    /// every live popover showed 5-hour first (pre-ship craft audit, 2026-09-08).
+    /// The order the parser *emits*: 5-hour, then the weekly/billing pool, then
+    /// model-specific extras. This is provider order, not display order — the popover and
+    /// widgets re-rank weekly-first afterwards (`UsageSnapshot.weeklyFirst()`,
+    /// `WidgetProviderSummary.displaySubscriptionWindows`). Exposed so demo fixtures, which
+    /// stand in for provider output, sort through the same rule instead of hand-ordering
+    /// (pre-ship craft audit, 2026-09-08).
     public static func displayRank(_ kind: WindowKind) -> Int {
         switch kind {
         case .fiveHour: return 0

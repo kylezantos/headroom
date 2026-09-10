@@ -27,11 +27,14 @@ struct AppearanceSpecimen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One fixture entry, rebuilt per render so the card's `now`-driven reset text stays
-    /// honest without a timeline tick (Settings is not a live-data surface).
+    /// honest without a timeline tick (Settings is not a live-data surface). The fixture is
+    /// in provider order (5-hour first); `weeklyFirst()` is what `UsageStore.appDisplaySnapshot`
+    /// applies before the popover draws, so the specimen and the popover agree on the same
+    /// screen (pre-ship craft audit, 2026-09-08 — the specimen was the surface that drifted).
     private var entry: ProviderAccountEntry {
         ProviderAccountEntry(
             account: DemoFixture.settingsSpecimenAccount,
-            snapshot: DemoFixture.settingsSpecimenSnapshot
+            snapshot: DemoFixture.settingsSpecimenSnapshot.weeklyFirst()
         )
     }
 
@@ -100,9 +103,7 @@ struct AppearanceSpecimen: View {
     /// `resolvedShape` rather than `shape` is deliberate: Tube stays *stored* while Full is
     /// selected but renders as Chip, so keying on the raw shape would cross-fade a card
     /// into an identical copy of itself.
-    private var recipeKey: String {
-        "\(meterStyle.format.rawValue).\(meterStyle.resolvedShape.rawValue).\(meterStyle.fill.rawValue)"
-    }
+    private var recipeKey: String { MeterRecipeKey.key(for: meterStyle) }
 
     /// R2C20: the specimen is drawn at the popover's own card width. Stretched to the detail
     /// column it measured 506pt against the real card's 346 — 1.46× — which put ~260pt

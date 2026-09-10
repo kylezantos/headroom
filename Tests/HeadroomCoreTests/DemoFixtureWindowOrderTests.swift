@@ -2,13 +2,40 @@ import Testing
 import Foundation
 @testable import HeadroomCore
 
-/// The demo fixtures must render in the order a live capture does. `DemoFixture.claudeSnapshot`
-/// had drifted to Weekly-before-5-hour, so every marketing shot disagreed with the popover —
-/// and with the Settings `AppearanceSpecimen` on the same screen (pre-ship craft audit,
-/// 2026-09-08).
+/// The demo fixtures stand in for provider output, so they carry the parser's order
+/// (5-hour first). Display order is a separate, later step: `UsageStore.appDisplaySnapshot`
+/// applies `UsageSnapshot.weeklyFirst()` before the popover draws, and the Settings
+/// `AppearanceSpecimen` must apply the same — it was the surface that drifted (pre-ship craft
+/// audit, 2026-09-08; corrected 2026-09-10).
 struct DemoFixtureWindowOrderTests {
     private func kinds(_ snapshot: UsageSnapshot) -> [WindowKind] {
         snapshot.windows.map(\.kind)
+    }
+
+    /// The specimen renders the popover's order, not the fixture's.
+    @Test func specimenSnapshotRendersWeeklyFirstLikeThePopover() {
+        let displayed = DemoFixture.settingsSpecimenSnapshot.weeklyFirst()
+        #expect(kinds(displayed) == [.weekly, .fiveHour, .other("Weekly (Fable)")])
+        #expect(kinds(DemoFixture.claudeSnapshot.weeklyFirst()) == [.weekly, .fiveHour, .other("Weekly (Fable)")])
+    }
+
+    @Test func weeklyFirstIsStableAndIdempotent() {
+        let resetsAt = Date().addingTimeInterval(3_600)
+        let snapshot = UsageSnapshot(
+            providerID: .claude,
+            windows: [
+                UsageWindow(kind: .other("Weekly (Zulu)"), utilization: 10, resetsAt: resetsAt),
+                UsageWindow(kind: .fiveHour, utilization: 40, resetsAt: resetsAt),
+                UsageWindow(kind: .other("Weekly (Alpha)"), utilization: 30, resetsAt: resetsAt),
+                UsageWindow(kind: .weekly, utilization: 20, resetsAt: resetsAt),
+            ],
+            planLabel: nil,
+            capturedAt: nil,
+            freshness: .live
+        )
+        let once = snapshot.weeklyFirst()
+        #expect(kinds(once) == [.weekly, .fiveHour, .other("Weekly (Zulu)"), .other("Weekly (Alpha)")])
+        #expect(once.weeklyFirst() == once)
     }
 
     @Test func claudeDemoSnapshotUsesTheParserOrder() {

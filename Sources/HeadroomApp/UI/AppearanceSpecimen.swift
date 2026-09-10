@@ -52,6 +52,10 @@ struct AppearanceSpecimen: View {
         // menu-bar pill is gone from this well; nothing below it changes the menu bar, only
         // the card, so the pill was previewing a choice this pane doesn't make.
         cardPreview
+            // CMM15 (Kyle, 2026-09-10): the well hugs the card — 346 + 16/16 — and sits on
+            // the pane's leading axis. Spanning the detail column left ~160pt of empty tray
+            // beside the card; the well is a picture frame, not a tile.
+            .fixedSize(horizontal: true, vertical: false)
             .settingsPreviewWell(
                 dark: colorScheme == .dark,
                 verticalPadding: 14,
@@ -61,13 +65,13 @@ struct AppearanceSpecimen: View {
             .allowsHitTesting(false)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Preview of a provider card in the selected style")
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var cardPreview: some View {
         specimen
             // R2C20: at the popover's true card width, not stretched to the detail column.
-            // CMM13: leading-aligned, on the pane's own left axis.
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // CMM15: the twin sizes the well, so it no longer claims the column's width.
             .hidden()
             .animation(
                 HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),

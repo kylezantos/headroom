@@ -135,3 +135,5 @@ appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
 
 | CMM14 | **No menu-bar pill in the Appearance well.** Kyle: "the stuff below only affects the card itself." The well holds the left-aligned popover card and nothing else; the Menu Bar pane keeps its own live strip. |
 \n
+| CMM15 | **The Appearance well hugs the card.** Kyle: "hug the card." The well is card width plus its 16pt padding, leading-aligned on the pane; the tiles below keep the full column. |
+

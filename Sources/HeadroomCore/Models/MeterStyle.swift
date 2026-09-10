@@ -45,13 +45,17 @@ public enum GaugeFill: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
+    /// R2C12: names the behavior, not the renderer. "Color as event" was the default's own
+    /// internal name, "Hue ramp" described a traversal the fill does not perform, and
+    /// "+ cap" put construction in a label whose help line already says the same thing. Raw
+    /// values are untouched so no stored preference migrates.
     public var label: String {
         switch self {
-        case .solid: "Solid"
-        case .glass: "Glass + cap"
-        case .ghost: "Ghost + cap"
-        case .colorAsEvent: "Color as event"
-        case .hueRamp: "Hue ramp"
+        case .solid: "Always colored"
+        case .glass: "Glass"
+        case .ghost: "Ghost"
+        case .colorAsEvent: "Only when low"
+        case .hueRamp: "Fade"
         }
     }
 }

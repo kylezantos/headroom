@@ -46,9 +46,16 @@ struct WidgetPreviewStrip: View {
             strip(scale: 0.68)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 10)
+        // R2C9: r20 around r20 widget tiles at 9/10pt of padding. A fixed r7 well held tiles
+        // three times its own roundness.
+        .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 10, cornerRadius: 20)
         .opacity(widgetsEnabled ? 1 : 0.55)
-        .animation(reduceMotion ? nil : HeadroomMotion.settle, value: widgetsEnabled)
+        // R2M7/S2A: the dim is opacity only, so it keeps its 200ms under Reduce Motion rather
+        // than snapping — `reduceMotion ? nil :` killed both kinds indiscriminately.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: widgetsEnabled
+        )
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Preview of the small and medium macOS widgets")

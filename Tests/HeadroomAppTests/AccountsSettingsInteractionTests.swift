@@ -389,7 +389,12 @@ struct AccountsSettingsInteractionTests {
         #expect(!off.hidesAccountStatus(isSetupState: true))
         #expect(off.hidesFetchRecovery)
         #expect(off.hidesCapabilityBanner)
-        #expect(off.offHelpText == "Not fetched while this provider is off.")
+        // R2B1: one constant behind the Accounts help line and the Menu Bar Off tooltip, and
+        // no trailing stop — the two sites used to disagree on exactly that.
+        #expect(off.offHelpText == "Not fetched while this provider is off")
+        #expect(off.offHelpText == SettingsCopy.providerOffNotice)
+        #expect(SettingsCopy.providerOffAccessibilityLabel
+                == "Off — not fetched while this provider is off")
         #expect(off.showsAccountCounter)
         #expect(off.showsAddAction)
         #expect(off.subscriptionSwitch.isEnabled)

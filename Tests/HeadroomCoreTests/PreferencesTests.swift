@@ -246,6 +246,27 @@ struct PreferencesTests {
         #expect(prefs.settingsPane == .general)
     }
 
+    @Test func firstOpenDefaultsToAccountsOnlyWhileNothingIsSignedIn() {
+        // R2B1: the first open is the only one with a decision to make — and General is the
+        // wrong answer on a Mac with nothing signed in, where all the work is in Accounts.
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: false) == .accounts)
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: true) == .general)
+        // The plain accessor is unchanged: nothing stored still reads General (R4).
+        #expect(prefs.settingsPane == .general)
+
+        // Once a pane has been visited the stored choice wins in both states — the first-run
+        // rule must never override "reopen where I left off".
+        prefs.settingsPane = .appearance
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: false) == .appearance)
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: true) == .appearance)
+
+        // Including when the user deliberately parked on General.
+        prefs.settingsPane = .general
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: false) == .general)
+    }
+
     @Test func settingsPaneOrderAndGroupsMatchTheSidebar() {
         // R1: sidebar order and its two section headers are derived from the enum.
         #expect(SettingsPane.allCases == [.general, .appearance, .menuBar, .widgets, .accounts, .apiSpend])
@@ -259,6 +280,10 @@ struct PreferencesTests {
         ])
 
         #expect(SettingsPane.Group.allCases == [.preferences, .sources])
+        // R2B1: the header reads "App"; the raw value stays `preferences` so nothing that
+        // persisted a group name migrates.
+        #expect(SettingsPane.Group.allCases.map(\.label) == ["App", "Sources"])
+        #expect(SettingsPane.Group.preferences.rawValue == "preferences")
         #expect(SettingsPane.Group.preferences.panes == [.general, .appearance, .menuBar, .widgets])
         #expect(SettingsPane.Group.sources.panes == [.accounts, .apiSpend])
         // The two groups partition all six panes without overlap.

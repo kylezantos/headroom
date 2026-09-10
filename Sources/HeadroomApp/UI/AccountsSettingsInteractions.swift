@@ -81,6 +81,9 @@ enum AccountsSettingsInteractions {
         var secondaryAccessibilityLabel: String? {
             secondaryLabel.map { "\($0) for \(accountLabel)" }
         }
+        /// R2C11: two buttons need a line of their own. Only the *buttons* move — the status
+        /// stays pinned in the trailing column in both silhouettes, so one list can't print
+        /// the same state in two different places.
         var usesSecondLine: Bool {
             secondaryLabel != nil && secondaryAction != nil
         }
@@ -143,8 +146,10 @@ enum AccountsSettingsInteractions {
         }
         var hidesFetchRecovery: Bool { !isFetching }
         var hidesCapabilityBanner: Bool { !isFetching }
+        /// R2B1: one constant, shared with the Menu Bar pane's Off-tag tooltip, so the two
+        /// statements of this rule cannot drift — they already disagreed on the full stop.
         var offHelpText: String? {
-            isFetching ? nil : "Not fetched while this provider is off."
+            isFetching ? nil : SettingsCopy.providerOffNotice
         }
     }
 

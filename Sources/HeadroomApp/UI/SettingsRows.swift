@@ -121,6 +121,39 @@ enum SettingsMetrics {
     /// Period). The old window ran three widths (280 / 200 / unconstrained), so the
     /// eye re-learned the layout per row.
     static let segmentedMaxWidth: CGFloat = 220
+
+    // R2C19: one spacing scale for the whole window. Every container used to spend a single
+    // value on both "header → its content" and "sibling → sibling" (pane 14/14, tile 18/18,
+    // swatch tiles 16/16), which put three levels of hierarchy inside a 4pt band — the reason
+    // Appearance read as one long list rather than three named tiles. Header→content is now
+    // the tightest gap in the window and container→container the widest, so the level a gap
+    // separates is legible from the gap alone. System Settings runs ~8 header→box, ~20
+    // box→box.
+
+    /// A title to the first thing it heads (pane title → first tile, tile title → first group).
+    static let headerToContent: CGFloat = 10
+    /// Sibling groups inside one tile (a switch with its help lines → the next control).
+    static let groupToGroup: CGFloat = 20
+    /// Sibling tiles inside a pane.
+    static let tileToTile: CGFloat = 28
+    /// A control's own label to the control (inline rows).
+    static let labelToControl: CGFloat = 4
+    /// The same pair once `ResponsiveControlRow` has stacked them.
+    static let labelToStackedControl: CGFloat = 6
+}
+
+/// Settings copy that more than one pane prints, so the two can never drift into two
+/// wordings of one rule.
+enum SettingsCopy {
+    /// R2B1/PB9: one constant for the "off" consequence, shown as an Accounts help line and
+    /// as the Menu Bar pane's Off-tag tooltip. No trailing stop — it is a label, not prose,
+    /// and the two sites used to disagree on exactly that.
+    static let providerOffNotice = "Not fetched while this provider is off"
+
+    /// The same notice as a clause after the Menu Bar pane's "Off" tag, derived rather than
+    /// retyped so VoiceOver and the tooltip stay one sentence.
+    static let providerOffAccessibilityLabel =
+        "Off — " + providerOffNotice.prefix(1).lowercased() + providerOffNotice.dropFirst()
 }
 
 /// One material for every section: the popover's card language — `RaisedTile` at
@@ -149,17 +182,20 @@ struct SettingsTile<Content: View>: View {
     }
 
     var body: some View {
-        // PB4: 18, up from 10. A tile's direct children are *groups* (a switch with its
-        // help lines, a picker with its caption), and those groups run 4–8pt internally,
-        // so a 10pt gap between them was only ~1.4× the gap inside them — not enough for
-        // "Period" to read as its own setting rather than the row above it's.
-        VStack(alignment: .leading, spacing: 18) {
+        // R2C19: the tile's two levels are spaced apart instead of sharing PB4's single 18.
+        // PB4's reasoning stands — a tile's direct children are *groups* (a switch with its
+        // help lines, a picker with its caption) running 4–8pt internally, so they need a
+        // clear step above that — but the title heading them is a level up again and belongs
+        // closer to what it names.
+        VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
             if let title {
                 Text(title)
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(-0.2)
             }
-            content
+            VStack(alignment: .leading, spacing: SettingsMetrics.groupToGroup) {
+                content
+            }
         }
         .padding(13)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -184,7 +220,7 @@ struct ResponsiveControlRow<Content: View>: View {
                 content
             }
 
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
                 Text(label)
                 content
             }
@@ -192,39 +228,118 @@ struct ResponsiveControlRow<Content: View>: View {
     }
 }
 
+/// R2M6: the hover flag `SettingsSwatchButtonStyle` publishes to the selection chrome inside
+/// its label. The chrome owns every fill and border a swatch draws, so hover has to reach it
+/// rather than stack a second neutral wash on top of a selected swatch's accent fill.
+private struct SettingsSwatchHoverKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+private extension EnvironmentValues {
+    var settingsSwatchHovering: Bool {
+        get { self[SettingsSwatchHoverKey.self] }
+        set { self[SettingsSwatchHoverKey.self] = newValue }
+    }
+}
+
+/// R2M6: the press-and-hover pair for the 17 Appearance swatches — the third control family
+/// in the app, and the only one PA11b's "every custom button needs a press state" never
+/// reached. Until this, clicking an already-selected swatch did literally nothing and the
+/// first feedback on an unselected one arrived after the commit.
+///
+/// Hover lives in the chrome (see the environment flag above); this style owns the press.
+/// No hover scale — a swatch is a plate in a grid, and lifting one shifts its neighbours'
+/// apparent alignment.
+struct SettingsSwatchButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        SettingsSwatchBody(configuration: configuration)
+    }
+
+    private struct SettingsSwatchBody: View {
+        let configuration: Configuration
+
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        /// The disabled Tube swatch opts out of both bands: it already reads at 0.45 and a
+        /// hover fill under a control that cannot be clicked teaches a false affordance.
+        @Environment(\.isEnabled) private var isEnabled
+        @State private var hovering = false
+
+        var body: some View {
+            // S3A: feedback lands on pointer-down and returns on settle.
+            let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
+            configuration.label
+                .environment(\.settingsSwatchHovering, hovering && isEnabled)
+                // S2A: scaling is movement, so Reduce Motion drops it while the chrome's
+                // fills below keep their timing — the `HoverButtonStyle` split.
+                .scaleEffect(configuration.isPressed ? HeadroomMotion.pressScale : 1)
+                .animation(
+                    HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
+                    value: configuration.isPressed
+                )
+                .onHover { hovering = $0 }
+        }
+    }
+}
+
 /// PB13: one selection ring for every picker in Settings. `MeterStyleTile`,
 /// `ThemeThumbnailPicker`, and `InAppDisplayTile` each carried a verbatim copy of this
-/// 8pt ring, 8% accent fill, and press-curve animation, so the three pickers standing
-/// side by side in Appearance could silently drift apart on any one edit.
+/// ring, accent fill, and animation, so the three pickers standing side by side in
+/// Appearance could silently drift apart on any one edit.
 private struct SettingsSelectionChrome: ViewModifier {
     let isSelected: Bool
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.settingsSwatchHovering) private var hovering
+
+    /// R2B3: 11, concentric with the r6 well the swatch body draws inside 5pt of padding.
+    /// At r8 the ring was less round than the well it framed — the loudest "feels off"
+    /// there is — and fixing it here fixes all three pickers at once.
+    private static let cornerRadius: CGFloat = 11
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+    }
+
+    /// R2M6: a selected swatch *deepens* its own accent fill rather than stacking a neutral
+    /// hover wash on top of it, so hover reads as one surface responding, not two.
+    private var fillColor: Color {
+        if isSelected { return Color.accentColor.opacity(hovering ? 0.12 : 0.08) }
+        return hovering ? Color.primary.opacity(0.05) : .clear
+    }
+
+    private var borderColor: Color {
+        if isSelected { return .accentColor }
+        return hovering
+            ? Color.primary.opacity(0.14)
+            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark)
+    }
 
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity)
-            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .background(
-                isSelected ? Color.accentColor.opacity(0.08) : Color.clear,
-                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-            )
+            .contentShape(shape)
+            .background(fillColor, in: shape)
             .overlay {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(
-                        isSelected
-                            ? Color.accentColor
-                            : ClaudeSetupStyle.hairline(dark: colorScheme == .dark),
-                        lineWidth: isSelected ? 2 : 1
-                    )
+                shape.strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
             }
-            // S1A/S2A/M5A: the ring's tint, its 1↔2pt width, and the 8% fill are all colour
-            // work, so the house press curve carries them and Reduce Motion keeps the
-            // cross-fade instead of hard-cutting.
+            // R2B4: `settle`, not `pressDown`. Selection is a settled state change; the 100ms
+            // press curve belongs to the press that caused it, which the style above owns.
+            // S2A: the ring's tint, its 1↔2pt width, and the fill are all colour work, so
+            // Reduce Motion keeps the cross-fade instead of hard-cutting.
             .animation(
-                HeadroomMotion.resolved(HeadroomMotion.pressDown, .crossfade, reduceMotion: reduceMotion),
+                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
                 value: isSelected
+            )
+            // S3A: hover in fast, out slow — the fill is there when the pointer arrives and
+            // lingers a beat when it leaves.
+            .animation(
+                HeadroomMotion.resolved(
+                    hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
+                    .crossfade,
+                    reduceMotion: reduceMotion
+                ),
+                value: hovering
             )
     }
 }
@@ -258,6 +373,15 @@ extension AnyTransition {
             ),
             removal: .opacity
         )
+    }
+
+    /// R2M7/S2A: the same reveal, split by kind. The rise and the blur are movement and drop
+    /// under Reduce Motion; the fade is a cross-fade and keeps its timing. A `.animation`
+    /// scope cannot split a transition from the layout change beside it, so the split has to
+    /// live in the transition itself — which is why the API-spend reveal could only choose
+    /// between "no fade at all" and "a 4pt rise under Reduce Motion" before.
+    static func settingsReveal(reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? .opacity : .settingsReveal
     }
 }
 
@@ -301,17 +425,24 @@ extension View {
     /// AP3: the horizontal inset is a parameter now. 9pt is right for the narrow menu-bar
     /// strips — the plate is nearly the whole content — but the Appearance specimen holds a
     /// full provider card, which read as jammed against the well's edge; it passes more.
+    ///
+    /// R2C9: so is the radius, for the same reason. A fixed r7 well held an r10 provider card
+    /// at 16/14pt padding, r20 widget tiles at 9/10, and an r6 menu-bar plate at 9 — the
+    /// first two inner-rounder-than-outer, which is the loudest "feels off" in concentric
+    /// geometry and sat at the top of the Appearance pane. Each caller passes the radius its
+    /// own content and padding make concentric.
     func settingsPreviewWell(
         dark: Bool,
         verticalPadding: CGFloat,
-        horizontalPadding: CGFloat = 9
+        horizontalPadding: CGFloat = 9,
+        cornerRadius: CGFloat
     ) -> some View {
         self
             .padding(.horizontal, horizontalPadding)
             .padding(.vertical, verticalPadding)
             .background(
                 ClaudeSetupStyle.wellBackground(dark: dark),
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
             )
     }
 }

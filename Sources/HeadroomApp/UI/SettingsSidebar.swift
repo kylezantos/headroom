@@ -11,6 +11,12 @@ import HeadroomCore
 struct SettingsSidebar: View {
     @Binding var selection: SettingsPane?
 
+    /// R2M8: the window opens with the destination list focused, so arrow keys move between
+    /// rooms without a mouse trip first. Nothing here animates — a keyboard-initiated pane
+    /// change rides the same 120ms cross-fade a click does, which is M6B's decision, and
+    /// focus itself is instant by construction.
+    @FocusState private var listFocused: Bool
+
     /// L10A: the identity block's top inset. The window has a hidden title bar (KTD8),
     /// so this is measured from the top of the sidebar column and has two jobs at once —
     /// clear the floating traffic lights, and land the logo's vertical centre on the same
@@ -46,26 +52,38 @@ struct SettingsSidebar: View {
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.top, Self.identityTopInset)
-                .padding(.horizontal, 12)
+                // R2B2: 10, down from 12. `List(.sidebar)`'s own row insets put the
+                // destination glyphs and labels one step further in than this block was, so
+                // the mark now lands on the row pills' edge and "Headroom" on the row-label
+                // axis instead of both sitting 2pt proud of the list beneath them.
+                .padding(.horizontal, 10)
                 .padding(.bottom, Self.navigationGap)
 
             List(selection: $selection) {
                 ForEach(SettingsPane.Group.allCases) { group in
                     Section(group.label) {
                         ForEach(group.panes) { pane in
-                            Label(pane.label, systemImage: pane.symbolName)
-                                // The column is sized for the longest destination
-                                // ("Widgets & iPhone", 108pt of glyphs at 13pt), but a
-                                // future name or a larger text size must truncate on one
-                                // line rather than wrap a sidebar row to two.
-                                .lineLimit(1)
-                                .tag(pane)
+                            Label {
+                                Text(pane.label)
+                            } icon: {
+                                Image(systemName: pane.symbolName)
+                                    .imageScale(pane.symbolScale)
+                            }
+                            // The column is sized for the longest destination
+                            // ("Widgets & iPhone", 108pt of glyphs at 13pt), but a
+                            // future name or a larger text size must truncate on one
+                            // line rather than wrap a sidebar row to two.
+                            .lineLimit(1)
+                            .tag(pane)
                         }
                     }
                 }
             }
             .listStyle(.sidebar)
+            .focused($listFocused)
         }
+        // R2M8: focus the destination list when the window opens.
+        .defaultFocus($listFocused, true)
     }
 
     /// Identity block replacing the removed window title and Done footer (KD3). The mark
@@ -133,6 +151,17 @@ extension SettingsPane {
         case .widgets: "square.grid.2x2"
         case .accounts: "person"
         case .apiSpend: "key"
+        }
+    }
+
+    /// R2B3: `person` and `key` are drawn inside a narrower optical box than the four
+    /// geometric symbols beside them, so at one nominal size they read about a point
+    /// smaller in the row. One scale step up puts all six on the same apparent height.
+    /// The correction is optical, not geometric — re-check it if the glyphs ever change.
+    var symbolScale: Image.Scale {
+        switch self {
+        case .accounts, .apiSpend: .large
+        case .general, .appearance, .menuBar, .widgets: .medium
         }
     }
 }

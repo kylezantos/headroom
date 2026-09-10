@@ -45,6 +45,8 @@ enum IdentityCapsuleStyle {
     /// R2C17: the stale chip's fill, previously an untokenised `secondary.opacity(0.18)`
     /// written out once on the identity row and again in the spend view.
     static let staleFill = Color.secondary.opacity(0.18)
+    /// CMM9: the plan / period pill — a step quieter than a state chip and without its ring.
+    static let metadataFill = Color.secondary.opacity(0.12)
 
     /// R2C17: outlined-and-filled reads as state; flat reads as label. One hairline is the
     /// whole difference, so it lives here rather than at either call site.
@@ -81,12 +83,14 @@ extension View {
         }
     }
 
-    /// R2C17: the metadata half of the split — plan, period, measure. No fill, and therefore
-    /// no horizontal inset: without a background the padding has nothing to inset *from* and
-    /// only pushes the label off the row's own 6pt rhythm. The shared height and type stay,
-    /// so a flat label still sits on the capsule line beside a chip.
+    /// The metadata half of the split — plan, period, measure.
+    ///
+    /// CMM9 (Kyle, 2026-09-10): back in its own pill. R2C17 had flattened it to a bare label
+    /// so that only *state* chips carried a fill; Kyle wants the plan and period "in their
+    /// own dip like they used to be", just styled apart from Stale — so this is a quiet fill
+    /// with no ring, and the state chips keep the fill-plus-hairline recipe.
     func identityMetadataLabel() -> some View {
-        identityCapsule(fill: Color.clear, horizontalPadding: 0)
+        identityCapsule(fill: IdentityCapsuleStyle.metadataFill, horizontalPadding: 5)
     }
 }
 
@@ -245,9 +249,19 @@ struct IdentityRow: View {
                     .kerning(IdentityRowMetrics.capsuleLabelKerning)
                     // PA13: the plan pill carries its own token so the dark step is set by |Lc|, not system `.tertiary`.
                     .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
-                    // R2C17: metadata, so it drops the fill. T1A/C6A's shared height keeps it
-                    // a peer of the state chip that may sit beside it on this same line.
+                    // CMM9: the plan pill, filled again; the state chip beside it carries
+                    // the ring that tells the two apart.
                     .identityMetadataLabel()
+            }
+            // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
+            // rather than pushed to the row's trailing edge — one chip run reading
+            // "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
+            if isStale {
+                staleTag
+            }
+            if showsConnectedChip {
+                ConnectedChip()
+                    .transition(.connectedChip(reduceMotion: reduceMotion))
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -258,13 +272,6 @@ struct IdentityRow: View {
                     .layoutPriority(1)
             }
             Spacer(minLength: 6)
-            if isStale {
-                staleTag
-            }
-            if showsConnectedChip {
-                ConnectedChip()
-                    .transition(.connectedChip(reduceMotion: reduceMotion))
-            }
         }
         // L4B: trailing controls stop level with the meter rows below them.
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)

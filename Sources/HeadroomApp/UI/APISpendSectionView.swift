@@ -4,6 +4,8 @@ import HeadroomCore
 
 struct APISpendSectionView: View {
     @Environment(\.colorScheme) private var scheme
+    /// CMM8: which row's amount the pointer is over; the top-up glyph reveals only there.
+    @State private var hoveredTopUp: ProviderID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var store: UsageStore
     let now: Date
@@ -43,7 +45,6 @@ struct APISpendSectionView: View {
     /// PB12: the glyph's own size, matched to the numerals it sits beside rather than to
     /// its slot.
     private static let topUpGlyphSize: CGFloat = 13
-    private static let topUpGap = IdentityRowMetrics.contentTrailingInset - topUpSlotSize
 
     var body: some View {
         let models = store.apiSpendProviderOrder.map(rowModel(for:))
@@ -52,7 +53,10 @@ struct APISpendSectionView: View {
             // language — identity rows on the shared content axis, chunked by the same 22pt
             // gap the account sections use, inside the byte-identical tile.
             VStack(alignment: .leading, spacing: 0) {
-                VStack(alignment: .leading, spacing: 22) {
+                // CMM7 (Kyle, 2026-09-10): the spend card takes the usage cards' rhythm —
+                // rows sit 26 apart like accounts do, on the same 13pt padding and the same
+                // identity-row recipe, so the two card kinds read as one system.
+                VStack(alignment: .leading, spacing: 26) {
                     ForEach(models) { model in
                         spendRow(model)
                     }
@@ -219,12 +223,10 @@ struct APISpendSectionView: View {
     /// the two figures read as one family rather than two.
     @ViewBuilder private func amountColumn(_ model: SpendRowModel) -> some View {
         let amount = model.amount
+        let providerID = model.snapshot.providerID
+        let revealed = hoveredTopUp == providerID
+        let glyphSpan = Self.topUpGlyphSize + Self.topUpToAmountGap
         HStack(spacing: MeterSuffixColumn.gap) {
-            // CMM5: the glyph and the digits share one trailing-aligned frame, so the glyph
-            // hugs *this* row's first digit while every row's last digit still lands on
-            // the numeral column's right edge. Reserved width = widest total + glyph + gap.
-            HStack(spacing: Self.topUpToAmountGap) {
-                topUpGlyph(model)
             Text(amount ?? "")
                 .font(.system(size: Self.amountSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(model.snapshot.freshness == .live ? .primary : .secondary)
@@ -238,11 +240,27 @@ struct APISpendSectionView: View {
                     value: model.snapshot.amount
                 )
                 .privacySensitive()
-            }
-            .frame(
-                width: amountColumnWidth + Self.topUpGlyphSize + Self.topUpToAmountGap,
-                alignment: .trailing
-            )
+                // CMM8 (Kyle, 2026-09-10): the top-up glyph takes no room at rest. It lives in
+                // an overlay off the amount's leading edge and reveals only while the pointer
+                // is over the figure, so the column reserves nothing for it.
+                .overlay(alignment: .leading) {
+                    topUpGlyph(model, revealed: revealed)
+                        .offset(x: -glyphSpan)
+                }
+                // The hover band covers the glyph's landing zone too (B3H's pad → shape →
+                // unpad), so sliding onto the "+" keeps it revealed long enough to click.
+                .padding(.leading, glyphSpan)
+                .contentShape(Rectangle())
+                .padding(.leading, -glyphSpan)
+                .onHover { inside in
+                    if inside {
+                        hoveredTopUp = providerID
+                    } else if hoveredTopUp == providerID {
+                        hoveredTopUp = nil
+                    }
+                }
+                // S5A: every row's last digit lands on the numeral column's right edge.
+                .frame(width: amountColumnWidth, alignment: .trailing)
             MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
         }
     }
@@ -253,27 +271,20 @@ struct APISpendSectionView: View {
     /// CMM5: the gap between the glyph and the amount it belongs to.
     private static let topUpToAmountGap: CGFloat = 7
 
-    @ViewBuilder private func topUpGlyph(_ model: SpendRowModel) -> some View {
+    @ViewBuilder private func topUpGlyph(_ model: SpendRowModel, revealed: Bool) -> some View {
         let snapshot = model.snapshot
-        // X5 (Kyle): a rejected or unscoped key has no balance to top up, so the glyph goes —
-        // but the 18pt slot stays reserved, which is what keeps a retained amount on the same
-        // right edge as the live ones (Cursor's URL-less row already proves the empty slot).
+        // X5 (Kyle): a rejected or unscoped key has no balance to top up, so there is no glyph.
         let offersTopUp = snapshot.freshness == .live || !model.status.keyNeedsAttention
         if let url = APISpendPresentation.addCreditsURL(for: snapshot.providerID), offersTopUp {
             Button {
                 NSWorkspace.shared.open(url)
             } label: {
-                // R2B3: a bare "+" beside "$142.67" reads as arithmetic — the amount plus
-                // something. The enclosing circle makes it a control at the same size.
-                Image(systemName: "plus.circle")
-                    // PB12: was 10pt against the 18pt semibold amount it belongs to — half
-                    // the stroke weight of its own row, which read as a stray hairline
-                    // rather than the amount's own affordance.
+                // CMM8: back to the bare "+" (PB12) — inside a hover reveal it no longer
+                // has to explain itself at rest, and the circle was the heavier of the two.
+                Image(systemName: "plus")
                     .font(.system(size: Self.topUpGlyphSize, weight: .semibold))
-                    // PB12: and centred on the amount's ink, not on the slot's box. The two
-                    // sit in `.center`-aligned stacks sharing one alignment line, but SF's
-                    // cap centre rides lower inside a 13pt line box than inside an 18pt one,
-                    // so box centring left the glyph ~0.3pt low. Measured, not nudged.
+                    // PB12: centred on the amount's ink, not on the slot's box. SF's cap
+                    // centre rides lower inside a 13pt line box than inside an 18pt one.
                     .offset(y: OpticalCentering.inkCenterAlignment(
                         size: Self.topUpGlyphSize,
                         weight: .semibold,
@@ -287,14 +298,33 @@ struct APISpendSectionView: View {
                 verticalPadding: 0,
                 hoverForegroundColor: ProviderStyle.textAccent(for: snapshot.providerID, scheme: scheme)
             ))
-            // R2M13: the app's other 24 affordances use `.help(_:)`; a bespoke material
-            // popup here was a second tooltip chrome, and it lived inside the ScrollView
-            // where the scroll mask feathered it. AppKit's own delay is the delay.
+            // R2M13: the app's other affordances use `.help(_:)`; AppKit's own delay is the delay.
             .help("Open \(snapshot.displayName) billing to add credits")
             .accessibilityLabel("Add \(snapshot.displayName) credits")
+            // CMM8: the reveal. Scale and slide are `.movement` on the S3A hover pair (in on
+            // `hoverIn`, out on `hoverOut`) and snap under Reduce Motion; the fade is
+            // `.crossfade` and keeps its timing (S2A). A hidden glyph takes no clicks.
+            .scaleEffect(revealed ? 1 : 0.6)
+            .offset(x: revealed ? 0 : 6)
+            .animation(
+                HeadroomMotion.resolved(
+                    revealed ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
+                    .movement,
+                    reduceMotion: reduceMotion
+                ),
+                value: revealed
+            )
+            .opacity(revealed ? 1 : 0)
+            .animation(
+                HeadroomMotion.resolved(
+                    revealed ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
+                    .crossfade,
+                    reduceMotion: reduceMotion
+                ),
+                value: revealed
+            )
+            .allowsHitTesting(revealed)
         }
-        // CMM5: no reserved slot when there is no billing page — the amount right-aligns on
-        // its own, so an empty 18pt box here would only crowd the title.
     }
 
     // MARK: - State line

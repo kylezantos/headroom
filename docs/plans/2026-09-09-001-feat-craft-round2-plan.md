@@ -120,3 +120,8 @@ appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
 | CMM5 | **Spend rows share the meter rows' trailing columns.** The `+` sits 7pt to the *left* of the amount; amount on the numeral column, "used"/"left" in the suffix slot, the 21pt gutter empty. No slot reserved when a provider has no billing page. The period label is the three-letter month ("Sep"). Closes R2C8's open `+` question. |
 | CMM6 | **Chip box outdent 1pt.** `CardActionRow` hangs the first chip's box 1pt outside the text axis: mechanically aligned within 0.5pt, a filled ringed box reads heavier than a glyph edge. |
 
+
+| CMM7 | **The spend card takes the usage cards' rhythm** (Kyle, 2026-09-10: "match the usage cards on all of its spacing, margins, and padding"): rows 26 apart like accounts, same 13pt card padding, same identity-row recipe, same figure / suffix / gutter columns. |
+| CMM8 | **Hover-only top-up glyph.** The bare "+" (PB12) reserves no width; it sits in an overlay 7pt off the amount's first digit and reveals only while the pointer is over the figure — scale 0.6 → 1 and a 6pt slide on `hoverIn`/`hoverOut` as `.movement`, fade as `.crossfade` (S2A). Hidden glyph takes no clicks. Supersedes CMM5's always-visible placement. |
+| CMM9 | **Plan and period back in their own pill, Stale inline.** `identityMetadataLabel` is a filled capsule again (`secondary 0.12`, no ring); state chips keep fill + hairline. Stale / Connected sit right after the plan pill, leading-aligned, instead of at the row's trailing edge. |
+\n

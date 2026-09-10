@@ -51,7 +51,7 @@ public actor CredentialStore {
         do {
             let key = try apiKeyStore.readAPIKey(for: provider)
             guard !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return .failure(.notLoggedIn("\(provider.displayName) API key is empty"))
+                return .failure(.notLoggedIn("\(provider.credentialLabel) is empty"))
             }
             return .success(key)
         } catch CredentialError.notLoggedIn {
@@ -61,20 +61,20 @@ public actor CredentialStore {
             let credential = APISpendCredentialDescriptor.forProvider(provider.providerID)
             return .failure(.notLoggedIn("Add \(credential.credentialNoun) in Settings"))
         } catch {
-            return .failure(.notLoggedIn("\(provider.displayName) API key unreadable"))
+            return .failure(.notLoggedIn("\(provider.credentialLabel) unreadable"))
         }
     }
 
     public func saveAPIKey(_ key: String, for provider: APIKeyProvider) async -> Result<Void, FailureReason> {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return .failure(.notLoggedIn("\(provider.displayName) API key is empty"))
+            return .failure(.notLoggedIn("\(provider.credentialLabel) is empty"))
         }
         do {
             try apiKeyStore.saveAPIKey(trimmed, for: provider)
             return .success(())
         } catch {
-            return .failure(.transient("Couldn’t save \(provider.displayName) API key"))
+            return .failure(.transient("Couldn’t save \(provider.credentialLabel)"))
         }
     }
 
@@ -83,8 +83,22 @@ public actor CredentialStore {
             try apiKeyStore.deleteAPIKey(for: provider)
             return .success(())
         } catch {
-            return .failure(.transient("Couldn’t delete \(provider.displayName) API key"))
+            return .failure(.transient("Couldn’t delete \(provider.credentialLabel)"))
         }
+    }
+}
+
+extension APIKeyProvider {
+    /// The stored credential named the way Settings → API Spend and the spend rows already
+    /// name it — "Anthropic admin key", "xAI management key". `displayName` cannot carry
+    /// these lines on its own: it is a row title, so `"\(displayName) API key"` rendered
+    /// xAI's as "xAI API API key", and it calls every credential an "API key" when xAI's is
+    /// a management key. Vendor and noun both come from the one
+    /// `APISpendCredentialDescriptor` vocabulary that already fixed the missing-key line
+    /// below, so no surface invents a second name for the same secret.
+    var credentialLabel: String {
+        let credential = APISpendCredentialDescriptor.forProvider(providerID)
+        return "\(APISpendPresentation.vendorName(from: displayName)) \(credential.noun)"
     }
 }
 

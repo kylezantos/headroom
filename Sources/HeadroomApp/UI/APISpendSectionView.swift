@@ -115,15 +115,15 @@ struct APISpendSectionView: View {
         // silhouette. R4A sets the rhythm: 6 inside the group (title → sentence), 12 outside
         // it (sentence → action row, from `CardActionRow`), 13 to the card edge.
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: Self.topUpGap) {
+            HStack(spacing: 0) {
                 identityLine(model)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(accessibilityLabel(model))
-                // X5 (Kyle): with no figure there is nothing to reserve. The amount column
-                // and the top-up slot collapse together rather than leaving 112pt of
-                // reserved-and-empty line to the right of the title.
+                // CMM5: the trailing gutter stays empty, exactly as it is on a meter row, so
+                // the amount's digits end on the percentages' column. X5 still applies —
+                // with no figure there is nothing to reserve.
                 if model.amount != nil {
-                    topUpSlot(model)
+                    Color.clear.frame(width: IdentityRowMetrics.contentTrailingInset, height: 1)
                 }
             }
             // The live "Updated N min ago" sub-line is dropped — the popover header
@@ -178,6 +178,12 @@ struct APISpendSectionView: View {
             // "Anthropic API" 2pt short beside the reserved "$0,000.00" column.
             Spacer(minLength: 0)
             if model.amount != nil {
+                // CMM5 (Kyle, 2026-09-10): the top-up glyph sits to the *left* of the amount
+                // instead of in the trailing gutter, so a spend row and a meter row share the
+                // same three trailing columns — figure, suffix, empty 21pt gutter — and one
+                // right edge. Nothing is reserved when a provider has no billing page; the
+                // amount is right-aligned regardless.
+                topUpGlyph(model)
                 amountColumn(model)
                     // S5A (Kyle): the amount never gives up width and never drops to a second
                     // line — at the popover's 299pt content width the chip truncates first.
@@ -235,7 +241,10 @@ struct APISpendSectionView: View {
     /// Quiet escape hatch to top up: opens the provider's billing page (the screen with the
     /// actual "Buy credits" control) — we never run the purchase ourselves. Bare glyph per
     /// the popover's control language; B3A keeps `HoverButtonStyle` for glyph controls.
-    @ViewBuilder private func topUpSlot(_ model: SpendRowModel) -> some View {
+    /// CMM5: the gap between the glyph and the amount it belongs to.
+    private static let topUpToAmountGap: CGFloat = 7
+
+    @ViewBuilder private func topUpGlyph(_ model: SpendRowModel) -> some View {
         let snapshot = model.snapshot
         // X5 (Kyle): a rejected or unscoped key has no balance to top up, so the glyph goes —
         // but the 18pt slot stays reserved, which is what keeps a retained amount on the same
@@ -274,10 +283,10 @@ struct APISpendSectionView: View {
             // where the scroll mask feathered it. AppKit's own delay is the delay.
             .help("Open \(snapshot.displayName) billing to add credits")
             .accessibilityLabel("Add \(snapshot.displayName) credits")
-        } else {
-            Color.clear
-                .frame(width: Self.topUpSlotSize, height: Self.topUpSlotSize)
+            .padding(.trailing, Self.topUpToAmountGap)
         }
+        // CMM5: no reserved slot when there is no billing page — the amount right-aligns on
+        // its own, so an empty 18pt box here would only crowd the title.
     }
 
     // MARK: - State line

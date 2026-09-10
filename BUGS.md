@@ -462,8 +462,8 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **R2M4 deferred.** Kyle noted a signed-in account never shows Check Now (the chip is only on
   setup/recovery rows). The per-account "Checking…" capsule half of M4 (`refreshingAccounts` in the
   store, lit only for the serial Claude/Cursor/Grok lane) stands on its own; not built.
-- **Spend `+` placement (R2C8).** Kyle floated moving the top-up glyph left of the amount and/or
-  hover-only. Not built; the S5A gutter stays. Revisit if the row ever crowds again.
+- ~~Spend `+` placement (R2C8).~~ **Resolved 2026-09-10 (CMM5):** the glyph sits left of the amount;
+  spend rows now share the meter rows' figure / suffix / empty-gutter columns.
 - **Setup disclosures under Reduce Motion (R2M7).** The chevron snaps and the well crossfades, but
   the container height rides the 200ms crossfade rather than snapping: SwiftUI resolves an
   insertion's layout and transition in one transaction. Same family as the M4A/M7A residuals.

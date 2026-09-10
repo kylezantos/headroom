@@ -7,6 +7,12 @@ import HeadroomCore
 enum IdentityRowMetrics {
     static let markSlotWidth: CGFloat = 15
     static let spacing: CGFloat = 6
+    /// CMM4 (Kyle, 2026-09-10): the identity row's gap to what it heads — 4 over meters,
+    /// 6 over a sign-in sentence. Frame units; ≈14pt / ≈12.5pt of ink in Micro.
+    static let identityToMetersGap: CGFloat = 4
+    static let identityToSentenceGap: CGFloat = 6
+    /// CMM6: how far a chip row's first box hangs outside the text axis.
+    static let chipBoxOutdent: CGFloat = 1
     static let meterContentInset = markSlotWidth + spacing
     /// L4B: the trailing gutter mirrors the label column instead of the mark. With the
     /// card's own 13pt padding this ends every identity row and every meter row 34pt from
@@ -448,18 +454,19 @@ struct AccountSectionView: View {
         // is one VoiceOver container so the rotor can jump account-to-account instead of the
         // meters floating free of their identity row.
         //
-        // R2C2: 6 → 2. The ladder was intended as "6 binds, 10–12 separates", but measured in
-        // *ink* on a live capture it came out 14.5pt identity→meter against 17.5pt
-        // meter→meter — 1.21×, so an account read as evenly stacked lines rather than a name
-        // and its meters. Descender and ascender slack ate the difference. 2 frame units is
-        // ~10pt of ink against the same 17.5 (1.75×), which is the ≥2× grouping wants.
-        VStack(alignment: .leading, spacing: 2) {
+        // CMM4 (Kyle, 2026-09-10) supersedes R2C2's 2. R2C2 chased a "≥2× group gap" ratio
+        // and landed the title 12pt of ink over its first meter against 19pt meter-to-meter,
+        // which made "Personal" pair with "Weekly" and orphan "5-hour". The account is the
+        // group; inside it the title sits a touch tighter than the row step, not half of it.
+        // Kyle picked the values off the side-by-side mock: 4 over meters (≈14pt ink), 6 over
+        // a sign-in sentence (≈12.5pt ink, the pre-round value).
+        VStack(alignment: .leading, spacing: identityToContentGap) {
             identityRow
             // M4A/S2A: the innermost scope around the switching body, so the crossfade —
             // not the section's height change — is what this animation drives. The wrapper
             // repeats the parent's spacing so it stays layout-neutral for the multi-view
             // `signInContent` branch. Fill and numeral roll are `UsageBarView`'s.
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: identityToContentGap) {
                 stateContent
             }
             .animation(
@@ -529,6 +536,14 @@ struct AccountSectionView: View {
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark
         )
+    }
+
+    /// CMM4: 6 over a sign-in sentence, 4 over meters or the skeleton that stands in for them.
+    private var identityToContentGap: CGFloat {
+        if case .stale(let reason) = snapshot.freshness, reason.isPermanent {
+            return IdentityRowMetrics.identityToSentenceGap
+        }
+        return IdentityRowMetrics.identityToMetersGap
     }
 
     @ViewBuilder private var stateContent: some View {
@@ -641,7 +656,9 @@ struct AccountSectionView: View {
                         // — which `CardActionRow`'s default `labelInset` already is — and
                         // bounded on the right by the usage rows' own trailing edge, so a
                         // wrapped pair of chips sits inside the meters' left/right bounds.
-                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
+                        // CMM4: 8, not R4A's 12 — the buttons are the sentence's own action
+                        // and sat further from it than the sentence sat from its title.
+                        CardActionRow(topPadding: 8, trailingInset: IdentityRowMetrics.contentTrailingInset) {
                             Button {
                                 if let recoveryPresentation {
                                     SetupSessions.performRecovery(

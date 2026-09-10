@@ -189,6 +189,14 @@ enum PopoverRenderHarness {
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.contentView = hosting
         window.isOpaque = true
+        // Kyle (2026-09-10): the harness must never show on screen. A borderless window at
+        // the origin flashed in the bottom-left corner of the desktop on every render.
+        // Parking it off-screen is not an option — `screencapture -l` returns a fully
+        // transparent image for a window outside every display — so it stays on screen but
+        // *below the wallpaper*: the window server composites and captures it, nobody sees
+        // it, and Mission Control / Spaces leave it alone.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         window.orderFrontRegardless()
         window.displayIfNeeded()
         // Let the popover's one-shot entrance settle (0.22s curve) before snapshotting.
@@ -272,6 +280,14 @@ enum PopoverRenderHarness {
         window.backgroundColor = .clear
         window.appearance = hosting.appearance
         window.contentView = hosting
+        // Kyle (2026-09-10): the harness must never show on screen. A borderless window at
+        // the origin flashed in the bottom-left corner of the desktop on every render.
+        // Parking it off-screen is not an option — `screencapture -l` returns a fully
+        // transparent image for a window outside every display — so it stays on screen but
+        // *below the wallpaper*: the window server composites and captures it, nobody sees
+        // it, and Mission Control / Spaces leave it alone.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         window.orderFrontRegardless()
         window.displayIfNeeded()
         try? await Task.sleep(for: .milliseconds(500))
@@ -398,6 +414,14 @@ enum PopoverRenderHarness {
         let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         window.contentView = hosting
+        // Kyle (2026-09-10): the harness must never show on screen. A borderless window at
+        // the origin flashed in the bottom-left corner of the desktop on every render.
+        // Parking it off-screen is not an option — `screencapture -l` returns a fully
+        // transparent image for a window outside every display — so it stays on screen but
+        // *below the wallpaper*: the window server composites and captures it, nobody sees
+        // it, and Mission Control / Spaces leave it alone.
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         window.orderFrontRegardless()
         window.displayIfNeeded()
         try? await Task.sleep(for: .milliseconds(500))

@@ -532,7 +532,9 @@ public enum APISpendPeriod: String, CaseIterable, Sendable, Codable, Equatable {
             let formatter = DateFormatter()
             formatter.calendar = calendar
             formatter.locale = .current
-            formatter.setLocalizedDateFormatFromTemplate("MMMM")
+            // CMM5 (Kyle, 2026-09-10): the three-letter month — "Sep", not "September" —
+            // reads as a period tag beside the amount rather than a second title.
+            formatter.setLocalizedDateFormatFromTemplate("MMM")
             return formatter.string(from: now)
         case .rolling30Days:
             return label

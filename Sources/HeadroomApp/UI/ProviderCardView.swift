@@ -391,12 +391,9 @@ struct ProviderCardView: View {
             // R4A: in step with `AccountSectionView`'s identity→body gap — one grouping
             // rhythm whether the card carries one account or several.
             //
-            // R2C2: 6 → 2. The ladder is set in *ink*, not frame units: 6 measured 14.5pt of
-            // ink to the first meter against 17.5pt meter-to-meter (1.21×), so the identity
-            // row read as one more evenly stacked line. 2 gives ~10 vs 17.5 in Micro and
-            // 9.5 vs 15 in Full. The 26pt account gap already measures 33.5pt of ink and is
-            // untouched.
-            VStack(alignment: .leading, spacing: 2) {
+            // CMM4 (Kyle, 2026-09-10) supersedes R2C2's 2: the title sits a touch tighter
+            // than the meter step, not half of it. See `AccountSectionView`.
+            VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap) {
                 accountIdentityRow(for: primaryEntry)
                 content
             }
@@ -892,7 +889,10 @@ struct CardActionRow<Content: View>: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         // CMM2: the chip *box* sits on the axis; wrapped lines inherit it because
         // `ActionChipFlow` starts each line at `bounds.minX`.
-        .padding(.leading, labelInset)
+        // CMM6 (Kyle, 2026-09-10): outdented by 1pt. Mechanically the box edge and the
+        // title ink shared one x within 0.5pt; optically a filled, ringed box reads heavier
+        // than a glyph's edge, so it hangs a hair outside the axis the way a bullet does.
+        .padding(.leading, labelInset - IdentityRowMetrics.chipBoxOutdent)
         // R2C11: the trailing bound is the meter column's right edge, box-to-edge as well.
         .padding(.trailing, trailingInset)
         .padding(.top, topPadding)

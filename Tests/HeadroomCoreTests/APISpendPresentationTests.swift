@@ -58,6 +58,42 @@ struct APISpendPresentationTests {
         #expect(APISpendPresentation.contextLabel(kind: .periodSpend, periodLabel: spend.periodLabel) == "Current month")
     }
 
+    /// R2C8: the two directions a spend figure can point, in the meters' own suffix
+    /// vocabulary. "$58.90" alone reads identically on a period-spend row and a balance row,
+    /// so the popover prints the term after the amount; the term itself lives in Core so the
+    /// popover, the widgets and the phone mirror all spell it the same way.
+    @Test func directionTermNamesWhichWayTheFigurePoints() {
+        #expect(APISpendPresentation.directionTerm(kind: .periodSpend) == "spent")
+        #expect(APISpendPresentation.directionTerm(kind: .balance) == "left")
+    }
+
+    /// R2C8 surfaced the existing `"left"` term on macOS; it did not change what the widget
+    /// and phone strings say, because those surfaces have no suffix column to set a term in.
+    @Test func widgetAmountStringKeepsItsExistingShape() {
+        let balance = WidgetAPISpendSummary(
+            id: ProviderID.grok.raw,
+            displayName: "xAI API",
+            amount: 42.1,
+            currency: "usd",
+            periodLabel: "Prepaid balance",
+            kind: .balance,
+            capturedAt: now,
+            freshness: .live
+        )
+        let spend = WidgetAPISpendSummary(
+            id: ProviderID.codex.raw,
+            displayName: "OpenAI API",
+            amount: 58.9,
+            currency: "usd",
+            periodLabel: "Current month",
+            capturedAt: now,
+            freshness: .live
+        )
+
+        #expect(APISpendPresentation.amountText(balance) == "$42.10 left")
+        #expect(APISpendPresentation.amountText(spend) == "$58.90")
+    }
+
     @Test func statusTextUsesFreshness() {
         #expect(APISpendPresentation.statusText(freshness: WidgetProviderFreshness.pending, capturedAt: nil, now: now) == "Waiting for cost data")
         #expect(APISpendPresentation.statusText(freshness: WidgetProviderFreshness.live, capturedAt: now.addingTimeInterval(-60), now: now) == "Updated 1 min ago")

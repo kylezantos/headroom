@@ -124,6 +124,38 @@ public enum DemoFixture {
         )
     }
 
+    // MARK: Partial capture (R2B2)
+
+    /// R2B2: the per-window `.unavailable` state, which no shipped fixture posed. It is the
+    /// real shape of a partial Claude `/usage` capture (see `UsageContinuityPolicy`): the
+    /// session and overall weekly rows stay live while a separately rendered model row drops
+    /// out, keeps its label, loses its percentage, and outlives its validity window. Stacked
+    /// under two live rows it is the only way to see whether the reserved suffix column holds
+    /// the gauge and the "—" on the live rows' axis.
+    public static var claudePartialCaptureSnapshot: UsageSnapshot {
+        let observed = Date().addingTimeInterval(-135)
+        return UsageSnapshot(
+            providerID: .claude,
+            windows: [
+                UsageWindow(kind: .fiveHour, utilization: 28, resetsAt: soon(hours: 3, minutes: 15, seconds: 30), resetLabel: "Resets 2:15pm"),
+                UsageWindow(kind: .weekly, utilization: 62, resetsAt: soon(days: 4, minutes: 30), resetLabel: "Resets Jul 9"),
+                // Retained past its validity window: the row stays, the number does not.
+                UsageWindow(
+                    kind: .other("Weekly (Fable)"),
+                    utilization: 46,
+                    resetsAt: soon(days: 4, minutes: 30),
+                    resetLabel: "Resets Jul 9",
+                    freshness: .unavailable(since: observed.addingTimeInterval(-3_600)),
+                    observedAt: observed.addingTimeInterval(-3_600)
+                ),
+            ],
+            planLabel: "Max",
+            accountEmail: "personal@example.com",  // placeholder (see claudeSnapshot)
+            capturedAt: observed,
+            freshness: .live
+        )
+    }
+
     // MARK: API spend (macOS only)
 
     public static var anthropicSpend: APISpendSnapshot {
@@ -300,6 +332,10 @@ extension DemoFixture {
         /// period spend, so the tag, the wrapping message, the card-foot chip and the
         /// balance row's column alignment had no way to be seen in the live popover.
         case spendStates = "spend-states"
+        /// R2B2: one Claude account whose model row has gone `.unavailable` while its
+        /// session and weekly rows stay live — the partial-capture shape, and the only
+        /// scenario that shows a row with no percentage under two rows that have one.
+        case windowUnavailable = "window-unavailable"
         /// X5: the same four rows, but with both retained-figure states posed — a rejected
         /// key still showing its last total (column and reserved top-up slot held), and a
         /// retryable stale row. `spend-states` can only pose one shape per row, and the
@@ -475,6 +511,11 @@ extension DemoFixture {
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
                 builtInProviderPair(provider: .grok, snapshot: grokSnapshot),
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+            ]
+        case .windowUnavailable:
+            pairs = [
+                builtInProviderPair(provider: .claude, snapshot: claudePartialCaptureSnapshot, label: "Personal"),
+                demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
             ]
         case .fourDefault:
             pairs = [

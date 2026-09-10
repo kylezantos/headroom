@@ -67,10 +67,15 @@ public enum Countdown {
 
     public static func resetLine(resetsAt: Date, now: Date) -> MeterResetLine? {
         let interval = resetsAt.timeIntervalSince(now)
-        if (-60...60).contains(interval) {
+        // R2M3: the countdown never blanks. Once the deadline is behind us the row
+        // holds "now" instead of disappearing, because the pre-reset percentage is
+        // still on screen until a fresh capture lands — a blank label beside a stale
+        // number reads as a bug at the one moment the product exists for. A new
+        // capture replaces the deadline (or retires the row as `.unavailable`, which
+        // the meter and widget presenters already hide), which is what ends the hold.
+        guard interval > 60 else {
             return MeterResetLine(countdown: "now", tooltip: "Resets now")
         }
-        guard interval > 60 else { return nil }
         let countdown = string(to: resetsAt, now: now)
         return MeterResetLine(
             countdown: countdown,

@@ -129,7 +129,7 @@ public final class UsageStore {
     let providerFactory: (@MainActor (ProviderAccount) -> any UsageProvider)?
     let widgetExporter: (any WidgetSnapshotExporting)?
     let phoneSyncExporter: (any WidgetSnapshotExporting)?
-    private var engine: PollingEngine?
+    private(set) var engine: PollingEngine?
     private var isStarting = false
     @ObservationIgnored var pendingAccountRefreshes: Set<AccountKey> = []
     @ObservationIgnored var removingAccounts: Set<AccountKey> = []
@@ -305,15 +305,85 @@ public final class UsageStore {
         await refreshAll()
         let engine = PollingEngine(
             intervalMinutes: { [preferences] in preferences.pollIntervalMinutes },
+            // R2M3: phase the poll to the reset moment. When a tracked window's deadline
+            // falls inside this interval the same poll is moved to just after it, so the
+            // refill lands when capacity actually returns instead of at a random offset up
+            // to a full interval late.
+            nextResetDeadline: { [weak self] in self?.nextTrackedResetDeadline() },
+            now: now,
             tick: { [weak self] in await self?.refreshAll(source: .timer) }
         )
         engine.start()
         self.engine = engine
     }
 
-    /// Immediate off-cadence refresh — called on popover open (KTD9).
+    /// Immediate off-cadence refresh — the Refresh button and other explicit user actions
+    /// (KTD9). Popover open deliberately does *not* land here: it goes through
+    /// `refreshOnPopoverOpen()`, which gates on capture age (R2M2).
     public func refreshNow() {
         Task { await refreshAll() }
+    }
+
+    /// R2M2: freshen on popover open, but only when the timer was about to fire anyway.
+    /// The popover is the app's highest-frequency moment and a Claude poll is a 20–30s CLI
+    /// session, so this refreshes only once the oldest live capture has already aged past a
+    /// full poll interval, then re-phases the cadence so the next tick is a full interval
+    /// after the fresh data. At most one extra poll per interval; the cadence itself is
+    /// never raised (AGENTS.md's cost warning).
+    public func refreshOnPopoverOpen() {
+        // A cycle already in flight is freshening the data by itself, and re-phasing would
+        // cancel the loop task mid-tick.
+        guard !isRefreshing else { return }
+        guard Self.shouldRefreshOnPopoverOpen(
+            oldestLiveCapture: oldestLiveCapture,
+            now: now(),
+            intervalMinutes: preferences.pollIntervalMinutes
+        ) else { return }
+        Task {
+            await refreshAll()
+            // Re-phase after the poll lands, so the next tick is a full interval from fresh
+            // data rather than from the moment the popover opened.
+            engine?.rephase()
+        }
+    }
+
+    /// Oldest capture time among snapshots that are actually live. Permanently stale rows
+    /// are excluded on purpose: their retained `capturedAt` only gets older, so counting
+    /// them would make every popover open trigger a refresh forever.
+    var oldestLiveCapture: Date? {
+        snapshots.values
+            .filter { $0.freshness == .live }
+            .compactMap(\.capturedAt)
+            .min()
+    }
+
+    nonisolated static func shouldRefreshOnPopoverOpen(
+        oldestLiveCapture: Date?,
+        now: Date,
+        intervalMinutes: Int
+    ) -> Bool {
+        // Nothing live means nothing to freshen — a never-signed-in or failing account has
+        // its own recovery affordance in the card, and probing it on every open would burn a
+        // CLI session per open.
+        guard let oldestLiveCapture else { return false }
+        let interval = Double(PollingEngine.clampedIntervalMinutes(intervalMinutes)) * 60
+        return now.timeIntervalSince(oldestLiveCapture) >= interval
+    }
+
+    /// R2M3: earliest reset deadline still ahead of us across every tracked window of an
+    /// enabled provider. `.unavailable` rows are excluded — their retained deadline is no
+    /// longer evidence of anything on screen.
+    func nextTrackedResetDeadline(now referenceDate: Date? = nil) -> Date? {
+        let reference = referenceDate ?? now()
+        let enabled = Set(providerOrder)
+        return snapshots
+            .filter { enabled.contains($0.key.providerID) }
+            .values
+            .flatMap(\.windows)
+            .filter { !$0.freshness.isUnavailable }
+            .compactMap(\.resetSchedule.deadline)
+            .filter { $0 > reference }
+            .min()
     }
 
     /// Refresh only API spend providers. Settings uses this for spend-only controls so

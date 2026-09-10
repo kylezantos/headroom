@@ -448,7 +448,14 @@ struct HeadroomApp: App {
                 .onChange(of: appearancePreference) { _, newValue in
                     newValue.applyToProcess()
                 }
-                .task { await store.start() }
+                .task {
+                    await store.start()
+                    // R2M2: `start()` is idempotent and early-returns once the loop
+                    // exists, so this is the only place the popover can freshen on open.
+                    // The store decides whether it's worth a poll (oldest live capture
+                    // older than one interval) and re-phases the cadence if it is.
+                    store.refreshOnPopoverOpen()
+                }
         } label: {
             MenuBarLabel(
                 meters: store.menuBarMeters,

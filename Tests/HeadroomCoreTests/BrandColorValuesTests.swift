@@ -3,11 +3,207 @@ import Testing
 @testable import HeadroomCore
 
 struct BrandColorValuesTests {
+    /// R2C18: the Claude accent *is* the mark's own fill. It used to be a hand-authored
+    /// `#D97842` at H 47.8° beside a `#D97757` SVG at H 38.8° — the same card carrying two
+    /// oranges nine degrees apart. Codex is unchanged in appearance; it is simply re-authored
+    /// on its own measured hue so the whole family has one construction.
     @Test func providerAccentsMatchCanonicalSpec() {
-        #expect(HeadroomBrandColorValues.claude == HeadroomRGBColor(red: 0.85, green: 0.47, blue: 0.26))
-        #expect(HeadroomBrandColorValues.codex == HeadroomRGBColor(red: 0.28, green: 0.34, blue: 1.00))
+        let claude = HeadroomOKLCH(HeadroomBrandColorValues.claude)
+        #expect(abs(claude.lightness - 0.672) < 0.002)
+        #expect(abs(claude.chroma - 0.131) < 0.002)
+        #expect(abs(claude.hue - HeadroomBrandColorValues.claudeHue) < 0.5)
+        // The SVG's fill, to the byte.
+        #expect(hex(HeadroomBrandColorValues.claude) == "#D97757")
+
+        let codex = HeadroomOKLCH(HeadroomBrandColorValues.codex)
+        #expect(abs(codex.lightness - 0.555) < 0.002)
+        #expect(abs(codex.hue - HeadroomBrandColorValues.codexHue) < 0.5)
+        #expect(distance(HeadroomBrandColorValues.codex, HeadroomRGBColor(red: 0.28, green: 0.34, blue: 1.00)) < 0.01)
+
         #expect(HeadroomBrandColorValues.grok == HeadroomRGBColor(red: 0.36, green: 0.40, blue: 0.46))
         #expect(HeadroomBrandColorValues.cursor == HeadroomRGBColor(red: 0.33, green: 0.34, blue: 0.38))
+    }
+
+    /// R2C18: every Claude/Codex brand value is a stop on one constant-hue ramp — accent,
+    /// title accent, and both CTA gradient ends. A new literal at a different hue fails here.
+    @Test func everyBrandRampStopHoldsItsFamilyHue() {
+        var claudeStops: [(String, HeadroomRGBColor)] = [("accent", HeadroomBrandColorValues.claude)]
+        var codexStops: [(String, HeadroomRGBColor)] = [("accent", HeadroomBrandColorValues.codex)]
+        for dark in [true, false] {
+            claudeStops += [
+                ("textAccent dark=\(dark)", HeadroomBrandRamp.claudeTextAccent(dark: dark)),
+                ("ctaTop dark=\(dark)", HeadroomBrandRamp.claudeCTATop(dark: dark)),
+                ("ctaBottom dark=\(dark)", HeadroomBrandRamp.claudeCTABottom(dark: dark)),
+            ]
+            codexStops += [
+                ("textAccent dark=\(dark)", HeadroomBrandRamp.codexTextAccent(dark: dark)),
+                ("ctaTop dark=\(dark)", HeadroomBrandRamp.codexCTATop(dark: dark)),
+                ("ctaBottom dark=\(dark)", HeadroomBrandRamp.codexCTABottom(dark: dark)),
+            ]
+        }
+        for (name, stop) in claudeStops {
+            let hue = HeadroomOKLCH(stop).hue
+            #expect(abs(hue - HeadroomBrandColorValues.claudeHue) < 2, "claude \(name) at H \(hue)")
+        }
+        for (name, stop) in codexStops {
+            let hue = HeadroomOKLCH(stop).hue
+            #expect(abs(hue - HeadroomBrandColorValues.codexHue) < 2, "codex \(name) at H \(hue)")
+        }
+        // The widget/popover title accent reads the ramp, so the two cannot drift apart.
+        for dark in [true, false] {
+            #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.claude.raw, dark: dark)
+                == HeadroomBrandRamp.claudeTextAccent(dark: dark))
+            #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.codex.raw, dark: dark)
+                == HeadroomBrandRamp.codexTextAccent(dark: dark))
+        }
+        // The CTA is a gradient, so its bottom stop is the darker one in both schemes.
+        for dark in [true, false] {
+            #expect(HeadroomOKLCH(HeadroomBrandRamp.claudeCTABottom(dark: dark)).lightness
+                < HeadroomOKLCH(HeadroomBrandRamp.claudeCTATop(dark: dark)).lightness)
+            #expect(HeadroomOKLCH(HeadroomBrandRamp.codexCTABottom(dark: dark)).lightness
+                < HeadroomOKLCH(HeadroomBrandRamp.codexCTATop(dark: dark)).lightness)
+        }
+    }
+
+    /// R2C18: the CTA carries a white 13pt label. The dark tops used to measure 4.05:1
+    /// (Claude) and 3.97:1 (Codex) against it while the comment beside them claimed the ramp
+    /// "averages ≈4.5:1" — so the *top* stop, the lightest thing under the label, is what has
+    /// to clear AA, not an average of the button face.
+    @Test func whiteOnEveryCTATopClearsSmallTextContrast() {
+        for dark in [true, false] {
+            for (name, top) in [
+                ("claude", HeadroomBrandRamp.claudeCTATop(dark: dark)),
+                ("codex", HeadroomBrandRamp.codexCTATop(dark: dark)),
+            ] {
+                let measured = contrastRatio(.white, top)
+                #expect(measured >= 4.5, "\(name) CTA top, dark=\(dark): \(measured):1")
+                // The bottom stop is darker, so the whole face clears it too.
+                let bottom = name == "claude"
+                    ? HeadroomBrandRamp.claudeCTABottom(dark: dark)
+                    : HeadroomBrandRamp.codexCTABottom(dark: dark)
+                #expect(contrastRatio(.white, bottom) >= 4.5, "\(name) CTA bottom, dark=\(dark)")
+            }
+        }
+    }
+
+    /// R2C18: "Connected" used to be a hand-written green sitting beside a chip fill derived
+    /// from `healthy` — one chip, two greens. The ink is now the same token stepped in
+    /// lightness only, and it still has to pass AA as text on that chip.
+    @Test func connectedInkIsALightnessOffsetFromHealthyAndStillPassesOnItsChip() {
+        for dark in [true, false] {
+            let green = HeadroomOKLCH(HeadroomSeverityColorValues.healthy(dark: dark))
+            let ink = HeadroomOKLCH(HeadroomBrandRamp.connectedInk(dark: dark))
+            #expect(abs(ink.hue - green.hue) < 2, "dark=\(dark) hue")
+            #expect(abs(ink.chroma - green.chroma) < 0.02, "dark=\(dark) chroma")
+            #expect(
+                abs(ink.lightness - green.lightness
+                    - HeadroomBrandRamp.connectedInkLightnessOffset(dark: dark)) < 0.01,
+                "dark=\(dark) lightness offset"
+            )
+            // Dark steps away from its dark surface by getting brighter, light by getting darker.
+            #expect((ink.lightness > green.lightness) == dark, "dark=\(dark) offset direction")
+
+            let chip = composite(
+                HeadroomTint(color: HeadroomSeverityColorValues.healthy(dark: dark), opacity: 0.12),
+                over: raisedTileFillColors(dark: dark)[0]
+            )
+            let measured = contrastRatio(HeadroomBrandRamp.connectedInk(dark: dark), chip)
+            #expect(measured >= 4.5, "connected ink on its chip, dark=\(dark): \(measured):1")
+        }
+    }
+
+    /// R2C13: the two monochrome marks are capped at ~86% ink so each lands between its own
+    /// title and the numeral instead of level with the numeral. The artwork carries the value
+    /// (the mark is drawn from an SVG fill, not tinted at the call site), so the token and
+    /// the shipped files are checked against each other — in *both* copies, because the Mac
+    /// popover reads `Sources/HeadroomApp/Resources` and iOS + the widgets read the asset
+    /// catalog, and a fix applied to one of them would silently split the two platforms.
+    @Test func monochromeBrandMarksShipAtTheCappedInkValue() throws {
+        #expect(hex(HeadroomBrandColorValues.monochromeMarkInk(dark: true)) == "#C9CDD4")
+        #expect(hex(HeadroomBrandColorValues.monochromeMarkInk(dark: false)) == "#3A3D42")
+        #expect(HeadroomBrandColorValues.monochromeMarkInkHex(dark: true)
+            == hex(HeadroomBrandColorValues.monochromeMarkInk(dark: true)))
+        #expect(HeadroomBrandColorValues.monochromeMarkInkHex(dark: false)
+            == hex(HeadroomBrandColorValues.monochromeMarkInk(dark: false)))
+
+        // The dark mark is dimmer than the numeral it used to match; the light mark is
+        // lighter than the near-black it used to be. Both move *toward* their surface.
+        #expect(HeadroomOKLCH(HeadroomBrandColorValues.monochromeMarkInk(dark: true)).lightness
+            < HeadroomOKLCH(HeadroomRGBColor(red: 0.92, green: 0.92, blue: 0.96)).lightness)
+        #expect(HeadroomOKLCH(HeadroomBrandColorValues.monochromeMarkInk(dark: false)).lightness
+            > HeadroomOKLCH(HeadroomRGBColor(red: 0x0D / 255, green: 0x0D / 255, blue: 0x0F / 255)).lightness)
+
+        for (path, dark) in monochromeMarkFiles {
+            let svg = try String(contentsOf: path, encoding: .utf8)
+            let expected = "fill=\"\(HeadroomBrandColorValues.monochromeMarkInkHex(dark: dark))\""
+            #expect(svg.contains(expected), "\(path.lastPathComponent) does not carry \(expected)")
+        }
+    }
+
+    /// R2C15: at critical the *track* takes the critical hue at a fixed lightness, because
+    /// the fill's ink area shrinks exactly as severity rises. It is a tint, not a second
+    /// value step (it stays close to the neutral track's lightness against the card), and the
+    /// pinned fill-vs-track separation must survive it.
+    @Test func theCriticalTrackKeepsItsHueAndItsSeparationFromTheFill() {
+        for dark in [true, false] {
+            let track = HeadroomMeterColorValues.criticalBarTrack(dark: dark)
+            let critical = HeadroomOKLCH(HeadroomSeverityColorValues.critical(dark: dark))
+            #expect(abs(HeadroomOKLCH(track).hue - critical.hue) < 2, "dark=\(dark) hue")
+
+            let fill = HeadroomSeverityColorValues.fill(
+                for: UsageSeverity.critical,
+                dark: dark,
+                increasedContrast: false
+            )
+            let measured = contrastRatio(fill, track)
+            // Same floors the neutral track is held to: ≥2.0:1 for the deliberately vivid
+            // light default, ≥3.0:1 for dark.
+            #expect(measured >= (dark ? 3.0 : 2.0), "critical fill vs tinted track, dark=\(dark): \(measured):1")
+
+            for card in raisedTileFillColors(dark: dark) {
+                let neutral = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: card)
+                // Within a quarter of an APCA tier of the neutral track it replaces — the
+                // change has to read as hue, not as a brighter or darker bar.
+                let shift = abs(abs(apcaLc(text: track, background: card))
+                    - abs(apcaLc(text: neutral, background: card)))
+                #expect(shift < 12, "dark=\(dark) tinted track shifts |Lc| by \(shift)")
+            }
+        }
+    }
+
+    /// R2C16: a stale critical is still a critical. The fill keeps its severity's lightness
+    /// and hue and drops to 35% chroma instead of collapsing to one flat grey, so a stale 21%
+    /// row can no longer read as calmer than the live 38% row above it.
+    @Test func staleFillsKeepTheirSeverityHueAtReducedChroma() {
+        for dark in [true, false] {
+            for increasedContrast in [true, false] {
+                for severity in [UsageSeverity.healthy, .low, .critical] {
+                    let live = HeadroomOKLCH(HeadroomSeverityColorValues.fill(
+                        for: severity, dark: dark, increasedContrast: increasedContrast
+                    ))
+                    let stale = HeadroomOKLCH(HeadroomMeterColorValues.staleFill(
+                        for: severity, dark: dark, increasedContrast: increasedContrast
+                    ))
+                    let label = "\(severity) dark=\(dark) ic=\(increasedContrast)"
+                    #expect(abs(stale.hue - live.hue) < 2, "\(label) hue")
+                    #expect(abs(stale.lightness - live.lightness) < 0.01, "\(label) lightness")
+                    #expect(
+                        abs(stale.chroma - live.chroma * HeadroomMeterColorValues.staleFillChromaScale) < 0.005,
+                        "\(label) chroma"
+                    )
+                    // Hedged, not erased, and not still shouting.
+                    #expect(stale.chroma > 0.02, "\(label) still carries hue")
+                    #expect(stale.chroma < live.chroma, "\(label) is quieter than live")
+                }
+                // The severity order survives the hedge, which is the whole point.
+                let chromas = [UsageSeverity.healthy, .low, .critical].map {
+                    HeadroomOKLCH(HeadroomMeterColorValues.staleFill(
+                        for: $0, dark: dark, increasedContrast: increasedContrast
+                    )).chroma
+                }
+                #expect(chromas.allSatisfy { $0 > 0 })
+            }
+        }
     }
 
     @Test func newProviderTextAccentsMatchCanonicalSpec() {
@@ -156,13 +352,14 @@ struct BrandColorValuesTests {
         #expect(HeadroomMeterColorValues.tickOff(dark: false) == HeadroomTint(color: .black, opacity: 0.08))
         #expect(HeadroomMeterColorValues.tickGlass(dark: true) == HeadroomTint(color: .white, opacity: 0.26))
         #expect(HeadroomMeterColorValues.tickGlass(dark: false) == HeadroomTint(color: .black, opacity: 0.24))
-        #expect(HeadroomMeterColorValues.tickGlassCap(dark: true) == HeadroomTint(color: .white, opacity: 0.52))
+        // R2C4b: dark's cap stepped 0.52 → 0.42 so the neutral tip stops out-shouting the
+        // critical fill (ordering asserted in `theDarkSeverityRampIsMonotonicInLc`).
+        #expect(HeadroomMeterColorValues.tickGlassCap(dark: true) == HeadroomTint(color: .white, opacity: 0.42))
         #expect(HeadroomMeterColorValues.tickGlassCap(dark: false) == HeadroomTint(color: .black, opacity: 0.36))
 
-        // PB13: the stale dim and the quarter-mark hairline moved out of `MeterGauge` and in
-        // here with the rest of the meter chrome; only the numbers travel, the bases stay the
-        // system label colours at the SwiftUI edge.
-        #expect(HeadroomMeterColorValues.staleFillOpacity == 0.55)
+        // R2C16: the stale fill is no longer a flat system grey — it keeps its severity's
+        // lightness and hue at 35% chroma (see `staleFillsKeepTheirSeverityHue`).
+        #expect(HeadroomMeterColorValues.staleFillChromaScale == 0.35)
         #expect(HeadroomMeterColorValues.quarterMarkOpacity(dark: true) == 0.11)
         #expect(HeadroomMeterColorValues.quarterMarkOpacity(dark: false) == 0.14)
 
@@ -173,6 +370,20 @@ struct BrandColorValuesTests {
         #expect(HeadroomMeterColorValues.segmentBodyAttenuation == 0.70)
         #expect(HeadroomMeterColorValues.segmentBodyAttenuation > 0)
         #expect(HeadroomMeterColorValues.segmentBodyAttenuation < 1)
+
+        // R2C18: the flat-fill dims moved out of `MeterGauge` and in beside it. Same shape as
+        // `segmentBodyAttenuation`: a genuine step back in dark, no dim in light, and
+        // critical keeps more of itself than the quieter bands.
+        #expect(HeadroomMeterColorValues.flatFillAttenuation(for: .critical, dark: true) == 0.95)
+        #expect(HeadroomMeterColorValues.flatFillAttenuation(for: .low, dark: true) == 0.85)
+        #expect(HeadroomMeterColorValues.flatFillAttenuation(for: .healthy, dark: true) == 0.85)
+        for severity in [UsageSeverity.healthy, .low, .critical] {
+            #expect(HeadroomMeterColorValues.flatFillAttenuation(for: severity, dark: false) == 1)
+            #expect(HeadroomMeterColorValues.flatFillAttenuation(for: severity, dark: true) > 0)
+            #expect(HeadroomMeterColorValues.flatFillAttenuation(for: severity, dark: true) < 1)
+        }
+        #expect(HeadroomMeterColorValues.flatFillAttenuation(for: .critical, dark: true)
+            > HeadroomMeterColorValues.flatFillAttenuation(for: .healthy, dark: true))
 
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .well) == 0.42)
         #expect(HeadroomMeterColorValues.rampStartSeverityMix(dark: true, surface: .flat) == 0.58)
@@ -201,11 +412,19 @@ struct BrandColorValuesTests {
 
     @Test func severityFillTokensMatchCanonicalSpec() {
         // Fill tier (Sep 2026): vivid light defaults, text-tier fallbacks under Increase
-        // Contrast, dark unchanged in both branches. Amber was tuned down from the design
-        // brief's (0.96, 0.58, 0.05) to clear the ≥2.0:1-vs-track floor (1.70 → 2.06).
+        // Contrast. R2C4a darkened the light amber `oklch(0.700 …)` → `oklch(0.660 0.166
+        // 58.3)` so the light ramp is monotonic; R2C4b lifted the *dark* critical fill off
+        // its text token to `oklch(0.740 0.190 28.1)` for the same reason in dark.
         #expect(HeadroomSeverityColorValues.healthyFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.16, green: 0.66, blue: 0.30))
-        #expect(HeadroomSeverityColorValues.lowFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.91, green: 0.50, blue: 0.02))
+        #expect(HeadroomSeverityColorValues.lowFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.856, green: 0.450, blue: 0.000))
         #expect(HeadroomSeverityColorValues.criticalFill(dark: false, increasedContrast: false) == HeadroomRGBColor(red: 0.90, green: 0.22, blue: 0.20))
+        #expect(HeadroomSeverityColorValues.criticalFill(dark: true, increasedContrast: false) == HeadroomRGBColor(red: 1.00, green: 0.448, blue: 0.389))
+
+        // The light amber moved lightness only: same hue, same chroma, one step darker.
+        let amber = HeadroomOKLCH(HeadroomSeverityColorValues.lowFill(dark: false, increasedContrast: false))
+        #expect(abs(amber.lightness - 0.660) < 0.005)
+        #expect(abs(amber.chroma - 0.166) < 0.006)
+        #expect(abs(amber.hue - 58.3) < 2.5)
 
         for severity in [UsageSeverity.healthy, .low, .critical] {
             #expect(
@@ -214,10 +433,15 @@ struct BrandColorValuesTests {
                 "light increased contrast falls back to the text tier: \(severity)"
             )
             for increasedContrast in [true, false] {
+                // Critical is the one dark fill that is deliberately *not* its text token
+                // (R2C4b); the other two still are, in both branches.
+                let expected = severity == .critical
+                    ? HeadroomRGBColor(red: 1.00, green: 0.448, blue: 0.389)
+                    : HeadroomSeverityColorValues.color(for: severity, dark: true)
                 #expect(
                     HeadroomSeverityColorValues.fill(for: severity, dark: true, increasedContrast: increasedContrast)
-                        == HeadroomSeverityColorValues.color(for: severity, dark: true),
-                    "dark fills are the dark text tier: \(severity)"
+                        == expected,
+                    "dark fill: \(severity)"
                 )
             }
         }
@@ -346,10 +570,15 @@ struct BrandColorValuesTests {
     /// The light *default* band moved (1.3815–1.6345 → 1.2584–1.5465) because Ghost tints the
     /// severity fill and the vivid light fills sit closer in luminance to the track. The
     /// increased-contrast branch keeps the old band exactly, because it keeps the old colors.
+    ///
+    /// R2C4 moved two of the four recorded numbers: the dark minimum 1.2295 → 1.3099 (the
+    /// dark critical fill lifted) and the light minimum 1.2584 → 1.2846 (the light amber
+    /// darkened). Both improve; the increased-contrast branch is untouched because it keeps
+    /// the text-tier colours.
     @Test func ghostBodyContrastOnTrackIsRecorded() {
-        #expect(measuredGhostRatios(dark: true, increasedContrast: false).min().map { abs($0 - 1.2295) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: true, increasedContrast: false).min().map { abs($0 - 1.3099) < 0.0001 } == true)
         #expect(measuredGhostRatios(dark: true, increasedContrast: false).max().map { abs($0 - 1.3733) < 0.0001 } == true)
-        #expect(measuredGhostRatios(dark: false, increasedContrast: false).min().map { abs($0 - 1.2584) < 0.0001 } == true)
+        #expect(measuredGhostRatios(dark: false, increasedContrast: false).min().map { abs($0 - 1.2846) < 0.0001 } == true)
         #expect(measuredGhostRatios(dark: false, increasedContrast: false).max().map { abs($0 - 1.5465) < 0.0001 } == true)
         #expect(measuredGhostRatios(dark: false, increasedContrast: true).min().map { abs($0 - 1.3815) < 0.0001 } == true)
         #expect(measuredGhostRatios(dark: false, increasedContrast: true).max().map { abs($0 - 1.6345) < 0.0001 } == true)
@@ -381,9 +610,9 @@ struct BrandColorValuesTests {
     /// itself an alpha over the card; the severity fills paint opaque over that same track.
     /// The ordering is what is pinned here — the literals stay tunable from live captures.
     ///
-    /// The two *end* tokens are exempt and stay exempt. `tickGlassCap` is a one-cell tip
-    /// marker, not the fill's weight, and dark's 0.52 cap has always measured above the dark
-    /// critical fill; `glassB` is the glass gradient's shaded foot for the same reason.
+    /// R2C4b retired half of the old exemption here. `glassB` stays exempt — it is the glass
+    /// gradient's shaded foot, not the fill's weight. `tickGlassCap` no longer is: see
+    /// `theDarkSeverityRampIsMonotonicInLc`.
     @Test func theNeutralMeterBodyNeverOutweighsASeverityFillInEitherScheme() {
         for dark in [true, false] {
             for card in raisedTileFillColors(dark: dark) {
@@ -412,6 +641,71 @@ struct BrandColorValuesTests {
                     )
                 }
             }
+        }
+    }
+
+    // MARK: - R2C4: the severity ramp is monotonic in |Lc|
+
+    /// R2C4a. PA1 fixed the neutral-vs-severity ordering; the severity tokens were never
+    /// measured against *each other*. In light they ran backwards — `lowFill` |Lc| 53.4/51.0
+    /// sat below `healthyFill` 57.2/54.8, so "running low" was quieter than "you're fine" on
+    /// the same row. A ramp that is not monotonic does not encode severity.
+    @Test func theLightSeverityRampIsMonotonicInLc() {
+        for card in raisedTileFillColors(dark: false) {
+            let ordered = [UsageSeverity.healthy, .low, .critical].map { severity in
+                abs(apcaLc(
+                    text: HeadroomSeverityColorValues.fill(
+                        for: severity,
+                        dark: false,
+                        increasedContrast: false
+                    ),
+                    background: card
+                ))
+            }
+            #expect(ordered[1] > ordered[0], "low \(ordered[1]) must outweigh healthy \(ordered[0])")
+            #expect(ordered[2] > ordered[1], "critical \(ordered[2]) must outweigh low \(ordered[1])")
+        }
+    }
+
+    /// R2C4b, the assertion that replaces PA1's documented exemption ("the two end tokens are
+    /// exempt and stay exempt … dark's 0.52 cap has always measured above the dark critical
+    /// fill"). It always had — that *was* the bug: a fully healthy grey meter's tip
+    /// out-shouted a critical red meter's. The whole dark ramp is pinned in order now.
+    ///
+    /// The honest limit, recorded rather than chased: |Lc| cannot put red above amber in dark
+    /// without desaturating the red. That is fine — AP1 gives critical a second channel (the
+    /// red numeral), which is why critical sits below healthy/low here by design.
+    @Test func theDarkSeverityRampIsMonotonicInLc() {
+        for card in raisedTileFillColors(dark: true) {
+            let track = composite(HeadroomWidgetColorValues.barTrack(dark: true), over: card)
+            func onCard(_ tint: HeadroomTint) -> Double {
+                abs(apcaLc(text: composite(tint, over: track), background: card))
+            }
+            func fill(_ severity: UsageSeverity) -> Double {
+                abs(apcaLc(
+                    text: HeadroomSeverityColorValues.fill(
+                        for: severity,
+                        dark: true,
+                        increasedContrast: false
+                    ),
+                    background: card
+                ))
+            }
+            let ladder: [(String, Double)] = [
+                ("body", onCard(HeadroomMeterColorValues.tickGlass(dark: true))),
+                ("cap", onCard(HeadroomMeterColorValues.tickGlassCap(dark: true))),
+                ("critical", fill(.critical)),
+                ("healthy", fill(.healthy)),
+                ("low", fill(.low)),
+            ]
+            for (lower, upper) in zip(ladder, ladder.dropFirst()) {
+                #expect(
+                    lower.1 < upper.1,
+                    "\(lower.0) |Lc| \(lower.1) must sit below \(upper.0) |Lc| \(upper.1)"
+                )
+            }
+            // The cap is still a genuine end marker against its own body.
+            #expect(ladder[1].1 > ladder[0].1 + 8, "cap barely reads against its body")
         }
     }
 
@@ -509,6 +803,37 @@ struct BrandColorValuesTests {
         #expect(HeadroomWidgetColorValues.tileLongShadow(dark: false) == HeadroomTint(color: .black, opacity: 0.05))
     }
 }
+
+private func hex(_ color: HeadroomRGBColor) -> String {
+    func channel(_ value: Double) -> Int { Int((min(1, max(0, value)) * 255).rounded()) }
+    return String(format: "#%02X%02X%02X", channel(color.red), channel(color.green), channel(color.blue))
+}
+
+private func distance(_ lhs: HeadroomRGBColor, _ rhs: HeadroomRGBColor) -> Double {
+    max(abs(lhs.red - rhs.red), max(abs(lhs.green - rhs.green), abs(lhs.blue - rhs.blue)))
+}
+
+/// Both shipped copies of each monochrome mark: the SwiftPM resource bundle the Mac popover
+/// reads, and the asset catalog iOS and the widget families read (whose `luminosity` dark
+/// appearance pairing is what makes the light/dark pair adapt natively).
+private let monochromeMarkFiles: [(URL, Bool)] = {
+    let root = URL(fileURLWithPath: #filePath)
+        .deletingLastPathComponent()   // HeadroomCoreTests
+        .deletingLastPathComponent()   // Tests
+        .deletingLastPathComponent()   // repo root
+    let appIcons = root.appendingPathComponent("Sources/HeadroomApp/Resources/BrandIcons")
+    let catalog = root.appendingPathComponent("Sources/HeadroomSharedResources/BrandIcons.xcassets")
+    return [
+        (appIcons.appendingPathComponent("grok-dark.svg"), true),
+        (appIcons.appendingPathComponent("grok-light.svg"), false),
+        (appIcons.appendingPathComponent("cursor-dark.svg"), true),
+        (appIcons.appendingPathComponent("cursor-light.svg"), false),
+        (catalog.appendingPathComponent("GrokBrandIcon.imageset/grok-dark.svg"), true),
+        (catalog.appendingPathComponent("GrokBrandIcon.imageset/grok-light.svg"), false),
+        (catalog.appendingPathComponent("CursorBrandIcon.imageset/cursor-dark.svg"), true),
+        (catalog.appendingPathComponent("CursorBrandIcon.imageset/cursor-light.svg"), false),
+    ]
+}()
 
 private func raisedTileFillColors(dark: Bool) -> [HeadroomRGBColor] {
     // Flattened endpoints of RaisedTile's current glass fill in the design reference.

@@ -42,13 +42,18 @@ struct MenuBarPaletteTests {
         }
     }
 
-    /// The dark branch must stay byte-identical to the palette that shipped pinned, so a dark
-    /// menu bar looks exactly as it did before L1A.
+    /// The dark branch stayed byte-identical to the palette that shipped pinned through L1A.
+    ///
+    /// R2C4b moves exactly one of the three: the vessel reads the severity *fill* tier, and
+    /// the dark critical fill lifted `oklch(0.683 …)` → `oklch(0.740 0.190 28.1)` so the dark
+    /// severity ramp is monotonic in |Lc|. The menu bar inherits that on purpose — a brighter
+    /// critical vessel is the right direction on the one always-visible surface — but it is a
+    /// visible change to the plate, so it is pinned here rather than left to drift.
     @Test func darkLiquidMatchesThePreviouslyPinnedDarkPalette() {
         let palette = MenuBarPalette(isDarkMenuBar: true)
         #expect(palette.liquid(for: .healthy) == HeadroomRGBColor(red: 0.20, green: 0.78, blue: 0.35))
         #expect(palette.liquid(for: .low) == HeadroomRGBColor(red: 1.00, green: 0.62, blue: 0.04))
-        #expect(palette.liquid(for: .critical) == HeadroomRGBColor(red: 1.00, green: 0.34, blue: 0.29))
+        #expect(palette.liquid(for: .critical) == HeadroomRGBColor(red: 1.00, green: 0.448, blue: 0.389))
     }
 
     /// Severity *ink* is the text tier. On a dark menu bar it parts from the fill tier only at

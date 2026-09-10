@@ -81,6 +81,13 @@ enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
+    /// R2C15: the track carries the critical hue the shrinking fill no longer can. Every
+    /// other severity keeps the neutral track. See `HeadroomMeterColorValues.criticalBarTrack`.
+    static func barTrack(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
+        guard severity == .critical else { return barTrack(scheme: scheme) }
+        return Color(HeadroomMeterColorValues.criticalBarTrack(dark: scheme == .dark))
+    }
+
     static func meterLabelInk(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.labelInk(dark: scheme == .dark))
     }
@@ -121,11 +128,58 @@ enum ProviderStyle {
         color(HeadroomMeterColorValues.tickGlassCap(dark: scheme == .dark))
     }
 
-    /// PB13: the `.staleGrey` fill. The base follows the system secondary label — a stale
-    /// meter should recede exactly as far as stale text does — and the dim it takes lives in
-    /// `HeadroomMeterColorValues` with the rest of the meter chrome.
-    static var meterStaleFill: Color {
-        Color.secondary.opacity(HeadroomMeterColorValues.staleFillOpacity)
+    /// R2C16: the `.stale` fill keeps its severity's lightness and hue at reduced chroma
+    /// instead of collapsing to the system secondary grey — a stale critical is still a
+    /// critical. See `HeadroomMeterColorValues.staleFill`.
+    static func meterStaleFill(
+        for severity: UsageSeverity,
+        scheme: ColorScheme,
+        increasedContrast: Bool
+    ) -> Color {
+        Color(HeadroomMeterColorValues.staleFill(
+            for: severity,
+            dark: scheme == .dark,
+            increasedContrast: increasedContrast
+        ))
+    }
+
+    /// R2C18: the recessed well shared by the setup flow's command wells and the Settings
+    /// preview wells. The Settings panes reached this through `ClaudeSetupStyle.wellBackground`
+    /// — a Claude-branded token owning a pane with no Claude in it. Same value, one home.
+    static func recessedWell(dark: Bool) -> Color {
+        color(HeadroomWidgetColorValues.recessedWell(dark: dark))
+    }
+
+    /// R2C18: the setup flow's quiet-chip label ink, shared with the neutral text bases.
+    static func setupChipInk(dark: Bool) -> Color {
+        color(HeadroomWidgetColorValues.setupChipInk(dark: dark))
+    }
+
+    // MARK: - R2C18: brand-ramp bridges for the two setup flows
+    //
+    // `ClaudeSetupStyle` / `CodexSetupStyle` stay the setup views' call surface (the two
+    // provider flows are deliberately decoupled), but every number they draw now comes from
+    // the one constant-hue ramp in `HeadroomBrandRamp`. These take `dark:` rather than a
+    // `ColorScheme` because that is what the setup styles already resolve.
+
+    static func claudeCTATop(dark: Bool) -> Color {
+        Color(HeadroomBrandRamp.claudeCTATop(dark: dark))
+    }
+
+    static func claudeCTABottom(dark: Bool) -> Color {
+        Color(HeadroomBrandRamp.claudeCTABottom(dark: dark))
+    }
+
+    static func codexCTATop(dark: Bool) -> Color {
+        Color(HeadroomBrandRamp.codexCTATop(dark: dark))
+    }
+
+    static func codexCTABottom(dark: Bool) -> Color {
+        Color(HeadroomBrandRamp.codexCTABottom(dark: dark))
+    }
+
+    static func connectedInk(dark: Bool) -> Color {
+        Color(HeadroomBrandRamp.connectedInk(dark: dark))
     }
 
     /// PB13: the quarter-mark hairline, same split as `meterStaleFill`.
@@ -133,19 +187,22 @@ enum ProviderStyle {
         Color.primary.opacity(HeadroomMeterColorValues.quarterMarkOpacity(dark: scheme == .dark))
     }
 
-    static func meterRampStart(
+    /// R2C12: the ramp's gradient stops. Three, not two — SwiftUI interpolates a two-colour
+    /// gradient in its own space, so the explicit middle stop is what holds the drawn bar on
+    /// the OKLCH path the recipe computed. See `MeterRampStops.color(at:)`.
+    static func meterRampColors(
         for severity: UsageSeverity,
         surface: MeterRampSurface,
         scheme: ColorScheme,
         increasedContrast: Bool
-    ) -> Color {
+    ) -> [Color] {
         let stops = MeterRecipe.rampStops(
             severity: severity,
             scheme: scheme == .dark ? .dark : .light,
             surface: surface,
             increasedContrast: increasedContrast
         )
-        return Color(stops.start)
+        return [Color(stops.start), Color(stops.midpoint), Color(stops.end)]
     }
 
     static func meterGhostBody(

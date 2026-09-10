@@ -29,14 +29,205 @@ public struct HeadroomTint: Sendable, Equatable {
     }
 }
 
+/// R2C18 / R2C12 / R2C16: perceptual (OKLCH) coordinates for an sRGB color.
+///
+/// Three round-2 decisions all need the *same* operation — move a color's lightness or
+/// chroma while its hue stays put — and sRGB arithmetic cannot do it: mixing a fill toward
+/// white in sRGB swings the amber ramp ~8.5° warmer at its start, and hand-authored "same
+/// family" literals had drifted the Claude token 9° off its own artwork. Keeping one
+/// conversion here means the brand ramps (R2C18), the meter ramp (R2C12), and the stale
+/// desaturation (R2C16) all traverse the same space rather than three approximations of it.
+///
+/// Out-of-gamut results are clamped per channel at the `rgb` boundary; every shipped token
+/// is asserted to survive that clamp with < 2° of hue error.
+public struct HeadroomOKLCH: Sendable, Equatable {
+    public let lightness: Double
+    public let chroma: Double
+    /// Degrees, 0..<360.
+    public let hue: Double
+
+    public init(lightness: Double, chroma: Double, hue: Double) {
+        self.lightness = lightness
+        self.chroma = max(0, chroma)
+        self.hue = hue
+    }
+
+    public init(_ rgb: HeadroomRGBColor) {
+        let (l, a, b) = Self.oklab(from: rgb)
+        self.lightness = l
+        self.chroma = (a * a + b * b).squareRoot()
+        let degrees = atan2(b, a) * 180 / .pi
+        self.hue = degrees < 0 ? degrees + 360 : degrees
+    }
+
+    /// The color with a new lightness, keeping hue and chroma.
+    public func withLightness(_ lightness: Double) -> HeadroomOKLCH {
+        HeadroomOKLCH(lightness: lightness, chroma: chroma, hue: hue)
+    }
+
+    /// The color with its chroma scaled, keeping lightness and hue (R2C16's stale hedge).
+    public func scalingChroma(by factor: Double) -> HeadroomOKLCH {
+        HeadroomOKLCH(lightness: lightness, chroma: chroma * factor, hue: hue)
+    }
+
+    /// Interpolates lightness and chroma toward `other` while holding *this* color's hue.
+    /// Both call sites (the meter ramp, the brand ramps) are constant-hue by construction, so
+    /// carrying `self.hue` through is what keeps a mix toward white or black from bending the
+    /// family sideways — and it is why the ramp's hue-drift assertion can hold at 0°.
+    public func interpolated(to other: HeadroomOKLCH, progress: Double) -> HeadroomOKLCH {
+        let t = min(1, max(0, progress))
+        return HeadroomOKLCH(
+            lightness: lightness + (other.lightness - lightness) * t,
+            chroma: chroma + (other.chroma - chroma) * t,
+            hue: hue
+        )
+    }
+
+    public var rgb: HeadroomRGBColor {
+        let a = chroma * cos(hue * .pi / 180)
+        let b = chroma * sin(hue * .pi / 180)
+        return Self.srgb(fromOklabL: lightness, a: a, b: b)
+    }
+
+    // MARK: - Conversion (Björn Ottosson's Oklab, sRGB transfer function)
+
+    private static func oklab(from rgb: HeadroomRGBColor) -> (Double, Double, Double) {
+        let r = linearized(rgb.red), g = linearized(rgb.green), b = linearized(rgb.blue)
+        let l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+        let m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+        let s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+        let l_ = cbrt(l), m_ = cbrt(m), s_ = cbrt(s)
+        return (
+            0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+            1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+            0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+        )
+    }
+
+    private static func srgb(fromOklabL lightness: Double, a: Double, b: Double) -> HeadroomRGBColor {
+        let l_ = lightness + 0.3963377774 * a + 0.2158037573 * b
+        let m_ = lightness - 0.1055613458 * a - 0.0638541728 * b
+        let s_ = lightness - 0.0894841775 * a - 1.2914855480 * b
+        let l = l_ * l_ * l_, m = m_ * m_ * m_, s = s_ * s_ * s_
+        return HeadroomRGBColor(
+            red: encoded(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+            green: encoded(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+            blue: encoded(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)
+        )
+    }
+
+    private static func linearized(_ component: Double) -> Double {
+        component <= 0.04045 ? component / 12.92 : pow((component + 0.055) / 1.055, 2.4)
+    }
+
+    private static func encoded(_ component: Double) -> Double {
+        let value = component <= 0.0031308
+            ? component * 12.92
+            : 1.055 * pow(max(component, 0), 1 / 2.4) - 0.055
+        return min(1, max(0, value))
+    }
+}
+
 public enum HeadroomBrandColorValues {
-    public static let claude = HeadroomRGBColor(red: 0.85, green: 0.47, blue: 0.26)
-    public static let codex = HeadroomRGBColor(red: 0.28, green: 0.34, blue: 1.00)
+    /// R2C18: the artwork's own hues. `claude-color.svg` fills `#D97757` = `oklch(0.672
+    /// 0.131 38.8)`; the token used to be a hand-authored `#D97842` at H 47.8°, so the mark
+    /// and its accent were 9° apart in the same card. Every Claude/Codex brand value below
+    /// and in `HeadroomBrandRamp` is now one constant-hue ramp off these two numbers.
+    public static let claudeHue: Double = 38.8
+    public static let codexHue: Double = 271.5
+
+    public static let claude = HeadroomOKLCH(lightness: 0.672, chroma: 0.131, hue: claudeHue).rgb
+    public static let codex = HeadroomOKLCH(lightness: 0.555, chroma: 0.246, hue: codexHue).rgb
     // Grok and Cursor are monochrome brands (their marks ship as light/dark pairs); these
     // mid-tone accents exist for the SF Symbol fallback + single-color tints and read on
     // both schemes. First-pass identity values — Phase 2 owns visual density.
     public static let grok = HeadroomRGBColor(red: 0.36, green: 0.40, blue: 0.46)
     public static let cursor = HeadroomRGBColor(red: 0.33, green: 0.34, blue: 0.38)
+
+    /// R2C13: the value ceiling for the two monochrome marks. Their artwork shipped at the
+    /// numeral's own value (`#F5F5F7` dark / `#0D0D0F` light), which put Cursor's solid cube
+    /// and Grok's slash *above* the account title they sit beside and level with the primary
+    /// figure — the card's hierarchy inverted on four rows at once. ~86% ink lands each mark
+    /// between its title and its numeral in both schemes. This is a *value* fix;
+    /// `HeadroomBrandMark.massCorrection` (geometry) is deliberately untouched.
+    ///
+    /// The SVGs carry these as literal fills (both the app bundle copy and the
+    /// `BrandIcons.xcassets` copy the iOS app and widgets read); `BrandColorValuesTests`
+    /// re-reads the artwork so the token and the shipped files cannot drift.
+    public static func monochromeMarkInk(dark: Bool) -> HeadroomRGBColor {
+        dark
+            ? HeadroomRGBColor(red: 0xC9 / 255, green: 0xCD / 255, blue: 0xD4 / 255)
+            : HeadroomRGBColor(red: 0x3A / 255, green: 0x3D / 255, blue: 0x42 / 255)
+    }
+
+    public static func monochromeMarkInkHex(dark: Bool) -> String {
+        dark ? "#C9CDD4" : "#3A3D42"
+    }
+}
+
+/// R2C18: the two brand families as constant-hue OKLCH ramps.
+///
+/// Before this, `textAccent` lived here while both CTA gradients, the "Connected" ink and a
+/// byte-copy of the shared light neutral lived as raw `Color(red:green:blue:)` literals
+/// inside the two setup views — eight Claude oranges and four Codex blues, no two of which
+/// agreed on a hue. Each stop below is `(lightness, chroma)` at its family's hue, so a tweak
+/// moves along the ramp instead of off it. The setup views keep their own `…SetupStyle`
+/// enums as the *call* surface (the two provider flows stay decoupled); only the numbers
+/// moved here.
+///
+/// White-on-CTA-top clears WCAG AA (≥4.5:1) in both schemes — the dark tops dropped
+/// (Claude L 0.605 → 0.560, Codex 0.611 → 0.565) because they measured 4.05 / 3.97:1 while
+/// the old comment claimed the ramp "averages ≈4.5:1". `BrandColorValuesTests` asserts it.
+public enum HeadroomBrandRamp {
+    private static func claude(_ lightness: Double, _ chroma: Double) -> HeadroomRGBColor {
+        HeadroomOKLCH(lightness: lightness, chroma: chroma, hue: HeadroomBrandColorValues.claudeHue).rgb
+    }
+
+    private static func codex(_ lightness: Double, _ chroma: Double) -> HeadroomRGBColor {
+        HeadroomOKLCH(lightness: lightness, chroma: chroma, hue: HeadroomBrandColorValues.codexHue).rgb
+    }
+
+    /// Provider display-name accent. Light Claude sits at 4.17:1 on the widget's light
+    /// container top at its smallest usage (12pt semibold), so it takes a darker step to
+    /// clear WCAG AA small-text on every light surface it appears on.
+    public static func claudeTextAccent(dark: Bool) -> HeadroomRGBColor {
+        dark ? claude(0.734, 0.121) : claude(0.556, 0.139)
+    }
+
+    public static func codexTextAccent(dark: Bool) -> HeadroomRGBColor {
+        dark ? codex(0.739, 0.136) : codex(0.471, 0.225)
+    }
+
+    public static func claudeCTATop(dark: Bool) -> HeadroomRGBColor {
+        dark ? claude(0.560, 0.129) : claude(0.575, 0.143)
+    }
+
+    public static func claudeCTABottom(dark: Bool) -> HeadroomRGBColor {
+        dark ? claude(0.515, 0.130) : claude(0.530, 0.135)
+    }
+
+    public static func codexCTATop(dark: Bool) -> HeadroomRGBColor {
+        dark ? codex(0.565, 0.189) : codex(0.540, 0.210)
+    }
+
+    public static func codexCTABottom(dark: Bool) -> HeadroomRGBColor {
+        dark ? codex(0.472, 0.187) : codex(0.447, 0.203)
+    }
+
+    /// R2C18: the "Connected" chip's ink, now a documented lightness offset from the healthy
+    /// severity token rather than a hand-written green beside a chip fill *derived* from that
+    /// token — one chip, two greens. The offset is what the hand-written pair already
+    /// measured (dark +0.058 Lc, light −0.054), i.e. "step away from the surface so the label
+    /// passes AA on its own tint"; hue and chroma come from `healthy` so the family cannot
+    /// drift again.
+    public static func connectedInkLightnessOffset(dark: Bool) -> Double {
+        dark ? 0.058 : -0.054
+    }
+
+    public static func connectedInk(dark: Bool) -> HeadroomRGBColor {
+        let green = HeadroomOKLCH(HeadroomSeverityColorValues.healthy(dark: dark))
+        return green.withLightness(green.lightness + connectedInkLightnessOffset(dark: dark)).rgb
+    }
 }
 
 /// R2: one source of truth for the widget "usage" look — provider text accents and the
@@ -49,13 +240,11 @@ public enum HeadroomWidgetColorValues {
     /// Returns `nil` for unknown providers so the caller can fall back to `.secondary`.
     public static func textAccent(for providerID: String, dark: Bool) -> HeadroomRGBColor? {
         switch (providerID, dark) {
-        // Light Claude sits at 4.17:1 on the widget's light container top at its smallest
-        // usage (12pt semibold, small-widget provider rows); this darker step clears
-        // WCAG AA small-text (≥4.5:1) on every light surface it appears on.
-        case (ProviderID.claude.raw, false): HeadroomRGBColor(red: 0.70, green: 0.33, blue: 0.11)
-        case (ProviderID.claude.raw, true): HeadroomRGBColor(red: 0.91, green: 0.56, blue: 0.41)
-        case (ProviderID.codex.raw, false): HeadroomRGBColor(red: 0.20, green: 0.25, blue: 0.84)
-        case (ProviderID.codex.raw, true): HeadroomRGBColor(red: 0.59, green: 0.63, blue: 1.00)
+        // R2C18: Claude's and Codex's steps are now stops on their family's constant-hue
+        // OKLCH ramp (`HeadroomBrandRamp`) rather than free literals — same lightnesses the
+        // WCAG tuning landed on, re-authored at the artwork's real hue.
+        case (ProviderID.claude.raw, _): HeadroomBrandRamp.claudeTextAccent(dark: dark)
+        case (ProviderID.codex.raw, _): HeadroomBrandRamp.codexTextAccent(dark: dark)
         // Grok/Cursor are monochrome brands: their title accent is a legible near-primary
         // neutral (grok cooler, cursor pure) that clears WCAG AA small-text on the light
         // container (dark step) and the dark tile (light step).
@@ -91,6 +280,15 @@ public enum HeadroomWidgetColorValues {
         dark ? HeadroomTint(color: darkNeutral, opacity: 0.68) : HeadroomTint(color: lightNeutral, opacity: 0.74)
     }
 
+    /// R2C18: the setup flow's quiet-chip label ink. Its light step was a byte-for-byte copy
+    /// of `lightNeutral` written out again in `ClaudeSetupViews`, and its dark step was a
+    /// bare `Color(white: 0.85)` with no relationship to anything. Both now read the shared
+    /// neutral bases; dark's slightly recessed step survives as an opacity on `darkNeutral`
+    /// (which composites to ≈0.86 white on the setup card) rather than as a second grey.
+    public static func setupChipInk(dark: Bool) -> HeadroomTint {
+        dark ? HeadroomTint(color: darkNeutral, opacity: 0.92) : HeadroomTint(color: lightNeutral, opacity: 1)
+    }
+
     /// PA13: the plan pill's own ink. It used to take the system `.tertiary`, which measured
     /// |Lc| ≈ 20 on the dark card — below APCA's placeholder floor — against ≈ 40 in light, and
     /// the plan name is the only thing that says which subscription a meter is measuring. This
@@ -123,6 +321,15 @@ public enum HeadroomWidgetColorValues {
 
     public static func hairline(dark: Bool) -> HeadroomTint {
         dark ? HeadroomTint(color: .white, opacity: 0.10) : HeadroomTint(color: .black, opacity: 0.07)
+    }
+
+    /// R2C18: the recessed well every "content sits in here" surface uses — the setup flow's
+    /// command wells and the Settings preview wells. Both already drew the same two numbers;
+    /// the Settings panes just reached them through `ClaudeSetupStyle.wellBackground`, which
+    /// made a Claude-branded token the source of truth for a pane with no Claude in it. The
+    /// value is unchanged, so nothing moves visually — only where it is read from.
+    public static func recessedWell(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0.32 : 0.05)
     }
 
     public static func containerBackgroundTop(dark: Bool) -> HeadroomRGBColor {
@@ -257,12 +464,38 @@ public enum HeadroomMeterColorValues {
     }
 
     /// PA1: the segmented neutral *tip*. Deliberately heavier than the body in both schemes —
-    /// it is a one-cell end marker, not the fill's weight — so it is the one neutral token
-    /// exempt from the body-below-severity ordering (dark's 0.52 cap already measures above
-    /// the dark critical fill and always has).
+    /// it is a one-cell end marker, not the fill's weight.
+    ///
+    /// R2C4b: dark stepped 0.52 → 0.42. PA1's exemption said the cap "is exempt and stays
+    /// exempt"; measured, dark's 0.52 cap read |Lc| ≈ 50 against a 41–43 critical fill, so a
+    /// fully healthy grey meter's tip out-shouted a critical red meter's. The exemption was
+    /// the ordering bug, not a licence for it. At 0.42 the cap still clears its own body
+    /// (|Lc| ≈ 40 vs 25–27) and now sits under critical, and the whole dark ramp is monotonic:
+    /// body < cap < critical < healthy < low. Light's 0.36 already ordered correctly.
     public static func tickGlassCap(dark: Bool) -> HeadroomTint {
-        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.52 : 0.36)
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.42 : 0.36)
     }
+
+    /// R2C15: the bar track at `.critical` only.
+    ///
+    /// Severity's ink area shrinks exactly as severity rises — at 9% left the alarm colour
+    /// owns ~5pt of a bar while a comfortable 74% paints a wide neutral one. The track is the
+    /// surface that does not shrink, so at critical it carries the hue the fill no longer can,
+    /// at constant OKLCH lightness (`oklch(0.905 0.045 28.1)` light / `oklch(0.391 0.055
+    /// 28.1)` dark, the critical hue) so it reads as a tint rather than a second value step.
+    /// The pinned fill-vs-track separation barely moves (light 3.22 → 3.14:1, dark 3.58 →
+    /// 3.67:1) and `BrandColorValuesTests` asserts both. Fires at critical only; the machined
+    /// well keeps its own recessed background.
+    public static func criticalBarTrack(dark: Bool) -> HeadroomRGBColor {
+        HeadroomOKLCH(
+            lightness: dark ? 0.391 : 0.905,
+            chroma: dark ? 0.055 : 0.045,
+            hue: criticalHue
+        ).rgb
+    }
+
+    /// The critical family's OKLCH hue, measured from `HeadroomSeverityColorValues.critical`.
+    private static let criticalHue: Double = 28.1
 
     /// How much of the severity *fill* survives in the Hue ramp's start stop (the rest is
     /// mixed toward white in light, black in dark).
@@ -282,11 +515,29 @@ public enum HeadroomMeterColorValues {
         return surface == .flat ? 0.58 : 0.42
     }
 
-    /// PB13: the dim a `.staleGrey` fill paints at. The *base* stays the system secondary
-    /// label at the SwiftUI edge (this is the one meter fill that follows the system label
-    /// colour rather than a fixed grey); only the number lives here, with the rest of the
-    /// meter chrome, instead of inline in `MeterGauge`.
-    public static let staleFillOpacity: Double = 0.55
+    /// R2C16: how much chroma a `.stale` fill keeps.
+    ///
+    /// Stale used to replace the whole fill with the system secondary label at 0.55, so a
+    /// stale **21%** row rendered flat grey directly beneath a live **38%** amber bar and the
+    /// eye ranked the healthier number as the more urgent one. A stale critical is still a
+    /// critical: desaturate to de-emphasise, don't neutralise to erase. The fill keeps its
+    /// severity lightness and hue and drops to 35% of its chroma — the dim the numeral takes
+    /// is unchanged, and `.unavailable` (which paints no fill at all) is untouched.
+    public static let staleFillChromaScale: Double = 0.35
+
+    /// The fill a `.stale` meter paints for `severity`. See `staleFillChromaScale`.
+    public static func staleFill(
+        for severity: UsageSeverity,
+        dark: Bool,
+        increasedContrast: Bool
+    ) -> HeadroomRGBColor {
+        let live = HeadroomSeverityColorValues.fill(
+            for: severity,
+            dark: dark,
+            increasedContrast: increasedContrast
+        )
+        return HeadroomOKLCH(live).scalingChroma(by: staleFillChromaScale).rgb
+    }
 
     /// FS1 (Kyle, Sep 2026): how strongly a segmented *body* cell paints its fill colour.
     /// Every lit cell used to sit at full strength, so the tip — the cell that carries the
@@ -300,8 +551,19 @@ public enum HeadroomMeterColorValues {
     /// different meters.
     public static let segmentBodyAttenuation: Double = 0.70
 
-    /// PB13: the quarter-mark hairline. Same split as `staleFillOpacity` — the base is the
-    /// system primary label at the SwiftUI edge, the per-scheme number lives here.
+    /// R2C18: the dim a *flat* (non-tip) severity fill takes in dark — the continuous Solid
+    /// bar and the segmented body's severity cell. These two numbers were untokenised inline
+    /// literals in `MeterGauge.flatSeverityColor`; they belong beside
+    /// `segmentBodyAttenuation`, which is the same idea one layer up. Critical keeps more of
+    /// itself (0.95) than the other bands (0.85) because it is the one fill the card is
+    /// trying to draw attention to. Light takes no dim.
+    public static func flatFillAttenuation(for severity: UsageSeverity, dark: Bool) -> Double {
+        guard dark else { return 1 }
+        return severity == .critical ? 0.95 : 0.85
+    }
+
+    /// PB13: the quarter-mark hairline. The base is the system primary label at the SwiftUI
+    /// edge, the per-scheme number lives here.
     public static func quarterMarkOpacity(dark: Bool) -> Double {
         dark ? 0.11 : 0.14
     }
@@ -469,7 +731,9 @@ public enum HeadroomSeverityColorValues {
     //   1. every *text*, icon, and pill use stays on the text tier above (unchanged), and
     //   2. when the user turns on Increase Contrast, the light fills fall back to the text
     //      tier's darkened values, which clear 3:1 on the track (3.15–3.61:1). The dark fills
-    //      are the dark text-tier values in both branches — they already pass (3.06–4.63:1).
+    //      are the dark text-tier values in both branches — they already pass (3.06–4.63:1) —
+    //      except critical, which R2C4b lifted off the text token to make the dark severity
+    //      ramp monotonic; it passes by more (3.58–4.19:1), not less.
     //
     // Why a split instead of a retune: no vivid light fill can clear 3:1 on the light track on
     // its own. The track is black @ 0.12 over a near-white card (L≈0.745), so a 3:1 fill has to
@@ -490,15 +754,30 @@ public enum HeadroomSeverityColorValues {
             : HeadroomRGBColor(red: 0.16, green: 0.66, blue: 0.30)
     }
 
+    /// R2C4a: the light default darkened `oklch(0.700 0.166 58.3)` → `oklch(0.660 0.166
+    /// 58.3)`, hue and chroma untouched. A severity ramp that is not monotonic does not
+    /// encode severity, and this one ran backwards: light `lowFill` measured |Lc| 53.4/51.0
+    /// against the card while `healthyFill` measured 57.2/54.8, so "running low" was quieter
+    /// than "you're fine" on the same row. It now reads 59.4/57.0 — above healthy, below
+    /// critical — and both pinned floors improve with it (vs track 2.06 → 2.48:1, vs card
+    /// 2.71 → 3.27:1).
     public static func lowFill(dark: Bool, increasedContrast: Bool) -> HeadroomRGBColor {
         guard !dark else { return low(dark: true) }
         return increasedContrast
             ? low(dark: false)
-            : HeadroomRGBColor(red: 0.91, green: 0.50, blue: 0.02)
+            : HeadroomRGBColor(red: 0.856, green: 0.450, blue: 0.000)
     }
 
+    /// R2C4b: the dark fill is the one severity fill that is *not* its text token. The dark
+    /// text critical (`oklch(0.683 0.206 28.1)`) measured |Lc| 41–43 against the card, below
+    /// the neutral `tickGlassCap`, so a healthy grey meter's tip out-shouted a critical red
+    /// meter's. `oklch(0.740 0.190 28.1)` lifts it to 47–49, above the retuned cap and below
+    /// healthy. The honest limit: |Lc| cannot put red above amber in dark without
+    /// desaturating it, which is fine — AP1 already gives critical a second channel (the red
+    /// numeral). Separation vs the track improves too (3.06 → 3.58:1), so the 3:1 floor the
+    /// dark fills claim still holds in both the default and Increase Contrast branches.
     public static func criticalFill(dark: Bool, increasedContrast: Bool) -> HeadroomRGBColor {
-        guard !dark else { return critical(dark: true) }
+        guard !dark else { return HeadroomRGBColor(red: 1.00, green: 0.448, blue: 0.389) }
         return increasedContrast
             ? critical(dark: false)
             : HeadroomRGBColor(red: 0.90, green: 0.22, blue: 0.20)

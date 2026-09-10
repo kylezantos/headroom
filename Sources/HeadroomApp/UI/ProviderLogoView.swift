@@ -4,6 +4,13 @@ import HeadroomCore
 
 /// Provider brand mark used at small UI sizes. Bundled SVGs render through AppKit;
 /// SF Symbols remain the fallback for unknown providers.
+///
+/// R2C13: the marks are drawn `.renderingMode(.original)` — the value is a property of the
+/// artwork, not of this view — so the ~86% ink ceiling on the two monochrome brands lives in
+/// their SVG fills. `HeadroomBrandColorValues.monochromeMarkInk` names those two hexes and
+/// `BrandColorValuesTests` re-reads both shipped copies so the token and the files cannot
+/// drift. Tinting here instead would have skipped the asset-catalog surfaces (iOS + both
+/// widget families), which only ever see an `Image(name)`.
 struct ProviderLogoView: View {
     let providerID: ProviderID
     var size: CGFloat = 16

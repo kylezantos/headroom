@@ -4,8 +4,13 @@ import SwiftUI
 /// A raised content tile that reads as elevated on the Liquid Glass popover in **both**
 /// appearances (R-depth). The trick is that "elevation" is drawn differently per scheme:
 ///
-/// - **Dark**: a faint top-lit rim (bright at the top edge, fading down the perimeter) over a
-///   subtle vertical fill, plus a deep shadow — the glassy raised-tile look.
+/// - **Dark**: a lit top rim fading to a *dark* bottom rim over a subtle vertical fill, plus a
+///   shadow deep enough to read on the popover shell — the glassy raised-tile look.
+///   (R2C1: this used to say "fading down the perimeter", and the code faded to
+///   `white 0.06`, which measured ~50 against a 37 card on a 27 shell — the brightest
+///   boundary on the card was its *bottom* edge, so the tile read as an inlay, lit from
+///   below. The shadow made it worse by rendering nothing at all: `black 0.42` over a
+///   `#1B1B1B` shell sampled 27 on every side, identical to bare shell.)
 /// - **Light**: a brighter near-opaque fill with a soft shadow and a fine bottom-weighted
 ///   hairline. A white top-rim would vanish on a light surface, so light mode leans on the
 ///   shadow + fill contrast instead.
@@ -34,22 +39,26 @@ struct RaisedTile: ViewModifier {
                     .fill(LinearGradient(
                         colors: fillColors,
                         startPoint: .top, endPoint: .bottom))
+                    // R2C1: dark's shadow is 0.6 @ r10 y3, not 0.42 @ r7 y1 — the old one
+                    // measured identical to bare shell at every sample, so the card had no
+                    // shadow at all. Light is unchanged (211 shadow vs 225 shell, correct).
                     .shadow(
-                        color: .black.opacity(dark ? 0.42 : (surface == .opaque ? 0.09 : 0.12)),
-                        radius: dark ? 7 : 5,
-                        y: 1
+                        color: .black.opacity(dark ? 0.6 : (surface == .opaque ? 0.09 : 0.12)),
+                        radius: dark ? 10 : 5,
+                        y: dark ? 3 : 1
                     )
             )
             .overlay(
-                // One gradient stroke does both jobs: a lit top edge fading to a faint
-                // side/bottom rim (dark), or a bright top highlight fading to a hairline
-                // bottom shadow line (light).
+                // One gradient stroke does both jobs, and after R2C1 both schemes do it the
+                // same way: a lit top edge fading to a dark bottom rim. Apple's dark grouped
+                // tables and Raycast's dark rows are built this way for the same reason —
+                // Apple §12, a bigger surface reads as thicker, lit from above.
                 shape.strokeBorder(
                     highLegibility
                         ? LinearGradient(colors: [Color(nsColor: .separatorColor), Color(nsColor: .separatorColor)], startPoint: .top, endPoint: .bottom)
                         : LinearGradient(
                             colors: dark
-                                ? [Color.white.opacity(0.20), Color.white.opacity(0.06)]
+                                ? [Color.white.opacity(0.20), Color.black.opacity(0.22)]
                                 : [Color.white.opacity(0.90), Color.black.opacity(0.07)],
                             startPoint: .top, endPoint: .bottom),
                     lineWidth: highLegibility ? 1.2 : 1)

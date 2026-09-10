@@ -114,6 +114,7 @@ enum SetupSessions {
                         mode: AccountStorage.setupHandoffMode(marker: marker) ?? .standard,
                         purpose: AccountStorage.setupHandoffPurpose(marker: marker) ?? .setup
                     )
+                    restoreWaitingStart(for: account.key, marker: marker)
                     monitorCompletion(marker, for: account.key)
                 } else {
                     let completion = AccountStorage.setupHandoffCompletion(marker: marker)
@@ -154,16 +155,31 @@ enum SetupSessions {
 
     /// R2M12: stamp the start of a handoff. Idempotent while a wait is already running, so
     /// "Reopen" and "Continue Setup" keep the clock the user has been reading rather than
-    /// restarting it. Deliberately *not* called when `configure` restores a handoff from a
-    /// durable marker: that start is unknown, and inventing one would make an hour-old wait
-    /// read "Waiting 3s". A restored wait simply keeps the card-derived header line.
+    /// restarting it — and so a restored start seeded by `restoreWaitingStart` survives the
+    /// next call rather than being rewritten to now.
     static func noteHandoffBegan(for account: ProviderAccount, at date: Date = .now) {
         guard !isWaiting(for: account) else { return }
         SetupSessionActivity.shared.beginWaiting(for: account.key, at: date)
     }
 
+    /// R2M12: seed the clock of a handoff restored from its durable marker. `configure`
+    /// runs before the coordinator knows the session is waiting, so this writes the stamp
+    /// directly instead of going through `noteHandoffBegan`'s already-waiting guard. The
+    /// start is only ever the one Headroom persisted beside the marker's generation; when
+    /// that is missing, cancelled, or in the future the account keeps today's behaviour and
+    /// the header falls back to the card-derived line rather than inventing "Waiting 3s".
+    static func restoreWaitingStart(
+        for key: AccountKey,
+        marker: SetupCompletionMarker,
+        now: Date = .now
+    ) {
+        guard let startedAt = AccountStorage.setupHandoffStartedAt(marker: marker, now: now)
+        else { return }
+        SetupSessionActivity.shared.beginWaiting(for: key, at: startedAt)
+    }
+
     /// R2M12: how long the account's current handoff has been open, or nil when it is not
-    /// waiting — or when the wait was restored from disk and its start instant is unknown.
+    /// waiting — or when no trustworthy start was recorded for it.
     static func waitingStart(for account: ProviderAccount) -> Date? {
         guard isWaiting(for: account) else { return nil }
         return SetupSessionActivity.shared.waitingSince(for: account.key)

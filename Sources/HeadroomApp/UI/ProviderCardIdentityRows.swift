@@ -30,12 +30,34 @@ enum IdentityRowMetrics {
     static let capsuleLabelKerning: CGFloat = 0.2
 }
 
+/// R2C17: one capsule was carrying four meanings — plan (Max, Pro Lite), period (September),
+/// measure (Remaining balance) and the freshness *warning* (Stale) all in the same grey
+/// chrome, so "Work · Pro · Stale" read the warning as a third subscription tier. Things that
+/// look the same must behave the same, so the family splits: metadata is a flat label, state
+/// is a filled-and-outlined chip. These are the shared values that split needs.
+enum IdentityCapsuleStyle {
+    /// R2C17: the stale chip's fill, previously an untokenised `secondary.opacity(0.18)`
+    /// written out once on the identity row and again in the spend view.
+    static let staleFill = Color.secondary.opacity(0.18)
+
+    /// R2C17: outlined-and-filled reads as state; flat reads as label. One hairline is the
+    /// whole difference, so it lives here rather than at either call site.
+    static let stateBorder = Color.secondary.opacity(0.35)
+    static let stateBorderWidth: CGFloat = 1
+}
+
 extension View {
     /// C6A: the one identity-line capsule. Each recipe keeps its own horizontal padding and
     /// fill; the height is not negotiable. PA7 added the label role — set through the
     /// environment, so a call site that still declares `Text.font(_:)` would silently win.
     /// None do: the six recipes were stripped when this took the type over.
-    func identityCapsule<Fill: ShapeStyle>(fill: Fill, horizontalPadding: CGFloat) -> some View {
+    ///
+    /// R2C17 added `border`, defaulted off: only a state chip is outlined.
+    func identityCapsule<Fill: ShapeStyle>(
+        fill: Fill,
+        horizontalPadding: CGFloat,
+        border: Color? = nil
+    ) -> some View {
         font(.system(
             size: IdentityRowMetrics.capsuleLabelSize,
             weight: IdentityRowMetrics.capsuleLabelWeight
@@ -46,6 +68,19 @@ extension View {
         .frame(height: IdentityRowMetrics.capsuleHeight)
         .padding(.horizontal, horizontalPadding)
         .background(fill, in: Capsule())
+        .overlay {
+            if let border {
+                Capsule().strokeBorder(border, lineWidth: IdentityCapsuleStyle.stateBorderWidth)
+            }
+        }
+    }
+
+    /// R2C17: the metadata half of the split — plan, period, measure. No fill, and therefore
+    /// no horizontal inset: without a background the padding has nothing to inset *from* and
+    /// only pushes the label off the row's own 6pt rhythm. The shared height and type stay,
+    /// so a flat label still sits on the capsule line beside a chip.
+    func identityMetadataLabel() -> some View {
+        identityCapsule(fill: Color.clear, horizontalPadding: 0)
     }
 }
 
@@ -96,9 +131,15 @@ enum StatusSentenceSeverity {
     /// A handoff is running. Not a severity at all — the row is mid-flight.
     case progress
 
+    /// R2C5: `.attention` used to paint with the meter's Low amber, so an amber 38% Weekly bar
+    /// could sit two rows above an amber "Sign in with the official Claude CLI" with no
+    /// relationship between them — one colour, two meanings. Account lifecycle comes off the
+    /// severity ramp onto the neutral label ink; the sentence is already 11.5 medium against
+    /// 11 regular metadata, so weight and position carry it. `.critical` keeps the red,
+    /// because a provider refusal genuinely is an error and is the card's only red.
     func ink(scheme: ColorScheme) -> Color {
         switch self {
-        case .attention: ProviderStyle.severityColor(for: .low, scheme: scheme)
+        case .attention: ProviderStyle.meterLabelInk(scheme: scheme)
         case .critical: ProviderStyle.criticalText(scheme: scheme)
         case .progress: Color.secondary
         }
@@ -158,6 +199,10 @@ struct IdentityRow: View {
     let email: String?
     let showsPersistentEmail: Bool
     let showsConnectedChip: Bool
+    /// R2C22: the capability card stamps the provider mark on its own header row *and* on
+    /// every account row beneath it, so "✳ Claude" sat 7pt above "✳ Personal". A nested
+    /// account row hides its mark and keeps the slot, so the title column never shifts.
+    var showsMark: Bool = true
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -178,20 +223,25 @@ struct IdentityRow: View {
 
     private func row(email: String?) -> some View {
         HStack(spacing: IdentityRowMetrics.spacing) {
-            ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
+            if showsMark {
+                ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
+            } else {
+                // R2C22: the slot stays reserved, so a nested row's title lands on the same
+                // axis as the header row's above it.
+                Color.clear.frame(
+                    width: IdentityRowMetrics.markSlotWidth,
+                    height: IdentityRowMetrics.markSlotWidth
+                )
+            }
             titleText
             if let planDisplayName {
                 Text(planDisplayName)
                     .kerning(IdentityRowMetrics.capsuleLabelKerning)
                     // PA13: the plan pill carries its own token so the dark step is set by |Lc|, not system `.tertiary`.
                     .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
-                    // T1A/C6A: the capsule reads as a peer of the title beside it rather than
-                    // a hairline sticker stuck to it — now from an explicit height, so it
-                    // cannot drift away from the tags sharing this line.
-                    .identityCapsule(
-                        fill: ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
-                        horizontalPadding: 5
-                    )
+                    // R2C17: metadata, so it drops the fill. T1A/C6A's shared height keeps it
+                    // a peer of the state chip that may sit beside it on this same line.
+                    .identityMetadataLabel()
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -300,7 +350,13 @@ struct IdentityRow: View {
             .kerning(IdentityRowMetrics.capsuleLabelKerning)
             // PA7: type comes from `identityCapsule` now.
             .foregroundStyle(.secondary)
-            .identityCapsule(fill: Color.secondary.opacity(0.18), horizontalPadding: 5)
+            // R2C17: a state chip, so it keeps its fill and takes the hairline that tells it
+            // apart from the flat plan label now sitting beside it.
+            .identityCapsule(
+                fill: IdentityCapsuleStyle.staleFill,
+                horizontalPadding: 5,
+                border: IdentityCapsuleStyle.stateBorder
+            )
     }
 
     /// L5D: with the badge gone, the row tooltip and this VoiceOver phrase are the only
@@ -337,7 +393,9 @@ private struct ConnectedChip: View {
     var body: some View {
         HStack(spacing: 4) {
             Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
+                // R2B3: 9pt bold beside a 10.5 medium label was the heavier of the two at the
+                // smaller size; semibold puts the glyph's stroke back in step with its word.
+                .font(.system(size: 9, weight: .semibold))
             // PA7: the tallest label of the six took the shared role too; only the
             // checkmark keeps a font of its own, because it is a glyph, not a label.
             Text("Connected")
@@ -370,51 +428,84 @@ struct AccountSectionView: View {
     let isMenuBarAccount: Bool
     let showsStopWaiting: Bool
     let onRetry: () -> Void
+    /// R2C22: false for the account rows nested under a capability card's own provider row.
+    var showsMark: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
 
     private var snapshot: UsageSnapshot { entry.snapshot }
     private var account: ProviderAccount { entry.account }
+    /// R2M1: what the section's second animation scope keys on. See
+    /// `providerCardSessionKey` — the raw state's retry counter must not restage anything.
+    private var sessionKey: SetupSessionState {
+        providerCardSessionKey(SetupSessions.state(for: account))
+    }
 
     var body: some View {
-        // G3/R4A: 6pt binds the identity to its meters; the 26pt inter-section gap in
-        // `multiAccountBody` does the separating (proximity, not chrome). 6-inside against
-        // 12-to-the-action-row is the 2× the grouping rule wants — the old 7/8 was 1.14×,
-        // which read as four evenly stacked lines. The whole section is one VoiceOver
-        // container so the rotor can jump account-to-account instead of the meters floating
-        // free of their identity row.
-        VStack(alignment: .leading, spacing: 6) {
+        // G3/R4A: the identity binds to its meters; the 26pt inter-section gap in
+        // `multiAccountBody` does the separating (proximity, not chrome). The whole section
+        // is one VoiceOver container so the rotor can jump account-to-account instead of the
+        // meters floating free of their identity row.
+        //
+        // R2C2: 6 → 2. The ladder was intended as "6 binds, 10–12 separates", but measured in
+        // *ink* on a live capture it came out 14.5pt identity→meter against 17.5pt
+        // meter→meter — 1.21×, so an account read as evenly stacked lines rather than a name
+        // and its meters. Descender and ascender slack ate the difference. 2 frame units is
+        // ~10pt of ink against the same 17.5 (1.75×), which is the ≥2× grouping wants.
+        VStack(alignment: .leading, spacing: 2) {
             identityRow
             // M4A/S2A: the innermost scope around the switching body, so the crossfade —
             // not the section's height change — is what this animation drives. The wrapper
-            // repeats the parent's 6pt spacing so it stays layout-neutral for the
-            // multi-view `signInContent` branch. Fill and numeral roll are `UsageBarView`'s.
-            VStack(alignment: .leading, spacing: 6) {
+            // repeats the parent's spacing so it stays layout-neutral for the multi-view
+            // `signInContent` branch. Fill and numeral roll are `UsageBarView`'s.
+            VStack(alignment: .leading, spacing: 2) {
                 stateContent
             }
             .animation(
                 HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion),
                 value: snapshot.freshness
             )
+            // R2M1: the second scope, on the session rather than the snapshot. A row swapping
+            // its sign-in block for a waiting block is the same kind of body change
+            // `freshness` already crossfades; without this it hard-cut.
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                value: sessionKey
+            )
             if showsStopWaiting,
                SetupSessions.state(for: account) != .blockedByOpenHandoff {
                 // P4C/R4A/B3: the section's one action row, leading-aligned at the mark
-                // column. The stack's own 6pt supplies half of R4A's 12pt gap, so the row
-                // adds the other 6, and it takes no trailing inset — a leading row ends
-                // wherever its last chip ends.
-                CardActionRow(topPadding: 6) {
+                // column. The stack's own spacing supplies part of R4A's 12pt gap, so the
+                // row adds the rest.
+                //
+                // R2C11 (Kyle): the row's max width now runs to the trailing edge of the
+                // usage rows, so its chips wrap inside the same left/right bounds the meters
+                // above them keep rather than running on to the card's own padding.
+                CardActionRow(
+                    topPadding: 10,
+                    trailingInset: IdentityRowMetrics.contentTrailingInset
+                ) {
                     StopWaitingButton(account: account, style: .chip(.small))
                 }
+                // R2M1: the row appears and disappears with the session, so it dissolves
+                // rather than popping into a card that is already resizing under it.
+                .transition(.opacity)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(identityTitle) account")
-        // M4A/S2A: the section's own geometry — its height inside the 22pt account stack —
+        // M4A/S2A: the section's own geometry — its height inside the 26pt account stack —
         // is travel, so Reduce Motion snaps it while the body above still crossfades.
         .animation(
             HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
             value: snapshot.freshness
+        )
+        // R2M1: the movement half of the session scope — the section's height inside the
+        // account stack when a waiting block replaces a taller sign-in block.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+            value: sessionKey
         )
         .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
         .onAppear {
@@ -435,7 +526,8 @@ struct AccountSectionView: View {
             isStale: providerCardHasTransientStaleState(snapshot),
             email: snapshot.accountEmail,
             showsPersistentEmail: showsPersistentEmail,
-            showsConnectedChip: showsConnectedChip
+            showsConnectedChip: showsConnectedChip,
+            showsMark: showsMark
         )
     }
 
@@ -484,11 +576,14 @@ struct AccountSectionView: View {
         let recoveryPresentation = outcome?.recoveryPresentation
         let setupState = SetupSessions.state(for: account)
         VStack(alignment: .leading, spacing: 6) {
+            // R2M1: the four branches here are all session states, and swapping one for
+            // another is a body change of exactly the kind `stateContent` already
+            // crossfades. The scope that drives it is the section's `sessionKey` one.
             Group {
                 if let refusalMessage = setupHandoffRefusalMessage(for: setupState) {
                     VStack(alignment: .leading, spacing: 0) {
                         StatusSentence(text: refusalMessage, severity: .attention)
-                        CardActionRow {
+                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
                             StopWaitingButton(account: account, style: .chip(.small))
                         }
                     }
@@ -498,7 +593,7 @@ struct AccountSectionView: View {
                             text: "Another \(providerDisplayName) sign-in is open",
                             severity: .attention
                         )
-                        CardActionRow {
+                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
                             Button("Continue Setup") { SetupSessions.continueSetup(for: account) }
                                 .buttonStyle(SetupChipButtonStyle(size: .small))
                                 .accessibilityLabel("Continue \(providerDisplayName) setup for \(account.label)")
@@ -523,7 +618,7 @@ struct AccountSectionView: View {
                         }
                         // B3A: the bare accent label is gone — a waiting row's one control
                         // now carries the same resting container as the sign-in chip.
-                        CardActionRow {
+                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
                             Button("Check Now") { onRetry() }
                                 .buttonStyle(SetupChipButtonStyle(size: .small))
                         }
@@ -542,7 +637,11 @@ struct AccountSectionView: View {
                         )
                         // P4C/B3: both actions share one row, and a leading row reads in
                         // reading order — the primary first, its alternative after it.
-                        CardActionRow {
+                        // R2C11 (Kyle): leading-aligned on the account title's text axis
+                        // — which `CardActionRow`'s default `labelInset` already is — and
+                        // bounded on the right by the usage rows' own trailing edge, so a
+                        // wrapped pair of chips sits inside the meters' left/right bounds.
+                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
                             Button {
                                 if let recoveryPresentation {
                                     SetupSessions.performRecovery(

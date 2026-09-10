@@ -39,6 +39,10 @@ struct PopoverView: View {
     /// (`maxHeight` only sets a ceiling, never a floor). Measuring the stack and pinning an
     /// explicit height is what keeps the window honest; the cap still applies above it.
     @State private var cardsHeight: CGFloat = 0
+    /// R2M12: second-resolution "now" for the waiting clock, driven only while a handoff is
+    /// open. The popover's own `TimelineView` ticks per minute, which is right for "Updated
+    /// N min ago" and useless for "Waiting 45s".
+    @State private var waitingClockNow: Date = .now
 
     private static let titleFont = NSFont.systemFont(ofSize: 20, weight: .bold)
     private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
@@ -140,16 +144,16 @@ struct PopoverView: View {
                 .mask {
                     VStack(spacing: 0) {
                         LinearGradient(
-                            colors: [scrollContinuesAbove ? .black.opacity(0) : .black, .black],
+                            stops: Self.featherStops(fadesOut: scrollContinuesAbove, mirrored: true),
                             startPoint: .top, endPoint: .bottom
                         )
-                        .frame(height: 26)
+                        .frame(height: Self.featherHeight)
                         Rectangle().fill(.black)
                         LinearGradient(
-                            colors: [.black, scrollContinuesBelow ? .black.opacity(0) : .black],
+                            stops: Self.featherStops(fadesOut: scrollContinuesBelow),
                             startPoint: .top, endPoint: .bottom
                         )
-                        .frame(height: 26)
+                        .frame(height: Self.featherHeight)
                     }
                 }
                 // S2A: both feathers are pure mask opacity, so Reduce Motion keeps the
@@ -183,6 +187,35 @@ struct PopoverView: View {
             // G1A: the popover is the only surface with a title-ink choice, so this is the
             // one place it enters the view tree (the Settings specimen sets its own).
             .environment(\.accountTitleInk, store.accountTitleInk)
+        }
+    }
+
+    // MARK: - Scroll feather (R2C23)
+
+    /// R2C23: 14pt, down from 26 — the old band was taller than a whole Micro meter row, so
+    /// the last chip in the list rendered as a half-dissolved ghost and the card's bottom rim
+    /// never drew at all. Notification Centre, Raycast and Linear all fade ~12–16pt.
+    private static let featherHeight: CGFloat = 14
+
+    /// R2C23: non-linear, so the fade is back-loaded and the top two-thirds of the band stays
+    /// crisp — a soft edge rather than missing data. A straight `LinearGradient` between two
+    /// colours could not express it; these are its three stops.
+    private static let featherOpacities: [Double] = [1.0, 0.55, 0.0]
+
+    /// L3A: both ends run the same ramp, so the top feather is this one mirrored rather than
+    /// a second hand-kept gradient. `fadesOut: false` is the gated case — a popover that
+    /// doesn't scroll keeps its crisp first and last card edge.
+    private static func featherStops(fadesOut: Bool, mirrored: Bool = false) -> [Gradient.Stop] {
+        let opacities = fadesOut
+            ? featherOpacities
+            : Array(repeating: 1.0, count: featherOpacities.count)
+        let lastIndex = Double(opacities.count - 1)
+        let stops = opacities.enumerated().map { index, opacity in
+            Gradient.Stop(color: .black.opacity(opacity), location: Double(index) / lastIndex)
+        }
+        guard mirrored else { return stops }
+        return stops.reversed().map {
+            Gradient.Stop(color: $0.color, location: 1 - $0.location)
         }
     }
 
@@ -292,22 +325,7 @@ struct PopoverView: View {
                 .font(.system(size: 20, weight: .bold))
                 .kerning(-0.2)
             Spacer(minLength: 8)
-            if let status = headerStatus(now: now) {
-                Text(status.text)
-                    .font(.system(size: 11).monospacedDigit())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    // M2A: the minute tick was a hard cut. The stamp's value only grows, so
-                    // `numericText(value:)` rolls the digits upward — time's own direction.
-                    .contentTransition(headerStatusTransition(status))
-                    .animation(
-                        HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
-                        value: status
-                    )
-                    .alignmentGuide(.firstTextBaseline) { d in
-                        d[.firstTextBaseline] + statusBaselineOffset
-                    }
-            }
+            headerStatusSlot(now: now, baselineOffset: statusBaselineOffset)
             // Native glass control. Its circular boundary sits flush at the content margin —
             // matching "Usage" on the left edge — which fixes the old alignment (a bare glyph
             // whose hit-area padding floated it ~9pt inside the edge).
@@ -324,10 +342,59 @@ struct PopoverView: View {
             // toolbar convention — the hover pill, the pointer cursor and the press state
             // are the affordance, exactly as they are for `+`, `…`, copy, trash and reset.
             .buttonStyle(HoverButtonStyle(horizontalPadding: 0, verticalPadding: 0))
+            // R2M8: ⌘, is universal on macOS, and Settings is a `Window(id:)` rather than a
+            // `Settings` scene, so the system gives the app nothing for free. Bound to the
+            // gear itself so the shortcut and the click run one action. Emil's rule that a
+            // keyboard-initiated action must not animate needs no work here: dismissing the
+            // popover and opening a window are instant by construction.
+            .keyboardShortcut(",", modifiers: .command)
             .accessibilityLabel("Settings")
             .alignmentGuide(.firstTextBaseline) { d in
                 d[VerticalAlignment.center] + gearBaselineOffset
             }
+        }
+        // R2M12: the elapsed wait is read in seconds, and the popover's own `TimelineView`
+        // only ticks per minute. This runs *only* while a handoff clock is on screen and is
+        // cancelled the moment it isn't — a clock bound to real work, not a decorative loop.
+        .task(id: headerWaitingAccount?.key) {
+            guard headerWaitingAccount != nil else { return }
+            while !Task.isCancelled {
+                waitingClockNow = .now
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+    }
+
+    /// R2M5: the slot is never empty. A phrase and a stamp are different lines rather than a
+    /// value that changed, so `.id(status.kind)` replaces the view and the outer `.crossfade`
+    /// scope dissolves it — which is also what stops "Waiting for approval…" → "Updated 0 min
+    /// ago" from running `numericText` on a word→number swap. The ZStack keeps both copies in
+    /// one slot mid-crossfade so the header doesn't relayout under them.
+    private func headerStatusSlot(now: Date, baselineOffset: CGFloat) -> some View {
+        let status = headerStatus(now: now)
+        return ZStack(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
+            Text(status.text)
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+                // M2A: the minute tick was a hard cut. The stamp's value only grows, so
+                // `numericText(value:)` rolls the digits upward — time's own direction.
+                .contentTransition(headerStatusTransition(status))
+                .animation(
+                    HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
+                    value: status
+                )
+                .id(status.kind)
+                .transition(.opacity)
+        }
+        // R2M5/S2A: the replacement is pure opacity, so Reduce Motion keeps its 200ms rather
+        // than blinking one sentence into another.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: status.kind
+        )
+        .alignmentGuide(.firstTextBaseline) { d in
+            d[.firstTextBaseline] + baselineOffset
         }
     }
 
@@ -347,61 +414,89 @@ struct PopoverView: View {
         inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font) + statusBaselineResidual
     }
 
-    /// M2A: the header's one status slot carries either the numeric "Updated N …" stamp or
-    /// non-numeric setup copy. `elapsedMinutes` is nil for the latter, which is what keeps a
-    /// phrase like "Waiting for approval…" from trying to roll its letters.
-    private struct HeaderStatus: Equatable {
-        let text: String
-        let elapsedMinutes: Double?
+    private func headerStatusTransition(_ status: PopoverHeaderStatus) -> ContentTransition {
+        guard let rollValue = status.rollValue else { return .identity }
+        return HeadroomMotion.numericText(value: rollValue, reduceMotion: reduceMotion)
     }
 
-    private func headerStatusTransition(_ status: HeaderStatus) -> ContentTransition {
-        guard let minutes = status.elapsedMinutes else { return .identity }
-        return HeadroomMotion.numericText(value: minutes, reduceMotion: reduceMotion)
-    }
-
-    /// Single status for the whole popover. During a guided provider setup it narrates
-    /// the stage; otherwise it's "Updated N min ago" from the *oldest* live snapshot so
-    /// it never claims data is fresher than the least-fresh provider. Stale providers
-    /// are excluded (their own stale pill carries that story); nil on first run when
-    /// nothing is live yet, so the header simply omits it.
-    private func headerStatus(now: Date) -> HeaderStatus? {
+    /// R2M5: the popover's single status line, resolved from live captures, retained ones and
+    /// the setup card below it. The decision itself is `PopoverHeaderStatusResolver`, so the
+    /// six states are pinned by tests without standing up a store, a snapshot and a popover;
+    /// this only gathers the inputs.
+    private func headerStatus(now: Date) -> PopoverHeaderStatus {
+        var setupText: String?
+        var waitingElapsed: TimeInterval?
         if let outcome = claudeGuidedSetupOutcome {
             let account = ProviderAccount.builtIn(for: .claude)
-            return HeaderStatus(
-                text: PopoverHeaderStatusText.claude(
-                    outcome: outcome,
-                    isWaiting: SetupSessions.isWaiting(for: account)
-                ),
-                elapsedMinutes: nil
+            setupText = PopoverHeaderStatusText.claude(
+                outcome: outcome,
+                isWaiting: SetupSessions.isWaiting(for: account)
             )
-        }
-        if let action = codexConnectionAction {
+            waitingElapsed = handoffElapsed(for: account, now: now)
+        } else if let action = codexConnectionAction {
             let account = ProviderAccount.builtIn(for: .codex)
-            return HeaderStatus(
-                text: PopoverHeaderStatusText.codex(
-                    action: action,
-                    isWaiting: SetupSessions.isWaiting(for: account)
-                ),
-                elapsedMinutes: nil
+            setupText = PopoverHeaderStatusText.codex(
+                action: action,
+                isWaiting: SetupSessions.isWaiting(for: account)
             )
+            waitingElapsed = handoffElapsed(for: account, now: now)
         }
-        let liveCaptures = store.providerOrder.flatMap { id -> [Date] in
-            store.accounts(for: id).compactMap { account in
+        var oldestLiveCapture: Date?
+        var newestCheck: Date?
+        for id in store.providerOrder {
+            for account in store.accounts(for: id) {
                 let snapshot = store.snapshot(for: account.key)
-                guard case .live = snapshot.freshness else { return nil }
-                return snapshot.capturedAt
+                if case .live = snapshot.freshness, let capturedAt = snapshot.capturedAt {
+                    oldestLiveCapture = oldestLiveCapture.map { min($0, capturedAt) } ?? capturedAt
+                    newestCheck = newestCheck.map { max($0, capturedAt) } ?? capturedAt
+                    continue
+                }
+                // R2M5: a retained row's window keeps the *source* observation anchor across
+                // stale and unavailable transitions — the honest answer to "when was this
+                // last checked", and the only one left once every provider has gone stale.
+                if let observed = retainedObservation(in: snapshot) {
+                    newestCheck = newestCheck.map { max($0, observed) } ?? observed
+                }
             }
         }
-        guard let oldest = liveCaptures.min(),
-              let label = Countdown.updatedLabel(capturedAt: oldest, now: now) else { return nil }
-        // M2A: the label's own granularity is whole minutes since capture, so that is the
-        // value the roll follows. Between polls it only increases, which is what makes the
-        // digits climb; a landing capture resets it and they roll back down.
-        return HeaderStatus(
-            text: "Updated \(label)",
-            elapsedMinutes: (max(0, now.timeIntervalSince(oldest)) / 60).rounded(.down)
+        return PopoverHeaderStatusResolver.status(
+            PopoverHeaderStatusResolver.Input(
+                setupText: setupText,
+                waitingElapsed: waitingElapsed,
+                oldestLiveCapture: oldestLiveCapture,
+                newestCheck: newestCheck,
+                isRefreshing: store.isRefreshing,
+                now: now
+            )
         )
+    }
+
+    /// R2M12: `waitingClockNow` is refreshed once a second by the header's own task while a
+    /// handoff is open; `now` is the popover's per-minute tick and stands in until the first
+    /// tick lands.
+    private func handoffElapsed(for account: ProviderAccount, now: Date) -> TimeInterval? {
+        guard let start = SetupSessions.waitingStart(for: account) else { return nil }
+        return max(0, max(now, waitingClockNow).timeIntervalSince(start))
+    }
+
+    private func retainedObservation(in snapshot: UsageSnapshot) -> Date? {
+        let observations = snapshot.windows.compactMap(\.observedAt)
+        return observations.max() ?? snapshot.capturedAt
+    }
+
+    /// R2M12: the account whose open handoff the header is clocking, if any. Nil also covers
+    /// a handoff restored from a durable marker, whose start instant is unknown — that wait
+    /// keeps the card-derived line rather than showing an invented duration.
+    private var headerWaitingAccount: ProviderAccount? {
+        if claudeGuidedSetupOutcome != nil {
+            let account = ProviderAccount.builtIn(for: .claude)
+            return SetupSessions.waitingStart(for: account) != nil ? account : nil
+        }
+        if codexConnectionAction != nil {
+            let account = ProviderAccount.builtIn(for: .codex)
+            return SetupSessions.waitingStart(for: account) != nil ? account : nil
+        }
+        return nil
     }
 
     private var claudeGuidedSetupOutcome: ProviderSetupOutcome? {
@@ -445,6 +540,12 @@ struct PopoverView: View {
                     // brings the container, the border and the press step with it.
                     Button("Refresh") { store.refreshNow() }
                         .buttonStyle(SetupChipButtonStyle(size: .regular))
+                        // R2M8: ⌘R is the category's own convention (Raycast, Linear, Ice
+                        // all ship it) and a utility opened 30× a day should not need the
+                        // pointer. The action itself is instant — the footer's swap is
+                        // driven by `isRefreshing`, i.e. by the work, not by the click — so
+                        // Emil's "keyboard actions don't animate" rule needs nothing here.
+                        .keyboardShortcut("r", modifiers: .command)
                         .transition(.opacity)
                 }
             }
@@ -494,6 +595,117 @@ enum PopoverHeaderStatusText {
         case .showPrivacyGuidance: return "Codex needs file access"
         case .resolveStorage: return "Codex sign-in needs relocating"
         }
+    }
+
+    /// R2M12: the waiting card already says *what* Headroom is waiting for, so the header
+    /// repeating it verbatim ("Waiting for approval…" twice) spends the app's one status slot
+    /// on nothing. It carries the thing the card cannot: a clock. Seconds are zero-padded
+    /// past the first minute so the digits roll in place instead of jittering the column.
+    static func waiting(elapsed: TimeInterval) -> String {
+        let seconds = max(0, Int(elapsed))
+        if seconds < 60 { return "Waiting \(seconds)s" }
+        if seconds < 3600 {
+            return "Waiting \(seconds / 60)m \(padded(seconds % 60))s"
+        }
+        return "Waiting \(seconds / 3600)h \(padded((seconds % 3600) / 60))m"
+    }
+
+    private static func padded(_ value: Int) -> String {
+        value < 10 ? "0\(value)" : "\(value)"
+    }
+
+    static let notChecked = "Not checked yet"
+    static let checking = "Checking…"
+}
+
+/// R2M5: one resolved header line. `kind` is the slot's *identity* — a phrase and a stamp are
+/// different lines, not one value that changed — and `rollValue` is what the digit roll
+/// follows (M2A), nil wherever there are no digits to roll.
+struct PopoverHeaderStatus: Equatable {
+    enum Kind: Hashable {
+        case waiting
+        case setup
+        case updated
+        case checking
+        case lastChecked
+        case never
+    }
+
+    let kind: Kind
+    let text: String
+    let rollValue: Double?
+}
+
+/// R2M5: the header slot used to collect `.live` captures and return nil for everything else,
+/// so first run, an all-stale popover and a capability failure showed a card full of retained
+/// numbers with no visible age anywhere. A number you cannot date is a number you cannot
+/// trust — Weather and Stocks carry a timestamp even when the fetch failed. Pure and lifted
+/// out of the view for the same reason `PopoverHeaderStatusText` is: the table is the
+/// decision, and it should be testable without a store.
+enum PopoverHeaderStatusResolver {
+    struct Input {
+        /// The setup line the card below is showing, when a setup card is the header's source.
+        var setupText: String?
+        /// R2M12: set only while that account's handoff is open *and* its start is known.
+        var waitingElapsed: TimeInterval?
+        /// Oldest live capture across every account, so the header never claims data is
+        /// fresher than the least-fresh provider.
+        var oldestLiveCapture: Date?
+        /// Newest observation of any kind, live or retained — the answer to "when was this
+        /// last checked" once nothing is live.
+        var newestCheck: Date?
+        var isRefreshing: Bool
+        var now: Date
+    }
+
+    static func status(_ input: Input) -> PopoverHeaderStatus {
+        if let elapsed = input.waitingElapsed {
+            return PopoverHeaderStatus(
+                kind: .waiting,
+                text: PopoverHeaderStatusText.waiting(elapsed: elapsed),
+                rollValue: (max(0, elapsed)).rounded(.down)
+            )
+        }
+        if let setupText = input.setupText {
+            return PopoverHeaderStatus(kind: .setup, text: setupText, rollValue: nil)
+        }
+        if let oldest = input.oldestLiveCapture,
+           let label = Countdown.updatedLabel(capturedAt: oldest, now: input.now) {
+            // M2A: the label's own granularity is whole minutes since capture, so that is the
+            // value the roll follows. Between polls it only increases, which is what makes the
+            // digits climb; a landing capture resets it and they roll back down.
+            return PopoverHeaderStatus(
+                kind: .updated,
+                text: "Updated \(label)",
+                rollValue: elapsedMinutes(since: oldest, now: input.now)
+            )
+        }
+        // R2M5: a cycle in flight with nothing live yet is the one case where the slot has a
+        // live action to report rather than an age.
+        if input.isRefreshing {
+            return PopoverHeaderStatus(
+                kind: .checking,
+                text: PopoverHeaderStatusText.checking,
+                rollValue: nil
+            )
+        }
+        if let newest = input.newestCheck,
+           let label = Countdown.updatedLabel(capturedAt: newest, now: input.now) {
+            return PopoverHeaderStatus(
+                kind: .lastChecked,
+                text: "Last checked \(label)",
+                rollValue: elapsedMinutes(since: newest, now: input.now)
+            )
+        }
+        return PopoverHeaderStatus(
+            kind: .never,
+            text: PopoverHeaderStatusText.notChecked,
+            rollValue: nil
+        )
+    }
+
+    private static func elapsedMinutes(since date: Date, now: Date) -> Double {
+        (max(0, now.timeIntervalSince(date)) / 60).rounded(.down)
     }
 }
 

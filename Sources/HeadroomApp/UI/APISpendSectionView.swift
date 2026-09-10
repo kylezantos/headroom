@@ -183,10 +183,9 @@ struct APISpendSectionView: View {
             .lineLimit(1)
             // C6A: the shared identity-line capsule, so the period chip and the state tag
             // that stands in for it are the same object at the same height.
-            .identityCapsule(
-                fill: ClaudeSetupStyle.stepBackground(dark: scheme == .dark),
-                horizontalPadding: 5
-            )
+            // R2C17: the period is metadata, so it drops the fill and reads as a label —
+            // the same split the plan pill it mirrors took.
+            .identityMetadataLabel()
     }
 
     /// S5A (Kyle): every amount — including the xAI balance row's — sits on the identity
@@ -319,11 +318,16 @@ struct APISpendSectionView: View {
             .foregroundStyle(ink)
             .lineLimit(1)
             // C6A: the same shared capsule as the period chip it stands in for.
+            // R2C17: a state chip keeps its kind-tinted fill, and the neutral tones take
+            // the one named stale recipe rather than a second copy of `0.18`.
             .identityCapsule(
                 fill: tone == .quiet || tone == .neutral
-                    ? Color.secondary.opacity(0.18)
+                    ? IdentityCapsuleStyle.staleFill
                     : ink.opacity(0.16),
-                horizontalPadding: 5
+                horizontalPadding: 5,
+                border: tone == .quiet || tone == .neutral
+                    ? IdentityCapsuleStyle.stateBorder
+                    : nil
             )
     }
 

@@ -101,7 +101,8 @@ never auto-merged.
 ```bash
 swift build                        # HeadroomCore + Headroom
 swift test                         # unit suite (fast, all mocked — no CLI/network/Keychain)
-xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' test
+./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
+# --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
 swift run Headroom --demo [multi-2|multi-3|multi-5|multi-mixed|spend-states|spend-retained]  # live app with fixture data (screenshots, multi-account preview)
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app

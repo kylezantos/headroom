@@ -143,7 +143,8 @@ struct APISpendSectionView: View {
             Text(model.title)
                 // G1: semibold, matching the account titles above.
                 .font(.system(size: 15, weight: .semibold))
-                .kerning(-0.15)
+                // R2B2: one 15/semibold kerning across the popover's titles.
+                .kerning(SetupCardMetrics.titleKerning)
                 // G1: the same neutral-or-brand ink preference the account titles read.
                 .accountTitleInk(for: model.snapshot.providerID)
                 .lineLimit(1)
@@ -371,10 +372,14 @@ struct APISpendSectionView: View {
     /// takes its vendor. Core's CTAs are all "<Verb> Key", so the vendor slots in before the
     /// noun ("Replace Anthropic Key"); anything else falls back to a parenthetical.
     /// B3T: the qualified form stays Title Case too — it is the same button, just longer.
+    /// R2B1: explicit templates instead of string surgery on the CTA.
     private func qualified(_ cta: String, for model: SpendRowModel) -> String {
         let vendor = APISpendPresentation.vendorName(from: model.snapshot.displayName)
-        guard cta.hasSuffix(" Key") else { return "\(cta) (\(vendor))" }
-        return "\(cta.dropLast(4)) \(vendor) Key"
+        switch cta {
+        case "Add Key": return "Add \(vendor) Key"
+        case "Replace Key": return "Replace \(vendor) Key"
+        default: return "\(cta) (\(vendor))"
+        }
     }
 
     // MARK: - Accessibility

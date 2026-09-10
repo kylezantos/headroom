@@ -4,17 +4,17 @@ import Testing
 @testable import Headroom
 
 /// PA10: the popover has one status slot, and the audit caught it contradicting the card it
-/// labels — an expired session, a denied read and a misplaced sign-in all read "Connect Codex
-/// to begin" over cards saying "Reconnect Codex" or that signing in again will not help.
+/// labels — an expired session, a denied read and a misplaced sign-in all read "Sign in to Codex
+/// to begin" over cards saying "Sign in to Codex again" or that signing in again will not help.
 /// These pin the derivation to the same `CodexConnectionAction` the card switches on, and pin
 /// the one verb ("Waiting for …") that the cards and account rows already use.
 @Suite
 struct PopoverHeaderStatusTests {
     @Test func everyCodexActionGetsItsOwnHeaderLine() {
         #expect(PopoverHeaderStatusText.codex(action: .connect, isWaiting: false)
-            == "Connect Codex to begin")
+            == "Sign in to Codex to begin")
         #expect(PopoverHeaderStatusText.codex(action: .reconnect, isWaiting: false)
-            == "Reconnect Codex")
+            == "Sign in to Codex again")
         #expect(PopoverHeaderStatusText.codex(action: .showPrivacyGuidance, isWaiting: false)
             == "Codex needs file access")
         #expect(PopoverHeaderStatusText.codex(action: .resolveStorage, isWaiting: false)
@@ -46,7 +46,7 @@ struct PopoverHeaderStatusTests {
         #expect(PopoverHeaderStatusText.claude(outcome: .claudeLoginRequired, isWaiting: false)
             == "Sign in to Claude to begin")
         #expect(PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: false)
-            == "Set up Claude to begin")
+            == "Sign in to Claude to begin")
         #expect(PopoverHeaderStatusText.claude(outcome: .claudeLoginRequired, isWaiting: true)
             == "Waiting for Claude sign-in…")
         #expect(PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: true)

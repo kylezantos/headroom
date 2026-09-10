@@ -582,16 +582,16 @@ enum PopoverHeaderStatusText {
                 ? "Waiting for Claude sign-in…"
                 : "Waiting for approval…"
         }
-        return outcome == .claudeLoginRequired
-            ? "Sign in to Claude to begin"
-            : "Set up Claude to begin"
+        // R2C6: one verb for one act — the untyped preset no longer says "Set up".
+        return ProviderSignInCopy.header(for: .claude)
     }
 
     static func codex(action: CodexConnectionAction, isWaiting: Bool) -> String {
         guard !isWaiting else { return "Waiting for Codex sign-in…" }
         switch action {
-        case .connect: return "Connect Codex to begin"
-        case .reconnect: return "Reconnect Codex"
+        // R2C6: the header shares the card's vocabulary instead of "Connect"/"Reconnect".
+        case .connect: return ProviderSignInCopy.header(for: .codex)
+        case .reconnect: return ProviderSignInCopy.header(for: .codex, again: true)
         case .showPrivacyGuidance: return "Codex needs file access"
         case .resolveStorage: return "Codex sign-in needs relocating"
         }

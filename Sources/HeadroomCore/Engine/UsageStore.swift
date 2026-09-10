@@ -866,27 +866,10 @@ public final class UsageStore {
     }
 
     /// Popover display order matches the widgets: weekly leads, 5-hour second, unknown
-    /// windows keep their provider-given order after (providers emit 5-hour first).
+    /// windows keep their provider-given order after (providers emit 5-hour first). The rule
+    /// lives on `UsageSnapshot.weeklyFirst()` so the Settings specimen renders the same order.
     private func weeklyFirst(_ snapshot: UsageSnapshot) -> UsageSnapshot {
-        func rank(_ kind: WindowKind) -> Int {
-            switch kind {
-            case .weekly, .billingPeriod: return 0
-            case .fiveHour: return 1
-            case .other: return 2
-            }
-        }
-        let ordered = snapshot.windows.enumerated()
-            .sorted { (rank($0.element.kind), $0.offset) < (rank($1.element.kind), $1.offset) }
-            .map(\.element)
-        guard ordered != snapshot.windows else { return snapshot }
-        return UsageSnapshot(
-            providerID: snapshot.providerID,
-            windows: ordered,
-            planLabel: snapshot.planLabel,
-            accountEmail: snapshot.accountEmail,
-            capturedAt: snapshot.capturedAt,
-            freshness: snapshot.freshness
-        )
+        snapshot.weeklyFirst()
     }
 
     public func apiSpendSnapshot(for id: ProviderID) -> APISpendSnapshot {

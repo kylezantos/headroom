@@ -17,6 +17,10 @@ private let claudeAccountFileFixture = """
 }
 """
 
+/// Upstream identities the detector will accept: it trusts UUID-syntactic values only.
+private let sharedLoginUUID = "11111111-2222-3333-4444-555555555555"
+private let otherLoginUUID = "99999999-8888-7777-6666-555555555555"
+
 /// `tokens.id_token` from `~/.codex/auth.json`, header/payload/signature. The payload
 /// segment is base64url with its padding stripped, exactly as a real JWT ships it.
 private let codexIDTokenFixture =
@@ -144,10 +148,51 @@ struct ClaudeDuplicateLoginTests {
         }
     }
 
+    /// Every other detector test stubs the read closure, so nothing else covers the
+    /// production path that opens `<CLAUDE_CONFIG_DIR>/.claude.json` off disk.
+    @Test func fileBackedUUIDReadReturnsTheIdentityWrittenInTheConfigHome() throws {
+        let directory = try temporaryConfigHome()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try Data(claudeAccountFileFixture.utf8)
+            .write(to: directory.appendingPathComponent(".claude.json"))
+
+        let reader = ClaudeAccountEmailFileReader(configDirectory: directory)
+        #expect(reader.readAccountUUID() == "00000000-0000-0000-0000-000000000000")
+        // Same file, same real read: identity and email come out of one capture.
+        #expect(reader.readAccountEmail() == "personal@example.com")
+    }
+
+    @Test func fileBackedUUIDReadFailsSafeForMissingMalformedAndKeylessFiles() throws {
+        let directory = try temporaryConfigHome()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let file = directory.appendingPathComponent(".claude.json")
+        let reader = ClaudeAccountEmailFileReader(configDirectory: directory)
+
+        // A fresh config home: the CLI hasn't written the file yet.
+        #expect(reader.readAccountUUID() == nil)
+
+        for contents in [
+            "{ not json at all",
+            #"{ "oauthAccount": { "emailAddress": "personal@example.com" } }"#,
+            #"{ "oauthAccount": {} }"#,
+            "{}",
+        ] {
+            try Data(contents.utf8).write(to: file)
+            #expect(reader.readAccountUUID() == nil)
+        }
+    }
+
+    private func temporaryConfigHome() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-claude-account-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        return directory
+    }
+
     @Test func sameUpstreamLoginBadgesTheLaterRow() {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in "same-uuid" })
+        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
         // Registry order decides the original: the earlier row keeps its plain
         // identity, the later duplicate carries the badge.
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
@@ -157,7 +202,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let detector = ClaudeDuplicateLoginDetector(
-            readAccountUUID: { $0 == .primary ? "uuid-a" : "uuid-b" }
+            readAccountUUID: { $0 == .primary ? sharedLoginUUID : otherLoginUUID }
         )
         #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
     }
@@ -175,15 +220,31 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let detector = ClaudeDuplicateLoginDetector(
-            readAccountUUID: { $0 == .primary ? "ABC-123" : "abc-123" }
+            readAccountUUID: { $0 == .primary ? sharedLoginUUID.uppercased() : sharedLoginUUID }
         )
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
+    }
+
+    @Test func onlyUUIDSyntacticIdentityCanBadgeARow() {
+        let main = ProviderAccount.builtIn(for: .claude)
+        let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
+
+        #expect(
+            ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+                .duplicateLabels(for: [main, extra]) == [extra.key: "Main"]
+        )
+        // `.claude.json` is a local plaintext file: an empty or hand-edited
+        // `accountUuid` must not let two unrelated homes match.
+        for identity in ["", "   ", "same-account", "not-a-uuid", "11111111-2222-3333-4444"] {
+            let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in identity })
+            #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
+        }
     }
 
     @Test func nonClaudeAccountsAreIgnored() {
         let codexMain = ProviderAccount.builtIn(for: .codex)
         let codexExtra = ProviderAccount(id: AccountID("extra-1"), providerID: .codex, label: "Work")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in "same-uuid" })
+        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
         #expect(detector.duplicateLabels(for: [codexMain, codexExtra]).isEmpty)
     }
 
@@ -191,7 +252,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let second = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let third = ProviderAccount(id: AccountID("extra-2"), providerID: .claude, label: "Newer")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in "same-uuid" })
+        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
         #expect(detector.duplicateLabels(for: [main, second, third])
                 == [second.key: "Main", third.key: "Main"])
     }

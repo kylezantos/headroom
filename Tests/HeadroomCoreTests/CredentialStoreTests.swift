@@ -114,6 +114,74 @@ struct CredentialStoreTests {
         #expect(reason.isPermanent)
     }
 
+    /// `displayName` is a row title, so interpolating it into "… API key" rendered xAI's
+    /// credential as "xAI API API key" and called every credential an API key when xAI's is
+    /// a management key. Every message reads from the one credential vocabulary instead.
+    @Test func apiKeyMessagesNameEachProvidersOwnCredential() async {
+        let expected: [(APIKeyProvider, String)] = [
+            (.anthropic, "Anthropic admin key"),
+            (.openAI, "OpenAI admin key"),
+            (.xAI, "xAI management key"),
+        ]
+
+        for (provider, label) in expected {
+            // Stored but blank, on both the read and the save path.
+            let blank = CredentialStore(
+                codexReader: MockCodexReader(credential: nil),
+                apiKeyStore: MockAPIKeyStore(keys: [provider: "   "])
+            )
+            #expect(failureMessage(await blank.apiKey(for: provider)) == "\(label) is empty")
+            #expect(failureMessage(await blank.saveAPIKey("  ", for: provider)) == "\(label) is empty")
+
+            // Present but the Keychain refused it, plus the save and delete failures.
+            let broken = MockAPIKeyStore(keys: [provider: "sk-test"])
+            broken.shouldFail = true
+            let store = CredentialStore(
+                codexReader: MockCodexReader(credential: nil),
+                apiKeyStore: broken
+            )
+            #expect(failureMessage(await store.apiKey(for: provider)) == "\(label) unreadable")
+            #expect(failureMessage(await store.saveAPIKey("sk-test", for: provider)) == "Couldn’t save \(label)")
+            #expect(failureMessage(await store.deleteAPIKey(for: provider)) == "Couldn’t delete \(label)")
+
+            // The already-fixed missing-key line stays on the same vocabulary.
+            let absent = CredentialStore(
+                codexReader: MockCodexReader(credential: nil),
+                apiKeyStore: MockAPIKeyStore()
+            )
+            let missing = failureMessage(await absent.apiKey(for: provider)) ?? ""
+            #expect(missing.hasPrefix("Add a"))
+            #expect(missing.hasSuffix(" in Settings"))
+        }
+    }
+
+    /// The shape of the bug: a doubled noun from a display name that already ends in "API".
+    @Test func noCredentialMessageDoublesTheAPINoun() async {
+        for provider in APIKeyProvider.allCases {
+            let broken = MockAPIKeyStore(keys: [provider: "sk-test"])
+            broken.shouldFail = true
+            let store = CredentialStore(
+                codexReader: MockCodexReader(credential: nil),
+                apiKeyStore: broken
+            )
+            let read = failureMessage(await store.apiKey(for: provider))
+            let saved = failureMessage(await store.saveAPIKey("sk-test", for: provider))
+            let deleted = failureMessage(await store.deleteAPIKey(for: provider))
+
+            for message in [read, saved, deleted].compactMap({ $0 }) {
+                #expect(!message.contains("API API"))
+                // Every declared provider names an admin or management key, never the
+                // generic noun the old copy applied to all three.
+                #expect(!message.lowercased().contains("api key"))
+            }
+        }
+    }
+
+    private func failureMessage<Success>(_ result: Result<Success, FailureReason>) -> String? {
+        guard case .failure(let reason) = result else { return nil }
+        return reason.message
+    }
+
     @Test func apiKeyStoreErrorsAreRedacted() async {
         let apiKeys = MockAPIKeyStore()
         apiKeys.shouldFail = true

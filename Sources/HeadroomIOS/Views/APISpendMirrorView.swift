@@ -125,7 +125,8 @@ struct APISpendMirrorView: View {
             freshness: summary.freshness,
             attention: summary.attention,
             providerID: ProviderID(summary.id),
-            displayName: summary.displayName
+            displayName: summary.displayName,
+            kind: summary.semanticKind
         ).tone
         switch tone {
         case .quiet:

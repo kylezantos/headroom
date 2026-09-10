@@ -920,6 +920,81 @@ private final class IgnoringSetupScheduler: SetupRetryScheduling {
         #expect(store.accounts(for: .claude).count == 1)
     }
 
+    /// Demo and preview compositions build the store with no `providerFactory`. Every
+    /// account-lifecycle mutation has to be inert there — refused outright, never half
+    /// applied to the persisted registry with no provider instance to match it.
+    @Test func factorylessStoreRefusesStopTrackingWithoutTouchingTheRegistry() async {
+        let defaults = freshDefaults()
+        let registry = AccountRegistry(defaults: defaults)
+        let extra = registry.addAccount(for: .claude)!
+        let store = UsageStore(
+            providers: [
+                AccountStubProvider(id: .claude, accountID: .primary, displayName: "Claude",
+                                    snapshot: .live(.claude, windows: [window(.weekly, used: 30)])),
+                AccountStubProvider(id: .claude, accountID: extra.id, displayName: "Claude",
+                                    snapshot: .live(.claude, windows: [window(.weekly, used: 50)])),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: NoopAccountStorage()
+        )
+        // The registry itself would allow it (a second account exists), so the refusal
+        // below can only come from the missing factory.
+        #expect(registry.canStopTrackingBuiltIn(for: .claude))
+
+        #expect(!store.canStopTrackingBuiltInAccount(for: .claude))
+        #expect(await store.stopTrackingBuiltInAccount(for: .claude) == .notAllowed)
+        #expect(!registry.isBuiltInHidden(for: .claude))
+        #expect(store.accounts(for: .claude).map(\.id) == [.primary, extra.id])
+        #expect(store.providers.count == 2)
+    }
+
+    @Test func factorylessStoreRefusesResumeTrackingAndLeavesTheTombstoneInPlace() {
+        let defaults = freshDefaults()
+        let registry = AccountRegistry(defaults: defaults)
+        let extra = registry.addAccount(for: .claude)!
+        #expect(registry.stopTrackingBuiltIn(for: .claude))
+        let store = UsageStore(
+            providers: [
+                AccountStubProvider(id: .claude, accountID: extra.id, displayName: "Claude",
+                                    snapshot: .live(.claude, windows: [window(.weekly, used: 50)])),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: NoopAccountStorage()
+        )
+
+        #expect(store.resumeTrackingBuiltInAccount(for: .claude) == nil)
+        // The factory guard runs before the registry mutation, so the tombstone that
+        // hides the CLI's own row survives a refused resume.
+        #expect(registry.isBuiltInHidden(for: .claude))
+        #expect(store.accounts(for: .claude).map(\.id) == [extra.id])
+        #expect(store.providers.count == 1)
+    }
+
+    /// `attachBuiltInProvider` is the last hop of both resume and the reinstate that
+    /// follows removing the final extra. Without a factory it must attach nothing —
+    /// not a pending snapshot for a row that could never poll.
+    @Test func factorylessStoreAttachesNoBuiltInProviderWhenTheLastExtraIsRemoved() async {
+        let defaults = freshDefaults()
+        let registry = AccountRegistry(defaults: defaults)
+        let extra = registry.addAccount(for: .claude)!
+        let store = UsageStore(
+            providers: [
+                AccountStubProvider(id: .claude, accountID: extra.id, displayName: "Claude",
+                                    snapshot: .live(.claude, windows: [window(.weekly, used: 50)])),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: NoopAccountStorage()
+        )
+        let builtInKey = AccountKey(providerID: .claude, accountID: .primary)
+
+        #expect(await store.removeAccount(extra.key) == .removed)
+        #expect(store.providers.isEmpty)
+        #expect(store.snapshots[builtInKey] == nil)
+    }
+
     @Test func stopTrackingBuiltInBlockedByActiveSetupHandoff() async {
         let defaults = freshDefaults()
         let store = UsageStore(

@@ -114,8 +114,10 @@ per provider are not supported. Diagnose a configured path with
 ```bash
 swift build          # builds HeadroomCore + Headroom + HeadroomWidgets
 swift test
-xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests \
-  -destination 'platform=macOS' test   # deterministic macOS app-boundary interactions
+./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj \
+  -scheme HeadroomAppTests -destination 'platform=macOS' \
+  -derivedDataPath ./.xcode-derived test   # deterministic macOS app-boundary interactions
+# --deps-only unpacks the Sparkle XCFramework the project references; the pinned derived data avoids a cached "no XCFramework found" build description.
 ./Scripts/build-app.sh   # produces Headroom.app (menu bar / LSUIElement), then: open Headroom.app
 xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS \
   -configuration Debug -destination 'generic/platform=iOS Simulator' \

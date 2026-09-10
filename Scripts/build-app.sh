@@ -5,11 +5,17 @@ cd "$(dirname "$0")/.."
 source Scripts/macos-compatibility.sh
 
 CONFIG_INPUT="${1:-release}"
+# `--deps-only` prepares the vendored dependencies the Xcode project expects on disk
+# and stops there. `-resolvePackageDependencies` does not unpack the Sparkle
+# XCFramework, so a fresh checkout can't build the HeadroomAppTests scheme until this
+# has run once.
+DEPS_ONLY=0
 case "${CONFIG_INPUT}" in
+  --deps-only|prepare-deps) DEPS_ONLY=1; XCODE_CONFIG="Release" ;;
   debug|Debug) XCODE_CONFIG="Debug" ;;
   release|Release) XCODE_CONFIG="Release" ;;
   *)
-    echo "Usage: $0 [debug|release]" >&2
+    echo "Usage: $0 [debug|release|--deps-only]" >&2
     exit 64
     ;;
 esac
@@ -256,6 +262,14 @@ verify_signed_identifier() {
     exit 67
   fi
 }
+
+if [[ "${DEPS_ONLY}" == "1" ]]; then
+  prepare_sparkle_artifact
+  echo "✓ Sparkle ${SPARKLE_VERSION} ready at ${SPARKLE_ARTIFACT_DIR}/Sparkle.xcframework"
+  echo "  Run tests with: xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests \\"
+  echo "    -destination 'platform=macOS' -derivedDataPath ./${DERIVED_DATA} test"
+  exit 0
+fi
 
 if ! command -v xcodegen >/dev/null 2>&1; then
   echo "xcodegen is required to build the WidgetKit-discoverable app bundle." >&2

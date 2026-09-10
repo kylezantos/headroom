@@ -277,6 +277,48 @@ struct AccountsSettingsInteractionTests {
         await settleTasks()
     }
 
+    /// Resume is the undo for stop-tracking, so the resurfaced row has to poll now
+    /// rather than at the next timer tick — and only that row: each Claude fetch is a
+    /// 20–30s CLI session, so a fan-out here would be an expensive silent regression.
+    @Test func resumeTrackingRefreshesOnlyTheResumedBuiltInRow() async {
+        let fetches = AccountFetchRecorder()
+        let suiteName = "co.zantos.headroom.app-interactions.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let store = UsageStore(
+            providers: [
+                CountingAccountProvider(id: .claude, accountID: .primary, fetches: fetches),
+                CountingAccountProvider(id: .codex, accountID: .primary, fetches: fetches),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: AccountRegistry(defaults: defaults),
+            accountStorage: InteractionStorage(),
+            providerFactory: { account in
+                CountingAccountProvider(id: account.providerID, accountID: account.id, fetches: fetches)
+            }
+        )
+        guard let extra = AccountsSettingsInteractions.addAccount(
+            for: .claude,
+            to: store,
+            openSetup: { _ in }
+        ) else {
+            Issue.record("Expected an additional Claude account")
+            return
+        }
+        let builtIn = store.accounts(for: .claude).first(where: \.isBuiltIn)!
+        #expect(await AccountsSettingsInteractions.removeAccount(builtIn, from: store) == .removed)
+        await settleTasks()
+        await fetches.reset()
+
+        #expect(AccountsSettingsInteractions.resumeTrackingBuiltIn(for: .claude, in: store)?.id == .primary)
+        await settleTasks()
+
+        #expect(await fetches.count(for: builtIn.key) == 1)
+        #expect(await fetches.count(for: extra.key) == 0)
+        #expect(await fetches.count(for: AccountKey(providerID: .codex, accountID: .primary)) == 0)
+    }
+
     @Test func everyRecoveryActionHasOneAppBoundaryRoute() {
         let expected: [(SetupRecoveryAction, SetupSessions.RecoveryRoute)] = [
             (.installClaudeCLI, .documentation(URL(string: "https://code.claude.com/docs/en/installation")!)),
@@ -1033,6 +1075,29 @@ private struct CheckNowUsageProvider: UsageProvider {
         await fetches.record()
         _ = await locator.locate()
         return .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))
+    }
+}
+
+/// Counts fetches per account, so an interaction can be held to the exact set of
+/// accounts it should have refreshed. Shared across provider instances because the
+/// factory rebuilds one on every attach.
+private actor AccountFetchRecorder {
+    private var counts: [AccountKey: Int] = [:]
+
+    func record(_ key: AccountKey) { counts[key, default: 0] += 1 }
+    func count(for key: AccountKey) -> Int { counts[key] ?? 0 }
+    func reset() { counts.removeAll() }
+}
+
+private struct CountingAccountProvider: UsageProvider {
+    let id: ProviderID
+    let accountID: AccountID
+    let fetches: AccountFetchRecorder
+    var displayName: String { id == .claude ? "Claude" : "Codex" }
+
+    func fetchSnapshot() async -> UsageSnapshot {
+        await fetches.record(AccountKey(providerID: id, accountID: accountID))
+        return .stale(for: id, reason: .notLoggedIn("Not signed in"))
     }
 }
 

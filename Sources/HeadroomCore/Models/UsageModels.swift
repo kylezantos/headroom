@@ -381,6 +381,36 @@ public struct UsageSnapshot: Sendable, Equatable {
     }
 }
 
+public extension UsageSnapshot {
+    /// The popover's row order: weekly (or billing-period) leads, 5-hour second, unknown
+    /// windows keep the provider's order after. Providers and the parser emit 5-hour first
+    /// (`ClaudeUsageParser.displayRank`); the widgets re-rank the same way at display time
+    /// (`WidgetProviderSummary.displaySubscriptionWindows`, PR #35). Every macOS surface that
+    /// stands in for the popover — the Settings Appearance specimen included — must apply
+    /// this rather than render the raw fixture order.
+    func weeklyFirst() -> UsageSnapshot {
+        func rank(_ kind: WindowKind) -> Int {
+            switch kind {
+            case .weekly, .billingPeriod: return 0
+            case .fiveHour: return 1
+            case .other: return 2
+            }
+        }
+        let ordered = windows.enumerated()
+            .sorted { (rank($0.element.kind), $0.offset) < (rank($1.element.kind), $1.offset) }
+            .map(\.element)
+        guard ordered != windows else { return self }
+        return UsageSnapshot(
+            providerID: providerID,
+            windows: ordered,
+            planLabel: planLabel,
+            accountEmail: accountEmail,
+            capturedAt: capturedAt,
+            freshness: freshness
+        )
+    }
+}
+
 /// Which usage surface a user can opt into. This static catalog keeps Settings able
 /// to show disabled surfaces, while polling still fetches only enabled providers.
 public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {

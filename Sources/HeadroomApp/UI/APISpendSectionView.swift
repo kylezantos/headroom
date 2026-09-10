@@ -101,7 +101,10 @@ struct APISpendSectionView: View {
             status: APISpendPresentation.rowStatus(
                 freshness: snapshot.freshness,
                 providerID: snapshot.providerID,
-                displayName: snapshot.displayName
+                displayName: snapshot.displayName,
+                // The missing-key line names the figure the key unlocks, and xAI's row is a
+                // prepaid balance rather than period spend.
+                kind: snapshot.kind
             ),
             title: identity.title,
             // X5: a balance row's "Remaining balance" outranks the name's qualifier — it is
@@ -135,11 +138,15 @@ struct APISpendSectionView: View {
             // already carries one consolidated stamp. Non-live states keep their
             // status line because it carries information the header does not (U2).
             if snapshot.freshness != .live, let message = model.status.message {
-                sentence(message, tone: model.status.tone)
-                    // X5 (Kyle): leading on the content axis, trailing inset 0 — the
-                    // sentence runs to 13pt from the card edge, so it wraps on measure
-                    // instead of tearing at 155pt.
-                    .padding(.leading, IdentityRowMetrics.meterContentInset)
+                // S2B: the account rows' own sentence, not a local copy of its recipe —
+                // `StatusSentenceSeverity` now carries the spend card's quiet and neutral
+                // inks too. X5 (Kyle): `indented` is the leading on the content axis, and the
+                // trailing inset stays 0, so the sentence runs to 13pt from the card edge and
+                // wraps on measure instead of tearing at 155pt.
+                StatusSentence(
+                    text: message,
+                    severity: StatusSentenceSeverity.forSpendTone(model.status.tone)
+                )
                     .accessibilityHidden(true)
                     // M4A: freshness is a colour-and-presence change, so the line fades in
                     // and out rather than sliding.
@@ -345,44 +352,6 @@ struct APISpendSectionView: View {
     }
 
     // MARK: - State line
-
-    /// S2B: colour does the work. No glyph, and no tag at the head of the line — the tag has
-    /// moved up to the identity line, and the sentence carries its own severity in ink. Same
-    /// recipe as the account rows' `StatusSentence`; it is spelled out here rather than
-    /// reused because two of the four spend tones (`.quiet`'s first-run line, `.neutral`'s
-    /// retryable staleness) are hierarchical inks that `StatusSentenceSeverity` has no case
-    /// for. The two that do overlap read their ink from that one table.
-    private func sentence(_ message: String, tone: APISpendRowStatus.Tone) -> some View {
-        Text(message)
-            .font(.system(size: 11.5, weight: .medium))
-            .foregroundStyle(sentenceInk(tone))
-            // PB11: the same 2pt leading `StatusSentence` takes — this is the account rows'
-            // sentence recipe spelled out locally, so it wraps at the same rhythm.
-            .lineSpacing(2)
-            // S5A: the message wraps instead of truncating — a clipped instruction is worse
-            // than a second line.
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func sentenceInk(_ tone: APISpendRowStatus.Tone) -> AnyShapeStyle {
-        switch tone {
-        case .quiet:
-            AnyShapeStyle(.tertiary)
-        case .neutral:
-            AnyShapeStyle(.secondary)
-        case .warning:
-            // R2C5: credential lifecycle comes off the severity ramp. This ink used to be
-            // the Low-usage amber, so "Add an admin key to see Anthropic spend" sat a couple
-            // of rows under an amber meter with no relationship between them. The sentence is
-            // already 11.5 medium against 11 regular metadata, so weight and position carry
-            // it without borrowing a measurement colour.
-            AnyShapeStyle(ProviderStyle.meterLabelInk(scheme: scheme))
-        case .critical:
-            // R2C5: a rejected key genuinely is an error, and is the only red in the card.
-            AnyShapeStyle(StatusSentenceSeverity.critical.ink(scheme: scheme))
-        }
-    }
 
     /// S5A: every tag in the popover is a capsule, so these are too. Neutral and quiet take
     /// the identity row's "Stale" recipe; warning and critical take the meter's "Low" chip

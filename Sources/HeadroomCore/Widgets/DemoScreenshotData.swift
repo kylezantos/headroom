@@ -6,6 +6,11 @@ import Foundation
 /// `DemoFixture`. Numbers mirror `DemoFixture` so the popover,
 /// the macOS widgets, and the iPhone all show the same moment.
 public enum DemoScreenshotData {
+    // Window order matches `ClaudeUsageParser.displayRank` (5-hour, then the weekly pool,
+    // then model rows) because these envelopes stand in for a real projection, which carries
+    // the provider's order; the macOS widgets re-rank weekly-first at display time and the
+    // phone mirror shows the projection as-is. `DemoScenarioParityTests` holds the "full"
+    // envelope to the Mac fixture.
     /// True when the app was launched with `--demo` (e.g. `simctl launch booted <id> --demo`).
     public static var isEnabled: Bool { CommandLine.arguments.contains("--demo") }
 
@@ -52,8 +57,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -96,8 +101,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -129,8 +134,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -158,8 +163,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -181,8 +186,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -193,8 +198,8 @@ public enum DemoScreenshotData {
                     planLabel: "Prolite",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 64, reset: "Resets in 6d 4h", severity: .healthy),
                         window(.fiveHour, label: "5h", percent: 91, reset: "Resets in 3h 12m", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 64, reset: "Resets in 6d 4h", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 15)
                 ),
@@ -226,8 +231,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .stale(message: "Data unavailable", needsAttention: true),
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -273,8 +278,8 @@ public enum DemoScreenshotData {
                     planLabel: "Max",
                     freshness: .live,
                     windows: [
-                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15pm", severity: .healthy),
+                        window(.weekly, label: "Weekly", percent: 38, reset: "Resets Jul 9", severity: .low),
                         window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 54, reset: "Resets Jul 9", severity: .healthy),
                     ],
                     renewalDate: day(month: 7, day: 28)
@@ -361,8 +366,8 @@ public enum DemoScreenshotData {
                 planLabel: "Max",
                 freshness: .live,
                 windows: [
-                    fixedWindow(.weekly, label: "Weekly", percent: 38, reset: "Resets Monday", severity: .low),
                     fixedWindow(.fiveHour, label: "5h", percent: 72, reset: "Resets 2:15 PM", severity: .healthy),
+                    fixedWindow(.weekly, label: "Weekly", percent: 38, reset: "Resets Monday", severity: .low),
                 ],
                 renewalDate: nil
             ),
@@ -372,8 +377,8 @@ public enum DemoScreenshotData {
                 planLabel: "Pro Lite",
                 freshness: .live,
                 windows: [
-                    fixedWindow(.weekly, label: "Weekly", percent: 64, reset: "Resets in 6d 4h", severity: .healthy),
                     fixedWindow(.fiveHour, label: "5h", percent: 41, reset: "Resets 4:05 PM", severity: .healthy),
+                    fixedWindow(.weekly, label: "Weekly", percent: 64, reset: "Resets in 6d 4h", severity: .healthy),
                 ],
                 renewalDate: nil
             ),

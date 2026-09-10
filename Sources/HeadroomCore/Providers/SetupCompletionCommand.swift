@@ -29,12 +29,21 @@ enum SetupCompletionCommand {
         typeset trailing_field=""
         IFS= read -r generation_state < "$HEADROOM_SETUP_GENERATION_STATE" 2>/dev/null || exit 73
         IFS=: read -r generation_state_kind handoff_generation generation_state_trailing <<< "$generation_state"
+        # R2M12: the active state may now carry the waiting clock's start as a third field.
+        # It stays an allowlisted numeric; any other trailing content is an unrecognized
+        # state file and still refuses the handoff.
         if [[ "$generation_state_kind" != "active"
-              || -n "$generation_state_trailing"
               || ${#handoff_generation} -ne 32
-              || "$handoff_generation" == *[^0-9a-f]* ]]; then
+              || "$handoff_generation" == *[^0-9a-f]*
+              || ( -n "$generation_state_trailing"
+                   && "$generation_state_trailing" != <->
+                   && "$generation_state_trailing" != <->.<-> ) ]]; then
           exit 73
         fi
+        # Headroom writes one active state per generation and never rewrites it in place, so
+        # pinning the whole line keeps the cancellation guard below exact instead of
+        # reconstructing a form the file can legitimately have two of.
+        typeset -gr HEADROOM_SETUP_GENERATION_LINE="$generation_state"
         typeset -gr HEADROOM_SETUP_PENDING="${HEADROOM_SETUP_PENDING_BASE}.${handoff_generation}"
         typeset -gr HEADROOM_SETUP_COMPLETED="${HEADROOM_SETUP_COMPLETED_BASE}.${handoff_generation}"
         IFS= read -r prepared_marker < "$HEADROOM_SETUP_PENDING" 2>/dev/null || exit 73
@@ -56,10 +65,10 @@ enum SetupCompletionCommand {
           IFS= read -r marker_owner < "$HEADROOM_SETUP_PENDING" 2>/dev/null || true
           IFS= read -r current_generation_state < "$HEADROOM_SETUP_GENERATION_STATE" 2>/dev/null || true
           if [[ "$marker_owner" == "$HEADROOM_SETUP_OWNER"
-                && "$current_generation_state" == "active:${handoff_generation}" ]]; then
+                && "$current_generation_state" == "$HEADROOM_SETUP_GENERATION_LINE" ]]; then
             print -r -- "complete:${setup_purpose}:${handoff_generation}:${setup_status}" > "$HEADROOM_SETUP_COMPLETED"
             IFS= read -r current_generation_state < "$HEADROOM_SETUP_GENERATION_STATE" 2>/dev/null || true
-            if [[ "$current_generation_state" != "active:${handoff_generation}" ]]; then
+            if [[ "$current_generation_state" != "$HEADROOM_SETUP_GENERATION_LINE" ]]; then
               rm -f -- "$HEADROOM_SETUP_COMPLETED"
             fi
           fi

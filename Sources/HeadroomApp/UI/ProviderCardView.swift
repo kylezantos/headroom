@@ -2,6 +2,18 @@ import SwiftUI
 import AppKit
 import HeadroomCore
 
+/// M5A: the identity a meter-style crossfade swaps on. `MeterStyle` is `Equatable`, not
+/// `Hashable`, so the swap keys on the drawn recipe; `resolvedShape` rather than `shape` is
+/// deliberate, because Tube stays *stored* while Full is selected but renders as Chip, so
+/// keying on the raw shape would dissolve a card into an identical copy of itself. It lives
+/// beside the card rather than in the popover because the card is what gets swapped — the
+/// Appearance specimen composes the same view and keys on the same recipe.
+enum MeterRecipeKey {
+    static func key(for style: MeterStyle) -> String {
+        "\(style.format.rawValue).\(style.resolvedShape.rawValue).\(style.fill.rawValue)"
+    }
+}
+
 /// One account's row data inside a provider card.
 struct ProviderAccountEntry: Identifiable {
     let account: ProviderAccount
@@ -487,7 +499,9 @@ struct ProviderCardView: View {
         guard !isMultiAccount else { return }
         guard case .live = snapshot.freshness else { return }
         guard SetupSessions.isConnected(primaryAccount) else { return }
-        guard !showsConnectedChip else { return }
+        // Per-account, not per-view: a card rebuilt by the meter-style crossfade must not
+        // replay a payoff that is already running for this connection.
+        guard SetupSessionActivity.shared.claimConnectedPayoff(for: primaryAccount.key) else { return }
         // M8A/S2A: the chip's own transition drops the scale under Reduce Motion, so the
         // driving animation stays a crossfade here — silencing it would take the fade too.
         withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {
@@ -573,6 +587,11 @@ struct ProviderCardView: View {
     /// rebuilds it on every style change, so it never stages an arrival — the same
     /// `announcesAccessibilityEvents: false` that keeps the preview out of the real
     /// accessibility and setup state keeps it out of the arrival registry.
+    ///
+    /// M5A follow-up: the popover's own crossfade rebuilds this card on a style change too,
+    /// but the arrival stays once-per-launch there because `ArrivalRegistry` keys on the
+    /// account, not on view identity — a rebuilt row reads `hasLanded` and paints its live
+    /// value on the first frame.
     private var meterArrivalKey: AccountKey? {
         announcesAccessibilityEvents ? primaryAccount.key : nil
     }

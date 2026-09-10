@@ -133,7 +133,7 @@ public struct ClaudeDuplicateLoginDetector: Sendable {
         var firstLabelByUUID: [String: String] = [:]
         var duplicates: [AccountKey: String] = [:]
         for account in accounts where account.providerID == .claude {
-            guard let uuid = readAccountUUID(account.id)?.lowercased() else { continue }
+            guard let uuid = Self.canonicalIdentity(readAccountUUID(account.id)) else { continue }
             if let original = firstLabelByUUID[uuid] {
                 duplicates[account.key] = original
             } else {
@@ -141,5 +141,16 @@ public struct ClaudeDuplicateLoginDetector: Sendable {
             }
         }
         return duplicates
+    }
+
+    /// Identity has to be UUID-*syntactic*, not merely non-empty: `.claude.json` is a
+    /// local plaintext file, so a hand-edited or truncated `accountUuid` could otherwise
+    /// make two unrelated homes match and wear a false "Same login as X" badge. Anything
+    /// that isn't a UUID is treated as absent — the same fail-safe as an unreadable file.
+    private static func canonicalIdentity(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let uuid = UUID(uuidString: trimmed)
+        else { return nil }
+        return uuid.uuidString.lowercased()
     }
 }

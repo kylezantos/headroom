@@ -76,22 +76,47 @@ struct PopoverView: View {
                 ScrollView(.vertical) {
                     VStack(spacing: 20) {
                         ForEach(Array(store.providerOrder.enumerated()), id: \.element) { _, id in
-                            ProviderCardView(
-                                providerID: id,
-                                displayName: store.displayNames[id] ?? id.raw,
-                                entries: store.accounts(for: id).map { account in
-                                    ProviderAccountEntry(
-                                        account: account,
-                                        snapshot: store.appDisplaySnapshot(for: account.key)
-                                    )
-                                },
-                                capabilityStatus: store.providerCapabilities[id],
-                                percentageMode: store.usagePercentageMode,
-                                meterStyle: store.meterStyle,
-                                anyProviderMultiAccount: anyProviderMultiAccount,
-                                now: context.date,
-                                onRetrySetup: { store.refreshNow() },
-                                onRetryAccount: { store.refreshAccountNow($0.key) }
+                            // M5A follow-up: the popover dissolves old recipe → new recipe
+                            // instead of hard-cutting. The `.id` sits on the card and the
+                            // ZStack around it is what makes that safe here: an id swap
+                            // keeps both copies alive for the fade, and in the bare
+                            // `VStack` they would stack and briefly double the card's
+                            // height — which the measured `cardsHeight` below samples. A
+                            // ZStack overlaps them instead, so the list only ever holds
+                            // the taller of the two. The specimen's hidden-twin variant is
+                            // deliberately not copied: a second live `ProviderCardView`
+                            // here would announce, claim arrivals, and read the store
+                            // twice per provider.
+                            ZStack(alignment: .topLeading) {
+                                ProviderCardView(
+                                    providerID: id,
+                                    displayName: store.displayNames[id] ?? id.raw,
+                                    entries: store.accounts(for: id).map { account in
+                                        ProviderAccountEntry(
+                                            account: account,
+                                            snapshot: store.appDisplaySnapshot(for: account.key)
+                                        )
+                                    },
+                                    capabilityStatus: store.providerCapabilities[id],
+                                    percentageMode: store.usagePercentageMode,
+                                    meterStyle: store.meterStyle,
+                                    anyProviderMultiAccount: anyProviderMultiAccount,
+                                    now: context.date,
+                                    onRetrySetup: { store.refreshNow() },
+                                    onRetryAccount: { store.refreshAccountNow($0.key) }
+                                )
+                                .id(meterRecipeKey)
+                                .transition(.opacity)
+                            }
+                            // S2A: the swap is opacity only, so Reduce Motion keeps the
+                            // 200ms dissolve rather than hard-cutting the meter.
+                            .animation(
+                                HeadroomMotion.resolved(
+                                    HeadroomMotion.settle,
+                                    .crossfade,
+                                    reduceMotion: reduceMotion
+                                ),
+                                value: meterRecipeKey
                             )
                             // M7A: a card that arrives rises 4pt out of a slight blur, one
                             // that leaves only fades — the Settings list's vocabulary, so
@@ -189,6 +214,9 @@ struct PopoverView: View {
             .environment(\.accountTitleInk, store.accountTitleInk)
         }
     }
+
+    /// M5A follow-up: one key for the whole card list, read once per body pass.
+    private var meterRecipeKey: String { MeterRecipeKey.key(for: store.meterStyle) }
 
     // MARK: - Scroll feather (R2C23)
 
@@ -484,9 +512,12 @@ struct PopoverView: View {
         return observations.max() ?? snapshot.capturedAt
     }
 
-    /// R2M12: the account whose open handoff the header is clocking, if any. Nil also covers
-    /// a handoff restored from a durable marker, whose start instant is unknown — that wait
-    /// keeps the card-derived line rather than showing an invented duration.
+    /// R2M12: the account whose open handoff the header is clocking, if any. Nil covers a
+    /// handoff whose start was never trustworthy — a marker staged before the start was
+    /// persisted, or one whose recorded start is in the future — and that wait keeps the
+    /// card-derived line rather than showing an invented duration. A handoff restored from a
+    /// durable marker now arrives with its real start (`SetupSessions.restoreWaitingStart`),
+    /// so an hour-old Terminal window reads as an hour, not as three seconds.
     private var headerWaitingAccount: ProviderAccount? {
         if claudeGuidedSetupOutcome != nil {
             let account = ProviderAccount.builtIn(for: .claude)

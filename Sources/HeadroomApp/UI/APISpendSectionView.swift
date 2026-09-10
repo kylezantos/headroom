@@ -34,6 +34,7 @@ struct APISpendSectionView: View {
         Self.amountColumnWidth(for: store.apiSpendProviderOrder.compactMap { rowModel(for: $0).amount })
     }
 
+
     /// S5A: the top-up glyph lives in the identity row's 21pt trailing gutter, to the right
     /// of the amount — 3pt gap plus an 18pt slot. The slot is reserved on every row (empty
     /// where the provider has no billing page), so no amount shifts because its neighbour
@@ -183,7 +184,6 @@ struct APISpendSectionView: View {
                 // same three trailing columns — figure, suffix, empty 21pt gutter — and one
                 // right edge. Nothing is reserved when a provider has no billing page; the
                 // amount is right-aligned regardless.
-                topUpGlyph(model)
                 amountColumn(model)
                     // S5A (Kyle): the amount never gives up width and never drops to a second
                     // line — at the popover's 299pt content width the chip truncates first.
@@ -220,6 +220,11 @@ struct APISpendSectionView: View {
     @ViewBuilder private func amountColumn(_ model: SpendRowModel) -> some View {
         let amount = model.amount
         HStack(spacing: MeterSuffixColumn.gap) {
+            // CMM5: the glyph and the digits share one trailing-aligned frame, so the glyph
+            // hugs *this* row's first digit while every row's last digit still lands on
+            // the numeral column's right edge. Reserved width = widest total + glyph + gap.
+            HStack(spacing: Self.topUpToAmountGap) {
+                topUpGlyph(model)
             Text(amount ?? "")
                 .font(.system(size: Self.amountSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(model.snapshot.freshness == .live ? .primary : .secondary)
@@ -233,7 +238,11 @@ struct APISpendSectionView: View {
                     value: model.snapshot.amount
                 )
                 .privacySensitive()
-                .frame(width: amountColumnWidth, alignment: .trailing)
+            }
+            .frame(
+                width: amountColumnWidth + Self.topUpGlyphSize + Self.topUpToAmountGap,
+                alignment: .trailing
+            )
             MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
         }
     }
@@ -271,7 +280,7 @@ struct APISpendSectionView: View {
                         matching: Self.amountSize,
                         referenceWeight: .semibold
                     ))
-                    .frame(width: Self.topUpSlotSize, height: Self.topUpSlotSize)
+                    .frame(width: Self.topUpGlyphSize, height: Self.topUpSlotSize)
             }
             .buttonStyle(HoverButtonStyle(
                 horizontalPadding: 0,
@@ -283,7 +292,6 @@ struct APISpendSectionView: View {
             // where the scroll mask feathered it. AppKit's own delay is the delay.
             .help("Open \(snapshot.displayName) billing to add credits")
             .accessibilityLabel("Add \(snapshot.displayName) credits")
-            .padding(.trailing, Self.topUpToAmountGap)
         }
         // CMM5: no reserved slot when there is no billing page — the amount right-aligns on
         // its own, so an empty 18pt box here would only crowd the title.

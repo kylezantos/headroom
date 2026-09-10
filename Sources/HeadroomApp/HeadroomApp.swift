@@ -58,6 +58,20 @@ enum Entry {
             ))
             exit(1)
         }
+        // `--account-title-ink <neutral|brand>`: the visual-review seam Brand had no path to.
+        // The demo prefs suite cannot be preset by hand and the `MenuBarExtra` popover is not
+        // an accessibility window, so the ink was accepted on code and tests alone (round-3
+        // residual). Same validation shape as `--meter-style` above.
+        if DemoFixture.isEnabled,
+           let index = CommandLine.arguments.firstIndex(of: "--account-title-ink"),
+           (!CommandLine.arguments.indices.contains(index + 1)
+               || AccountTitleInk(rawValue: CommandLine.arguments[index + 1]) == nil) {
+            let valid = AccountTitleInk.allCases.map(\.rawValue).joined(separator: ", ")
+            FileHandle.standardError.write(Data(
+                "Invalid --account-title-ink. Expected one of: \(valid).\n".utf8
+            ))
+            exit(1)
+        }
         HeadroomApp.main()
     }
 
@@ -403,7 +417,7 @@ struct HeadroomApp: App {
 
     @MainActor
     init() {
-        let preferences = Preferences()
+        let preferences = AppComposition.launchPreferences
         let store = AppComposition.store(preferences: preferences)
         if !DemoFixture.isEnabled {
             SetupSessions.configure(
@@ -651,6 +665,41 @@ enum AppComposition {
     private static let cursorUsageSource = CursorUsageCaptureCache(source: CursorUsageCLIProbe())
     static let claudeExecutableLocator = CLIExecutableLocator.claude()
 
+    /// The one UserDefaults domain a launch may read or write. `.standard` in the shipping
+    /// app; an isolated suite under `--demo`, because the App shell and the store have to
+    /// agree on it. They did not: `HeadroomApp.init` built `Preferences()` on `.standard`
+    /// while the store took the demo suite, so a demo run wrote `appearancePreference`,
+    /// `settingsPane`, `showMenuBarPercentage`, and `menuBarFillSource` into the user's real
+    /// domain, and read its theme from whatever a previous `swift run` had left there
+    /// (2026-09-03 / round-3 residual).
+    nonisolated(unsafe) static let launchDefaults: UserDefaults = resolveLaunchDefaults()
+
+    /// Preferences over `launchDefaults`. `Preferences` is a value wrapper around the
+    /// defaults object, so every call site shares one domain regardless of instance.
+    static var launchPreferences: Preferences { Preferences(defaults: launchDefaults) }
+
+    /// `arguments` is injected so the demo isolation can be tested from a process that was
+    /// not itself launched with `--demo`.
+    static func resolveLaunchDefaults(arguments: [String] = CommandLine.arguments) -> UserDefaults {
+        let request = DemoFixture.scenarioRequest(arguments: arguments)
+        guard request != .notRequested else { return .standard }
+        // `--demo <scenario>` gets a fresh per-launch suite (the live multi-account preview
+        // must not inherit a previous run); a bare `--demo` keeps the stable screenshot
+        // suite the marketing pipeline's repeated captures rely on.
+        if case .multiAccount = request {
+            let suite = "co.zantos.headroom.demo.multi.\(UUID().uuidString)"
+            guard let defaults = UserDefaults(suiteName: suite) else {
+                preconditionFailure("Unable to create isolated multi-account demo preferences")
+            }
+            defaults.removePersistentDomain(forName: suite)
+            return defaults
+        }
+        guard let defaults = UserDefaults(suiteName: "co.zantos.headroom.demo") else {
+            preconditionFailure("Unable to create isolated demo preferences")
+        }
+        return defaults
+    }
+
     /// Ordered composition registry. Adding a provider extends this table; Settings,
     /// account management, polling, and presentation discover the resulting order from
     /// the store instead of maintaining parallel provider literals.
@@ -665,7 +714,7 @@ enum AppComposition {
     }
 
     @MainActor
-    static func store(preferences: Preferences = Preferences()) -> UsageStore {
+    static func store(preferences: Preferences = launchPreferences) -> UsageStore {
         if DemoFixture.isEnabled {
             // `--demo <scenario>` opts into the isolated multi-account preview; a bare `--demo`
             // keeps the single-account screenshot fixtures the marketing pipeline relies on.
@@ -694,12 +743,10 @@ enum AppComposition {
     /// macOS widgets and the iPhone mirror pick up the same fixed numbers.
     @MainActor
     private static func demoStore() -> UsageStore {
-        guard let demoDefaults = UserDefaults(suiteName: "co.zantos.headroom.demo") else {
-            preconditionFailure("Unable to create isolated demo preferences")
-        }
-        let prefs = Preferences(defaults: demoDefaults)
+        let prefs = launchPreferences
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
+        prefs.accountTitleInk = demoAccountTitleInk()
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills side by side in the menu bar
         prefs.widgetsEnabled = true
@@ -738,14 +785,11 @@ enum AppComposition {
     /// never spawns the claude/codex CLIs.
     @MainActor
     private static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario) -> UsageStore {
-        let prefsSuite = "co.zantos.headroom.demo.multi.\(UUID().uuidString)"
-        guard let prefsDefaults = UserDefaults(suiteName: prefsSuite) else {
-            preconditionFailure("Unable to create isolated multi-account demo preferences")
-        }
-        prefsDefaults.removePersistentDomain(forName: prefsSuite)
-        let prefs = Preferences(defaults: prefsDefaults)
+        let prefsDefaults = launchDefaults
+        let prefs = launchPreferences
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
+        prefs.accountTitleInk = demoAccountTitleInk()
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills in the menu bar
         // API spend surfaces are off by default, so enable exactly the ones this scenario
@@ -846,6 +890,16 @@ enum AppComposition {
               let style = MeterStyle(launchToken: arguments[index + 1])
         else { return .default }
         return style
+    }
+
+    /// `--account-title-ink <neutral|brand>`, the review seam for `AccountTitleInk.brand`.
+    /// Reseeds the landed default when absent for the same reason `demoMeterStyle` does.
+    static func demoAccountTitleInk(arguments: [String] = CommandLine.arguments) -> AccountTitleInk {
+        guard let index = arguments.firstIndex(of: "--account-title-ink"),
+              arguments.indices.contains(index + 1),
+              let ink = AccountTitleInk(rawValue: arguments[index + 1])
+        else { return .neutral }
+        return ink
     }
 
     /// One provider instance per configured account, in registry order (built-in first).

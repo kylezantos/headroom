@@ -108,3 +108,10 @@ Per stream: `swift build`, `swift test`, new or adjusted tests for every Core/be
 R2C8 suffix term, R2C12 ramp hue, R2C18 contrast, R2B2 unavailable fixture). Fable after merge:
 `swift test`, live `--demo multi-4` / `multi-mixed` / `spend-states` / `capability-failure` in both
 appearances, Settings harness renders, and a Reduce Motion pass left to Kyle.
+
+## Addendum (2026-09-09, same session)
+
+| Anchor | Decision |
+| --- | --- |
+| CMM1 | **Text chips take the CleanMyMac popover chrome** Kyle sent (`.context/attachments/07ExyT/…`): dark fill a step brighter (white 0.14 rest / 0.18 hover / 0.22 pressed), a top-lit 1px rim (white 0.42 → 0.28 → 0.06 top-to-bottom; light mirrors it subtractively 0.04 → 0.10 → 0.18), full-neutral dark label, squarer corners (r7 regular / r6 small, ≈0.27 × height) and 10/8pt side padding. One style, `SetupChipButtonStyle`, so every text button in the popover and Settings account rows changes together. |
+

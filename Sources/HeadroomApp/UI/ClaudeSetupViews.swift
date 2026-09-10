@@ -615,9 +615,13 @@ struct SetupChipButtonStyle: ButtonStyle {
         case small
 
         var fontSize: CGFloat { self == .regular ? 12.5 : 11.5 }
-        var horizontalPadding: CGFloat { self == .regular ? 13 : 10 }
+        // CMM1 (Kyle, 2026-09-09): squarer and tighter, after the CleanMyMac popover buttons
+        // he sent — the reference sits its 15pt label in a 23pt chip with ≈9.5pt side padding
+        // and a radius just over a quarter of the height. Ours keep their heights and take
+        // the same proportions: radius ≈ 0.27 × height, 10/8pt sides.
+        var horizontalPadding: CGFloat { self == .regular ? 10 : 8 }
         var verticalPadding: CGFloat { self == .regular ? 6 : 4 }
-        var cornerRadius: CGFloat { self == .regular ? 8 : 7 }
+        var cornerRadius: CGFloat { self == .regular ? 7 : 6 }
     }
 
     /// PA11b: B3H's `.hover` case is gone with the behaviour it named.
@@ -657,7 +661,11 @@ struct SetupChipButtonStyle: ButtonStyle {
                 .background {
                     shape
                         .fill(fillColor)
-                        .overlay(shape.strokeBorder(borderColor, lineWidth: 1))
+                        // CMM1: the rim is lit from above — a bright top hairline fading to
+                        // almost nothing at the bottom — instead of one uniform stroke. That
+                        // gradient is what makes the reference read as a raised control on a
+                        // dark surface (the same lighting `RaisedTile` gives the cards).
+                        .overlay(shape.strokeBorder(rimGradient, lineWidth: 1))
                 }
                 // S2A: the fill is a colour change and survives Reduce Motion; the press scale
                 // below is the only movement here, so it resolves separately.
@@ -695,11 +703,26 @@ struct SetupChipButtonStyle: ButtonStyle {
                 : Color.black.opacity(Self.lightFillSteps[step])
         }
 
-        private static let darkFillSteps: [Double] = [0.10, 0.14, 0.18]
+        // CMM1: dark rests a step brighter (the reference fill measures ≈ white @ 0.145 over
+        // its shell against our old 0.10) so the container reads at rest without the rim.
+        private static let darkFillSteps: [Double] = [0.14, 0.18, 0.22]
         private static let lightFillSteps: [Double] = [0.06, 0.10, 0.14]
 
-        private var borderColor: Color {
-            dark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)
+        /// CMM1: top-lit rim. Dark: white ≈ 0.42 at the top edge (the reference's ≈122 on a
+        /// 56 fill) falling to 0.06 at the bottom. Light mirrors it subtractively — a faint top
+        /// and a shadowed bottom edge — so the chip is raised in both schemes.
+        private var rimGradient: LinearGradient {
+            LinearGradient(
+                stops: dark
+                    ? [.init(color: Color.white.opacity(0.42), location: 0),
+                       .init(color: Color.white.opacity(0.28), location: 0.6),
+                       .init(color: Color.white.opacity(0.06), location: 1)]
+                    : [.init(color: Color.black.opacity(0.04), location: 0),
+                       .init(color: Color.black.opacity(0.10), location: 0.6),
+                       .init(color: Color.black.opacity(0.18), location: 1)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         }
     }
 }

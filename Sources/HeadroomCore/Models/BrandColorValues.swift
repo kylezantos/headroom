@@ -285,8 +285,10 @@ public enum HeadroomWidgetColorValues {
     /// bare `Color(white: 0.85)` with no relationship to anything. Both now read the shared
     /// neutral bases; dark's slightly recessed step survives as an opacity on `darkNeutral`
     /// (which composites to ≈0.86 white on the setup card) rather than as a second grey.
+    /// CMM1 (Kyle, 2026-09-09): the dark label goes to full neutral — the CleanMyMac chips he
+    /// sent print pure white on a lit-rim fill, and 0.92 read as a disabled step next to it.
     public static func setupChipInk(dark: Bool) -> HeadroomTint {
-        dark ? HeadroomTint(color: darkNeutral, opacity: 0.92) : HeadroomTint(color: lightNeutral, opacity: 1)
+        dark ? HeadroomTint(color: darkNeutral, opacity: 1) : HeadroomTint(color: lightNeutral, opacity: 1)
     }
 
     /// PA13: the plan pill's own ink. It used to take the system `.tertiary`, which measured

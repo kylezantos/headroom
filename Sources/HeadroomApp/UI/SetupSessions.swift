@@ -30,6 +30,23 @@ final class SetupSessionActivity {
     func beginWaiting(for key: AccountKey, at date: Date) { waitingSince[key] = date }
 
     func endWaiting(for key: AccountKey) { waitingSince.removeValue(forKey: key) }
+
+    /// The Connected payoff (chip + four-second settle) fires once per connection, per
+    /// account — not once per card identity. The card used to guard it with its own
+    /// `@State`, which the M5A meter-style crossfade resets when it rebuilds the card, so a
+    /// style change inside the four-second window replayed the chip and queued a second
+    /// settle (cross-model review finding, 2026-09-10). `settle(for:)` releases the claim.
+    private var connectedPayoffClaimed: Set<AccountKey> = []
+
+    /// True when this call took the claim; false when the payoff already ran for this
+    /// connection.
+    func claimConnectedPayoff(for key: AccountKey) -> Bool {
+        connectedPayoffClaimed.insert(key).inserted
+    }
+
+    func releaseConnectedPayoff(for key: AccountKey) {
+        connectedPayoffClaimed.remove(key)
+    }
 }
 
 /// The single provider→session routing switch. Views call these instead of
@@ -355,6 +372,7 @@ enum SetupSessions {
     /// retry tasks can't keep spawning poll cycles for a deleted account.
     static func settle(for account: ProviderAccount) {
         SetupSessionActivity.shared.endWaiting(for: account.key)
+        SetupSessionActivity.shared.releaseConnectedPayoff(for: account.key)
         if let coordinator {
             coordinator.settleConnected(account.key)
             return

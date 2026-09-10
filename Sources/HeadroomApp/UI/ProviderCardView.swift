@@ -499,7 +499,9 @@ struct ProviderCardView: View {
         guard !isMultiAccount else { return }
         guard case .live = snapshot.freshness else { return }
         guard SetupSessions.isConnected(primaryAccount) else { return }
-        guard !showsConnectedChip else { return }
+        // Per-account, not per-view: a card rebuilt by the meter-style crossfade must not
+        // replay a payoff that is already running for this connection.
+        guard SetupSessionActivity.shared.claimConnectedPayoff(for: primaryAccount.key) else { return }
         // M8A/S2A: the chip's own transition drops the scale under Reduce Motion, so the
         // driving animation stays a crossfade here — silencing it would take the fade too.
         withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {

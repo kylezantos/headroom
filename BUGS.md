@@ -476,8 +476,10 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - ~~**Waiting clock skips restored handoffs (R2M12).**~~ Resolved 2026-09-10: the generation
   state file carries the start (`active:<generation>:<epochSeconds>`), the zsh wrapper pins the
   whole line it read at startup, and `SetupSessions` seeds the clock from it on restore. Missing,
-  legacy two-field, unparseable, cancelled, or future starts fall back to no clock. A downgrade
-  reads the three-field file as fail-closed "handoff active" until the marker is cleaned up.
+  legacy two-field, unparseable, cancelled, or future starts fall back to no clock. Accepted
+  (Kyle, 2026-09-10): a build older than this one cannot parse the three-field active line, so
+  a handoff started here and then opened on an older build stays "Waiting" until Stop Waiting
+  or a manual marker cleanup. Sparkle only moves forward, so no compatibility shim is planned.
 - **R2M1 window resize.** The setup-session tile now rides `valueSpring`; if the ~88pt NSWindow
   step looks wrong live, drop the tile's session scope to `settle` (one line, marked in the comment).
 - **Glyph pills derive their radius (R2B3)** as `min(w,h) × 0.30` rather than pinning 26×26; sizes

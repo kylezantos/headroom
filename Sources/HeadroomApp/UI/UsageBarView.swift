@@ -28,6 +28,52 @@ private enum ArrivalRegistry {
     }
 }
 
+/// R2C8: the one suffix column every figure in the popover shares. A meter row prints
+/// "used"/"left" after its percentage and a spend row prints "spent"/"left" after its
+/// amount; both sit in a slot measured from the widest of the three terms, behind the same
+/// gap. Because the slot and the gap are identical, an amount in a "$0,000.00" column and a
+/// percentage in a "100%" column end their digits on the same x by construction, rather than
+/// by two independently tuned literals that drift apart.
+///
+/// R2B2: the slot is reserved even when there is no term to print — an `.unavailable` row
+/// that dropped its suffix used to pull its gauge and numeral ≈22.5pt right of the rows above
+/// it.
+enum MeterSuffixColumn {
+    static let size: CGFloat = 11
+    /// The gap the numeral cluster already spent between figure and term.
+    static let gap: CGFloat = 5
+    static let terms = ["used", "left", "spent"]
+
+    static let width: CGFloat = {
+        let font = NSFont.systemFont(ofSize: size)
+        let widths = terms.map { ($0 as NSString).size(withAttributes: [.font: font]).width }
+        return ceil(widths.max() ?? 0)
+    }()
+}
+
+/// The suffix itself.
+struct MeterSuffixLabel: View {
+    let term: String
+    /// R2B2: `false` reserves the column without printing anything. The word is still laid
+    /// out — inked `Color.clear` rather than swapped for a spacer — so the reserved slot keeps
+    /// a real term's line box and baseline instead of approximating them.
+    var isVisible: Bool = true
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Text(term)
+            .font(.system(size: MeterSuffixColumn.size))
+            .foregroundStyle(isVisible ? ProviderStyle.tertiaryText(scheme: scheme) : Color.clear)
+            .lineLimit(1)
+            // PA6: inert in Full's baseline row; in Micro it puts the term's cap centre on
+            // the row's one optical axis.
+            .capHeightCentered(size: MeterSuffixColumn.size, weight: .regular)
+            .frame(width: MeterSuffixColumn.width, alignment: .leading)
+            .accessibilityHidden(!isVisible)
+    }
+}
+
 /// One usage row in either the full two-line frame or the compact micro frame.
 /// The row owns text, accessibility, and value motion; `MeterGauge` owns every
 /// shape × fill rendering decision.
@@ -54,11 +100,16 @@ struct UsageBarView: View {
     @State private var landedSeverity: UsageSeverity?
     @State private var landedTone: RowTone?
     @State private var visibleStateText: String?
+    /// R2B4: which landing is allowed to commit. `land()` captures `stateText` at entry and
+    /// writes it back when the fill's spring completes ~0.3s later; a second capture arriving
+    /// inside that window used to let the older landing overwrite the newer state text. The
+    /// completion cannot read the live property — it captures the view value, not the live
+    /// one — so it checks whether it is still the current landing instead.
+    @State private var landGeneration = 0
 
     private let labelSize: CGFloat = 13
     private let resetSize: CGFloat = 11
     private static let percentSize: CGFloat = 18
-    private let termSize: CGFloat = 11
     /// FS1 (Kyle, Sep 2026): Full sat its full-width gauge 5pt under the label it belongs
     /// to, which crowded the two into one band; 7 lets the bar breathe without breaking the
     /// pairing. Only Full stacks a gauge under its label now — Micro is always a single row —
@@ -213,6 +264,8 @@ struct UsageBarView: View {
     /// settled (M1A, M3A′). Exits never wait — they leave on the way in, which is the subtler
     /// half of the pair. AP1 removed the "Low" chip from this sequence; the rest is intact.
     private func land() {
+        landGeneration &+= 1
+        let generation = landGeneration
         let state = stateText
         // Read what the row is currently showing before touching the registry, so the
         // comparison below is against the frame the user actually saw.
@@ -252,6 +305,8 @@ struct UsageBarView: View {
         withAnimation(valueMovement) {
             landedValue = value
         } completion: {
+            // R2B4: a landing that has already been superseded has nothing left to say.
+            guard landGeneration == generation else { return }
             withAnimation(settleCrossfade) { visibleStateText = state }
         }
     }
@@ -381,7 +436,7 @@ struct UsageBarView: View {
         if let resetLine {
             Text(short ? resetLine.shortCountdown : resetLine.countdown)
                 .font(.system(size: resetSize).monospacedDigit())
-                .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
+                .foregroundStyle(countdownInk)
                 .lineLimit(1)
                 .fixedSize(horizontal: fixedSize, vertical: true)
                 // M2A: the minute tick is the row's quietest motion — the digits roll down
@@ -401,21 +456,28 @@ struct UsageBarView: View {
     /// optical axis — while Full keeps the shared baseline that makes "72% used" read as one
     /// phrase across a wide row.
     private func numeralCluster(capCentred: Bool) -> some View {
-        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: 5) {
+        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: MeterSuffixColumn.gap) {
             Text(percentText)
                 .font(.system(size: Self.percentSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(numeralInk)
                 .contentTransition(numeralTransition)
                 .frame(minWidth: Self.percentColumnWidth, alignment: .trailing)
                 .capHeightCentered(size: Self.percentSize, weight: .semibold)
-            if displayedValue.pct != nil {
-                Text(percentageMode.term)
-                    .font(.system(size: termSize))
-                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
-                    .capHeightCentered(size: termSize, weight: .regular)
-            }
+            // R2B2: an `.unavailable` row has no term to print, but it keeps the column —
+            // otherwise its "—" and gauge slide right of the live rows stacked above it.
+            MeterSuffixLabel(term: percentageMode.term, isVisible: displayedValue.pct != nil)
         }
         .fixedSize()
+    }
+
+    /// R2C14: at critical the row's question changes from "how much is left" to "when does
+    /// it come back", and the countdown was the smallest, dimmest text in it. Critical and
+    /// live only — `usesCriticalInk` is already false on a dimmed or stale row, where a
+    /// louder countdown would be describing a reading we no longer stand behind. Size,
+    /// position and digits are unchanged; only the ink steps up. It rides `landedSeverity`,
+    /// so it crossfades with the fill on the same transaction.
+    private var countdownInk: Color {
+        usesCriticalInk ? Color.secondary : ProviderStyle.meterCountdownInk(scheme: scheme)
     }
 
     /// PA8: the numeral is the loudest thing in the row, and it was the only element still

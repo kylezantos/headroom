@@ -12,6 +12,13 @@ import SwiftUI
 /// title or toolbar row is the macOS HIG's own convention; a borderless *word* beside prose
 /// is not, which is the trade B3H had made and PA11b reversed.
 struct HoverButtonStyle: ButtonStyle {
+    /// R2B3: one radius *ratio*, not one radius. The five call sites pad the same style to
+    /// pills between 18×18 and 32×32, so a fixed 7pt corner read as 0.39 of the small pill
+    /// and 0.22 of the large one — the same object with two different roundnesses. Deriving
+    /// the corner from the pill's own short side keeps every glyph pill the same shape, and
+    /// keeps it that way when a call site changes its padding.
+    static let pillRadiusRatio: CGFloat = 0.30
+
     var horizontalPadding: CGFloat = 8
     var verticalPadding: CGFloat = 3
     var hoverForegroundColor: Color? = nil
@@ -32,7 +39,6 @@ struct HoverButtonStyle: ButtonStyle {
         @State private var hovering = false
 
         var body: some View {
-            let shape = RoundedRectangle(cornerRadius: 7, style: .continuous)
             // S3A: hover in fast, out slow — the pill is there when the pointer arrives and
             // lingers a beat when it leaves. Press lands inside 100ms, release returns on settle.
             let hoverAnimation = hovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
@@ -41,11 +47,21 @@ struct HoverButtonStyle: ButtonStyle {
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, verticalPadding)
                 .background {
-                    ZStack {
-                        shape.fill(Color.primary.opacity(0.09))
-                            .opacity(hovering && !configuration.isPressed ? 1 : 0)
-                        shape.fill(Color.primary.opacity(0.16))
-                            .opacity(configuration.isPressed ? 1 : 0)
+                    // R2B3: the pill measures itself so its corner stays a constant fraction
+                    // of its short side. A background never proposes a size of its own, so
+                    // reading the geometry here costs no layout.
+                    GeometryReader { proxy in
+                        let shape = RoundedRectangle(
+                            cornerRadius: min(proxy.size.width, proxy.size.height)
+                                * HoverButtonStyle.pillRadiusRatio,
+                            style: .continuous
+                        )
+                        ZStack {
+                            shape.fill(Color.primary.opacity(0.09))
+                                .opacity(hovering && !configuration.isPressed ? 1 : 0)
+                            shape.fill(Color.primary.opacity(0.16))
+                                .opacity(configuration.isPressed ? 1 : 0)
+                        }
                     }
                 }
                 // S2A: the pill and the hover ink are opacity only, so they keep their timing
@@ -88,82 +104,5 @@ struct HoverButtonStyle: ButtonStyle {
                 configuration.label
             }
         }
-    }
-}
-
-extension View {
-    /// A deliberately delayed help label for small pointer-only affordances. SwiftUI's
-    /// native `help` modifier does not expose its delay, so the API-spend action uses this
-    /// local presentation to guarantee a full second before appearing.
-    func delayedHelp(_ text: String, delay: Duration = .seconds(1)) -> some View {
-        modifier(DelayedHelpModifier(text: text, delay: delay))
-    }
-}
-
-private struct DelayedHelpModifier: ViewModifier {
-    let text: String
-    let delay: Duration
-
-    @State private var hovering = false
-    @State private var showingHelp = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    func body(content: Content) -> some View {
-        content
-            .onHover { isHovering in
-                hovering = isHovering
-                if !isHovering {
-                    showingHelp = false
-                }
-            }
-            .task(id: hovering) {
-                guard hovering else { return }
-
-                do {
-                    try await Task.sleep(for: delay)
-                } catch {
-                    return
-                }
-
-                guard hovering else { return }
-                showingHelp = true
-            }
-            .overlay(alignment: .topTrailing) {
-                if showingHelp {
-                    tooltip
-                }
-            }
-            // PB12/S2A: the tooltip was the only thing left in the popover that hard-cut in
-            // and out. It is opacity only, so it keeps its timing under Reduce Motion, and
-            // 120ms still feels immediate after the full second this modifier already waits.
-            .animation(
-                HeadroomMotion.resolved(
-                    HeadroomMotion.quickSettle,
-                    .crossfade,
-                    reduceMotion: reduceMotion
-                ),
-                value: showingHelp
-            )
-            .zIndex(showingHelp ? 1 : 0)
-    }
-
-    private var tooltip: some View {
-        Text(text)
-            .font(.system(size: 11))
-            .foregroundStyle(.primary)
-            .fixedSize()
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(.regularMaterial,
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
-            }
-            .shadow(color: .black.opacity(0.18), radius: 5, y: 2)
-            .offset(y: -29)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
-            .transition(.opacity)
     }
 }

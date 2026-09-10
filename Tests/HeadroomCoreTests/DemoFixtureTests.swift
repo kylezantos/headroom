@@ -82,11 +82,38 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .duplicateLabels).accounts.count == 4)
         // S5A: reuses multi-4's accounts — only the spend snapshots beside them differ.
         #expect(DemoFixture.multiFixture(for: .spendStates).accounts.count == 4)
+        // R2B2: one Claude account posing the partial capture, one Codex account beside it.
+        #expect(DemoFixture.multiFixture(for: .windowUnavailable).accounts.count == 2)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)
             #expect(fixture.providers.count == fixture.accounts.count)
         }
+    }
+
+    /// R2B2: the partial-capture fixture is the only place a `.unavailable` window sits under
+    /// live ones, which is the layout the reserved suffix column exists for. The live rows
+    /// keep their percentages; the retained row keeps its label and loses its number.
+    @Test func partialCaptureFixturePosesAnUnavailableWindow() {
+        let snapshot = DemoFixture.claudePartialCaptureSnapshot
+        #expect(snapshot.freshness == .live)
+        #expect(snapshot.windows.count == 3)
+        #expect(snapshot.windows.filter { $0.freshness.isLive }.map(\.kind) == [.fiveHour, .weekly])
+
+        guard let retained = snapshot.windows.first(where: { $0.kind == .other("Weekly (Fable)") }) else {
+            Issue.record("expected the model row to be retained"); return
+        }
+        #expect(retained.freshness.isUnavailable)
+        // The row outlives its number, so continuity's original observation anchor survives.
+        #expect(retained.observedAt != nil)
+    }
+
+    /// The scenario has to actually carry that snapshot, or the `--demo` preview shows the
+    /// ordinary all-live card and the reserved column has nothing to prove itself against.
+    @Test func windowUnavailableScenarioCarriesThePartialCapture() {
+        let fixture = DemoFixture.multiFixture(for: .windowUnavailable)
+        #expect(fixture.accounts.map(\.providerID) == [.claude, .codex])
+        #expect(fixture.accounts.map(\.isBuiltIn) == [true, true])
     }
 
     /// Grok bills a single weekly credit pool as a billing-period window (not Claude's

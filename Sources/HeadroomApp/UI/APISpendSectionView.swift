@@ -190,25 +190,33 @@ struct APISpendSectionView: View {
     }
 
     /// S5A (Kyle): every amount — including the xAI balance row's — sits on the identity
-    /// line in this one reserved column. The "remaining" qualifier is deliberately not drawn
-    /// on macOS: the "Remaining balance" chip on the same line already says it. The string
-    /// stays in Core for the widgets and the iPhone mirror.
+    /// line in this one reserved column.
+    ///
+    /// R2C8 (Kyle): and it carries its direction. "$58.90" read as money spent on the OpenAI
+    /// row and money remaining on the xAI row directly below it, with nothing but a grey
+    /// capsule — which elsewhere holds "September" and "Pro Lite" — to tell them apart. The
+    /// suffix is the meter rows' own "used"/"left" object in the shared `MeterSuffixColumn`,
+    /// so the amount's digits land on the same right edge as the percentages above them and
+    /// the two figures read as one family rather than two.
     @ViewBuilder private func amountColumn(_ model: SpendRowModel) -> some View {
         let amount = model.amount
-        Text(amount ?? "")
-            .font(.system(size: Self.amountSize, weight: .semibold).monospacedDigit())
-            .foregroundStyle(model.snapshot.freshness == .live ? .primary : .secondary)
-            .lineLimit(1)
-            // M1A: the total rolls to its new value on the same spring the meters use.
-            .contentTransition(
-                HeadroomMotion.numericText(value: model.snapshot.amount ?? 0, reduceMotion: reduceMotion)
-            )
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
-                value: model.snapshot.amount
-            )
-            .privacySensitive()
-            .frame(width: Self.amountColumnWidth, alignment: .trailing)
+        HStack(spacing: MeterSuffixColumn.gap) {
+            Text(amount ?? "")
+                .font(.system(size: Self.amountSize, weight: .semibold).monospacedDigit())
+                .foregroundStyle(model.snapshot.freshness == .live ? .primary : .secondary)
+                .lineLimit(1)
+                // M1A: the total rolls to its new value on the same spring the meters use.
+                .contentTransition(
+                    HeadroomMotion.numericText(value: model.snapshot.amount ?? 0, reduceMotion: reduceMotion)
+                )
+                .animation(
+                    HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                    value: model.snapshot.amount
+                )
+                .privacySensitive()
+                .frame(width: Self.amountColumnWidth, alignment: .trailing)
+            MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
+        }
     }
 
     /// Quiet escape hatch to top up: opens the provider's billing page (the screen with the
@@ -224,7 +232,9 @@ struct APISpendSectionView: View {
             Button {
                 NSWorkspace.shared.open(url)
             } label: {
-                Image(systemName: "plus")
+                // R2B3: a bare "+" beside "$142.67" reads as arithmetic — the amount plus
+                // something. The enclosing circle makes it a control at the same size.
+                Image(systemName: "plus.circle")
                     // PB12: was 10pt against the 18pt semibold amount it belongs to — half
                     // the stroke weight of its own row, which read as a stray hairline
                     // rather than the amount's own affordance.
@@ -246,7 +256,10 @@ struct APISpendSectionView: View {
                 verticalPadding: 0,
                 hoverForegroundColor: ProviderStyle.textAccent(for: snapshot.providerID, scheme: scheme)
             ))
-            .delayedHelp("Open \(snapshot.displayName) billing to add credits")
+            // R2M13: the app's other 24 affordances use `.help(_:)`; a bespoke material
+            // popup here was a second tooltip chrome, and it lived inside the ScrollView
+            // where the scroll mask feathered it. AppKit's own delay is the delay.
+            .help("Open \(snapshot.displayName) billing to add credits")
             .accessibilityLabel("Add \(snapshot.displayName) credits")
         } else {
             Color.clear
@@ -282,8 +295,14 @@ struct APISpendSectionView: View {
         case .neutral:
             AnyShapeStyle(.secondary)
         case .warning:
-            AnyShapeStyle(StatusSentenceSeverity.attention.ink(scheme: scheme))
+            // R2C5: credential lifecycle comes off the severity ramp. This ink used to be
+            // the Low-usage amber, so "Add an admin key to see Anthropic spend" sat a couple
+            // of rows under an amber meter with no relationship between them. The sentence is
+            // already 11.5 medium against 11 regular metadata, so weight and position carry
+            // it without borrowing a measurement colour.
+            AnyShapeStyle(ProviderStyle.meterLabelInk(scheme: scheme))
         case .critical:
+            // R2C5: a rejected key genuinely is an error, and is the only red in the card.
             AnyShapeStyle(StatusSentenceSeverity.critical.ink(scheme: scheme))
         }
     }
@@ -357,7 +376,10 @@ struct APISpendSectionView: View {
 
     private func accessibilityLabel(_ model: SpendRowModel) -> String {
         var parts = [model.snapshot.displayName, model.contextLabel]
-        if let amount = model.amount { parts.append(amount) }
+        // R2C8: VoiceOver hears the same phrase the row prints — figure then direction.
+        if let amount = model.amount {
+            parts.append("\(amount) \(APISpendPresentation.directionTerm(kind: model.snapshot.kind))")
+        }
         if model.snapshot.freshness != .live {
             if let badge = model.status.badge { parts.append(badge) }
             if let message = model.status.message { parts.append(message) }

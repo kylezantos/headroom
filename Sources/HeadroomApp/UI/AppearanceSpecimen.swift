@@ -70,17 +70,58 @@ struct AppearanceSpecimen: View {
     /// layout. A plain `ZStack` would hold the taller card's height for the whole fade and
     /// then snap the pane below it.
     var body: some View {
+        // CMM13 (Kyle, 2026-09-10): the preview is a scene — a menu-bar strip bleeding to
+        // the well's top edge with the live status item at its leading inset, and the
+        // popover card hanging beneath it, left-aligned with the tiles below. Centred, the
+        // card "looked goofy" against a left-aligned pane; the strip gives the pill the
+        // context it previews instead of a caption.
+        VStack(alignment: .leading, spacing: 14) {
+            menuBarStrip
+                .padding(.horizontal, -16)
+                .padding(.top, -14)
+            cardPreview
+        }
+        .settingsPreviewWell(
+            dark: colorScheme == .dark,
+            verticalPadding: 14,
+            horizontalPadding: 16,
+            cornerRadius: 16
+        )
+        // The strip overflows the well's padding on purpose; the well's own radius clips it.
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview of the menu bar item and a provider card in the selected style")
+    }
+
+    /// CMM13: a 24pt bar in the live menu bar's tint (PB13's plate colours) with the real
+    /// `MenuBarLabel` sitting where a status item sits.
+    private var menuBarStrip: some View {
+        let darkMenuBar = MenuBarAppearanceMonitor.shared.isDarkMenuBar
+        return HStack(spacing: 0) {
+            MenuBarLabel(meters: menuBarMeters, showsPercentage: true, appearance: .menuBar)
+                .padding(.leading, 16)
+            Spacer(minLength: 0)
+        }
+        .frame(height: 24)
+        .frame(maxWidth: .infinity)
+        .background(darkMenuBar ? Color(white: 0.15) : Color(white: 0.93))
+    }
+
+    private var cardPreview: some View {
         specimen
-            // R2C20: centred in the well at the popover's true card width, not stretched to
-            // the detail column. See `specimen` for why the width is the fidelity fix.
-            .frame(maxWidth: .infinity, alignment: .center)
+            // R2C20: at the popover's true card width, not stretched to the detail column.
+            // CMM13: leading-aligned, on the pane's own left axis.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .hidden()
             .animation(
                 HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
                 value: recipeKey
             )
-            .overlay(alignment: .top) {
-                ZStack(alignment: .top) {
+            // CMM13: `.topLeading` on both, or the fading cards centre themselves over
+            // the leading-aligned twin.
+            .overlay(alignment: .topLeading) {
+                ZStack(alignment: .topLeading) {
                     specimen
                         .id(recipeKey)
                         .transition(.opacity)
@@ -94,21 +135,6 @@ struct AppearanceSpecimen: View {
                 )
             }
             .clipped()
-            // AP3 (Kyle): the specimen holds a whole provider card and a menu-bar strip, so
-            // the strip-sized 9 × 8 inset left both nearly touching the well's edge. Only the
-            // well's padding changes — what it frames is still the real card and the real
-            // `MenuBarLabel` renderer.
-            // R2C9: r16 around an r10 card at 16/14pt of padding. The old fixed r7 well was
-            // *less* round than the card inside it, visible at the first corner on the pane.
-            .settingsPreviewWell(
-                dark: colorScheme == .dark,
-                verticalPadding: 14,
-                horizontalPadding: 16,
-                cornerRadius: 16
-            )
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Preview of a provider card in the selected style")
     }
 
     /// `MeterStyle` is `Equatable`, not `Hashable`, so the swap keys on the drawn recipe.
@@ -143,16 +169,8 @@ struct AppearanceSpecimen: View {
             // G1A: the specimen is the popover's card, so it reads the ink from the
             // environment the same way — set here because Settings is not the popover.
             .environment(\.accountTitleInk, accountTitleInk)
-
-            HStack(spacing: 10) {
-                // PB13: the pill and its plate both follow the *live* menu bar, so this
-                // previews the bar the user has rather than the dark one they might not.
-                MenuBarPreviewPill(meters: menuBarMeters, showsPercentage: true)
-                Text("Follows the choices below.")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                Spacer(minLength: 0)
-            }
+            // CMM13: the menu-bar pill moved up into `menuBarStrip`; the caption went with
+            // it — a status item sitting in a bar explains itself.
         }
         .frame(width: PopoverCardMetrics.cardWidth, alignment: .leading)
     }

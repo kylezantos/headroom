@@ -179,7 +179,8 @@ struct APISpendSectionView: View {
         Text(label)
             .kerning(IdentityRowMetrics.capsuleLabelKerning)
             // PA7: the capsule owns the type; this row only chooses the ink.
-            .foregroundStyle(.tertiary)
+            // R2C17: metadata ink is the plan pill's token, not system `.tertiary`.
+            .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
             .lineLimit(1)
             // C6A: the shared identity-line capsule, so the period chip and the state tag
             // that stands in for it are the same object at the same height.

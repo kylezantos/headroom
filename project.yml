@@ -104,6 +104,9 @@ targets:
       - path: Sources/HeadroomCore/Models/ProviderSetup.swift
       - path: Sources/HeadroomCore/Models/UsageModels.swift
       - path: Sources/HeadroomCore/Models/PlanLabelPresentation.swift
+      # WCM6: the shared widget bar reuses MeterGeometry.continuousFillLength (constant
+      # minimum-fill floors) from the popover's meter contract.
+      - path: Sources/HeadroomCore/Models/MeterStyle.swift
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift
@@ -139,6 +142,9 @@ targets:
       - path: Sources/HeadroomCore/Models/ProviderSetup.swift
       - path: Sources/HeadroomCore/Models/UsageModels.swift
       - path: Sources/HeadroomCore/Models/PlanLabelPresentation.swift
+      # WCM6: the shared widget bar reuses MeterGeometry.continuousFillLength (constant
+      # minimum-fill floors) from the popover's meter contract.
+      - path: Sources/HeadroomCore/Models/MeterStyle.swift
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift

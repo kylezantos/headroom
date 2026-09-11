@@ -204,12 +204,20 @@ struct UsageBarView: View {
     /// account that already arrived this launch, a window that shows up already stale or
     /// unavailable and so has no arrival to stage, and every row under Reduce Motion.
     private var firstPaintValue: RowValue {
+        isStagedArrival ? RowValue(fraction: 0, pct: 0) : liveValue
+    }
+
+    /// M4A/M9A: true only when this row will draw in from empty — an account with an
+    /// `arrivalKey` that hasn't arrived yet this launch, on a live window, Reduce Motion off.
+    /// Both the empty first paint above and the delayed trigger below key off this so they
+    /// can never disagree about whether an arrival is happening.
+    private var isStagedArrival: Bool {
         guard let arrivalKey,
               !ArrivalRegistry.hasLanded(arrivalKey),
               window.freshness.isLive,
               !reduceMotion
-        else { return liveValue }
-        return RowValue(fraction: 0, pct: 0)
+        else { return false }
+        return true
     }
 
     private var displayedValue: RowValue { landedValue ?? firstPaintValue }
@@ -323,7 +331,16 @@ struct UsageBarView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label) usage")
         .accessibilityValue(accessibilityValue)
-        .onAppear { land() }
+        // M9A: a staged arrival waits one beat so the count-up starts after the popover has
+        // finished opening, not behind it. `.task` is cancelled on close, so a popover shut
+        // inside that beat never claims the arrival — it simply draws in on the next open.
+        // Everything else lands the instant it appears, exactly as before.
+        .task {
+            guard isStagedArrival else { land(); return }
+            try? await Task.sleep(for: HeadroomMotion.arrivalDelay)
+            guard !Task.isCancelled else { return }
+            land()
+        }
         .onChange(of: rowSignal) { _, _ in land() }
     }
 

@@ -40,6 +40,17 @@ enum HeadroomMotion {
     /// a spring so a second click mid-flight retargets instead of restarting.
     static let reorder = Animation.spring(response: 0.35, dampingFraction: 1.0)
 
+    // MARK: Arrival timing (M9A)
+
+    /// M9A (Kyle, 2026-09-11): the once-per-launch count-up fires from the row's `onAppear`,
+    /// which is the same instant `MenuBarExtra(.window)` is still animating its window in — so
+    /// on a first open the front half of the sweep played behind an un-settled popover and the
+    /// user never saw it. One short beat lets the window arrive first; the count-up then plays
+    /// fully in view. Deliberately brief — just long enough to clear the open, never long
+    /// enough to hold the real number back. Applies only to the staged arrival; reopens, live
+    /// updates, and Reduce Motion still land immediately.
+    static let arrivalDelay: Duration = .milliseconds(250)
+
     // MARK: Compatibility names — retire as call sites migrate to the S3A pairs above.
 
     static let hover = hoverOut

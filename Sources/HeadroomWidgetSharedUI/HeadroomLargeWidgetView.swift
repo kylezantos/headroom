@@ -211,7 +211,10 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
             scale: scale,
             family: .large,
             providerIsLive: provider.freshness == .live,
-            showsResetInline: true
+            showsResetInline: true,
+            // WCL1: the tier's bar height (8 / 7 / 6) rides the meter; the meter's own
+            // `.large` default is only the regular tier's fallback.
+            barHeight: CGFloat(density.barHeight)
         )
     }
 }

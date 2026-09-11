@@ -21,10 +21,11 @@ import SwiftUI
 // stale sentence) is the element that gives, with `lineLimit(1)` + `.tail`. No
 // `minimumScaleFactor` anywhere.
 
-/// WC-merge: `WidgetKit.WidgetFamily` and Core's `WidgetFamily` (WCF1) collide in any file
-/// that imports both. This file deliberately does **not** import WidgetKit, so the bare
-/// name resolves unambiguously in all four build configurations — Core-as-module (SPM,
-/// the Mac app, the macOS extension) and Core-compiled-in (the iOS extension) — and both
+// WC-merge: `WidgetKit.WidgetFamily` and Core's `WidgetFamily` (WCF1) collide in any file
+// that imports both. This file deliberately does **not** import WidgetKit, so the bare
+// name resolves unambiguously in all four build configurations — Core-as-module (SPM,
+// the Mac app, the macOS extension) and Core-compiled-in (the iOS extension). Files that
+// do import WidgetKit spell it `HeadroomWidgetFamily` (the Core typealias) instead.
 
 // MARK: - Small
 

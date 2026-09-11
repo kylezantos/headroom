@@ -446,7 +446,8 @@ public struct HeadroomWidgetUsageMeter: View {
         switch family {
         case .small: return CGFloat(WidgetMetrics.smallBarHeight)
         case .medium: return CGFloat(WidgetMetrics.mediumBarHeight)
-        case .large: return CGFloat(WidgetMetrics.smallBarHeight)
+        // WCL1: large passes its tier's height explicitly; this is the regular tier's value.
+        case .large: return CGFloat(LargeWidgetDensity.regular.barHeight)
         }
     }
 

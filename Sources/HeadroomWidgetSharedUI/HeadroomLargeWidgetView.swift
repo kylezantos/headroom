@@ -94,6 +94,7 @@ public struct HeadroomLargeWidgetView<Mark: View>: View {
                 family: .large,
                 scale: scale,
                 footerText: HeadroomWidgetCopy.footerText(prefix: footerPrefix, capturedAt: envelope.generatedAt, now: now),
+                        footerShortText: Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now),
                 showsRule: true
             )
         } else if HeadroomWidgetCopy.footerText(prefix: footerPrefix, capturedAt: envelope.generatedAt, now: now) != nil {

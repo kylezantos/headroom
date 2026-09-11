@@ -196,6 +196,7 @@ public struct HeadroomMediumWidgetView<Mark: View>: View {
                         family: .medium,
                         scale: scale,
                         footerText: HeadroomWidgetCopy.footerText(prefix: footerPrefix, capturedAt: envelope.generatedAt, now: now),
+                        footerShortText: Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now),
                         showsRule: false
                     )
                 }

@@ -330,14 +330,16 @@ public struct HeadroomWidgetUsageMeter: View {
         }
     }
 
+    /// WCF7: one 4pt gap between the metadata cluster and the reserved column — a 6 + 6 pair
+    /// cost the 6.1" medium its "Weekly" ("We…") on the last rung.
     private func meterRow(showsCountdown: Bool, showsState: Bool, truncatesLabel: Bool) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
             metadataCluster(
                 showsCountdown: showsCountdown,
                 showsState: showsState,
                 truncatesLabel: truncatesLabel
             )
-            Spacer(minLength: 6)
+            Spacer(minLength: 4)
             numeralCluster
         }
     }
@@ -686,6 +688,10 @@ public struct HeadroomWidgetAPISpendStrip: View {
     private let family: HeadroomWidgetFamily
     private let scale: WidgetTypeScale
     private let footerText: String?
+    /// WCF7/WCW6: the stamp's middle rung — the bare age ("38 min ago") that prints when the
+    /// amounts and the full "Updated 38 min ago" cannot share the run, before the stamp
+    /// drops whole.
+    private let footerShortText: String?
     private let showsRule: Bool
 
     @Environment(\.colorScheme) private var scheme
@@ -701,6 +707,7 @@ public struct HeadroomWidgetAPISpendStrip: View {
         family: HeadroomWidgetFamily,
         scale: WidgetTypeScale,
         footerText: String?,
+        footerShortText: String? = nil,
         showsRule: Bool
     ) {
         self.summaries = summaries
@@ -708,6 +715,7 @@ public struct HeadroomWidgetAPISpendStrip: View {
         self.family = family
         self.scale = scale
         self.footerText = footerText
+        self.footerShortText = footerShortText
         self.showsRule = showsRule
         _amountSize = ScaledMetric(wrappedValue: scale.spendAmount, relativeTo: .body)
         _termSize = ScaledMetric(wrappedValue: scale.spendSuffix, relativeTo: .body)
@@ -726,13 +734,16 @@ public struct HeadroomWidgetAPISpendStrip: View {
             // WCF7: the stamp is the element that gives — dropped whole when the amounts
             // and it cannot share the run. The amounts never truncate; they are the payload.
             ViewThatFits(in: .horizontal) {
-                row(showsFooter: true)
-                row(showsFooter: false)
+                row(footer: footerText)
+                if let footerShortText, footerShortText != footerText {
+                    row(footer: footerShortText)
+                }
+                row(footer: nil)
             }
         }
     }
 
-    private func row(showsFooter: Bool) -> some View {
+    private func row(footer: String?) -> some View {
         HStack(alignment: .center, spacing: 8) {
             HStack(alignment: .center, spacing: CGFloat(WidgetMetrics.spendItemGap)) {
                 ForEach(summaries) { summary in
@@ -741,7 +752,7 @@ public struct HeadroomWidgetAPISpendStrip: View {
             }
             .fixedSize()
             Spacer(minLength: 8)
-            if showsFooter, let footerText {
+            if let footerText = footer {
                 Text(footerText)
                     .font(HeadroomWidgetType.font(size: footerSize, weight: .medium, mono: true))
                     .foregroundStyle(HeadroomWidgetStyle.secondaryText(scheme: scheme))

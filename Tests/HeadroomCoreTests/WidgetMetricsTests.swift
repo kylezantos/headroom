@@ -13,12 +13,6 @@ struct WidgetMetricsTests {
         #expect(WidgetMetrics.iOSMediumMargin == 16)
     }
 
-    @Test func iOSTakesTheReclaimOnSmallAndLargeOnly() {
-        #expect(WidgetMetrics.iOSMargin(for: .small) == 14)
-        #expect(WidgetMetrics.iOSMargin(for: .large) == 14)
-        #expect(WidgetMetrics.iOSMargin(for: .medium) == 16)
-    }
-
     // MARK: - WCF3 the content axis
 
     @Test func markSlotsMatchTheCapHeightDerivation() {
@@ -93,8 +87,8 @@ struct WidgetMetricsTests {
 
     /// WCL4: each column's bar ends half the gutter clear of the centre rule, which is the
     /// number that makes the rule read as a divider instead of a border on one column.
-    @Test func theMediumGutterLeavesTheSpendFloorOfAirOnEachSideOfTheRule() {
-        #expect(WidgetMetrics.mediumGutter / 2 == WidgetMetrics.mediumSpendAirFloor)
+    @Test func theMediumGutterLeavesFourteenPointsOfClearanceOnEachSideOfTheRule() {
+        #expect(WidgetMetrics.mediumGutter / 2 == 14)
     }
 
     // MARK: - WCW6 spend strip and WCL4 rules

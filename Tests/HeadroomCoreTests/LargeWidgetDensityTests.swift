@@ -148,6 +148,24 @@ struct LargeWidgetDensityTests {
         #expect(LargeWidgetDensity(envelope: envelope) == .roomy)
     }
 
+    /// A provider whose only rows are extra weekly sub-limits still draws the placeholder
+    /// meter *and* those rows, so it costs its header plus both.
+    @Test func extraWeeklyRowsCountOnTopOfThePlaceholderMeter() {
+        let extraOnly = WidgetProviderSummary(
+            id: "claude",
+            displayName: "Claude",
+            planLabel: "Max",
+            freshness: .live,
+            windows: [extraWeeklyWindow(label: "Weekly (Fable)")],
+            renewalDate: nil
+        )
+        let envelope = WidgetSnapshotEnvelope(generatedAt: now, status: .enabled, providers: [extraOnly])
+
+        // 1 header + 1 placeholder + 1 extra row = 3 rows → roomy; the old count made it 2.
+        #expect(LargeWidgetDensity(envelope: envelope) == .roomy)
+        #expect(LargeWidgetDensity(providerCount: 1, meterCount: 2) == .roomy)
+    }
+
     /// A provider with no windows still draws one placeholder meter, so it costs two rows.
     @Test func aProviderWithNoWindowsStillCostsItsPlaceholderMeterRow() {
         let empty = WidgetProviderSummary(
@@ -191,7 +209,6 @@ struct LargeWidgetDensityTests {
         #expect(tier.meterSpacing == 12)
         #expect(tier.providerGapFloor == 16)
         #expect(tier.edgeGapWeight == 0.6)
-        #expect(tier.providerIconSize == 20)
         #expect(tier.showsPlanPill)
     }
 
@@ -203,7 +220,6 @@ struct LargeWidgetDensityTests {
         #expect(tier.meterSpacing == 12)
         #expect(tier.providerGapFloor == 16)
         #expect(tier.edgeGapWeight == 0.6)
-        #expect(tier.providerIconSize == 20)
         #expect(tier.showsPlanPill)
     }
 
@@ -215,7 +231,6 @@ struct LargeWidgetDensityTests {
         #expect(tier.meterSpacing == 9)
         #expect(tier.providerGapFloor == 16)
         #expect(tier.edgeGapWeight == 0.6)
-        #expect(tier.providerIconSize == 18)
         #expect(tier.showsPlanPill == false)
     }
 
@@ -235,7 +250,6 @@ struct LargeWidgetDensityTests {
             #expect(looser.barHeight > tighter.barHeight)
             #expect(looser.headerSpacing >= tighter.headerSpacing)
             #expect(looser.meterSpacing >= tighter.meterSpacing)
-            #expect(looser.providerIconSize >= tighter.providerIconSize)
         }
         #expect(LargeWidgetDensity.roomy.barHeight > LargeWidgetDensity.compact.barHeight)
     }

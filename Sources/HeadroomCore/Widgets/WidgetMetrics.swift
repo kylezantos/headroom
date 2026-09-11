@@ -23,15 +23,6 @@ public enum WidgetMetrics {
     /// meter band, so the outer margin is what keeps the two columns off the tile edge.
     public static let iOSMediumMargin: Double = 16
 
-    /// The effective outer margin an iPhone widget body applies for `family`.
-    /// Small and large take the reclaim (14); medium keeps `iOSMediumMargin` (16).
-    public static func iOSMargin(for family: WidgetFamily) -> Double {
-        switch family {
-        case .small, .large: 16 - iOSMarginReclaim + residualMargin
-        case .medium: iOSMediumMargin
-        }
-    }
-
     // MARK: - The content axis (WCF3)
 
     /// Mark slot → content axis. The brand mark hangs in the leading gutter; everything the

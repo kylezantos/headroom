@@ -106,7 +106,8 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        let slot = density.providerIconSize
+        // WCL3/WCF3: the slot is the family's axis token, stepped with the tier's type step.
+        let slot = WidgetMetrics.markSlot(for: .large, step: density.typeStep)
         VStack(alignment: .leading, spacing: 0) {
             header(slot: slot)
             meters

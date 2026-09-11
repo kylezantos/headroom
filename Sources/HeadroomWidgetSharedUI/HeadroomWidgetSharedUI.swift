@@ -87,11 +87,6 @@ public enum HeadroomWidgetStyle {
         ))
     }
 
-    /// WCM3: the neutral half of the stale pair, exposed on its own for surfaces that need
-    /// the tone without a severity in hand. `staleFill(for: .healthy, …)` returns it.
-    public static func staleNeutralFill(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.staleNeutralFill(dark: scheme == .dark))
-    }
 
     public static func criticalText(scheme: ColorScheme) -> Color {
         Color(HeadroomSeverityColorValues.criticalText(dark: scheme == .dark))
@@ -125,10 +120,6 @@ public enum HeadroomWidgetStyle {
 
     public static func barTrack(scheme: ColorScheme) -> Color {
         Color(HeadroomWidgetColorValues.barTrack(dark: scheme == .dark))
-    }
-
-    public static func hairline(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.hairline(dark: scheme == .dark))
     }
 
     /// WCL4: the lifted widget-only rule ink. The shared `hairline` token was tuned for the
@@ -239,7 +230,6 @@ public struct HeadroomWidgetUsageMeter: View {
     private let showsResetInline: Bool
     private let glance: Bool
     private let glanceName: String?
-    private let glanceMarkSlot: CGFloat
     private let explicitBarHeight: CGFloat?
 
     @Environment(\.colorScheme) private var scheme
@@ -265,7 +255,6 @@ public struct HeadroomWidgetUsageMeter: View {
         showsResetInline: Bool = false,
         glance: Bool = false,
         glanceName: String? = nil,
-        glanceMarkSlot: CGFloat = 0,
         barHeight: CGFloat? = nil
     ) {
         self.window = window
@@ -277,7 +266,6 @@ public struct HeadroomWidgetUsageMeter: View {
         self.showsResetInline = showsResetInline
         self.glance = glance
         self.glanceName = glanceName
-        self.glanceMarkSlot = glanceMarkSlot
         self.explicitBarHeight = barHeight
         _nameSize = ScaledMetric(wrappedValue: scale.name, relativeTo: .body)
         _labelSize = ScaledMetric(wrappedValue: scale.label, relativeTo: .body)
@@ -305,7 +293,6 @@ public struct HeadroomWidgetUsageMeter: View {
             }
             bar
         }
-        .padding(.leading, glance ? glanceGutter : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue)
@@ -313,12 +300,6 @@ public struct HeadroomWidgetUsageMeter: View {
 
     // MARK: - Rows
 
-    /// WCF3: in glance mode the caller may hand the meter its own mark gutter, so the name,
-    /// the numeral, and the bar all start on the content axis while the mark hangs to the
-    /// left of it. A zero slot means the caller is placing the mark outside the meter.
-    private var glanceGutter: CGFloat {
-        glanceMarkSlot > 0 ? glanceMarkSlot + CGFloat(WidgetMetrics.markGap) : 0
-    }
 
     /// WCF5/WCD1: the small family's provider line is this meter with the account name in
     /// the label slot — no window label, no state word, no suffix. The numeral column is

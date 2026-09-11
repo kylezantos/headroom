@@ -231,9 +231,9 @@ public enum HeadroomBrandRamp {
 }
 
 /// R2: one source of truth for the widget "usage" look — provider text accents and the
-/// muted text / bar-track / hairline tints. Both the macOS (`WidgetProviderStyle`) and iOS
-/// (`IOSWidgetStyle`) style layers wrap these values so the two widget families cannot
-/// visually drift. The SwiftUI `Color` construction stays at each platform's style edge;
+/// muted text / bar-track / hairline tints. The shared `HeadroomWidgetStyle` layer in
+/// `Sources/HeadroomWidgetSharedUI` wraps these values for both widget extensions so the two
+/// families cannot visually drift. The SwiftUI `Color` construction stays at each platform's style edge;
 /// only the raw numbers live here (already compiled into both widget targets).
 public enum HeadroomWidgetColorValues {
     /// Provider display-name accent, tuned warmer/cooler than the raw brand fill per scheme.

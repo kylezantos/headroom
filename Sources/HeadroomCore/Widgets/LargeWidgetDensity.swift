@@ -41,9 +41,10 @@ public enum LargeWidgetDensity: Equatable, Sendable {
         self.init(
             providerCount: providers.count,
             meterCount: providers.reduce(0) { total, provider in
-                // A provider with no windows still draws one placeholder meter, so it costs
-                // a row like any other. Count what is rendered, not what is stored.
-                total + max(1, provider.subscriptionWindows.count + provider.extraWeeklyWindows.count)
+                // A provider with no subscription windows still draws one placeholder meter,
+                // and its extra weekly rows (Fable, Spark) draw after it. Count what is
+                // rendered, not what is stored.
+                total + max(1, provider.subscriptionWindows.count) + provider.extraWeeklyWindows.count
             }
         )
     }
@@ -91,14 +92,6 @@ public enum LargeWidgetDensity: Equatable, Sendable {
     /// providers, which flattened the grouping; under-weighting the edges keeps the stack
     /// reading as a stack.
     public var edgeGapWeight: Double { 0.6 }
-
-    /// WCL3: the brand mark's slot in a provider header, from the name's cap height.
-    public var providerIconSize: Double {
-        switch self {
-        case .roomy, .regular: 20
-        case .compact: 18
-        }
-    }
 
     /// WCW9: the plan pill ("Max", "Pro") after the provider name. At compact the row height
     /// is already paying for the meters; the pill is context, so it is the first thing to go.

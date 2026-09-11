@@ -80,8 +80,7 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
     /// WCM4/WCM5: the row reads `displayPercentRemaining` and both freshness levels through
     /// the shared meter, so a retired window prints "—" and a stale provider dims.
     /// The mark is drawn here, in the gutter, so the meter's own content starts on the axis
-    /// (WCF3); `glanceMarkSlot` only tells the meter which box height to cap-centre the
-    /// name against — it must not add a leading inset of its own.
+    /// (WCF3).
     private func glanceRow(_ provider: WidgetProviderSummary, scale: WidgetTypeScale, slot: Double) -> some View {
         HStack(alignment: .top, spacing: WidgetMetrics.markGap) {
             // WCL6: the mark box is the glance row's line box (the 18pt numeral sets it), so
@@ -98,8 +97,7 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
                 family: .small,
                 providerIsLive: provider.freshness == .live,
                 glance: true,
-                glanceName: provider.displayName,
-                glanceMarkSlot: 0
+                glanceName: provider.displayName
             )
         }
     }
@@ -352,7 +350,7 @@ struct HeadroomWidgetFooterStamp: View {
 public enum HeadroomWidgetCopy {
     /// WCW7: "Usage" at every fallback site — a pending Grok or Cursor row must not claim a
     /// weekly limit it does not have.
-    public static let fallbackWindowLabel = "Usage"
+    public static let fallbackWindowLabel = WidgetWindowSummary.fallbackLabel
     /// WCW3: the sentence is true on the Mac and false on the phone, which is the one place
     /// the mirror rule licenses a split.
     public static let macFooterPrefix = "Updated "

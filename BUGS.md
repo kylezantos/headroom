@@ -528,3 +528,10 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
   family's sizes are density-dependent. On an iPhone with a non-default text size the numerals grow
   and the names do not. Fix: one `@ScaledMetric(relativeTo: .body) unit = 1` multiplier in
   `HeadroomWidgetTypography` that every body and the meter apply, so the whole ladder scales together.
+- **`HeadroomWidgetSharedUI` has no automated coverage.** The module is compiled into the
+  `Headroom` app target that `HeadroomAppTests` imports, but no test touches it: the bar's
+  fill/ink selection (WCM1–WCM3), the meter's `ViewThatFits` ladders (WCF7), the medium spend-air
+  rung, and `HeadroomLargeRhythm`'s gap arithmetic are verified only by the offscreen harness
+  sweep. Follow-up: lift the fill/ink selector into a Core `WidgetBarRecipe` and the rhythm gaps
+  into `LargeWidgetDensity.rhythmGaps(blockHeights:available:)`, both testable; add
+  `WidgetFontMetricsTests` cross-checking the CoreText port against `OpticalLeading`.

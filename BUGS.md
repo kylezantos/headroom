@@ -493,3 +493,32 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   automatically", "Headroom connects as soon as you approve"); R2C6 scoped to status, buttons,
   header and card title. One-line fixes if the verb should go everywhere.
 
+
+## Widget craft residuals (2026-09-11, WCF1–WCD3)
+
+Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
+`design/widget-craft-options.html` and the folded mock `design/widget-proposed-design.html`.
+
+- **Accented / vibrant rendering is reasoned, not measured (WCM7).** The `widgetAccentable` set was
+  recut (bar fill, numeral, spend amounts in; provider names out; marks `.desaturated`) and a
+  non-`.fullColor` branch draws fill `.primary` / track `.primary.opacity(0.20)`. Nobody has looked
+  at it on a tinted iPhone Home Screen or a de-emphasised Mac desktop. Device look owed.
+- **StandBy / stripped-background contexts (WCM8)** return full-strength neutrals when
+  `showsWidgetContainerBackground == false`. Same: reasoned from the token derivations, not seen on
+  a device in StandBy.
+- **Fill-aware density selection (WCL1, option B).** Tiers still count rows (headers + meters).
+  A `Scale` with estimated row/header heights that picks the roomiest tier fitting the tile height
+  is the monotonic-by-construction follow-up; needs the tile height passed in.
+- **Brand-tinted names are not plumbed to widgets (WCD1).** Widgets take the popover's default
+  neutral `accountTitle`; the popover's `AccountTitleInk` preference does not reach the envelope.
+  Stated decision, not an accident.
+- **Envelope schema stays at 3.** Not built, by decision: percentage mode ("used"), `MeterStyle`
+  (format/shape/fill), typed capability state (would let the attention glyph become a word),
+  multi-account rows, interactive `AppIntent` widgets, widget-string localisation.
+- **The render harness is macOS-only.** `.context/qc/widgets/render-harness/` renders the shared
+  bodies with `ImageRenderer`; with WCF1's pinned points the type now matches across platforms, but
+  iPhone line heights, `.accented`, and StandBy still need a Simulator or device.
+- **Medium countdown appears on single-provider tiles only (WCL9).** Measured in the mock: a
+  two-column medium at the 28pt gutter cannot hold `label + countdown + reserved column + suffix`,
+  so the two-rung ladder drops it whole there. If the countdown matters on two-column medium, the
+  honest options are a wordless medium or exempting the label row from the content axis.

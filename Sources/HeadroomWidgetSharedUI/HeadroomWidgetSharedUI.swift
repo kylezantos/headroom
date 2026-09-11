@@ -312,8 +312,11 @@ public struct HeadroomWidgetUsageMeter: View {
     /// still reserved, which is what keeps two provider rows sharing one right edge.
     /// WCL6: the 18pt numeral against a 14pt name is exactly the mixed-size row cap-height
     /// centring exists for.
+    /// WCL5/WCF7: the glance row's only gap is the 4pt between the name and the reserved
+    /// column — the mock's fit check (mark 15 + 6 + "Claude" 47 + 4 + column 52 = 124 in 134).
+    /// A 6 + 6 pair here cost "Claude" its last letter on every Mac and 6.1" tile.
     private var glanceRow: some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: 0) {
             Text(glanceName ?? labelText)
                 .font(HeadroomWidgetType.font(size: nameSize, weight: .semibold))
                 .kerning(CGFloat(scale.nameKerning))
@@ -322,7 +325,7 @@ public struct HeadroomWidgetUsageMeter: View {
                 .truncationMode(.tail)
                 .widgetOpticalLeading(glanceName ?? labelText, size: nameSize, weight: .semibold)
                 .widgetCapHeightCentered(size: nameSize, weight: .semibold)
-            Spacer(minLength: 6)
+            Spacer(minLength: 4)
             numeral(capCentred: true)
         }
     }

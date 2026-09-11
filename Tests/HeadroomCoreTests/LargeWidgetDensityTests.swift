@@ -227,9 +227,9 @@ struct LargeWidgetDensityTests {
         let tier = LargeWidgetDensity.compact
         #expect(tier.typeStep == .dense)
         #expect(tier.barHeight == 6)
-        #expect(tier.headerSpacing == 5)
-        #expect(tier.meterSpacing == 9)
-        #expect(tier.providerGapFloor == 16)
+        #expect(tier.headerSpacing == 4)
+        #expect(tier.meterSpacing == 8)
+        #expect(tier.providerGapFloor == 12)
         #expect(tier.edgeGapWeight == 0.6)
         #expect(tier.showsPlanPill == false)
     }

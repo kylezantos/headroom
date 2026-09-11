@@ -69,15 +69,17 @@ public enum LargeWidgetDensity: Equatable, Sendable {
     public var headerSpacing: Double {
         switch self {
         case .roomy, .regular: 6
-        case .compact: 5
+        case .compact: 4
         }
     }
 
-    /// Meter → meter within one provider.
+    /// Meter → meter within one provider. Compact is 8, not the plan's 9: at 9 the 8-row mix
+    /// measured ~350pt of ideal height against the Mac tile's 350 and the WCF7 rung shed its
+    /// sub-limit rows — a tier must fit the content that selects it.
     public var meterSpacing: Double {
         switch self {
         case .roomy, .regular: 12
-        case .compact: 9
+        case .compact: 8
         }
     }
 
@@ -85,7 +87,12 @@ public enum LargeWidgetDensity: Equatable, Sendable {
     /// tile distributes its slack there rather than at a fixed spacer — but it never closes
     /// below this, because the inter-provider hairline is gone and the gap is now the only
     /// thing separating two providers.
-    public var providerGapFloor: Double { 16 }
+    public var providerGapFloor: Double {
+        switch self {
+        case .roomy, .regular: 16
+        case .compact: 12
+        }
+    }
 
     /// WCL1: the top and bottom edge spacers are weighted at this fraction of the provider
     /// gap. Equal weighting made the tile's outer air read as wide as the space between two

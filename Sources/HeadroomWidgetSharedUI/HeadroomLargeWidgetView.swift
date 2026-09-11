@@ -132,7 +132,7 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
                 .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .capHeightCentered(size: scale.name, weight: .semibold)
+                .widgetCapHeightCentered(size: scale.name, weight: .semibold)
             if density.showsPlanPill, let plan = PlanLabelPresentation.displayName(provider.planLabel) {
                 // WCF7: the pill is the less flexible sibling (min 0 … ideal ≈ 35 against
                 // the name's ellipsis … full run), so an `HStack` offers it its ideal
@@ -147,7 +147,7 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
             if provider.freshness.needsAttention {
                 HeadroomWidgetAttentionGlyph(kind: .provider, size: 10)
                     .fixedSize()
-                    .capHeightCentered(size: scale.name, weight: .semibold)
+                    .widgetCapHeightCentered(size: scale.name, weight: .semibold)
             }
             // WCM5-v: large is the one family with room to print the on-wire reason.
             if let message = staleMessage {

@@ -522,3 +522,9 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
   two-column medium at the 28pt gutter cannot hold `label + countdown + reserved column + suffix`,
   so the two-rung ladder drops it whole there. If the countdown matters on two-column medium, the
   honest options are a wordless medium or exempting the label row from the content axis.
+- **Dynamic Type scales the meters but not the family headers (WCF1).** `HeadroomWidgetUsageMeter`,
+  the spend strip and the status card read their sizes through `@ScaledMetric`; the small/medium/
+  large bodies set provider names, the small header and footers as plain points because the large
+  family's sizes are density-dependent. On an iPhone with a non-default text size the numerals grow
+  and the names do not. Fix: one `@ScaledMetric(relativeTo: .body) unit = 1` multiplier in
+  `HeadroomWidgetTypography` that every body and the meter apply, so the whole ladder scales together.

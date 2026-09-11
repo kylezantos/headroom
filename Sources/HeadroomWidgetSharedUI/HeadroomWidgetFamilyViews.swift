@@ -25,8 +25,6 @@ import SwiftUI
 /// that imports both. This file deliberately does **not** import WidgetKit, so the bare
 /// name resolves unambiguously in all four build configurations — Core-as-module (SPM,
 /// the Mac app, the macOS extension) and Core-compiled-in (the iOS extension) — and both
-/// hosts spell the Core type through this alias instead.
-public typealias HeadroomWidgetFamily = WidgetFamily
 
 // MARK: - Small
 
@@ -85,17 +83,22 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
     /// name against — it must not add a leading inset of its own.
     private func glanceRow(_ provider: WidgetProviderSummary, scale: WidgetTypeScale, slot: Double) -> some View {
         HStack(alignment: .top, spacing: WidgetMetrics.markGap) {
+            // WCL6: the mark box is the glance row's line box (the 18pt numeral sets it), so
+            // the mark's centre lands on the name's cap centre rather than at the row's top.
             mark(provider.id, CGFloat(slot))
                 .frame(width: CGFloat(slot), height: CGFloat(slot))
+                .frame(width: CGFloat(slot), height: CGFloat((scale.numeral * 1.2).rounded()), alignment: .center)
             HeadroomWidgetUsageMeter(
                 window: provider.primarySubscriptionWindow,
                 fallbackLabel: HeadroomWidgetCopy.fallbackWindowLabel,
+                // A glance row never prints a countdown, so `now` is inert here.
+                now: Date(),
                 scale: scale,
                 family: .small,
                 providerIsLive: provider.freshness == .live,
                 glance: true,
                 glanceName: provider.displayName,
-                glanceMarkSlot: slot
+                glanceMarkSlot: 0
             )
         }
     }
@@ -278,14 +281,14 @@ struct HeadroomWidgetMediumProviderColumn<Mark: View>: View {
                 .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .capHeightCentered(size: scale.name, weight: .semibold)
+                .widgetCapHeightCentered(size: scale.name, weight: .semibold)
             Spacer(minLength: 4)
             if provider.freshness.needsAttention {
                 // WCM5: attention comes off the severity ramp (R2C5) — neutral ink, the
                 // circle glyph, cap-centred against the name.
                 HeadroomWidgetAttentionGlyph(kind: .provider, size: 10)
                     .fixedSize()
-                    .capHeightCentered(size: scale.name, weight: .semibold)
+                    .widgetCapHeightCentered(size: scale.name, weight: .semibold)
             }
         }
     }

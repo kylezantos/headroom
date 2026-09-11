@@ -286,32 +286,10 @@ public struct HeadroomWidgetUsageMeter: View {
         _suffixSize = ScaledMetric(wrappedValue: scale.suffix, relativeTo: .body)
     }
 
-    /// STREAM-C SEAM — delete once the family bodies pass a scale and a family. The old
-    /// `compact` / `LargeWidgetDensity.Scale` pair is mapped onto the new ladder so the
-    /// existing call sites keep compiling through the parallel streams.
-    public init(
-        window: WidgetWindowSummary?,
-        fallbackLabel: String,
-        now: Date? = nil,
-        showsResetInline: Bool = false,
-        compact: Bool = false,
-        scale: LargeWidgetDensity.Scale? = nil
-    ) {
-        let step: WidgetTypeStep = (scale == .dense || scale == .ultraDense) ? .dense : .standard
-        let family: HeadroomWidgetFamily = scale == nil ? .medium : .large
-        self.init(
-            window: window,
-            fallbackLabel: fallbackLabel,
-            now: now ?? Date(),
-            scale: .scale(for: family, step: step),
-            family: family,
-            showsResetInline: showsResetInline,
-            barHeight: scale.map { CGFloat($0.barHeight) }
-        )
-    }
-
     public var body: some View {
-        VStack(alignment: .leading, spacing: CGFloat(WidgetMetrics.labelToBar)) {
+        // WCL5: the glance row (small) sits its bar 6 under the name; every stacked meter
+        // keeps WCL2's 7.
+        VStack(alignment: .leading, spacing: glance ? 6 : CGFloat(WidgetMetrics.labelToBar)) {
             if glance {
                 glanceRow
             } else {
@@ -608,23 +586,6 @@ public struct HeadroomWidgetUsageBar: View {
         self.height = height
     }
 
-    /// STREAM-C SEAM — delete once the family bodies call the freshness-aware init above.
-    /// `dimmed` is mapped to a stale window so the old call sites keep their treatment.
-    public init(
-        percentRemaining: Double,
-        severity: WidgetUsageSeverity,
-        dimmed: Bool = false,
-        height: CGFloat = 6
-    ) {
-        self.init(
-            percentRemaining: percentRemaining,
-            severity: severity,
-            freshness: dimmed ? .stale(observedAt: Date(timeIntervalSince1970: 0)) : .live,
-            providerIsLive: true,
-            height: height
-        )
-    }
-
     public var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
@@ -722,58 +683,6 @@ public struct HeadroomWidgetUsageBar: View {
     }
 }
 
-/// STREAM-C SEAM — delete with the old `HeadroomWidgetAPISpendStrip` init below.
-public struct HeadroomWidgetAPISpendCompactRow: View {
-    private let summaries: [WidgetAPISpendSummary]
-    private let now: Date
-
-    @Environment(\.colorScheme) private var scheme
-
-    public init(summaries: [WidgetAPISpendSummary], now: Date) {
-        self.summaries = summaries
-        self.now = now
-    }
-
-    public var body: some View {
-        HStack(spacing: 6) {
-            ForEach(summaries) { summary in
-                compactItem(summary)
-            }
-        }
-    }
-
-    private func compactItem(_ summary: WidgetAPISpendSummary) -> some View {
-        HStack(spacing: 4) {
-            HeadroomWidgetProviderIcon(providerID: summary.id, size: 11)
-            Text(APISpendPresentation.amountText(summary) ?? "—")
-                .font(.caption.weight(.semibold).monospacedDigit())
-                .foregroundStyle(amountColor(summary))
-                .privacySensitive()
-                .lineLimit(1)
-            if summary.freshness.needsAttention {
-                HeadroomWidgetAttentionGlyph(kind: .spend, size: 10)
-            }
-        }
-        .layoutPriority(1)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText(summary))
-    }
-
-    private func accessibilityText(_ summary: WidgetAPISpendSummary) -> String {
-        var parts = [summary.displayName, APISpendPresentation.amountText(summary) ?? "no amount"]
-        if summary.freshness.needsAttention {
-            parts.append("needs attention")
-        }
-        return parts.joined(separator: ", ")
-    }
-
-    private func amountColor(_ summary: WidgetAPISpendSummary) -> Color {
-        APISpendPresentation.amountText(summary) == nil || summary.freshness != .live
-            ? HeadroomWidgetStyle.secondaryText(scheme: scheme)
-            : .primary
-    }
-}
-
 /// WCW6: the API-spend strip. No eyebrow — the craft floor bans them, and a 10pt tracked
 /// "API" was the same size as the amounts it labelled. The rule stays on large (spend is a
 /// different *tile* in the popover; here the rule does that separating job), while medium
@@ -812,18 +721,6 @@ public struct HeadroomWidgetAPISpendStrip: View {
         _amountSize = ScaledMetric(wrappedValue: scale.spendAmount, relativeTo: .body)
         _termSize = ScaledMetric(wrappedValue: scale.spendSuffix, relativeTo: .body)
         _footerSize = ScaledMetric(wrappedValue: scale.footer, relativeTo: .body)
-    }
-
-    /// STREAM-C SEAM — delete once the family bodies pass a family and a scale.
-    public init(summaries: [WidgetAPISpendSummary], now: Date, footerText: String?) {
-        self.init(
-            summaries: summaries,
-            now: now,
-            family: .large,
-            scale: .scale(for: .large),
-            footerText: footerText,
-            showsRule: true
-        )
     }
 
     public var body: some View {

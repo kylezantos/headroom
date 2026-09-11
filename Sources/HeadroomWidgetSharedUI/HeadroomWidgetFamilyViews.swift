@@ -162,35 +162,43 @@ public struct HeadroomMediumWidgetView<Mark: View>: View {
         // computed). The second rung yields the air rather than the content: a 0 floor still
         // leaves the columns' own bottom padding between them and the strip, and every tile
         // that can afford 14 still gets 14.
+        // WCF7: the third rung is the one that always fits. A 0 floor still leaves the
+        // columns and the strip themselves, and at a large Dynamic Type size those alone
+        // overflow the 130pt 6.1" box — a `ViewThatFits` whose last child does not fit falls
+        // back to that child and clips it. Dropping the strip whole is the same shed-a-row
+        // ladder the large tile runs: the stamp goes before the meters do.
         ViewThatFits(in: .vertical) {
             stack(scale: scale, spendAir: CGFloat(WidgetMetrics.mediumSpendAirFloor))
             stack(scale: scale, spendAir: 0)
+            stack(scale: scale, spendAir: 0, showsFooterRow: false)
         }
         // WCF4: host margins + a 2pt residual on every edge, both platforms.
         .padding(WidgetMetrics.residualMargin)
     }
 
-    private func stack(scale: WidgetTypeScale, spendAir: CGFloat) -> some View {
+    private func stack(scale: WidgetTypeScale, spendAir: CGFloat, showsFooterRow: Bool = true) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             providerColumns(scale: scale)
             // WCL4: a flexible spacer replaces the spend hairline.
-            Spacer(minLength: spendAir)
-            if envelope.apiSpendProviders.isEmpty {
-                HeadroomWidgetFooterStamp(
-                    text: footerPrefix,
-                    capturedAt: envelope.generatedAt,
-                    now: now,
-                    size: scale.footer
-                )
-            } else {
-                HeadroomWidgetAPISpendStrip(
-                    summaries: envelope.apiSpendProviders,
-                    now: now,
-                    family: .medium,
-                    scale: scale,
-                    footerText: HeadroomWidgetCopy.footerText(prefix: footerPrefix, capturedAt: envelope.generatedAt, now: now),
-                    showsRule: false
-                )
+            Spacer(minLength: showsFooterRow ? spendAir : 0)
+            if showsFooterRow {
+                if envelope.apiSpendProviders.isEmpty {
+                    HeadroomWidgetFooterStamp(
+                        text: footerPrefix,
+                        capturedAt: envelope.generatedAt,
+                        now: now,
+                        size: scale.footer
+                    )
+                } else {
+                    HeadroomWidgetAPISpendStrip(
+                        summaries: envelope.apiSpendProviders,
+                        now: now,
+                        family: .medium,
+                        scale: scale,
+                        footerText: HeadroomWidgetCopy.footerText(prefix: footerPrefix, capturedAt: envelope.generatedAt, now: now),
+                        showsRule: false
+                    )
+                }
             }
         }
     }

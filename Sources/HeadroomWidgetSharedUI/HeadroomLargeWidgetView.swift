@@ -23,8 +23,6 @@ public struct HeadroomLargeWidgetView<Mark: View>: View {
     private let footerPrefix: String
     private let mark: (String, CGFloat) -> Mark
 
-    @Environment(\.colorScheme) private var scheme
-
     public init(
         envelope: WidgetSnapshotEnvelope,
         now: Date,
@@ -40,6 +38,31 @@ public struct HeadroomLargeWidgetView<Mark: View>: View {
     public var body: some View {
         let density = LargeWidgetDensity(envelope: envelope)
         let scale = WidgetTypeScale.scale(for: .large, step: density.typeStep)
+        // WCF7: an over-tall tile sheds rows, it never clips. `HeadroomLargeRhythm` gives
+        // its gaps first, but gaps bottom out at 0 and the tile can still be handed more
+        // rows than it has height for — a heavy provider mix at a large Dynamic Type size is
+        // the case that breaks it. So the rungs drop content in the order the design can
+        // afford to lose it: the model-specific weekly sub-limits (Claude's Fable, Codex's
+        // Spark) are detail the popover carries too, then the spend strip / footer stamp,
+        // which is a stamp rather than a reading. The tier is computed once and handed to
+        // every rung — a rung omits rows, it never restyles the type, or the tile's weight
+        // would change with the phone's text size.
+        ViewThatFits(in: .vertical) {
+            rhythm(density: density, scale: scale, showsExtraWindows: true, showsTrailingBlock: true)
+            rhythm(density: density, scale: scale, showsExtraWindows: false, showsTrailingBlock: true)
+            rhythm(density: density, scale: scale, showsExtraWindows: false, showsTrailingBlock: false)
+        }
+        // WCF4: horizontal residual 2 on both hosts (the macOS `8` is gone); the hosts now
+        // supply identical vertical margins, so both platforms distribute the same slack.
+        .padding(.horizontal, WidgetMetrics.residualMargin)
+    }
+
+    private func rhythm(
+        density: LargeWidgetDensity,
+        scale: WidgetTypeScale,
+        showsExtraWindows: Bool,
+        showsTrailingBlock: Bool
+    ) -> some View {
         HeadroomLargeRhythm(
             gapFloor: CGFloat(density.providerGapFloor),
             edgeWeight: CGFloat(density.edgeGapWeight)
@@ -50,14 +73,14 @@ public struct HeadroomLargeWidgetView<Mark: View>: View {
                     now: now,
                     density: density,
                     scale: scale,
+                    showsExtraWindows: showsExtraWindows,
                     mark: mark
                 )
             }
-            trailingBlock(scale: scale)
+            if showsTrailingBlock {
+                trailingBlock(scale: scale)
+            }
         }
-        // WCF4: horizontal residual 2 on both hosts (the macOS `8` is gone); the hosts now
-        // supply identical vertical margins, so both platforms distribute the same slack.
-        .padding(.horizontal, WidgetMetrics.residualMargin)
     }
 
     @ViewBuilder
@@ -101,6 +124,8 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
     let now: Date
     let density: LargeWidgetDensity
     let scale: WidgetTypeScale
+    /// WCF7: the shed-a-row rung the tile's `ViewThatFits` drops first.
+    let showsExtraWindows: Bool
     @ViewBuilder let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
@@ -204,9 +229,12 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
                 }
             }
             // Model-specific weekly sub-limits (Claude's Fable, Codex's Spark) follow the
-            // subscription rows; only the large family has room for them.
-            ForEach(provider.extraWeeklyWindows) { window in
-                meter(window)
+            // subscription rows; only the large family has room for them — and only when
+            // the tile can pay for them (WCF7).
+            if showsExtraWindows {
+                ForEach(provider.extraWeeklyWindows) { window in
+                    meter(window)
+                }
             }
         }
     }
@@ -248,7 +276,15 @@ struct HeadroomLargeRhythm: Layout {
         let width = proposal.width ?? 0
         let content = heights(of: subviews, width: width).reduce(0, +)
         let minimum = content + minimumGapTotal(blockCount: subviews.count)
-        return CGSize(width: width, height: max(proposal.height ?? minimum, minimum))
+        // WCF7: an unspecified (or infinite) height reports what the content actually needs
+        // — that is the ideal `ViewThatFits` rejects a rung on. A *specified* height is the
+        // tile, and the layout never claims more than the tile it was offered: reporting
+        // `minimum` past the proposal made the host centre an over-tall layout and clip it
+        // at both edges instead of letting the rung ladder shed a row.
+        guard let proposed = proposal.height, proposed.isFinite else {
+            return CGSize(width: width, height: minimum)
+        }
+        return CGSize(width: width, height: proposed)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Void) {
@@ -260,10 +296,15 @@ struct HeadroomLargeRhythm: Layout {
         let gaps: [CGFloat]
         if totalWeight > 0, slack > minimumGapTotal(blockCount: subviews.count) {
             gaps = weights.map { slack * $0 / totalWeight }
+        } else if totalWeight > 0 {
+            // WCF7: not enough height for the weighted distribution. The gaps give before
+            // the blocks do — each one takes the same share of whatever slack is left, down
+            // to 0 — rather than sitting on a floor the tile cannot pay for and pushing the
+            // last block past `bounds.maxY`. Once the gaps are gone the rung is genuinely
+            // too tall, which is what the tile's `ViewThatFits` ladder is for.
+            gaps = weights.map { $0 * max(0, min(gapFloor, slack / totalWeight)) }
         } else {
-            // Not enough height for the weighted distribution: every gap sits on its floor
-            // and the blocks keep their measured heights, so nothing overlaps (WCF7).
-            gaps = weights.map { $0 * gapFloor }
+            gaps = weights.map { _ in 0 }
         }
 
         var y = bounds.minY

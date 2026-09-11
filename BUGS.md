@@ -517,7 +517,10 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
   multi-account rows, interactive `AppIntent` widgets, widget-string localisation.
 - **The render harness is macOS-only.** `.context/qc/widgets/render-harness/` renders the shared
   bodies with `ImageRenderer`; with WCF1's pinned points the type now matches across platforms, but
-  iPhone line heights, `.accented`, and StandBy still need a Simulator or device.
+  iPhone line heights, `.accented`, StandBy, and **Dynamic Type at `xxLarge`** still need a
+  Simulator or device — macOS `ImageRenderer` ignores `.dynamicTypeSize`, so the whole-ladder
+  `@ScaledMetric` scaling (WCF1) and the vertical fit rungs it can trigger (WCF7) were verified by
+  shrinking the tile instead of growing the type.
 - **Medium countdown appears on single-provider tiles only (WCL9).** Measured in the mock: a
   two-column medium at the 28pt gutter cannot hold `label + countdown + reserved column + suffix`,
   so the two-rung ladder drops it whole there. If the countdown matters on two-column medium, the

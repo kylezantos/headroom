@@ -104,6 +104,9 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
     @ViewBuilder let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
+    // WCF1: the name, the pill, the glyph and the stale sentence are set from the ladder
+    // here, so they take the same Dynamic Type factor the meter's `@ScaledMetric`s take.
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     var body: some View {
         // WCL3/WCF3: the slot is the family's axis token, stepped with the tier's type step.
@@ -128,32 +131,35 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
                 .frame(width: CGFloat(slot), height: CGFloat(slot))
             // WCD1: neutral names — colour lives in the mark and in severity events.
             Text(provider.displayName)
-                .font(.system(size: scale.name, weight: .semibold))
+                .font(.system(size: scale.name * typeUnit, weight: .semibold))
                 .kerning(scale.nameKerning)
                 .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .widgetCapHeightCentered(size: scale.name, weight: .semibold)
+                .widgetCapHeightCentered(size: scale.name * typeUnit, weight: .semibold)
             if density.showsPlanPill, let plan = PlanLabelPresentation.displayName(provider.planLabel) {
                 // WCF7: the pill is the less flexible sibling (min 0 … ideal ≈ 35 against
                 // the name's ellipsis … full run), so an `HStack` offers it its ideal
-                // before it truncates the name — and the `EmptyView` rung drops it whole
+                // before it truncates the name — and the zero-size rung drops it whole
                 // rather than squeezing it if a row ever gets that tight. No `fixedSize()`
                 // here: that would propose an unspecified width and defeat the fallback.
+                // The fallback is a real 0×0 view, not `EmptyView`: `ViewThatFits` measures
+                // its children, and an `EmptyView` is not one — it contributes no candidate,
+                // so the ladder had nothing to fall back to.
                 ViewThatFits(in: .horizontal) {
                     planPill(plan)
-                    EmptyView()
+                    Color.clear.frame(width: 0, height: 0)
                 }
             }
             if provider.freshness.needsAttention {
                 HeadroomWidgetAttentionGlyph(kind: .provider, size: 10)
                     .fixedSize()
-                    .widgetCapHeightCentered(size: scale.name, weight: .semibold)
+                    .widgetCapHeightCentered(size: scale.name * typeUnit, weight: .semibold)
             }
             // WCM5-v: large is the one family with room to print the on-wire reason.
             if let message = staleMessage {
                 Text(message)
-                    .font(.system(size: scale.countdown, weight: .regular))
+                    .font(.system(size: scale.countdown * typeUnit, weight: .regular))
                     .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -171,12 +177,13 @@ struct HeadroomLargeProviderSection<Mark: View>: View {
     /// kern 0.2, `secondary @ 0.12`, no ring, `planLabel` ink. Roomy and regular only.
     private func planPill(_ plan: String) -> some View {
         Text(plan)
-            .font(.system(size: scale.pillLabel, weight: .medium))
+            .font(.system(size: scale.pillLabel * typeUnit, weight: .medium))
             .kerning(0.2)
             .foregroundStyle(HeadroomWidgetStyle.planLabel(scheme: scheme))
             .lineLimit(1)
             .padding(.horizontal, 6)
-            .frame(height: CGFloat(scale.pillHeight))
+            // WCF1: the capsule is the label's container, so it grows with the label.
+            .frame(height: CGFloat(scale.pillHeight * typeUnit))
             .background(HeadroomWidgetStyle.secondaryText(scheme: scheme).opacity(0.12), in: Capsule())
     }
 

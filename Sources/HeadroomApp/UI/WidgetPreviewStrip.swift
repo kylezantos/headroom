@@ -66,6 +66,7 @@ struct WidgetPreviewStrip: View {
             tile(label: "Small", size: Self.smallSize) {
                 HeadroomSmallWidgetView(
                     envelope: DemoScreenshotData.settingsPreviewEnvelope,
+                    now: DemoScreenshotData.settingsPreviewNow,
                     mark: { providerID, size in brandMark(providerID, size) }
                 )
             }

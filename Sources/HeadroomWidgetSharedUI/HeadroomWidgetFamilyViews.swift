@@ -36,15 +36,20 @@ import SwiftUI
 /// and the popover; at this size a third line reads as a phantom third provider.
 public struct HeadroomSmallWidgetView<Mark: View>: View {
     private let envelope: WidgetSnapshotEnvelope
+    private let now: Date
     private let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
+    // WCF1: the header is set from the ladder here, not through the meter's `@ScaledMetric`s.
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     public init(
         envelope: WidgetSnapshotEnvelope,
+        now: Date,
         @ViewBuilder mark: @escaping (String, CGFloat) -> Mark
     ) {
         self.envelope = envelope
+        self.now = now
         self.mark = mark
     }
 
@@ -57,7 +62,7 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
             // mixed or pending set says "Usage left" rather than mislabelling a period.
             // WCF3: the caption starts on the content axis; only the mark sits in the gutter.
             Text(envelope.smallHeaderTitle)
-                .font(.system(size: scale.header, weight: .medium))
+                .font(.system(size: scale.header * typeUnit, weight: .medium))
                 .foregroundStyle(HeadroomWidgetStyle.secondaryText(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -87,12 +92,17 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
             // the mark's centre lands on the name's cap centre rather than at the row's top.
             mark(provider.id, CGFloat(slot))
                 .frame(width: CGFloat(slot), height: CGFloat(slot))
-                .frame(width: CGFloat(slot), height: CGFloat((scale.numeral * 1.2).rounded()), alignment: .center)
+                // WCF1: the slot itself is spacing and stays in points; the box it sits in
+                // is the numeral's line box, so it travels with the type.
+                .frame(
+                    width: CGFloat(slot),
+                    height: CGFloat((scale.numeral * typeUnit * 1.2).rounded()),
+                    alignment: .center
+                )
             HeadroomWidgetUsageMeter(
                 window: provider.primarySubscriptionWindow,
                 fallbackLabel: HeadroomWidgetCopy.fallbackWindowLabel,
-                // A glance row never prints a countdown, so `now` is inert here.
-                now: Date(),
+                now: now,
                 scale: scale,
                 family: .small,
                 providerIsLive: provider.freshness == .live,
@@ -104,8 +114,8 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
 }
 
 public extension HeadroomSmallWidgetView where Mark == HeadroomWidgetProviderIcon {
-    init(envelope: WidgetSnapshotEnvelope) {
-        self.init(envelope: envelope) { providerID, size in
+    init(envelope: WidgetSnapshotEnvelope, now: Date) {
+        self.init(envelope: envelope, now: now) { providerID, size in
             HeadroomWidgetProviderIcon(providerID: providerID, size: size)
         }
     }
@@ -127,6 +137,9 @@ public struct HeadroomMediumWidgetView<Mark: View>: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.displayScale) private var displayScale
+    // WCF1: the rule is measured off the meter label's cap top, so it has to track the
+    // label's *scaled* size or it starts above the capitals at a large text size.
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     public init(
         envelope: WidgetSnapshotEnvelope,
@@ -209,7 +222,7 @@ public struct HeadroomMediumWidgetView<Mark: View>: View {
     /// 14 clear of it.
     private func centreRule(anchors: HeadroomMeterBandAnchors, scale: WidgetTypeScale) -> some View {
         GeometryReader { proxy in
-            let capInset = HeadroomWidgetTypography.capTopInset(size: scale.label, weight: .medium)
+            let capInset = HeadroomWidgetTypography.capTopInset(size: scale.label * typeUnit, weight: .medium)
             let tops = anchors.tops.map { proxy[$0].y + capInset }
             let bottoms = anchors.bottoms.map { proxy[$0].y }
             if let top = tops.min(), let bottom = bottoms.max(), bottom > top {
@@ -244,6 +257,9 @@ struct HeadroomWidgetMediumProviderColumn<Mark: View>: View {
     @ViewBuilder let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
+    // WCF1: the name and the glyph are set from the ladder here, so they take the same
+    // Dynamic Type factor the meter's own `@ScaledMetric`s take.
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     var body: some View {
         let slot = WidgetMetrics.markSlot(for: .medium)
@@ -275,19 +291,19 @@ struct HeadroomWidgetMediumProviderColumn<Mark: View>: View {
             mark(provider.id, CGFloat(slot))
                 .frame(width: CGFloat(slot), height: CGFloat(slot))
             Text(provider.displayName)
-                .font(.system(size: scale.name, weight: .semibold))
+                .font(.system(size: scale.name * typeUnit, weight: .semibold))
                 .kerning(scale.nameKerning)
                 .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
-                .widgetCapHeightCentered(size: scale.name, weight: .semibold)
+                .widgetCapHeightCentered(size: scale.name * typeUnit, weight: .semibold)
             Spacer(minLength: 4)
             if provider.freshness.needsAttention {
                 // WCM5: attention comes off the severity ramp (R2C5) — neutral ink, the
                 // circle glyph, cap-centred against the name.
                 HeadroomWidgetAttentionGlyph(kind: .provider, size: 10)
                     .fixedSize()
-                    .widgetCapHeightCentered(size: scale.name, weight: .semibold)
+                    .widgetCapHeightCentered(size: scale.name * typeUnit, weight: .semibold)
             }
         }
     }
@@ -332,11 +348,14 @@ struct HeadroomWidgetFooterStamp: View {
     let size: Double
 
     @Environment(\.colorScheme) private var scheme
+    // WCF1: medium and large both hand the stamp a raw ladder size, so the scaling happens
+    // here rather than twice at the call sites.
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     var body: some View {
         if let stamp = HeadroomWidgetCopy.footerText(prefix: text, capturedAt: capturedAt, now: now) {
             Text(stamp)
-                .font(.system(size: size, weight: .medium).monospacedDigit())
+                .font(.system(size: size * typeUnit, weight: .medium).monospacedDigit())
                 .foregroundStyle(HeadroomWidgetStyle.secondaryText(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)

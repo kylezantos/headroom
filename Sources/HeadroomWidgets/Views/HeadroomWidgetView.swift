@@ -63,7 +63,7 @@ struct HeadroomWidgetView: View {
         case .content(let envelope):
             switch family {
             case .systemSmall:
-                HeadroomSmallWidgetView(envelope: envelope)
+                HeadroomSmallWidgetView(envelope: envelope, now: entry.date)
             case .systemMedium:
                 HeadroomMediumWidgetView(
                     envelope: envelope,

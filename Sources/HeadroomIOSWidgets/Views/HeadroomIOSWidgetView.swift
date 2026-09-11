@@ -11,6 +11,7 @@ struct HeadroomIOSWidgetView: View {
     @Environment(\.widgetContentMargins) private var contentMargins
     @Environment(\.showsWidgetContainerBackground) private var showsContainerBackground
     @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.displayScale) private var displayScale
     let entry: HeadroomIOSWidgetEntry
 
     var body: some View {
@@ -87,7 +88,7 @@ struct HeadroomIOSWidgetView: View {
             .overlay {
                 Capsule().strokeBorder(
                     HeadroomWidgetStyle.secondaryText(scheme: scheme).opacity(0.35),
-                    lineWidth: HeadroomWidgetStyle.hairlineWidth(displayScale: 2)
+                    lineWidth: HeadroomWidgetStyle.hairlineWidth(displayScale: displayScale)
                 )
             }
             .padding(familyContentMargins)
@@ -122,7 +123,7 @@ struct HeadroomIOSWidgetView: View {
     private func content(_ envelope: WidgetSnapshotEnvelope) -> some View {
         switch family {
         case .systemSmall:
-            HeadroomSmallWidgetView(envelope: envelope)
+            HeadroomSmallWidgetView(envelope: envelope, now: entry.date)
         case .systemMedium:
             HeadroomMediumWidgetView(envelope: envelope, now: entry.date, footerPrefix: footerPrefix)
         default:

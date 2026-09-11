@@ -199,6 +199,11 @@ public struct HeadroomWidgetAttentionGlyph: View {
     private let size: Double
 
     @Environment(\.colorScheme) private var scheme
+    // WCF1: callers hand over the *ladder* size and the glyph takes the Dynamic Type factor
+    // itself, so a glyph beside a name never stays put while the name grows — and the spend
+    // strip, whose own sizes are already `@ScaledMetric`, passes its raw token rather than
+    // scaling twice.
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     public init(kind: Kind, size: Double) {
         self.kind = kind
@@ -206,12 +211,13 @@ public struct HeadroomWidgetAttentionGlyph: View {
     }
 
     public var body: some View {
-        Image(systemName: kind.symbol)
-            .font(HeadroomWidgetType.font(size: size, weight: .semibold))
+        let scaled = size * typeUnit
+        return Image(systemName: kind.symbol)
+            .font(HeadroomWidgetType.font(size: scaled, weight: .semibold))
             .foregroundStyle(HeadroomWidgetStyle.secondaryText(scheme: scheme))
             // WCL6/WCM5-iv: the glyph sits beside a name of another size, so it lands on the
             // row's cap-height axis rather than on its own line box.
-            .widgetCapHeightCentered(size: size, weight: .semibold)
+            .widgetCapHeightCentered(size: scaled, weight: .semibold)
             .accessibilityHidden(true)
     }
 }
@@ -780,7 +786,9 @@ public struct HeadroomWidgetAPISpendStrip: View {
                     .lineLimit(1)
                     .widgetCapHeightCentered(size: termSize, weight: .medium)
             } else {
-                HeadroomWidgetAttentionGlyph(kind: .spend, size: termSize)
+                // WCF1: the glyph scales the ladder token itself, so it gets the raw
+                // `spendSuffix` rather than this view's already-scaled `termSize`.
+                HeadroomWidgetAttentionGlyph(kind: .spend, size: scale.spendSuffix)
             }
         }
     }

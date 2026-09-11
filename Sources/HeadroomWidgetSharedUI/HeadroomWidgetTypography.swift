@@ -36,6 +36,28 @@ public enum HeadroomWidgetType {
 }
 
 
+/// WCF1: the one Dynamic Type multiplier the widget bodies share.
+///
+/// `HeadroomWidgetUsageMeter`, `HeadroomWidgetAPISpendStrip` and `HeadroomWidgetStatusCard`
+/// each hold their own `@ScaledMetric(relativeTo: .body)` per ladder step, but the family
+/// bodies set the provider name, the small header, the footer stamp, the plan pill, the
+/// stale sentence and the attention glyph straight from `WidgetTypeScale` — so at the
+/// `xxLarge` cap a 12pt meter label rendered *above* a fixed 14pt name and the ladder came
+/// apart. Every such site declares `@HeadroomWidgetTypeUnit private var typeUnit` and
+/// multiplies its ladder size by it; the `.body` reference is the meter's, so the factor is
+/// identical and the ladder's internal ratios hold at every text size.
+///
+/// Type scales, spacing does not: mark slots, gutters and the content axis stay in points,
+/// because a widget's tile does not grow with the user's text size.
+@propertyWrapper
+public struct HeadroomWidgetTypeUnit: DynamicProperty {
+    @ScaledMetric(relativeTo: .body) private var unit: Double = 1
+
+    public init() {}
+
+    public var wrappedValue: Double { unit }
+}
+
 /// WCL4: the medium centre rule starts at the first meter label's *cap* top, not its line-box
 /// top. The inset is the font's ascent minus its cap height — what sits above the capitals in
 /// a SwiftUI line box.

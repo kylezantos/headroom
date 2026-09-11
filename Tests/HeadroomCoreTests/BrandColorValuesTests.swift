@@ -840,7 +840,7 @@ struct BrandColorValuesTests {
     }
 
     @Test func theStaleNeutralFillMatchesCanonicalSpec() {
-        #expect(hex(HeadroomWidgetColorValues.staleNeutralFill(dark: true)) == "#8C8D93")
+        #expect(hex(HeadroomWidgetColorValues.staleNeutralFill(dark: true)) == "#55575C")
         #expect(hex(HeadroomWidgetColorValues.staleNeutralFill(dark: false)) == "#8D9299")
     }
 

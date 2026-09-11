@@ -364,8 +364,12 @@ public enum HeadroomWidgetColorValues {
     /// chroma would return the live colour unchanged; the neutral row instead recedes on
     /// lightness. The values are the audit mock's approved stops.
     public static func staleNeutralFill(dark: Bool) -> HeadroomRGBColor {
+        // WCM3 (Fable, at merge): the mock's dark stop (#8C8D93) composited *above* the live
+        // neutral fill (≈#67686B over the track), so a stale-healthy bar read louder than a live
+        // one — the inversion WCM3 exists to remove. #55575C sits between the track (≈#33353A)
+        // and the live neutral, so it still reads as a shape and recedes. Light was already right.
         dark
-            ? HeadroomRGBColor(red: 140 / 255, green: 141 / 255, blue: 147 / 255)
+            ? HeadroomRGBColor(red: 85 / 255, green: 87 / 255, blue: 92 / 255)
             : HeadroomRGBColor(red: 141 / 255, green: 146 / 255, blue: 153 / 255)
     }
 

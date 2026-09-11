@@ -2,28 +2,37 @@
 import HeadroomCore
 #endif
 import SwiftUI
-import WidgetKit
 
-// L9P: the small and medium family bodies live here rather than in the widget extension
-// so Settings › Widgets & iPhone can render the *real* widget layout instead of a
-// hand-kept mock. Nothing WidgetKit-family-specific is in these two views — the
-// `widgetFamily` switch, `containerBackground`, and `widgetContentMargins` all stay in
-// the extension's `HeadroomWidgetView`, which is what makes the move possible.
+// L9P: the family bodies live here rather than in the widget extensions so Settings ›
+// Widgets & iPhone can render the *real* widget layout instead of a hand-kept mock, and
+// so the iPhone extension has no second copy to drift (WCF5). Nothing WidgetKit-family-
+// specific is in these views — the `widgetFamily` switch, `containerBackground` and
+// `widgetContentMargins` all stay in each host, which is what makes the move possible.
 //
-// The brand mark is injected because the two hosts resolve it differently: the widget
-// extension draws `BrandIcons.xcassets` through `HeadroomWidgetProviderIcon`, while the
+// The brand mark is injected because the three hosts resolve it differently: both widget
+// extensions draw `BrandIcons.xcassets` through `HeadroomWidgetProviderIcon`, while the
 // Mac app draws the same marks from its bundled SVGs (`ProviderLogoView`) and carries no
 // brand asset catalog. A generic parameter keeps that swap allocation-free on the shipping
 // widget path; the `where Mark == HeadroomWidgetProviderIcon` convenience inits below mean
-// the extension's call sites are unchanged.
+// the extensions' call sites are unchanged.
+//
+// WCF7 runs through every row here: nothing overlaps and nothing clips. Marks, plan pills,
+// attention glyphs, numerals and bars are fixed; the provider name (and, on large, the
+// stale sentence) is the element that gives, with `lineLimit(1)` + `.tail`. No
+// `minimumScaleFactor` anywhere.
 
-/// Small widget: one weekly meter per provider under a quiet column header.
+/// WC-merge: `WidgetKit.WidgetFamily` and Core's `WidgetFamily` (WCF1) collide in any file
+/// that imports both. This file deliberately does **not** import WidgetKit, so the bare
+/// name resolves unambiguously in all four build configurations — Core-as-module (SPM,
+/// the Mac app, the macOS extension) and Core-compiled-in (the iOS extension) — and both
+/// hosts spell the Core type through this alias instead.
+public typealias HeadroomWidgetFamily = WidgetFamily
+
+// MARK: - Small
+
+/// Small widget: one glance meter per provider under a quiet column header (WCL5).
 ///
-/// The provider lines form one compact group centered in the space below the header.
-/// Hierarchy has one clear step per level: 11pt header (defers), 13pt brand-accent names,
-/// 16pt bold percent (the glance payload, same step as the large widget's prominent meters).
-///
-/// Only the provider's overall weekly window appears here — one line per provider.
+/// Only the provider's primary subscription window appears — one row per provider.
 /// Model-specific sub-limits (Claude's "Weekly (Fable)") are detail for the large widget
 /// and the popover; at this size a third line reads as a phantom third provider.
 public struct HeadroomSmallWidgetView<Mark: View>: View {
@@ -41,24 +50,54 @@ public struct HeadroomSmallWidgetView<Mark: View>: View {
     }
 
     public var body: some View {
-        let providers = envelope.widgetProviders
+        let scale = WidgetTypeScale.scale(for: .small)
+        let slot = WidgetMetrics.markSlot(for: .small)
+        let axis = WidgetMetrics.contentAxis(for: .small)
         VStack(alignment: .leading, spacing: 0) {
-            Text(providers.contains(where: { $0.primarySubscriptionWindow?.isBillingPeriod == true }) ? "Usage left" : "Weekly left")
-                .font(.caption.weight(.medium))
+            // WCW7: the noun is decided in Core from the shown providers' windows, so a
+            // mixed or pending set says "Usage left" rather than mislabelling a period.
+            // WCF3: the caption starts on the content axis; only the mark sits in the gutter.
+            Text(envelope.smallHeaderTitle)
+                .font(.system(size: scale.header, weight: .medium))
                 .foregroundStyle(HeadroomWidgetStyle.secondaryText(scheme: scheme))
-            Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(providers) { provider in
-                    HeadroomWidgetProviderWeeklyLine(provider: provider, mark: mark)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .padding(.leading, axis)
+            // WCL5: the slack goes to the payload, not to a caption's void — a fixed 22
+            // under the header, then the rows, then one trailing spacer.
+            VStack(alignment: .leading, spacing: WidgetMetrics.smallRowToRow) {
+                ForEach(envelope.widgetProviders) { provider in
+                    glanceRow(provider, scale: scale, slot: slot)
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, WidgetMetrics.smallHeaderToRows)
             Spacer(minLength: 0)
         }
-        // KTD1: system content margins carry the effective outer margin; keep only
-        // a minimal residual so the meters have room to breathe.
-        .padding(.horizontal, 2)
-        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // WCF4: the host supplies the system content margin; this is the 2pt residual.
+        .padding(WidgetMetrics.residualMargin)
+    }
+
+    /// WCM4/WCM5: the row reads `displayPercentRemaining` and both freshness levels through
+    /// the shared meter, so a retired window prints "—" and a stale provider dims.
+    /// The mark is drawn here, in the gutter, so the meter's own content starts on the axis
+    /// (WCF3); `glanceMarkSlot` only tells the meter which box height to cap-centre the
+    /// name against — it must not add a leading inset of its own.
+    private func glanceRow(_ provider: WidgetProviderSummary, scale: WidgetTypeScale, slot: Double) -> some View {
+        HStack(alignment: .top, spacing: WidgetMetrics.markGap) {
+            mark(provider.id, CGFloat(slot))
+                .frame(width: CGFloat(slot), height: CGFloat(slot))
+            HeadroomWidgetUsageMeter(
+                window: provider.primarySubscriptionWindow,
+                fallbackLabel: HeadroomWidgetCopy.fallbackWindowLabel,
+                scale: scale,
+                family: .small,
+                providerIsLive: provider.freshness == .live,
+                glance: true,
+                glanceName: provider.displayName,
+                glanceMarkSlot: slot
+            )
+        }
     }
 }
 
@@ -70,188 +109,270 @@ public extension HeadroomSmallWidgetView where Mark == HeadroomWidgetProviderIco
     }
 }
 
+// MARK: - Medium
+
+/// Medium widget: two equal provider columns over a spend strip or a bare footer.
+///
+/// WCL4 (option B, adopted 2026-09-11): the columns are separated by a 28pt gutter with a
+/// one-device-pixel rule **confined to the meter band**, and the spend row is separated by
+/// air rather than a second hairline — so the tile reads as one surface instead of a T of
+/// four boxes.
 public struct HeadroomMediumWidgetView<Mark: View>: View {
     private let envelope: WidgetSnapshotEnvelope
     private let now: Date
+    private let footerPrefix: String
     private let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.displayScale) private var displayScale
 
     public init(
         envelope: WidgetSnapshotEnvelope,
         now: Date,
+        footerPrefix: String = HeadroomWidgetCopy.macFooterPrefix,
         @ViewBuilder mark: @escaping (String, CGFloat) -> Mark
     ) {
         self.envelope = envelope
         self.now = now
+        self.footerPrefix = footerPrefix
         self.mark = mark
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // The two-column region flexes to fill the tile so the center rule reads as a
-            // true column separator (full height, small symmetric inset) rather than a stub
-            // tied to the text block. The footer / API-spend row sit below it either way.
+        let scale = WidgetTypeScale.scale(for: .medium)
+        // WCF7/WCL7: the 14pt of air above the spend row is the design floor, not a
+        // guarantee the tile can pay for it. The 6.1" iPhone's medium box is 130pt tall and
+        // two full columns plus the spend row measure ~127 before the air, so a hard
+        // `Spacer(minLength: 14)` pushed the strip 3pt past the content box (measured, not
+        // computed). The second rung yields the air rather than the content: a 0 floor still
+        // leaves the columns' own bottom padding between them and the strip, and every tile
+        // that can afford 14 still gets 14.
+        ViewThatFits(in: .vertical) {
+            stack(scale: scale, spendAir: CGFloat(WidgetMetrics.mediumSpendAirFloor))
+            stack(scale: scale, spendAir: 0)
+        }
+        // WCF4: host margins + a 2pt residual on every edge, both platforms.
+        .padding(WidgetMetrics.residualMargin)
+    }
+
+    private func stack(scale: WidgetTypeScale, spendAir: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            providerColumns(scale: scale)
+            // WCL4: a flexible spacer replaces the spend hairline.
+            Spacer(minLength: spendAir)
             if envelope.apiSpendProviders.isEmpty {
-                providerColumns
-                footerText(prefix: "from Mac · ")
+                HeadroomWidgetFooterStamp(
+                    text: footerPrefix,
+                    capturedAt: envelope.generatedAt,
+                    now: now,
+                    size: scale.footer
+                )
             } else {
-                providerColumns
-                // Same shared strip as the large widget; the footer drops its "from Mac"
-                // prefix here because the medium tile's width carries icons + amounts too.
                 HeadroomWidgetAPISpendStrip(
                     summaries: envelope.apiSpendProviders,
                     now: now,
-                    footerText: Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now)
+                    family: .medium,
+                    scale: scale,
+                    footerText: HeadroomWidgetCopy.footerText(prefix: footerPrefix, capturedAt: envelope.generatedAt, now: now),
+                    showsRule: false
                 )
             }
         }
-        // KTD1: rely on WidgetKit's default content margins for the outer margin;
-        // keep only a small residual so the two-column meters do not feel cramped.
-        .padding(.horizontal, 3)
-        .padding(.vertical, 2)
     }
 
-    @ViewBuilder private var providerColumns: some View {
+    @ViewBuilder
+    private func providerColumns(scale: WidgetTypeScale) -> some View {
         let providers = envelope.widgetProviders
         if providers.count <= 1 {
+            // L10: a single provider takes the full width on the same axis — no half-tile
+            // column, no rule to draw.
             ForEach(providers) { provider in
-                HeadroomWidgetMediumProviderColumn(provider: provider, dense: false, mark: mark)
-            }
-        } else if providers.count == 2 {
-            HStack(alignment: .top, spacing: 12) {
-                ForEach(providers) { provider in
-                    HeadroomWidgetMediumProviderColumn(provider: provider, dense: false, mark: mark)
-                }
-            }
-            .frame(maxHeight: .infinity)
-            .overlay {
-                // The column rule is drawn as a full-height overlay rather than an inline
-                // sibling so it spans the entire two-column band — headers included — and
-                // isn't pulled short by how each column's content distributes vertically.
-                // Two equal-width columns with a symmetric gap put the tile's horizontal
-                // centre inside that gap, so a centred 1pt rule lands cleanly between them.
-                // Guarded to the 2-provider layout, which is the app's invariant.
-                Rectangle()
-                    .fill(HeadroomWidgetStyle.hairline(scheme: scheme))
-                    .frame(width: 1)
-                    .frame(maxHeight: .infinity)
-                    .padding(.vertical, 6)
+                HeadroomWidgetMediumProviderColumn(provider: provider, now: now, scale: scale, mark: mark)
             }
         } else {
-            HStack(alignment: .top, spacing: 8) {
-                ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
-                    HeadroomWidgetMediumProviderColumn(provider: provider, dense: true, mark: mark)
-                    if index < providers.count - 1 {
-                        Rectangle()
-                            .fill(HeadroomWidgetStyle.hairline(scheme: scheme))
-                            .frame(width: 1)
-                            .frame(maxHeight: .infinity)
-                    }
+            HStack(alignment: .top, spacing: CGFloat(WidgetMetrics.mediumGutter)) {
+                ForEach(providers) { provider in
+                    HeadroomWidgetMediumProviderColumn(provider: provider, now: now, scale: scale, mark: mark)
                 }
+            }
+            .overlayPreferenceValue(HeadroomMeterBandKey.self) { anchors in
+                centreRule(anchors: anchors, scale: scale)
             }
         }
     }
 
-    @ViewBuilder private func footerText(prefix: String) -> some View {
-        if let updated = Countdown.updatedLabel(capturedAt: envelope.generatedAt, now: now) {
-            Text("\(prefix)\(updated)")
-                .font(.caption.weight(.medium))
-                .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .trailing)
+    /// WCL4: the rule spans the meter band only — from the cap top of the first meter label
+    /// to the bottom of the last bar in the *taller* column — measured off the columns'
+    /// own anchors rather than guessed, and centred in the 28pt gutter so every bar ends
+    /// 14 clear of it.
+    private func centreRule(anchors: HeadroomMeterBandAnchors, scale: WidgetTypeScale) -> some View {
+        GeometryReader { proxy in
+            let capInset = HeadroomWidgetTypography.capTopInset(size: scale.label, weight: .medium)
+            let tops = anchors.tops.map { proxy[$0].y + capInset }
+            let bottoms = anchors.bottoms.map { proxy[$0].y }
+            if let top = tops.min(), let bottom = bottoms.max(), bottom > top {
+                Rectangle()
+                    .fill(HeadroomWidgetStyle.widgetHairline(scheme: scheme))
+                    .frame(
+                        width: HeadroomWidgetStyle.hairlineWidth(displayScale: displayScale),
+                        height: bottom - top
+                    )
+                    .position(x: proxy.size.width / 2, y: (top + bottom) / 2)
+            }
         }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
 public extension HeadroomMediumWidgetView where Mark == HeadroomWidgetProviderIcon {
-    init(envelope: WidgetSnapshotEnvelope, now: Date) {
-        self.init(envelope: envelope, now: now) { providerID, size in
+    init(envelope: WidgetSnapshotEnvelope, now: Date, footerPrefix: String = HeadroomWidgetCopy.macFooterPrefix) {
+        self.init(envelope: envelope, now: now, footerPrefix: footerPrefix) { providerID, size in
             HeadroomWidgetProviderIcon(providerID: providerID, size: size)
         }
     }
 }
 
-/// One prominent weekly line per provider — brand mark + name + percent + bar for the
-/// provider's overall weekly window. Dims when that window is missing rather than dropping
-/// the row. Kept in step with the iOS small widget's `providerWeeklyLine`.
-struct HeadroomWidgetProviderWeeklyLine<Mark: View>: View {
+/// One medium column: an identity header with the mark in the gutter, then the provider's
+/// subscription meters on the content axis (WCF3), 6 under the header and 10 apart (WCL2).
+struct HeadroomWidgetMediumProviderColumn<Mark: View>: View {
     let provider: WidgetProviderSummary
+    let now: Date
+    let scale: WidgetTypeScale
     @ViewBuilder let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        let window = provider.primarySubscriptionWindow
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 5) {
-                mark(provider.id, 16)
-                Text(provider.displayName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(HeadroomWidgetStyle.textAccent(for: provider.id, scheme: scheme))
-                    .widgetAccentable()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.82)
-                    .allowsTightening(true)
-                    .layoutPriority(1)
-                Spacer(minLength: 2)
-                Text(percent(window))
-                    .font(.title3.bold().monospacedDigit())
-                    .foregroundStyle(window == nil ? HeadroomWidgetStyle.secondaryText(scheme: scheme) : .primary)
-                    .widgetAccentable()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.78)
-                    .allowsTightening(true)
-                    .frame(width: 42, alignment: .trailing)
+        let slot = WidgetMetrics.markSlot(for: .medium)
+        let axis = WidgetMetrics.contentAxis(for: .medium)
+        VStack(alignment: .leading, spacing: 0) {
+            header(slot: slot)
+            meters
+                // WCL4: the column publishes its own meter band so the shared rule can be
+                // clipped to the taller of the two. The anchors are attached *inside* the
+                // paddings on purpose — they must describe the meters themselves, not the
+                // padded box, or the rule would start 6pt above the first label.
+                .anchorPreference(key: HeadroomMeterBandKey.self, value: .top) {
+                    HeadroomMeterBandAnchors(tops: [$0])
+                }
+                .transformAnchorPreference(key: HeadroomMeterBandKey.self, value: .bottom) {
+                    $0.bottoms.append($1)
+                }
+                .padding(.leading, CGFloat(axis))
+                .padding(.top, CGFloat(WidgetMetrics.mediumHeaderToMeter))
+        }
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+    }
+
+    /// WCF7: the name is the only flexible element — mark, glyph and the gap are fixed, so
+    /// a long display name truncates instead of pushing the glyph out of the column.
+    /// WCD1: names take `accountTitle`; colour lives in the mark and in severity events.
+    private func header(slot: Double) -> some View {
+        HStack(spacing: WidgetMetrics.markGap) {
+            mark(provider.id, CGFloat(slot))
+                .frame(width: CGFloat(slot), height: CGFloat(slot))
+            Text(provider.displayName)
+                .font(.system(size: scale.name, weight: .semibold))
+                .kerning(scale.nameKerning)
+                .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .capHeightCentered(size: scale.name, weight: .semibold)
+            Spacer(minLength: 4)
+            if provider.freshness.needsAttention {
+                // WCM5: attention comes off the severity ramp (R2C5) — neutral ink, the
+                // circle glyph, cap-centred against the name.
+                HeadroomWidgetAttentionGlyph(kind: .provider, size: 10)
+                    .fixedSize()
+                    .capHeightCentered(size: scale.name, weight: .semibold)
             }
-            HeadroomWidgetUsageBar(
-                percentRemaining: window?.percentRemaining ?? 0,
-                severity: window?.severity ?? .healthy,
-                dimmed: window == nil
-            )
         }
     }
 
-    private func percent(_ window: WidgetWindowSummary?) -> String {
-        guard let window else { return "--" }
-        return "\(Int(window.percentRemaining.rounded()))%"
+    @ViewBuilder private var meters: some View {
+        let windows = provider.displaySubscriptionWindows
+        VStack(alignment: .leading, spacing: CGFloat(WidgetMetrics.mediumMeterToMeter)) {
+            if windows.isEmpty {
+                meter(nil)
+            } else {
+                ForEach(windows) { window in
+                    meter(window)
+                }
+            }
+        }
+    }
+
+    private func meter(_ window: WidgetWindowSummary?) -> some View {
+        // WCL9: medium ships the countdown switch; WCF2's two-rung ladder drops it whole
+        // where the column cannot hold it, which in practice is the 6.1" iPhone.
+        HeadroomWidgetUsageMeter(
+            window: window,
+            fallbackLabel: HeadroomWidgetCopy.fallbackWindowLabel,
+            now: now,
+            scale: scale,
+            family: .medium,
+            providerIsLive: provider.freshness == .live,
+            showsResetInline: true
+        )
     }
 }
 
-struct HeadroomWidgetMediumProviderColumn<Mark: View>: View {
-    let provider: WidgetProviderSummary
-    let dense: Bool
-    @ViewBuilder let mark: (String, CGFloat) -> Mark
+// MARK: - Shared pieces
+
+/// WCW3: one footer treatment for medium and large. The platform difference is the prefix
+/// the host passes in; the stamp itself is monospaced-digit so it stops reflowing once a
+/// minute, and takes `secondaryText` rather than the tertiary tier it used to.
+struct HeadroomWidgetFooterStamp: View {
+    let text: String
+    let capturedAt: Date?
+    let now: Date
+    let size: Double
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            HStack(spacing: 6) {
-                mark(provider.id, 18)
-                Text(provider.displayName)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(HeadroomWidgetStyle.textAccent(for: provider.id, scheme: scheme))
-                    .widgetAccentable()
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.9)
-                    .allowsTightening(true)
-                Spacer(minLength: 0)
-                if provider.freshness.needsAttention {
-                    Label("Needs attention", systemImage: "exclamationmark.triangle.fill")
-                        .labelStyle(.iconOnly)
-                        .font(.caption2.weight(.semibold))
-                        .foregroundStyle(HeadroomWidgetStyle.severityColor(for: .low, scheme: scheme))
-                }
-            }
-            if provider.displaySubscriptionWindows.isEmpty {
-                HeadroomWidgetUsageMeter(window: nil, fallbackLabel: "Weekly", compact: true, scale: dense ? .dense : nil)
-            } else {
-                ForEach(provider.displaySubscriptionWindows) { window in
-                    HeadroomWidgetUsageMeter(window: window, fallbackLabel: window.label, compact: true, scale: dense ? .dense : nil)
-                }
-            }
+        if let stamp = HeadroomWidgetCopy.footerText(prefix: text, capturedAt: capturedAt, now: now) {
+            Text(stamp)
+                .font(.system(size: size, weight: .medium).monospacedDigit())
+                .foregroundStyle(HeadroomWidgetStyle.secondaryText(scheme: scheme))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+}
+
+/// Strings the family bodies share with both hosts. Window labels and the small header
+/// live in Core (WCW2/WCW7); these three are host-composition, not data.
+public enum HeadroomWidgetCopy {
+    /// WCW7: "Usage" at every fallback site — a pending Grok or Cursor row must not claim a
+    /// weekly limit it does not have.
+    public static let fallbackWindowLabel = "Usage"
+    /// WCW3: the sentence is true on the Mac and false on the phone, which is the one place
+    /// the mirror rule licenses a split.
+    public static let macFooterPrefix = "Updated "
+    public static let iosFooterPrefix = "From Mac · "
+
+    public static func footerText(prefix: String, capturedAt: Date?, now: Date) -> String? {
+        guard let updated = Countdown.updatedLabel(capturedAt: capturedAt, now: now) else { return nil }
+        return prefix + updated
+    }
+}
+
+/// WCL4: the medium centre rule is drawn once, in the gutter, from anchors the columns
+/// publish — measured, not guessed.
+struct HeadroomMeterBandAnchors: Equatable {
+    var tops: [Anchor<CGPoint>] = []
+    var bottoms: [Anchor<CGPoint>] = []
+}
+
+struct HeadroomMeterBandKey: PreferenceKey {
+    static let defaultValue = HeadroomMeterBandAnchors()
+
+    static func reduce(value: inout HeadroomMeterBandAnchors, nextValue: () -> HeadroomMeterBandAnchors) {
+        let next = nextValue()
+        value.tops += next.tops
+        value.bottoms += next.bottoms
     }
 }

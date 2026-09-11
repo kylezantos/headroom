@@ -11,7 +11,14 @@ struct HeadroomTimelineProvider: TimelineProvider {
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HeadroomWidgetEntry) -> Void) {
-        completion(entry(date: .now))
+        // WCW4: the widget gallery is the product's first impression, and a machine that has
+        // not run Headroom yet would otherwise show it a status card. The iOS provider has
+        // always had this branch; the Mac one did not.
+        if context.isPreview {
+            completion(HeadroomWidgetEntry(date: .now, state: .content(DemoScreenshotData.envelope)))
+        } else {
+            completion(entry(date: .now))
+        }
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HeadroomWidgetEntry>) -> Void) {

@@ -325,6 +325,50 @@ public enum HeadroomWidgetColorValues {
         dark ? HeadroomTint(color: .white, opacity: 0.10) : HeadroomTint(color: .black, opacity: 0.07)
     }
 
+    /// WCL4: the widget's own rule tint, lifted one step off `hairline`.
+    ///
+    /// Every widget rule is drawn at `1 / displayScale` — one device pixel — and a device
+    /// pixel of the shared `hairline` disappears on a tile viewed at arm's length on a Home
+    /// Screen. The rule keeps its hairline *weight* (a heavier line would read as a border and
+    /// re-introduce the card the widget does not have) and buys its visibility in opacity
+    /// instead.
+    public static func widgetHairline(dark: Bool) -> HeadroomTint {
+        dark ? HeadroomTint(color: .white, opacity: 0.14) : HeadroomTint(color: .black, opacity: 0.10)
+    }
+
+    /// WCM1: what a meter bar paints when nothing is wrong.
+    ///
+    /// The widgets used to paint every bar its severity colour, so a tile with nothing to
+    /// report was three green slabs — and by the time a bar went amber the eye had learned to
+    /// ignore the colour channel. This is the semantics the popover already ships
+    /// (`MeterStyle.default.fill == .colorAsEvent`): healthy is a neutral, and colour arrives
+    /// as an event. It is *not* the user's stored meter style — the envelope does not carry
+    /// one — so widgets take the default recipe's meaning, not its plumbing.
+    ///
+    /// Mirrors the popover's `meterTickGlass` neutral. Measured against the widget bar track
+    /// it holds 2.09–2.30:1 in dark and 3.19–3.70:1 in light: a shape, never an alarm.
+    public static func neutralFill(dark: Bool) -> HeadroomTint {
+        dark
+            ? HeadroomTint(color: .white, opacity: 0.26)
+            : HeadroomTint(
+                color: HeadroomRGBColor(red: 107 / 255, green: 114 / 255, blue: 123 / 255),
+                opacity: 1
+            )
+    }
+
+    /// WCM3: the stale tone for a healthy row, where `staleFill`'s chroma hedge has no chroma
+    /// to work with.
+    ///
+    /// R2C16 desaturates a stale bar to 35% of its severity chroma so a stale critical is
+    /// still visibly a critical. With WCM1 a healthy bar is already achromatic, so scaling its
+    /// chroma would return the live colour unchanged; the neutral row instead recedes on
+    /// lightness. The values are the audit mock's approved stops.
+    public static func staleNeutralFill(dark: Bool) -> HeadroomRGBColor {
+        dark
+            ? HeadroomRGBColor(red: 140 / 255, green: 141 / 255, blue: 147 / 255)
+            : HeadroomRGBColor(red: 141 / 255, green: 146 / 255, blue: 153 / 255)
+    }
+
     /// R2C18: the recessed well every "content sits in here" surface uses — the setup flow's
     /// command wells and the Settings preview wells. Both already drew the same two numbers;
     /// the Settings panes just reached them through `ClaudeSetupStyle.wellBackground`, which
@@ -539,6 +583,31 @@ public enum HeadroomMeterColorValues {
             increasedContrast: increasedContrast
         )
         return HeadroomOKLCH(live).scalingChroma(by: staleFillChromaScale).rgb
+    }
+
+    /// WCM3: the widget overload of `staleFill`.
+    ///
+    /// The widgets painted a stale bar with `secondaryText` — a *text* token at 0.76/0.84 —
+    /// which made the stale bar the loudest bar on the tile (measured 4.7:1 against the light
+    /// track where a live healthy fill sits at 2.1:1). Routing them through the popover's
+    /// hedge means one stale treatment across both surfaces.
+    ///
+    /// Healthy diverges: under WCM1 a healthy widget bar is the neutral fill, which has no
+    /// chroma for the hedge to scale, so it takes `staleNeutralFill` instead. Low and critical
+    /// keep their severity hue at 35% chroma exactly as the popover draws them.
+    public static func staleFill(
+        for severity: WidgetUsageSeverity,
+        dark: Bool,
+        increasedContrast: Bool
+    ) -> HeadroomRGBColor {
+        switch severity {
+        case .healthy:
+            HeadroomWidgetColorValues.staleNeutralFill(dark: dark)
+        case .low:
+            staleFill(for: UsageSeverity.low, dark: dark, increasedContrast: increasedContrast)
+        case .critical:
+            staleFill(for: UsageSeverity.critical, dark: dark, increasedContrast: increasedContrast)
+        }
     }
 
     /// FS1 (Kyle, Sep 2026): how strongly a segmented *body* cell paints its fill colour.

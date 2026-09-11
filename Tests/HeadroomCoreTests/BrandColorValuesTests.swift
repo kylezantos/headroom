@@ -802,6 +802,119 @@ struct BrandColorValuesTests {
         #expect(HeadroomWidgetColorValues.tileAmbientShadow(dark: true) == HeadroomTint(color: .black, opacity: 0.40))
         #expect(HeadroomWidgetColorValues.tileLongShadow(dark: false) == HeadroomTint(color: .black, opacity: 0.05))
     }
+
+    // MARK: - Widget craft (WCM1 / WCM3 / WCL4)
+
+    @Test func theWidgetNeutralFillMatchesCanonicalSpec() {
+        #expect(HeadroomWidgetColorValues.neutralFill(dark: true) == HeadroomTint(color: .white, opacity: 0.26))
+        let light = HeadroomWidgetColorValues.neutralFill(dark: false)
+        #expect(hex(light.color) == "#6B727B")
+        #expect(light.opacity == 1)
+    }
+
+    /// WCM1: healthy paints neutral, so the neutral fill has to read as a *shape* on the track
+    /// — a bar you can see the length of — while carrying none of the hue that makes a low or
+    /// critical bar an event.
+    @Test func theNeutralFillReadsAsAShapeWithoutReadingAsAnEvent() {
+        for dark in [true, false] {
+            for background in widgetContainerColors(dark: dark) {
+                let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
+                let neutral = composite(HeadroomWidgetColorValues.neutralFill(dark: dark), over: track)
+
+                let measured = contrastRatio(neutral, track)
+                #expect(measured >= 1.5, "neutral fill vs track, dark=\(dark): \(measured):1")
+
+                for severity in [UsageSeverity.low, .critical] {
+                    let fill = HeadroomSeverityColorValues.fill(
+                        for: severity,
+                        dark: dark,
+                        increasedContrast: false
+                    )
+                    #expect(
+                        rgbChroma(neutral) < rgbChroma(fill),
+                        "\(severity) dark=\(dark): neutral carries \(rgbChroma(neutral)) chroma"
+                    )
+                }
+            }
+        }
+    }
+
+    @Test func theStaleNeutralFillMatchesCanonicalSpec() {
+        #expect(hex(HeadroomWidgetColorValues.staleNeutralFill(dark: true)) == "#8C8D93")
+        #expect(hex(HeadroomWidgetColorValues.staleNeutralFill(dark: false)) == "#8D9299")
+    }
+
+    /// WCM3: the widget overload routes low and critical through the popover's chroma hedge
+    /// and sends healthy — which has no chroma left to hedge under WCM1 — to the neutral
+    /// stale tone instead.
+    @Test func theWidgetStaleOverloadHedgesSeverityAndNeutralisesHealthy() {
+        for dark in [true, false] {
+            for increasedContrast in [true, false] {
+                #expect(
+                    HeadroomMeterColorValues.staleFill(
+                        for: WidgetUsageSeverity.healthy,
+                        dark: dark,
+                        increasedContrast: increasedContrast
+                    ) == HeadroomWidgetColorValues.staleNeutralFill(dark: dark),
+                    "healthy dark=\(dark) ic=\(increasedContrast)"
+                )
+                for (widget, popover) in [
+                    (WidgetUsageSeverity.low, UsageSeverity.low),
+                    (WidgetUsageSeverity.critical, UsageSeverity.critical),
+                ] {
+                    #expect(
+                        HeadroomMeterColorValues.staleFill(
+                            for: widget, dark: dark, increasedContrast: increasedContrast
+                        ) == HeadroomMeterColorValues.staleFill(
+                            for: popover, dark: dark, increasedContrast: increasedContrast
+                        ),
+                        "\(widget) dark=\(dark) ic=\(increasedContrast)"
+                    )
+                }
+            }
+        }
+    }
+
+    /// The M3 bug this replaces: widgets painted a stale bar with `secondaryText`, a *text*
+    /// token, which made the stale bar the loudest bar on the tile (measured 4.7:1 against the
+    /// light track where a live healthy fill sits at 2.1:1). Every stale tone now sits below
+    /// the token it replaced.
+    @Test func everyStaleWidgetFillRecedesFromTheTextTokenItReplaced() {
+        for dark in [true, false] {
+            for background in widgetContainerColors(dark: dark) {
+                let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: background)
+                let retired = composite(HeadroomWidgetColorValues.secondaryText(dark: dark), over: track)
+                let retiredSeparation = contrastRatio(retired, track)
+                for severity in [WidgetUsageSeverity.healthy, .low, .critical] {
+                    let stale = HeadroomMeterColorValues.staleFill(
+                        for: severity,
+                        dark: dark,
+                        increasedContrast: false
+                    )
+                    let measured = contrastRatio(stale, track)
+                    #expect(
+                        measured < retiredSeparation,
+                        "\(severity) dark=\(dark): stale \(measured):1 vs retired \(retiredSeparation):1"
+                    )
+                }
+            }
+        }
+    }
+
+    /// WCL4: the widget rule keeps the hairline *weight* (1 device pixel) and buys its
+    /// visibility on a Home Screen tile in opacity instead, so it never reads as a border.
+    @Test func theWidgetHairlineIsLiftedOffTheSharedHairline() {
+        #expect(HeadroomWidgetColorValues.widgetHairline(dark: true) == HeadroomTint(color: .white, opacity: 0.14))
+        #expect(HeadroomWidgetColorValues.widgetHairline(dark: false) == HeadroomTint(color: .black, opacity: 0.10))
+        for dark in [true, false] {
+            let lifted = HeadroomWidgetColorValues.widgetHairline(dark: dark)
+            let shared = HeadroomWidgetColorValues.hairline(dark: dark)
+            #expect(lifted.color == shared.color, "dark=\(dark)")
+            #expect(lifted.opacity > shared.opacity, "dark=\(dark)")
+            // Still a hairline, not a divider: never heavier than the bar track it sits beside.
+            #expect(lifted.opacity <= HeadroomWidgetColorValues.barTrack(dark: dark).opacity, "dark=\(dark)")
+        }
+    }
 }
 
 private func hex(_ color: HeadroomRGBColor) -> String {
@@ -840,6 +953,16 @@ private func raisedTileFillColors(dark: Bool) -> [HeadroomRGBColor] {
     [
         HeadroomWidgetColorValues.tileFillTop(dark: dark),
         HeadroomWidgetColorValues.tileFillBottom(dark: dark),
+    ]
+}
+
+/// The widget tile's own background stops. WCF6 keeps widget content flat — there is no inner
+/// tile — so a widget bar and its track composite straight onto these.
+private func widgetContainerColors(dark: Bool) -> [HeadroomRGBColor] {
+    [
+        HeadroomWidgetColorValues.containerBackgroundTop(dark: dark),
+        HeadroomWidgetColorValues.containerBackgroundMiddle(dark: dark),
+        HeadroomWidgetColorValues.containerBackgroundBottom(dark: dark),
     ]
 }
 

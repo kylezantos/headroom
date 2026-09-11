@@ -1,3 +1,4 @@
+import HeadroomCore
 #if SWIFT_PACKAGE
 import HeadroomWidgetSharedUI
 #endif
@@ -25,8 +26,12 @@ struct HeadroomWidgetView: View {
             if showsContainerBackground && renderingMode == .fullColor {
                 HeadroomWidgetContainerBackground()
             }
+            // WCF4: the system content margin on every family, vertical included. The large
+            // family used to zero its vertical margins so its equal spacers could own all
+            // the slack; `HeadroomLargeRhythm` now distributes weighted slack inside a fixed
+            // margin, which is the same rule the iPhone host has always followed.
             content
-                .padding(largeFamilyOwnsVerticalMargins ? horizontalOnlyContentMargins : contentMargins)
+                .padding(contentMargins)
         }
         .containerBackground(for: .widget) {
             HeadroomWidgetContainerBackground()
@@ -34,38 +39,55 @@ struct HeadroomWidgetView: View {
         .dynamicTypeSize(...DynamicTypeSize.xxLarge)
     }
 
-    // The large family distributes ALL vertical slack itself via equal flexible spacers
-    // (top edge, between sections, bottom edge) so the gaps stay symmetric for any
-    // content mix. That only works if the fixed vertical content margins get out of the
-    // way; horizontal margins still apply normally.
-    private var largeFamilyOwnsVerticalMargins: Bool {
-        family == .systemLarge
-    }
-
-    private var horizontalOnlyContentMargins: EdgeInsets {
-        EdgeInsets(top: 0, leading: contentMargins.leading, bottom: 0, trailing: contentMargins.trailing)
+    /// WCF1's family token. Spelled through the shared alias because `WidgetKit` exports a
+    /// `WidgetFamily` of its own and this file imports both.
+    private var coreFamily: HeadroomWidgetFamily {
+        switch family {
+        case .systemSmall: .small
+        case .systemMedium: .medium
+        default: .large
+        }
     }
 
     @ViewBuilder
     private var content: some View {
         switch entry.state {
         case .setupNeeded:
-            WidgetStatusView(title: "Widget Data Unavailable", message: "Open Headroom to refresh the widget cache.")
+            statusCard(.macSetupNeeded)
         case .incompatibleSchema:
-            WidgetStatusView(title: "Update Required", message: "Update Headroom to read newer widget data.")
+            statusCard(.macIncompatibleSchema)
         case .disabled:
-            WidgetStatusView(title: "Widgets Paused", message: "Enable widget data in Headroom Settings.")
+            statusCard(.macDisabled)
         case .pending:
-            WidgetStatusView(title: "Waiting for Data", message: "Open Headroom to fetch usage.")
+            statusCard(.macPending)
         case .content(let envelope):
             switch family {
             case .systemSmall:
                 HeadroomSmallWidgetView(envelope: envelope)
             case .systemMedium:
-                HeadroomMediumWidgetView(envelope: envelope, now: entry.date)
+                HeadroomMediumWidgetView(
+                    envelope: envelope,
+                    now: entry.date,
+                    footerPrefix: HeadroomWidgetCopy.macFooterPrefix
+                )
             default:
-                HeadroomLargeWidgetView(envelope: envelope, now: entry.date)
+                HeadroomLargeWidgetView(
+                    envelope: envelope,
+                    now: entry.date,
+                    footerPrefix: HeadroomWidgetCopy.macFooterPrefix
+                )
             }
         }
+    }
+
+    /// WCW4: the status block takes the family residual, not its own 12pt inset, so the
+    /// status axis is the content axis.
+    private func statusCard(_ state: WidgetStatusState) -> some View {
+        HeadroomWidgetStatusCard(
+            state: state,
+            family: coreFamily,
+            scale: WidgetTypeScale.scale(for: coreFamily)
+        )
+        .padding(WidgetMetrics.residualMargin)
     }
 }

@@ -691,12 +691,10 @@ struct SetupChipButtonStyle: ButtonStyle {
                            value: hovering)
                 .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
                            value: configuration.isPressed)
-                // B3H: borrowed verbatim from `HoverButtonStyle` — extend the hit target 8pt
-                // past the visible chip so a 22pt chip still clears the 40pt floor, then pull
-                // the padding back out of layout so `ActionChipFlow` measures the chip alone.
-                .padding(8)
-                .contentShape(Rectangle())
-                .padding(-8)
+                // B3H follow-up: preserve the 40pt interaction floor by expanding hit testing
+                // without wrapping the rendered label in opposing paddings. That layout pair
+                // was the only label-local transform after inverted text appeared on reopen.
+                .contentShape(Rectangle().inset(by: -8))
                 // PB12: the same `pressScale` every other button style uses. This was 0.98,
                 // which on an 11.5pt chip was close enough to nothing that the press barely
                 // registered next to a `HoverButtonStyle` glyph at 0.96.

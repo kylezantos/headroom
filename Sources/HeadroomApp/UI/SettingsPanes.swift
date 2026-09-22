@@ -264,7 +264,13 @@ struct MenuBarSettingsPane: View {
         .padding(.horizontal, 20)
         .padding(.top, 20)
         .frame(maxWidth: SettingsView.detailContentMaxWidth, alignment: .leading)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // The explicit zero minimum is load-bearing. AppKit pins the detail column's
+        // minimum height to this view's size at a zero-width proposal, where the pinned
+        // tile's text wraps a word per line to ~1,000pt. The split view then outgrew the
+        // window, which centred it and clipped both columns' tops under the title bar.
+        // Panes built on `SettingsPaneScaffold` never hit this: their outer ScrollView
+        // has no minimum height.
+        .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var preview: some View {

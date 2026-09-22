@@ -2242,6 +2242,37 @@ struct UsageStoreTests {
         #expect(!record.isLastKnownSignedIn(added.key))
     }
 
+    @Test func claimBankedResetRevealHonorsLiveCurrentAccountsOnly() async {
+        let acknowledgements = BankedResetAcknowledgements(defaults: freshSignOutDefaults())
+        let provider = MutableStubProvider(id: .codex, displayName: "Codex", snapshot: codexLive(count: 2))
+        let store = UsageStore(providers: [provider], preferences: freshPreferences(), bankedResetAcknowledgements: acknowledgements)
+        let key = AccountKey(providerID: .codex, accountID: .primary)
+        let bare = UsageStore(providers: [provider], preferences: freshPreferences())
+        #expect(!bare.claimBankedResetReveal(for: key, currentCount: 2))
+
+        #expect(!store.claimBankedResetReveal(for: key, currentCount: 2))
+        await store.refreshAll()
+        #expect(store.claimBankedResetReveal(for: key, currentCount: 2))
+        #expect(acknowledgements.acknowledgedCount(for: key) == 2)
+        #expect(!store.claimBankedResetReveal(for: key, currentCount: 2))
+
+        provider.set(.stale(for: .codex, reason: .transient("blip")))
+        await store.refreshAll()
+        acknowledgements.purge(for: key)
+        #expect(acknowledgements.claimReveal(for: key, currentCount: 1))
+        #expect(!store.claimBankedResetReveal(for: key, currentCount: 2))
+        #expect(acknowledgements.acknowledgedCount(for: key) == 1)
+
+        provider.set(codexLive(count: 2))
+        await store.refreshAll()
+        store.removingAccounts.insert(key)
+        #expect(!store.claimBankedResetReveal(for: key, currentCount: 2))
+        #expect(acknowledgements.acknowledgedCount(for: key) == 1)
+        store.removingAccounts.remove(key)
+        acknowledgements.purge(for: key)
+        #expect(store.claimBankedResetReveal(for: key, currentCount: 2))
+    }
+
     @Test func closedPopoverRedeemThenRegrantStillClaims() async {
         let acknowledgements = BankedResetAcknowledgements(defaults: freshSignOutDefaults())
         let provider = MutableStubProvider(id: .codex, displayName: "Codex", snapshot: codexLive(count: 2))

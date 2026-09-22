@@ -849,6 +849,17 @@ public final class UsageStore {
         if apiSpendSnapshots[id] != next { apiSpendSnapshots[id] = next }
     }
 
+    /// Claims a first-show reveal for a current, live account. A missing record,
+    /// a stale or pending row, and an account mid-removal all return false and
+    /// write nothing (KTD6, KTD7).
+    public func claimBankedResetReveal(for key: AccountKey, currentCount: Int?) -> Bool {
+        guard acceptsResult(for: key, attachmentGeneration: attachmentGenerations[key, default: 0]) else {
+            return false
+        }
+        guard snapshot(for: key).freshness == .live else { return false }
+        return bankedResetAcknowledgements?.claimReveal(for: key, currentCount: currentCount) ?? false
+    }
+
     public func snapshot(for key: AccountKey) -> UsageSnapshot {
         snapshots[key] ?? .pending(for: key.providerID)
     }

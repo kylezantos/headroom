@@ -511,9 +511,13 @@ struct AccountSectionView: View {
     let onRetry: () -> Void
     /// R2C22: false for the account rows nested under a capability card's own provider row.
     var showsMark: Bool = true
+    var claimBankedResetReveal: ((AccountKey, Int?) -> Bool)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
+    @State private var isRevealingBankedResets = false
+    @State private var bankedRevealCount: Int?
+    @State private var bankedRevealTask: Task<Void, Never>?
 
     private var snapshot: UsageSnapshot { entry.snapshot }
     private var account: ProviderAccount { entry.account }
@@ -590,9 +594,14 @@ struct AccountSectionView: View {
             HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
             value: sessionKey
         )
-        .onChange(of: snapshot.freshness) { evaluateConnectedPayoff() }
+        .onChange(of: snapshot.freshness) {
+            evaluateConnectedPayoff()
+            evaluateBankedResetReveal()
+        }
+        .onChange(of: snapshot.bankedResets) { evaluateBankedResetReveal() }
         .onAppear {
             evaluateConnectedPayoff()
+            evaluateBankedResetReveal()
             SetupSessions.announceFailureIfNeeded(for: account)
         }
         .onChange(of: setupState) {
@@ -612,7 +621,8 @@ struct AccountSectionView: View {
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark,
             bankedResets: snapshot.bankedResets,
-            isCritical: snapshot.hasLiveCriticalResettableWindow
+            isCritical: snapshot.hasLiveCriticalResettableWindow,
+            isRevealing: isRevealingBankedResets
         )
     }
 
@@ -819,6 +829,25 @@ struct AccountSectionView: View {
             SetupSessions.performRecovery(action, for: account, onRetry: onRetry)
         case .signIn:
             SetupSessions.openSetup(for: account, onRetry: onRetry)
+        }
+    }
+
+    /// Opens the plan capsule once when this row first sees a higher live count (KTD8).
+    private func evaluateBankedResetReveal() {
+        guard case .live = snapshot.freshness else { return }
+        let count = snapshot.bankedResets
+        guard claimBankedResetReveal?(account.key, count) == true else { return }
+        bankedRevealCount = count
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {
+            isRevealingBankedResets = true
+        }
+        bankedRevealTask?.cancel()
+        bankedRevealTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(4))
+            guard !Task.isCancelled, bankedRevealCount == count else { return }
+            withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
+                isRevealingBankedResets = false
+            }
         }
     }
 

@@ -103,7 +103,8 @@ struct PopoverView: View {
                                     anyProviderMultiAccount: anyProviderMultiAccount,
                                     now: context.date,
                                     onRetrySetup: { store.refreshNow() },
-                                    onRetryAccount: { store.refreshAccountNow($0.key) }
+                                    onRetryAccount: { store.refreshAccountNow($0.key) },
+                                    claimBankedResetReveal: { store.claimBankedResetReveal(for: $0, currentCount: $1) }
                                 )
                                 .id(meterRecipeKey)
                                 .transition(.opacity)

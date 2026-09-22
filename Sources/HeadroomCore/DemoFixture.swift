@@ -385,6 +385,7 @@ extension DemoFixture {
         fiveHour: Double,
         weekly: Double,
         email: String? = nil,
+        bankedResets: Int? = nil,
         freshness: Freshness = .live,
         builtIn: Bool = false,
         capability: ProviderCapabilityState? = nil,
@@ -412,6 +413,7 @@ extension DemoFixture {
             windows: windows,
             planLabel: plan,
             accountEmail: snapshotEmail,
+            bankedResets: bankedResets,
             capturedAt: Date().addingTimeInterval(-135),
             freshness: freshness
         )

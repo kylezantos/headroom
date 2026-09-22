@@ -926,6 +926,8 @@ public final class UsageStore {
             windows: snapshot.windows.filter { !$0.kind.isCodexSparkCounter },
             planLabel: snapshot.planLabel,
             accountEmail: snapshot.accountEmail,
+            bankedResets: snapshot.bankedResets,
+            codexResetCreditsField: snapshot.codexResetCreditsField,
             capturedAt: snapshot.capturedAt,
             freshness: snapshot.freshness
         )

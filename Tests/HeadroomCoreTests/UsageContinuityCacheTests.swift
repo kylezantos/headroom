@@ -289,6 +289,114 @@ struct UsageContinuityCacheTests {
         #expect(cache.load().isEmpty)
     }
 
+    @Test func staleMergeKeepsLastKnownBankedResets() {
+        let capturedAt = Date(timeIntervalSince1970: 2_000_000)
+        let prior = UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: 20, resetsAt: .distantFuture)],
+            planLabel: "plus",
+            bankedResets: 2,
+            capturedAt: capturedAt,
+            freshness: .live
+        )
+        let merged = UsageContinuityPolicy.mergedSnapshot(
+            .stale(for: .codex, reason: .transient("down")),
+            with: prior,
+            at: capturedAt.addingTimeInterval(60)
+        )
+        #expect(merged.bankedResets == 2)
+        if case .stale = merged.freshness {} else { Issue.record("merged failure must be stale") }
+    }
+
+    @Test func liveCaptureReplacesBankedResets() {
+        let prior = UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: 20, resetsAt: .distantFuture)],
+            planLabel: "plus",
+            bankedResets: 2,
+            capturedAt: Date(timeIntervalSince1970: 2_000_000),
+            freshness: .live
+        )
+        let raised = UsageSnapshot(
+            providerID: .codex,
+            windows: prior.windows,
+            planLabel: "plus",
+            bankedResets: 3,
+            capturedAt: Date(timeIntervalSince1970: 2_000_300),
+            freshness: .live
+        )
+        let cleared = UsageSnapshot(
+            providerID: .codex,
+            windows: prior.windows,
+            planLabel: "plus",
+            bankedResets: nil,
+            capturedAt: Date(timeIntervalSince1970: 2_000_300),
+            freshness: .live
+        )
+        #expect(UsageContinuityPolicy.mergedSnapshot(raised, with: prior, at: raised.capturedAt!).bankedResets == 3)
+        #expect(UsageContinuityPolicy.mergedSnapshot(cleared, with: prior, at: cleared.capturedAt!).bankedResets == nil)
+    }
+
+    @Test func diskRoundTripRestoresBankedResetsAsStale() {
+        let defaults = freshDefaults()
+        let key = AccountKey(providerID: .codex, accountID: .primary)
+        let capturedAt = Date(timeIntervalSince1970: 2_000_000)
+        UsageContinuityCache(defaults: defaults).save(
+            UsageSnapshot(
+                providerID: .codex,
+                windows: [UsageWindow(kind: .weekly, utilization: 20, resetsAt: .distantFuture)],
+                planLabel: "plus",
+                bankedResets: 2,
+                capturedAt: capturedAt,
+                freshness: .live
+            ),
+            for: key
+        )
+        let restored = UsageContinuityCache(defaults: defaults).load()[key]
+        #expect(restored?.bankedResets == 2)
+        #expect(restored?.planLabel == "plus")
+        if case .stale(let reason) = restored?.freshness {
+            #expect(reason.message.contains("Last known usage"))
+        } else {
+            Issue.record("restored count must ride a stale snapshot")
+        }
+    }
+
+    @Test func versionTwoEnvelopeWithoutBankedResetsDecodesNil() throws {
+        let defaults = freshDefaults()
+        defaults.set(try envelope(bankedResets: nil, extra: ""), forKey: "usageContinuitySnapshots.v2")
+        let key = AccountKey(providerID: .codex, accountID: .primary)
+        let restored = try #require(UsageContinuityCache(defaults: defaults).load()[key])
+        #expect(restored.bankedResets == nil)
+        #expect(restored.planLabel == "plus")
+    }
+
+    @Test func versionTwoEnvelopeIgnoresUnknownKeys() throws {
+        let defaults = freshDefaults()
+        defaults.set(
+            try envelope(bankedResets: 2, extra: #", "futurePerk": "keep""#),
+            forKey: "usageContinuitySnapshots.v2"
+        )
+        let key = AccountKey(providerID: .codex, accountID: .primary)
+        let restored = try #require(UsageContinuityCache(defaults: defaults).load()[key])
+        #expect(restored.bankedResets == 2)
+    }
+
+    private func envelope(bankedResets: Int?, extra: String) throws -> Data {
+        let deadline = Date().addingTimeInterval(86_400).timeIntervalSinceReferenceDate
+        let captured = Date().timeIntervalSinceReferenceDate
+        let count = bankedResets.map { #", "bankedResets": \#($0)"# } ?? ""
+        let json = """
+        {"schemaVersion":2,"records":[{
+          "key":{"providerID":{"raw":"codex"},"accountID":{"raw":"primary"}},
+          "windows":[{"kind":"weekly","utilization":10,"reset":{"kind":"scheduled","deadline":\(deadline)}}],
+          "planLabel":"plus",
+          "capturedAt":\(captured)\(count)\(extra)
+        }]}
+        """
+        return Data(json.utf8)
+    }
+
     private func freshDefaults() -> UserDefaults {
         let suite = "headroom.continuity-cache.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

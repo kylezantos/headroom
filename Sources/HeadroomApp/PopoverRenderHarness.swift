@@ -553,6 +553,7 @@ enum PopoverRenderHarness {
                 windows: DemoFixture.codexSnapshot.windows,
                 planLabel: DemoFixture.codexSnapshot.planLabel,
                 accountEmail: DemoFixture.codexSnapshot.accountEmail,
+                bankedResets: DemoFixture.codexSnapshot.bankedResets,
                 capturedAt: DemoFixture.codexSnapshot.capturedAt,
                 freshness: .stale(.providerSetup(.codexRejectedAuth))
             )

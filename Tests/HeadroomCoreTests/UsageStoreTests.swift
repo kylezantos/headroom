@@ -1543,6 +1543,48 @@ struct UsageStoreTests {
         #expect(store.appDisplaySnapshot(for: .codex).windows.count == 3)
     }
 
+    @Test func failedCodexPollKeepsLastKnownBankedResets() async {
+        let provider = MutableStubProvider(id: .codex, displayName: "Codex", snapshot: UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: 40, resetsAt: .distantFuture)],
+            planLabel: "plus",
+            bankedResets: 2,
+            capturedAt: Date(),
+            freshness: .live
+        ))
+        let store = makeStore(providers: [provider])
+        await store.refreshAll()
+        provider.set(.stale(for: .codex, reason: .transient("blip")))
+        await store.refreshAll()
+        let after = store.snapshot(for: .codex)
+        #expect(after.bankedResets == 2)
+        if case .stale = after.freshness {} else { Issue.record("should be stale") }
+    }
+
+    @Test func hidingSparkCountersKeepsBankedResets() async {
+        let suite = "headroom.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        preferences.showCodexSparkCountersInApp = false
+        let store = UsageStore(providers: [
+            StubProvider(id: .codex, displayName: "Codex", snapshot: UsageSnapshot(
+                providerID: .codex,
+                windows: [
+                    UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                    UsageWindow(kind: .other("codex-spark 5h"), utilization: 40, resetsAt: reset),
+                ],
+                planLabel: "plus",
+                bankedResets: 2,
+                capturedAt: Date(),
+                freshness: .live
+            )),
+        ], preferences: preferences)
+        await store.refreshAll()
+        #expect(store.appDisplaySnapshot(for: .codex).bankedResets == 2)
+        #expect(store.appDisplaySnapshot(for: .codex).windows.map(\.kind) == [.weekly])
+    }
+
     @Test func menuBarWindowSourcePersistsPerProviderAndUpdatesPresentation() async {
         let preferences = freshPreferences()
         let store = UsageStore(providers: [

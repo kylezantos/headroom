@@ -123,6 +123,9 @@ private struct StoredSnapshot: Codable {
     /// Persisted alongside the plan label so a relaunch still names the account before
     /// the first poll lands. Optional, so records written by earlier builds still decode.
     let accountEmail: String?
+    /// Same continuity as `planLabel`. Optional, and the envelope stays at schema 2:
+    /// a missing key is nil, and a later build's unknown keys are ignored on rollback (KTD2).
+    let bankedResets: Int?
     let capturedAt: Date?
 
     init(key: AccountKey, snapshot: UsageSnapshot) {
@@ -130,6 +133,7 @@ private struct StoredSnapshot: Codable {
         self.windows = snapshot.windows.map(StoredWindow.init)
         self.planLabel = snapshot.planLabel
         self.accountEmail = snapshot.accountEmail
+        self.bankedResets = snapshot.bankedResets
         self.capturedAt = snapshot.capturedAt
     }
 
@@ -140,6 +144,7 @@ private struct StoredSnapshot: Codable {
         }
         self.planLabel = legacy.planLabel
         self.accountEmail = legacy.accountEmail
+        self.bankedResets = nil
         self.capturedAt = legacy.capturedAt
     }
 
@@ -151,6 +156,7 @@ private struct StoredSnapshot: Codable {
             windows: restoredWindows,
             planLabel: planLabel,
             accountEmail: accountEmail,
+            bankedResets: bankedResets,
             capturedAt: capturedAt,
             freshness: .stale(.transient("Last known usage — refreshing"))
         )
@@ -351,6 +357,7 @@ enum UsageContinuityPolicy {
             windows: windows,
             planLabel: cached.planLabel,
             accountEmail: cached.accountEmail,
+            bankedResets: cached.bankedResets,
             capturedAt: cached.capturedAt,
             freshness: .stale(.transient("Last known usage — refreshing"))
         )
@@ -394,6 +401,7 @@ enum UsageContinuityPolicy {
             windows: windows,
             planLabel: prior.planLabel,
             accountEmail: prior.accountEmail,
+            bankedResets: prior.bankedResets,
             capturedAt: prior.capturedAt,
             freshness: .stale(reason)
         )
@@ -485,6 +493,7 @@ enum UsageContinuityPolicy {
             windows: fresh.windows + retained,
             planLabel: fresh.planLabel,
             accountEmail: fresh.accountEmail,
+            bankedResets: fresh.bankedResets,
             capturedAt: fresh.capturedAt,
             freshness: .live
         )

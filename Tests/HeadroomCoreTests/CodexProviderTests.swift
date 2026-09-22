@@ -182,6 +182,13 @@ struct CodexProviderTests {
         #expect(snap.codexBankedResetProbeLine == "banked resets: 0")
     }
 
+    @Test func overflowingAvailableCountIsNotReported() async {
+        let snap = await live(credits: #"{ "available_count": 1e100 }"#)
+        #expect(snap.freshness == .live)
+        #expect(snap.bankedResets == nil)
+        #expect(snap.codexResetCreditsField == .notReported)
+    }
+
     @Test func negativeAvailableCountIsNotReported() async {
         let snap = await live(credits: #"{ "available_count": -1 }"#)
         #expect(snap.freshness == .live)

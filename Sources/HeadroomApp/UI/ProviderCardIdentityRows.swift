@@ -834,8 +834,14 @@ struct AccountSectionView: View {
 
     /// Opens the plan capsule once when this row first sees a higher live count (KTD8).
     private func evaluateBankedResetReveal() {
-        guard case .live = snapshot.freshness else { return }
+        guard case .live = snapshot.freshness else {
+            endBankedResetReveal()
+            return
+        }
         let count = snapshot.bankedResets
+        if isRevealingBankedResets, bankedRevealCount != count {
+            endBankedResetReveal()
+        }
         guard claimBankedResetReveal?(account.key, count) == true else { return }
         bankedRevealCount = count
         withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {
@@ -848,6 +854,19 @@ struct AccountSectionView: View {
             withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
                 isRevealingBankedResets = false
             }
+        }
+    }
+
+    /// A count drop or a non-live row must close an in-flight reveal. The hold task
+    /// only settles when the count still matches, so leaving it running would pin the
+    /// capsule open (KTD8).
+    private func endBankedResetReveal() {
+        bankedRevealTask?.cancel()
+        bankedRevealTask = nil
+        bankedRevealCount = nil
+        guard isRevealingBankedResets else { return }
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
+            isRevealingBankedResets = false
         }
     }
 

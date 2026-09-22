@@ -634,8 +634,14 @@ struct ProviderCardView: View {
     /// so two observers cannot acknowledge a credit with no capsule opening (KTD8).
     private func evaluateBankedResetReveal() {
         guard !isMultiAccount else { return }
-        guard case .live = snapshot.freshness else { return }
+        guard case .live = snapshot.freshness else {
+            endBankedResetReveal()
+            return
+        }
         let count = snapshot.bankedResets
+        if isRevealingBankedResets, bankedRevealCount != count {
+            endBankedResetReveal()
+        }
         guard claimBankedResetReveal?(primaryAccount.key, count) == true else { return }
         bankedRevealCount = count
         withAnimation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)) {
@@ -648,6 +654,19 @@ struct ProviderCardView: View {
             withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
                 isRevealingBankedResets = false
             }
+        }
+    }
+
+    /// A count drop or a non-live row must close an in-flight reveal. The hold task
+    /// only settles when the count still matches, so leaving it running would pin the
+    /// capsule open (KTD8).
+    private func endBankedResetReveal() {
+        bankedRevealTask?.cancel()
+        bankedRevealTask = nil
+        bankedRevealCount = nil
+        guard isRevealingBankedResets else { return }
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
+            isRevealingBankedResets = false
         }
     }
 

@@ -140,6 +140,9 @@ public final class UsageStore {
     /// sign-outs. Optional so the render harness, demo stores, and tests that don't
     /// care compose without it.
     let signOutRecord: SignOutRecord?
+    /// Per-account banked-reset announcements. Optional so tests and the demo
+    /// store compose without it; the shipping store always has one (KTD6).
+    let bankedResetAcknowledgements: BankedResetAcknowledgements?
     private let now: @Sendable () -> Date
     /// Builds the concrete provider for a newly added account. Lives in the composition
     /// root (R13) and is injected so the store never names concrete provider types.
@@ -172,6 +175,7 @@ public final class UsageStore {
         providerFactory: (@MainActor (ProviderAccount) -> any UsageProvider)? = nil,
         continuityCache: (any UsageContinuityCaching)? = nil,
         signOutRecord: SignOutRecord? = nil,
+        bankedResetAcknowledgements: BankedResetAcknowledgements? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         widgetExporter: (any WidgetSnapshotExporting)? = nil,
         phoneSyncExporter: (any WidgetSnapshotExporting)? = nil
@@ -184,6 +188,7 @@ public final class UsageStore {
         self.providerFactory = providerFactory
         self.continuityCache = continuityCache
         self.signOutRecord = signOutRecord
+        self.bankedResetAcknowledgements = bankedResetAcknowledgements
         self.now = now
         self.widgetExporter = widgetExporter
         self.phoneSyncExporter = phoneSyncExporter
@@ -758,6 +763,9 @@ public final class UsageStore {
             at: now()
         )
         recordSignOutEdge(next, for: key)
+        if next.freshness == .live {
+            bankedResetAcknowledgements?.lower(for: key, currentCount: next.bankedResets)
+        }
         // Skip the assignment when nothing changed so an unchanging state (e.g. a
         // provider that stays logged-out) doesn't invalidate observers every cycle.
         if snapshots[key] != next { snapshots[key] = next }

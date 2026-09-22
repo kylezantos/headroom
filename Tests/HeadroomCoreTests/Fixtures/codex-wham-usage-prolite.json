@@ -11,6 +11,9 @@
     },
     "secondary_window": null
   },
+  "rate_limit_reset_credits": {
+    "available_count": 2
+  },
   "additional_rate_limits": [
     {
       "limit_name": "GPT-5.3-Codex-Spark",

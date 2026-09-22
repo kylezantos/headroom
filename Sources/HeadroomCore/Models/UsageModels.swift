@@ -309,6 +309,32 @@ public enum Freshness: Sendable, Equatable {
     case stale(FailureReason)
 }
 
+/// How `rate_limit_reset_credits` arrived on a Codex capture. Nil on every other
+/// provider. The card reads `bankedResets`; `--probe-codex` reads this so a
+/// key-present `null` stays distinguishable from a missing key and from
+/// `available_count: 0` (R2).
+public enum CodexResetCreditsField: Sendable, Equatable {
+    /// The key was not in the body.
+    case absent
+    /// The key was present and JSON `null` — reported zero.
+    case nullObject
+    /// A non-negative integral `available_count`, including 0.
+    case count(Int)
+    /// The key was present but carried no usable count (missing, negative,
+    /// fractional, or a non-object). Not reported.
+    case notReported
+
+    /// Snapshot count for this shape. `null` and a literal `0` are both reported
+    /// zero; a missing or unusable value is not reported.
+    public var bankedResets: Int? {
+        switch self {
+        case .nullObject: return 0
+        case .count(let count): return count
+        case .absent, .notReported: return nil
+        }
+    }
+}
+
 /// A provider's usage at a point in time. `capturedAt` is nil while `.pending`.
 public struct UsageSnapshot: Sendable, Equatable {
     public let providerID: ProviderID
@@ -321,6 +347,13 @@ public struct UsageSnapshot: Sendable, Equatable {
     /// missing email must never turn a good usage capture into a failure. Defaulted in
     /// the initializer so snapshot *transforms* opt in explicitly to carrying it forward.
     public let accountEmail: String?
+    /// Banked rate-limit resets held by this account. Nil means not reported;
+    /// 0 means reported zero (a key-present `null` or `available_count: 0`).
+    /// Only Codex populates it (KTD1, KTD11).
+    public let bankedResets: Int?
+    /// Codex field shape behind `bankedResets`. Not persisted; continuity
+    /// restores the count alone. Nil except on a Codex decode.
+    public let codexResetCreditsField: CodexResetCreditsField?
     public let capturedAt: Date?
     public let freshness: Freshness
 
@@ -329,6 +362,8 @@ public struct UsageSnapshot: Sendable, Equatable {
         windows: [UsageWindow],
         planLabel: String?,
         accountEmail: String? = nil,
+        bankedResets: Int? = nil,
+        codexResetCreditsField: CodexResetCreditsField? = nil,
         capturedAt: Date?,
         freshness: Freshness
     ) {
@@ -336,8 +371,25 @@ public struct UsageSnapshot: Sendable, Equatable {
         self.windows = windows
         self.planLabel = planLabel
         self.accountEmail = accountEmail
+        self.bankedResets = bankedResets
+        self.codexResetCreditsField = codexResetCreditsField
         self.capturedAt = capturedAt
         self.freshness = freshness
+    }
+
+    /// `--probe-codex` line. Three live states stay distinguishable: an integer
+    /// (including reported `0`), a key-present `null`, and a missing key.
+    public var codexBankedResetProbeLine: String {
+        switch codexResetCreditsField {
+        case .absent, nil:
+            return "banked resets: absent (field not present)"
+        case .nullObject:
+            return "banked resets: null (reported zero)"
+        case .count(let count):
+            return "banked resets: \(count)"
+        case .notReported:
+            return "banked resets: not reported"
+        }
     }
 
     /// The first-run snapshot for a provider: no data, no timestamp.
@@ -347,6 +399,7 @@ public struct UsageSnapshot: Sendable, Equatable {
             windows: [],
             planLabel: nil,
             accountEmail: nil,
+            bankedResets: nil,
             capturedAt: nil,
             freshness: .pending
         )
@@ -361,6 +414,7 @@ public struct UsageSnapshot: Sendable, Equatable {
             windows: [],
             planLabel: nil,
             accountEmail: nil,
+            bankedResets: nil,
             capturedAt: nil,
             freshness: .stale(reason)
         )
@@ -375,6 +429,8 @@ public struct UsageSnapshot: Sendable, Equatable {
             windows: windows,
             planLabel: planLabel,
             accountEmail: accountEmail,
+            bankedResets: bankedResets,
+            codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
             freshness: .stale(reason)
         )
@@ -405,6 +461,8 @@ public extension UsageSnapshot {
             windows: ordered,
             planLabel: planLabel,
             accountEmail: accountEmail,
+            bankedResets: bankedResets,
+            codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
             freshness: freshness
         )

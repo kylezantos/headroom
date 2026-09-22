@@ -11,6 +11,50 @@ struct CodexUsageDTO: Decodable {
     let rate_limit: CodexRateLimitDTO?
     let plan_type: String?
     let additional_rate_limits: [CodexNamedWindowDTO]?
+    /// Key-absent, JSON `null`, a usable count, or a present-but-unusable value.
+    /// A hand-written init keeps a bad credits shape from failing the body (KTD3)
+    /// while still telling `null` from a missing key (R2).
+    let resetCreditsField: CodexResetCreditsField
+
+    enum CodingKeys: String, CodingKey {
+        case rate_limit, plan_type, additional_rate_limits, rate_limit_reset_credits
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        rate_limit = try c.decodeIfPresent(CodexRateLimitDTO.self, forKey: .rate_limit)
+        plan_type = try c.decodeIfPresent(String.self, forKey: .plan_type)
+        additional_rate_limits = try c.decodeIfPresent([CodexNamedWindowDTO].self, forKey: .additional_rate_limits)
+        resetCreditsField = Self.readResetCredits(c)
+    }
+
+    private static func readResetCredits(_ c: KeyedDecodingContainer<CodingKeys>) -> CodexResetCreditsField {
+        let key = CodingKeys.rate_limit_reset_credits
+        guard c.contains(key) else { return .absent }
+        if (try? c.decodeNil(forKey: key)) == true { return .nullObject }
+        guard let dto = try? c.decode(CodexResetCreditsDTO.self, forKey: key),
+              let count = dto.reportedCount else { return .notReported }
+        return .count(count)
+    }
+}
+
+struct CodexResetCreditsDTO: Decodable {
+    let availableCount: Double?
+
+    enum CodingKeys: String, CodingKey { case available_count }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        availableCount = c.flexibleDouble(.available_count)
+    }
+
+    /// Non-negative integral counts only. Fractional, negative, and overflowing
+    /// values are not reported (R2).
+    var reportedCount: Int? {
+        guard let availableCount, availableCount >= 0,
+              let count = Int(exactly: availableCount) else { return nil }
+        return count
+    }
 }
 
 struct CodexRateLimitDTO: Decodable {

@@ -86,6 +86,8 @@ public struct CodexProvider: UsageProvider {
             windows: windows,
             planLabel: dto.plan_type,        // lenient: any string, incl. new tiers (#709)
             accountEmail: accountEmail,
+            bankedResets: dto.resetCreditsField.bankedResets,
+            codexResetCreditsField: dto.resetCreditsField,
             capturedAt: now(),
             freshness: .live
         )

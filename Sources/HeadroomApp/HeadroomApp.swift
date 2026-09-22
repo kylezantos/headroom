@@ -189,6 +189,7 @@ enum Entry {
                 if let plan = snapshot.planLabel {
                     print("  plan: \(plan)")
                 }
+                print("  \(snapshot.codexBankedResetProbeLine)")
                 for window in snapshot.windows {
                     print("  • \(window.kind)  \(Int(window.utilization.rounded()))% used  \(ResetDiagnostic.line(for: window.resetSchedule, observedAt: window.observedAt ?? snapshot.capturedAt, now: Date()))  (remaining \(Int(window.percentRemaining.rounded()))%)")
                 }

@@ -511,6 +511,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   neither the small (`primarySubscriptionWindow`) nor the medium (`displaySubscriptionWindows`)
   family ever draws one — only the large widget and iOS do. The switch therefore sits under a
   preview that never responds to it. Either preview the large family too, or move the switch.
+- **The automatic summary pill has no obvious way back (2026-09-22).** "Use one automatic
+  summary pill instead…" discards the arranged pill list, and the only exit is pressing
+  **Add pill** per provider — hinted at by one help line. A user who tried it could not find
+  the way back. Remember the last `.providers` selection when switching to `.auto` and offer a
+  direct "Restore separate pills" action in the summary state.
 
 ## Motion system residuals (2026-09-04, S1A–M11A)
 

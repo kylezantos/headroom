@@ -148,7 +148,7 @@ xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS \
   -derivedDataPath .xcode-derived build
 ```
 
-Building requires Xcode 27 / Swift 6.4. The Mac app targets macOS 15 Sequoia and later on
+Building requires Xcode 26.6 / Swift 6.3.3. The Mac app targets macOS 15 Sequoia and later on
 Apple silicon: Tahoe uses Liquid Glass, while Sequoia uses a native material popover
 surface. A macOS 15 Apple-silicon runtime smoke remains the release gate before this is
 advertised as supported. Intel slices may be present in generic Xcode artifacts, but Intel

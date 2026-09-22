@@ -875,7 +875,8 @@ enum AppComposition {
             accounts: fixture.accounts,
             accountRegistry: registry,
             providerFactory: factory,
-            continuityCache: continuityCache
+            continuityCache: continuityCache,
+            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults)
         )
     }
 

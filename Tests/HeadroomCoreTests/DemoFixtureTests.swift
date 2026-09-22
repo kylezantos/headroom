@@ -96,10 +96,38 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .spendStates).accounts.count == 4)
         // R2B2: one Claude account posing the partial capture, one Codex account beside it.
         #expect(DemoFixture.multiFixture(for: .windowUnavailable).accounts.count == 2)
+        #expect(DemoFixture.multiFixture(for: .bankedResets).accounts.count == 4)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)
             #expect(fixture.providers.count == fixture.accounts.count)
+        }
+    }
+
+    /// The banked-resets demo poses every capsule state and keeps the count off every other scenario.
+    @Test func bankedResetsScenarioPosesCountsAndOneCriticalWindow() async {
+        let fixture = DemoFixture.multiFixture(for: .bankedResets)
+        let byAccount = Dictionary(uniqueKeysWithValues: fixture.accounts.map { ($0.key, $0.label) })
+        var labeled: [String: Int?] = [:]
+        var criticalLabels: [String] = []
+        for provider in fixture.providers {
+            let snapshot = await provider.fetchSnapshot()
+            let key = AccountKey(providerID: provider.id, accountID: provider.accountID)
+            let label = byAccount[key] ?? ""
+            labeled[label] = snapshot.bankedResets
+            if snapshot.hasLiveCriticalResettableWindow { criticalLabels.append(label) }
+        }
+        #expect(labeled["Personal"]! == nil)
+        #expect(labeled["Northwind Research Workspace"]! == 2)
+        #expect(labeled["On call"]! == 1)
+        #expect(labeled["Quiet"]! == 0)
+        #expect(criticalLabels == ["On call"])
+
+        for scenario in DemoFixture.MultiAccountScenario.allCases where scenario != .bankedResets {
+            for provider in DemoFixture.multiFixture(for: scenario).providers {
+                let snapshot = await provider.fetchSnapshot()
+                #expect(snapshot.bankedResets == nil)
+            }
         }
     }
 

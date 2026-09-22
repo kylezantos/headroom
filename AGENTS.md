@@ -130,7 +130,7 @@ swift test                         # unit suite (fast, all mocked — no CLI/net
 ./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
-swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained]  # live app with fixture data (screenshots, multi-account preview; multi-20 is the tested envelope)
+swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # live app with fixture data (screenshots, multi-account preview; multi-20 is the tested envelope)
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```
 
@@ -150,7 +150,7 @@ never collapse them into a generic “released.” Preflight dedicated test envi
 security/browser handoffs before publishing. Do not brute-force menu-bar UI, configure iPhone
 Mirroring during a release, or use broad process termination to clean up QA copies.
 
-Building requires Xcode 27 / Swift 6.4. The app targets macOS 15+ on Apple silicon; a real
+Building requires Xcode 26.6 / Swift 6.3.3. The app targets macOS 15+ on Apple silicon; a real
 macOS 15 Apple-silicon runtime smoke is required before advertising Sequoia support. Claude
 requires the `claude` CLI logged in; Codex requires its CLI-managed `~/.codex/auth.json`.
 When Codex auth is missing or rejected, the app delegates recovery to official `codex login`
@@ -214,6 +214,12 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   back to the slot only when the field is absent. Verify fixtures against a live capture with
   `--probe-codex` (or curl `chatgpt.com/backend-api/wham/usage` with the `~/.codex/auth.json`
   token) — the DTO field names in `UsageDTOs.swift` were originally speculative.
+- **Codex banked resets come from `wham/usage` only.** `rate_limit_reset_credits.available_count`
+  is Codex-only metadata on that same poll. A missing key is not reported; a present JSON
+  `null` is reported zero. The plan capsule opens on its own only while a live 5-hour or
+  weekly window is Critical (≤15% remaining), not at Low. The credits endpoint is unused:
+  Headroom never redeems. Inspect every capsule state with `--demo banked-resets`. See
+  `docs/solutions/codex-banked-resets.md`.
 - **PTY probe robustness is intentional** — hard deadlines, guaranteed process-group kill,
   quiet-period capture across re-renders, login-shell PATH resolution (works from a bare
   Finder-launch env), off-main-actor. Preserve these when editing `ClaudeUsageCLIProbe`;
@@ -333,3 +339,5 @@ Durable provider and debugging learnings live in `docs/solutions/`; check them b
 provider parsing or continuity behavior.
 Codex field names are now verified against a live `wham/usage` capture — see the
 `#codex-window-kind` gotcha above and `docs/solutions/codex-window-kind-mislabel.md`.
+Banked reset credits on that same response are recorded in
+`docs/solutions/codex-banked-resets.md`.

@@ -359,6 +359,9 @@ extension DemoFixture {
         /// retryable stale row. `spend-states` can only pose one shape per row, and the
         /// nil-amount collapse is the shape it exists to show.
         case spendRetained = "spend-retained"
+        /// Codex banked resets: a long healthy title with two credits, one Critical account
+        /// with one credit, a reported-zero Codex row, and a Claude row with no count.
+        case bankedResets = "banked-resets"
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
@@ -606,6 +609,38 @@ extension DemoFixture {
                 ),
                 builtInProviderPair(provider: .grok, snapshot: grokSnapshot, label: "Main"),
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot, label: "Main"),
+            ]
+        case .bankedResets:
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                demoAccount(
+                    provider: .codex,
+                    id: "codex-main",
+                    label: "Northwind Research Workspace",
+                    plan: "Plus",
+                    fiveHour: 9,
+                    weekly: 36,
+                    bankedResets: 2,
+                    builtIn: true
+                ),
+                demoAccount(
+                    provider: .codex,
+                    id: "codex-critical",
+                    label: "On call",
+                    plan: "Plus",
+                    fiveHour: 88,
+                    weekly: 36,
+                    bankedResets: 1
+                ),
+                demoAccount(
+                    provider: .codex,
+                    id: "codex-zero",
+                    label: "Quiet",
+                    plan: "Plus",
+                    fiveHour: 22,
+                    weekly: 48,
+                    bankedResets: 0
+                ),
             ]
         case .duplicateLabels:
             pairs = [

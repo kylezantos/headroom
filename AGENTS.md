@@ -139,8 +139,9 @@ swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-st
 For any request to prepare, publish, or ship a new public Headroom DMG, use the repo-local
 `release-website-dmg` skill. Its authoritative runbook is
 `docs/release/website-dmg-release.md`; it covers Developer ID signing, notarization, the
-Sparkle appcast, portfolio deployment, and the required installed-app update acceptance test.
-The public domain is `headroom.zantos.co`.
+Sparkle appcast, Headroom website deployment, and the required installed-app update acceptance test.
+The public domain is `headroom.zantos.co`. Its dedicated Vercel project and private website
+repository are both `headroom-site`; `kz-portfolio` no longer publishes Headroom releases.
 
 For a coordinated release that also includes TestFlight or App Store work, begin with
 `docs/release/release-operations.md`. Keep macOS publication, Sparkle acceptance, TestFlight

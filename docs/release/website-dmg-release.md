@@ -10,14 +10,14 @@ shared preflight, state vocabulary, UI boundaries, and closeout evidence. This r
 the macOS website lane.
 
 The macOS app source is this repository. The public files are hosted by the separate
-`/Users/kylezantos/App Development/Manual Library/kz-portfolio` repository. Its Vercel
+`/Users/kylezantos/App Development/Manual Library/headroom-site` repository. Its Vercel
 project owns `headroom.zantos.co`; do not deploy the generated `dist/` directory directly as a
 new Vercel project.
 
 ## Prerequisites
 
 - The Headroom release commit already merged to `main`, and a clean, up-to-date
-  `kz-portfolio/main` before creating its publish branch.
+  `headroom-site/main` before creating its publish branch.
 - A Developer ID Application certificate installed locally.
 - Working notarization credentials, normally the `headroom-notary` keychain profile.
 - The Sparkle private signing key available in the login Keychain.
@@ -35,6 +35,11 @@ Confirm the signing prerequisites without exposing credentials:
 security find-identity -v -p codesigning | rg 'Developer ID Application'
 xcrun notarytool history --keychain-profile headroom-notary
 ```
+
+Website ownership: GitHub `kylezantos/headroom-site`, Vercel `headroom-site`.
+`main` is staging; `production` serves `headroom.zantos.co`. Portfolio deployments are
+independent and must never be used to publish Headroom. Only signed binaries go into
+`kylezantos/headroom-downloads`; keep the source repositories private.
 
 ## 1. Bump the release version
 
@@ -81,7 +86,7 @@ setting is renamed.
 
 `Scripts/release-app.sh` generates the appcast from `dist/headroom.zantos.co`. That directory
 is local build output and may be stale. Before every release, seed it from the current
-production asset set in the portfolio repository. This preserves the current appcast item and
+production asset set in the Headroom website repository. This preserves the current appcast item and
 lets Sparkle generate a delta from the version users actually have.
 
 ```bash
@@ -92,17 +97,17 @@ if [[ -e "$STAGING" ]]; then
   mv "$STAGING" "$BACKUP/headroom.zantos.co"
 fi
 ditto \
-  '/Users/kylezantos/App Development/Manual Library/kz-portfolio/public' \
+  '/Users/kylezantos/App Development/Manual Library/headroom-site/public' \
   "$STAGING"
 ```
 
 The prior local staging folder is retained under ignored `dist/release-staging-backups/` so this
-step never destroys a recoverable artifact. The portfolio no longer bundles DMGs or deltas. After copying its small public files,
+step never destroys a recoverable artifact. The Headroom website no longer bundles DMGs or deltas. After copying its small public files,
 hydrate the staging directory from the verified archive:
 
 ```bash
 python3 \
-  "/Users/kylezantos/App Development/Manual Library/kz-portfolio/scripts/restore-headroom-binaries.py" \
+  "/Users/kylezantos/App Development/Manual Library/headroom-site/scripts/restore-headroom-binaries.py" \
   "$STAGING"
 ```
 
@@ -189,11 +194,11 @@ optimize matching older builds. The target item must also contain a
 must be non-empty. `Scripts/release-app.sh` validates this after both normal `generate_appcast`
 output and the timeout fallback.
 
-## 4. Publish assets through the portfolio repository
+## 4. Publish assets through the Headroom website repository
 
-Create a branch in `kz-portfolio`. The website keeps only metadata, notes and checksums;
+Create a branch in `headroom-site`. The website keeps only metadata, notes and checksums;
 signed binaries live in the public artifact-only `kylezantos/headroom-downloads` repository.
-The app source remains private. Run from the current portfolio checkout:
+The app source remains private. Run from the current Headroom website checkout:
 
 ```bash
 pnpm publish:headroom /absolute/path/to/headroom/dist/headroom.zantos.co
@@ -212,8 +217,8 @@ manifest mappings and release assets. Use the hydration command above whenever l
 needs older installers. If publication fails, leave the current website live and fix the failure;
 do not bypass verification or overwrite an existing versioned archive asset.
 
-Open a PR to `kz-portfolio/main`, wait for the Vercel preview check, then merge it. Promote the
-portfolio site through its documented production path, never by pushing directly to its
+Open a PR to `headroom-site/main`, wait for the Vercel preview check, then merge it. Promote the
+Headroom website through its documented production path, never by pushing directly to its
 `production` branch:
 
 ```bash
@@ -254,7 +259,7 @@ Use a VM/dedicated Mac, or install into `~/Applications` in a dedicated macOS te
 does not replace a working development install. A separate user alone does not isolate the shared
 `/Applications` directory.
 
-1. Download an older **public** versioned DMG through its URL in the portfolio download manifest. Verify its
+1. Download an older **public** versioned DMG through its URL in the Headroom website download manifest. Verify its
    Developer ID signature, notarization, version, and build before installing it. A local or
    Apple Development-signed bundle is not a valid starting point.
 2. Before launching, inspect exact Headroom process paths. Keep only this public installation
@@ -339,7 +344,7 @@ must never fabricate a five-hour row.
 
 ## Rollback
 
-If the public artifacts are wrong, revert the release-asset commit in `kz-portfolio/main` and
+If the public artifacts are wrong, revert the release-asset commit in `headroom-site/main` and
 run `pnpm ship` again. This restores the prior stable DMG, manifest, and appcast together.
 Do not delete the notarized versioned DMG from this repository's local `dist/` history while
 investigating.

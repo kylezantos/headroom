@@ -8,6 +8,18 @@ metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium,
 glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +
 widgets that read a redaction-safe snapshot synced from the Mac through iCloud Key-Value Store.
 
+## Website and release ownership
+
+The website is independent of the portfolio. The private `kylezantos/headroom-site`
+repository deploys the Vercel `headroom-site` project at **https://headroom.zantos.co**.
+This repository owns app source, version bumps, signing, notarization, and release acceptance.
+The public `kylezantos/headroom-downloads` repository stores signed DMGs and Sparkle deltas.
+
+Follow [the website release runbook](docs/release/website-dmg-release.md): build here,
+publish metadata/archive mappings through a PR in `headroom-site`, then run `pnpm ship`
+there to promote `main` to `production`. Do not publish releases through `kz-portfolio`.
+Existing download, appcast, privacy, and release-note URLs stay unchanged.
+
 ## How it gets the data (and why this way)
 
 - **Claude** — reads the real 5-hour and weekly windows by driving the official

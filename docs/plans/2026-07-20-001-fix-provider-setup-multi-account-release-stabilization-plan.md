@@ -6,6 +6,10 @@ date: 2026-07-20
 deepened: 2026-07-20
 ---
 
+> Historical document: website ownership moved to `headroom-site` in September 2026.
+> References below to portfolio publication describe the former setup. For new releases,
+> follow [the current release runbook](../release/website-dmg-release.md).
+
 # fix: Stabilize provider setup and the 1.1 release
 
 ## Summary

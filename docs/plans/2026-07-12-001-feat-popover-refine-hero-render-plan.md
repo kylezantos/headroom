@@ -9,6 +9,10 @@ product_contract_source: ce-plan-bootstrap
 plan_depth: standard
 ---
 
+> Historical document: website ownership moved to `headroom-site` in September 2026.
+> References below to portfolio publication describe the former setup. For new releases,
+> follow [the current release runbook](../release/website-dmg-release.md).
+
 # feat: Refine popover (Fable inline, API Spend) and land headless Tahoe hero render
 
 **Target repos:** app changes (U1–U4) live in this repo, **Headroom** (`tunis-v1` workspace). The hero-image swap (U5) lives in the portfolio repo **`kz-portfolio/el-paso`** (serves `headroom.zantos.co`). All file paths are repo-relative to whichever repo the unit targets, labeled per unit.

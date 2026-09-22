@@ -1,6 +1,6 @@
 ---
 name: release-website-dmg
-description: "Ship or prepare a Headroom macOS website release: bump the version, build a Developer ID-signed and notarized DMG, publish the Sparkle appcast and download assets to headroom.zantos.co through kz-portfolio, and verify fresh downloads and updates from installed older releases. Use whenever the user asks to release, publish, ship, update, or make a new Headroom DMG available."
+description: "Ship or prepare a Headroom macOS website release: bump the version, build a Developer ID-signed and notarized DMG, publish the Sparkle appcast and download assets to headroom.zantos.co through headroom-site, and verify fresh downloads and updates from installed older releases. Use whenever the user asks to release, publish, ship, update, or make a new Headroom DMG available."
 ---
 
 # Headroom Website DMG Release
@@ -18,12 +18,12 @@ each platform runbook as a separate release lane. Report their states separately
 - Treat `https://headroom.zantos.co` as the public site. Do not substitute a similarly named
   domain.
 - The source repo is Headroom. Website metadata and Vercel deployment belong to
-  `/Users/kylezantos/App Development/Manual Library/kz-portfolio`; signed binaries live in
+  `/Users/kylezantos/App Development/Manual Library/headroom-site`; signed binaries live in
   the public artifact-only `kylezantos/headroom-downloads` GitHub Releases archive.
 - Never release from an unmerged Headroom branch, deploy `dist/` as a separate Vercel project,
   force-push, or delete versioned DMGs, checksum files, or Sparkle deltas.
 - Perform external publishing only when the user explicitly asks to ship or publish. For a
-  request to prepare/review the release process, stop before changing the portfolio repo or
+  request to prepare/review the release process, stop before changing the Headroom website repo or
   production site.
 - Preflight every required external environment before publishing: the runbook's isolated Sparkle
   installation, physical TestFlight device, App Store Connect access, and macOS 15 hardware when
@@ -46,8 +46,8 @@ each platform runbook as a separate release lane. Report their states separately
    `docs/release/sparkle/Headroom-<version>-<build>.html`, run `xcodegen generate` and
    `swift test` plus `bash Tests/ReleaseScripts/sparkle-release-notes-tests.sh`, and merge the
    release bump and notes to `main` before generating public artifacts.
-2. Seed `dist/headroom.zantos.co` from the current `kz-portfolio/public` using the runbook's
-   non-destructive staging step, then hydrate archived binaries with the portfolio
+2. Seed `dist/headroom.zantos.co` from the current `headroom-site/public` using the runbook's
+   non-destructive staging step, then hydrate archived binaries with the Headroom website
    `scripts/restore-headroom-binaries.py` helper. This retains the current appcast history so Sparkle can produce
    deltas; the latest full versioned DMG remains the fallback for all older installations.
 3. Run `HEADROOM_NOTARY_PROFILE=headroom-notary ./Scripts/release-app.sh`. Do not echo,
@@ -55,11 +55,11 @@ each platform runbook as a separate release lane. Report their states separately
 4. Validate notarization, Gatekeeper, checksums, `latest.json`, every appcast enclosure, and the
    target build's versioned release-note link and staged HTML before copying release outputs.
    Confirm the app has `SUFeedURL`, `SUPublicEDKey`, and the new `CFBundleVersion` stamped.
-5. Create a normal branch and PR in `kz-portfolio`; run `pnpm publish:headroom <staging-directory>`.
+5. Create a normal branch and PR in `headroom-site`; run `pnpm publish:headroom <staging-directory>`.
    This publishes and verifies binaries in GitHub Releases, updates the download redirect
    manifest, and copies only small website metadata. Never copy DMGs or deltas into `public/`.
    Preserve every existing versioned archive asset and mapping. Build, preview, merge,
-   then use the portfolio's documented `pnpm ship` path.
+   then use the Headroom website's documented `pnpm ship` path.
 6. Validate the live manifest, appcast, stable-DMG checksum, mounted DMG signature, and public
    diagnostic. Then run the runbook's installed-app update test from an older public release in
    its isolated installation. Confirm the update prompt visibly renders the target notes before

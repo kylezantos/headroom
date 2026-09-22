@@ -4,7 +4,7 @@ Use this checklist to coordinate a Headroom release that includes the macOS webs
 TestFlight, or both. The platform runbooks remain authoritative for their artifact-specific
 commands:
 
-- `website-dmg-release.md` — Developer ID, notarization, Sparkle, portfolio, and public DMG
+- `website-dmg-release.md` — Developer ID, notarization, Sparkle, Headroom website, and public DMG
 - `ios-app-review-testflight.md` — archive, upload, TestFlight, and App Review
 
 This document defines the operating order, status vocabulary, and manual boundaries shared by
@@ -30,7 +30,7 @@ Record each state independently. Never summarize a partial chain as “released.
 Write down the target marketing version and build, the previous public macOS build, and the last
 uploaded iOS build. Then confirm every environment required for the requested finish line:
 
-- Headroom `main` and `kz-portfolio/main` are clean, current, and synchronized with origin.
+- Headroom `main` and `headroom-site/main` are clean, current, and synchronized with origin.
 - Developer ID, notarization, Sparkle signing, Xcode/App Store Connect, and Vercel authentication
   are available without exposing secret values.
 - A VM/dedicated Mac, or a dedicated macOS user with a user-local `~/Applications` install, has
@@ -60,7 +60,7 @@ targets drift to different build numbers during a paired release.
 ## Phase 2 — publish through supported lanes
 
 1. Produce and validate the signed/notarized macOS artifact with `Scripts/release-app.sh`.
-2. Publish its complete asset set through a normal `kz-portfolio` PR and `pnpm ship`.
+2. Publish its complete asset set through a normal `headroom-site` PR and `pnpm ship`.
 3. Archive and upload iOS with `Scripts/release-ios-testflight.sh`; if Xcode account state prevents
    CLI upload, use Xcode Organizer once for the same fresh archive.
 4. Verify external state independently: public website files for macOS, processing/group state in
@@ -133,7 +133,7 @@ normal process.
 
 Update the release evidence with exact facts and timestamps:
 
-- merged Headroom and portfolio commits;
+- merged Headroom and Headroom website commits;
 - notarization results, public checksum, appcast version/build, and Sparkle acceptance result;
 - TestFlight upload, processing, group assignment, clean-install acceptance, and App Review state;
 - every explicitly accepted residual, including the environment that was unavailable;

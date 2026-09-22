@@ -8,6 +8,10 @@ product_contract_source: ce-plan-bootstrap
 execution: code
 ---
 
+> Historical document: website ownership moved to `headroom-site` in September 2026.
+> References below to portfolio publication describe the former setup. For new releases,
+> follow [the current release runbook](../release/website-dmg-release.md).
+
 # Versioned Sparkle Release Notes - Plan
 
 ## Goal Capsule

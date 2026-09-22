@@ -22,6 +22,9 @@
 		084D12BD03637F092BEC19F5 /* SoftwareUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98CDEAF6EF0A499E6D0A8FA /* SoftwareUpdateController.swift */; };
 		08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */; };
 		0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */; };
+		B8F4D02C15E36A7B9C2D1F3E /* BankedResetAcknowledgements.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7E3C91B04D25F6A8B1C0E2D /* BankedResetAcknowledgements.swift */; };
+		D0B6F24E37A58C9D1E4F3150 /* PlanCapsulePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A5E13D26F47B8C0D3E204F /* PlanCapsulePresentation.swift */; };
+		F2D8146049C70E1F30615372 /* PlanCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1C7035F48B69D0E2F504261 /* PlanCapsule.swift */; };
 		0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E542DE434B4A2F1EA525110E /* ProviderCardView.swift */; };
 		0C2A5419E7361328ED5ED0EE /* HeadroomWidgetTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */; };
 		0E87B3A709B4AB3E868183BE /* HeadroomWidgetTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */; };
@@ -399,6 +402,9 @@
 		657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIExecutableLocator.swift; sourceTree = "<group>"; };
 		6BECE3EB6F9311F47B82E8D1 /* HeadroomMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomMotion.swift; sourceTree = "<group>"; };
 		6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignOutRecord.swift; sourceTree = "<group>"; };
+		A7E3C91B04D25F6A8B1C0E2D /* BankedResetAcknowledgements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankedResetAcknowledgements.swift; sourceTree = "<group>"; };
+		C9A5E13D26F47B8C0D3E204F /* PlanCapsulePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCapsulePresentation.swift; sourceTree = "<group>"; };
+		E1C7035F48B69D0E2F504261 /* PlanCapsule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCapsule.swift; sourceTree = "<group>"; };
 		6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSApp.swift; sourceTree = "<group>"; };
 		6F81B2B4E053B23EBFA0DBCD /* AccountRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountRegistry.swift; sourceTree = "<group>"; };
 		702E83E9BC8385F802D31257 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
@@ -566,6 +572,7 @@
 			isa = PBXGroup;
 			children = (
 				6F81B2B4E053B23EBFA0DBCD /* AccountRegistry.swift */,
+				A7E3C91B04D25F6A8B1C0E2D /* BankedResetAcknowledgements.swift */,
 				42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */,
 				D3E94962CE286BEB04CB86DC /* Preferences.swift */,
 				C025DD0467C17BEED8A13DCE /* SettingsPane.swift */,
@@ -749,6 +756,7 @@
 				7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */,
 				31E898AC2EE39858F1970170 /* OpticalLeading.swift */,
 				864FC2FB47A9E7D44E659809 /* PopoverView.swift */,
+				E1C7035F48B69D0E2F504261 /* PlanCapsule.swift */,
 				489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */,
 				E542DE434B4A2F1EA525110E /* ProviderCardView.swift */,
 				0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */,
@@ -846,6 +854,7 @@
 				79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */,
 				9DFEA65CFC6937B636FFEACE /* MenuBarPalette.swift */,
 				FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */,
+				C9A5E13D26F47B8C0D3E204F /* PlanCapsulePresentation.swift */,
 				45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */,
 				DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */,
 				2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */,
@@ -1271,6 +1280,8 @@
 				E29E2B87772530D886E3F94F /* SettingsPane.swift in Sources */,
 				61AEE4C12CA5652095E6559A /* SetupCompletionCommand.swift in Sources */,
 				C86BB4BF2961A5AFC310AA84 /* SetupSessionCoordinator.swift in Sources */,
+				B8F4D02C15E36A7B9C2D1F3E /* BankedResetAcknowledgements.swift in Sources */,
+				D0B6F24E37A58C9D1E4F3150 /* PlanCapsulePresentation.swift in Sources */,
 				0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */,
 				7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */,
 				9FB9D89CA5CCEC804645882A /* UsageContinuityCache.swift in Sources */,
@@ -1367,6 +1378,7 @@
 				64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */,
 				D2AFD603422063F0D8C5566A /* OpticalLeading.swift in Sources */,
 				2FF5F97796EE9B85A1379553 /* PopoverRenderHarness.swift in Sources */,
+				F2D8146049C70E1F30615372 /* PlanCapsule.swift in Sources */,
 				E8F06C1901BA60D02C5F964C /* PopoverView.swift in Sources */,
 				08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */,
 				0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */,

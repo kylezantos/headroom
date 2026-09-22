@@ -707,7 +707,9 @@ struct ProviderCardView: View {
             isStale: entry.map { providerCardHasTransientStaleState($0.snapshot) } ?? false,
             email: entry?.snapshot.accountEmail,
             showsPersistentEmail: persistentEmail,
-            showsConnectedChip: showsConnectedChip
+            showsConnectedChip: showsConnectedChip,
+            bankedResets: entry?.snapshot.bankedResets,
+            isCritical: entry?.snapshot.hasLiveCriticalResettableWindow ?? false
         )
     }
 

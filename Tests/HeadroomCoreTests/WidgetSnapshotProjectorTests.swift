@@ -109,6 +109,41 @@ struct WidgetSnapshotProjectorTests {
         #expect(envelope.weeklyProviders[1].weeklyWindow?.percentRemaining == 70)
     }
 
+    @Test func bankedResetsDoNotChangeTheWidgetEnvelope() {
+        let base = UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset)],
+            planLabel: "plus",
+            capturedAt: now,
+            freshness: .live
+        )
+        let withSpare = UsageSnapshot(
+            providerID: .codex,
+            windows: base.windows,
+            planLabel: base.planLabel,
+            bankedResets: 2,
+            capturedAt: now,
+            freshness: .live
+        )
+        let plain = WidgetSnapshotProjector.project(
+            snapshots: [.codex: base],
+            providerOrder: [.codex],
+            displayNames: [.codex: "Codex"],
+            renewalDate: { _ in nil },
+            widgetsEnabled: true,
+            generatedAt: now
+        )
+        let counted = WidgetSnapshotProjector.project(
+            snapshots: [.codex: withSpare],
+            providerOrder: [.codex],
+            displayNames: [.codex: "Codex"],
+            renewalDate: { _ in nil },
+            widgetsEnabled: true,
+            generatedAt: now
+        )
+        #expect(counted == plain)
+    }
+
     @Test func staleProviderCarriesSafeMessageAndPriorWindows() {
         let snapshot = UsageSnapshot(
             providerID: .claude,

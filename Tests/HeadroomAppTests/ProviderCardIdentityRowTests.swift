@@ -438,3 +438,32 @@ private let everySetupSessionState: [SetupSessionState] = [
     .providerCapability(.confirmedAbsent),
     .providerCapability(.inconclusive(.shellTimeout)),
 ].map(SetupSessionState.failed)
+
+@Suite
+struct IdentityRowHelpTests {
+    private let banked = "2 banked resets — a full reset refreshes the 5-hour and weekly windows"
+
+    @Test func helpLinesJoinTitleEmailMainAndBankedInOrder() {
+        let help = IdentityRow.helpLines(
+            title: "Personal",
+            titleIsTruncated: true,
+            email: "a@example.com",
+            isMenuBarAccount: true,
+            bankedHelp: banked
+        )
+        #expect(help == "Personal\na@example.com\n\(IdentityRow.mainAccountHelp)\n\(banked)")
+    }
+
+    @Test func accessibilityPartsAppendTheBankedPhrase() {
+        let label = IdentityRow.accessibilityParts(
+            title: "Personal",
+            planDisplayName: "Plus",
+            isMenuBarAccount: true,
+            isStale: false,
+            email: "a@example.com",
+            showsConnectedChip: false,
+            bankedPhrase: "2 banked resets available — a full reset refreshes the 5-hour and weekly windows"
+        )
+        #expect(label == "Personal, Plus plan, Main account, shown in the menu bar and widgets, signed in as a@example.com, 2 banked resets available — a full reset refreshes the 5-hour and weekly windows")
+    }
+}

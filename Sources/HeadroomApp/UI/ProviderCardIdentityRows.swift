@@ -241,8 +241,10 @@ struct IdentityRow: View {
     /// every account row beneath it, so "✳ Claude" sat 7pt above "✳ Personal". A nested
     /// account row hides its mark and keeps the slot, so the title column never shifts.
     var showsMark: Bool = true
+    var bankedResets: Int? = nil
+    var isCritical: Bool = false
+    var isRevealing: Bool = false
 
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// PB11: whether the tail truncation actually bit. Measured, not guessed — SwiftUI has
     /// no "did this Text truncate" signal, so the rendered width is compared against the
@@ -272,14 +274,13 @@ struct IdentityRow: View {
                 )
             }
             titleText
-            if let planDisplayName {
-                Text(planDisplayName)
-                    .kerning(IdentityRowMetrics.capsuleLabelKerning)
-                    // PA13: the plan pill carries its own token so the dark step is set by |Lc|, not system `.tertiary`.
-                    .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
-                    // CMM9: the plan pill, filled again; the state chip beside it carries
-                    // the ring that tells the two apart.
-                    .identityMetadataLabel()
+            if planDisplayName != nil || (bankedResets ?? 0) > 0 {
+                PlanCapsule(
+                    planDisplayName: planDisplayName,
+                    bankedResets: bankedResets,
+                    isCritical: isCritical,
+                    isRevealing: isRevealing
+                )
             }
             // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
             // rather than pushed to the row's trailing edge — one chip run reading
@@ -364,10 +365,28 @@ struct IdentityRow: View {
     /// information the user cannot recover any other way, and the row already owns the one
     /// tooltip on this line.
     private func rowHelp(email: String?) -> String? {
+        Self.helpLines(
+            title: title,
+            titleIsTruncated: titleIsTruncated,
+            email: email,
+            isMenuBarAccount: isMenuBarAccount,
+            bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
+        )
+    }
+
+    /// One tooltip, in a fixed order: truncated title, email, main-account note, banked resets.
+    static func helpLines(
+        title: String,
+        titleIsTruncated: Bool,
+        email: String?,
+        isMenuBarAccount: Bool,
+        bankedHelp: String?
+    ) -> String? {
         var lines: [String] = []
         if titleIsTruncated { lines.append(title) }
         if let email { lines.append(email) }
-        if isMenuBarAccount { lines.append(Self.mainAccountHelp) }
+        if isMenuBarAccount { lines.append(mainAccountHelp) }
+        if let bankedHelp { lines.append(bankedHelp) }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 
@@ -405,12 +424,33 @@ struct IdentityRow: View {
     static let mainAccountHelp = "Main account — shown in the menu bar and widgets"
 
     private func accessibilityIdentity(email: String?) -> String {
+        Self.accessibilityParts(
+            title: title,
+            planDisplayName: planDisplayName,
+            isMenuBarAccount: isMenuBarAccount,
+            isStale: isStale,
+            email: email,
+            showsConnectedChip: showsConnectedChip,
+            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
+        )
+    }
+
+    static func accessibilityParts(
+        title: String,
+        planDisplayName: String?,
+        isMenuBarAccount: Bool,
+        isStale: Bool,
+        email: String?,
+        showsConnectedChip: Bool,
+        bankedPhrase: String?
+    ) -> String {
         var parts = [title]
         if let planDisplayName { parts.append("\(planDisplayName) plan") }
         if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
         if isStale { parts.append("Stale") }
         if let email { parts.append("signed in as \(email)") }
         if showsConnectedChip { parts.append("Connected") }
+        if let bankedPhrase { parts.append(bankedPhrase) }
         return parts.joined(separator: ", ")
     }
 }
@@ -570,7 +610,9 @@ struct AccountSectionView: View {
             email: snapshot.accountEmail,
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
-            showsMark: showsMark
+            showsMark: showsMark,
+            bankedResets: snapshot.bankedResets,
+            isCritical: snapshot.hasLiveCriticalResettableWindow
         )
     }
 

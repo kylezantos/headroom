@@ -294,10 +294,6 @@ struct MenuBarPillArranger<Card: View>: View {
         }
         .coordinateSpace(.named(pillArrangerSpace))
         .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
-        .animation(
-            HeadroomMotion.resolved(HeadroomMotion.quickSettle, .movement, reduceMotion: reduceMotion),
-            value: receivingShelf
-        )
     }
 
     private func well<Content: View>(
@@ -317,6 +313,13 @@ struct MenuBarPillArranger<Card: View>: View {
             content()
                 .padding(PillShelfModel.wellPadding)
         }
+        // Scoped to the well, not the whole layout: an animation keyed on the drop target
+        // over the cards would override the drag's nudge and settle springs, and animate
+        // the dragged card's pointer-glued offset.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.quickSettle, .crossfade, reduceMotion: reduceMotion),
+            value: receivingShelf == shelf
+        )
         .zIndex(0)
     }
 
@@ -549,10 +552,11 @@ struct PillValueMenu: View {
             .menuStyle(.button)
             .buttonStyle(PillCardChipStyle(horizontalPadding: 5))
             .menuIndicator(.hidden)
-            .fixedSize()
+            // No `fixedSize`: a long model row ("GPT-5.3-Codex-Spark · Weekly") must
+            // truncate inside the card rather than spill over its neighbour.
             .help(note ?? "Choose what the \(name) pill shows")
             .accessibilityLabel("\(name) pill shows")
-            .accessibilityValue(selection == .closest ? "Closest to limit" : selection.kind?.spokenName ?? label)
+            .accessibilityValue(spokenValue)
         } else {
             Text(resolved?.displayName ?? "Waiting…")
                 .font(.system(size: 11))
@@ -582,6 +586,19 @@ struct PillValueMenu: View {
         if selection == .closest { return "Closest" }
         if let resolved, !selection.matches(resolved) { return resolved.displayName }
         return selection.title
+    }
+
+    /// What VoiceOver hears: the limit the pill actually shows, as the visible label does,
+    /// never a saved choice the data no longer carries.
+    private var spokenValue: String {
+        if selection == .closest {
+            return resolved.map { "Closest to limit, now \($0.spokenName)" } ?? "Closest to limit"
+        }
+        let chosen = selection.kind?.spokenName ?? selection.title
+        if let resolved, !selection.matches(resolved) {
+            return "\(resolved.spokenName), while \(chosen) isn’t reported"
+        }
+        return chosen
     }
 
     /// Carried over from the old per-provider list's help line, now the menu's tooltip.

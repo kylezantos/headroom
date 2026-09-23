@@ -475,6 +475,13 @@ struct HeadroomApp: App {
             PopoverView(store: store) {
                 openSettings()
             }
+                // PC1 (Kyle, 2026-09-23): on Tahoe the MenuBarExtra window draws its own
+                // Liquid Glass background behind the popover at the system's smaller corner
+                // radius, so a second corner and rim showed outside the r22 shell. The shell
+                // owns the whole surface (`PopoverSurfaceModifier`); the scene's default
+                // container background goes. Verified in the bundled app — an unbundled
+                // `swift run` gets a different host background, handled in `PopoverView`.
+                .containerBackground(.clear, for: .window)
                 .preferredColorScheme(resolvedScheme)
                 .onChange(of: appearancePreference) { _, newValue in
                     newValue.applyToProcess()

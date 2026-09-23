@@ -4,6 +4,23 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Unbundled `swift run` popover still shows a faint second rim
+
+- **Dev/QA builds only; the bundled app is fixed (PC1, 2026-09-23).** Under `swift run` the
+  MenuBarExtra host draws its background as flat leaf views that `.containerBackground(.clear,
+  for: .window)` does not remove. `configurePopoverWindow` rounds those leaves to the r22 shell,
+  which removes the filled second corner, but a thin window rim at the system's tighter radius
+  still showed on the live `swift run` popover. Masking the whole host view removed the rim and
+  made the glass flicker, so do not reach for that. When judging popover corners, use
+  `./Scripts/build-app.sh` and the bundled app rather than `--demo` under `swift run`.
+
+## Test runs leave thousands of UserDefaults suites behind
+
+- `~/Library/Preferences` holds thousands of `co.zantos.headroom.app-interactions.<UUID>` and
+  `co.zantos.headroom.capability-demo.<UUID>` plists. The suites that create them call
+  `removePersistentDomain(forName:)`, which clears the domain but leaves its plist file on disk.
+  Point these at an in-memory or temp-directory store, or delete the files in teardown.
+
 ## Setup handoff launch still needs a bounded-stall design
 
 - **The explicit Terminal open is asynchronous and has no timeout.** `NSWorkspace.open` normally

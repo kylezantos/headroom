@@ -207,7 +207,7 @@ struct PopoverView: View {
             .frame(width: PopoverCardMetrics.shellWidth)
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.
-            .modifier(PopoverSurfaceModifier(cornerRadius: 22, forceSolid: forceSolidSurface))
+            .modifier(PopoverSurfaceModifier(cornerRadius: Self.shellCornerRadius, forceSolid: forceSolidSurface))
             // Capture the popover's hosting window so opening Settings can dismiss it.
             .background(WindowAccessor { configurePopoverWindow($0) })
             // G1A: the popover is the only surface with a title-ink choice, so this is the
@@ -332,9 +332,31 @@ struct PopoverView: View {
         guard let window else { return }
         // HR-33: keep the custom content radius, but clear the MenuBarExtra host backing
         // so the popover has exactly one system material layer at the rounded edge.
-        window.isOpaque = false
-        window.backgroundColor = .clear
+        // Idempotent: this runs on every view update, and re-assigning window properties
+        // that already hold the value still invalidates the window.
+        if window.isOpaque { window.isOpaque = false }
+        if window.backgroundColor != .clear { window.backgroundColor = .clear }
+        // PC1 (Kyle, 2026-09-23): an unbundled `swift run` (the `--demo` QA path) gets a host
+        // background that `.containerBackground(.clear, for: .window)` does not remove: flat
+        // leaf views spanning the window (a backdrop, a grey fill, a vibrancy layer), clipped
+        // only by the window's smaller corner, so a filled second corner showed outside the
+        // r22 shell. Those leaves are rounded to the shell's radius. Not the host view itself:
+        // masking a parent that holds the live glass made the popover flicker. The bundled
+        // app has no such leaves, so this loop finds nothing there.
+        var reshaped = false
+        for leaf in window.contentView?.subviews ?? [] where leaf.subviews.isEmpty {
+            guard let layer = leaf.layer,
+                  layer.cornerRadius != Self.shellCornerRadius || !layer.masksToBounds else { continue }
+            layer.cornerRadius = Self.shellCornerRadius
+            layer.cornerCurve = .continuous
+            layer.masksToBounds = true
+            reshaped = true
+        }
+        if reshaped { window.invalidateShadow() }
     }
+
+    /// The popover shell's corner radius — the glass surface and the host background share it.
+    static let shellCornerRadius: CGFloat = 22
 
     /// The page title now outweighs the 15pt card titles so hierarchy reads top-down, and
     /// the right slot carries one contextual status: the consolidated "Updated" stamp, or
@@ -822,3 +844,6 @@ private struct WindowAccessor: NSViewRepresentable {
         DispatchQueue.main.async { onResolve(nsView.window) }
     }
 }
+
+
+

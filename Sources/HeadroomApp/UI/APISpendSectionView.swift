@@ -199,6 +199,12 @@ struct APISpendSectionView: View {
                     // S5A (Kyle): the amount never gives up width and never drops to a second
                     // line — at the popover's 299pt content width the chip truncates first.
                     .layoutPriority(2)
+                    // IA1 (Kyle, 2026-09-23): the 18pt amount's ~21pt line box made this row
+                    // taller than an account's identity row, and the centred title dropped
+                    // ~1pt below the account titles in the cards above. The amount now lays
+                    // out in the capsule's 18pt box — the identity line's own height — and
+                    // its digits, which are shorter than that, still centre on the title.
+                    .frame(height: IdentityRowMetrics.capsuleHeight)
             }
         }
     }

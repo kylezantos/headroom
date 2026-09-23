@@ -555,7 +555,10 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   summary pill instead…" discards the arranged pill list, and the only exit is pressing
   **Add pill** per provider — hinted at by one help line. A user who tried it could not find
   the way back. Remember the last `.providers` selection when switching to `.auto` and offer a
-  direct "Restore separate pills" action in the summary state.
+  direct "Restore separate pills" action in the summary state. *Partly addressed 2026-09-23
+  (PS1, pill shelf):* the summary state now lists every provider as a card on the "Not shown"
+  shelf with its own + and a "Drag a provider up" line, so the exit is visible. The switch still
+  discards the arranged list, so restoring several pills is still one add per provider.
 
 ## Motion system residuals (2026-09-04, S1A–M11A)
 

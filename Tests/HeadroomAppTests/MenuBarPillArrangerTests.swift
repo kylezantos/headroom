@@ -3,11 +3,11 @@ import Testing
 import HeadroomCore
 @testable import Headroom
 
-/// SM3: the live arranger shows a pending order through offsets and commits once, on drop,
-/// through the store's move-before contract. These pin the translation from "card left slot
-/// `start` and settled in slot `target`" to that contract.
+/// SM3 → PS1: the live arranger shows a pending arrangement while the pointer is down and
+/// commits once, on drop, through the store's move/add/remove contract. These pin the pure
+/// decisions: where a card lands, where the others sit meanwhile, and what the drop writes.
 struct MenuBarPillArrangerTests {
-    private typealias Arranger = MenuBarPillArranger<EmptyView>
+    private typealias Arranger = PillShelfModel
     private let ids: [ProviderID] = [.claude, .codex, ProviderID("grok"), ProviderID("cursor")]
 
     @Test func movingRightLandsBeforeTheCardAfterTheTarget() {
@@ -37,5 +37,99 @@ struct MenuBarPillArrangerTests {
                 #expect(committed == shown, "start \(start) → target \(target)")
             }
         }
+    }
+
+    // MARK: - Two shelves (PS1)
+
+    private let grok = ProviderID("grok")
+    private let cursor = ProviderID("cursor")
+    private let pitch: CGFloat = 108
+
+    private func drop(
+        _ id: ProviderID,
+        shown: [ProviderID],
+        notShown: [ProviderID],
+        dx: CGFloat,
+        inNotShown: Bool
+    ) -> PillShelfSlot? {
+        PillShelfModel.drop(
+            for: id, shown: shown, notShown: notShown, canonicalOrder: ids,
+            translation: dx, pointerInNotShown: inNotShown, pitch: pitch
+        )
+    }
+
+    @Test func aShelfCardDraggedUpLandsAtTheSlotUnderIt() {
+        // Grok is the shelf's first card, under the menu bar's first slot.
+        let shown: [ProviderID] = [.claude, .codex]
+        let notShown = [grok, cursor]
+        #expect(drop(grok, shown: shown, notShown: notShown, dx: 0, inNotShown: false)
+            == PillShelfSlot(shelf: .menuBar, index: 0))
+        #expect(drop(grok, shown: shown, notShown: notShown, dx: pitch * 0.6, inNotShown: false)
+            == PillShelfSlot(shelf: .menuBar, index: 1))
+        // Past the last pill it appends, never beyond.
+        #expect(drop(grok, shown: shown, notShown: notShown, dx: pitch * 9, inNotShown: false)
+            == PillShelfSlot(shelf: .menuBar, index: 2))
+        #expect(PillShelfModel.commit(for: grok, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .menuBar, index: 1)) == .add(grok, before: .codex))
+        #expect(PillShelfModel.commit(for: grok, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .menuBar, index: 2)) == .add(grok, before: nil))
+    }
+
+    @Test func aPillDraggedDownReturnsToItsCanonicalShelfSlot() {
+        let shown: [ProviderID] = [cursor, .codex]
+        let notShown: [ProviderID] = [.claude, grok]
+        // Cursor is last in canonical order, so it lands after Grok wherever it is dropped.
+        #expect(drop(cursor, shown: shown, notShown: notShown, dx: -pitch * 3, inNotShown: true)
+            == PillShelfSlot(shelf: .notShown, index: 2))
+        #expect(drop(.codex, shown: shown, notShown: notShown, dx: 0, inNotShown: true)
+            == PillShelfSlot(shelf: .notShown, index: 1))
+        #expect(PillShelfModel.commit(for: .codex, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .notShown, index: 1)) == .remove(.codex))
+    }
+
+    @Test func theLastPillCannotLeaveTheMenuBar() {
+        let shown: [ProviderID] = [.codex]
+        let notShown: [ProviderID] = [.claude, grok, cursor]
+        #expect(drop(.codex, shown: shown, notShown: notShown, dx: 0, inNotShown: true)
+            == PillShelfSlot(shelf: .menuBar, index: 0))
+        #expect(PillShelfModel.commit(for: .codex, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .notShown, index: 1)) == .none)
+    }
+
+    @Test func releasingWhereTheCardStartedWritesNothing() {
+        let shown: [ProviderID] = [.claude, .codex]
+        let notShown = [grok, cursor]
+        #expect(PillShelfModel.commit(for: .codex, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .menuBar, index: 1)) == .none)
+        #expect(PillShelfModel.commit(for: grok, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .notShown, index: 0)) == .none)
+        #expect(PillShelfModel.commit(for: .claude, shown: shown, notShown: notShown,
+                                      drop: PillShelfSlot(shelf: .menuBar, index: 1)) == .move(.claude, before: nil))
+    }
+
+    @Test func theOtherCardsOpenAGapAtTheDropAndCloseTheOneLeft() {
+        let shown: [ProviderID] = [.claude, .codex]
+        let notShown = [grok, cursor]
+        let slots = PillShelfModel.slots(
+            shown: shown, notShown: notShown, dragging: cursor,
+            drop: PillShelfSlot(shelf: .menuBar, index: 1)
+        )
+        #expect(slots[.claude] == PillShelfSlot(shelf: .menuBar, index: 0))
+        #expect(slots[.codex] == PillShelfSlot(shelf: .menuBar, index: 2))
+        #expect(slots[grok] == PillShelfSlot(shelf: .notShown, index: 0))
+        // The dragged card keeps its origin; its pointer offset is measured from there.
+        #expect(slots[cursor] == PillShelfSlot(shelf: .notShown, index: 1))
+
+        let resting = PillShelfModel.slots(shown: shown, notShown: notShown, dragging: nil, drop: nil)
+        #expect(resting[.codex] == PillShelfSlot(shelf: .menuBar, index: 1))
+        #expect(resting[cursor] == PillShelfSlot(shelf: .notShown, index: 1))
+    }
+
+    @Test func fourCardsFitOneRowAtTheWindowFloor() {
+        // 720pt window − 216pt sidebar − 40pt pane padding − 26pt tile padding − 2pt inset,
+        // less the well's 9pt insets and three 8pt gaps.
+        #expect(PillShelfModel.cardWidth(forWidth: 436, count: 4) == 98)
+        #expect(PillShelfModel.cardWidth(forWidth: 600, count: 4) == PillShelfModel.maximumCardWidth)
+        #expect(PillShelfModel.cardWidth(forWidth: 0, count: 4) == PillShelfModel.minimumCardWidth)
     }
 }

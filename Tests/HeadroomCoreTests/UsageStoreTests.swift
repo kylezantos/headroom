@@ -1270,6 +1270,32 @@ struct UsageStoreTests {
         #expect(reloaded.menuBarWindowChoice(for: .codex) == .fiveHour)
     }
 
+    /// The pill shelf drops a card between two pills, so an add can land at a position. It
+    /// leaves the automatic summary exactly as the old "Add pill" button did.
+    @Test func menuBarArrangerAddsAPillBeforeAVisiblePill() {
+        let preferences = freshPreferences()
+        preferences.setSurfaceEnabled(true, for: .grokSubscription)
+        preferences.setSurfaceEnabled(true, for: .cursorSubscription)
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor]
+        let store = UsageStore(
+            providers: ids.map { StubProvider(id: $0, displayName: $0.raw, snapshot: .pending(for: $0)) },
+            preferences: preferences
+        )
+        #expect(store.menuBarFillSource == .auto)
+        store.addMenuBarProvider(.codex, before: .claude)
+        #expect(store.selectedMenuBarProviders == [.codex])
+        store.addMenuBarProvider(.claude, before: .codex)
+        #expect(store.selectedMenuBarProviders == [.claude, .codex])
+        store.addMenuBarProvider(.grok, before: .codex)
+        #expect(store.selectedMenuBarProviders == [.claude, .grok, .codex])
+        // A target that is not a visible pill (here, the card being added) appends.
+        store.addMenuBarProvider(.cursor, before: .cursor)
+        #expect(store.selectedMenuBarProviders == [.claude, .grok, .codex, .cursor])
+        // Already shown: the add is a no-op, not a move.
+        store.addMenuBarProvider(.cursor, before: .claude)
+        #expect(store.selectedMenuBarProviders == [.claude, .grok, .codex, .cursor])
+    }
+
     @Test func menuBarArrangerRetainsDisabledProvidersAndRejectsInvalidEdits() {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .both

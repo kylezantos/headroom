@@ -257,7 +257,7 @@ struct SettingsView: View {
                 }
             )
         case .menuBar:
-            MenuBarSettingsPane(store: store)
+            MenuBarSettingsPane(store: store, onOpenAccounts: { sidebarSelection = .accounts })
         case .widgets:
             WidgetsSettingsPane(
                 store: store,

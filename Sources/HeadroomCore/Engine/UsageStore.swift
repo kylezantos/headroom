@@ -466,11 +466,16 @@ public final class UsageStore {
         return menuBarProviderOrder.filter { selected.contains($0) && providerOrder.contains($0) }
     }
 
-    public func addMenuBarProvider(_ id: ProviderID) {
+    /// Adds a pill before `target`, or at the end when `target` is nil or not a visible pill
+    /// (a stale drop). From the automatic summary this switches to separate pills.
+    public func addMenuBarProvider(_ id: ProviderID, before target: ProviderID? = nil) {
         guard providerOrder.contains(id) else { return }
         var selected = menuBarFillSource.providerIDs ?? []
         guard selected.insert(id).inserted else { return }
-        saveMenuBarOrder(menuBarProviderOrder.filter { $0 != id } + [id])
+        var order = menuBarProviderOrder.filter { $0 != id }
+        let anchor = target.flatMap { selectedMenuBarProviders.contains($0) ? order.firstIndex(of: $0) : nil }
+        order.insert(id, at: anchor ?? order.endIndex)
+        saveMenuBarOrder(order)
         setMenuBarFillSource(.providers(selected))
     }
 

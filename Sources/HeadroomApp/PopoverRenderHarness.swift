@@ -39,6 +39,14 @@ enum PopoverRenderHarness {
                     if await renderSettings(pane: .menuBar, percentageMode: .remaining, dark: dark, to: url) {
                         print("✓ \(url.path)")
                     } else { failedPaths.append(url.path) }
+                    // PS1: the shelf with a switched-on provider and a switched-off one.
+                    let shelfURL = outDir.appendingPathComponent("settings-menuBar-shelf-\(dark ? "dark" : "light").png")
+                    if await renderSettings(
+                        pane: .menuBar, percentageMode: .remaining, dark: dark,
+                        menuBarPercentages: true, menuBarShelf: true, to: shelfURL
+                    ) {
+                        print("✓ \(shelfURL.path)")
+                    } else { failedPaths.append(shelfURL.path) }
                 }
                 for path in failedPaths { print("✗ Failed to render \(path)") }
                 exit(failedPaths.isEmpty ? 0 : 1)
@@ -367,6 +375,7 @@ enum PopoverRenderHarness {
         height heightOverride: CGFloat? = nil,
         width widthOverride: CGFloat? = nil,
         menuBarPercentages: Bool? = nil,
+        menuBarShelf: Bool = false,
         to url: URL
     ) async -> Bool {
         // L9A retired the per-pane window heights; the harness captures every pane at
@@ -383,6 +392,10 @@ enum PopoverRenderHarness {
             if let menuBarPercentages {
                 preferences.showMenuBarPercentage = menuBarPercentages
                 preferences.menuBarFillSource = .providers([.claude, .codex, .grok, .cursor])
+            }
+            if menuBarShelf {
+                preferences.menuBarFillSource = .providers([.claude, .codex])
+                preferences.setSurfaceEnabled(false, for: .grokSubscription)
             }
         }
         let store: UsageStore

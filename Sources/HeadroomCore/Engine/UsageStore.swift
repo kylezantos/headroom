@@ -472,11 +472,10 @@ public final class UsageStore {
         guard providerOrder.contains(id) else { return }
         var selected = menuBarFillSource.providerIDs ?? []
         guard selected.insert(id).inserted else { return }
-        var order = menuBarProviderOrder.filter { $0 != id }
-        let anchor = target.flatMap { selectedMenuBarProviders.contains($0) ? order.firstIndex(of: $0) : nil }
-        order.insert(id, at: anchor ?? order.endIndex)
-        saveMenuBarOrder(order)
+        saveMenuBarOrder(menuBarProviderOrder.filter { $0 != id } + [id])
         setMenuBarFillSource(.providers(selected))
+        // The move ignores a target that is not a visible pill, leaving the append.
+        if let target { moveMenuBarProvider(id, before: target) }
     }
 
     public func removeMenuBarProvider(_ id: ProviderID) {

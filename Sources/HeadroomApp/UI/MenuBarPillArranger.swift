@@ -41,6 +41,11 @@ enum PillShelfModel {
         return min(maximumCardWidth, max(minimumCardWidth, (available / CGFloat(count)).rounded(.down)))
     }
 
+    /// The last pill cannot leave the menu bar; a shelf card can always go up.
+    static func canLeave(_ origin: PillShelfSlot, shownCount: Int) -> Bool {
+        origin.shelf == .notShown || shownCount > 1
+    }
+
     static func origin(of id: ProviderID, shown: [ProviderID], notShown: [ProviderID]) -> PillShelfSlot? {
         if let index = shown.firstIndex(of: id) { return PillShelfSlot(shelf: .menuBar, index: index) }
         if let index = notShown.firstIndex(of: id) { return PillShelfSlot(shelf: .notShown, index: index) }
@@ -61,8 +66,7 @@ enum PillShelfModel {
         pitch: CGFloat
     ) -> PillShelfSlot? {
         guard let origin = origin(of: id, shown: shown, notShown: notShown), pitch > 0 else { return nil }
-        let canLeave = origin.shelf == .notShown || shown.count > 1
-        if pointerInNotShown && canLeave {
+        if pointerInNotShown && canLeave(origin, shownCount: shown.count) {
             let landing = canonicalOrder.filter { $0 == id || notShown.contains($0) }
             return PillShelfSlot(shelf: .notShown, index: landing.firstIndex(of: id) ?? notShown.count)
         }
@@ -322,7 +326,7 @@ struct MenuBarPillArranger<Card: View>: View {
         guard let dragged, dragged.id == id,
               let origin = PillShelfModel.origin(of: id, shown: shown, notShown: notShown) else { return .zero }
         let translation = dragged.translation
-        let canLeave = origin.shelf == .notShown || shown.count > 1
+        let canLeave = PillShelfModel.canLeave(origin, shownCount: shown.count)
         guard drop?.shelf == .menuBar else { return translation }
         // Along the menu bar row the card stays between its first and last possible slot.
         let others = shown.filter { $0 != id }.count
@@ -514,9 +518,6 @@ struct PillValueMenu: View {
     let id: ProviderID
     let name: String
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var hovering = false
-
     private var selection: MenuBarWindowChoice { store.menuBarWindowPickerSelection(for: id) }
     private var resolved: WindowKind? { store.resolvedMenuBarWindowKind(for: id) }
 
@@ -542,23 +543,13 @@ struct PillValueMenu: View {
                         .font(.system(size: 7, weight: .semibold))
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(hovering ? .primary : .secondary)
             }
+            // R2C21's menu chrome: `.button` menu style routed through the card's chip style,
+            // so the value shares the hover and press of the ×, +, and arrows around it.
             .menuStyle(.button)
-            .buttonStyle(.plain)
+            .buttonStyle(PillCardChipStyle(horizontalPadding: 5))
             .menuIndicator(.hidden)
             .fixedSize()
-            .padding(.horizontal, 5)
-            .frame(height: PillCardChipStyle.side)
-            .background(
-                PillCardChipStyle.fill(hovering: hovering, pressed: false),
-                in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-            )
-            .onHover { inside in
-                withAnimation(HeadroomMotion.resolved(
-                    inside ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut, .crossfade, reduceMotion: reduceMotion
-                )) { hovering = inside }
-            }
             .help(note ?? "Choose what the \(name) pill shows")
             .accessibilityLabel("\(name) pill shows")
             .accessibilityValue(selection == .closest ? "Closest to limit" : selection.kind?.spokenName ?? label)
@@ -627,16 +618,16 @@ struct PillValueMenu: View {
 struct PillCardChipStyle: ButtonStyle {
     static let side: CGFloat = 18
 
-    static func fill(hovering: Bool, pressed: Bool) -> Color {
-        .primary.opacity(pressed ? 0.12 : hovering ? 0.07 : 0)
-    }
+    /// Zero for the square glyph chips; the value menu pads its text.
+    var horizontalPadding: CGFloat = 0
 
     func makeBody(configuration: Configuration) -> some View {
-        Chip(configuration: configuration)
+        Chip(configuration: configuration, horizontalPadding: horizontalPadding)
     }
 
     private struct Chip: View {
         let configuration: Configuration
+        let horizontalPadding: CGFloat
         @Environment(\.isEnabled) private var isEnabled
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var hovering = false
@@ -645,9 +636,10 @@ struct PillCardChipStyle: ButtonStyle {
             configuration.label
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(hovering && isEnabled ? .primary : .secondary)
+                .padding(.horizontal, horizontalPadding)
                 .frame(minWidth: PillCardChipStyle.side, minHeight: PillCardChipStyle.side)
                 .background(
-                    PillCardChipStyle.fill(hovering: hovering && isEnabled, pressed: configuration.isPressed),
+                    .primary.opacity(configuration.isPressed ? 0.12 : hovering && isEnabled ? 0.07 : 0),
                     in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                 )
                 .opacity(isEnabled ? 1 : 0.35)

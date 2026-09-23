@@ -56,7 +56,7 @@ struct MeterStyleTile: View {
     }
 
     private var formatRow: some View {
-        swatchRow("Format") {
+        swatchRow("Format", selection: meterStyle.format) {
             ForEach(GaugeFormat.allCases) { format in
                 formatSwatch(format)
             }
@@ -64,7 +64,7 @@ struct MeterStyleTile: View {
     }
 
     private var shapeRow: some View {
-        swatchRow("Shape") {
+        swatchRow("Shape", selection: meterStyle.shape) {
             ForEach(GaugeShape.allCases) { shape in
                 shapeSwatch(shape)
             }
@@ -76,7 +76,7 @@ struct MeterStyleTile: View {
     }
 
     private var fillRow: some View {
-        swatchRow("Fill") {
+        swatchRow("Fill", selection: meterStyle.fill) {
             ForEach(GaugeFill.allCases) { fill in
                 fillSwatch(fill)
             }
@@ -102,8 +102,9 @@ struct MeterStyleTile: View {
         )
     }
 
-    private func swatchRow<Swatches: View, Footer: View>(
+    private func swatchRow<Selection: Equatable, Swatches: View, Footer: View>(
         _ caption: String,
+        selection: Selection,
         @ViewBuilder swatches: () -> Swatches,
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) -> some View {
@@ -115,6 +116,8 @@ struct MeterStyleTile: View {
             LazyVGrid(columns: columns, alignment: .leading, spacing: swatchSpacing) {
                 swatches()
             }
+            // SM1: the row's selection plate slides between its swatches.
+            .settingsSelectionGroup(value: selection)
 
             footer()
         }

@@ -199,15 +199,20 @@ struct SettingsView: View {
     /// rather than a hard cut: it is the stable container the outgoing and incoming panes
     /// overlap inside, the same shape as the Menu Bar preview at `SettingsPanes.swift:209`.
     /// Panes stay stateless (KTD3), so nothing is lost when one is rebuilt.
+    ///
+    /// SM2 (2026-09-22): the symmetric 120ms dissolve overlapped two dense rooms at half
+    /// opacity each, which read as a double exposure rather than a room change. The exit is
+    /// now 80ms and the entrance 200ms out of a 3pt blur (Emil's blur-bridge), so the eye
+    /// sees one pane resolve instead of two crossing. Still nothing travels (M6B).
     private var detailColumn: some View {
         ZStack(alignment: .topLeading) {
             detail
                 .id(selectedPane)
-                .transition(.opacity)
+                .transition(.settingsPane(reduceMotion: reduceMotion))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.quickSettle, .crossfade, reduceMotion: reduceMotion),
+            HeadroomMotion.resolved(HeadroomMotion.paneIn, .crossfade, reduceMotion: reduceMotion),
             value: selectedPane
         )
     }

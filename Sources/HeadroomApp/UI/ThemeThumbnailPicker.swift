@@ -27,6 +27,8 @@ struct ThemeThumbnailPicker: View {
                 thumbnail(preference)
             }
         }
+        // SM1: the selection plate slides between thumbnails.
+        .settingsSelectionGroup(value: selection)
         .accessibilityRepresentation {
             Picker("Theme", selection: $selection) {
                 ForEach(AppearancePreference.allCases) { preference in

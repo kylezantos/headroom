@@ -36,6 +36,7 @@ struct InAppDisplayTile: View {
         SettingsTile("In-App Display") {
             swatchRow(
                 "Percentages",
+                selection: usagePercentageMode,
                 help: "Changes the numbers, words, and meter direction in the app and menu bar."
             ) {
                 ForEach(UsagePercentageMode.allCases) { mode in
@@ -54,6 +55,7 @@ struct InAppDisplayTile: View {
 
             swatchRow(
                 "Account names",
+                selection: accountTitleInk,
                 help: "Brand colors each account name in its provider’s color."
             ) {
                 ForEach(AccountTitleInk.allCases) { ink in
@@ -82,8 +84,9 @@ struct InAppDisplayTile: View {
         )
     }
 
-    private func swatchRow<Swatches: View>(
+    private func swatchRow<Selection: Equatable, Swatches: View>(
         _ caption: String,
+        selection: Selection,
         help: String,
         @ViewBuilder swatches: () -> Swatches
     ) -> some View {
@@ -95,6 +98,8 @@ struct InAppDisplayTile: View {
             LazyVGrid(columns: columns, alignment: .leading, spacing: swatchSpacing) {
                 swatches()
             }
+            // SM1: the row's selection plate slides between its swatches.
+            .settingsSelectionGroup(value: selection)
 
             SettingsHelpText(text: help)
         }

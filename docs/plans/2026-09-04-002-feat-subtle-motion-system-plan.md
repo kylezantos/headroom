@@ -28,6 +28,9 @@ rules for springs and Reduce Motion. Standing rules: nothing loops or pulses, no
 | M9C | Popover open | **Superseded 2026-09-06.** M9A (keep the once-per-session fade) was approved on paper, then Kyle reviewed the live build and called for instant: no entrance motion at all, not even on the first open. The fade, its session gate, and the render-harness `forceVisible` escape hatch are removed. |
 | M10A | Menu bar numeral | Approved: cut, and record why in `MenuBarLabel.swift`. M10B denied. |
 | M11A | Refresh and setup chips | Approved. Footer crossfade kept; setup chips and primary buttons adopt S3A timing and S2A gating. M11B denied. |
+| SM1 | Settings swatch selection (2026-09-22 pass) | Kyle: Settings motion "too rough around the edges". Inside a picker row the accent ring and fill are one plate that slides to the new swatch on `selectionTravel` (critically damped spring) via `settingsSelectionGroup(value:)` + `matchedGeometryEffect`, instead of two rings cross-fading. Reduce Motion keeps the in-place ring cross-fade. |
+| SM2 | Settings pane switch, refined | Revises M6B's timing, keeps its rule that nothing travels. The symmetric 120ms dissolve read as a double exposure of two dense panes; the exit is now 80ms (`paneOut`) and the entrance 200ms out of a 3pt blur (`paneIn`). The blur drops under Reduce Motion. |
+| SM3 | Menu Bar pill drag | Kyle: dragging pill cards "gets a stuck frame" — the system drag session left the card in place and jumped the row on drop. Replaced with an owned `DragGesture` (`MenuBarPillArranger`): the card lifts and tracks the pointer, neighbours slide aside on `dragNudge` as it crosses their midpoint, the ends rubber-band, and the drop commits inside the `dragSettle` spring — the one spring allowed a hair of bounce because it inherits the release. Arrow, add, and remove edits ride `reorder`. Cards became raised opaque blocks so a lifted card hides what it passes over. |
 
 ## Contract (already on the branch)
 

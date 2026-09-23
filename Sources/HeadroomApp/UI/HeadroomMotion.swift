@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The house motion vocabulary. Every animation in the app target reaches for one of these;
 /// no view declares its own curve, duration, or spring. Decision anchors (`S1A`, `S2A`,
-/// `S3A`, `M1A`, `M7A`) live in `docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md`.
+/// `S3A`, `M1A`, `M7A`, `SM1`–`SM3`) live in `docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md`.
 enum HeadroomMotion {
     // MARK: Curves — one family (S1A). The stock `easeOut` press curve was retired because
     // built-in curves are too weak to read at 100–200ms.
@@ -29,7 +29,7 @@ enum HeadroomMotion {
     static let hoverOut = Animation.smooth(duration: 0.18, extraBounce: 0)
 
     // MARK: Springs — critically damped. Apple reserves bounce for motion that inherits a
-    // gesture's momentum; nothing in Headroom is gesture-driven.
+    // gesture's momentum; the Menu Bar pill drop (`dragSettle`) is the only such motion.
 
     /// M1A: a bar that represents a value must never overshoot it, even by a hair, so the
     /// old `dampingFraction: 0.9` became `1.0`. Drives fill length, numeral roll, and
@@ -39,6 +39,28 @@ enum HeadroomMotion {
     /// M7A: account-list reorders. Slower than `valueSpring` because a row travels ~30pt, and
     /// a spring so a second click mid-flight retargets instead of restarting.
     static let reorder = Animation.spring(response: 0.35, dampingFraction: 1.0)
+
+    // MARK: Settings pass (2026-09-22)
+
+    /// SM1: the selection plate travelling between swatches in one picker row. Critically
+    /// damped for the same reason as `valueSpring` — the plate names a value, so it lands on
+    /// it without overshoot. A spring, so a second click mid-flight retargets.
+    static let selectionTravel = Animation.spring(response: 0.3, dampingFraction: 1.0)
+
+    /// SM2: M6B's pane dissolve, split so the two rooms never read as a double exposure. The
+    /// outgoing pane leaves in 80ms; the incoming one resolves out of a slight blur on the
+    /// house curve. Still nothing travels.
+    static let paneIn = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)
+    static let paneOut = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.08)
+
+    /// SM3: neighbours making room while a pill card is dragged. Quicker than `reorder`:
+    /// the gap has to open while the pointer is still crossing, or it reads as lag.
+    static let dragNudge = Animation.spring(response: 0.26, dampingFraction: 1.0)
+
+    /// SM3: the dropped card settling into its gap. This is the one place a spring may
+    /// carry a hair of bounce — the motion inherits the hand's release, which is exactly the
+    /// case Apple reserves bounce for (see the springs note above).
+    static let dragSettle = Animation.spring(response: 0.32, dampingFraction: 0.86)
 
     // MARK: Arrival timing (M9A)
 

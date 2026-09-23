@@ -225,6 +225,7 @@ struct MenuBarSettingsPane: View {
     let store: UsageStore
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let cardWidth: CGFloat = 100
     /// The two provider lists share one pitch whether a row carries a picker, a button, or
@@ -322,6 +323,8 @@ struct MenuBarSettingsPane: View {
                 displayChoice(showsPercentage: true, title: "Pills + percentages", detail: "Exact usage at a glance")
                 displayChoice(showsPercentage: false, title: "Pills only", detail: "Save menu bar space")
             }
+            // SM1: the selection plate slides between the two treatments.
+            .settingsSelectionGroup(value: store.showMenuBarPercentage)
             .accessibilityRepresentation {
                 Picker("Menu bar display", selection: percentageBinding) {
                     Text("Pills + percentages").tag(true)
@@ -379,21 +382,41 @@ struct MenuBarSettingsPane: View {
         } else {
             VStack(alignment: .leading, spacing: 8) {
                 SettingsHelpText(text: "Drag to arrange, or use the arrows. Order runs left to right.")
-                ScrollView(.horizontal) {
-                    HStack(spacing: 8) {
-                        ForEach(selected, id: \.self) { id in
-                            providerCard(id)
-                        }
+                // SM3: unclipped when the row fits, so a lifted card can rise out of the well
+                // instead of being cut by a scroll view's bounds; it only scrolls when the
+                // window is too narrow for every card.
+                ViewThatFits(in: .horizontal) {
+                    pillRow
+                    ScrollView(.horizontal) {
+                        pillRow
                     }
-                    .padding(1)
+                    .scrollIndicators(.automatic)
                 }
+                // The fitting row is only as wide as its cards; the well still spans the tile.
+                .frame(maxWidth: .infinity, alignment: .leading)
                 // Horizontal scrollers have no useful ideal height in an AppKit host
                 // (#popover-scroll-height). Reserve the card's full editing surface.
                 .frame(height: 116)
-                .scrollIndicators(.automatic)
                 .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 9, cornerRadius: 20)
             }
         }
+    }
+
+    private var pillRow: some View {
+        MenuBarPillArranger(
+            ids: selected,
+            cardWidth: Self.cardWidth,
+            spacing: 8,
+            onMove: { id, target in store.moveMenuBarProvider(id, before: target) },
+            card: providerCard
+        )
+        .padding(1)
+    }
+
+    /// SM3: every pill edit — arrows, remove, add — runs on the account list's reorder
+    /// spring, so the cards slide into their new slots instead of re-laying out in one frame.
+    private func animatingPills(_ change: () -> Void) {
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion), change)
     }
 
     private func providerCard(_ id: ProviderID) -> some View {
@@ -407,10 +430,11 @@ struct MenuBarSettingsPane: View {
                     .accessibilityLabel("Drag \(name(id))")
                 Spacer(minLength: 4)
                 Button {
-                    store.removeMenuBarProvider(id)
+                    animatingPills { store.removeMenuBarProvider(id) }
                 } label: {
                     Image(systemName: "xmark")
                 }
+                .pointerStyle(.default)
                 .disabled(selected.count == 1)
                 .help(selected.count == 1 ? "Keep one pill, or choose the automatic summary below" : "Remove \(name(id)) pill")
                 .accessibilityLabel("Remove \(name(id)) pill")
@@ -430,17 +454,17 @@ struct MenuBarSettingsPane: View {
         .buttonStyle(.borderless)
         .padding(8)
         .frame(width: Self.cardWidth)
-        .selectionChrome(isSelected: false)
-        .draggable(id.raw)
-        .dropDestination(for: String.self) { values, location in
-            guard values.count == 1, let raw = values.first else { return false }
-            let source = ProviderID(raw)
-            guard source != id, selected.contains(source), let index = selected.firstIndex(of: id) else { return false }
-            let targetIndex = location.x < Self.cardWidth / 2 ? index : index + 1
-            let target = selected.indices.contains(targetIndex) ? selected[targetIndex] : nil
-            store.moveMenuBarProvider(source, before: target)
-            return true
-        }
+        // SM3: a raised, opaque card rather than a hairline outline — something you can
+        // pick up reads as an object, and a lifted card must hide the neighbour it passes
+        // over instead of showing it through. The window-background underlay is what makes
+        // the dark tile's translucent fill opaque; it comes after `raisedTile` because a
+        // later `.background` draws behind an earlier one, so it sits under the gradient.
+        .raisedTile(cornerRadius: 11, surface: .opaque)
+        .background(
+            Color(nsColor: .windowBackgroundColor),
+            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(name(id)) menu bar pill")
     }
@@ -448,11 +472,12 @@ struct MenuBarSettingsPane: View {
     private func moveButton(_ id: ProviderID, offset: Int) -> some View {
         let direction = offset < 0 ? "left" : "right"
         return Button {
-            store.moveMenuBarProvider(id, by: offset)
+            animatingPills { store.moveMenuBarProvider(id, by: offset) }
         } label: {
             Image(systemName: "arrow.\(direction)")
                 .font(.system(size: 11))
         }
+        .pointerStyle(.default)
         .disabled(offset < 0 ? selected.first == id : selected.last == id)
         .help("Move \(name(id)) \(direction)")
         .accessibilityLabel("Move \(name(id)) \(direction)")
@@ -471,7 +496,9 @@ struct MenuBarSettingsPane: View {
                             Text(name(id))
                             Spacer(minLength: 8)
                             if store.providerOrder.contains(id) {
-                                Button("Add pill", systemImage: "plus") { store.addMenuBarProvider(id) }
+                                Button("Add pill", systemImage: "plus") {
+                                    animatingPills { store.addMenuBarProvider(id) }
+                                }
                                     .controlSize(.small)
                                     .accessibilityLabel("Add \(name(id)) pill")
                             } else {

@@ -281,16 +281,57 @@ struct SettingsSwatchButtonStyle: ButtonStyle {
     }
 }
 
+/// SM1: the namespace a swatch row's selection plate travels in. Set by
+/// `settingsSelectionGroup(value:)`; nil outside a group or under Reduce Motion, where the
+/// chrome falls back to cross-fading the ring in place.
+private struct SettingsSelectionNamespaceKey: EnvironmentKey {
+    static let defaultValue: Namespace.ID? = nil
+}
+
+private extension EnvironmentValues {
+    var settingsSelectionNamespace: Namespace.ID? {
+        get { self[SettingsSelectionNamespaceKey.self] }
+        set { self[SettingsSelectionNamespaceKey.self] = newValue }
+    }
+}
+
+/// SM1: one picker row whose selection plate travels. Each row owns its own namespace, so
+/// Format, Shape, and Fill never trade plates with each other.
+private struct SettingsSelectionGroup<Value: Equatable>: ViewModifier {
+    let value: Value
+
+    @Namespace private var namespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .environment(\.settingsSelectionNamespace, reduceMotion ? nil : namespace)
+            // The row-level scope is what puts the outgoing and incoming plate in one
+            // animated transaction; each swatch's own `isSelected` scope below carries the
+            // same spring, so the two can never disagree.
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.selectionTravel, .movement, reduceMotion: reduceMotion),
+                value: value
+            )
+    }
+}
+
 /// PB13: one selection ring for every picker in Settings. `MeterStyleTile`,
 /// `ThemeThumbnailPicker`, and `InAppDisplayTile` each carried a verbatim copy of this
 /// ring, accent fill, and animation, so the three pickers standing side by side in
 /// Appearance could silently drift apart on any one edit.
+///
+/// SM1 (2026-09-22): inside a `settingsSelectionGroup`, the accent ring and fill are one
+/// plate that slides from the old swatch to the new one, the way a segmented control's
+/// thumb does, instead of one ring fading out while another fades in two swatches away.
+/// Every swatch keeps its own hairline and hover fill underneath the plate.
 private struct SettingsSelectionChrome: ViewModifier {
     let isSelected: Bool
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.settingsSwatchHovering) private var hovering
+    @Environment(\.settingsSelectionNamespace) private var namespace
 
     /// R2B3: 11, concentric with the r6 well the swatch body draws inside 5pt of padding.
     /// At r8 the ring was less round than the well it framed — the loudest "feels off"
@@ -303,34 +344,49 @@ private struct SettingsSelectionChrome: ViewModifier {
 
     /// R2M6: a selected swatch *deepens* its own accent fill rather than stacking a neutral
     /// hover wash on top of it, so hover reads as one surface responding, not two.
+    private var plateFill: Color {
+        Color.accentColor.opacity(hovering ? 0.12 : 0.08)
+    }
+
+    /// The per-swatch layer. With a travelling plate, a selected swatch's own layer goes
+    /// quiet (clear fill, hairline) because the plate above it draws the selected state.
     private var fillColor: Color {
-        if isSelected { return Color.accentColor.opacity(hovering ? 0.12 : 0.08) }
+        if isSelected { return namespace == nil ? plateFill : .clear }
         return hovering ? Color.primary.opacity(0.05) : .clear
     }
 
     private var borderColor: Color {
-        if isSelected { return .accentColor }
-        return hovering
+        if isSelected && namespace == nil { return .accentColor }
+        return hovering && !isSelected
             ? Color.primary.opacity(0.14)
             : ClaudeSetupStyle.hairline(dark: colorScheme == .dark)
+    }
+
+    private var selectionAnimation: Animation? {
+        // R2B4: `settle`, not `pressDown`. Selection is a settled state change; the 100ms
+        // press curve belongs to the press that caused it, which the style above owns.
+        // S2A: the in-place ring is colour work, so Reduce Motion keeps the cross-fade;
+        // the travelling plate only exists when motion is allowed.
+        namespace == nil
+            ? HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
+            : HeadroomMotion.selectionTravel
     }
 
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity)
             .contentShape(shape)
-            .background(fillColor, in: shape)
-            .overlay {
-                shape.strokeBorder(borderColor, lineWidth: isSelected ? 2 : 1)
+            // Later backgrounds draw *behind* earlier ones: the plate sits over the swatch's
+            // own layer, and both sit under the content (which keeps 5pt clear of the edge).
+            .background { travellingPlate }
+            .background {
+                shape
+                    .fill(fillColor)
+                    .overlay {
+                        shape.strokeBorder(borderColor, lineWidth: isSelected && namespace == nil ? 2 : 1)
+                    }
             }
-            // R2B4: `settle`, not `pressDown`. Selection is a settled state change; the 100ms
-            // press curve belongs to the press that caused it, which the style above owns.
-            // S2A: the ring's tint, its 1↔2pt width, and the fill are all colour work, so
-            // Reduce Motion keeps the cross-fade instead of hard-cutting.
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: isSelected
-            )
+            .animation(selectionAnimation, value: isSelected)
             // S3A: hover in fast, out slow — the fill is there when the pointer arrives and
             // lingers a beat when it leaves.
             .animation(
@@ -342,12 +398,27 @@ private struct SettingsSelectionChrome: ViewModifier {
                 value: hovering
             )
     }
+
+    @ViewBuilder private var travellingPlate: some View {
+        if isSelected, let namespace {
+            shape
+                .fill(plateFill)
+                .overlay { shape.strokeBorder(Color.accentColor, lineWidth: 2) }
+                .matchedGeometryEffect(id: "selectionPlate", in: namespace)
+        }
+    }
 }
 
 extension View {
     /// The selected/unselected chrome for a Settings swatch or thumbnail (PB13).
     func selectionChrome(isSelected: Bool) -> some View {
         modifier(SettingsSelectionChrome(isSelected: isSelected))
+    }
+
+    /// SM1: marks one picker row — the grid holding its swatches — so the selection plate
+    /// slides between them. `value` is the row's current selection.
+    func settingsSelectionGroup<Value: Equatable>(value: Value) -> some View {
+        modifier(SettingsSelectionGroup(value: value))
     }
 }
 
@@ -382,6 +453,33 @@ extension AnyTransition {
     /// between "no fade at all" and "a 4pt rise under Reduce Motion" before.
     static func settingsReveal(reduceMotion: Bool) -> AnyTransition {
         reduceMotion ? .opacity : .settingsReveal
+    }
+
+    /// SM2: the Settings pane switch. The incoming pane fades in out of a slight blur on
+    /// `paneIn`; the outgoing one fades out fast on `paneOut`, so the two never sit on screen
+    /// at half opacity together. S2A: the blur is movement and drops under Reduce Motion;
+    /// both fades keep their timing.
+    static func settingsPane(reduceMotion: Bool) -> AnyTransition {
+        let insertion: AnyTransition = reduceMotion
+            ? .opacity
+            : .modifier(
+                active: SettingsPaneTransitionModifier(active: true),
+                identity: SettingsPaneTransitionModifier(active: false)
+            )
+        return .asymmetric(
+            insertion: insertion.animation(HeadroomMotion.paneIn),
+            removal: AnyTransition.opacity.animation(HeadroomMotion.paneOut)
+        )
+    }
+}
+
+private struct SettingsPaneTransitionModifier: ViewModifier {
+    let active: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(active ? 0 : 1)
+            .blur(radius: active ? 3 : 0)
     }
 }
 

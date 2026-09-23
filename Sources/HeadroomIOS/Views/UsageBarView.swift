@@ -88,7 +88,7 @@ struct UsageBarView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(displayLabel) usage")
+        .accessibilityLabel("\(spokenLabel) usage")
         .accessibilityValue(accessibilityValue)
     }
 
@@ -101,14 +101,22 @@ struct UsageBarView: View {
             .background(HeadroomTheme.severityColor(for: window.severity, scheme: scheme).opacity(0.15), in: Capsule())
     }
 
+    /// The Mac popover's naming (`WindowKind.displayName`), so a Claude model row reads
+    /// "Fable" on both. Billing periods arrive here as `.other(label)` and keep their label.
     private var displayLabel: String {
+        coreKind.displayName
+    }
+
+    /// "Fable weekly" for VoiceOver, where the short name would drop the period.
+    private var spokenLabel: String {
+        coreKind.spokenName
+    }
+
+    private var coreKind: WindowKind {
         switch window.kind {
-        case .fiveHour:
-            "5-hour"
-        case .weekly:
-            "Weekly"
-        case .other(let label):
-            label
+        case .fiveHour: .fiveHour
+        case .weekly: .weekly
+        case .other(let label): .other(label)
         }
     }
 

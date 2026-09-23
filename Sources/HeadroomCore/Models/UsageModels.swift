@@ -19,6 +19,96 @@ public enum WindowKind: Sendable, Equatable, Hashable {
         }
     }
 
+    /// Stable identity for persisted choices. Billing periods key on their label, not their
+    /// duration, because a monthly pool's declared length changes month to month.
+    public var persistentID: String {
+        switch self {
+        case .fiveHour: return "fiveHour"
+        case .weekly: return "weekly"
+        case .billingPeriod(let label, _): return "billing:\(label)"
+        case .other(let label): return "other:\(label)"
+        }
+    }
+
+    public init?(persistentID id: String) {
+        switch id {
+        case "fiveHour": self = .fiveHour
+        case "weekly": self = .weekly
+        default:
+            if id.hasPrefix("billing:"), id.count > "billing:".count {
+                self = .billingPeriod(label: String(id.dropFirst("billing:".count)), duration: 0)
+            } else if id.hasPrefix("other:"), id.count > "other:".count {
+                self = .other(String(id.dropFirst("other:".count)))
+            } else {
+                return nil
+            }
+        }
+    }
+
+    /// The window's name on every surface except the compact widget header
+    /// (`WidgetWindowSummary.compactLabel`). Claude's model rows read as the model alone —
+    /// "Weekly (Fable)" is "Fable" — since the reset time already says the period. Codex's
+    /// model rows keep their period: one model can carry both a 5-hour and a weekly window,
+    /// so dropping it would print two rows with the same name.
+    public var displayName: String {
+        switch self {
+        case .fiveHour: return "5-hour"
+        case .weekly: return "Weekly"
+        case .billingPeriod(let label, _): return label
+        case .other(let raw):
+            if let model = Self.weeklyModelName(in: raw) { return model }
+            if let (model, period) = Self.modelAndPeriod(in: raw) { return "\(model) · \(period)" }
+            return raw
+        }
+    }
+
+    /// `displayName` in the compact form the Accounts retained-usage line uses ("5h 72%").
+    public var compactName: String {
+        switch self {
+        case .fiveHour: return "5h"
+        default: return displayName
+        }
+    }
+
+    /// `displayName` with the period spoken, for tooltips and VoiceOver, where "Fable" alone
+    /// would not say what kind of limit it is.
+    public var spokenName: String {
+        if case .other(let raw) = self {
+            if let model = Self.weeklyModelName(in: raw) { return "\(model) weekly" }
+            if let (model, period) = Self.modelAndPeriod(in: raw) { return "\(model) \(period.lowercased())" }
+        }
+        return displayName
+    }
+
+    /// The menu-bar tooltip's phrase after the provider name ("Claude weekly", "Codex 5h").
+    public var menuBarTerm: String {
+        switch self {
+        case .fiveHour: return "5h"
+        case .weekly: return "weekly"
+        case .billingPeriod(let label, _): return label.lowercased()
+        case .other: return spokenName
+        }
+    }
+
+    /// "Fable" from Claude's "Weekly (Fable)" model row; nil for any other label. The widget
+    /// header's `compactLabel` uses the same rule, so the two surfaces cannot drift apart.
+    static func weeklyModelName(in label: String) -> String? {
+        let prefix = "Weekly ("
+        guard label.hasPrefix(prefix), label.hasSuffix(")"), label.count > prefix.count + 1 else { return nil }
+        return String(label.dropFirst(prefix.count).dropLast())
+    }
+
+    /// Codex model rows are "<model> <period>", built from `WindowKind.shortLabel`, so the
+    /// weekly one ends in "Weekly" and the 5-hour one in "5h". Matched case-insensitively.
+    private static func modelAndPeriod(in label: String) -> (model: String, period: String)? {
+        for (suffix, period) in [(" weekly", "Weekly"), (" 5h", "5-hour")] {
+            guard label.count > suffix.count,
+                  label.lowercased().hasSuffix(suffix) else { continue }
+            return (String(label.dropLast(suffix.count)), period)
+        }
+        return nil
+    }
+
     /// Codex reports model-specific allowances as additional windows, currently labeled
     /// with Spark. Keep the check narrow to Codex presentation paths so generic unknown
     /// windows are not hidden by accident.
@@ -567,33 +657,78 @@ public enum MenuBarFillSource: Sendable, Equatable, Hashable {
     }
 }
 
-/// A provider's preferred menu-bar limit window. Percentage text, vessel fill, and
-/// severity tint resolve together so each glyph always means one thing.
-public enum MenuBarWindowSource: String, CaseIterable, Sendable, Codable, Equatable {
-    case weekly
-    case fiveHour
+/// A provider's chosen menu-bar limit. Percentage text, vessel fill, and severity tint
+/// resolve together so each glyph always means one thing.
+///
+/// Persisted as a string. A window choice stores `WindowKind.persistentID`, so the two
+/// pre-Sep-2026 values ("weekly", "fiveHour") load unchanged and any limit the provider
+/// reports — Claude's model rows, Cursor's named pools — can be chosen. A choice the
+/// latest data does not carry is kept, and the pill follows `closest` until it returns.
+public enum MenuBarWindowChoice: Hashable, Sendable {
+    /// Follows whichever of the provider's limits has the least remaining right now.
+    case closest
+    case window(id: String)
 
-    public var kind: WindowKind {
-        switch self {
-        case .weekly: return .weekly
-        case .fiveHour: return .fiveHour
+    public static let weekly = MenuBarWindowChoice.window(id: WindowKind.weekly.persistentID)
+    public static let fiveHour = MenuBarWindowChoice.window(id: WindowKind.fiveHour.persistentID)
+
+    private static let closestRawValue = "closest"
+
+    /// Nil for anything that is neither "closest" nor a readable window ID, so a malformed
+    /// stored value falls back to the default instead of listing a nameless choice.
+    public init?(rawValue: String) {
+        if rawValue == Self.closestRawValue {
+            self = .closest
+        } else if WindowKind(persistentID: rawValue) != nil {
+            self = .window(id: rawValue)
+        } else {
+            return nil
         }
     }
 
-    public var label: String {
+    public var rawValue: String {
         switch self {
-        case .weekly: return "Weekly"
-        case .fiveHour: return "5-hour"
+        case .closest: return Self.closestRawValue
+        case .window(let id): return id
         }
     }
 
-    /// Short form used in tooltips/accessibility ("Claude weekly", "Claude 5h").
-    public var shortLabel: String {
-        switch self {
-        case .weekly: return "weekly"
-        case .fiveHour: return "5h"
-        }
+    public func matches(_ kind: WindowKind) -> Bool {
+        guard case .window(let id) = self else { return false }
+        return kind.persistentID == id
     }
+
+    /// The kind this choice names, rebuilt from its stored ID so Settings can title a
+    /// choice the latest data does not carry. Billing durations are not stored; naming
+    /// never reads them.
+    public var kind: WindowKind? {
+        guard case .window(let id) = self else { return nil }
+        return WindowKind(persistentID: id)
+    }
+
+    public var title: String {
+        kind?.displayName ?? "Closest to limit"
+    }
+
+    /// Lower-case phrase for the menu-bar tooltip and VoiceOver ("Claude weekly").
+    public var menuBarTerm: String {
+        kind?.menuBarTerm ?? "closest to limit"
+    }
+}
+
+/// One entry in a provider's menu-bar limit picker. `window` is the provider's current
+/// row for that limit, or nil when the choice is saved but not in the latest data.
+public struct MenuBarWindowOption: Identifiable, Equatable, Sendable {
+    public let choice: MenuBarWindowChoice
+    public let window: UsageWindow?
+
+    public init(choice: MenuBarWindowChoice, window: UsageWindow?) {
+        self.choice = choice
+        self.window = window
+    }
+
+    public var id: String { choice.rawValue }
+    public var title: String { choice.title }
 }
 
 /// User-selectable period for API cost reports. The provider converts this into the

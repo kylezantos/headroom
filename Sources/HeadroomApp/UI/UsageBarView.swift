@@ -329,7 +329,7 @@ struct UsageBarView: View {
             }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label) usage")
+        .accessibilityLabel("\(spokenLabel) usage")
         .accessibilityValue(accessibilityValue)
         // M9A: a staged arrival waits one beat so the count-up starts after the popover has
         // finished opening, not behind it. `.task` is cancelled on close, so a popover shut
@@ -526,20 +526,16 @@ struct UsageBarView: View {
         )
     }
 
-    private var label: String {
-        switch window.kind {
-        case .fiveHour: return "5-hour"
-        case .weekly: return "Weekly"
-        case .billingPeriod(let label, _): return label
-        case .other(let raw): return Self.normalizeOther(raw)
-        }
-    }
+    private var label: String { window.kind.displayName }
+
+    /// The label with its period spoken — "Fable weekly" where the row itself reads "Fable".
+    private var spokenLabel: String { window.kind.spokenName }
 
     /// M3A′: the tooltip is where a Micro row's state lives. It always says something, so the
     /// row keeps one stable view identity rather than gaining and losing a modifier.
     private var microHelp: String {
         if let stateText { return stateText }
-        return resetLine?.tooltip ?? "\(label) usage"
+        return resetLine?.tooltip ?? "\(spokenLabel) usage"
     }
 
     private var accessibilityValue: String {
@@ -554,13 +550,5 @@ struct UsageBarView: View {
             parts.append(resetLine.tooltip)
         }
         return parts.joined(separator: ", ")
-    }
-
-    /// Presentation-only tidy of Codex's constructed window labels. The model name stays
-    /// verbatim; only the provider-appended period suffix is normalized.
-    private static func normalizeOther(_ raw: String) -> String {
-        if raw.hasSuffix(" weekly") { return "\(raw.dropLast(7)) · Weekly" }
-        if raw.hasSuffix(" 5h") { return "\(raw.dropLast(3)) · 5-hour" }
-        return raw
     }
 }

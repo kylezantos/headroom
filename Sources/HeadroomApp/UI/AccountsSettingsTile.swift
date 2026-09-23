@@ -824,7 +824,7 @@ struct AccountsSettingsTile: View {
         case .retainedUsage:
             HStack(spacing: 7) {
                 ForEach(Array(snapshot.windows.prefix(2).enumerated()), id: \.offset) { _, window in
-                    Text("\(window.kind.shortLabel) \(store.usagePercentageMode.roundedPercentage(for: window))%")
+                    Text("\(window.kind.compactName) \(store.usagePercentageMode.roundedPercentage(for: window))%")
                 }
             }
             .font(.system(size: 11).monospacedDigit())
@@ -832,7 +832,7 @@ struct AccountsSettingsTile: View {
             .opacity(0.68)
             .accessibilityLabel(
                 "Last known usage. " + snapshot.windows.prefix(2).map {
-                    "\($0.kind.shortLabel) \(store.usagePercentageMode.roundedPercentage(for: $0)) percent \(store.usagePercentageMode.term)"
+                    "\($0.kind.spokenName) \(store.usagePercentageMode.roundedPercentage(for: $0)) percent \(store.usagePercentageMode.term)"
                 }.joined(separator: ", ")
             )
         }

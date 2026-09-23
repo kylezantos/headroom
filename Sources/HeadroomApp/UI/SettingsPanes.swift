@@ -288,7 +288,7 @@ struct MenuBarSettingsPane: View {
             HStack {
                 groupCaption("Menu bar preview")
                 Spacer(minLength: 8)
-                Text(store.menuBarFillSource == .auto ? "Automatic summary" : "\(selected.count) pills")
+                Text(store.menuBarFillSource == .auto ? "Automatic summary" : selected.count == 1 ? "1 pill" : "\(selected.count) pills")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -529,31 +529,48 @@ struct MenuBarSettingsPane: View {
                             Spacer(minLength: 8)
                             if store.hasSelectableMenuBarWindows(for: id) {
                                 Picker("\(name(id)) usage window", selection: Binding(
-                                    get: { store.menuBarWindowSource(for: id) },
-                                    set: { store.setMenuBarWindowSource($0, for: id) }
+                                    get: { store.menuBarWindowPickerSelection(for: id) },
+                                    set: { store.setMenuBarWindowChoice($0, for: id) }
                                 )) {
-                                    ForEach(MenuBarWindowSource.allCases, id: \.self) { source in
-                                        Text(source.label).tag(source)
+                                    ForEach(store.menuBarWindowOptions(for: id)) { option in
+                                        Text(option.title).tag(option.choice)
                                     }
                                 }
                                 .labelsHidden()
                                 .pickerStyle(.menu)
                                 .fixedSize()
                             } else {
-                                Text(store.resolvedMenuBarWindowKind(for: id)?.shortLabel ?? "Waiting for usage")
+                                Text(store.resolvedMenuBarWindowKind(for: id)?.displayName ?? "Waiting for usage")
                                     .font(.system(size: 11))
                                     .foregroundStyle(.secondary)
                             }
                         }
                         .frame(minHeight: Self.rowHeight)
-                        if let resolved = store.resolvedMenuBarWindowSource(for: id),
-                           resolved != store.menuBarWindowSource(for: id) {
-                            SettingsHelpText(text: "Using \(resolved.label.lowercased()) while \(store.menuBarWindowSource(for: id).label.lowercased()) data is unavailable.")
+                        if let note = windowChoiceNote(for: id) {
+                            SettingsHelpText(text: note)
                         }
                     }
                 }
             }
         }
+    }
+
+    /// The line under a provider's limit picker: which limit the pill is following when that
+    /// is not literally the choice, or the period a model row's short name leaves out.
+    private func windowChoiceNote(for id: ProviderID) -> String? {
+        guard store.hasSelectableMenuBarWindows(for: id),
+              let resolved = store.resolvedMenuBarWindowKind(for: id) else { return nil }
+        let choice = store.menuBarWindowPickerSelection(for: id)
+        if choice == .closest {
+            return "Following \(resolved.displayName), the lowest right now."
+        }
+        if !choice.matches(resolved) {
+            return "Showing \(resolved.displayName) while \(choice.title) isn’t reported."
+        }
+        if resolved.spokenName != resolved.displayName {
+            return "\(resolved.displayName) is a weekly limit."
+        }
+        return nil
     }
 
     private func name(_ id: ProviderID) -> String {

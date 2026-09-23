@@ -1164,15 +1164,15 @@ struct UsageStoreTests {
             ])),
         ])
         await store.refreshAll()
-        #expect(store.menuBarWindowSource(for: .codex) == .weekly)
-        #expect(store.resolvedMenuBarWindowSource(for: .codex) == .fiveHour)
+        #expect(store.menuBarWindowChoice(for: .codex) == .weekly)
+        #expect(store.resolvedMenuBarWindowKind(for: .codex) == .fiveHour)
         #expect(store.menuBarFill == 0.8)
     }
 
     @Test func preferredWindowResumesWhenProviderReportsItAgain() async {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .codex
-        preferences.setMenuBarWindowSource(.fiveHour, for: .codex)
+        preferences.setMenuBarWindowChoice(.fiveHour, for: .codex)
         let provider = MutableStubProvider(
             id: .codex,
             displayName: "Codex",
@@ -1183,7 +1183,7 @@ struct UsageStoreTests {
         let store = UsageStore(providers: [provider], preferences: preferences)
 
         await store.refreshAll()
-        #expect(store.resolvedMenuBarWindowSource(for: .codex) == .weekly)
+        #expect(store.resolvedMenuBarWindowKind(for: .codex) == .weekly)
         #expect(store.menuBarSummary.text == "30%")
 
         provider.set(.live(.codex, windows: [
@@ -1192,8 +1192,8 @@ struct UsageStoreTests {
         ]))
         await store.refreshAll()
 
-        #expect(store.menuBarWindowSource(for: .codex) == .fiveHour)
-        #expect(store.resolvedMenuBarWindowSource(for: .codex) == .fiveHour)
+        #expect(store.menuBarWindowChoice(for: .codex) == .fiveHour)
+        #expect(store.resolvedMenuBarWindowKind(for: .codex) == .fiveHour)
         #expect(store.menuBarSummary.text == "80%")
         #expect(store.menuBarSummary.detail == "Codex 5h")
     }
@@ -1243,7 +1243,7 @@ struct UsageStoreTests {
         preferences.setSurfaceEnabled(true, for: .grokSubscription)
         preferences.setSurfaceEnabled(true, for: .cursorSubscription)
         preferences.showMenuBarPercentage = true
-        preferences.setMenuBarWindowSource(.fiveHour, for: .codex)
+        preferences.setMenuBarWindowChoice(.fiveHour, for: .codex)
         let ids: [ProviderID] = [.claude, .codex, .grok, .cursor]
         let providers: [any UsageProvider] = ids.map {
             StubProvider(id: $0, displayName: $0.raw, snapshot: .pending(for: $0))
@@ -1262,12 +1262,12 @@ struct UsageStoreTests {
         store.addMenuBarProvider(.grok)
         #expect(store.selectedMenuBarProviders == [.codex, .claude, .cursor, .grok])
         #expect(store.providerOrder == ids)
-        #expect(store.menuBarWindowSource(for: .codex) == .fiveHour)
+        #expect(store.menuBarWindowChoice(for: .codex) == .fiveHour)
         store.setShowMenuBarPercentage(false)
         let reloaded = UsageStore(providers: providers, preferences: preferences)
         #expect(reloaded.selectedMenuBarProviders == store.selectedMenuBarProviders)
         #expect(!reloaded.showMenuBarPercentage)
-        #expect(reloaded.menuBarWindowSource(for: .codex) == .fiveHour)
+        #expect(reloaded.menuBarWindowChoice(for: .codex) == .fiveHour)
     }
 
     @Test func menuBarArrangerRetainsDisabledProvidersAndRejectsInvalidEdits() {
@@ -1366,7 +1366,7 @@ struct UsageStoreTests {
 
         #expect(store.menuBarMeters.map(\.summary.text) == ["64%"])
         #expect(store.menuBarMeters.map(\.summary.detail) == ["Grok monthly"])
-        #expect(store.resolvedMenuBarWindowSource(for: .grok) == nil)
+        #expect(store.resolvedMenuBarWindowKind(for: .grok) == .billingPeriod(label: "Monthly", duration: 30 * 86_400))
         #expect(!store.hasSelectableMenuBarWindows(for: .grok))
     }
 
@@ -1457,7 +1457,7 @@ struct UsageStoreTests {
     @Test func menuBarMetersUseIndependentProviderWindowSources() async {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .both
-        preferences.setMenuBarWindowSource(.fiveHour, for: .codex)
+        preferences.setMenuBarWindowChoice(.fiveHour, for: .codex)
         let store = UsageStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
                 UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset),
@@ -1471,8 +1471,8 @@ struct UsageStoreTests {
 
         await store.refreshAll()
 
-        #expect(store.menuBarWindowSource(for: .claude) == .weekly)
-        #expect(store.menuBarWindowSource(for: .codex) == .fiveHour)
+        #expect(store.menuBarWindowChoice(for: .claude) == .weekly)
+        #expect(store.menuBarWindowChoice(for: .codex) == .fiveHour)
         #expect(store.menuBarMeters.map(\.summary.text) == ["40%", "75%"])
         #expect(store.menuBarMeters.map(\.summary.detail) == ["Claude weekly", "Codex 5h"])
     }
@@ -1600,11 +1600,182 @@ struct UsageStoreTests {
         #expect(store.menuBarSummary.text == "30%")
         #expect(store.menuBarSummary.detail == "Claude weekly")
 
-        store.setMenuBarWindowSource(.fiveHour, for: .claude)
-        #expect(store.menuBarWindowSource(for: .claude) == .fiveHour)
-        #expect(preferences.menuBarWindowSource(for: .claude) == .fiveHour)
+        store.setMenuBarWindowChoice(.fiveHour, for: .claude)
+        #expect(store.menuBarWindowChoice(for: .claude) == .fiveHour)
+        #expect(preferences.menuBarWindowChoice(for: .claude) == .fiveHour)
         #expect(store.menuBarSummary.text == "80%")
         #expect(store.menuBarSummary.detail == "Claude 5h")
+    }
+
+    // MARK: Menu-bar limit choice (per-limit IDs, Sep 2026)
+
+    @Test func claudeModelRowIsAChoosableMenuBarLimit() async {
+        let preferences = freshPreferences()
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),
+                UsageWindow(kind: .weekly, utilization: 56, resetsAt: reset),
+                UsageWindow(kind: .other("Weekly (Fable)"), utilization: 7, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+
+        #expect(store.menuBarWindowOptions(for: .claude).map(\.title) == ["Weekly", "5-hour", "Fable", "Closest to limit"])
+
+        let fable = MenuBarWindowChoice.window(id: "other:Weekly (Fable)")
+        store.setMenuBarWindowChoice(fable, for: .claude)
+        #expect(store.menuBarSummary.text == "93%")
+        #expect(store.menuBarSummary.detail == "Claude Fable weekly")
+        #expect(UsageStore(providers: [], preferences: preferences).menuBarWindowChoice(for: .claude) == fable)
+    }
+
+    @Test func cursorPoolsAreChoosableAndTheUnchosenWeeklyDefaultIsNotListed() async {
+        let preferences = freshPreferences()
+        preferences.setSurfaceEnabled(true, for: .cursorSubscription)
+        preferences.menuBarFillSource = .providers([.cursor])
+        let month: TimeInterval = 30 * 86_400
+        let store = UsageStore(providers: [
+            StubProvider(id: .cursor, displayName: "Cursor", snapshot: .live(.cursor, windows: [
+                UsageWindow(kind: .billingPeriod(label: "Cursor Models", duration: month), utilization: 62, resetsAt: reset),
+                UsageWindow(kind: .billingPeriod(label: "Other Models", duration: month), utilization: 3, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+
+        // The weekly default names a limit Cursor never had: it is not offered, and the
+        // picker shows what the pill actually does — follow the lowest pool.
+        #expect(store.menuBarWindowOptions(for: .cursor).map(\.title) == ["Cursor Models", "Other Models", "Closest to limit"])
+        #expect(store.menuBarWindowPickerSelection(for: .cursor) == .closest)
+        #expect(store.menuBarSummary.text == "38%")
+
+        // A billing pool's identity ignores its declared duration, which varies by month.
+        store.setMenuBarWindowChoice(.window(id: "billing:Other Models"), for: .cursor)
+        #expect(store.menuBarWindowPickerSelection(for: .cursor) == .window(id: "billing:Other Models"))
+        #expect(store.menuBarSummary.text == "97%")
+    }
+
+    @Test func aChosenLimitTheProviderStopsReportingStaysListedAndResumes() async {
+        let preferences = freshPreferences()
+        preferences.menuBarFillSource = .codex
+        preferences.setMenuBarWindowChoice(.fiveHour, for: .codex)
+        let provider = MutableStubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+            UsageWindow(kind: .weekly, utilization: 40, resetsAt: reset),
+        ]))
+        let store = UsageStore(providers: [provider], preferences: preferences)
+        await store.refreshAll()
+
+        let options = store.menuBarWindowOptions(for: .codex)
+        #expect(options.map(\.title) == ["Weekly", "5-hour"])   // one real limit: nothing to be closest among
+        #expect(options[1].window == nil)
+        #expect(store.menuBarWindowPickerSelection(for: .codex) == .fiveHour)
+        #expect(store.resolvedMenuBarWindowKind(for: .codex) == .weekly)
+
+        provider.set(.live(.codex, windows: [
+            UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: reset),
+            UsageWindow(kind: .weekly, utilization: 40, resetsAt: reset),
+        ]))
+        await store.refreshAll()
+        #expect(store.resolvedMenuBarWindowKind(for: .codex) == .fiveHour)
+        #expect(store.menuBarSummary.text == "90%")
+    }
+
+    @Test func singleLimitProviderWithTheWeeklyDefaultHasNothingToChoose() async {
+        let store = makeStore(source: .codex, providers: [
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 40, resetsAt: reset),
+            ])),
+        ])
+        await store.refreshAll()
+        #expect(!store.hasSelectableMenuBarWindows(for: .codex))
+    }
+
+    @Test func unavailableRetainedRowIsNeverShownEvenWhenChosenOrLowest() async {
+        let preferences = freshPreferences()
+        preferences.setMenuBarWindowChoice(.window(id: "other:Weekly (Fable)"), for: .claude)
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),
+                UsageWindow(kind: .weekly, utilization: 56, resetsAt: reset),
+                UsageWindow(
+                    kind: .other("Weekly (Fable)"),
+                    utilization: 99,
+                    resetsAt: reset,
+                    freshness: .unavailable(since: reset)
+                ),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+
+        // Fable's old 1% would be the lowest; an unavailable row has no number to show.
+        #expect(store.resolvedMenuBarWindowKind(for: .claude) == .weekly)
+        #expect(store.menuBarSummary.text == "44%")
+        #expect(store.menuBarWindowPickerSelection(for: .claude) == .window(id: "other:Weekly (Fable)"))
+    }
+
+    @Test func closestChoiceFollowsTheLowestLimit() async {
+        let preferences = freshPreferences()
+        preferences.setMenuBarWindowChoice(.closest, for: .claude)
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .fiveHour, utilization: 88, resetsAt: reset),
+                UsageWindow(kind: .weekly, utilization: 56, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+        #expect(store.resolvedMenuBarWindowKind(for: .claude) == .fiveHour)
+        #expect(store.menuBarSummary.text == "12%")
+        #expect(store.menuBarSummary.detail == "Claude 5h")
+    }
+
+    @Test func codexSparkCountersAreOfferedOnlyWhileThePopoverShowsThem() async {
+        let preferences = freshPreferences()
+        preferences.showCodexSparkCountersInApp = false
+        let store = UsageStore(providers: [
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                UsageWindow(kind: .other("GPT-5.3-Codex-Spark Weekly"), utilization: 0, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+        #expect(store.menuBarWindowOptions(for: .codex).map(\.title) == ["Weekly"])
+
+        store.setShowCodexSparkCountersInApp(true)
+        #expect(store.menuBarWindowOptions(for: .codex).map(\.title) == ["Weekly", "GPT-5.3-Codex-Spark · Weekly", "Closest to limit"])
+
+        store.setMenuBarWindowChoice(.window(id: "other:GPT-5.3-Codex-Spark Weekly"), for: .codex)
+        #expect(store.menuBarSummary.text == "100%")
+        #expect(store.menuBarSummary.detail == "Codex GPT-5.3-Codex-Spark weekly")
+    }
+
+    @Test func pendingProviderKeepsItsPickerBeforeTheFirstFetch() {
+        let preferences = freshPreferences()
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+        ], preferences: preferences)
+
+        #expect(store.hasSelectableMenuBarWindows(for: .claude))
+        #expect(store.menuBarWindowOptions(for: .claude).map(\.title) == ["Weekly", "Closest to limit"])
+        #expect(store.menuBarWindowPickerSelection(for: .claude) == .weekly)
+        #expect(store.resolvedMenuBarWindowKind(for: .claude) == nil)
+    }
+
+    @Test func explicitlyChosenUnavailableRowStaysListedAndSelected() async {
+        let preferences = freshPreferences()
+        let fable = MenuBarWindowChoice.window(id: "other:Weekly (Fable)")
+        preferences.setMenuBarWindowChoice(fable, for: .claude)
+        let store = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 56, resetsAt: reset),
+                UsageWindow(kind: .other("Weekly (Fable)"), utilization: 99, resetsAt: reset, freshness: .unavailable(since: reset)),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+
+        let options = store.menuBarWindowOptions(for: .claude)
+        #expect(options.map(\.title) == ["Weekly", "Fable", "Closest to limit"])
+        #expect(options[1].window?.freshness.isUnavailable == true)
+        #expect(store.menuBarWindowPickerSelection(for: .claude) == fable)
+        #expect(store.resolvedMenuBarWindowKind(for: .claude) == .weekly)
     }
 
     @Test func appDisplaySnapshotOrdersWeeklyFirst() async {

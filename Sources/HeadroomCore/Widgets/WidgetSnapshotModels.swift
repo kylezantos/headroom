@@ -443,12 +443,7 @@ public struct WidgetWindowSummary: Codable, Equatable, Sendable, Identifiable {
            label.localizedCaseInsensitiveContains("weekly") {
             return "Spark"
         }
-        let prefix = "Weekly ("
-        guard label.hasPrefix(prefix), label.hasSuffix(")") else { return label }
-        let contentStart = label.index(label.startIndex, offsetBy: prefix.count)
-        let contentEnd = label.index(before: label.endIndex)
-        guard contentStart < contentEnd else { return label }
-        return String(label[contentStart..<contentEnd])
+        return WindowKind.weeklyModelName(in: label) ?? label
     }
 }
 

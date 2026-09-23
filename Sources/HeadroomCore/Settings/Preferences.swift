@@ -177,23 +177,31 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         }
     }
 
-    /// The preferred menu-bar window for one provider. A provider-specific value wins;
+    /// The chosen menu-bar limit for one provider. A provider-specific value wins;
     /// otherwise the pre-1.1 shared value is inherited so upgrading does not change the
-    /// existing menu-bar presentation. Fresh installs default both providers to weekly.
-    public func menuBarWindowSource(for id: ProviderID) -> MenuBarWindowSource {
+    /// existing menu-bar presentation. Fresh installs default every provider to weekly.
+    /// Stored values from before per-limit IDs ("weekly", "fiveHour") are already valid IDs.
+    public func menuBarWindowChoice(for id: ProviderID) -> MenuBarWindowChoice {
         if let raw = defaults.string(forKey: Key.menuBarWindowSource(id)),
-           let source = MenuBarWindowSource(rawValue: raw) {
-            return source
+           let choice = MenuBarWindowChoice(rawValue: raw) {
+            return choice
         }
         if let raw = defaults.string(forKey: Key.legacyMenuBarWindowSource),
-           let source = MenuBarWindowSource(rawValue: raw) {
-            return source
+           let choice = MenuBarWindowChoice(rawValue: raw) {
+            return choice
         }
         return .weekly
     }
 
-    public func setMenuBarWindowSource(_ source: MenuBarWindowSource, for id: ProviderID) {
-        defaults.set(source.rawValue, forKey: Key.menuBarWindowSource(id))
+    /// True once the user has picked this provider's limit. Only such a choice is worth
+    /// listing when the provider stops reporting it: the weekly default names a limit
+    /// Cursor and Grok never had.
+    public func hasChosenMenuBarWindow(for id: ProviderID) -> Bool {
+        defaults.string(forKey: Key.menuBarWindowSource(id)).flatMap(MenuBarWindowChoice.init(rawValue:)) != nil
+    }
+
+    public func setMenuBarWindowChoice(_ choice: MenuBarWindowChoice, for id: ProviderID) {
+        defaults.set(choice.rawValue, forKey: Key.menuBarWindowSource(id))
     }
 
     public var widgetsEnabled: Bool {

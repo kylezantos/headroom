@@ -62,7 +62,7 @@ private struct ResolvedMenuBarWindow {
     let window: UsageWindow
     let kind: WindowKind
 
-    var shortLabel: String { kind.shortLabel.lowercased() }
+    var menuBarTerm: String { kind.menuBarTerm }
 }
 
 public enum AccountRemovalState: Sendable, Equatable {
@@ -102,7 +102,8 @@ public final class UsageStore {
     public private(set) var menuBarFillSource: MenuBarFillSource
     private var savedMenuBarProviderOrder: [ProviderID]
     public private(set) var widgetPrioritySource: MenuBarFillSource
-    public private(set) var menuBarWindowSources: [ProviderID: MenuBarWindowSource]
+    public private(set) var menuBarWindowChoices: [ProviderID: MenuBarWindowChoice]
+    private var chosenMenuBarWindowProviders: Set<ProviderID>
     public private(set) var showCodexSparkCountersInApp: Bool
     public private(set) var showCodexSparkCountersInWidgets: Bool
     public private(set) var enabledSurfaces: Set<UsageSurface>
@@ -235,8 +236,11 @@ public final class UsageStore {
         } else {
             self.widgetPrioritySource = preferences.menuBarFillSource
         }
-        self.menuBarWindowSources = Dictionary(uniqueKeysWithValues: registeredProviderIDs.map {
-            ($0, preferences.menuBarWindowSource(for: $0))
+        self.menuBarWindowChoices = Dictionary(uniqueKeysWithValues: registeredProviderIDs.map {
+            ($0, preferences.menuBarWindowChoice(for: $0))
+        })
+        self.chosenMenuBarWindowProviders = Set(registeredProviderIDs.filter {
+            preferences.hasChosenMenuBarWindow(for: $0)
         })
         self.showCodexSparkCountersInApp = preferences.showCodexSparkCountersInApp
         self.showCodexSparkCountersInWidgets = preferences.showCodexSparkCountersInWidgets
@@ -505,34 +509,63 @@ public final class UsageStore {
         preferences.menuBarProviderOrder = savedMenuBarProviderOrder
     }
 
-    public func menuBarWindowSource(for id: ProviderID) -> MenuBarWindowSource {
-        menuBarWindowSources[id] ?? preferences.menuBarWindowSource(for: id)
+    public func menuBarWindowChoice(for id: ProviderID) -> MenuBarWindowChoice {
+        menuBarWindowChoices[id] ?? preferences.menuBarWindowChoice(for: id)
     }
 
-    public func setMenuBarWindowSource(_ source: MenuBarWindowSource, for id: ProviderID) {
-        preferences.setMenuBarWindowSource(source, for: id)
-        menuBarWindowSources[id] = source
+    public func setMenuBarWindowChoice(_ choice: MenuBarWindowChoice, for id: ProviderID) {
+        preferences.setMenuBarWindowChoice(choice, for: id)
+        menuBarWindowChoices[id] = choice
+        chosenMenuBarWindowProviders.insert(id)
     }
 
-    /// The source currently rendered after availability fallback. Settings compares
-    /// this with the preferred source so a provider removing a window is never silent.
-    public func resolvedMenuBarWindowSource(for id: ProviderID) -> MenuBarWindowSource? {
-        guard let kind = menuBarWindow(for: id)?.kind else { return nil }
-        return MenuBarWindowSource.allCases.first { $0.kind == kind }
+    /// What the limit picker shows as selected: the choice when it is listed, otherwise
+    /// `closest`, which is what an unlisted default (weekly on Cursor) actually does.
+    public func menuBarWindowPickerSelection(for id: ProviderID) -> MenuBarWindowChoice {
+        let choice = menuBarWindowChoice(for: id)
+        return menuBarWindowOptions(for: id).contains { $0.choice == choice } ? choice : .closest
     }
 
+    /// The window the pill currently renders after availability fallback. Settings compares
+    /// it with the choice so a provider dropping a limit is never silent.
     public func resolvedMenuBarWindowKind(for id: ProviderID) -> WindowKind? {
         menuBarWindow(for: id)?.kind
     }
 
-    public func hasSelectableMenuBarWindows(for id: ProviderID) -> Bool {
-        let windows = snapshot(for: id).windows
-        // Pending/no-data providers retain the existing selector until their real
-        // shape is known; a live billing-period-only provider then hides it.
-        guard !windows.isEmpty else { return true }
-        return windows.contains { window in
-            MenuBarWindowSource.allCases.contains { $0.kind == window.kind }
+    /// The limits a provider's pill can follow, in popover order (weekly first), then
+    /// `closest` whenever there is more than one limit to be closest among. A limit the user
+    /// chose that the latest data does not carry is listed with no window, so the picker
+    /// can still show it. One entry means there is nothing to choose.
+    public func menuBarWindowOptions(for id: ProviderID) -> [MenuBarWindowOption] {
+        let windows = menuBarCandidateWindows(for: id)
+        var options = windows.map { window in
+            MenuBarWindowOption(choice: .window(id: window.kind.persistentID), window: window)
         }
+        let choice = menuBarWindowChoice(for: id)
+        let isPending = snapshot(for: id).freshness == .pending
+        if case .window = choice, chosenMenuBarWindowProviders.contains(id) || isPending,
+           !windows.contains(where: { choice.matches($0.kind) }) {
+            options.append(MenuBarWindowOption(choice: choice, window: nil))
+        }
+        if windows.count > 1 || choice == .closest || isPending {
+            options.append(MenuBarWindowOption(choice: .closest, window: nil))
+        }
+        return options
+    }
+
+    /// A provider that has not reported yet keeps its picker (listing the choice and
+    /// Closest to limit) so a choice can still be made before the first fetch lands.
+    public func hasSelectableMenuBarWindows(for id: ProviderID) -> Bool {
+        menuBarWindowOptions(for: id).count > 1
+    }
+
+    /// The main account's windows a pill may follow. Codex's Spark counters join only while
+    /// the popover shows them, so the pill never follows a limit the popover hides.
+    private func menuBarCandidateWindows(for id: ProviderID) -> [UsageWindow] {
+        filterCodexSparkCounters(
+            from: snapshot(for: id),
+            shouldShow: showCodexSparkCountersInApp
+        ).weeklyFirst().windows
     }
 
     public func setShowCodexSparkCountersInApp(_ enabled: Bool) {
@@ -969,7 +1002,7 @@ public final class UsageStore {
         return MenuBarSummary(
             text: "\(pct)%",
             providerID: best.id,
-            detail: "\(name) \(best.shortLabel)",
+            detail: "\(name) \(best.menuBarTerm)",
             isNeutral: false,
             percentageMode: usagePercentageMode,
             severity: best.window.severity,
@@ -993,12 +1026,11 @@ public final class UsageStore {
         let needsAttention = providerNeedsAttention(id)
         guard let resolved = menuBarWindow(for: id) else {
             let name = displayNames[id] ?? id.raw
-            let preferred = menuBarWindowSource(for: id)
             return MenuBarMeter(
                 summary: MenuBarSummary(
                     text: "—",
                     providerID: id,
-                    detail: "\(name) \(preferred.shortLabel)",
+                    detail: "\(name) \(menuBarWindowChoice(for: id).menuBarTerm)",
                     isNeutral: true,
                     needsAttention: needsAttention
                 ),
@@ -1012,7 +1044,7 @@ public final class UsageStore {
             summary: MenuBarSummary(
                 text: "\(pct)%",
                 providerID: id,
-                detail: "\(name) \(resolved.shortLabel)",
+                detail: "\(name) \(resolved.menuBarTerm)",
                 isNeutral: false,
                 percentageMode: usagePercentageMode,
                 severity: resolved.window.severity,
@@ -1029,24 +1061,19 @@ public final class UsageStore {
         }
     }
 
-    /// Resolve one provider's preferred window. If the provider temporarily stops
-    /// reporting that window, use the other supported window while retaining the saved
-    /// preference so it resumes automatically when the data returns.
+    /// Resolve one provider's chosen window. If the latest data does not carry it, follow the
+    /// closest-to-limit window while keeping the saved choice, so the pill returns to it
+    /// automatically. An `.unavailable` retained row has no percentage to show, so it is
+    /// neither chosen nor closest.
     private func menuBarWindow(for id: ProviderID) -> ResolvedMenuBarWindow? {
         guard providerOrder.contains(id) else { return nil }
-        let snapshot = snapshot(for: id)
-        guard snapshot.freshness != .pending else { return nil }
+        guard snapshot(for: id).freshness != .pending else { return nil }
 
-        let preferred = menuBarWindowSource(for: id)
-        let candidates = [preferred] + MenuBarWindowSource.allCases.filter { $0 != preferred }
-        for source in candidates {
-            if let window = snapshot.windows.first(where: { $0.kind == source.kind }) {
-                return ResolvedMenuBarWindow(id: id, window: window, kind: window.kind)
-            }
-        }
-        guard let window = snapshot.windows.min(by: { $0.percentRemaining < $1.percentRemaining }) else {
-            return nil
-        }
+        let windows = menuBarCandidateWindows(for: id).filter { !$0.freshness.isUnavailable }
+        let choice = menuBarWindowChoice(for: id)
+        let window = windows.first(where: { choice.matches($0.kind) })
+            ?? windows.min(by: { $0.percentRemaining < $1.percentRemaining })
+        guard let window else { return nil }
         return ResolvedMenuBarWindow(id: id, window: window, kind: window.kind)
     }
 

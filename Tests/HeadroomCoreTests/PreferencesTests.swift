@@ -163,27 +163,47 @@ struct PreferencesTests {
     @Test func menuBarWindowSourcesDefaultAndPersistIndependently() {
         let prefs = Preferences(defaults: freshDefaults())
 
-        #expect(prefs.menuBarWindowSource(for: .claude) == .weekly)
-        #expect(prefs.menuBarWindowSource(for: .codex) == .weekly)
+        #expect(prefs.menuBarWindowChoice(for: .claude) == .weekly)
+        #expect(prefs.menuBarWindowChoice(for: .codex) == .weekly)
 
-        prefs.setMenuBarWindowSource(.fiveHour, for: .claude)
+        prefs.setMenuBarWindowChoice(.fiveHour, for: .claude)
 
-        #expect(prefs.menuBarWindowSource(for: .claude) == .fiveHour)
-        #expect(prefs.menuBarWindowSource(for: .codex) == .weekly)
+        #expect(prefs.menuBarWindowChoice(for: .claude) == .fiveHour)
+        #expect(prefs.menuBarWindowChoice(for: .codex) == .weekly)
     }
 
     @Test func providerWindowSourcesInheritLegacySharedPreferenceUntilOverridden() {
         let defaults = freshDefaults()
-        defaults.set(MenuBarWindowSource.fiveHour.rawValue, forKey: "menuBarWindowSource")
+        defaults.set(MenuBarWindowChoice.fiveHour.rawValue, forKey: "menuBarWindowSource")
         let prefs = Preferences(defaults: defaults)
 
-        #expect(prefs.menuBarWindowSource(for: .claude) == .fiveHour)
-        #expect(prefs.menuBarWindowSource(for: .codex) == .fiveHour)
+        #expect(prefs.menuBarWindowChoice(for: .claude) == .fiveHour)
+        #expect(prefs.menuBarWindowChoice(for: .codex) == .fiveHour)
 
-        prefs.setMenuBarWindowSource(.weekly, for: .codex)
+        prefs.setMenuBarWindowChoice(.weekly, for: .codex)
 
-        #expect(prefs.menuBarWindowSource(for: .claude) == .fiveHour)
-        #expect(prefs.menuBarWindowSource(for: .codex) == .weekly)
+        #expect(prefs.menuBarWindowChoice(for: .claude) == .fiveHour)
+        #expect(prefs.menuBarWindowChoice(for: .codex) == .weekly)
+    }
+
+    @Test func menuBarWindowChoiceReadsPreIDValuesAndTracksExplicitChoices() {
+        let defaults = freshDefaults()
+        defaults.set("weekly", forKey: "menuBarWindowSource")
+        defaults.set("fiveHour", forKey: "menuBarWindowSource.codex")
+        let prefs = Preferences(defaults: defaults)
+
+        #expect(prefs.menuBarWindowChoice(for: .codex) == .fiveHour)
+        #expect(prefs.hasChosenMenuBarWindow(for: .codex))
+        // The shared legacy value is inherited but does not count as a choice for this provider.
+        #expect(prefs.menuBarWindowChoice(for: .cursor) == .weekly)
+        #expect(!prefs.hasChosenMenuBarWindow(for: .cursor))
+
+        prefs.setMenuBarWindowChoice(.window(id: "billing:Other Models"), for: .cursor)
+        #expect(prefs.menuBarWindowChoice(for: .cursor) == .window(id: "billing:Other Models"))
+        #expect(defaults.string(forKey: "menuBarWindowSource.cursor") == "billing:Other Models")
+
+        prefs.setMenuBarWindowChoice(.closest, for: .claude)
+        #expect(prefs.menuBarWindowChoice(for: .claude) == .closest)
     }
 
     @Test func widgetsEnabledDefaultsOnAndPersists() {

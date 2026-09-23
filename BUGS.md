@@ -39,6 +39,18 @@ official `claude` CLI's `/usage` panel instead.
   Success must mean the timestamp advances and polling survives the old expiry; process exit
   alone is insufficient. If that still fails, abandon `codex exec` as a keep-alive mechanism.
 
+## Claude banked resets have no compliant source yet (2026-09-22)
+
+- **Provider parity gap, not a deferral by choice.** Codex banked resets ship from
+  `wham/usage` (`docs/solutions/codex-banked-resets.md`). Anthropic granted a Claude banked
+  reset on 2026-09-22, but the print-mode `claude -p "/usage"` report on that day showed only
+  `Current session`, `Current week (all models)`, and `Current week (Fable)` — no reset count.
+  The OAuth usage endpoint is off-limits (AGENTS.md), so there is nothing to read. Next steps:
+  capture the interactive PTY `/usage` panel on the same account to see whether it differs from
+  the print report, find where Anthropic surfaces the grant (claude.ai settings, email, or the
+  CLI), and recheck `/usage` on each CLI update. Only add a Claude capsule once the official
+  client prints a count; update `ClaudeUsageParser` fixtures from a live capture at that point.
+
 ## Claude CLI probe
 
 - **Resolved upstream on 2026-07-20: the per-model weekly row ("Weekly (Fable)") returned in

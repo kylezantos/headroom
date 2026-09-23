@@ -10,10 +10,16 @@ struct WidgetSettingsSection: View {
     @Binding var syncToIPhoneEnabled: Bool
     let store: UsageStore
 
+    /// System Settings' sub-option indent: dependent controls sit one step in from the
+    /// switch that governs them.
+    private static let subOptionIndent: CGFloat = 20
+
     var body: some View {
         // PB4: two groups, not three peers. The Spark-counter checkbox is a sub-option of
         // widget export, so it nests inside that group; floating between the two switches at
-        // the same gap, it read as belonging to neither.
+        // the same gap, it read as belonging to neither. S6B (2026-09-22 spacing audit): the
+        // provider picker is a widget sub-option too, so both indent under the switch they
+        // depend on instead of the picker splitting the switch from its checkbox.
         VStack(alignment: .leading, spacing: SettingsMetrics.groupToGroup) {
             VStack(alignment: .leading, spacing: 8) {
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
@@ -21,41 +27,46 @@ struct WidgetSettingsSection: View {
                     SettingsHelpText(text: "Controls whether Headroom supplies usage data to macOS widgets.")
                 }
 
-                ResponsiveControlRow(label: "Widget providers") {
-                    Menu {
-                        Button { store.setWidgetPrioritySource(.auto) } label: {
-                            if store.widgetPrioritySource == .auto {
-                                Label("Automatic (first two enabled)", systemImage: "checkmark")
-                            } else {
-                                Text("Automatic (first two enabled)")
-                            }
-                        }
-                        Divider()
-                        ForEach(store.registeredProviderOrder, id: \.self) { id in
-                            Button {
-                                var selected = store.widgetPrioritySource.providerIDs ?? []
-                                if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
-                                store.setWidgetPrioritySource(selected.isEmpty ? .auto : .providers(selected))
-                            } label: {
-                                if store.widgetPrioritySource.providerIDs?.contains(id) == true {
-                                    Label(store.displayNames[id] ?? id.raw, systemImage: "checkmark")
-                                } else {
-                                    Text(store.displayNames[id] ?? id.raw)
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                        ResponsiveControlRow(label: "Widget providers") {
+                            Menu {
+                                Button { store.setWidgetPrioritySource(.auto) } label: {
+                                    if store.widgetPrioritySource == .auto {
+                                        Label("Automatic (first two enabled)", systemImage: "checkmark")
+                                    } else {
+                                        Text("Automatic (first two enabled)")
+                                    }
                                 }
+                                Divider()
+                                ForEach(store.registeredProviderOrder, id: \.self) { id in
+                                    Button {
+                                        var selected = store.widgetPrioritySource.providerIDs ?? []
+                                        if selected.contains(id) { selected.remove(id) } else { selected.insert(id) }
+                                        store.setWidgetPrioritySource(selected.isEmpty ? .auto : .providers(selected))
+                                    } label: {
+                                        if store.widgetPrioritySource.providerIDs?.contains(id) == true {
+                                            Label(store.displayNames[id] ?? id.raw, systemImage: "checkmark")
+                                        } else {
+                                            Text(store.displayNames[id] ?? id.raw)
+                                        }
+                                    }
+                                    .disabled(!store.providerOrder.contains(id))
+                                }
+                            } label: {
+                                Text(MenuBarPrioritySelection.label(
+                                    source: store.widgetPrioritySource,
+                                    fetchedOrder: store.providerOrder,
+                                    displayName: { store.displayNames[$0] ?? $0.raw }
+                                ))
                             }
-                            .disabled(!store.providerOrder.contains(id))
+                            .fixedSize()
                         }
-                    } label: {
-                        Text(MenuBarPrioritySelection.label(
-                            source: store.widgetPrioritySource,
-                            fetchedOrder: store.providerOrder,
-                            displayName: { store.displayNames[$0] ?? $0.raw }
-                        ))
+                        SettingsHelpText(text: "Widgets show up to two selected providers in app order. Menu bar pills are configured separately.")
                     }
-                    .fixedSize()
+                    Toggle("Show Codex Spark counters in widgets", isOn: $showCodexSparkCountersInWidgets)
                 }
-                SettingsHelpText(text: "Widgets show up to two selected providers in app order. Menu bar pills are configured separately.")
-                Toggle("Show Codex Spark counters in widgets", isOn: $showCodexSparkCountersInWidgets)
+                .padding(.leading, Self.subOptionIndent)
             }
 
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {

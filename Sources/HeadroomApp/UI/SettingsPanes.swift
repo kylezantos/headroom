@@ -56,9 +56,9 @@ struct GeneralSettingsPane: View {
     @Binding var launchAtLogin: Bool
     @Binding var automaticUpdateChecks: Bool
     let softwareUpdates: SoftwareUpdateControlling
-    /// KTD12: one line per provider whose effective interval exceeds the chosen one;
-    /// empty while every promise is kept (R10).
-    let cadenceRows: [String]
+    /// KTD12: names each provider whose effective interval exceeds the chosen one; nil
+    /// while every promise is kept (R10).
+    let cadenceSentence: String?
     let onIntervalChange: (Int) -> Void
     let onLaunchAtLoginChange: (Bool) -> Void
     let onAutomaticUpdateChecksChange: (Bool) -> Void
@@ -97,11 +97,12 @@ struct GeneralSettingsPane: View {
                             onIntervalChange(newValue)
                         }
                     }
-                    // Non-breaking spaces keep "2 min." from orphaning onto its own line.
-                    SettingsHelpText(text: "Each account is refreshed on its own schedule. A CLI-probed provider stays idle at least half the time, so many accounts stretch the effective interval. Minimum\u{00A0}2\u{00A0}min.")
-                    ForEach(cadenceRows, id: \.self) { row in
-                        SettingsHelpText(text: row)
-                    }
+                    // One help block (R2B2): the cadence sentence folds in rather than stacking
+                    // a paragraph per provider. Non-breaking spaces keep "2 min." from
+                    // orphaning onto its own line.
+                    SettingsHelpText(text: ["Each account refreshes on its own schedule.", cadenceSentence, "Minimum\u{00A0}2\u{00A0}min."]
+                        .compactMap { $0 }
+                        .joined(separator: " "))
                 }
                 SettingsSwitchRow(title: "Launch at login", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, newValue in
@@ -226,6 +227,10 @@ struct MenuBarSettingsPane: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private static let cardWidth: CGFloat = 100
+    /// The two provider lists share one pitch whether a row carries a picker, a button, or
+    /// read-only text, so the same provider sits at the same rhythm in both.
+    private static let rowHeight: CGFloat = 24
+    private static let rowSpacing: CGFloat = 4
 
     private var selected: [ProviderID] { store.selectedMenuBarProviders }
     private var available: [ProviderID] {
@@ -238,28 +243,32 @@ struct MenuBarSettingsPane: View {
             Text(SettingsPane.menuBar.label)
                 .font(.system(size: 17, weight: .semibold))
                 .kerning(-0.2)
-            SettingsTile {
-                preview
-                displayChoices
-            }
-            ScrollView(.vertical) {
-                SettingsTile("Your Pills") {
-                    arranger
-                    availablePills
-                    windowChoices
-                    SettingsHelpText(text: "Uses each provider’s main account. Removing a pill keeps its account connected.")
-                    if store.menuBarFillSource != .auto {
-                        Button("Use one automatic summary pill instead…") {
-                            store.setMenuBarFillSource(.auto)
-                        }
-                        .buttonStyle(.link)
-                        .font(.system(size: 11))
-                    }
+            // The scaffold's second level, retyped because this pane pins its first tile:
+            // the two tiles stand `tileToTile` apart like every other pane's.
+            VStack(alignment: .leading, spacing: SettingsMetrics.tileToTile) {
+                SettingsTile {
+                    preview
+                    displayChoices
                 }
-                .padding(.bottom, 20)
+                ScrollView(.vertical) {
+                    SettingsTile("Your Pills") {
+                        arranger
+                        availablePills
+                        windowChoices
+                        SettingsHelpText(text: "Uses each provider’s main account. Removing a pill keeps its account connected.")
+                        if store.menuBarFillSource != .auto {
+                            Button("Use one automatic summary pill instead…") {
+                                store.setMenuBarFillSource(.auto)
+                            }
+                            .buttonStyle(.link)
+                            .font(.system(size: 11))
+                        }
+                    }
+                    .padding(.bottom, 20)
+                }
+                .scrollIndicators(.automatic)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .scrollIndicators(.automatic)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .padding(.horizontal, 20)
         .padding(.top, 20)
@@ -276,12 +285,12 @@ struct MenuBarSettingsPane: View {
     private var preview: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Menu bar preview")
+                groupCaption("Menu bar preview")
                 Spacer(minLength: 8)
                 Text(store.menuBarFillSource == .auto ? "Automatic summary" : "\(selected.count) pills")
+                    .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
             }
-            .font(.system(size: 11, weight: .medium))
             ScrollView(.horizontal) {
                 HStack {
                     Spacer(minLength: 0)
@@ -303,10 +312,13 @@ struct MenuBarSettingsPane: View {
 
     private var displayChoices: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-            Text("Display")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+            groupCaption("Display")
+            // The Appearance swatch grid: fixed 150pt columns, not the tile's full width.
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.fixed(150), spacing: 8, alignment: .leading), count: 2),
+                alignment: .leading,
+                spacing: 8
+            ) {
                 displayChoice(showsPercentage: true, title: "Pills + percentages", detail: "Exact usage at a glance")
                 displayChoice(showsPercentage: false, title: "Pills only", detail: "Save menu bar space")
             }
@@ -324,18 +336,24 @@ struct MenuBarSettingsPane: View {
         Button {
             store.setShowMenuBarPercentage(showsPercentage)
         } label: {
-            VStack(alignment: .leading, spacing: 6) {
+            // The Settings swatch shell (`InAppDisplayTile.swatch`): specimen in a 36pt r6
+            // well, 5pt, a centered 10.5pt label, 5pt padding so the r11 ring stays concentric.
+            // The detail line moved to the tooltip; the help line under the grid says it too.
+            VStack(spacing: 5) {
                 MenuBarPreviewPill(meters: Self.displaySamples, showsPercentage: showsPercentage)
-                    .frame(height: 30)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 36)
+                    .background(
+                        ProviderStyle.recessedWell(dark: colorScheme == .dark),
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 11, weight: .medium))
-                Text(detail)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(8)
+            .padding(5)
             .selectionChrome(isSelected: store.showMenuBarPercentage == showsPercentage)
         }
         .buttonStyle(SettingsSwatchButtonStyle())
@@ -445,21 +463,23 @@ struct MenuBarSettingsPane: View {
             SettingsHelpText(text: "All \(selected.count) providers shown.")
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Available Pills")
-                    .font(.system(size: 13, weight: .medium))
-                ForEach(available, id: \.self) { id in
-                    HStack(spacing: 8) {
-                        ProviderLogoView(providerID: id, size: 15)
-                        Text(name(id))
-                        Spacer(minLength: 8)
-                        if store.providerOrder.contains(id) {
-                            Button("Add pill", systemImage: "plus") { store.addMenuBarProvider(id) }
-                                .controlSize(.small)
-                                .accessibilityLabel("Add \(name(id)) pill")
-                        } else {
-                            SettingsPillBadge(text: "Off")
-                                .help(SettingsCopy.providerOffNotice)
+                groupCaption("Available pills")
+                VStack(alignment: .leading, spacing: Self.rowSpacing) {
+                    ForEach(available, id: \.self) { id in
+                        HStack(spacing: 8) {
+                            ProviderLogoView(providerID: id, size: 15)
+                            Text(name(id))
+                            Spacer(minLength: 8)
+                            if store.providerOrder.contains(id) {
+                                Button("Add pill", systemImage: "plus") { store.addMenuBarProvider(id) }
+                                    .controlSize(.small)
+                                    .accessibilityLabel("Add \(name(id)) pill")
+                            } else {
+                                SettingsPillBadge(text: "Off")
+                                    .help(SettingsCopy.providerOffNotice)
+                            }
                         }
+                        .frame(minHeight: Self.rowHeight)
                     }
                 }
                 if available.contains(where: { !store.providerOrder.contains($0) }) {
@@ -473,31 +493,36 @@ struct MenuBarSettingsPane: View {
         let ids = store.menuBarFillSource == .auto ? store.providerOrder : selected
         if !ids.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Text("Usage Shown in Each Pill")
-                    .font(.system(size: 13, weight: .medium))
-                ForEach(ids, id: \.self) { id in
-                    ResponsiveControlRow(label: name(id)) {
-                        if store.hasSelectableMenuBarWindows(for: id) {
-                            Picker("\(name(id)) usage window", selection: Binding(
-                                get: { store.menuBarWindowSource(for: id) },
-                                set: { store.setMenuBarWindowSource($0, for: id) }
-                            )) {
-                                ForEach(MenuBarWindowSource.allCases, id: \.self) { source in
-                                    Text(source.label).tag(source)
+                groupCaption("Usage shown in each pill")
+                VStack(alignment: .leading, spacing: Self.rowSpacing) {
+                    ForEach(ids, id: \.self) { id in
+                        HStack(spacing: 8) {
+                            ProviderLogoView(providerID: id, size: 15)
+                            Text(name(id))
+                            Spacer(minLength: 8)
+                            if store.hasSelectableMenuBarWindows(for: id) {
+                                Picker("\(name(id)) usage window", selection: Binding(
+                                    get: { store.menuBarWindowSource(for: id) },
+                                    set: { store.setMenuBarWindowSource($0, for: id) }
+                                )) {
+                                    ForEach(MenuBarWindowSource.allCases, id: \.self) { source in
+                                        Text(source.label).tag(source)
+                                    }
                                 }
+                                .labelsHidden()
+                                .pickerStyle(.menu)
+                                .fixedSize()
+                            } else {
+                                Text(store.resolvedMenuBarWindowKind(for: id)?.shortLabel ?? "Waiting for usage")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.secondary)
                             }
-                            .labelsHidden()
-                            .pickerStyle(.menu)
-                            .fixedSize()
-                        } else {
-                            Text(store.resolvedMenuBarWindowKind(for: id)?.shortLabel ?? "Waiting for usage")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
                         }
-                    }
-                    if let resolved = store.resolvedMenuBarWindowSource(for: id),
-                       resolved != store.menuBarWindowSource(for: id) {
-                        SettingsHelpText(text: "Using \(resolved.label.lowercased()) while \(store.menuBarWindowSource(for: id).label.lowercased()) data is unavailable.")
+                        .frame(minHeight: Self.rowHeight)
+                        if let resolved = store.resolvedMenuBarWindowSource(for: id),
+                           resolved != store.menuBarWindowSource(for: id) {
+                            SettingsHelpText(text: "Using \(resolved.label.lowercased()) while \(store.menuBarWindowSource(for: id).label.lowercased()) data is unavailable.")
+                        }
                     }
                 }
             }
@@ -506,6 +531,14 @@ struct MenuBarSettingsPane: View {
 
     private func name(_ id: ProviderID) -> String {
         store.displayNames[id] ?? id.raw.capitalized
+    }
+
+    /// The Settings group caption (Format / Shape / Fill, Percentages / Account names):
+    /// 11pt semibold secondary, sentence case. Tile titles are the only larger heading.
+    private func groupCaption(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(.secondary)
     }
 }
 

@@ -220,7 +220,7 @@ struct SettingsView: View {
                 launchAtLogin: $launchAtLogin,
                 automaticUpdateChecks: $automaticUpdateChecks,
                 softwareUpdates: softwareUpdates,
-                cadenceRows: cadenceRows,
+                cadenceSentence: cadenceSentence,
                 onIntervalChange: { newValue in
                     preferences.pollIntervalMinutes = newValue
                     store.reschedulePolling()
@@ -297,15 +297,12 @@ struct SettingsView: View {
             .joined(separator: "|")
     }
 
-    /// KTD12: read from the store's observable cadences so the rows update as lanes drain.
-    private var cadenceRows: [String] {
-        store.registeredProviderOrder.compactMap { providerID in
+    /// KTD12: read from the store's observable cadences so the sentence updates as lanes drain.
+    private var cadenceSentence: String? {
+        PollCadencePresentation.sentence(for: store.registeredProviderOrder.compactMap { providerID in
             guard let cadence = store.pollCadences[providerID] else { return nil }
-            return PollCadencePresentation.row(
-                for: cadence,
-                providerName: store.displayNames[providerID] ?? providerID.displayName
-            )
-        }
+            return (store.displayNames[providerID] ?? providerID.displayName, cadence)
+        })
     }
 
     // MARK: - Shared bindings

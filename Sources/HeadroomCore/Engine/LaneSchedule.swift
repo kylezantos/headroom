@@ -303,14 +303,26 @@ public struct PollCadence: Sendable, Equatable {
     public var isStretched: Bool { effectiveInterval > chosenInterval }
 }
 
-/// KTD12 / R9, R10: the read-only Settings row for a provider whose accounts run slower
-/// than the chosen interval. Nil when the promise is being kept, so nothing extra shows.
+/// KTD12 / R9, R10: the read-only Settings sentence for providers whose accounts run slower
+/// than the chosen interval. The stepper above shows the chosen interval, so the sentence
+/// names each stretched provider's effective interval and its account count (the reason).
+/// Nil when every promise is kept, so nothing extra shows. One sentence, not a line per
+/// provider: stacked 11pt paragraphs under one control broke R2B2's one-help-block rule.
 public enum PollCadencePresentation {
-    public static func row(for cadence: PollCadence, providerName: String) -> String? {
-        guard cadence.isStretched else { return nil }
-        let chosen = Int((cadence.chosenInterval / 60).rounded(.up))
-        let effective = Int((cadence.effectiveInterval / 60).rounded(.up))
-        let accounts = cadence.accountCount == 1 ? "1 account" : "\(cadence.accountCount) accounts"
-        return "\(providerName): \(chosen)\u{00A0}min chosen · about \(effective)\u{00A0}min effective · \(accounts)"
+    public static func sentence(for cadences: [(providerName: String, cadence: PollCadence)]) -> String? {
+        let clauses = cadences.filter { $0.cadence.isStretched }.map { entry in
+            let effective = Int((entry.cadence.effectiveInterval / 60).rounded(.up))
+            let count = entry.cadence.accountCount
+            let accounts = count == 1 ? "1\u{00A0}account" : "\(count)\u{00A0}accounts"
+            return (name: entry.providerName, rest: "about every \(effective)\u{00A0}min across \(accounts)")
+        }
+        guard let first = clauses.first else { return nil }
+        let lead = "Right now \(first.name) refreshes \(first.rest)"
+        let others = clauses.dropFirst().map { "\($0.name) \($0.rest)" }
+        switch others.count {
+        case 0: return lead + "."
+        case 1: return "\(lead), and \(others[0])."
+        default: return "\(lead), " + others.dropLast().joined(separator: ", ") + ", and \(others.last!)."
+        }
     }
 }

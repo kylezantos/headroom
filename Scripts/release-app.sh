@@ -7,6 +7,8 @@ source Scripts/sparkle-release-notes.sh
 
 APP="Headroom.app"
 WIDGET_APPEX="${APP}/Contents/PlugIns/HeadroomWidgets.appex"
+DMG_BACKGROUND_1X="Assets/Release/dmg-background.png"
+DMG_BACKGROUND_2X="Assets/Release/dmg-background@2x.png"
 DIST_DIR="dist"
 WORK_DIR="${DIST_DIR}/release-work"
 APP_ZIP="${WORK_DIR}/Headroom-app-notary.zip"
@@ -111,6 +113,16 @@ create_drag_install_dmg() {
   rm -rf "${DMG_MOUNT_DIR}"
   mkdir -p "${DMG_MOUNT_DIR}"
 
+  echo "→ staging installer window background"
+  if [[ ! -f "${DMG_BACKGROUND_1X}" || ! -f "${DMG_BACKGROUND_2X}" ]]; then
+    echo "Missing DMG background: run Assets/Release/make-dmg-background.sh" >&2
+    exit 66
+  fi
+  mkdir -p "${STAGING_DIR}/.background"
+  # One HiDPI TIFF holding @1x + @2x so Retina Finder renders it crisp.
+  tiffutil -cathidpicheck "${DMG_BACKGROUND_1X}" "${DMG_BACKGROUND_2X}" \
+    -out "${STAGING_DIR}/.background/background.tiff" >/dev/null
+
   echo "→ creating writable installer image"
   hdiutil create \
     -volname "Headroom Installer" \
@@ -153,9 +165,10 @@ on run argv
     set text size of viewOptions to 13
     set label position of viewOptions to bottom
 
-    -- A custom Finder background is always treated as light appearance, forcing black
-    -- labels even in Dark Mode. Leave the background at its native default so Finder
-    -- supplies a resize-safe canvas and accessible label colors for the user's appearance.
+    -- A custom Finder background is always treated as light appearance, so labels draw
+    -- black even in Dark Mode. The dark background paints a gold chip under each label
+    -- (dmg-background.html) so the black names stay legible and read as branding.
+    set background picture of viewOptions to (POSIX file (mountPath & "/.background/background.tiff") as alias)
 
     set position of item "Headroom.app" of dmgFolder to {196, 176}
     set position of item "Applications" of dmgFolder to {484, 176}
@@ -451,7 +464,7 @@ select_developer_id_application() {
     | head -n 1
 }
 
-for tool in security codesign curl ditto hdiutil xcrun plutil; do
+for tool in security codesign curl ditto hdiutil xcrun plutil tiffutil; do
   require_tool "${tool}"
 done
 require_tool xcodegen

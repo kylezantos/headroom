@@ -1,12 +1,16 @@
 <!doctype html>
 <!--
-  Legacy Headroom DMG installer background retained as a design reference.
+  Headroom DMG installer window background ("Instrument", always dark).
   Source of truth for Assets/Release/dmg-background.png (@1x 680x440) and
   dmg-background@2x.png (@2x 1360x880). Regenerate with make-dmg-background.sh.
 
-  The release pipeline intentionally does not install this as Finder's background:
-  custom pictures force light-appearance (black) icon labels and cannot resize with
-  the window. Scripts/release-app.sh leaves the canvas native and appearance-adaptive.
+  Finder treats any window with a background picture as light appearance, so it
+  draws the icon labels black with no way to recolor them. On this near-black
+  ground they effectively disappear, which is deliberate: the icons, the arrow,
+  and the instruction carry the window, and a clicked item still shows its name
+  in Finder's selection highlight. Keep the ground dark behind the label band
+  (y ~245-265); a lighter tone there would surface the black names. Chips or
+  plates under the labels were tried in Sep 2026 and rejected.
 
   This bitmap intentionally contains ONLY: ground, icon seats, drag arrow, and
   instruction. No wordmark/logo — the volume icon + name in the Finder title

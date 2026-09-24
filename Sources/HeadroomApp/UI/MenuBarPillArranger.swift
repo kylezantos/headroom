@@ -186,8 +186,8 @@ struct MenuBarPillArranger<Card: View>: View {
     let notShownCaption: String
     let notShownHelp: String
     let onCommit: (PillShelfCommit) -> Void
-    /// Draws a card in the form of the given row (PS6: a just-dropped card keeps its old
-    /// row's form until it has landed, then morphs).
+    /// Draws a card in the form of the given row. A dropped card takes its drop row's form
+    /// the moment it is let go, so it morphs while it lands (PS8).
     @ViewBuilder let card: (ProviderID, PillShelf) -> Card
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -425,9 +425,12 @@ struct MenuBarPillArranger<Card: View>: View {
 
     struct Landing {
         let id: ProviderID
-        let origin: PillShelfSlot
         let drop: PillShelfSlot
         let commit: PillShelfCommit
+        /// The rows as they stood when the card was let go. The commit only applies if they
+        /// still do: a +, ×, arrow, or mode change during the landing wins over it.
+        let shown: [ProviderID]
+        let notShown: [ProviderID]
     }
 
     /* ─────────────────────────────────────────────────────────
@@ -443,8 +446,10 @@ struct MenuBarPillArranger<Card: View>: View {
      *            120ms, arrive after 50ms out of 0.97/blur 2) and both
      *            rows resize to fit;
      *          • lift, drop ring and row messages ease on their own.
-     * ~300ms   the store commits with animations off. The screen already
-     *          shows the committed arrangement, so nothing moves.
+     * ~300ms   the store commits. The screen already shows the committed
+     *          arrangement, so no card moves; mode-dependent chrome (the
+     *          summary's shelf values) eases on cardMorph. A commit whose
+     *          rows changed meanwhile (+, ×, arrows, mode) is dropped.
      *
      * The card's position is only ever the layout's placement — at the
      * pointer while dragging, at the slot once let go. Every earlier try
@@ -456,17 +461,17 @@ struct MenuBarPillArranger<Card: View>: View {
      * timing (S2A).
      * ───────────────────────────────────────────────────────── */
     private func land(_ id: ProviderID, at drop: PillShelfSlot, commit: PillShelfCommit) {
-        guard let origin = PillShelfModel.origin(of: id, shown: shown, notShown: notShown) else { return }
+        guard PillShelfModel.origin(of: id, shown: shown, notShown: notShown) != nil else { return }
         let animation = HeadroomMotion.resolved(HeadroomMotion.dragSettle, .movement, reduceMotion: reduceMotion)
         guard animation != nil else {
-            landing = Landing(id: id, origin: origin, drop: drop, commit: commit)
+            landing = Landing(id: id, drop: drop, commit: commit, shown: shown, notShown: notShown)
             dragged = nil
             self.drop = nil
             commitLanding()
             return
         }
         withAnimation(animation, completionCriteria: .removed) {
-            landing = Landing(id: id, origin: origin, drop: drop, commit: commit)
+            landing = Landing(id: id, drop: drop, commit: commit, shown: shown, notShown: notShown)
             dragged = nil
             self.drop = nil
         } completion: {
@@ -474,13 +479,16 @@ struct MenuBarPillArranger<Card: View>: View {
         }
     }
 
-    /// ~300ms: the store catches up with the screen.
+    /// ~300ms: the store catches up with the screen. Animated on `cardMorph`, not disabled:
+    /// the arrangement already matches, so nothing moves, but leaving the automatic summary
+    /// changes the pane around the card — the other shelf cards drop their values, the
+    /// shelf and its copy resize — and those should ease, not snap.
     private func commitLanding() {
         guard let landing else { return }
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            onCommit(landing.commit)
+        withAnimation(HeadroomMotion.resolved(HeadroomMotion.cardMorph, .movement, reduceMotion: reduceMotion)) {
+            if shown == landing.shown, notShown == landing.notShown {
+                onCommit(landing.commit)
+            }
             self.landing = nil
         }
     }

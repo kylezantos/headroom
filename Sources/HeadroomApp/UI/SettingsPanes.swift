@@ -421,9 +421,8 @@ struct MenuBarSettingsPane: View {
         withAnimation(HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion), change)
     }
 
-    /// `presentation` is the row whose card this draws. It is usually the provider's row, but
-    /// the arranger holds a just-dropped card in its old row's form until the card has landed,
-    /// then lets it morph (PS6).
+    /// `presentation` is the row whose form this card takes. It is the provider's row, except
+    /// that a dropped card takes its drop row's form as soon as it is let go (PS8).
     @ViewBuilder private func providerCard(_ id: ProviderID, presentation: PillShelf) -> some View {
         if store.providerOrder.contains(id) {
             pillCard(id, inMenuBar: presentation == .menuBar)
@@ -611,9 +610,14 @@ struct MenuBarSettingsPane: View {
     }
 }
 
-/// PS6: the blur half of `cardPartTransition`.
-private struct PartBlur: ViewModifier {
-    let radius: CGFloat
+/// PS6: the blur half of `cardPartTransition`. Animatable, so the radius eases with the
+/// fade instead of popping to its end state.
+private struct PartBlur: ViewModifier, @preconcurrency Animatable {
+    var radius: CGFloat
+    var animatableData: CGFloat {
+        get { radius }
+        set { radius = newValue }
+    }
     func body(content: Content) -> some View { content.blur(radius: radius) }
 }
 

@@ -53,10 +53,14 @@ struct APISpendSectionView: View {
             // language — identity rows on the shared content axis, chunked by the same 22pt
             // gap the account sections use, inside the byte-identical tile.
             VStack(alignment: .leading, spacing: 0) {
-                // CMM7 (Kyle, 2026-09-10): the spend card takes the usage cards' rhythm —
-                // rows sit 26 apart like accounts do, on the same 13pt padding and the same
-                // identity-row recipe, so the two card kinds read as one system.
-                VStack(alignment: .leading, spacing: 26) {
+                // CMM7 (Kyle, 2026-09-10): the spend card takes the usage cards' rhythm, on
+                // the same 13pt padding and the same identity-row recipe.
+                // SP1 (Kyle, 2026-09-24): 26 is the gap between two account *blocks*. Two
+                // one-line rows 26 apart pitched 44pt against the meter rows' 31 and read as
+                // pinned to the card's top and bottom edges. Bare rows now sit one padding
+                // apart, so the card is evenly spaced; a row carrying a status sentence is a
+                // block again and keeps the account gap.
+                VStack(alignment: .leading, spacing: Self.rowGap(for: models)) {
                     ForEach(models) { model in
                         spendRow(model)
                     }
@@ -68,6 +72,13 @@ struct APISpendSectionView: View {
             .padding(13)
             .raisedTile(cornerRadius: 10)
         }
+    }
+
+    /// SP1: the card's 13pt padding between bare one-line rows; the accounts' 26pt block gap
+    /// once any row carries a status sentence under it.
+    private static func rowGap(for models: [SpendRowModel]) -> CGFloat {
+        let hasSentence = models.contains { $0.snapshot.freshness != .live && $0.status.message != nil }
+        return hasSentence ? 26 : 13
     }
 
     // MARK: - Row model

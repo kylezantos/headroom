@@ -125,6 +125,20 @@ struct MenuBarPillArrangerTests {
         #expect(resting[cursor] == PillShelfSlot(shelf: .notShown, index: 1))
     }
 
+    /// PS7: a released card is anchored at its drop slot, and that arrangement is exactly
+    /// what the store commits, so the commit moves nothing on screen.
+    @Test func aLandingCardIsAnchoredWhereTheCommitPutsIt() {
+        let shown: [ProviderID] = [.claude, .codex]
+        let notShown = [grok, cursor]
+        let drop = PillShelfSlot(shelf: .menuBar, index: 1)
+        let landing = PillShelfModel.slots(
+            shown: shown, notShown: notShown, dragging: cursor, drop: drop, holdsOrigin: false
+        )
+        #expect(landing[cursor] == drop)
+        let committed = PillShelfModel.slots(shown: [.claude, cursor, .codex], notShown: [grok], dragging: nil, drop: nil)
+        #expect(landing == committed)
+    }
+
     @Test func fourCardsFitOneRowAtTheWindowFloor() {
         // 720pt window − 216pt sidebar − 40pt pane padding − 26pt tile padding − 2pt inset,
         // less the well's 9pt insets and three 8pt gaps.

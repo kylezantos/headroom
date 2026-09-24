@@ -29,7 +29,7 @@ enum HeadroomMotion {
     static let hoverOut = Animation.smooth(duration: 0.18, extraBounce: 0)
 
     // MARK: Springs — critically damped. Apple reserves bounce for motion that inherits a
-    // gesture's momentum; the Menu Bar pill drop (`dragSettle`) is the only such motion.
+    // gesture's momentum, and since PS5 nothing here carries any.
 
     /// M1A: a bar that represents a value must never overshoot it, even by a hair, so the
     /// old `dampingFraction: 0.9` became `1.0`. Drives fill length, numeral roll, and
@@ -57,10 +57,16 @@ enum HeadroomMotion {
     /// the gap has to open while the pointer is still crossing, or it reads as lag.
     static let dragNudge = Animation.spring(response: 0.26, dampingFraction: 1.0)
 
-    /// SM3: the dropped card settling into its gap. This is the one place a spring may
-    /// carry a hair of bounce — the motion inherits the hand's release, which is exactly the
-    /// case Apple reserves bounce for (see the springs note above).
-    static let dragSettle = Animation.spring(response: 0.32, dampingFraction: 0.86)
+    /// SM3: the dropped card settling into its gap. PS5 (Kyle, 2026-09-24): critically
+    /// damped now. The card lands on an exact slot and the store commits the moment it
+    /// arrives, so any overshoot was cut off at the commit and read as a jolt.
+    static let dragSettle = Animation.spring(response: 0.32, dampingFraction: 1.0)
+
+    /// PS6: a pill card changing form between the shelf and the menu bar once it has landed —
+    /// the card's height, the rows' heights, and its parts arriving. A spring so a second
+    /// drop mid-morph retargets; critically damped because it is a layout change, not a
+    /// gesture's momentum.
+    static let cardMorph = Animation.spring(response: 0.3, dampingFraction: 1.0)
 
     // MARK: Arrival timing (M9A)
 

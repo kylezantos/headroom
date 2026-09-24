@@ -76,13 +76,15 @@ enum PillShelfModel {
     }
 
     /// Every card's slot while `dragging` hovers over `drop`: the other cards close the gap
-    /// the dragged card left and open one where it would land. The dragged card keeps its
-    /// origin slot, because its pointer offset is measured from there.
+    /// the dragged card left and open one where it would land. Under the pointer the dragged
+    /// card keeps its origin slot, because its offset is measured from there; once released
+    /// (`holdsOrigin: false`) it is anchored at its drop slot for the landing (PS7).
     static func slots(
         shown: [ProviderID],
         notShown: [ProviderID],
         dragging: ProviderID?,
-        drop: PillShelfSlot?
+        drop: PillShelfSlot?,
+        holdsOrigin: Bool = true
     ) -> [ProviderID: PillShelfSlot] {
         var menuBar = shown
         var shelf = notShown
@@ -99,7 +101,7 @@ enum PillShelfModel {
         var slots: [ProviderID: PillShelfSlot] = [:]
         for (index, id) in menuBar.enumerated() { slots[id] = PillShelfSlot(shelf: .menuBar, index: index) }
         for (index, id) in shelf.enumerated() { slots[id] = PillShelfSlot(shelf: .notShown, index: index) }
-        if let dragging, let origin { slots[dragging] = origin }
+        if holdsOrigin, let dragging, let origin { slots[dragging] = origin }
         return slots
     }
 
@@ -184,7 +186,9 @@ struct MenuBarPillArranger<Card: View>: View {
     let notShownCaption: String
     let notShownHelp: String
     let onCommit: (PillShelfCommit) -> Void
-    @ViewBuilder let card: (ProviderID) -> Card
+    /// Draws a card in the form of the given row (PS6: a just-dropped card keeps its old
+    /// row's form until it has landed, then morphs).
+    @ViewBuilder let card: (ProviderID, PillShelf) -> Card
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
@@ -195,6 +199,8 @@ struct MenuBarPillArranger<Card: View>: View {
     /// one transaction.
     @State private var dragged: (id: ProviderID, translation: CGSize)?
     @State private var drop: PillShelfSlot?
+    /// PS8: the card between release and commit. See the landing storyboard on `land`.
+    @State private var landing: Landing?
     @State private var width: CGFloat = 0
     /// Where the pointer crosses into the shelf: halfway down the gap under the menu bar well.
     @State private var shelfBoundary: CGFloat = .infinity
@@ -210,13 +216,31 @@ struct MenuBarPillArranger<Card: View>: View {
     private var pitch: CGFloat { cardWidth + PillShelfModel.spacing }
 
     private var slots: [ProviderID: PillShelfSlot] {
-        PillShelfModel.slots(shown: shown, notShown: notShown, dragging: dragged?.id, drop: drop)
+        if let landing {
+            return PillShelfModel.slots(
+                shown: shown, notShown: notShown, dragging: landing.id, drop: landing.drop, holdsOrigin: false
+            )
+        }
+        return PillShelfModel.slots(shown: shown, notShown: notShown, dragging: dragged?.id, drop: drop)
     }
 
-    /// The row a card from the other row is hovering over, which lights to take it.
+    /// Which row each card's height counts toward: its slot's row. A card under the pointer
+    /// still counts toward the row it came from, so nothing resizes until it is let go.
+    private var heightRows: [ProviderID: PillShelf] {
+        slots.mapValues(\.shelf)
+    }
+
+    /// A row with no card in it, judged from the pending arrangement rather than the store, so
+    /// its message comes and goes with the cards instead of at the commit.
+    private func isEmpty(_ shelf: PillShelf) -> Bool {
+        !heightRows.values.contains(shelf)
+    }
+
+    /// The row a card from the other row is hovering over, which lights to take it. Only
+    /// while the pointer is down: the ring fades as the card is let go.
     private var receivingShelf: PillShelf? {
-        guard let dragged, let drop,
-              let origin = PillShelfModel.origin(of: dragged.id, shown: shown, notShown: notShown),
+        guard let moving = dragged?.id, let drop,
+              let origin = PillShelfModel.origin(of: moving, shown: shown, notShown: notShown),
               origin.shelf != drop.shelf else { return nil }
         return drop.shelf
     }
@@ -226,10 +250,13 @@ struct MenuBarPillArranger<Card: View>: View {
             slots: slots,
             cardWidth: cardWidth,
             spacing: PillShelfModel.spacing,
-            wellPadding: PillShelfModel.wellPadding
+            wellPadding: PillShelfModel.wellPadding,
+            heightRows: heightRows,
+            pointer: dragged.map { ($0.id, offset(for: $0.id)) },
+            landing: landing?.id
         ) {
             well(.menuBar, cornerRadius: 20) {
-                if let menuBarMessage, shown.isEmpty, receivingShelf != .menuBar {
+                if let menuBarMessage, isEmpty(.menuBar), receivingShelf != .menuBar {
                     VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                         if let title = menuBarMessage.title {
                             Text(title)
@@ -260,7 +287,7 @@ struct MenuBarPillArranger<Card: View>: View {
             .layoutValue(key: PillShelfPartKey.self, value: .notShownHeader)
 
             well(.notShown, cornerRadius: 20) {
-                if notShown.isEmpty, receivingShelf != .notShown {
+                if isEmpty(.notShown), receivingShelf != .notShown {
                     SettingsHelpText(text: "All providers shown.")
                         .padding(.horizontal, 5)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -271,7 +298,7 @@ struct MenuBarPillArranger<Card: View>: View {
 
             ForEach(shown + notShown, id: \.self) { id in
                 let lifted = dragged?.id == id
-                card(id)
+                card(id, presentation(of: id))
                     .scaleEffect(lifted ? Self.liftScale : 1)
                     .shadow(
                         color: .black.opacity(lifted ? (colorScheme == .dark ? 0.45 : 0.16) : 0),
@@ -284,8 +311,7 @@ struct MenuBarPillArranger<Card: View>: View {
                         HeadroomMotion.resolved(HeadroomMotion.quickSettle, .movement, reduceMotion: reduceMotion),
                         value: lifted
                     )
-                    .offset(lifted ? offset(for: id) : .zero)
-                    .zIndex(lifted ? 2 : 1)
+                    .zIndex(lifted || landing?.id == id ? 2 : 1)
                     .gesture(dragGesture(for: id), including: canDrag(id) ? .all : .subviews)
                     .pointerStyle(canDrag(id) ? (lifted ? .grabActive : .grabIdle) : .default)
                     .transition(Self.cardTransition(reduceMotion: reduceMotion))
@@ -320,10 +346,19 @@ struct MenuBarPillArranger<Card: View>: View {
             HeadroomMotion.resolved(HeadroomMotion.quickSettle, .crossfade, reduceMotion: reduceMotion),
             value: receivingShelf == shelf
         )
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: isEmpty(shelf)
+        )
         .zIndex(0)
     }
 
     // MARK: - Geometry
+
+    private func presentation(of id: ProviderID) -> PillShelf {
+        if let landing, landing.id == id { return landing.drop.shelf }
+        return shown.contains(id) ? .menuBar : .notShown
+    }
 
     private func offset(for id: ProviderID) -> CGSize {
         guard let dragged, dragged.id == id,
@@ -349,7 +384,7 @@ struct MenuBarPillArranger<Card: View>: View {
         // would feed its own offset back into itself and shudder.
         DragGesture(minimumDistance: 3, coordinateSpace: .named(pillArrangerSpace))
             .onChanged { value in
-                guard canDrag(id), dragged == nil || dragged?.id == id else { return }
+                guard canDrag(id), landing == nil, dragged == nil || dragged?.id == id else { return }
                 dragged = (id, value.translation)
                 let target = PillShelfModel.drop(
                     for: id,
@@ -373,18 +408,81 @@ struct MenuBarPillArranger<Card: View>: View {
                 let commit = drop.map {
                     PillShelfModel.commit(for: id, shown: shown, notShown: notShown, drop: $0)
                 } ?? .none
-                // One transaction for the commit and the release. The dragged card's slot
-                // moves to its landing while its offset returns to zero, and each other
-                // card's new slot matches the one it already slid to, so the card glides
-                // from where it was let go and nothing moves twice.
+                if commit != .none, let drop {
+                    land(id, at: drop, commit: commit)
+                    return
+                }
+                // Nothing to write: the card springs back to its own slot, and any card that
+                // parted for it closes up on the same spring.
                 withAnimation(
                     HeadroomMotion.resolved(HeadroomMotion.dragSettle, .movement, reduceMotion: reduceMotion)
                 ) {
-                    if commit != .none { onCommit(commit) }
                     dragged = nil
                     drop = nil
                 }
             }
+    }
+
+    struct Landing {
+        let id: ProviderID
+        let origin: PillShelfSlot
+        let drop: PillShelfSlot
+        let commit: PillShelfCommit
+    }
+
+    /* ─────────────────────────────────────────────────────────
+     * LANDING STORYBOARD (PS8, Kyle 2026-09-24)
+     *
+     * Read top-to-bottom. Times are after the pointer lets go.
+     *
+     *    0ms   one transaction on dragSettle (~300ms, no overshoot):
+     *          • the layout stops placing the card at pointer + origin
+     *            and places it at its drop slot, so SwiftUI glides the
+     *            card from exactly where it was let go;
+     *          • the card takes the drop row's form (parts leave in
+     *            120ms, arrive after 50ms out of 0.97/blur 2) and both
+     *            rows resize to fit;
+     *          • lift, drop ring and row messages ease on their own.
+     * ~300ms   the store commits with animations off. The screen already
+     *          shows the committed arrangement, so nothing moves.
+     *
+     * The card's position is only ever the layout's placement — at the
+     * pointer while dragging, at the slot once let go. Every earlier try
+     * (SM3–PS7) moved it with an `.offset` layered over the placement and
+     * needed the two to hand over cleanly; SwiftUI folded the handover
+     * into one frame and the card jumped (to part-way back, then to the
+     * far corner). One mechanism has nothing to hand over.
+     * Reduce Motion: everything that moves is instant; fades keep their
+     * timing (S2A).
+     * ───────────────────────────────────────────────────────── */
+    private func land(_ id: ProviderID, at drop: PillShelfSlot, commit: PillShelfCommit) {
+        guard let origin = PillShelfModel.origin(of: id, shown: shown, notShown: notShown) else { return }
+        let animation = HeadroomMotion.resolved(HeadroomMotion.dragSettle, .movement, reduceMotion: reduceMotion)
+        guard animation != nil else {
+            landing = Landing(id: id, origin: origin, drop: drop, commit: commit)
+            dragged = nil
+            self.drop = nil
+            commitLanding()
+            return
+        }
+        withAnimation(animation, completionCriteria: .removed) {
+            landing = Landing(id: id, origin: origin, drop: drop, commit: commit)
+            dragged = nil
+            self.drop = nil
+        } completion: {
+            commitLanding()
+        }
+    }
+
+    /// ~300ms: the store catches up with the screen.
+    private func commitLanding() {
+        guard let landing else { return }
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            onCommit(landing.commit)
+            self.landing = nil
+        }
     }
 
     /// Adding or removing a provider altogether: the card resolves in (or out) from 96% with a
@@ -418,6 +516,14 @@ struct PillShelfLayout: Layout {
     var cardWidth: CGFloat
     var spacing: CGFloat
     var wellPadding: CGFloat
+    /// PS7: the row each card's height counts toward; see `MenuBarPillArranger.heightRows`.
+    var heightRows: [ProviderID: PillShelf] = [:]
+    /// PS8: the card under the pointer and how far it has travelled from its slot. The layout
+    /// places it there itself, so letting go is just a change of placement.
+    var pointer: (id: ProviderID, offset: CGSize)? = nil
+    /// PS7: a landing card takes its own height rather than its row's, so the form change
+    /// is the only thing that resizes it.
+    var landing: ProviderID? = nil
     /// An empty row keeps room for its message and for a card to be dropped into it.
     var emptyRowHeight: CGFloat = 56
 
@@ -457,7 +563,8 @@ struct PillShelfLayout: Layout {
             guard case .card(let id) = subview.part, let slot = slots[id] else { continue }
             let height = subview.sizeThatFits(ProposedViewSize(width: cardWidth, height: nil)).height
             cardHeights[index] = height
-            rowHeights[slot.shelf] = max(rowHeights[slot.shelf] ?? 0, height)
+            let row = heightRows[id] ?? slot.shelf
+            rowHeights[row] = max(rowHeights[row] ?? 0, height)
         }
         func rowHeight(_ shelf: PillShelf) -> CGFloat {
             let height = rowHeights[shelf] ?? 0
@@ -485,11 +592,14 @@ struct PillShelfLayout: Layout {
             case .card(let id):
                 guard let slot = slots[id] else { continue }
                 let well = slot.shelf == .menuBar ? menuBarWell : notShownWell
+                let travel = pointer?.id == id ? pointer?.offset ?? .zero : .zero
                 frames.parts[index] = CGRect(
-                    x: wellPadding + CGFloat(slot.index) * (cardWidth + spacing),
-                    y: well.minY + wellPadding,
+                    x: wellPadding + CGFloat(slot.index) * (cardWidth + spacing) + travel.width,
+                    y: well.minY + wellPadding + travel.height,
                     width: cardWidth,
-                    height: max(rowHeight(slot.shelf), cardHeights[index] ?? 0)
+                    height: id == landing || id == pointer?.id
+                        ? cardHeights[index] ?? 0
+                        : max(rowHeight(slot.shelf), cardHeights[index] ?? 0)
                 )
             case .notShownHeader, nil:
                 continue

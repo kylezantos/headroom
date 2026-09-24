@@ -388,7 +388,7 @@ struct MenuBarSettingsPane: View {
                     ? "Each value sets what the summary follows for that provider."
                     : "Drag one up, or press +.",
                 onCommit: commit,
-                card: providerCard
+                card: { id, presentation in providerCard(id, presentation: presentation) }
             )
             // The arranger lifts a picked-up card past its own bounds, so nothing clips it.
             .padding(1)
@@ -421,11 +421,12 @@ struct MenuBarSettingsPane: View {
         withAnimation(HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion), change)
     }
 
-    @ViewBuilder private func providerCard(_ id: ProviderID) -> some View {
-        if selected.contains(id) {
-            menuBarCard(id)
-        } else if store.providerOrder.contains(id) {
-            shelfCard(id)
+    /// `presentation` is the row whose card this draws. It is usually the provider's row, but
+    /// the arranger holds a just-dropped card in its old row's form until the card has landed,
+    /// then lets it morph (PS6).
+    @ViewBuilder private func providerCard(_ id: ProviderID, presentation: PillShelf) -> some View {
+        if store.providerOrder.contains(id) {
+            pillCard(id, inMenuBar: presentation == .menuBar)
         } else {
             offCard(id)
         }
@@ -433,83 +434,104 @@ struct MenuBarSettingsPane: View {
 
     // MARK: Cards
 
-    /// A pill in the menu bar: grip and remove, the live pill, the provider, what the pill
-    /// shows, and the arrows.
-    private func menuBarCard(_ id: ProviderID) -> some View {
-        VStack(spacing: 6) {
+    /// PS6 (Kyle, 2026-09-24): one card for both rows, not a shelf card swapped for a pill
+    /// card. Swapping built a new view on every row change, so the card replaced itself
+    /// instead of changing. Now the pill and the name stay put and the row-specific parts come
+    /// and go around them: in the menu bar the grip, ×, value, and arrows; on the shelf just
+    /// +, in the × slot. The header row is on both, so the pill sits at the same height in
+    /// either form and never jumps. In the automatic summary the shelf card keeps its value,
+    /// because the summary still follows each provider's choice.
+    private func pillCard(_ id: ProviderID, inMenuBar: Bool) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
+        return VStack(spacing: 6) {
             HStack {
-                Image(systemName: "line.3.horizontal")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .frame(width: PillCardChipStyle.side, height: PillCardChipStyle.side)
-                    .contentShape(Rectangle())
-                    .help("Drag to arrange \(name(id))")
-                    .accessibilityLabel("Drag \(name(id))")
-                Spacer(minLength: 4)
-                Button {
-                    animatingPills { store.removeMenuBarProvider(id) }
-                } label: {
-                    Image(systemName: "xmark")
+                if inMenuBar {
+                    Image(systemName: "line.3.horizontal")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .frame(width: PillCardChipStyle.side, height: PillCardChipStyle.side)
+                        .contentShape(Rectangle())
+                        .help("Drag to arrange \(name(id))")
+                        .accessibilityLabel("Drag \(name(id))")
+                        .transition(cardPartTransition)
                 }
-                .disabled(selected.count == 1)
-                .help(selected.count == 1 ? "Keep one pill, or choose the automatic summary below" : "Remove \(name(id)) pill")
-                .accessibilityLabel("Remove \(name(id)) pill")
+                Spacer(minLength: 4)
+                if inMenuBar {
+                    Button {
+                        animatingPills { store.removeMenuBarProvider(id) }
+                    } label: {
+                        Image(systemName: "xmark")
+                    }
+                    .disabled(selected.count == 1)
+                    .help(selected.count == 1 ? "Keep one pill, or choose the automatic summary below" : "Remove \(name(id)) pill")
+                    .accessibilityLabel("Remove \(name(id)) pill")
+                    .transition(cardPartTransition)
+                } else {
+                    Button {
+                        animatingPills { store.addMenuBarProvider(id) }
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                    .help("Add \(name(id)) pill")
+                    .accessibilityLabel("Add \(name(id)) pill")
+                    .transition(cardPartTransition)
+                }
             }
+            .frame(height: PillCardChipStyle.side)
             cardPill(id)
-            cardName(id)
-            PillValueMenu(store: store, id: id, name: name(id))
-            HStack(spacing: 10) {
-                moveButton(id, offset: -1)
-                moveButton(id, offset: 1)
+                .opacity(inMenuBar ? 1 : 0.75)
+            cardName(id, dimmed: !inMenuBar)
+            if inMenuBar || isAuto {
+                PillValueMenu(store: store, id: id, name: name(id))
+                    .transition(cardPartTransition)
+            }
+            if inMenuBar {
+                HStack(spacing: 10) {
+                    moveButton(id, offset: -1)
+                    moveButton(id, offset: 1)
+                }
+                .transition(cardPartTransition)
             }
         }
         .buttonStyle(PillCardChipStyle())
         .padding(8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        // SM3: a raised, opaque card rather than a hairline outline — something you can
-        // pick up reads as an object, and a lifted card must hide the neighbour it passes
-        // over instead of showing it through. The window-background underlay is what makes
-        // the dark tile's translucent fill opaque; it comes after `raisedTile` because a
-        // later `.background` draws behind an earlier one, so it sits under the gradient.
-        .raisedTile(cornerRadius: 11, surface: .opaque)
-        .background(
-            Color(nsColor: .windowBackgroundColor),
-            in: RoundedRectangle(cornerRadius: 11, style: .continuous)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .background {
+            // Both surfaces are always there and trade opacity, so the card's material
+            // crossfades with the morph instead of being replaced.
+            ZStack {
+                // PS7: one opaque base under both, never faded. Two translucent layers
+                // crossing at 50% each let the well show through mid-morph — a flash.
+                shape.fill(Color(nsColor: .windowBackgroundColor))
+                // SM3: a raised card rather than a hairline outline — something you can pick
+                // up reads as an object, and a lifted card must hide what it passes over.
+                Color.clear
+                    .raisedTile(cornerRadius: 11, surface: .opaque)
+                    .opacity(inMenuBar ? 1 : 0)
+                // PS1: the shelf's flatter card.
+                Color.clear
+                    .shelfCardSurface(dark: colorScheme == .dark)
+                    .opacity(inMenuBar ? 0 : 1)
+            }
+        }
+        .contentShape(shape)
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(name(id)) menu bar pill")
+        .accessibilityLabel(inMenuBar ? "\(name(id)) menu bar pill" : "\(name(id)), not in the menu bar")
     }
 
-    /// A provider that is on but not in the menu bar: flatter than a pill card, with + in the
-    /// corner. In the automatic summary it also carries its value, because the summary still
-    /// follows each provider's choice.
-    private func shelfCard(_ id: ProviderID) -> some View {
-        VStack(spacing: 6) {
-            cardPill(id)
-                .opacity(0.75)
-            cardName(id, dimmed: true)
-            if isAuto {
-                PillValueMenu(store: store, id: id, name: name(id))
-            }
-        }
-        .padding(.top, 8 + PillCardChipStyle.side - 6)
-        .padding([.horizontal, .bottom], 8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .overlay(alignment: .topTrailing) {
-            Button {
-                animatingPills { store.addMenuBarProvider(id) }
-            } label: {
-                Image(systemName: "plus")
-            }
-            .buttonStyle(PillCardChipStyle())
-            .help("Add \(name(id)) pill")
-            .accessibilityLabel("Add \(name(id)) pill")
-            .padding(5)
-        }
-        .shelfCardSurface(dark: colorScheme == .dark)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(name(id)), not in the menu bar")
+    /// PS6: a card part arriving comes in on the morph, a beat behind the card's growth, out
+    /// of a 97% scale and a 2pt blur so it resolves rather than pops; one leaving fades out
+    /// quickly. Under Reduce Motion both are plain crossfades (S2A).
+    private var cardPartTransition: AnyTransition {
+        let arriving: AnyTransition = reduceMotion
+            ? .opacity
+            : .opacity
+                .combined(with: .scale(scale: 0.97))
+                .combined(with: .modifier(active: PartBlur(radius: 2), identity: PartBlur(radius: 0)))
+        return .asymmetric(
+            insertion: arriving.animation(HeadroomMotion.cardMorph.delay(0.05)),
+            removal: .opacity.animation(HeadroomMotion.quickSettle)
+        )
     }
 
     /// A provider that is switched off. It cannot be picked up; the whole card opens
@@ -522,7 +544,9 @@ struct MenuBarSettingsPane: View {
                 cardName(id, dimmed: true)
                     .opacity(0.6)
             }
-            .padding(.top, 8 + PillCardChipStyle.side - 6)
+            // PS6: the same header-row allowance as `pillCard`, so an off card's pill sits at
+            // the height of its neighbours' and "Off ›" on their + and × line.
+            .padding(.top, 8 + PillCardChipStyle.side + 6)
             .padding([.horizontal, .bottom], 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .overlay(alignment: .topTrailing) {
@@ -535,7 +559,7 @@ struct MenuBarSettingsPane: View {
                 .foregroundStyle(.secondary)
                 .frame(height: PillCardChipStyle.side)
                 .padding(.horizontal, 4)
-                .padding(5)
+                .padding([.top, .trailing], 8)
             }
             .shelfCardSurface(dark: colorScheme == .dark)
             .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
@@ -585,6 +609,12 @@ struct MenuBarSettingsPane: View {
             .font(.system(size: 11, weight: .semibold))
             .foregroundStyle(.secondary)
     }
+}
+
+/// PS6: the blur half of `cardPartTransition`.
+private struct PartBlur: ViewModifier {
+    let radius: CGFloat
+    func body(content: Content) -> some View { content.blur(radius: radius) }
 }
 
 // MARK: - Widgets & iPhone

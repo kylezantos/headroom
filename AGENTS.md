@@ -174,6 +174,10 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
 
 ## Gotchas
 
+- **Pill-shelf drag positions come from `PillShelfLayout`, never an `.offset`.** The layout
+  places the dragged card at the pointer and, on release, at its drop slot in one animation;
+  the store commits after it lands. Every offset-based handover jumped. See
+  `docs/solutions/ui/swiftui-layout-owned-drag-position.md`.
 - **Meter visual acceptance must use the live `MenuBarExtra` window.** Drive deterministic
   fixtures with `swift run Headroom --demo <scenario> --meter-style
   <format>.<shape>.<fill>` and inspect the native popover in both appearances. Do not accept
@@ -335,8 +339,11 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
 ## Follow-ups
 
 See `BUGS.md` for deferred items (backoff, Xcode signing for persistent permission grants).
-Durable provider and debugging learnings live in `docs/solutions/`; check them before changing
-provider parsing or continuity behavior.
+Durable learnings live in `docs/solutions/`, filed by category (`ui/`, `logic-errors/`,
+`architecture-patterns/`, …) with YAML frontmatter (`module`, `tags`, `problem_type`): provider
+parsing, continuity, polling, setup handoffs, and SwiftUI layout and motion. Relevant before
+changing those areas. `CONCEPTS.md` holds the shared domain vocabulary (pill, automatic
+summary, pill value, shelf).
 Codex field names are now verified against a live `wham/usage` capture — see the
 `#codex-window-kind` gotcha above and `docs/solutions/codex-window-kind-mislabel.md`.
 Banked reset credits on that same response are recorded in

@@ -158,6 +158,10 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
 
 ## Conventions
 
+- **Reduce Motion and accessibility are best-effort for now (Sep 2026).** Keep the existing
+  S2A policy and don't knowingly regress it, but don't hold a change back, or expand its
+  scope, over Reduce Motion or accessibility polish. Reviews should report such gaps at low
+  priority rather than as blockers.
 - **Swift 6 strict concurrency is on.** `CredentialStore` is an `actor`; `UsageStore` is
   `@MainActor`; models and providers are `Sendable`. Keep it compiling clean under complete
   concurrency checking.

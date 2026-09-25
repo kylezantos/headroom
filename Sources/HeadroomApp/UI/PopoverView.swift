@@ -25,9 +25,6 @@ struct PopoverView: View {
     /// Content extends past the scroll cap and isn't scrolled to the bottom — gates
     /// the bottom fade so it never softens a fully visible last card.
     @State private var scrollContinuesBelow = false
-    /// L3A: the list is scrolled off its top — gates the top feather so an unscrolled
-    /// popover keeps its crisp first-card edge, exactly like the bottom gate.
-    @State private var scrollContinuesAbove = false
     /// L2A: live scroll geometry driving the bespoke gutter indicator. The system
     /// scroller is hidden, so this is the only position and length cue.
     @State private var scrollMetrics = PopoverScrollMetrics()
@@ -150,11 +147,15 @@ struct PopoverView: View {
                 // and the cards are the same width again.
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
-                // Soft fades while content continues past either end of the cap — the flat
-                // clip alone read as a card with missing data (impeccable audit P2), and
-                // L3A extends the same treatment to the top so a scrolled card is no longer
-                // chopped square under the header. Both ends are gated so the common
-                // non-scrolling popover keeps its crisp first and last card edges.
+                // A soft fade while content continues past the bottom of the cap — the flat
+                // clip alone read as a card with missing data (impeccable audit P2). Gated so
+                // the common non-scrolling popover keeps its crisp last card edge.
+                // TF2 (Kyle, 2026-09-24): the top has no fade. L3A's 14pt top feather was
+                // shorter than a line of text, so a card passing under the header looked sliced
+                // mid-glyph against the title rather than softened; Tahoe's soft scroll-edge
+                // effect was tried in its place and dropped, because the header bar broke the
+                // scroll range inside the MenuBarExtra window. Cards now pass cleanly under the
+                // solid header.
                 .onScrollGeometryChange(for: PopoverScrollMetrics.self) { geometry in
                     PopoverScrollMetrics(
                         offset: geometry.contentOffset.y,
@@ -163,17 +164,11 @@ struct PopoverView: View {
                     )
                 } action: { _, metrics in
                     scrollMetrics = metrics
-                    scrollContinuesAbove = metrics.continuesAbove
                     scrollContinuesBelow = metrics.continuesBelow
                     flashScrollIndicator(overflows: metrics.overflows)
                 }
                 .mask {
                     VStack(spacing: 0) {
-                        LinearGradient(
-                            stops: Self.featherStops(fadesOut: scrollContinuesAbove, mirrored: true),
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: Self.featherHeight)
                         Rectangle().fill(.black)
                         LinearGradient(
                             stops: Self.featherStops(fadesOut: scrollContinuesBelow),
@@ -182,15 +177,11 @@ struct PopoverView: View {
                         .frame(height: Self.featherHeight)
                     }
                 }
-                // S2A: both feathers are pure mask opacity, so Reduce Motion keeps the
+                // S2A: the feather is pure mask opacity, so Reduce Motion keeps the
                 // 200ms softening rather than hard-cutting the card edge.
                 .animation(
                     HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
                     value: scrollContinuesBelow
-                )
-                .animation(
-                    HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                    value: scrollContinuesAbove
                 )
                 // Applied outside the mask so the indicator never feathers at the ends,
                 // and outside the feather animations so its position tracks the scroll 1:1.
@@ -231,20 +222,15 @@ struct PopoverView: View {
     /// colours could not express it; these are its three stops.
     private static let featherOpacities: [Double] = [1.0, 0.55, 0.0]
 
-    /// L3A: both ends run the same ramp, so the top feather is this one mirrored rather than
-    /// a second hand-kept gradient. `fadesOut: false` is the gated case — a popover that
-    /// doesn't scroll keeps its crisp first and last card edge.
-    private static func featherStops(fadesOut: Bool, mirrored: Bool = false) -> [Gradient.Stop] {
+    /// `fadesOut: false` is the gated case — a popover that doesn't scroll keeps its crisp
+    /// last card edge.
+    private static func featherStops(fadesOut: Bool) -> [Gradient.Stop] {
         let opacities = fadesOut
             ? featherOpacities
             : Array(repeating: 1.0, count: featherOpacities.count)
         let lastIndex = Double(opacities.count - 1)
-        let stops = opacities.enumerated().map { index, opacity in
+        return opacities.enumerated().map { index, opacity in
             Gradient.Stop(color: .black.opacity(opacity), location: Double(index) / lastIndex)
-        }
-        guard mirrored else { return stops }
-        return stops.reversed().map {
-            Gradient.Stop(color: $0.color, location: 1 - $0.location)
         }
     }
 
@@ -785,7 +771,7 @@ private enum PopoverScrollIndicatorMetrics {
     static let gutterOffset: CGFloat = shellMargin - centreFromShellEdge + width / 2
 }
 
-/// One read of the scroll viewport, shared by both feathers and the indicator so the three
+/// One read of the scroll viewport, shared by the feather and the indicator so the two
 /// stay in step and the popover installs a single `onScrollGeometryChange`.
 private struct PopoverScrollMetrics: Equatable {
     var offset: CGFloat = 0
@@ -793,7 +779,6 @@ private struct PopoverScrollMetrics: Equatable {
     var content: CGFloat = 0
 
     var overflows: Bool { viewport > 0 && content > viewport + 1 }
-    var continuesAbove: Bool { overflows && offset > 0 }
     var continuesBelow: Bool { offset + viewport < content - 4 }
 }
 

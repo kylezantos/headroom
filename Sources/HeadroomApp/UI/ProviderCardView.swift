@@ -393,14 +393,14 @@ struct ProviderCardView: View {
                 }
                 // R2M1: the row arrives and leaves with the session, so it dissolves into
                 // the height change above rather than popping in on the same frame.
-                .transition(.opacity)
+                .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
         }
         // R2M1: the crossfade half of the session split — the body dissolves while the tile
-        // scope above rides the height on `valueSpring`. S2A keeps the 200ms under Reduce
-        // Motion; only the height snaps.
+        // scope above rides the height on `valueSpring`. RM1: `.movement`, so under Reduce
+        // Motion the height really does snap; the fades keep their 200ms on the transitions.
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
             value: sessionKey
         )
     }
@@ -425,7 +425,7 @@ struct ProviderCardView: View {
     /// `singleAccountBody`'s `sessionKey` crossfade.
     private var singleAccountContentGroup: some View {
         Group { singleAccountContent }
-            .transition(.opacity)
+            .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
     }
 
     @ViewBuilder private var singleAccountContent: some View {
@@ -548,12 +548,13 @@ struct ProviderCardView: View {
                 accountIdentityRow(for: primaryEntry)
                 content
             }
-            // M4A/S2A: the `.pending → .live` body swap is opacity, so it keeps its timing
-            // under Reduce Motion. This is the innermost scope around the switching body,
-            // which is why it — not the tile scope above — drives the `.transition`.
+            // M4A/S2A: the `.pending → .live` body swap is opacity. This is the innermost
+            // scope around the switching body, which is why it — not the tile scope above —
+            // drives the `.transition`. RM1: `.movement`, and the fades in `content` carry
+            // their own spring under Reduce Motion, so there only the height snaps.
             // The fill and numeral roll inside the inserted body belong to `UsageBarView`.
             .animation(
-                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion),
+                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
                 value: snapshot.freshness
             )
         }
@@ -764,27 +765,46 @@ struct ProviderCardView: View {
         )
     }
 
+    /// SL1 (2026-09-25 motion audit): live and stale share one bars slot. As separate `switch`
+    /// cases, every live ↔ stale flip removed one meter stack and inserted another, so the
+    /// card held both for the crossfade — a full stack taller — and M3A′'s in-row stale fade
+    /// never ran, because the rows were rebuilt rather than updated. Now only `dimmed`
+    /// changes, and the rows repaint in place. The skeleton and the bars overlap in a ZStack
+    /// for their one real swap, as the popover's card list does.
     @ViewBuilder private var content: some View {
-        Group {
-            switch snapshot.freshness {
-            case .pending:
+        ZStack(alignment: .topLeading) {
+            if case .pending = snapshot.freshness {
                 pendingSkeleton
-            case .live:
-                bars(for: snapshot, dimmed: false)
-            case .stale(let reason):
-                staleContent(reason)
+                    .transition(bodyFade)
+            } else {
+                VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap) {
+                    if let reason = permanentFailure {
+                        actionable(reason)
+                            .transition(bodyFade)
+                    }
+                    if permanentFailure == nil || !snapshot.windows.isEmpty {
+                        bars(for: snapshot, dimmed: !isLive)
+                            .transition(bodyFade)
+                    }
+                }
+                .transition(bodyFade)
             }
         }
-        .transition(.opacity)
     }
 
-    @ViewBuilder private func staleContent(_ reason: FailureReason) -> some View {
-        if reason.isPermanent {
-            actionable(reason)
-            if !snapshot.windows.isEmpty { bars(for: snapshot, dimmed: true) }
-        } else {
-            bars(for: snapshot, dimmed: true)
-        }
+    /// RM1: the body swap's fade, self-timed under Reduce Motion.
+    private var bodyFade: AnyTransition {
+        HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion)
+    }
+
+    private var isLive: Bool {
+        if case .live = snapshot.freshness { return true }
+        return false
+    }
+
+    private var permanentFailure: FailureReason? {
+        if case .stale(let reason) = snapshot.freshness, reason.isPermanent { return reason }
+        return nil
     }
 
     /// M4A: the Appearance specimen is inert (KTD4) and W4's `.id(meterStyle)` crossfade
@@ -1203,6 +1223,8 @@ struct UsageBarsStack: View {
     /// first live view of that account this launch. `nil` keeps a stack static.
     var arrivalKey: AccountKey? = nil
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         if windows.isEmpty {
             // PB11: fixed size, in step with every other line in the card.
@@ -1215,17 +1237,48 @@ struct UsageBarsStack: View {
             // label-over-gauge rows at 9 packed into a wall, and the row's own internal gap
             // grew to 7, so the gap *between* rows has to stay clearly the larger of the two.
             VStack(spacing: meterStyle.format == .micro ? 10 : 12) {
-                ForEach(Array(windows.enumerated()), id: \.offset) { _, window in
+                // RI1 (2026-09-25 motion audit): rows are keyed by window kind, not position.
+                // Keyed by offset, a window appearing or leaving handed each row below it the
+                // next row's window, so "Weekly 40%" rolled into "5-hour 12%" — motion that
+                // claimed a value changed when a row had only moved. Now a row keeps its
+                // window, and one that arrives or leaves fades.
+                ForEach(Self.keyedRows(windows), id: \.key) { row in
                     UsageBarView(
-                        window: window,
+                        window: row.window,
                         percentageMode: percentageMode,
                         now: now,
                         meterStyle: meterStyle,
                         dimmed: dimmed,
                         arrivalKey: arrivalKey
                     )
+                    .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
                 }
             }
+            // RI1: a poll that adds or ages out a row is otherwise an unanimated update, so
+            // the row's fade never ran and the rows below it jumped. Keyed on the kinds only,
+            // so a value change inside a row stays `UsageBarView`'s own landing.
+            .animation(
+                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                value: windows.map(\.kind)
+            )
+        }
+    }
+}
+
+extension UsageBarsStack {
+    /// RI1: a window's kind, plus which occurrence of that kind it is, so two windows that
+    /// share a kind still get distinct, stable identities.
+    struct RowKey: Hashable {
+        let kind: WindowKind
+        let occurrence: Int
+    }
+
+    nonisolated static func keyedRows(_ windows: [UsageWindow]) -> [(key: RowKey, window: UsageWindow)] {
+        var seen: [WindowKind: Int] = [:]
+        return windows.map { window in
+            let occurrence = seen[window.kind, default: 0]
+            seen[window.kind] = occurrence + 1
+            return (RowKey(kind: window.kind, occurrence: occurrence), window)
         }
     }
 }

@@ -254,6 +254,7 @@ struct AccountsSettingsTile: View {
                 }
             }
             if let capability, !accounts.isEmpty {
+                // RM1: self-timed so it still fades under Reduce Motion.
                 ProviderCapabilityRecoveryView(
                     presentation: capability,
                     stopWaitingAccount: accounts.first {
@@ -280,6 +281,7 @@ struct AccountsSettingsTile: View {
                     }
                 )
                 .padding(.leading, 16)
+                .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
             ForEach(accounts) { account in
                 accountRow(account, capability: capability, presentation: presentation)
@@ -314,6 +316,7 @@ struct AccountsSettingsTile: View {
                 // account added while the surface is off would look broken rather than
                 // simply unpolled (code-review finding).
                 SettingsHelpText(text: offHelpText)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
         }
         // M7A: the single scope for add / remove / Make Main. A row travels roughly its own
@@ -463,6 +466,12 @@ struct AccountsSettingsTile: View {
         // control in the row still works. Matches the disabled-swatch step in
         // `MeterStyleTile`.
         .opacity(presentation.dimsAccountRows ? 0.45 : 1)
+        // RM1: the subscription switch's scope is `.movement`, so the dim carries its own
+        // crossfade and keeps it under Reduce Motion.
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: presentation.dimsAccountRows
+        )
         .disabled(removalState == .removing)
         .onAppear { SetupSessions.announceFailureIfNeeded(for: account) }
         .onChange(of: setupState) {

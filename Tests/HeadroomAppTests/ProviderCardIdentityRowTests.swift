@@ -467,3 +467,32 @@ struct IdentityRowHelpTests {
         #expect(label == "Personal, Plus plan, Main account, shown in the menu bar and widgets, signed in as a@example.com, 2 banked resets available — a full reset refreshes the 5-hour and weekly windows")
     }
 }
+
+/// RI1: meter rows are keyed by window kind, so a row keeps its identity when a window above
+/// it appears or leaves — the regression was "Weekly 40%" rolling into "5-hour 12%".
+@Suite
+struct UsageBarsStackRowKeyTests {
+    private func window(_ kind: WindowKind) -> UsageWindow {
+        UsageWindow(kind: kind, utilization: 40, resetsAt: Date(timeIntervalSince1970: 20))
+    }
+
+    @Test func rowsAreKeyedByKindInOrder() {
+        let keys = UsageBarsStack.keyedRows([window(.fiveHour), window(.weekly)]).map(\.key)
+        #expect(keys == [
+            UsageBarsStack.RowKey(kind: .fiveHour, occurrence: 0),
+            UsageBarsStack.RowKey(kind: .weekly, occurrence: 0),
+        ])
+    }
+
+    @Test func aRowKeepsItsKeyWhenTheRowAboveItLeaves() {
+        let before = UsageBarsStack.keyedRows([window(.fiveHour), window(.weekly), window(.other("Fable"))])
+        let after = UsageBarsStack.keyedRows([window(.weekly), window(.other("Fable"))])
+        #expect(Array(before.dropFirst().map(\.key)) == after.map(\.key))
+    }
+
+    @Test func repeatedKindsGetDistinctOccurrences() {
+        let keys = UsageBarsStack.keyedRows([window(.other("Spark")), window(.other("Spark"))]).map(\.key)
+        #expect(keys.map(\.occurrence) == [0, 1])
+        #expect(Set(keys).count == 2)
+    }
+}

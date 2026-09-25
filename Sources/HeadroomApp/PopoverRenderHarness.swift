@@ -51,6 +51,23 @@ enum PopoverRenderHarness {
                 for path in failedPaths { print("✗ Failed to render \(path)") }
                 exit(failedPaths.isEmpty ? 0 : 1)
             }
+            // Focused, offscreen acceptance for the widget preview at the default and minimum
+            // window widths, plus a wide window where the tiles reach true size.
+            if CommandLine.arguments.contains("--widgets-only") {
+                for dark in [false, true] {
+                    for (suffix, width) in [("regular", nil), ("compact", 720), ("wide", 1100)] as [(String, CGFloat?)] {
+                        let url = outDir.appendingPathComponent("settings-widgets-\(suffix)-\(dark ? "dark" : "light").png")
+                        if await renderSettings(
+                            pane: .widgets, percentageMode: .remaining, dark: dark,
+                            height: 900, width: width, to: url
+                        ) {
+                            print("✓ \(url.path)")
+                        } else { failedPaths.append(url.path) }
+                    }
+                }
+                for path in failedPaths { print("✗ Failed to render \(path)") }
+                exit(failedPaths.isEmpty ? 0 : 1)
+            }
             for state in State.allCases {
                 let modes: [UsagePercentageMode] = state == .connected ? UsagePercentageMode.allCases : [.remaining]
                 for mode in modes {
@@ -233,8 +250,10 @@ enum PopoverRenderHarness {
         window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         window.orderFrontRegardless()
         window.displayIfNeeded()
-        // Let the popover's one-shot entrance settle (0.22s curve) before snapshotting.
-        try? await Task.sleep(for: .milliseconds(600))
+        // Let the staged meter arrival (M9A beat, then `arrivalSpring`) land before
+        // snapshotting, or numerals are caught mid-roll. AR1 lengthened both; 650ms covers the
+        // critically damped spring's visible settle.
+        try? await Task.sleep(for: HeadroomMotion.arrivalDelay + .milliseconds(650))
 
         // Capture the compositor's actual output (correct dynamic-color resolution and
         // the real OS-selected surface) via `screencapture -l`. The offscreen `cacheDisplay` path
@@ -480,7 +499,9 @@ enum PopoverRenderHarness {
         try? await Task.sleep(for: .milliseconds(500))
         // The focused acceptance run must fail if WindowServer capture is unavailable;
         // cacheDisplay can save a nonempty but cropped/incorrect Settings bitmap.
-        let captured = CommandLine.arguments.contains("--menu-bar-only")
+        let isFocusedAcceptance = CommandLine.arguments.contains("--menu-bar-only")
+            || CommandLine.arguments.contains("--widgets-only")
+        let captured = isFocusedAcceptance
             ? captureWindow(number: window.windowNumber, to: url)
             : capture(window: window, to: url)
         window.orderOut(nil)

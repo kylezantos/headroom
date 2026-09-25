@@ -136,6 +136,12 @@ struct APISpendSectionView: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 0) {
                 identityLine(model)
+                    // RM1: colour only — the tag ⇄ chip swap and the amount's ink — inside a
+                    // fixed-height line, so this scope keeps its crossfade under Reduce Motion.
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                        value: snapshot.freshness
+                    )
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(accessibilityLabel(model))
                 // CMM5: the trailing gutter stays empty, exactly as it is on a meter row, so
@@ -161,13 +167,15 @@ struct APISpendSectionView: View {
                     .accessibilityHidden(true)
                     // M4A: freshness is a colour-and-presence change, so the line fades in
                     // and out rather than sliding.
-                    .transition(.opacity)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
         }
         // S2A: the whole freshness change — dimmed numeral ink and the state line's
-        // arrival — is one crossfade.
+        // arrival — is one motion. RM1: the row's scope is `.movement`, so under Reduce
+        // Motion the row's height snaps; the line's fade rides its transition, and the ink
+        // keeps its crossfade on the identity line's own scope below.
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
             value: snapshot.freshness
         )
     }

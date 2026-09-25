@@ -443,7 +443,7 @@ struct MenuBarPillArranger<Card: View>: View {
      *            and places it at its drop slot, so SwiftUI glides the
      *            card from exactly where it was let go;
      *          • the card takes the drop row's form (parts leave in
-     *            120ms, arrive after 50ms out of 0.97/blur 2) and both
+     *            80ms, arrive after 30ms in 160ms out of 0.97/blur 1.5 — MB1) and both
      *            rows resize to fit;
      *          • lift, drop ring and row messages ease on their own.
      * ~300ms   the store commits. The screen already shows the committed

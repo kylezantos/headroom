@@ -4,6 +4,22 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Focused render acceptance needs Screen Recording for the launching shell
+
+- `--menu-bar-only` and `--widgets-only` capture only through `screencapture -l` and fail
+  rather than accept the `cacheDisplay` fallback. From a Conductor agent shell (2026-09-25)
+  every capture failed, so both modes exit 1 there; the fallback images the full sweep saves
+  in that environment show a black pane background and no preview well. Grant Screen
+  Recording to the terminal that runs the harness, or treat those modes as unavailable there.
+
+## Render harness setup-flow shots depend on wall-clock timing
+
+- `--render-popover`'s `connected-*` and `dualWaiting-*` captures run the real setup clock
+  (`openedSetupAt = Date()`) and snapshot after fixed sleeps, so how long the harness waits
+  decides which state lands in the image. AR1 (2026-09-25) lengthened the meter arrival and the
+  snapshot wait with it; `connected-used-light` then captured Connected mid-roll where it had
+  captured Waiting before. Drive those states from an injected clock instead of sleeping.
+
 ## Unbundled `swift run` popover still shows a faint second rim
 
 - **Dev/QA builds only; the bundled app is fixed (PC1, 2026-09-23).** Under `swift run` the

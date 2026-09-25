@@ -198,13 +198,15 @@ struct UsageBarView: View {
 
     // MARK: - What the row paints
 
-    /// M4A: an arriving row paints empty first — fill at 0, numeral at "0%" — so the first
-    /// live data draws in once on `valueSpring` instead of snapping into place. Everything
+    /// M4A: an arriving row paints its fill empty first, so the first live data draws in once
+    /// on `arrivalSpring` (AR1) instead of snapping into place. AR2 (2026-09-25 motion audit):
+    /// the numeral paints its real value from the first frame. It used to start at "0%" and
+    /// roll up, which told the user they had 0% left for the whole arrival beat. Everything
     /// else paints its final value on the first frame: a row with no `arrivalKey`, an
     /// account that already arrived this launch, a window that shows up already stale or
     /// unavailable and so has no arrival to stage, and every row under Reduce Motion.
     private var firstPaintValue: RowValue {
-        isStagedArrival ? RowValue(fraction: 0, pct: 0) : liveValue
+        isStagedArrival ? RowValue(fraction: 0, pct: liveValue.pct) : liveValue
     }
 
     /// M4A/M9A: true only when this row will draw in from empty — an account with an
@@ -257,6 +259,14 @@ struct UsageBarView: View {
         HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)
     }
 
+    private var arrivalMovement: Animation? {
+        HeadroomMotion.resolved(HeadroomMotion.arrivalSpring, .movement, reduceMotion: reduceMotion)
+    }
+
+    private var arrivalCrossfade: Animation? {
+        HeadroomMotion.resolved(HeadroomMotion.arrivalSpring, .crossfade, reduceMotion: reduceMotion)
+    }
+
     private var settleCrossfade: Animation? {
         HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
     }
@@ -275,6 +285,8 @@ struct UsageBarView: View {
         // Read what the row is currently showing before touching the registry, so the
         // comparison below is against the frame the user actually saw.
         let from = displayedValue
+        // AR1: read before the claim below, which is what makes `isStagedArrival` false.
+        let isArrival = landedValue == nil && isStagedArrival
         // M4A: this account has now shown its arrival, so no later row for it draws in again.
         if landedValue == nil, let arrivalKey {
             ArrivalRegistry.claim(arrivalKey)
@@ -287,7 +299,7 @@ struct UsageBarView: View {
 
         // M1A: severity colour is the same cause as the fill and rides the same spring, but
         // as its own kind so Reduce Motion keeps the colour while the length snaps.
-        withAnimation(valueCrossfade) { landedSeverity = severity }
+        withAnimation(isArrival ? arrivalCrossfade : valueCrossfade) { landedSeverity = severity }
         // M3A′/PA8: stale grey, the unavailable fade-out, and the dimmed numeral ink are
         // colour. The numeral only joined this transaction with PA8 — M3A′ described it, but
         // `numeral` was reading `.primary` unconditionally, so the claim was aspirational
@@ -302,12 +314,12 @@ struct UsageBarView: View {
         // already landed, so the entrances have nothing to wait behind. Deciding that here
         // rather than leaning on a completion callback for a transaction that animates
         // nothing keeps the sequencing true under Reduce Motion too.
-        guard let valueMovement, value != from else {
+        guard let movement = isArrival ? arrivalMovement : valueMovement, value != from else {
             landedValue = value
             withAnimation(settleCrossfade) { visibleStateText = state }
             return
         }
-        withAnimation(valueMovement) {
+        withAnimation(movement) {
             landedValue = value
         } completion: {
             // R2B4: a landing that has already been superseded has nothing left to say.

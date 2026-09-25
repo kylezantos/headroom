@@ -61,6 +61,23 @@ struct PopoverView: View {
             let cardListIdentity = store.providerOrder.flatMap { id in
                 (accountsByVisibleProvider[id] ?? []).map(\.key)
             }
+            // NB1 (2026-09-25 motion audit): what can change a card's height — each account's
+            // freshness, its setup session, and its meter rows, the values the card's own
+            // scopes key on. Those scopes reach only the card, so it grew on `valueSpring`
+            // while the cards below it jumped to their final places and overlapped it or left
+            // a gap.
+            let cardLayoutSignature = PopoverCardLayoutSignature(
+                freshness: store.providerOrder.flatMap { id in
+                    (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).freshness }
+                },
+                sessions: store.providerOrder.flatMap { id in
+                    (accountsByVisibleProvider[id] ?? []).map { providerCardSessionKey(SetupSessions.state(for: $0)) }
+                },
+                // A live poll can add or age out a meter row with freshness unchanged.
+                rows: store.providerOrder.flatMap { id in
+                    (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).windows.map(\.kind) }
+                }
+            )
             VStack(spacing: 20) {
                 header(now: context.date)
                     // Header sits 14pt above the first card (vs the 20pt tile gap) — the
@@ -128,12 +145,17 @@ struct PopoverView: View {
                     }
                     // M7A: the popover had no reorder animation at all, so a Make Main
                     // promotion teleported its card to the top. The stack's own layout change
-                    // rides this scope, and it is also what the measured `cardsHeight` below
-                    // samples frame by frame — so the container contracts *with* a removed
-                    // card's fade rather than snapping after it.
+                    // rides this scope. The measured `cardsHeight` below reports the final
+                    // layout, not frame by frame, so the scroll frame and the window take
+                    // their new height at once; only the cards inside move.
                     .animation(
                         HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion),
                         value: cardListIdentity
+                    )
+                    // NB1: the neighbours ride the same spring as the card that resized.
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                        value: cardLayoutSignature
                     )
                     // Scroll content is laid out at its ideal height regardless of the
                     // ScrollView's own frame, so this reports the true stack height even
@@ -308,8 +330,29 @@ struct PopoverView: View {
     /// Native pattern: navigating out of the transient menu-bar popover into the persistent
     /// Settings window dismisses the popover (mirrors Control Center → System Settings). The
     /// popover is recreated on next menu-bar click, so closing its window is safe.
+    ///
+    /// SW1: the popover fades out while Settings fades in, so the handoff is one crossfade
+    /// instead of a cut. The close rides the fade's own completion, so the two share one
+    /// clock, and the alpha is restored after it because `MenuBarExtra` may reuse the window
+    /// for the next open. KB1: from ⌘, both halves are instant.
     private func openSettingsDismissingPopover() {
-        popoverWindow?.close()
+        if let window = popoverWindow {
+            if HeadroomMotion.isKeyboardInitiated {
+                window.close()
+            } else {
+                let fading = window
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = HeadroomMotion.windowOutDuration
+                    context.timingFunction = HeadroomMotion.windowCurve
+                    fading.animator().alphaValue = 0
+                } completionHandler: {
+                    MainActor.assumeIsolated {
+                        fading.close()
+                        fading.alphaValue = 1
+                    }
+                }
+            }
+        }
         onOpenSettings()
     }
 
@@ -382,8 +425,8 @@ struct PopoverView: View {
             // R2M8: ⌘, is universal on macOS, and Settings is a `Window(id:)` rather than a
             // `Settings` scene, so the system gives the app nothing for free. Bound to the
             // gear itself so the shortcut and the click run one action. Emil's rule that a
-            // keyboard-initiated action must not animate needs no work here: dismissing the
-            // popover and opening a window are instant by construction.
+            // keyboard-initiated action must not animate is kept by KB1: since SW1 the click
+            // path crossfades, and both halves check `isKeyboardInitiated` to stay instant.
             .keyboardShortcut(",", modifiers: .command)
             .accessibilityLabel("Settings")
             .alignmentGuide(.firstTextBaseline) { d in
@@ -704,7 +747,10 @@ enum PopoverHeaderStatusResolver {
             return PopoverHeaderStatus(
                 kind: .waiting,
                 text: PopoverHeaderStatusText.waiting(elapsed: elapsed),
-                rollValue: (max(0, elapsed)).rounded(.down)
+                // WC1 (2026-09-25 motion audit): the seconds swap plainly. A roll once a second
+                // for as long as the handoff lasts is periodic motion in the corner of the
+                // eye; the digits are already tabular, so the swap never shifts the line.
+                rollValue: nil
             )
         }
         if let setupText = input.setupText {
@@ -830,5 +876,9 @@ private struct WindowAccessor: NSViewRepresentable {
     }
 }
 
-
-
+/// NB1: the per-account values that change a card's height, flattened in card order.
+struct PopoverCardLayoutSignature: Equatable {
+    var freshness: [Freshness]
+    var sessions: [SetupSessionState]
+    var rows: [[WindowKind]]
+}

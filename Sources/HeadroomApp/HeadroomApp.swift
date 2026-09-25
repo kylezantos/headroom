@@ -568,13 +568,53 @@ struct HeadroomApp: App {
     /// forward and makes it key on both first open and re-open. (`Done`/⌘W close it via
     /// the view's `dismiss`; this method reopens cleanly afterward.)
     private func openSettings() {
+        // SW1: a window that is already showing is only brought forward. One that is arriving
+        // is shown at zero opacity, placed, then revealed, so the placement never shows.
+        // `openWindow` orders the window front synchronously (measured, macOS 26), but nothing
+        // reaches the screen before this runloop turn ends, so zeroing the alpha right after
+        // it hides the first frame too. A reused window drops its close animation first so
+        // AppKit adds nothing of its own to the order-in. KB1: from ⌘, the reveal is instant;
+        // only a click fades.
+        let existing = Self.settingsWindow
+        let isArriving = existing?.isVisible != true
+        let fades = isArriving && !HeadroomMotion.isKeyboardInitiated
+        if isArriving, let existing {
+            existing.animationBehavior = .none
+            existing.alphaValue = 0
+        }
         openWindow(id: "settings")
         NSApp.activate(ignoringOtherApps: true)
+        if isArriving { Self.settingsWindow?.alphaValue = 0 }
         // `.defaultPosition(.center)` (and SwiftUI's persisted frame) can land the window on
         // whichever display it was last on — often the wrong one on a multi-monitor setup.
         // A menu-bar app is invoked from wherever the user is looking, so re-home it onto the
-        // screen under the cursor. Deferred a runloop tick so the NSWindow exists.
-        DispatchQueue.main.async { Self.placeSettingsWindowOnActiveScreen() }
+        // screen under the cursor. Deferred a runloop tick so SwiftUI has sized the window to
+        // its content; while arriving it is still invisible, so the move never shows.
+        DispatchQueue.main.async {
+            Self.placeSettingsWindowOnActiveScreen()
+            guard isArriving, let window = Self.settingsWindow else { return }
+            Self.reveal(window, fading: fades)
+        }
+    }
+
+    private static var settingsWindow: NSWindow? {
+        NSApp.windows.first { $0.title == "Headroom Settings" }
+    }
+
+    /// SW1: the entrance, then AppKit's utility-window fade for whichever way the user closes
+    /// it (red button, ⌘W). The behavior only governs order-in and order-out, so setting it on
+    /// a window that is already ordered in changes nothing about this entrance.
+    private static func reveal(_ window: NSWindow, fading: Bool) {
+        window.animationBehavior = .utilityWindow
+        guard fading else {
+            window.alphaValue = 1
+            return
+        }
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = HeadroomMotion.windowInDuration
+            context.timingFunction = HeadroomMotion.windowCurve
+            window.animator().alphaValue = 1
+        }
     }
 
     /// Center the Settings window on the active screen (the one under the cursor). If the
@@ -583,9 +623,7 @@ struct HeadroomApp: App {
     private static func placeSettingsWindowOnActiveScreen() {
         let mouse = NSEvent.mouseLocation
         let activeScreen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
-        guard let activeScreen,
-              let window = NSApp.windows.first(where: { $0.title == "Headroom Settings" })
-        else { return }
+        guard let activeScreen, let window = settingsWindow else { return }
 
         if window.isVisible, activeScreen.frame.intersects(window.frame) { return }
 

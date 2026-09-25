@@ -216,9 +216,9 @@ struct SettingsTile<Content: View>: View {
     }
 
     /// Untitled form for the single-tile panes (General, Menu Bar, Widgets & iPhone,
-    /// API Spend). The sidebar rebuild made the pane scaffold print the destination name
-    /// as the first row, so a lone tile repeating it said the same word twice a line
-    /// apart. Multi-tile panes (Appearance, Accounts) still need their tile titles.
+    /// Accounts, API Spend). The sidebar rebuild made the pane scaffold print the destination
+    /// name as the first row, so a lone tile repeating it said the same word twice a line
+    /// apart. Multi-tile panes (Appearance) still need their tile titles.
     init(@ViewBuilder content: () -> Content) {
         self.title = nil
         self.content = content()

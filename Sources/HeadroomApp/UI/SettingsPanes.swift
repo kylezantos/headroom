@@ -231,6 +231,14 @@ struct MenuBarSettingsPane: View {
     /// PC2: the card under the pointer, which shows its move carets and lifts its × to
     /// secondary ink.
     @State private var hoveredCard: ProviderID?
+    /// PC2: the caret holding keyboard focus. A focused caret shows without the pointer, so
+    /// Full Keyboard Access never tabs onto an invisible control.
+    @FocusState private var focusedCaret: CaretSlot?
+
+    private struct CaretSlot: Hashable {
+        let id: ProviderID
+        let offset: Int
+    }
 
     private var isAuto: Bool { store.menuBarFillSource == .auto }
     private var selected: [ProviderID] { store.selectedMenuBarProviders }
@@ -478,6 +486,7 @@ struct MenuBarSettingsPane: View {
             Group {
                 if inMenuBar {
                     Button {
+                        hoveredCard = nil
                         animatingPills { store.removeMenuBarProvider(id) }
                     } label: {
                         Image(systemName: "xmark")
@@ -637,18 +646,26 @@ struct MenuBarSettingsPane: View {
     }
 
     /// PC2: a move caret in the pill's flank. Always laid out so the pill never shifts; shown
-    /// only while the card is hovered, and absent where the card has nowhere to go.
+    /// while the card is hovered or the caret has keyboard focus, and disabled — out of the
+    /// focus chain as well as out of sight — where the card has nowhere to go.
     @ViewBuilder private func caret(_ id: ProviderID, offset: Int, visible: Bool) -> some View {
         let direction = offset < 0 ? "left" : "right"
         let canMove = offset < 0 ? selected.first != id : selected.last != id
+        let slot = CaretSlot(id: id, offset: offset)
+        let shown = canMove && (visible || focusedCaret == slot)
         Button {
+            // The card slides out from under a still pointer, and onHover only fires on the
+            // next pointer move, so drop the hover rather than leave carets on a card that left.
+            hoveredCard = nil
             animatingPills { store.moveMenuBarProvider(id, by: offset) }
         } label: {
             Image(systemName: "chevron.\(direction)")
         }
         .buttonStyle(PillCaretStyle())
-        .opacity(visible && canMove ? 1 : 0)
-        .allowsHitTesting(visible && canMove)
+        .disabled(!canMove)
+        .focused($focusedCaret, equals: slot)
+        .opacity(shown ? 1 : 0)
+        .allowsHitTesting(shown)
         .help("Move \(name(id)) \(direction)")
         .accessibilityHidden(true)
     }

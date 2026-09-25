@@ -850,6 +850,7 @@ struct PillCaretStyle: ButtonStyle {
 
     private struct Caret: View {
         let configuration: Configuration
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var hovering = false
 
         var body: some View {
@@ -862,7 +863,11 @@ struct PillCaretStyle: ButtonStyle {
                     in: RoundedRectangle(cornerRadius: 5, style: .continuous)
                 )
                 .contentShape(Rectangle())
-                .onHover { hovering = $0 }
+                .onHover { inside in
+                    withAnimation(HeadroomMotion.resolved(
+                        inside ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut, .crossfade, reduceMotion: reduceMotion
+                    )) { hovering = inside }
+                }
                 .pointerStyle(.default)
         }
     }

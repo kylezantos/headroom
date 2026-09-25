@@ -28,13 +28,13 @@ struct AppearanceSpecimen: View {
 
     /// One fixture entry, rebuilt per render so the card's `now`-driven reset text stays
     /// honest without a timeline tick (Settings is not a live-data surface). The fixture is
-    /// in provider order (5-hour first); `weeklyFirst()` is what `UsageStore.appDisplaySnapshot`
+    /// in provider order (5-hour first); `fiveHourFirst()` is what `UsageStore.appDisplaySnapshot`
     /// applies before the popover draws, so the specimen and the popover agree on the same
     /// screen (pre-ship craft audit, 2026-09-08 — the specimen was the surface that drifted).
     private var entry: ProviderAccountEntry {
         ProviderAccountEntry(
             account: DemoFixture.settingsSpecimenAccount,
-            snapshot: DemoFixture.settingsSpecimenSnapshot.weeklyFirst()
+            snapshot: DemoFixture.settingsSpecimenSnapshot.fiveHourFirst()
         )
     }
 

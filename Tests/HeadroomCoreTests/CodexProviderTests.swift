@@ -220,7 +220,7 @@ struct CodexProviderTests {
         let stale = live.markedStale(.transient("offline"))
         #expect(stale.bankedResets == 2)
         #expect(stale.freshness != .live)
-        #expect(live.weeklyFirst().bankedResets == 2)
+        #expect(live.fiveHourFirst().bankedResets == 2)
         #expect(UsageSnapshot.pending(for: .codex).bankedResets == nil)
         #expect(UsageSnapshot.stale(for: .codex, reason: .transient("x")).bankedResets == nil)
     }

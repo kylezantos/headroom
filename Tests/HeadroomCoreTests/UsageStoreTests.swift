@@ -1646,7 +1646,7 @@ struct UsageStoreTests {
         ], preferences: preferences)
         await store.refreshAll()
 
-        #expect(store.menuBarWindowOptions(for: .claude).map(\.title) == ["Weekly", "5-hour", "Fable", "Closest to limit"])
+        #expect(store.menuBarWindowOptions(for: .claude).map(\.title) == ["5-hour", "Weekly", "Fable", "Closest to limit"])
 
         let fable = MenuBarWindowChoice.window(id: "other:Weekly (Fable)")
         store.setMenuBarWindowChoice(fable, for: .claude)
@@ -1804,30 +1804,30 @@ struct UsageStoreTests {
         #expect(store.resolvedMenuBarWindowKind(for: .claude) == .weekly)
     }
 
-    @Test func appDisplaySnapshotOrdersWeeklyFirst() async {
-        // Providers emit 5-hour first; the popover shows weekly first to match the
-        // widgets. Unknown windows keep their provider-given order after the pair.
+    @Test func appDisplaySnapshotOrdersFiveHourFirst() async {
+        // The popover shows 5-hour, then weekly, then model rows, whatever order the
+        // provider emitted them in.
         let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
-                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),
-                UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
                 UsageWindow(kind: .other("Weekly (Fable)"), utilization: 40, resetsAt: reset),
+                UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                UsageWindow(kind: .fiveHour, utilization: 20, resetsAt: reset),
             ])),
         ])
 
         await store.refreshAll()
 
         #expect(store.appDisplaySnapshot(for: .claude).windows.map(\.kind) == [
-            .weekly,
             .fiveHour,
+            .weekly,
             .other("Weekly (Fable)"),
         ])
         // The raw snapshot (widget export, menu bar) is untouched.
-        #expect(store.snapshot(for: .claude).windows.first?.kind == .fiveHour)
+        #expect(store.snapshot(for: .claude).windows.first?.kind == .other("Weekly (Fable)"))
     }
 
 
-    @Test func appDisplaySnapshotRanksPeriodWithWeeklyAheadOfFiveHour() async {
+    @Test func appDisplaySnapshotRanksFiveHourAheadOfPeriod() async {
         let monthly = WindowKind.billingPeriod(label: "Monthly", duration: 30 * 24 * 60 * 60)
         let preferences = freshPreferences()
         preferences.setSurfaceEnabled(true, for: .grokSubscription)
@@ -1842,7 +1842,7 @@ struct UsageStoreTests {
 
         await store.refreshAll()
 
-        #expect(store.appDisplaySnapshot(for: .grok).windows.map(\.kind) == [monthly, .fiveHour, .other("Pool")])
+        #expect(store.appDisplaySnapshot(for: .grok).windows.map(\.kind) == [.fiveHour, monthly, .other("Pool")])
     }
 
     /// R12/KTD9 (2026-09-19 sign-in plan): a check already in flight when the handoff's

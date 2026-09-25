@@ -528,17 +528,17 @@ public struct UsageSnapshot: Sendable, Equatable {
 }
 
 public extension UsageSnapshot {
-    /// The popover's row order: weekly (or billing-period) leads, 5-hour second, unknown
-    /// windows keep the provider's order after. Providers and the parser emit 5-hour first
-    /// (`ClaudeUsageParser.displayRank`); the widgets re-rank the same way at display time
-    /// (`WidgetProviderSummary.displaySubscriptionWindows`, PR #35). Every macOS surface that
-    /// stands in for the popover — the Settings Appearance specimen included — must apply
-    /// this rather than render the raw fixture order.
-    func weeklyFirst() -> UsageSnapshot {
+    /// The popover's row order: 5-hour leads, weekly (or billing-period) second, model rows
+    /// such as Claude's Fable keep the provider's order after (Kyle, Sep 2026 — the popover
+    /// used to lead with weekly to match the widgets, which still do via
+    /// `WidgetProviderSummary.displaySubscriptionWindows`). Every macOS surface that stands
+    /// in for the popover — the Settings Appearance specimen included — must apply this
+    /// rather than render the raw fixture order.
+    func fiveHourFirst() -> UsageSnapshot {
         func rank(_ kind: WindowKind) -> Int {
             switch kind {
-            case .weekly, .billingPeriod: return 0
-            case .fiveHour: return 1
+            case .fiveHour: return 0
+            case .weekly, .billingPeriod: return 1
             case .other: return 2
             }
         }

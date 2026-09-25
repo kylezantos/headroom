@@ -4,7 +4,7 @@ import Foundation
 
 /// The demo fixtures stand in for provider output, so they carry the parser's order
 /// (5-hour first). Display order is a separate, later step: `UsageStore.appDisplaySnapshot`
-/// applies `UsageSnapshot.weeklyFirst()` before the popover draws, and the Settings
+/// applies `UsageSnapshot.fiveHourFirst()` before the popover draws, and the Settings
 /// `AppearanceSpecimen` must apply the same — it was the surface that drifted (pre-ship craft
 /// audit, 2026-09-08; corrected 2026-09-10).
 struct DemoFixtureWindowOrderTests {
@@ -13,13 +13,13 @@ struct DemoFixtureWindowOrderTests {
     }
 
     /// The specimen renders the popover's order, not the fixture's.
-    @Test func specimenSnapshotRendersWeeklyFirstLikeThePopover() {
-        let displayed = DemoFixture.settingsSpecimenSnapshot.weeklyFirst()
-        #expect(kinds(displayed) == [.weekly, .fiveHour, .other("Weekly (Fable)")])
-        #expect(kinds(DemoFixture.claudeSnapshot.weeklyFirst()) == [.weekly, .fiveHour, .other("Weekly (Fable)")])
+    @Test func specimenSnapshotRendersFiveHourFirstLikeThePopover() {
+        let displayed = DemoFixture.settingsSpecimenSnapshot.fiveHourFirst()
+        #expect(kinds(displayed) == [.fiveHour, .weekly, .other("Weekly (Fable)")])
+        #expect(kinds(DemoFixture.claudeSnapshot.fiveHourFirst()) == [.fiveHour, .weekly, .other("Weekly (Fable)")])
     }
 
-    @Test func weeklyFirstIsStableAndIdempotent() {
+    @Test func fiveHourFirstIsStableAndIdempotent() {
         let resetsAt = Date().addingTimeInterval(3_600)
         let snapshot = UsageSnapshot(
             providerID: .claude,
@@ -33,9 +33,9 @@ struct DemoFixtureWindowOrderTests {
             capturedAt: nil,
             freshness: .live
         )
-        let once = snapshot.weeklyFirst()
-        #expect(kinds(once) == [.weekly, .fiveHour, .other("Weekly (Zulu)"), .other("Weekly (Alpha)")])
-        #expect(once.weeklyFirst() == once)
+        let once = snapshot.fiveHourFirst()
+        #expect(kinds(once) == [.fiveHour, .weekly, .other("Weekly (Zulu)"), .other("Weekly (Alpha)")])
+        #expect(once.fiveHourFirst() == once)
     }
 
     @Test func claudeDemoSnapshotUsesTheParserOrder() {

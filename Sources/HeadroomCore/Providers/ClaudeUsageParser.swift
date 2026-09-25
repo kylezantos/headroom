@@ -152,9 +152,8 @@ public enum ClaudeUsageParser {
     }
 
     /// The order the parser *emits*: 5-hour, then the weekly/billing pool, then
-    /// model-specific extras. This is provider order, not display order — the popover and
-    /// widgets re-rank weekly-first afterwards (`UsageSnapshot.weeklyFirst()`,
-    /// `WidgetProviderSummary.displaySubscriptionWindows`). Exposed so demo fixtures, which
+    /// model-specific extras. The popover keeps this order (`UsageSnapshot.fiveHourFirst()`);
+    /// the widgets re-rank weekly-first (`WidgetProviderSummary.displaySubscriptionWindows`). Exposed so demo fixtures, which
     /// stand in for provider output, sort through the same rule instead of hand-ordering
     /// (pre-ship craft audit, 2026-09-08).
     public static func displayRank(_ kind: WindowKind) -> Int {

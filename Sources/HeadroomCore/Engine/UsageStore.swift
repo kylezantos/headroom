@@ -536,7 +536,7 @@ public final class UsageStore {
         menuBarWindow(for: id)?.kind
     }
 
-    /// The limits a provider's pill can follow, in popover order (weekly first), then
+    /// The limits a provider's pill can follow, in popover order (5-hour first), then
     /// `closest` whenever there is more than one limit to be closest among. A limit the user
     /// chose that the latest data does not carry is listed with no window, so the picker
     /// can still show it. One entry means there is nothing to choose.
@@ -569,7 +569,7 @@ public final class UsageStore {
         filterCodexSparkCounters(
             from: snapshot(for: id),
             shouldShow: showCodexSparkCountersInApp
-        ).weeklyFirst().windows
+        ).fiveHourFirst().windows
     }
 
     public func setShowCodexSparkCountersInApp(_ enabled: Bool) {
@@ -907,7 +907,7 @@ public final class UsageStore {
     }
 
     public func appDisplaySnapshot(for key: AccountKey) -> UsageSnapshot {
-        weeklyFirst(
+        fiveHourFirst(
             filterCodexSparkCounters(
                 from: snapshot(for: key),
                 shouldShow: preferences.showCodexSparkCountersInApp
@@ -923,11 +923,11 @@ public final class UsageStore {
         AccountKey(providerID: id, accountID: primaryAccount(for: id)?.id ?? .primary)
     }
 
-    /// Popover display order matches the widgets: weekly leads, 5-hour second, unknown
-    /// windows keep their provider-given order after (providers emit 5-hour first). The rule
-    /// lives on `UsageSnapshot.weeklyFirst()` so the Settings specimen renders the same order.
-    private func weeklyFirst(_ snapshot: UsageSnapshot) -> UsageSnapshot {
-        snapshot.weeklyFirst()
+    /// Popover display order: 5-hour leads, weekly second, model rows keep their
+    /// provider-given order after. The rule
+    /// lives on `UsageSnapshot.fiveHourFirst()` so the Settings specimen renders the same order.
+    private func fiveHourFirst(_ snapshot: UsageSnapshot) -> UsageSnapshot {
+        snapshot.fiveHourFirst()
     }
 
     public func apiSpendSnapshot(for id: ProviderID) -> APISpendSnapshot {

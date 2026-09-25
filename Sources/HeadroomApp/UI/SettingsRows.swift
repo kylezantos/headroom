@@ -494,8 +494,11 @@ extension AnyTransition {
     /// scope cannot split a transition from the layout change beside it, so the split has to
     /// live in the transition itself — which is why the API-spend reveal could only choose
     /// between "no fade at all" and "a 4pt rise under Reduce Motion" before.
+    ///
+    /// RM1: under Reduce Motion the fade carries its own `settle`, so the scope that inserts
+    /// it can resolve as `.movement` and let the height snap.
     static func settingsReveal(reduceMotion: Bool) -> AnyTransition {
-        reduceMotion ? .opacity : .settingsReveal
+        reduceMotion ? HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: true) : .settingsReveal
     }
 
     /// SM2: the Settings pane switch. The incoming pane fades in out of a slight blur on

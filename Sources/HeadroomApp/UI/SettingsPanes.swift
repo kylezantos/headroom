@@ -542,18 +542,19 @@ struct MenuBarSettingsPane: View {
         }
     }
 
-    /// PS6: a card part arriving comes in on the morph, a beat behind the card's growth, out
-    /// of a 97% scale and a 2pt blur so it resolves rather than pops; one leaving fades out
-    /// quickly. Under Reduce Motion both are plain crossfades (S2A).
+    /// PS6: a card part arriving comes in a beat behind the card's growth, out of a 97% scale
+    /// and a slight blur so it resolves rather than pops; one leaving fades out quickly. MB1:
+    /// both on their own short tokens and a 1.5pt blur, so the switch never lingers soft.
+    /// Under Reduce Motion both are plain crossfades (S2A).
     private var cardPartTransition: AnyTransition {
         let arriving: AnyTransition = reduceMotion
             ? .opacity
             : .opacity
                 .combined(with: .scale(scale: 0.97))
-                .combined(with: .modifier(active: PartBlur(radius: 2), identity: PartBlur(radius: 0)))
+                .combined(with: .modifier(active: PartBlur(radius: 1.5), identity: PartBlur(radius: 0)))
         return .asymmetric(
-            insertion: arriving.animation(HeadroomMotion.cardMorph.delay(0.05)),
-            removal: .opacity.animation(HeadroomMotion.quickSettle)
+            insertion: arriving.animation(HeadroomMotion.partIn),
+            removal: .opacity.animation(HeadroomMotion.partOut)
         )
     }
 
@@ -810,19 +811,24 @@ struct APISpendSettingsPane: View {
             // provider name floated 22.5pt right of everything it heads.
             VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
                 if store.isSurfaceEnabled(surface) {
-                    if saved && !replacing {
-                        configuredAPIKeyRow(provider: provider, title: title)
+                    // SL1: the editor and the configured row overlap for their swap instead of
+                    // stacking, so saving a key no longer grows the tile by both for 200ms.
+                    ZStack(alignment: .topLeading) {
+                        if saved && !replacing {
+                            configuredAPIKeyRow(provider: provider, title: title)
+                                .transition(.settingsReveal(reduceMotion: reduceMotion))
+                        } else {
+                            apiKeyEditor(
+                                provider: provider,
+                                title: title,
+                                placeholder: placeholder,
+                                text: text,
+                                replacing: replacing
+                            )
                             .transition(.settingsReveal(reduceMotion: reduceMotion))
-                    } else {
-                        apiKeyEditor(
-                            provider: provider,
-                            title: title,
-                            placeholder: placeholder,
-                            text: text,
-                            replacing: replacing
-                        )
-                        .transition(.settingsReveal(reduceMotion: reduceMotion))
+                        }
                     }
+                    .transition(.settingsReveal(reduceMotion: reduceMotion))
                 }
                 if let message = credentialMessages[provider] {
                     // Result feedback lives on the acted-on row (the old shared line
@@ -833,21 +839,20 @@ struct APISpendSettingsPane: View {
             }
             .padding(.leading, Self.groupTextAxisInset)
         }
-        // R2M7/S2A: through the resolver as `.crossfade`, so the editor⇄configured swap keeps
-        // its fade under Reduce Motion; `reduceMotion ? nil :` killed the transition outright.
-        // The reveal's own rise and blur are the movement half and drop inside the transition
-        // (`settingsReveal(reduceMotion:)`) — an `.animation` scope cannot split a transition
-        // from the height change beside it.
+        // R2M7/S2A → RM1: the scopes are `.movement`, so under Reduce Motion the tile's height
+        // snaps; the editor⇄configured swap keeps its fade because
+        // `settingsReveal(reduceMotion:)` carries its own `settle` there. Outside Reduce
+        // Motion the reveal's rise and blur ride these scopes as before.
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
             value: savedKeyProviders
         )
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
             value: replacingKeyProviders
         )
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
             value: credentialMessages
         )
     }

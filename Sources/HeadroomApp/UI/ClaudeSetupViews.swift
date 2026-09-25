@@ -608,7 +608,6 @@ struct ClaudeManualCommandDisclosure: View {
         // well as the travel, and S2A says a crossfade keeps its timing under Reduce Motion.
         // The revealed well is the crossfade; the chevron's rotation is movement and takes
         // its own scope below so it snaps.
-        let crossfade = HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
         let movement = HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion)
         return VStack(alignment: .leading, spacing: 9) {
             Button {
@@ -641,10 +640,12 @@ struct ClaudeManualCommandDisclosure: View {
                 }
                 .padding(.horizontal, 9).padding(.vertical, 8)
                 .background(ClaudeSetupStyle.codeBackground(dark: dark), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                .transition(.opacity)
+                .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
         }
-        .animation(crossfade, value: open)
+        // RM1: `.movement`, so under Reduce Motion the disclosure's height snaps and only the
+        // well's fade (on its transition) keeps its timing.
+        .animation(movement, value: open)
     }
 }
 

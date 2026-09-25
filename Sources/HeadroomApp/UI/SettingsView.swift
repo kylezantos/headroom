@@ -30,6 +30,8 @@ struct SettingsView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sidebarSelection: SettingsPane? = .general
+    /// KB1: whether the latest pane switch came from the keyboard.
+    @State private var paneSwitchIsInstant = false
     @State private var hasVisitedAccounts = false
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
@@ -188,6 +190,9 @@ struct SettingsView: View {
             get: { sidebarSelection },
             set: { newValue in
                 guard let newValue else { return }
+                // KB1: arrowing through the sidebar swaps panes instantly. Set in the same
+                // update as the selection, because the transition is read for both panes then.
+                paneSwitchIsInstant = HeadroomMotion.isKeyboardInitiated
                 sidebarSelection = newValue
             }
         )
@@ -208,11 +213,15 @@ struct SettingsView: View {
         ZStack(alignment: .topLeading) {
             detail
                 .id(selectedPane)
-                .transition(.settingsPane(reduceMotion: reduceMotion))
+                // KB1: `.identity`, not a nil-animation transaction — measured, a transition's
+                // attached animation plays even inside `disablesAnimations`.
+                .transition(paneSwitchIsInstant ? .identity : .settingsPane(reduceMotion: reduceMotion))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(
-            HeadroomMotion.resolved(HeadroomMotion.paneIn, .crossfade, reduceMotion: reduceMotion),
+            paneSwitchIsInstant
+                ? nil
+                : HeadroomMotion.resolved(HeadroomMotion.paneIn, .crossfade, reduceMotion: reduceMotion),
             value: selectedPane
         )
     }
@@ -257,7 +266,10 @@ struct SettingsView: View {
                 }
             )
         case .menuBar:
-            MenuBarSettingsPane(store: store, onOpenAccounts: { sidebarSelection = .accounts })
+            MenuBarSettingsPane(store: store, onOpenAccounts: {
+                paneSwitchIsInstant = false
+                sidebarSelection = .accounts
+            })
         case .widgets:
             WidgetsSettingsPane(
                 store: store,
@@ -317,11 +329,11 @@ struct SettingsView: View {
             get: { store.isSurfaceEnabled(surface) },
             set: { newValue in
                 // Animated so the key-entry reveal below an API row settles instead of
-                // hard-cutting. R2M7/S2A: through the resolver as `.crossfade` — the fade is
-                // what must survive Reduce Motion, and the reveal's rise and blur drop inside
-                // `settingsReveal(reduceMotion:)` rather than by killing the whole animation.
+                // hard-cutting. RM1: `.movement`, so under Reduce Motion the tile's height
+                // snaps; the reveal's fade survives on its own via
+                // `settingsReveal(reduceMotion:)`.
                 withAnimation(
-                    HeadroomMotion.resolved(Self.settleAnimation, .crossfade, reduceMotion: reduceMotion)
+                    HeadroomMotion.resolved(Self.settleAnimation, .movement, reduceMotion: reduceMotion)
                 ) {
                     store.setSurfaceEnabled(newValue, for: surface)
                 }

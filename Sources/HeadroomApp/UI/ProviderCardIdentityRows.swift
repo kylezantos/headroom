@@ -287,6 +287,9 @@ struct IdentityRow: View {
             // "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
             if isStale {
                 staleTag
+                    // RM1: the freshness scope around it is `.movement`, so the tag keeps
+                    // its fade under Reduce Motion on its own.
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
             if showsConnectedChip {
                 ConnectedChip()
@@ -550,15 +553,17 @@ struct AccountSectionView: View {
             VStack(alignment: .leading, spacing: identityToContentGap) {
                 stateContent(setupState: setupState)
             }
+            // RM1: both scopes are `.movement`; the fades in `stateContent` carry their own
+            // timing under Reduce Motion, so there the section's height snaps.
             .animation(
-                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion),
+                HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
                 value: snapshot.freshness
             )
             // R2M1: the second scope, on the session rather than the snapshot. A row swapping
             // its sign-in block for a waiting block is the same kind of body change
             // `freshness` already crossfades; without this it hard-cut.
             .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
                 value: sessionKey
             )
             if showsStopWaiting, setupState != .blockedByOpenHandoff {
@@ -577,7 +582,7 @@ struct AccountSectionView: View {
                 }
                 // R2M1: the row appears and disappears with the session, so it dissolves
                 // rather than popping into a card that is already resizing under it.
-                .transition(.opacity)
+                .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
         }
         .accessibilityElement(children: .contain)
@@ -634,26 +639,26 @@ struct AccountSectionView: View {
         return IdentityRowMetrics.identityToMetersGap
     }
 
+    /// SL1: live and transient stale are one branch, so a live ↔ stale flip repaints the rows
+    /// in place (M3A′) instead of stacking two meter sets for the crossfade. The branches that
+    /// do swap overlap in a ZStack.
     @ViewBuilder private func stateContent(setupState: SetupSessionState) -> some View {
-        Group {
-            switch snapshot.freshness {
-            case .pending:
+        ZStack(alignment: .topLeading) {
+            if case .pending = snapshot.freshness {
                 // Review #6 (2026-09-19 sign-in review): a reset blanks this row to
                 // `.pending` and then waits on the Terminal exit, scheduling no check — so
                 // a skeleton here is the whole browser login with nothing said, and a
                 // staging refused after it is an actionless one too.
                 sessionOwnedRow(setupState: setupState)
-            case .live:
-                bars(dimmed: false)
-            case .stale(let reason):
-                if reason.isPermanent {
-                    signInContent(reason, setupState: setupState)
-                } else {
-                    bars(dimmed: true)
-                }
+                    .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
+            } else if case .stale(let reason) = snapshot.freshness, reason.isPermanent {
+                signInContent(reason, setupState: setupState)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
+            } else {
+                bars(dimmed: snapshot.freshness != .live)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
             }
         }
-        .transition(.opacity)
     }
 
     private func bars(dimmed: Bool) -> some View {
@@ -725,6 +730,9 @@ struct AccountSectionView: View {
                     )
                 }
             }
+            // RM1: a `Group` modifier reaches each branch, so every session swap here fades,
+            // self-timed under Reduce Motion now the `sessionKey` scope is `.movement`.
+            .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             if !snapshot.windows.isEmpty {
                 bars(dimmed: true)
             }
@@ -735,24 +743,28 @@ struct AccountSectionView: View {
     /// `signInContent` composes the same two pieces once the row has its stale login outcome
     /// back, so the blanked row and the signed-out row cannot describe one state two ways.
     @ViewBuilder private func sessionOwnedRow(setupState: SetupSessionState) -> some View {
-        switch setupRowRecovery(for: setupState) {
-        case .sessionOnly:
-            waitingPhaseRow
-        case .tryAgain:
-            if let message = SetupSessions.failureMessage(for: account) {
-                failureRow(
-                    setupState: setupState,
-                    message: message,
-                    severity: .critical,
-                    presentation: nil,
-                    hasFailureMessage: true
-                )
-            } else {
+        Group {
+            switch setupRowRecovery(for: setupState) {
+            case .sessionOnly:
+                waitingPhaseRow
+            case .tryAgain:
+                if let message = SetupSessions.failureMessage(for: account) {
+                    failureRow(
+                        setupState: setupState,
+                        message: message,
+                        severity: .critical,
+                        presentation: nil,
+                        hasFailureMessage: true
+                    )
+                } else {
+                    accountSkeleton
+                }
+            case .outcomeRecovery:
                 accountSkeleton
             }
-        case .outcomeRecovery:
-            accountSkeleton
         }
+        // RM1: the same self-timed session fade as `signInContent`.
+        .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
     }
 
     /// R7: the row states the phase it is actually in — opening Terminal, waiting for the

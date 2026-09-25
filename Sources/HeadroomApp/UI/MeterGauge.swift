@@ -95,6 +95,9 @@ struct MeterGauge: View {
                 (isVertical ? geometry.size.height : geometry.size.width) - inset * 2
             )
             let fillLength = continuousFillLength(available: availableLength)
+            // M3A′: `.unavailable` hides the fill where it stands, so it fades rather than
+            // shrinks, and a return to live crossfades back at the same length.
+            let showsFill = fillLength > 0 && !freshness.isUnavailable
 
             ZStack(alignment: isVertical ? .bottom : .leading) {
                 continuousTrack(shape: shape)
@@ -103,17 +106,20 @@ struct MeterGauge: View {
                     quarterMarks(in: geometry.size)
                 }
 
-                if fillLength > 0, fillRecipe != .none {
-                    continuousFillLayer(shape: shape, recipe: fillRecipe, fillLength: fillLength)
-                }
+                // AR1: the fill is always in the tree and hides at zero length. As an `if`, a
+                // 0 → value change *inserted* it, and SwiftUI faded it in at its final length,
+                // so the first-open draw-in (M4A) and a reset to empty never moved the bar.
+                // Kept present, its length rides the row's spring from wherever it is.
+                continuousFillLayer(shape: shape, recipe: fillRecipe, fillLength: fillLength)
+                    .opacity(showsFill && fillRecipe != .none ? 1 : 0)
             }
             // L7B: the cap is a separate marker, so it lives outside the fill's clip *and*
             // outside the ZStack's sizing. An overlay never feeds the parent's layout, which
-            // is what keeps a 10pt cap from stretching an 8pt track.
+            // is what keeps a 10pt cap from stretching an 8pt track. AR1: present for the
+            // same reason as the fill, so it travels with the fill's edge.
             .overlay(alignment: isVertical ? .bottom : .leading) {
-                if fillLength > 0, fillRecipe == .glass || fillRecipe == .ghost {
-                    capMarker(shape: shape, fillLength: fillLength, available: availableLength)
-                }
+                capMarker(shape: shape, fillLength: fillLength, available: availableLength)
+                    .opacity(showsFill && (fillRecipe == .glass || fillRecipe == .ghost) ? 1 : 0)
             }
         }
     }
@@ -384,8 +390,7 @@ struct MeterGauge: View {
     }
 
     private func continuousFillLength(available: CGFloat) -> CGFloat {
-        guard !freshness.isUnavailable else { return 0 }
-        return CGFloat(MeterGeometry.continuousFillLength(
+        CGFloat(MeterGeometry.continuousFillLength(
             available: Double(available),
             fraction: clampedFraction,
             format: style.format

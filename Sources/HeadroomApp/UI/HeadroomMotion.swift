@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The house motion vocabulary. Every animation in the app target reaches for one of these;
@@ -68,6 +69,14 @@ enum HeadroomMotion {
     /// gesture's momentum.
     static let cardMorph = Animation.spring(response: 0.3, dampingFraction: 1.0)
 
+    /// PS6 → MB1 (Kyle, 2026-09-25: the menu-bar switch's blur and fade "too long"). A card
+    /// part arriving used to ride `cardMorph` after a 50ms beat — a spring that reads as
+    /// ~450ms before the part is sharp. Now it resolves in 160ms on the house curve after a
+    /// 30ms beat, so it still lands just behind the card's growth but finishes inside it. The
+    /// part leaving goes in `paneOut`'s 80ms: exits are the quieter half.
+    static let partIn = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.16).delay(0.03)
+    static let partOut = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.08)
+
     // MARK: Arrival timing (M9A)
 
     /// M9A (Kyle, 2026-09-11): the once-per-launch count-up fires from the row's `onAppear`,
@@ -77,7 +86,44 @@ enum HeadroomMotion {
     /// fully in view. Deliberately brief — just long enough to clear the open, never long
     /// enough to hold the real number back. Applies only to the staged arrival; reopens, live
     /// updates, and Reduce Motion still land immediately.
-    static let arrivalDelay: Duration = .milliseconds(250)
+    ///
+    /// AR1 (Kyle, 2026-09-25): 250 → 350ms, so the draw-in is felt "just a tad more" without
+    /// getting in the way. A beat the eye can use to land on the popover, still short enough
+    /// that an empty meter never reads as missing data.
+    static let arrivalDelay: Duration = .milliseconds(350)
+
+    /// AR1: the staged arrival's own spring — `valueSpring` a third slower, so the first
+    /// draw-in is felt. Arrival only: a live update lands on `valueSpring` so a changed number
+    /// never lags the data. Critically damped for the same reason (M1A).
+    static let arrivalSpring = Animation.spring(response: 0.4, dampingFraction: 1.0)
+
+    // MARK: Window handoff (SW1)
+
+    /// SW1 (Kyle, 2026-09-25: opening and closing Settings "feels clunky"). AppKit shows a
+    /// SwiftUI `Window` with no entrance at all, and Headroom then moved it onto the active
+    /// screen a tick later, so the window popped in and could visibly jump. The window now
+    /// arrives hidden, is placed, and resolves in on the house curve; the popover it came from
+    /// fades out over `windowOutDuration` at the same time, so the handoff is one crossfade. Closing uses
+    /// AppKit's utility-window fade (~160ms, measured), shorter than the entrance so the exit
+    /// is the quieter half. Opacity only, so Reduce Motion keeps it (S2A).
+    static let windowInDuration: TimeInterval = 0.26
+    static let windowOutDuration: TimeInterval = 0.12
+
+    /// The house curve (S1A) for AppKit's animator. Computed: `CAMediaTimingFunction` is not
+    /// `Sendable`, so it can't be a stored static under strict concurrency.
+    static var windowCurve: CAMediaTimingFunction {
+        CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+    }
+
+    // MARK: Keyboard-initiated changes (KB1)
+
+    /// KB1 (2026-09-25 motion audit): a change the keyboard asked for lands instantly —
+    /// someone arrowing through the Settings sidebar or pressing ⌘, is moving faster than
+    /// any animation, and each replay makes them wait on it (Emil's frequency rule). Read at
+    /// the moment the change is made, from the event AppKit is dispatching.
+    @MainActor static var isKeyboardInitiated: Bool {
+        NSApp.currentEvent?.type == .keyDown
+    }
 
     // MARK: Compatibility names — retire as call sites migrate to the S3A pairs above.
 
@@ -98,6 +144,16 @@ enum HeadroomMotion {
     /// property resolves on its own.
     static func resolved(_ animation: Animation, _ kind: Kind, reduceMotion: Bool) -> Animation? {
         reduceMotion && kind == .movement ? nil : animation
+    }
+
+    /// RM1 (2026-09-25 motion audit): a fade that keeps its timing under Reduce Motion by
+    /// carrying its own animation. An `.animation` scope animates everything in its
+    /// transaction, so a scope resolved as `.crossfade` to save a fade under Reduce Motion
+    /// also kept the height change beside it. Such scopes now resolve as `.movement` and the
+    /// fade rides the transition. Outside Reduce Motion this is a plain `.opacity`, so the
+    /// scope still drives it exactly as before.
+    static func fade(_ animation: Animation, reduceMotion: Bool) -> AnyTransition {
+        reduceMotion ? AnyTransition.opacity.animation(animation) : .opacity
     }
 
     /// S2A companion for `contentTransition`: the digit roll is movement, so Reduce Motion

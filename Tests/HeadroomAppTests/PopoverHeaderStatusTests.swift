@@ -156,7 +156,8 @@ struct PopoverHeaderStatusResolverTests {
         )
         #expect(status.kind == .waiting)
         #expect(status.text == "Waiting 45s")
-        #expect(status.rollValue == 45)
+        // WC1: the per-second clock never rolls.
+        #expect(status.rollValue == nil)
     }
 
     /// R2M5: the slot's identity changes with the *kind* of line, which is what makes the

@@ -25,9 +25,6 @@ struct PopoverView: View {
     /// Content extends past the scroll cap and isn't scrolled to the bottom — gates
     /// the bottom fade so it never softens a fully visible last card.
     @State private var scrollContinuesBelow = false
-    /// L3A: the list is scrolled off its top — gates the top feather so an unscrolled
-    /// popover keeps its crisp first-card edge, exactly like the bottom gate.
-    @State private var scrollContinuesAbove = false
     /// L2A: live scroll geometry driving the bespoke gutter indicator. The system
     /// scroller is hidden, so this is the only position and length cue.
     @State private var scrollMetrics = PopoverScrollMetrics()
@@ -64,6 +61,23 @@ struct PopoverView: View {
             let cardListIdentity = store.providerOrder.flatMap { id in
                 (accountsByVisibleProvider[id] ?? []).map(\.key)
             }
+            // NB1 (2026-09-25 motion audit): what can change a card's height — each account's
+            // freshness, its setup session, and its meter rows, the values the card's own
+            // scopes key on. Those scopes reach only the card, so it grew on `valueSpring`
+            // while the cards below it jumped to their final places and overlapped it or left
+            // a gap.
+            let cardLayoutSignature = PopoverCardLayoutSignature(
+                freshness: store.providerOrder.flatMap { id in
+                    (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).freshness }
+                },
+                sessions: store.providerOrder.flatMap { id in
+                    (accountsByVisibleProvider[id] ?? []).map { providerCardSessionKey(SetupSessions.state(for: $0)) }
+                },
+                // A live poll can add or age out a meter row with freshness unchanged.
+                rows: store.providerOrder.flatMap { id in
+                    (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).windows.map(\.kind) }
+                }
+            )
             VStack(spacing: 20) {
                 header(now: context.date)
                     // Header sits 14pt above the first card (vs the 20pt tile gap) — the
@@ -131,12 +145,17 @@ struct PopoverView: View {
                     }
                     // M7A: the popover had no reorder animation at all, so a Make Main
                     // promotion teleported its card to the top. The stack's own layout change
-                    // rides this scope, and it is also what the measured `cardsHeight` below
-                    // samples frame by frame — so the container contracts *with* a removed
-                    // card's fade rather than snapping after it.
+                    // rides this scope. The measured `cardsHeight` below reports the final
+                    // layout, not frame by frame, so the scroll frame and the window take
+                    // their new height at once; only the cards inside move.
                     .animation(
                         HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion),
                         value: cardListIdentity
+                    )
+                    // NB1: the neighbours ride the same spring as the card that resized.
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                        value: cardLayoutSignature
                     )
                     // Scroll content is laid out at its ideal height regardless of the
                     // ScrollView's own frame, so this reports the true stack height even
@@ -150,11 +169,15 @@ struct PopoverView: View {
                 // and the cards are the same width again.
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
-                // Soft fades while content continues past either end of the cap — the flat
-                // clip alone read as a card with missing data (impeccable audit P2), and
-                // L3A extends the same treatment to the top so a scrolled card is no longer
-                // chopped square under the header. Both ends are gated so the common
-                // non-scrolling popover keeps its crisp first and last card edges.
+                // A soft fade while content continues past the bottom of the cap — the flat
+                // clip alone read as a card with missing data (impeccable audit P2). Gated so
+                // the common non-scrolling popover keeps its crisp last card edge.
+                // TF2 (Kyle, 2026-09-24): the top has no fade. L3A's 14pt top feather was
+                // shorter than a line of text, so a card passing under the header looked sliced
+                // mid-glyph against the title rather than softened; Tahoe's soft scroll-edge
+                // effect was tried in its place and dropped, because the header bar broke the
+                // scroll range inside the MenuBarExtra window. Cards now pass cleanly under the
+                // solid header.
                 .onScrollGeometryChange(for: PopoverScrollMetrics.self) { geometry in
                     PopoverScrollMetrics(
                         offset: geometry.contentOffset.y,
@@ -163,17 +186,11 @@ struct PopoverView: View {
                     )
                 } action: { _, metrics in
                     scrollMetrics = metrics
-                    scrollContinuesAbove = metrics.continuesAbove
                     scrollContinuesBelow = metrics.continuesBelow
                     flashScrollIndicator(overflows: metrics.overflows)
                 }
                 .mask {
                     VStack(spacing: 0) {
-                        LinearGradient(
-                            stops: Self.featherStops(fadesOut: scrollContinuesAbove, mirrored: true),
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: Self.featherHeight)
                         Rectangle().fill(.black)
                         LinearGradient(
                             stops: Self.featherStops(fadesOut: scrollContinuesBelow),
@@ -182,15 +199,11 @@ struct PopoverView: View {
                         .frame(height: Self.featherHeight)
                     }
                 }
-                // S2A: both feathers are pure mask opacity, so Reduce Motion keeps the
+                // S2A: the feather is pure mask opacity, so Reduce Motion keeps the
                 // 200ms softening rather than hard-cutting the card edge.
                 .animation(
                     HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
                     value: scrollContinuesBelow
-                )
-                .animation(
-                    HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                    value: scrollContinuesAbove
                 )
                 // Applied outside the mask so the indicator never feathers at the ends,
                 // and outside the feather animations so its position tracks the scroll 1:1.
@@ -231,20 +244,15 @@ struct PopoverView: View {
     /// colours could not express it; these are its three stops.
     private static let featherOpacities: [Double] = [1.0, 0.55, 0.0]
 
-    /// L3A: both ends run the same ramp, so the top feather is this one mirrored rather than
-    /// a second hand-kept gradient. `fadesOut: false` is the gated case — a popover that
-    /// doesn't scroll keeps its crisp first and last card edge.
-    private static func featherStops(fadesOut: Bool, mirrored: Bool = false) -> [Gradient.Stop] {
+    /// `fadesOut: false` is the gated case — a popover that doesn't scroll keeps its crisp
+    /// last card edge.
+    private static func featherStops(fadesOut: Bool) -> [Gradient.Stop] {
         let opacities = fadesOut
             ? featherOpacities
             : Array(repeating: 1.0, count: featherOpacities.count)
         let lastIndex = Double(opacities.count - 1)
-        let stops = opacities.enumerated().map { index, opacity in
+        return opacities.enumerated().map { index, opacity in
             Gradient.Stop(color: .black.opacity(opacity), location: Double(index) / lastIndex)
-        }
-        guard mirrored else { return stops }
-        return stops.reversed().map {
-            Gradient.Stop(color: $0.color, location: 1 - $0.location)
         }
     }
 
@@ -322,8 +330,29 @@ struct PopoverView: View {
     /// Native pattern: navigating out of the transient menu-bar popover into the persistent
     /// Settings window dismisses the popover (mirrors Control Center → System Settings). The
     /// popover is recreated on next menu-bar click, so closing its window is safe.
+    ///
+    /// SW1: the popover fades out while Settings fades in, so the handoff is one crossfade
+    /// instead of a cut. The close rides the fade's own completion, so the two share one
+    /// clock, and the alpha is restored after it because `MenuBarExtra` may reuse the window
+    /// for the next open. KB1: from ⌘, both halves are instant.
     private func openSettingsDismissingPopover() {
-        popoverWindow?.close()
+        if let window = popoverWindow {
+            if HeadroomMotion.isKeyboardInitiated {
+                window.close()
+            } else {
+                let fading = window
+                NSAnimationContext.runAnimationGroup { context in
+                    context.duration = HeadroomMotion.windowOutDuration
+                    context.timingFunction = HeadroomMotion.windowCurve
+                    fading.animator().alphaValue = 0
+                } completionHandler: {
+                    MainActor.assumeIsolated {
+                        fading.close()
+                        fading.alphaValue = 1
+                    }
+                }
+            }
+        }
         onOpenSettings()
     }
 
@@ -396,8 +425,8 @@ struct PopoverView: View {
             // R2M8: ⌘, is universal on macOS, and Settings is a `Window(id:)` rather than a
             // `Settings` scene, so the system gives the app nothing for free. Bound to the
             // gear itself so the shortcut and the click run one action. Emil's rule that a
-            // keyboard-initiated action must not animate needs no work here: dismissing the
-            // popover and opening a window are instant by construction.
+            // keyboard-initiated action must not animate is kept by KB1: since SW1 the click
+            // path crossfades, and both halves check `isKeyboardInitiated` to stay instant.
             .keyboardShortcut(",", modifiers: .command)
             .accessibilityLabel("Settings")
             .alignmentGuide(.firstTextBaseline) { d in
@@ -718,7 +747,10 @@ enum PopoverHeaderStatusResolver {
             return PopoverHeaderStatus(
                 kind: .waiting,
                 text: PopoverHeaderStatusText.waiting(elapsed: elapsed),
-                rollValue: (max(0, elapsed)).rounded(.down)
+                // WC1 (2026-09-25 motion audit): the seconds swap plainly. A roll once a second
+                // for as long as the handoff lasts is periodic motion in the corner of the
+                // eye; the digits are already tabular, so the swap never shifts the line.
+                rollValue: nil
             )
         }
         if let setupText = input.setupText {
@@ -785,7 +817,7 @@ private enum PopoverScrollIndicatorMetrics {
     static let gutterOffset: CGFloat = shellMargin - centreFromShellEdge + width / 2
 }
 
-/// One read of the scroll viewport, shared by both feathers and the indicator so the three
+/// One read of the scroll viewport, shared by the feather and the indicator so the two
 /// stay in step and the popover installs a single `onScrollGeometryChange`.
 private struct PopoverScrollMetrics: Equatable {
     var offset: CGFloat = 0
@@ -793,7 +825,6 @@ private struct PopoverScrollMetrics: Equatable {
     var content: CGFloat = 0
 
     var overflows: Bool { viewport > 0 && content > viewport + 1 }
-    var continuesAbove: Bool { overflows && offset > 0 }
     var continuesBelow: Bool { offset + viewport < content - 4 }
 }
 
@@ -845,5 +876,9 @@ private struct WindowAccessor: NSViewRepresentable {
     }
 }
 
-
-
+/// NB1: the per-account values that change a card's height, flattened in card order.
+struct PopoverCardLayoutSignature: Equatable {
+    var freshness: [Freshness]
+    var sessions: [SetupSessionState]
+    var rows: [[WindowKind]]
+}

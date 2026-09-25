@@ -121,8 +121,8 @@ struct SettingsSidebar: View {
                     // Quiet stamp under the name. Hidden under `swift run` (no bundle
                     // Info.plist) rather than showing a placeholder.
                     Text(version)
-                        .font(.system(size: 10.5).monospacedDigit())
-                        .foregroundStyle(.tertiary)
+                        .font(SettingsType.footnote.monospacedDigit())
+                        .foregroundStyle(.secondary)
                 }
             }
             Spacer(minLength: 0)

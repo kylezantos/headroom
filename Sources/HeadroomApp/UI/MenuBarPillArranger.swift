@@ -279,9 +279,7 @@ struct MenuBarPillArranger<Card: View>: View {
             .layoutValue(key: PillShelfPartKey.self, value: .well(.menuBar))
 
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                Text(notShownCaption)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
+                SettingsGroupLabel(notShownCaption)
                 SettingsHelpText(text: notShownHelp)
             }
             .layoutValue(key: PillShelfPartKey.self, value: .notShownHeader)
@@ -638,6 +636,8 @@ struct PillValueMenu: View {
     let store: UsageStore
     let id: ProviderID
     let name: String
+    /// PC2: a shelf card's value reads lighter, like the rest of its card.
+    var dimmed = false
 
     private var selection: MenuBarWindowChoice { store.menuBarWindowPickerSelection(for: id) }
     private var resolved: WindowKind? { store.resolvedMenuBarWindowKind(for: id) }
@@ -656,19 +656,20 @@ struct PillValueMenu: View {
                     item(.closest, title: MenuBarWindowChoice.closest.title, detail: closestDetail)
                 }
             } label: {
-                HStack(spacing: 3) {
+                HStack(spacing: 4) {
                     Text(label)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                    Image(systemName: "chevron.up.chevron.down")
+                    // PC2: a pull-down's single chevron. Up/down read as a stepper at 7pt.
+                    Image(systemName: "chevron.down")
                         .font(.system(size: 7, weight: .semibold))
+                        .foregroundStyle(.tertiary)
                 }
-                .font(.system(size: 11))
             }
-            // R2C21's menu chrome: `.button` menu style routed through the card's chip style,
-            // so the value shares the hover and press of the ×, +, and arrows around it.
+            // PC2: a borderless pull-down on the card's footer tray, so every footer reads the
+            // same at rest and only the chevron marks the ones you can change.
             .menuStyle(.button)
-            .buttonStyle(PillCardChipStyle(horizontalPadding: 5))
+            .buttonStyle(PillValueTrayStyle(dimmed: dimmed))
             .menuIndicator(.hidden)
             // No `fixedSize`: a long model row ("GPT-5.3-Codex-Spark · Weekly") must
             // truncate inside the card rather than spill over its neighbour.
@@ -677,10 +678,11 @@ struct PillValueMenu: View {
             .accessibilityValue(spokenValue)
         } else {
             Text(resolved?.displayName ?? "Waiting…")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+                .font(SettingsType.help)
+                .foregroundStyle(dimmed ? .tertiary : .secondary)
                 .lineLimit(1)
-                .frame(height: PillCardChipStyle.side)
+                .frame(maxWidth: .infinity)
+                .frame(height: PillValueTrayStyle.height)
                 .help(resolved.map { "\(name) reports one limit: \($0.spokenName)." }
                     ?? "Waiting for \(name)’s first usage report.")
         }
@@ -755,22 +757,31 @@ struct PillCardChipStyle: ButtonStyle {
 
     /// Zero for the square glyph chips; the value menu pads its text.
     var horizontalPadding: CGFloat = 0
+    /// PC2: the card's × and + rest in tertiary ink until the card is hovered, so the header
+    /// reads as the provider's name rather than as a row of controls.
+    var quiet = false
 
     func makeBody(configuration: Configuration) -> some View {
-        Chip(configuration: configuration, horizontalPadding: horizontalPadding)
+        Chip(configuration: configuration, horizontalPadding: horizontalPadding, quiet: quiet)
     }
 
     private struct Chip: View {
         let configuration: Configuration
         let horizontalPadding: CGFloat
+        let quiet: Bool
         @Environment(\.isEnabled) private var isEnabled
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
         @State private var hovering = false
 
+        private var ink: HierarchicalShapeStyle {
+            if hovering && isEnabled { return .primary }
+            return quiet ? .tertiary : .secondary
+        }
+
         var body: some View {
             configuration.label
                 .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(hovering && isEnabled ? .primary : .secondary)
+                .foregroundStyle(ink)
                 .padding(.horizontal, horizontalPadding)
                 .frame(minWidth: PillCardChipStyle.side, minHeight: PillCardChipStyle.side)
                 .background(
@@ -784,6 +795,74 @@ struct PillCardChipStyle: ButtonStyle {
                         inside ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut, .crossfade, reduceMotion: reduceMotion
                     )) { hovering = inside }
                 }
+                .pointerStyle(.default)
+        }
+    }
+}
+
+/// PC2: the card footer's value pull-down. It spans the card 3pt in from each edge, and its
+/// hover tray takes an 8pt radius (the card's 11 minus that inset) so the fill nests in the
+/// card's bottom corners. No fill at rest.
+struct PillValueTrayStyle: ButtonStyle {
+    static let height: CGFloat = 22
+    static let cornerRadius: CGFloat = 8
+
+    var dimmed = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        Tray(configuration: configuration, dimmed: dimmed)
+    }
+
+    private struct Tray: View {
+        let configuration: Configuration
+        let dimmed: Bool
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .font(SettingsType.help)
+                .foregroundStyle(hovering ? .primary : dimmed ? .tertiary : .secondary)
+                .padding(.horizontal, 6)
+                .frame(maxWidth: .infinity)
+                .frame(height: PillValueTrayStyle.height)
+                .background(
+                    .primary.opacity(configuration.isPressed ? 0.1 : hovering ? 0.065 : 0),
+                    in: RoundedRectangle(cornerRadius: PillValueTrayStyle.cornerRadius, style: .continuous)
+                )
+                .contentShape(Rectangle())
+                .onHover { inside in
+                    withAnimation(HeadroomMotion.resolved(
+                        inside ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut, .crossfade, reduceMotion: reduceMotion
+                    )) { hovering = inside }
+                }
+                .pointerStyle(.default)
+        }
+    }
+}
+
+/// PC2: the move carets beside the pill — an 11 × 25pt target, the empty flank's own size,
+/// so even an 84pt card holding a percentage pill keeps them clear of it.
+struct PillCaretStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        Caret(configuration: configuration)
+    }
+
+    private struct Caret: View {
+        let configuration: Configuration
+        @State private var hovering = false
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(hovering ? .primary : .secondary)
+                .frame(width: 11, height: 25)
+                .background(
+                    .primary.opacity(configuration.isPressed ? 0.12 : hovering ? 0.07 : 0),
+                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
+                )
+                .contentShape(Rectangle())
+                .onHover { hovering = $0 }
                 .pointerStyle(.default)
         }
     }

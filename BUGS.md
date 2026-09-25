@@ -533,7 +533,7 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   more, exactly the hidden title bar's height. Harmless (the effective floor is still above the
   600pt the sidebar column needs) but the constant reads 32pt lower than what ships.
 - **The sidebar's version stamp cannot be visually accepted under `swift run`.** It reads
-  `CFBundleShortVersionString`, which a SwiftPM binary has no Info.plist for, so L10A's 10.5pt
+  `CFBundleShortVersionString`, which a SwiftPM binary has no Info.plist for, so L10A's 10pt
   monospaced-digit line is absent from every `--demo` capture. Accept it on a
   `Scripts/build-app.sh` bundle instead.
 - ~~**The demo fixture gives Cursor an account capacity of 5.**~~ Resolved 2026-09-10:
@@ -559,6 +559,15 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   (PS1, pill shelf):* the summary state now lists every provider as a card on the "Not shown"
   shelf with its own + and a "Drag a provider up" line, so the exit is visible. The switch still
   discards the arranged list, so restoring several pills is still one add per provider.
+- **An Accounts row's actions can wrap onto a line of their own (type audit, 2026-09-24).**
+  In the `accounts-multi` render, the Studio row (needs sign-in, capability recovery showing)
+  pushes **Sign In** and **Check Now** below the row, right-aligned under the status sentence,
+  where they read as belonging to no row. Out of scope for the type/spacing pass; the row's
+  trailing cluster needs a stacking rule of its own.
+- **Your Pills stacks three help lines (type audit, 2026-09-24).** One under each group label
+  plus the "Uses each provider's main account…" footer. The footer states a rule for both
+  groups, so it was left in place rather than duplicated into the auto and manual variants of
+  the first line. Revisit with the copy for that tile.
 
 ## Motion system residuals (2026-09-04, S1A–M11A)
 

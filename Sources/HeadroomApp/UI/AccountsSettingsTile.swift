@@ -87,24 +87,18 @@ struct AccountsSettingsTile: View {
     @FocusState private var focusedRemovalAction: AccountKey?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            // The pane scaffold prints "Accounts" above this tile (U2/U4), so the tile
-            // carries no title of its own.
+        // The pane scaffold prints "Accounts" above this tile (U2/U4), so the tile carries no
+        // title of its own. T3: the shared tile, so provider groups stand `groupToGroup` apart
+        // like every other pane's groups; the old hand-rolled 10pt rhythm ran the intro line
+        // into the first group. The bold group labels separate providers, so the hairline
+        // between them went with it.
+        SettingsTile {
             SettingsHelpText(text: "Track several subscriptions side by side. Every account signs in through its official CLI in Terminal — Headroom never sees your credentials.")
 
-            ForEach(Array(store.registeredProviderOrder.enumerated()), id: \.element) { index, providerID in
-                if index > 0 {
-                    Rectangle()
-                        .fill(ClaudeSetupStyle.hairline(dark: colorScheme == .dark))
-                        .frame(height: 1)
-                        .padding(.vertical, 2)
-                }
+            ForEach(store.registeredProviderOrder, id: \.self) { providerID in
                 providerGroup(providerID)
             }
         }
-        .padding(13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .raisedTile(cornerRadius: 10, surface: .opaque)
         .confirmationDialog(
             removalCandidate?.isBuiltIn == true
                 ? "Stop tracking this account?"
@@ -218,11 +212,11 @@ struct AccountsSettingsTile: View {
         // both speak state the screen doesn't show and burn the per-provider dedupe entry,
         // so the announcement would be lost once the provider is switched back on.
         let announcedCapability = presentation.hidesCapabilityBanner ? nil : capabilityState
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     ProviderLogoView(providerID: providerID, size: 15)
-                    Text(displayName)
+                    SettingsGroupLabel(displayName)
                 }
                 if presentation.showsAccountCounter {
                     // A stop-tracked built-in is hidden from the list but keeps its
@@ -231,7 +225,7 @@ struct AccountsSettingsTile: View {
                     let usedSlots = accounts.count
                         + (store.isBuiltInTrackingStopped(for: providerID) ? 1 : 0)
                     Text(AccountsSettingsInteractions.accountCounterText(usedSlots: usedSlots, capacity: capacity))
-                        .font(.system(size: 11).monospacedDigit())
+                        .font(SettingsType.help.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
@@ -513,7 +507,7 @@ struct AccountsSettingsTile: View {
                     // 6pt inset + 158pt cap match the field above, so both sit on one text
                     // axis and a long address never shoves the status column around.
                     Text(email)
-                        .font(.system(size: 10))
+                        .font(SettingsType.footnote)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -680,7 +674,7 @@ struct AccountsSettingsTile: View {
                     case (.resetOnly, _):
                         Button { requestReset(account) } label: {
                             Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11))
+                                .font(SettingsType.help)
                                 .frame(width: 22, height: 22)
                         }
                         .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
@@ -751,7 +745,7 @@ struct AccountsSettingsTile: View {
                             removalCandidate = account
                         } label: {
                             Image(systemName: "trash")
-                                .font(.system(size: 11))
+                                .font(SettingsType.help)
                                 .frame(width: 22, height: 22)
                         }
                         .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
@@ -771,7 +765,7 @@ struct AccountsSettingsTile: View {
     fileprivate struct AccountActionsMenuGlyph: View {
         var body: some View {
             Image(systemName: "ellipsis")
-                .font(.system(size: 11))
+                .font(SettingsType.help)
                 .frame(width: 22, height: 22)
         }
     }
@@ -819,7 +813,7 @@ struct AccountsSettingsTile: View {
             // R2B1: the ellipsis says the wait is ongoing, matching every other waiting
             // status in the window ("Waiting for sign-in…", "Fetching…").
             Text("Waiting for Claude Code…")
-                .font(.system(size: 11, weight: .medium))
+                .font(SettingsType.help)
                 .foregroundStyle(.secondary)
         case .retainedUsage:
             HStack(spacing: 7) {
@@ -827,7 +821,7 @@ struct AccountsSettingsTile: View {
                     Text("\(window.kind.compactName) \(store.usagePercentageMode.roundedPercentage(for: window))%")
                 }
             }
-            .font(.system(size: 11).monospacedDigit())
+            .font(SettingsType.help.monospacedDigit())
             .foregroundStyle(.secondary)
             .opacity(0.68)
             .accessibilityLabel(
@@ -853,13 +847,13 @@ struct AccountsSettingsTile: View {
             SettingsSuccessStatus(text: "Connected")
         case .fetching:
             Text("Fetching…")
-                .font(.system(size: 11))
+                .font(SettingsType.help)
                 .foregroundStyle(.secondary)
         case .waiting:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.mini)
                 Text(setupMode == .deviceCode ? "Waiting for device code…" : "Waiting for sign-in…")
-                    .font(.system(size: 11))
+                    .font(SettingsType.help)
                     .foregroundStyle(.secondary)
             }
         case .stale:
@@ -870,7 +864,7 @@ struct AccountsSettingsTile: View {
                 Image(systemName: "clock")
                     .font(.system(size: 9, weight: .medium))
                 Text("Stale")
-                    .font(.system(size: 11))
+                    .font(SettingsType.help)
             }
             .foregroundStyle(.secondary)
         case .needsSignIn:
@@ -879,7 +873,7 @@ struct AccountsSettingsTile: View {
             // said "Sign in with the official Claude CLI" — one act under three names, which
             // makes people ask whether the three do different things.
             Text(setupSentence ?? "Sign in with the official \(providerDisplayName) CLI")
-                .font(.system(size: 11, weight: .medium))
+                .font(SettingsType.help)
                 // R2C5: a lifecycle sentence, not a measurement — it stays off the amber ramp
                 // here as it does in the popover.
                 .foregroundStyle(ProviderStyle.meterLabelInk(scheme: colorScheme))
@@ -889,7 +883,7 @@ struct AccountsSettingsTile: View {
             // PB9: "sign-in", the word the popover and every other status here uses for this
             // event. "login" was the only place it was called something else.
             Text("Another \(providerDisplayName) sign-in is open")
-                .font(.system(size: 11, weight: .medium))
+                .font(SettingsType.help)
                 .foregroundStyle(.secondary)
         case .setupFailed:
             Text(setupFailure ?? "Setup failed")
@@ -899,7 +893,7 @@ struct AccountsSettingsTile: View {
         case .removing:
             HStack(spacing: 5) {
                 ProgressView().controlSize(.mini)
-                Text("Removing…").font(.system(size: 11)).foregroundStyle(.secondary)
+                Text("Removing…").font(SettingsType.help).foregroundStyle(.secondary)
             }
         case .setupActive:
             Text("Close setup, then retry")

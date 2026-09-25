@@ -111,8 +111,10 @@ struct WidgetPreviewStrip: View {
                 // it legible against the well in light appearance.
                 .shadow(color: .black.opacity(colorScheme == .dark ? 0.34 : 0.18), radius: 4, y: 1)
             Text(label)
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
+                .font(SettingsType.footnote)
+                // T8: secondary, not tertiary — the faintest ink on a tinted well was the
+                // lowest-contrast text in the window.
+                .foregroundStyle(.secondary)
         }
     }
 

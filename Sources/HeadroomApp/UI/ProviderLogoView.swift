@@ -14,6 +14,10 @@ import HeadroomCore
 struct ProviderLogoView: View {
     let providerID: ProviderID
     var size: CGFloat = 16
+    /// Drop the slot's trailing slack and take the mark's own ink width, for a mark set
+    /// *beside* text with no shared axis to hold — the pill cards' centred names, where the
+    /// slack read as extra gap, widest on the narrow Cursor and Grok marks.
+    var hugsInk = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -33,14 +37,14 @@ struct ProviderLogoView: View {
                 .renderingMode(.original)
                 .scaledToFit()
                 .frame(width: markWidth, height: markHeight)
-                .frame(width: size, height: size, alignment: .leading)
+                .frame(width: hugsInk ? markWidth : size, height: size, alignment: .leading)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: ProviderStyle.symbol(for: providerID))
                 .font(.system(size: markHeight, weight: .semibold))
                 .foregroundStyle(ProviderStyle.accent(for: providerID))
                 .frame(width: markWidth, height: markHeight)
-                .frame(width: size, height: size, alignment: .leading)
+                .frame(width: hugsInk ? markWidth : size, height: size, alignment: .leading)
                 .accessibilityHidden(true)
         }
     }

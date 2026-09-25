@@ -47,7 +47,7 @@ struct ThemeThumbnailPicker: View {
     ]
 
     /// Same chrome as `MeterStyleTile`'s shape/fill swatches — 8pt continuous ring, 2pt
-    /// accent when selected and a 1pt hairline otherwise, 10.5pt medium caption — so the
+    /// accent when selected and a 1pt hairline otherwise, 11pt medium swatch label — so the
     /// Appearance pane reads as one family of choices rather than two control languages.
     /// PB13: that chrome is now literally the same code (`selectionChrome`), not a copy.
     private func thumbnail(_ preference: AppearancePreference) -> some View {
@@ -67,7 +67,7 @@ struct ThemeThumbnailPicker: View {
                     )
 
                 Text(preference.label)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(SettingsType.swatchLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }

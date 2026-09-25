@@ -25,12 +25,11 @@ struct SettingsPaneScaffold<Content: View>: View {
             // the tile it heads and the tiles stand well apart, so which level a gap
             // separates is legible from the gap alone.
             VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
-                // PB2: 17, one step above the 15pt tile headers under it. At 15 the two were
-                // byte-identical, so "Appearance" and "Theme" differed only by indent and the
-                // pane had no top of its hierarchy.
+                // PB2/T5: the top of the pane's hierarchy, a clear step above the 15pt tile
+                // headers under it (17 read as their twin).
                 Text(title)
-                    .font(.system(size: 17, weight: .semibold))
-                    .kerning(-0.2)
+                    .font(SettingsType.paneTitle)
+                    .kerning(SettingsType.paneTitleKerning)
                 VStack(alignment: .leading, spacing: SettingsMetrics.tileToTile) {
                     content
                 }
@@ -229,6 +228,9 @@ struct MenuBarSettingsPane: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// PC2: the card under the pointer, which shows its move carets and lifts its × to
+    /// secondary ink.
+    @State private var hoveredCard: ProviderID?
 
     private var isAuto: Bool { store.menuBarFillSource == .auto }
     private var selected: [ProviderID] { store.selectedMenuBarProviders }
@@ -241,8 +243,8 @@ struct MenuBarSettingsPane: View {
         // The specimen stays in view while the editor scrolls at the window's resize floor.
         VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
             Text(SettingsPane.menuBar.label)
-                .font(.system(size: 17, weight: .semibold))
-                .kerning(-0.2)
+                .font(SettingsType.paneTitle)
+                .kerning(SettingsType.paneTitleKerning)
             // The scaffold's second level, retyped because this pane pins its first tile:
             // the two tiles stand `tileToTile` apart like every other pane's.
             VStack(alignment: .leading, spacing: SettingsMetrics.tileToTile) {
@@ -259,7 +261,7 @@ struct MenuBarSettingsPane: View {
                                 animatingPills { store.setMenuBarFillSource(.auto) }
                             }
                             .buttonStyle(.link)
-                            .font(.system(size: 11))
+                            .font(SettingsType.help)
                         }
                     }
                     .padding(.bottom, 20)
@@ -281,12 +283,12 @@ struct MenuBarSettingsPane: View {
     }
 
     private var preview: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                groupCaption("Menu bar preview")
+        VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
+            HStack(alignment: .firstTextBaseline) {
+                SettingsGroupLabel("Menu bar preview")
                 Spacer(minLength: 8)
                 Text(store.menuBarFillSource == .auto ? "Automatic summary" : selected.count == 1 ? "1 pill" : "\(selected.count) pills")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(SettingsType.help)
                     .foregroundStyle(.secondary)
             }
             ScrollView(.horizontal) {
@@ -309,8 +311,8 @@ struct MenuBarSettingsPane: View {
     }
 
     private var displayChoices: some View {
-        VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-            groupCaption("Display")
+        VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
+            SettingsGroupLabel("Display")
             // The Appearance swatch grid: fixed 150pt columns, not the tile's full width.
             LazyVGrid(
                 columns: Array(repeating: GridItem(.fixed(150), spacing: 8, alignment: .leading), count: 2),
@@ -337,7 +339,7 @@ struct MenuBarSettingsPane: View {
             store.setShowMenuBarPercentage(showsPercentage)
         } label: {
             // The Settings swatch shell (`InAppDisplayTile.swatch`): specimen in a 36pt r6
-            // well, 5pt, a centered 10.5pt label, 5pt padding so the r11 ring stays concentric.
+            // well, 5pt, a centered swatch label, 5pt padding so the r11 ring stays concentric.
             // The detail line moved to the tooltip; the help line under the grid says it too.
             VStack(spacing: 5) {
                 MenuBarPreviewPill(meters: Self.displaySamples, showsPercentage: showsPercentage)
@@ -349,7 +351,7 @@ struct MenuBarSettingsPane: View {
                     )
                     .accessibilityHidden(true)
                 Text(title)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(SettingsType.swatchLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
@@ -368,9 +370,9 @@ struct MenuBarSettingsPane: View {
     }
 
     private var arranger: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                groupCaption("In your menu bar")
+                SettingsGroupLabel("In your menu bar")
                 if isAuto {
                     SettingsHelpText(text: "Drag a provider up to give it its own pill.")
                 } else {
@@ -435,26 +437,45 @@ struct MenuBarSettingsPane: View {
 
     /// PS6 (Kyle, 2026-09-24): one card for both rows, not a shelf card swapped for a pill
     /// card. Swapping built a new view on every row change, so the card replaced itself
-    /// instead of changing. Now the pill and the name stay put and the row-specific parts come
-    /// and go around them: in the menu bar the grip, ×, value, and arrows; on the shelf just
-    /// +, in the × slot. The header row is on both, so the pill sits at the same height in
-    /// either form and never jumps. In the automatic summary the shelf card keeps its value,
-    /// because the summary still follows each provider's choice.
+    /// instead of changing. The pill and the name stay put and only the row's action trades
+    /// places: × in the menu bar, + on the shelf.
+    ///
+    /// PC2 (Kyle, 2026-09-25): three bands, one job each — who (mark and name, leading), the
+    /// pill alone in the middle, and what it follows (the value pull-down across the foot).
+    /// The old five centred rows hung the mark off the name's left and the chevrons off the
+    /// value's right, a zig-zag down a 100pt card. The value shows on the shelf too, as a
+    /// working menu, so a card reads the same in both rows and a pill's value can be chosen
+    /// before it is added. The grip went (the whole card drags) and the move arrows became
+    /// carets in the pill's empty flanks, shown on hover.
     private func pillCard(_ id: ProviderID, inMenuBar: Bool) -> some View {
         let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
-        return VStack(spacing: 6) {
-            HStack {
+        let hovered = hoveredCard == id
+        return VStack(spacing: 0) {
+            cardHeader(id, dimmed: !inMenuBar)
+            cardBody {
+                cardPill(id)
+                    .opacity(inMenuBar ? 1 : 0.75)
+            }
+            .overlay {
                 if inMenuBar {
-                    Image(systemName: "line.3.horizontal")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .frame(width: PillCardChipStyle.side, height: PillCardChipStyle.side)
-                        .contentShape(Rectangle())
-                        .help("Drag to arrange \(name(id))")
-                        .accessibilityLabel("Drag \(name(id))")
-                        .transition(cardPartTransition)
+                    HStack(spacing: 0) {
+                        caret(id, offset: -1, visible: hovered)
+                        Spacer(minLength: 0)
+                        caret(id, offset: 1, visible: hovered)
+                    }
+                    // Out through the card's 9pt padding to 1pt from its edge.
+                    .padding(.horizontal, -(Self.cardInset - 1))
+                    .offset(y: Self.pillDrop / 2)
                 }
-                Spacer(minLength: 4)
+            }
+            PillValueMenu(store: store, id: id, name: name(id), dimmed: !inMenuBar)
+                .padding(.horizontal, -(Self.cardInset - Self.trayInset))
+        }
+        .padding([.top, .horizontal], Self.cardInset)
+        .padding(.bottom, Self.trayInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay(alignment: .topTrailing) {
+            Group {
                 if inMenuBar {
                     Button {
                         animatingPills { store.removeMenuBarProvider(id) }
@@ -476,25 +497,10 @@ struct MenuBarSettingsPane: View {
                     .transition(cardPartTransition)
                 }
             }
-            .frame(height: PillCardChipStyle.side)
-            cardPill(id)
-                .opacity(inMenuBar ? 1 : 0.75)
-            cardName(id, dimmed: !inMenuBar)
-            if inMenuBar || isAuto {
-                PillValueMenu(store: store, id: id, name: name(id))
-                    .transition(cardPartTransition)
-            }
-            if inMenuBar {
-                HStack(spacing: 10) {
-                    moveButton(id, offset: -1)
-                    moveButton(id, offset: 1)
-                }
-                .transition(cardPartTransition)
-            }
+            .buttonStyle(PillCardChipStyle(quiet: !hovered))
+            .padding(.top, Self.cardInset - 1)
+            .padding(.trailing, Self.actionTrailingInset)
         }
-        .buttonStyle(PillCardChipStyle())
-        .padding(8)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background {
             // Both surfaces are always there and trade opacity, so the card's material
             // crossfades with the morph instead of being replaced.
@@ -514,8 +520,26 @@ struct MenuBarSettingsPane: View {
             }
         }
         .contentShape(shape)
+        .onHover { inside in
+            withAnimation(HeadroomMotion.resolved(
+                inside ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut, .crossfade, reduceMotion: reduceMotion
+            )) {
+                hoveredCard = inside ? id : (hoveredCard == id ? nil : hoveredCard)
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(inMenuBar ? "\(name(id)) menu bar pill" : "\(name(id)), not in the menu bar")
+        // PC2: the carets only appear under the pointer, so VoiceOver moves through actions.
+        .accessibilityActions {
+            if inMenuBar {
+                if selected.first != id {
+                    Button("Move \(name(id)) left") { animatingPills { store.moveMenuBarProvider(id, by: -1) } }
+                }
+                if selected.last != id {
+                    Button("Move \(name(id)) right") { animatingPills { store.moveMenuBarProvider(id, by: 1) } }
+                }
+            }
+        }
     }
 
     /// PS6: a card part arriving comes in on the morph, a beat behind the card's growth, out
@@ -534,32 +558,29 @@ struct MenuBarSettingsPane: View {
     }
 
     /// A provider that is switched off. It cannot be picked up; the whole card opens
-    /// Accounts, where its switch lives.
+    /// Accounts, where its switch lives. PC2: the same three bands as `pillCard`, with
+    /// "Off ›" in the value's place, so it sits at its neighbours' height.
     private func offCard(_ id: ProviderID) -> some View {
         Button(action: onOpenAccounts) {
-            VStack(spacing: 6) {
-                cardPill(id)
-                    .opacity(0.35)
-                cardName(id, dimmed: true)
-                    .opacity(0.6)
-            }
-            // PS6: the same header-row allowance as `pillCard`, so an off card's pill sits at
-            // the height of its neighbours' and "Off ›" on their + and × line.
-            .padding(.top, 8 + PillCardChipStyle.side + 6)
-            .padding([.horizontal, .bottom], 8)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .overlay(alignment: .topTrailing) {
-                HStack(spacing: 2) {
+            VStack(spacing: 0) {
+                cardHeader(id, dimmed: true)
+                cardBody {
+                    cardPill(id)
+                        .opacity(0.35)
+                }
+                HStack(spacing: 3) {
                     Text("Off")
                     Image(systemName: "chevron.right")
                         .font(.system(size: 7, weight: .semibold))
                 }
-                .font(.system(size: 10.5))
+                .font(SettingsType.help)
                 .foregroundStyle(.secondary)
-                .frame(height: PillCardChipStyle.side)
-                .padding(.horizontal, 4)
-                .padding([.top, .trailing], 8)
+                .frame(maxWidth: .infinity)
+                .frame(height: PillValueTrayStyle.height)
             }
+            .padding([.top, .horizontal], Self.cardInset)
+            .padding(.bottom, Self.trayInset)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .shelfCardSurface(dark: colorScheme == .dark)
             .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
         }
@@ -569,44 +590,70 @@ struct MenuBarSettingsPane: View {
         .accessibilityHint("Opens Accounts, where you can turn it on.")
     }
 
+    // MARK: Card metrics (PC2)
+
+    /// The card's padding on its top and sides; the mark's ink starts here.
+    private static let cardInset: CGFloat = 9
+    /// The footer tray's inset from the card edge. With the card's 11pt radius it gives the
+    /// tray's 8 (`PillValueTrayStyle.cornerRadius`), so the two corners nest.
+    private static let trayInset: CGFloat = 3
+    /// The ×/+ chip is 18pt with ~8pt of ink; pulled out so its ink ends on `cardInset`.
+    private static let actionTrailingInset: CGFloat = 4
+    /// The header's trailing room for that floating chip's ink plus a 2pt gap.
+    private static let actionReserve: CGFloat = 10
+    /// The pill band: 10 above the pill, the 25pt pill, 8 below.
+    private static let bodyHeight: CGFloat = 43
+    /// The pill sits this far below the band's centre, evening the space above it against
+    /// the header's own descender room, so it reads centred between header and footer.
+    private static let pillDrop: CGFloat = 2
+
+    private func cardHeader(_ id: ProviderID, dimmed: Bool) -> some View {
+        // The mark hugs its ink, so this 4 is the whole gap for every provider.
+        HStack(spacing: 4) {
+            ProviderLogoView(providerID: id, size: 12, hugsInk: true)
+            Text(name(id))
+                .font(SettingsType.help.weight(.semibold))
+                .foregroundStyle(dimmed ? .secondary : .primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 0)
+        }
+        .frame(height: 16)
+        .padding(.trailing, Self.actionReserve)
+        .help(name(id))
+    }
+
+    private func cardBody<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(.top, Self.pillDrop)
+            .frame(maxWidth: .infinity)
+            .frame(height: Self.bodyHeight)
+    }
+
     private func cardPill(_ id: ProviderID) -> some View {
         MenuBarPreviewPill(meters: [store.providerMenuBarMeter(for: id)], showsPercentage: store.showMenuBarPercentage)
             .frame(height: 25)
     }
 
-    private func cardName(_ id: ProviderID, dimmed: Bool = false) -> some View {
-        HStack(spacing: 5) {
-            ProviderLogoView(providerID: id, size: 11)
-            Text(name(id))
-                .lineLimit(1)
-        }
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(dimmed ? .secondary : .primary)
-        .help(name(id))
-    }
-
-    private func moveButton(_ id: ProviderID, offset: Int) -> some View {
+    /// PC2: a move caret in the pill's flank. Always laid out so the pill never shifts; shown
+    /// only while the card is hovered, and absent where the card has nowhere to go.
+    @ViewBuilder private func caret(_ id: ProviderID, offset: Int, visible: Bool) -> some View {
         let direction = offset < 0 ? "left" : "right"
-        return Button {
+        let canMove = offset < 0 ? selected.first != id : selected.last != id
+        Button {
             animatingPills { store.moveMenuBarProvider(id, by: offset) }
         } label: {
-            Image(systemName: "arrow.\(direction)")
+            Image(systemName: "chevron.\(direction)")
         }
-        .disabled(offset < 0 ? selected.first == id : selected.last == id)
+        .buttonStyle(PillCaretStyle())
+        .opacity(visible && canMove ? 1 : 0)
+        .allowsHitTesting(visible && canMove)
         .help("Move \(name(id)) \(direction)")
-        .accessibilityLabel("Move \(name(id)) \(direction)")
+        .accessibilityHidden(true)
     }
 
     private func name(_ id: ProviderID) -> String {
         store.displayNames[id] ?? id.raw.capitalized
-    }
-
-    /// The Settings group caption (Format / Shape / Fill, Percentages / Account names):
-    /// 11pt semibold secondary, sentence case. Tile titles are the only larger heading.
-    private func groupCaption(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
     }
 }
 
@@ -746,11 +793,11 @@ struct APISpendSettingsPane: View {
         let saved = savedKeyProviders.contains(provider)
         let replacing = replacingKeyProviders.contains(provider)
 
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
             HStack(spacing: 12) {
                 HStack(spacing: 7) {
                     ProviderLogoView(providerID: surface.providerID, size: 15)
-                    Text(surface.displayName)
+                    SettingsGroupLabel(surface.displayName)
                 }
                 Spacer(minLength: 12)
                 Toggle(surface.displayName, isOn: apiSurfaceBinding(surface, provider: provider))
@@ -761,7 +808,7 @@ struct APISpendSettingsPane: View {
             // R2B2: the group's children sit on the header's *text* axis with the mark
             // hanging in the margin — the Accounts convention. Left flush with the mark, the
             // provider name floated 22.5pt right of everything it heads.
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
                 if store.isSurfaceEnabled(surface) {
                     if saved && !replacing {
                         configuredAPIKeyRow(provider: provider, title: title)
@@ -837,7 +884,7 @@ struct APISpendSettingsPane: View {
     private func configuredAPIKeyRow(provider: APIKeyProvider, title: String) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.system(size: 11))
+                .font(SettingsType.help)
                 .foregroundStyle(.secondary)
             HStack(spacing: 8) {
                 SavedCredentialStatus()
@@ -892,7 +939,7 @@ struct APISpendSettingsPane: View {
         }
 
         return VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 11)).foregroundStyle(.secondary)
+            Text(title).font(SettingsType.help).foregroundStyle(.secondary)
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 8) {
                     apiKeyField(provider: provider, placeholder: placeholder, text: text)
@@ -904,10 +951,10 @@ struct APISpendSettingsPane: View {
                     apiKeyEditorButtons(provider: provider, replacing: replacing, text: text)
                 }
             }
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                 SettingsHelpText(text: guidance.text)
                 Link(guidance.linkLabel, destination: guidance.url)
-                    .font(.system(size: 11))
+                    .font(SettingsType.help)
             }
         }
     }

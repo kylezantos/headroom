@@ -90,10 +90,8 @@ struct InAppDisplayTile: View {
         help: String,
         @ViewBuilder swatches: () -> Swatches
     ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(caption)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
+            SettingsGroupLabel(caption)
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: swatchSpacing) {
                 swatches()
@@ -183,7 +181,7 @@ struct InAppDisplayTile: View {
 
     // MARK: - Shared swatch shell
 
-    /// The swatch shell shared by both rows: a 36pt well over a 10.5pt caption, matching the
+    /// The swatch shell shared by both rows: a 36pt well over a swatch label, matching the
     /// meter-tile swatches' rhythm.
     private func swatch<Content: View>(
         label: String,
@@ -203,7 +201,7 @@ struct InAppDisplayTile: View {
                     )
 
                 Text(label)
-                    .font(.system(size: 10.5, weight: .medium))
+                    .font(SettingsType.swatchLabel)
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }

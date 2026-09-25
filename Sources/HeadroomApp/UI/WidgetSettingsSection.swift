@@ -21,13 +21,13 @@ struct WidgetSettingsSection: View {
         // provider picker is a widget sub-option too, so both indent under the switch they
         // depend on instead of the picker splitting the switch from its checkbox.
         VStack(alignment: .leading, spacing: SettingsMetrics.groupToGroup) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     SettingsSwitchRow(title: "Share data with widgets", isOn: $widgetsEnabled)
                     SettingsHelpText(text: "Controls whether Headroom supplies usage data to macOS widgets.")
                 }
 
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
                     VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                         ResponsiveControlRow(label: "Widget providers") {
                             Menu {
@@ -62,7 +62,7 @@ struct WidgetSettingsSection: View {
                             }
                             .fixedSize()
                         }
-                        SettingsHelpText(text: "Widgets show up to two selected providers in app order. Menu bar pills are configured separately.")
+                        SettingsHelpText(text: "Widgets show up to two selected providers in app order. Menu bar pills are configured\u{00A0}separately.")
                     }
                     Toggle("Show Codex Spark counters in widgets", isOn: $showCodexSparkCountersInWidgets)
                 }

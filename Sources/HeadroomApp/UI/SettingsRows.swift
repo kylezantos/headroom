@@ -42,7 +42,7 @@ struct SettingsHelpText: View {
 
     var body: some View {
         Text(text)
-            .font(.system(size: 11))
+            .font(SettingsType.help)
             .lineSpacing(2)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -55,8 +55,9 @@ struct SettingsHelpText: View {
 }
 
 /// PB13: the window's one affirmative-state row — a check in a tinted disc beside a quiet
-/// 11pt semibold label. Only the checkmark carries the success treatment; the text stays
-/// quiet so this reads as status, not a celebratory badge competing with the row title.
+/// 11pt label (T4: regular, the status role's weight). Only the checkmark carries the success
+/// treatment; the text stays quiet so this reads as status, not a celebratory badge
+/// competing with the row title.
 /// Shared by "Saved securely" (API Spend) and "Connected" (Accounts), which used to be two
 /// unrelated drawings of the same idea.
 struct SettingsSuccessStatus: View {
@@ -83,7 +84,7 @@ struct SettingsSuccessStatus: View {
                 )
                 .accessibilityHidden(true)
             Text(text)
-                .font(.system(size: 11, weight: .semibold))
+                .font(SettingsType.help)
                 .foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
@@ -138,8 +139,52 @@ enum SettingsMetrics {
     static let tileToTile: CGFloat = 28
     /// A control's own label to the control (inline rows).
     static let labelToControl: CGFloat = 4
-    /// The same pair once `ResponsiveControlRow` has stacked them.
+    /// A label stacked above what it names: `ResponsiveControlRow` once stacked, and a group
+    /// label over its swatch grid or preview well (T6: those ran 4, 6 and 8 for one job).
     static let labelToStackedControl: CGFloat = 6
+    /// Siblings inside one group — account rows, a switch's indented sub-options, a key
+    /// editor's parts. Tighter than `groupToGroup`, so the group still reads as one unit.
+    static let withinGroup: CGFloat = 8
+}
+
+/// T1 (2026-09-24 type audit): the window's type ramp, one role per step. Seven roles used
+/// to share 11pt secondary and differ only by weight, which at that size and ink the eye
+/// can't separate, and group labels ran quieter than the swatch labels they headed. Each
+/// step now differs from its neighbour in size or ink, not weight alone, and maps to a
+/// macOS text style.
+enum SettingsType {
+    /// The pane's own title (T5: 20, up from 17 — at 17 it was a twin of the 15pt tile
+    /// titles under it). 20 is where SF switches to its Display cut.
+    static let paneTitle = Font.system(size: 20, weight: .semibold)
+    static let paneTitleKerning: CGFloat = -0.3
+    /// A tile's title (title3, emphasized).
+    static let tileTitle = Font.system(size: 15, weight: .semibold)
+    static let tileTitleKerning: CGFloat = -0.2
+    /// A label naming a group — swatch rows, preview wells, provider group headers
+    /// (headline). Primary ink: a heading is never quieter than what it heads.
+    static let groupLabel = Font.system(size: 13, weight: .semibold)
+    /// Help lines, counts, and statuses (subheadline). Regular weight only; a status sets
+    /// itself apart with an icon or colour. Warning-coloured statuses keep `.medium`.
+    static let help = Font.system(size: 11)
+    /// The caption under a swatch or thumbnail (T7: 11, off the 10.5 half-step).
+    static let swatchLabel = Font.system(size: 11, weight: .medium)
+    /// Small print: emails, tags, preview captions (footnote).
+    static let footnote = Font.system(size: 10)
+}
+
+/// T1: the one group-label treatment — Format / Shape / Fill, Display, In your menu bar,
+/// and every other label that names the controls under it.
+struct SettingsGroupLabel: View {
+    let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(SettingsType.groupLabel)
+    }
 }
 
 /// Settings copy that more than one pane prints, so the two can never drift into two
@@ -158,11 +203,9 @@ enum SettingsCopy {
 
 /// One material for every section: the popover's card language — `RaisedTile` at
 /// 13pt padding / 10pt radius (matching `ProviderCardView`), full width so sibling
-/// tiles never render at two widths. Tile headers are 15pt semibold, kerned like
-/// the family: one step under the pane title's 17 (PB2) and two above the 13pt
-/// controls, so size separates the levels instead of weight alone. This comment used to
-/// cite "the popover's 16pt card titles" as the step above; that reference was stale —
-/// the tile headers here are 15 and the level above them is the pane title.
+/// tiles never render at two widths. Tile headers are `SettingsType.tileTitle`: under the
+/// 20pt pane title (T5) and over the 13pt group labels and controls, so size separates the
+/// levels instead of weight alone.
 struct SettingsTile<Content: View>: View {
     private let title: String?
     private let content: Content
@@ -190,8 +233,8 @@ struct SettingsTile<Content: View>: View {
         VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
             if let title {
                 Text(title)
-                    .font(.system(size: 15, weight: .semibold))
-                    .kerning(-0.2)
+                    .font(SettingsType.tileTitle)
+                    .kerning(SettingsType.tileTitleKerning)
             }
             VStack(alignment: .leading, spacing: SettingsMetrics.groupToGroup) {
                 content

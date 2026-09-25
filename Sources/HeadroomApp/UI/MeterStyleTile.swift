@@ -38,7 +38,7 @@ struct MeterStyleTile: View {
     /// 464pt wide and its 438pt interior clears that without wrapping or shrinking.
     private let swatchWidth: CGFloat = 76
     private let swatchSpacing: CGFloat = 8
-    private let captionSpacing: CGFloat = 6
+    private let captionSpacing: CGFloat = SettingsMetrics.labelToStackedControl
     private let columnCount = 5
     /// The width of the mini card fragment inside a Format swatch. AP2 reads it too, so the
     /// swatch's segment pitch is derived from the same number that sizes the fragment.
@@ -88,7 +88,7 @@ struct MeterStyleTile: View {
             // that is American everywhere else.
             SettingsHelpText(
                 text: "Only when low keeps meters neutral until usage runs low. "
-                    + "Glass and Ghost add a bright end cap."
+                    + "Glass and Ghost add a bright\u{00A0}end\u{00A0}cap."
             )
         }
     }
@@ -109,9 +109,7 @@ struct MeterStyleTile: View {
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) -> some View {
         VStack(alignment: .leading, spacing: captionSpacing) {
-            Text(caption)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
+            SettingsGroupLabel(caption)
 
             LazyVGrid(columns: columns, alignment: .leading, spacing: swatchSpacing) {
                 swatches()
@@ -250,7 +248,7 @@ struct MeterStyleTile: View {
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 
-    /// The one swatch shell every row shares: a 26pt well over a 10.5pt label, 5pt apart,
+    /// The one swatch shell every row shares: a 26pt well over an 11pt swatch label, 5pt apart,
     /// inside 5pt of padding.
     private func swatchBody<Content: View>(
         label: String,
@@ -267,7 +265,7 @@ struct MeterStyleTile: View {
                 )
 
             Text(label)
-                .font(.system(size: 10.5, weight: .medium))
+                .font(SettingsType.swatchLabel)
                 .multilineTextAlignment(.center)
                 .lineLimit(labelLines, reservesSpace: labelLines > 1)
                 .minimumScaleFactor(0.8)

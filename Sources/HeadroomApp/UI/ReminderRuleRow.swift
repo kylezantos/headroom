@@ -27,7 +27,7 @@ enum ReminderRuleDraft {
     /// The threshold stepper moves to the next multiple of 5 in its direction (23 → 25 up,
     /// 23 → 20 down), clamped to 1–100, so a typed odd value rejoins the round steps.
     static func steppedThreshold(_ value: Int, up: Bool) -> Int {
-        let stepped = up ? ((value + 5) / 5) * 5 : Int((Double(value - 5) / 5).rounded(.up)) * 5
+        let stepped = up ? ((value + 5) / 5) * 5 : ((value - 1) / 5) * 5
         return ReminderRule.clampedThreshold(stepped)
     }
 

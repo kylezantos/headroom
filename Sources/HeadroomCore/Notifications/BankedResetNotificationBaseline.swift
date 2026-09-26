@@ -57,7 +57,12 @@ public struct BankedResetNotificationBaseline: @unchecked Sendable { // UserDefa
     /// Pure read: decides against the stored baseline without writing. The caller applies
     /// `.record` at once and a `.notify` count after a successful post.
     public func decide(snapshot: UsageSnapshot, account: AccountKey, isEnabled: Bool) -> BankedResetNotificationDecision {
-        Self.decide(snapshot: snapshot, account: account, isEnabled: isEnabled, baseline: baselineCount(for: account))
+        // Every provider's fresh merge lands here; skip the stored-baseline decode for the
+        // ones the pure form would ignore anyway.
+        guard snapshot.providerID == .codex, snapshot.freshness == .live, snapshot.bankedResets != nil else {
+            return .ignore
+        }
+        return Self.decide(snapshot: snapshot, account: account, isEnabled: isEnabled, baseline: baselineCount(for: account))
     }
 
     /// R15: only a fresh live Codex poll that reports a count moves anything. A failed

@@ -150,6 +150,9 @@ public final class UsageStore {
     /// Per-account banked-reset announcements. Optional so tests and the demo
     /// store compose without it; the shipping store always has one (KTD6).
     let bankedResetAcknowledgements: BankedResetAcknowledgements?
+    /// KTD1: use-it-up reminders and the banked-reset notice. Optional so tests, the demo
+    /// store, and the render harness compose without it.
+    let notificationCoordinator: NotificationCoordinator?
     private let now: @Sendable () -> Date
     /// Builds the concrete provider for a newly added account. Lives in the composition
     /// root (R13) and is injected so the store never names concrete provider types.
@@ -183,6 +186,7 @@ public final class UsageStore {
         continuityCache: (any UsageContinuityCaching)? = nil,
         signOutRecord: SignOutRecord? = nil,
         bankedResetAcknowledgements: BankedResetAcknowledgements? = nil,
+        notificationCoordinator: NotificationCoordinator? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         widgetExporter: (any WidgetSnapshotExporting)? = nil,
         phoneSyncExporter: (any WidgetSnapshotExporting)? = nil
@@ -196,6 +200,7 @@ public final class UsageStore {
         self.continuityCache = continuityCache
         self.signOutRecord = signOutRecord
         self.bankedResetAcknowledgements = bankedResetAcknowledgements
+        self.notificationCoordinator = notificationCoordinator
         self.now = now
         self.widgetExporter = widgetExporter
         self.phoneSyncExporter = phoneSyncExporter
@@ -871,6 +876,7 @@ public final class UsageStore {
         recordSignOutEdge(next, for: key)
         if next.freshness == .live {
             bankedResetAcknowledgements?.lower(for: key, currentCount: next.bankedResets)
+            evaluateNotifications(next, for: key)
         }
         // Skip the assignment when nothing changed so an unchanging state (e.g. a
         // provider that stays logged-out) doesn't invalidate observers every cycle.
@@ -878,6 +884,29 @@ public final class UsageStore {
         updateContinuityCache(next, for: key)
         if notifiesSetup { setupCoordinator?.receive(next, for: key) }
         return true
+    }
+
+    /// KTD2: only a fresh live merge reaches here, so a launch restore, a failed poll's
+    /// retained windows, and a capability failure never notify. The completion re-checks
+    /// this attachment, so a post that races a removal or reset writes no ledger (KTD6).
+    private func evaluateNotifications(_ snapshot: UsageSnapshot, for key: AccountKey) {
+        guard let notificationCoordinator else { return }
+        let visible = accounts(for: key.providerID)
+        let context = NotificationEvaluationContext(
+            providerName: key.providerID.displayName,
+            accountLabel: visible.count > 1 ? visible.first { $0.key == key }?.label : nil,
+            useItUp: UseItUpSettings(
+                isEnabled: useItUpRemindersEnabled,
+                rules: reminderRules,
+                scope: reminderScope,
+                showCodexSparkCounters: showCodexSparkCountersInApp
+            ),
+            bankedResetsEnabled: bankedResetNotificationsEnabled
+        )
+        let generation = attachmentGenerations[key, default: 0]
+        notificationCoordinator.receive(snapshot, for: key, context: context, now: now()) { [weak self] in
+            self?.acceptsResult(for: key, attachmentGeneration: generation) ?? false
+        }
     }
 
     /// KTD14 (2026-09-19 sign-in plan): merge is the one place the prior row and the

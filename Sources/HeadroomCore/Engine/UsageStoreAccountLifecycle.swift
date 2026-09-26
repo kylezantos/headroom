@@ -30,6 +30,7 @@ extension UsageStore {
         // erase — makes the exclusion hold however that session ends.
         signOutRecord?.clearLastKnownSignedIn(for: key)
         bankedResetAcknowledgements?.purge(for: key)
+        notificationCoordinator?.purge(for: key)
         snapshots[key] = .pending(for: key.providerID)
         continuityCache?.remove(for: key)
         exportWidgetSnapshot()
@@ -193,6 +194,7 @@ extension UsageStore {
         // reading look like a sign-out Headroom observed.
         signOutRecord?.clearLastKnownSignedIn(for: key)
         bankedResetAcknowledgements?.purge(for: key)
+        notificationCoordinator?.purge(for: key)
         providers.removeAll { $0.accountKey == key }
         scheduler.unregister(key)
         snapshots.removeValue(forKey: key)

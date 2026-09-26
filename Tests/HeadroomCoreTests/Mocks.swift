@@ -385,3 +385,25 @@ final class FetchGate: @unchecked Sendable {
         }
     }
 }
+
+/// Notification poster double (KTD1): records every request and answers with `accepts`.
+/// `gate.suspendNextFetch()` holds the next post open until `gate.release()`, so a test
+/// can merge again or remove the account while that post is in flight (KTD6).
+final class RecordingNotificationPoster: NotificationPosting, @unchecked Sendable {
+    let gate = FetchGate()
+    private let lock = NSLock()
+    private var _posted: [NotificationContent] = []
+    private var _accepts: Bool
+
+    init(accepts: Bool = true) { _accepts = accepts }
+
+    var posted: [NotificationContent] { lock.withLock { _posted } }
+
+    func setAccepts(_ accepts: Bool) { lock.withLock { _accepts = accepts } }
+
+    func post(_ content: NotificationContent) async -> Bool {
+        lock.withLock { _posted.append(content) }
+        await gate.enter()
+        return lock.withLock { _accepts }
+    }
+}

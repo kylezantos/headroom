@@ -707,6 +707,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// "System" — leave `NSApp.appearance` at its default so it tracks the OS).
     static var startupAppearance: NSAppearance??
 
+    /// KTD10: the presentation delegate must be in place before launch completes, so a
+    /// banner posted during the first refresh already presents while Settings is frontmost.
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        AppComposition.notificationClient.installPresentationDelegate()
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         if case let .some(appearance) = Self.startupAppearance {
@@ -809,6 +815,11 @@ enum AppComposition {
             continuityCache: UsageContinuityCache(),
             signOutRecord: signOutRecord,
             bankedResetAcknowledgements: bankedResetAcknowledgements,
+            notificationCoordinator: NotificationCoordinator(
+                poster: notificationClient,
+                useItUpLedger: UseItUpLedger(defaults: launchDefaults),
+                bankedResetBaseline: BankedResetNotificationBaseline(defaults: launchDefaults)
+            ),
             widgetExporter: widgetExporter(),
             phoneSyncExporter: phoneSyncExporter()
         )
@@ -1111,6 +1122,36 @@ enum AppComposition {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> Bool {
         environment["XCTestConfigurationFilePath"] != nil
+    }
+
+    /// U5: the one notification client per launch. The store's coordinator posts through
+    /// it and `SettingsView` reads and requests permission through it (U6).
+    @MainActor static let notificationClient: any NotificationClient = makeNotificationClient()
+
+    /// KTD9: every process that must not reach `UNUserNotificationCenter` composes the inert
+    /// client — demo runs (their stores are fixtures), the render harness, the XCTest host
+    /// (the bundle guard alone passes there, and a real prompt would stall the run, as the
+    /// widget exporter's consent alert did), and any unbundled `swift run`.
+    static func usesInertNotificationClient(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        bundle: NotificationBundleDescriptor = .main
+    ) -> Bool {
+        arguments.contains("--demo")
+            || arguments.contains("--render-popover")
+            || usesNoOpWidgetExporter(environment: environment)
+            || !bundle.supportsUserNotifications
+    }
+
+    static func makeNotificationClient(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        bundle: NotificationBundleDescriptor = .main
+    ) -> any NotificationClient {
+        guard !usesInertNotificationClient(arguments: arguments, environment: environment, bundle: bundle) else {
+            return InertNotificationClient()
+        }
+        return UserNotificationClient.make(bundle: bundle)
     }
 
     static func widgetExporter(

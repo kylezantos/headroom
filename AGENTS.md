@@ -339,6 +339,19 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
   first-pass identity (Phase 2 owns visual density). The four-provider demo is
   `--demo multi-4` (popover) / the `fourProviders` `DemoScreenshotData` variant (iOS widget).
+- **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
+  reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
+  Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`
+  snapshot and, per limit, only on a live window with a scheduled reset (KTD2); launch restore,
+  lifecycle presets and failed polls never evaluate. Its ledgers (`UseItUpLedger`,
+  `BankedResetNotificationBaseline`) are written only after the poster accepts a request (KTD6),
+  and the banked baseline is **separate** from the capsule's `BankedResetAcknowledgements`, which
+  counts a first-ever count as a rise (KTD7). `UNUserNotificationCenter.current()` raises an
+  uncatchable exception without an `.app` bundle, so `UserNotificationClient` stays inert under
+  `swift run`, `--demo`, `--render-popover` and `HeadroomAppTests` (KTD9) — verify real banners and
+  the permission prompt on a built `Headroom.app`. The popover can't be opened programmatically,
+  so a tap only activates the app (KTD8). Core never imports UserNotifications. See
+  `docs/plans/2026-09-26-1111-feat-notifications-pane-plan.md`.
 
 ## Follow-ups
 

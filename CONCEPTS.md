@@ -27,3 +27,14 @@ The pill value that follows whichever of the provider's limits has the least rem
 ### Shelf
 The Settings row holding every provider that has no pill in the menu bar, including providers that are switched off. A card is moved between the shelf and the menu bar row to add or remove its pill.
 *Avoid:* available pills, not-shown list
+
+## Notifications
+
+### Use-it-up reminder
+An opt-in Mac notification that a limit is close to resetting while at least a chosen share of it is still unused. Each reminder is a user-defined rule: a lead time before the reset and a "% or more left" threshold.
+*Avoid:* expiry alert, burn reminder
+
+A reminder fires at most once per limit per reset, only from a fresh reading, and only for limit kinds ticked in Applies to.
+
+### Banked-reset notice
+An opt-in Mac notification that Codex banked a new spare reset for an account. It fires only when a fresh reading shows the count rising above the last count Headroom saw; the first count seen for an account never fires.

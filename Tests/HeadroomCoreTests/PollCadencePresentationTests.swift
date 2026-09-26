@@ -11,6 +11,19 @@ struct PollCadencePresentationTests {
             == "Right now Claude refreshes about every 4\u{00A0}min across 40\u{00A0}accounts.")
     }
 
+    @Test func slowestEffectiveMinutesBindsTheLatenessFigureToTheSlowestLane() {
+        // R9 (notifications plan): the reminder help line's "up to N min late" reads the
+        // same measured figure as the cadence sentence, rounded up the same way.
+        let kept = PollCadence(chosenInterval: 5 * 60, effectiveInterval: 5 * 60, accountCount: 2)
+        let claude = PollCadence(chosenInterval: 5 * 60, effectiveInterval: 8.3 * 60, accountCount: 6)
+        #expect(PollCadencePresentation.slowestEffectiveMinutes(
+            [kept, claude], chosenInterval: 5 * 60
+        ) == 9)
+        #expect(PollCadencePresentation.slowestEffectiveMinutes([kept], chosenInterval: 5 * 60) == 5)
+        // Nothing measured yet: the chosen interval is the promise.
+        #expect(PollCadencePresentation.slowestEffectiveMinutes([], chosenInterval: 10 * 60) == 10)
+    }
+
     @Test func aKeptPromiseRendersNoSentence() {
         let cadence = PollCadence(chosenInterval: 5 * 60, effectiveInterval: 5 * 60, accountCount: 3)
         #expect(PollCadencePresentation.sentence(for: [("Claude", cadence)]) == nil)

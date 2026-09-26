@@ -111,6 +111,27 @@ enum PopoverRenderHarness {
                     }
                 }
             }
+            // U6: the Notifications pane's other states beside the default capture above —
+            // permission denied (R18), and switched on with custom rules (R4–R9), also at
+            // the 720pt minimum width so a wrapping rule row shows up.
+            let notificationStates: [(suffix: String, state: NotificationsRenderState, width: CGFloat?)] = [
+                ("denied", .denied, nil),
+                ("custom", .custom, nil),
+                ("custom-compact", .custom, SettingsView.minimumWindowWidth),
+            ]
+            for (suffix, state, width) in notificationStates {
+                for dark in [false, true] {
+                    let url = outDir.appendingPathComponent("settings-notifications-\(suffix)-\(dark ? "dark" : "light").png")
+                    if await renderSettings(
+                        pane: .notifications, percentageMode: .remaining, dark: dark,
+                        width: width, notifications: state, to: url
+                    ) {
+                        print("✓ \(url.path)")
+                    } else {
+                        failedPaths.append(url.path)
+                    }
+                }
+            }
             for dark in [false, true] {
                 let name = "settings-accounts-multi-\(dark ? "dark" : "light").png"
                 let url = outDir.appendingPathComponent(name)
@@ -141,6 +162,22 @@ enum PopoverRenderHarness {
             exit(failedPaths.isEmpty ? 0 : 1)
         }
         app.run()
+    }
+
+    /// U6: which Notifications pane state a Settings capture shows. Scripted, never the
+    /// real client (KTD9): the default is undecided permission, the first-open state.
+    enum NotificationsRenderState {
+        case firstOpen
+        case denied
+        case custom
+
+        var client: ScriptedNotificationClient {
+            switch self {
+            case .firstOpen: ScriptedNotificationClient(status: .notDetermined)
+            case .denied: ScriptedNotificationClient(status: .denied)
+            case .custom: ScriptedNotificationClient(status: .authorized)
+            }
+        }
     }
 
     enum State: String, CaseIterable {
@@ -395,6 +432,7 @@ enum PopoverRenderHarness {
         width widthOverride: CGFloat? = nil,
         menuBarPercentages: Bool? = nil,
         menuBarShelf: Bool = false,
+        notifications: NotificationsRenderState = .firstOpen,
         to url: URL
     ) async -> Bool {
         // L9A retired the per-pane window heights; the harness captures every pane at
@@ -416,6 +454,18 @@ enum PopoverRenderHarness {
                 preferences.menuBarFillSource = .providers([.claude, .codex])
                 preferences.setSurfaceEnabled(false, for: .grokSubscription)
             }
+        }
+        if notifications == .custom {
+            // The mockup's "Customised" state: both switches on, three rules, 5-hour ticked.
+            preferences.useItUpRemindersEnabled = true
+            preferences.bankedResetNotificationsEnabled = true
+            preferences.reminderRules = [
+                ReminderRule(amount: 2, unit: .days, threshold: 70),
+                ReminderRule(amount: 1, unit: .days, threshold: 50),
+                // 100, not the mockup's 15, so the widest threshold proves the field fits it.
+                ReminderRule(amount: 3, unit: .hours, threshold: 100),
+            ]
+            preferences.reminderScope = [.weekly, .billingPeriod, .fiveHour]
         }
         let store: UsageStore
         if multiAccount {
@@ -476,6 +526,7 @@ enum PopoverRenderHarness {
             // The unsigned debug binary's Keychain reads raise a SecurityAgent prompt that
             // blocks the whole run; the diagnostic never needs real keys.
             credentialStore: CredentialStore(apiKeyStore: DemoAPIKeyStore()),
+            notificationClient: notifications.client,
             frameHeightOverride: height
         )
             .environment(\.colorScheme, dark ? .dark : .light)

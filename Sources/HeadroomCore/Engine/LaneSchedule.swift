@@ -309,6 +309,15 @@ public struct PollCadence: Sendable, Equatable {
 /// Nil when every promise is kept, so nothing extra shows. One sentence, not a line per
 /// provider: stacked 11pt paragraphs under one control broke R2B2's one-help-block rule.
 public enum PollCadencePresentation {
+    /// R9 (2026-09-26 notifications plan): the "can land up to N min late" figure under the
+    /// reminder list. The slowest effective interval across the providers' lanes, rounded up
+    /// the same way as the sentence below, so the two panes never quote different numbers.
+    /// The chosen interval when nothing has been measured yet.
+    public static func slowestEffectiveMinutes(_ cadences: [PollCadence], chosenInterval: TimeInterval) -> Int {
+        let slowest = cadences.map(\.effectiveInterval).max() ?? chosenInterval
+        return Int((max(slowest, chosenInterval) / 60).rounded(.up))
+    }
+
     public static func sentence(for cadences: [(providerName: String, cadence: PollCadence)]) -> String? {
         let clauses = cadences.filter { $0.cadence.isStretched }.map { entry in
             let effective = Int((entry.cadence.effectiveInterval / 60).rounded(.up))

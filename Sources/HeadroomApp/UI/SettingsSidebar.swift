@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import HeadroomCore
 
-/// Sidebar column of the Settings window (R1/R3): identity block on top, then the six
+/// Sidebar column of the Settings window (R1/R3): identity block on top, then the seven
 /// destinations in two sections. Order and section membership are read straight off
 /// `SettingsPane`, so there is no second list to keep in sync.
 ///
@@ -149,6 +149,8 @@ extension SettingsPane {
         case .appearance: "circle.lefthalf.striped.horizontal"
         case .menuBar: "menubar.rectangle"
         case .widgets: "square.grid.2x2"
+        // R1 (notifications plan): the outline bell, matching the sidebar's outline family.
+        case .notifications: "bell"
         case .accounts: "person"
         case .apiSpend: "key"
         }
@@ -158,10 +160,11 @@ extension SettingsPane {
     /// geometric symbols beside them, so at one nominal size they read about a point
     /// smaller in the row. One scale step up puts all six on the same apparent height.
     /// The correction is optical, not geometric — re-check it if the glyphs ever change.
+    /// `bell` fills its box like the App-group glyphs above it, so it stays at `.medium`.
     var symbolScale: Image.Scale {
         switch self {
         case .accounts, .apiSpend: .large
-        case .general, .appearance, .menuBar, .widgets: .medium
+        case .general, .appearance, .menuBar, .widgets, .notifications: .medium
         }
     }
 }

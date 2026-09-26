@@ -7,8 +7,9 @@ import HeadroomCore
 /// closes the menu bar popover behind it.
 ///
 /// Sidebar rebuild (Sep 2026): the single scrolling column of nine tiles became a
-/// System-Settings-style `NavigationSplitView` with six named destinations (R1), so a
-/// preference is found by picking a room instead of scrolling past everything else.
+/// System-Settings-style `NavigationSplitView` with six named destinations (R1; seven
+/// since Notifications, 2026-09-26), so a preference is found by picking a room instead
+/// of scrolling past everything else.
 /// Pane content keeps the popover's card language — `RaisedTile` at 13pt pad / 10pt
 /// radius, 15pt semibold titles, one row grammar (label leading, control trailing).
 ///
@@ -27,6 +28,10 @@ struct SettingsView: View {
     /// Injection seam (unused in production wiring); the default reads each account's
     /// `.claude.json`.
     var duplicateDetector = ClaudeDuplicateLoginDetector()
+    /// U6: permission reads and requests for the Notifications pane. Required, so every
+    /// caller chooses — production passes `AppComposition.notificationClient`, the render
+    /// harness a scripted fake — and none can reach the real center by default (KTD9).
+    let notificationClient: any NotificationAuthorizing
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var sidebarSelection: SettingsPane? = .general
@@ -55,6 +60,9 @@ struct SettingsView: View {
     /// KTD3: hoisted off `AccountsSettingsTile` so leaving and re-entering Accounts
     /// neither blanks the "Same login as X" badges nor re-reads every `.claude.json`.
     @State private var duplicateLoginLabels: [AccountKey: String] = [:]
+    /// KTD11: the last permission read. Nil until the first check lands, so the pane never
+    /// flashes the denied notice on open.
+    @State private var notificationAuthorization: NotificationAuthorization?
 
     /// Fast, no-bounce settle shared by the credential-row reveals and result messages.
     /// The interaction is occasional settings work, so it gets just enough motion to
@@ -74,9 +82,10 @@ struct SettingsView: View {
     /// its 46pt label, and the detail column offers `width − sidebar − 124` — 460pt at
     /// 800/216, against 380pt at the old 720. 600 tall is the floor because the sidebar's
     /// identity block and six destinations need roughly 340pt before the list itself
-    /// scrolls. The scene declares these via `.windowResizability(.contentSize)`, which
-    /// reads the min and max off this frame; leaving max unset is what makes the window
-    /// resizable at all.
+    /// scrolls; the seventh (Notifications, 2026-09-26) adds one ~28pt row, still well
+    /// inside the floor. The scene declares these via `.windowResizability(.contentSize)`,
+    /// which reads the min and max off this frame; leaving max unset is what makes the
+    /// window resizable at all.
     static let windowWidth: CGFloat = 800
     /// R2B2: 770, up from 700. The opening height of a resizable window matters only for
     /// where it *cuts*, and 700 cut through the middle of the Fill swatch row — a half-drawn
@@ -140,6 +149,12 @@ struct SettingsView: View {
             idealHeight: frameHeightOverride ?? Self.windowHeight
         )
         .onAppear { loadPreferences() }
+        // R18: re-check permission every time Settings opens, and again whenever Headroom
+        // comes back to the front — the way back from "Open System Settings…".
+        .task { await refreshNotificationAuthorization() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await refreshNotificationAuthorization() }
+        }
         .task { await refreshSavedKeyPresence() }
         // KTD3: the scan lives on the root so revisiting Accounts keeps its badges, but it
         // only starts once Accounts has been shown — a visit to General should not read
@@ -277,6 +292,25 @@ struct SettingsView: View {
                 showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
                 syncToIPhoneEnabled: $syncToIPhoneEnabled
             )
+        case .notifications:
+            NotificationsSettingsPane(
+                store: store,
+                authorization: notificationAuthorization,
+                latenessMinutes: reminderLatenessMinutes,
+                onSetSwitch: { which, isOn in
+                    Task {
+                        let status = await NotificationsSettingsInteractions.setSwitch(
+                            which,
+                            isOn: isOn,
+                            store: store,
+                            client: notificationClient,
+                            known: notificationAuthorization
+                        )
+                        setNotificationAuthorization(status)
+                    }
+                },
+                onOpenSystemSettings: { notificationClient.openSystemSettings() }
+            )
         case .accounts:
             AccountsSettingsPane(
                 store: store,
@@ -320,6 +354,32 @@ struct SettingsView: View {
             guard let cadence = store.pollCadences[providerID] else { return nil }
             return (store.displayNames[providerID] ?? providerID.displayName, cadence)
         })
+    }
+
+    /// R9: the reminder help line's lateness figure — the slowest effective interval across
+    /// the same lanes `cadenceSentence` reads, so General and Notifications quote one number.
+    private var reminderLatenessMinutes: Int {
+        PollCadencePresentation.slowestEffectiveMinutes(
+            store.registeredProviderOrder.compactMap { store.pollCadences[$0] },
+            chosenInterval: LaneSchedule.chosenInterval(minutes: intervalMinutes)
+        )
+    }
+
+    // MARK: - Notifications permission
+
+    private func refreshNotificationAuthorization() async {
+        let status = await NotificationsSettingsInteractions.refreshAuthorization(
+            store: store,
+            client: notificationClient
+        )
+        setNotificationAuthorization(status)
+    }
+
+    /// The notice tile's reveal rides the pane's own `.animation` scope; this only avoids
+    /// republishing an unchanged state.
+    private func setNotificationAuthorization(_ status: NotificationAuthorization?) {
+        guard notificationAuthorization != status else { return }
+        notificationAuthorization = status
     }
 
     // MARK: - Shared bindings

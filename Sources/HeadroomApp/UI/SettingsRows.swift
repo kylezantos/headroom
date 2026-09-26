@@ -206,21 +206,35 @@ enum SettingsCopy {
 /// tiles never render at two widths. Tile headers are `SettingsType.tileTitle`: under the
 /// 20pt pane title (T5) and over the 13pt group labels and controls, so size separates the
 /// levels instead of weight alone.
-struct SettingsTile<Content: View>: View {
+struct SettingsTile<Content: View, TitleAccessory: View>: View {
     private let title: String?
+    private let titleAccessory: TitleAccessory
     private let content: Content
 
-    init(_ title: String, @ViewBuilder content: () -> Content) {
+    /// KTD16 (2026-09-26 notifications plan): a trailing accessory beside the title, so a
+    /// tile can carry a `SettingsPillBadge` ("Banked resets" → "Codex") without drawing its
+    /// own header.
+    init(
+        _ title: String,
+        @ViewBuilder titleAccessory: () -> TitleAccessory,
+        @ViewBuilder content: () -> Content
+    ) {
         self.title = title
+        self.titleAccessory = titleAccessory()
         self.content = content()
+    }
+
+    init(_ title: String, @ViewBuilder content: () -> Content) where TitleAccessory == EmptyView {
+        self.init(title, titleAccessory: { EmptyView() }, content: content)
     }
 
     /// Untitled form for the single-tile panes (General, Menu Bar, Widgets & iPhone,
     /// Accounts, API Spend). The sidebar rebuild made the pane scaffold print the destination
     /// name as the first row, so a lone tile repeating it said the same word twice a line
     /// apart. Multi-tile panes (Appearance) still need their tile titles.
-    init(@ViewBuilder content: () -> Content) {
+    init(@ViewBuilder content: () -> Content) where TitleAccessory == EmptyView {
         self.title = nil
+        self.titleAccessory = EmptyView()
         self.content = content()
     }
 
@@ -232,9 +246,12 @@ struct SettingsTile<Content: View>: View {
         // closer to what it names.
         VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
             if let title {
-                Text(title)
-                    .font(SettingsType.tileTitle)
-                    .kerning(SettingsType.tileTitleKerning)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(title)
+                        .font(SettingsType.tileTitle)
+                        .kerning(SettingsType.tileTitleKerning)
+                    titleAccessory
+                }
             }
             VStack(alignment: .leading, spacing: SettingsMetrics.groupToGroup) {
                 content

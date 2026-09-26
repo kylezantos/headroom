@@ -43,6 +43,7 @@
 		1B540F4332DC3E721D094854 /* ResetSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */; };
 		1CC6767039DF2A0E63E12719 /* HeadroomIOSWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		2297981DC8A61B98CBA7DBF3 /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
+		229CBA2E2681EC12866FC097 /* ReminderRuleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC385A1D908D767EB78C9DD1 /* ReminderRuleRow.swift */; };
 		2310A2B62ACA0CAA20FDA2CE /* ClaudeAccountEmailReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */; };
 		23A49F90A5EF9ED0B6D0A077 /* WidgetTypeScale.swift in Sources */ = {isa = PBXBuildFile; fileRef = D396D8FF6350A769E62CD75C /* WidgetTypeScale.swift */; };
 		2437241F091A895D5EDDFC26 /* CodexAuthReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08AE77A399A208C20733351 /* CodexAuthReader.swift */; };
@@ -56,6 +57,7 @@
 		2D14D10C880662C7787515B5 /* CodexConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CC53FEEE716121A11701F1 /* CodexConnection.swift */; };
 		2D2C110659ED2DABB204B574 /* CLIExecutableLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */; };
 		2E00B0AFCCC8BDE9CD1E612B /* iCloudSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286C18406A7E80D0E42D1592 /* iCloudSnapshotSync.swift */; };
+		2E7C9D7AE7AE1AF08FF431F6 /* NotificationsSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */; };
 		2EC67C2CFB90C13FD3F88723 /* SetupSessions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978F48660B10AF971A6E76E4 /* SetupSessions.swift */; };
 		2FF5F97796EE9B85A1379553 /* PopoverRenderHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48C63A7205115E3F08BEDE08 /* PopoverRenderHarness.swift */; };
 		3064B21F5FFC627E8F3ED6BE /* ProviderID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */; };
@@ -181,6 +183,7 @@
 		AC0331D17112DB32C3311741 /* WidgetSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D996992FCBD0C9F54F348C /* WidgetSettingsSection.swift */; };
 		AC26BE070D89EEFC16DD38C0 /* WidgetStatusCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82174D6E3D6084D707A51A1 /* WidgetStatusCopy.swift */; };
 		AC30D16374782EE1F93EFB99 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 647B97436A2026E1B0F66065 /* SettingsView.swift */; };
+		ACC540E16ED16A81A4B6D0BD /* NotificationsSettingsPaneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */; };
 		ACF9F9B5B18478A30632C3A5 /* BrandMarkInkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34FBA8CE415A23CC256D0BC4 /* BrandMarkInkTests.swift */; };
 		AD3E4560009B235BD443F798 /* ProviderLogoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */; };
 		AD98038B98D014D9ABB12124 /* ProviderID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */; };
@@ -441,6 +444,7 @@
 		7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterStyleTile.swift; sourceTree = "<group>"; };
 		80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeThumbnailPicker.swift; sourceTree = "<group>"; };
 		8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedWidgetSnapshotModels.swift; sourceTree = "<group>"; };
+		83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPane.swift; sourceTree = "<group>"; };
 		864A7A76DC0EC0C8CF12DF51 /* MenuBarPaneSizingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPaneSizingTests.swift; sourceTree = "<group>"; };
 		864FC2FB47A9E7D44E659809 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		86D2C4B7BA8C794A93EDC3E8 /* HeadroomWidgetPreviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetPreviews.swift; sourceTree = "<group>"; };
@@ -476,6 +480,7 @@
 		B25D0ABB800B858F720C7128 /* UsageModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageModels.swift; sourceTree = "<group>"; };
 		B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetView.swift; sourceTree = "<group>"; };
 		B60C38BCE8D085D56EEC5C0A /* UsageHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageHTTPClient.swift; sourceTree = "<group>"; };
+		B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPaneTests.swift; sourceTree = "<group>"; };
 		BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsInteractionTests.swift; sourceTree = "<group>"; };
 		C025DD0467C17BEED8A13DCE /* SettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPane.swift; sourceTree = "<group>"; };
 		C08AE77A399A208C20733351 /* CodexAuthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAuthReader.swift; sourceTree = "<group>"; };
@@ -500,6 +505,7 @@
 		D98CDEAF6EF0A499E6D0A8FA /* SoftwareUpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdateController.swift; sourceTree = "<group>"; };
 		DA1473F524586653EE503553 /* WidgetPreviewStrip.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetPreviewStrip.swift; sourceTree = "<group>"; };
 		DAF324F891EEEAD03BABA4FC /* Redaction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Redaction.swift; sourceTree = "<group>"; };
+		DC385A1D908D767EB78C9DD1 /* ReminderRuleRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRuleRow.swift; sourceTree = "<group>"; };
 		DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Sparkle.xcframework; path = ".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle/Sparkle.xcframework"; sourceTree = "<group>"; };
 		DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCapabilityPresentation.swift; sourceTree = "<group>"; };
 		DF2BA56351FD2FA2E4940F33 /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
@@ -565,6 +571,7 @@
 				8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */,
 				4BF35817C4883CC85B58CA6D /* MeterRecipeKeyTests.swift */,
 				782638CBD6A15B5240AFCD53 /* NotificationClientTests.swift */,
+				B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */,
 				5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */,
 				181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */,
 				38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */,
@@ -786,6 +793,7 @@
 				E129DC7D060EBB5B56418826 /* MenuBarPillArranger.swift */,
 				D15A53AE4F679F87EABE633E /* MeterGauge.swift */,
 				7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */,
+				83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */,
 				31E898AC2EE39858F1970170 /* OpticalLeading.swift */,
 				27D4E775DFC514D0F36ED61E /* PlanCapsule.swift */,
 				864FC2FB47A9E7D44E659809 /* PopoverView.swift */,
@@ -794,6 +802,7 @@
 				0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */,
 				271BAABD34D394E2014676BC /* ProviderStyle.swift */,
 				FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */,
+				DC385A1D908D767EB78C9DD1 /* ReminderRuleRow.swift */,
 				130BB6361A694CF7B316C2EA /* SettingsPanes.swift */,
 				744C00250970DA4405528A9E /* SettingsRows.swift */,
 				06F054A9662B9F4995B0CE81 /* SettingsSidebar.swift */,
@@ -1262,6 +1271,7 @@
 				CD24B67069EE1BA13C0693C3 /* MenuBarPrioritySelectionTests.swift in Sources */,
 				56BC0DD96F23154A14FBE2A8 /* MeterRecipeKeyTests.swift in Sources */,
 				063561C489DFDA04C68585D0 /* NotificationClientTests.swift in Sources */,
+				ACC540E16ED16A81A4B6D0BD /* NotificationsSettingsPaneTests.swift in Sources */,
 				821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */,
 				DAF8C9B5E2CCBBEAA4547D02 /* PopoverHeaderStatusTests.swift in Sources */,
 				58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */,
@@ -1435,6 +1445,7 @@
 				CE9E932C7B2EF1B14A9E1E41 /* MenuBarPillArranger.swift in Sources */,
 				9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */,
 				64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */,
+				2E7C9D7AE7AE1AF08FF431F6 /* NotificationsSettingsPane.swift in Sources */,
 				D2AFD603422063F0D8C5566A /* OpticalLeading.swift in Sources */,
 				1165574F829710F218D9CD0B /* PlanCapsule.swift in Sources */,
 				2FF5F97796EE9B85A1379553 /* PopoverRenderHarness.swift in Sources */,
@@ -1444,6 +1455,7 @@
 				AD3E4560009B235BD443F798 /* ProviderLogoView.swift in Sources */,
 				9D992181780CEEF21E07FEF0 /* ProviderStyle.swift in Sources */,
 				7B70A94D4ED756E0FC690874 /* RaisedTile.swift in Sources */,
+				229CBA2E2681EC12866FC097 /* ReminderRuleRow.swift in Sources */,
 				E87C2C27BE2D7441ECD01833 /* SettingsPanes.swift in Sources */,
 				BF15CFCAEF6CF7181D91A6F7 /* SettingsRows.swift in Sources */,
 				E6369B27F21975BCA1545F79 /* SettingsSidebar.swift in Sources */,

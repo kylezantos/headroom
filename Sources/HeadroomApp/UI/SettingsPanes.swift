@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import HeadroomCore
 
-/// The six Settings destinations (R1). KTD3: every pane here is stateless — root state
+/// The seven Settings destinations (R1). KTD3: every pane here is stateless — root state
 /// lives on `SettingsView` and reaches these views as bindings, closures, or the store,
 /// so switching panes never resets a draft, a result message, or a pending dialog (R13).
 

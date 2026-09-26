@@ -540,7 +540,9 @@ struct HeadroomApp: App {
                 // otherwise raise one prompt per API-key provider every time Settings opens.
                 credentialStore: DemoFixture.isEnabled
                     ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
-                    : CredentialStore()
+                    : CredentialStore(),
+                // U6: the one client per launch; inert under `--demo` and unbundled runs (KTD9).
+                notificationClient: AppComposition.notificationClient
             )
             .preferredColorScheme(resolvedScheme)
             // L9A (revising KTD2): the window opens at 800 × 700 and is resizable on

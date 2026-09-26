@@ -8,6 +8,8 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
     case appearance
     case menuBar
     case widgets
+    /// R1 (2026-09-26 notifications plan): the last App destination, after Widgets.
+    case notifications
     case accounts
     case apiSpend
 
@@ -19,6 +21,7 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         case .appearance: "Appearance"
         case .menuBar: "Menu Bar"
         case .widgets: "Widgets & iPhone"
+        case .notifications: "Notifications"
         case .accounts: "Accounts"
         case .apiSpend: "API Spend"
         }
@@ -26,7 +29,7 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
 
     public var group: Group {
         switch self {
-        case .general, .appearance, .menuBar, .widgets: .preferences
+        case .general, .appearance, .menuBar, .widgets, .notifications: .preferences
         case .accounts, .apiSpend: .sources
         }
     }

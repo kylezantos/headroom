@@ -29,6 +29,10 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
         static let apiSpendPeriod = "apiSpendPeriod"
         static let settingsPane = "settingsPane"
+        static let useItUpRemindersEnabled = "useItUpRemindersEnabled"
+        static let bankedResetNotificationsEnabled = "bankedResetNotificationsEnabled"
+        static let reminderRules = "reminderRules.v1"
+        static let reminderScope = "reminderScope.v1"
         static func menuBarWindowSource(_ id: ProviderID) -> String { "menuBarWindowSource.\(id.raw)" }
         static func renewal(_ id: ProviderID) -> String { "renewalDate.\(id.raw)" }
         static func surfaceEnabled(_ surface: UsageSurface) -> String { "surfaceEnabled.\(surface.rawValue)" }
@@ -260,6 +264,49 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
     public func initialSettingsPane(hasSignedInAccount: Bool) -> SettingsPane {
         guard defaults.object(forKey: Key.settingsPane) == nil else { return settingsPane }
         return hasSignedInAccount ? .general : .accounts
+    }
+
+    /// R3: off by default.
+    public var useItUpRemindersEnabled: Bool {
+        get { defaults.bool(forKey: Key.useItUpRemindersEnabled) }
+        nonmutating set { defaults.set(newValue, forKey: Key.useItUpRemindersEnabled) }
+    }
+
+    /// R14: off by default.
+    public var bankedResetNotificationsEnabled: Bool {
+        get { defaults.bool(forKey: Key.bankedResetNotificationsEnabled) }
+        nonmutating set { defaults.set(newValue, forKey: Key.bankedResetNotificationsEnabled) }
+    }
+
+    /// KTD14: a missing key yields the defaults; a corrupt one yields the defaults without
+    /// overwriting, so a newer build's data survives a downgrade. Stored values clamp on
+    /// read so the evaluator never sees an out-of-range rule.
+    public var reminderRules: [ReminderRule] {
+        get {
+            guard let data = defaults.data(forKey: Key.reminderRules),
+                  let rules = try? JSONDecoder().decode([ReminderRule].self, from: data)
+            else { return ReminderRules.defaults }
+            return rules.map { $0.clamped() }
+        }
+        nonmutating set {
+            guard let data = try? JSONEncoder().encode(newValue) else { return }
+            defaults.set(data, forKey: Key.reminderRules)
+        }
+    }
+
+    /// Stored as sorted raw strings; an unknown value from a newer build is dropped
+    /// rather than discarding the whole set.
+    public var reminderScope: Set<ReminderScope> {
+        get {
+            guard let data = defaults.data(forKey: Key.reminderScope),
+                  let raw = try? JSONDecoder().decode([String].self, from: data)
+            else { return ReminderScope.defaults }
+            return Set(raw.compactMap(ReminderScope.init(rawValue:)))
+        }
+        nonmutating set {
+            guard let data = try? JSONEncoder().encode(newValue.map(\.rawValue).sorted()) else { return }
+            defaults.set(data, forKey: Key.reminderScope)
+        }
     }
 
     public func isSurfaceEnabled(_ surface: UsageSurface) -> Bool {

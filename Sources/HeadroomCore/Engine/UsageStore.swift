@@ -106,6 +106,12 @@ public final class UsageStore {
     private var chosenMenuBarWindowProviders: Set<ProviderID>
     public private(set) var showCodexSparkCountersInApp: Bool
     public private(set) var showCodexSparkCountersInWidgets: Bool
+    /// KTD14: notification preferences, mirrored so the Notifications pane edits through
+    /// the store the way `meterStyle` does.
+    public private(set) var useItUpRemindersEnabled: Bool
+    public private(set) var bankedResetNotificationsEnabled: Bool
+    public private(set) var reminderRules: [ReminderRule]
+    public private(set) var reminderScope: Set<ReminderScope>
     public private(set) var enabledSurfaces: Set<UsageSurface>
     public private(set) var providerCapabilities: [ProviderID: ProviderCapabilityStatus]
     public internal(set) var accountRemovalStates: [AccountKey: AccountRemovalState] = [:]
@@ -244,6 +250,10 @@ public final class UsageStore {
         })
         self.showCodexSparkCountersInApp = preferences.showCodexSparkCountersInApp
         self.showCodexSparkCountersInWidgets = preferences.showCodexSparkCountersInWidgets
+        self.useItUpRemindersEnabled = preferences.useItUpRemindersEnabled
+        self.bankedResetNotificationsEnabled = preferences.bankedResetNotificationsEnabled
+        self.reminderRules = preferences.reminderRules
+        self.reminderScope = preferences.reminderScope
         self.enabledSurfaces = Set(UsageSurface.allCases.filter { preferences.isSurfaceEnabled($0) })
         scheduler.host = self
         for provider in providers { scheduler.register(provider) }
@@ -582,6 +592,65 @@ public final class UsageStore {
         showCodexSparkCountersInWidgets = enabled
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
+    }
+
+    public func setUseItUpRemindersEnabled(_ enabled: Bool) {
+        guard useItUpRemindersEnabled != enabled else { return }
+        preferences.useItUpRemindersEnabled = enabled
+        useItUpRemindersEnabled = enabled
+    }
+
+    public func setBankedResetNotificationsEnabled(_ enabled: Bool) {
+        guard bankedResetNotificationsEnabled != enabled else { return }
+        preferences.bankedResetNotificationsEnabled = enabled
+        bankedResetNotificationsEnabled = enabled
+    }
+
+    /// Persists the list in the given order, clamped. R6: sorting belongs to a committed
+    /// edit (`commitReminderRule`), never to typing.
+    public func setReminderRules(_ rules: [ReminderRule]) {
+        let clamped = rules.map { $0.clamped() }
+        guard reminderRules != clamped else { return }
+        preferences.reminderRules = clamped
+        reminderRules = clamped
+    }
+
+    /// R4/R6: a committed row edit clamps, replaces the row with the same ID, and resorts.
+    /// An ID no longer in the list (removed mid-edit) changes nothing.
+    public func commitReminderRule(_ rule: ReminderRule) {
+        guard let index = reminderRules.firstIndex(where: { $0.id == rule.id }) else { return }
+        var rules = reminderRules
+        rules[index] = rule.clamped()
+        setReminderRules(ReminderRules.sorted(rules))
+    }
+
+    /// R5: appends a rule seeded from the shortest one and returns it.
+    @discardableResult
+    public func addReminderRule() -> ReminderRule {
+        let seeded = ReminderRules.seed(from: reminderRules)
+        setReminderRules(reminderRules + [seeded])
+        return seeded
+    }
+
+    public func removeReminderRule(id: ReminderRule.ID) {
+        setReminderRules(reminderRules.filter { $0.id != id })
+    }
+
+    public func setReminderScope(_ scope: Set<ReminderScope>) {
+        guard reminderScope != scope else { return }
+        preferences.reminderScope = scope
+        reminderScope = scope
+    }
+
+    /// R8: whether "Reset to defaults" should show.
+    public var reminderSettingsAreDefault: Bool {
+        ReminderRules.isDefault(rules: reminderRules, scope: reminderScope)
+    }
+
+    /// R8: restores both the rules and the Applies-to choices.
+    public func resetReminderSettingsToDefaults() {
+        setReminderRules(ReminderRules.defaults)
+        setReminderScope(ReminderScope.defaults)
     }
 
     /// How full to draw the menu-bar vessel, 0…1: the selected provider's chosen

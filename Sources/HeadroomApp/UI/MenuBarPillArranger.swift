@@ -201,6 +201,9 @@ struct MenuBarPillArranger<Card: View>: View {
     @State private var drop: PillShelfSlot?
     /// PS8: the card between release and commit. See the landing storyboard on `land`.
     @State private var landing: Landing?
+    /// MS3: which landing a settle completion belongs to, so a completion that arrives after
+    /// a new grab finished its landing early can't commit a later one.
+    @State private var landingGeneration = 0
     @State private var width: CGFloat = 0
     /// Where the pointer crosses into the shelf: halfway down the gap under the menu bar well.
     @State private var shelfBoundary: CGFloat = .infinity
@@ -382,6 +385,10 @@ struct MenuBarPillArranger<Card: View>: View {
         // would feed its own offset back into itself and shudder.
         DragGesture(minimumDistance: 3, coordinateSpace: .named(pillArrangerSpace))
             .onChanged { value in
+                // MS3 (2026-09-25 motion audit): a grab during a card's ~300ms landing used to
+                // be ignored until the pointer was released and pressed again. The landing now
+                // finishes at once and the new drag starts from the settled rows.
+                if landing != nil, dragged == nil, canDrag(id) { finishLandingNow() }
                 guard canDrag(id), landing == nil, dragged == nil || dragged?.id == id else { return }
                 dragged = (id, value.translation)
                 let target = PillShelfModel.drop(
@@ -468,12 +475,28 @@ struct MenuBarPillArranger<Card: View>: View {
             commitLanding()
             return
         }
+        landingGeneration &+= 1
+        let generation = landingGeneration
         withAnimation(animation, completionCriteria: .removed) {
             landing = Landing(id: id, drop: drop, commit: commit, shown: shown, notShown: notShown)
             dragged = nil
             self.drop = nil
         } completion: {
+            guard landingGeneration == generation else { return }
             commitLanding()
+        }
+    }
+
+    /// MS3: the landing's commit without its remaining settle, for a grab that interrupts it.
+    private func finishLandingNow() {
+        landingGeneration &+= 1
+        var transaction = Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            if let landing, shown == landing.shown, notShown == landing.notShown {
+                onCommit(landing.commit)
+            }
+            landing = nil
         }
     }
 
@@ -851,24 +874,31 @@ struct PillCaretStyle: ButtonStyle {
     private struct Caret: View {
         let configuration: Configuration
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.colorScheme) private var colorScheme
         @State private var hovering = false
+
+        /// PC3 (Kyle, 2026-09-26): no hover plate. A filled box beside the pill crowded the
+        /// card, so the caret answers the pointer with ink alone — secondary at rest, full
+        /// strength on hover (a step past `.primary`'s 85%), back to secondary while pressed
+        /// — plus the pointing-hand cursor, which is what tells it apart from the card's grab.
+        private var ink: Color {
+            guard hovering, !configuration.isPressed else { return Color.secondary }
+            return colorScheme == .dark ? .white : .black
+        }
 
         var body: some View {
             configuration.label
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(hovering ? .primary : .secondary)
+                .foregroundStyle(ink)
+                // The 11 × 25 target is kept, just invisible.
                 .frame(width: 11, height: 25)
-                .background(
-                    .primary.opacity(configuration.isPressed ? 0.12 : hovering ? 0.07 : 0),
-                    in: RoundedRectangle(cornerRadius: 5, style: .continuous)
-                )
                 .contentShape(Rectangle())
                 .onHover { inside in
                     withAnimation(HeadroomMotion.resolved(
                         inside ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut, .crossfade, reduceMotion: reduceMotion
                     )) { hovering = inside }
                 }
-                .pointerStyle(.default)
+                .pointerStyle(.link)
         }
     }
 }

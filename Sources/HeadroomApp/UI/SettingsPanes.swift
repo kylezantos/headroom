@@ -164,6 +164,8 @@ struct AppearanceSettingsPane: View {
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         SettingsPaneScaffold(SettingsPane.appearance.label) {
             // R6: sits on the pane background above the tiles, not inside one — it is
@@ -183,7 +185,13 @@ struct AppearanceSettingsPane: View {
 
             // L12B: every row is a swatch grid now, so the tile takes its full width.
             MeterStyleTile(meterStyle: meterStyle) { newStyle in
-                meterStyle = newStyle
+                // MS1 (2026-09-25 motion audit): one transaction for the whole pane. The
+                // specimen's height scope reached only its hidden twin, so the visible well,
+                // the Tube note, and every tile below it snapped while the card crossfaded.
+                // The card's crossfade and the swatch plate keep their own inner scopes.
+                withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion)) {
+                    meterStyle = newStyle
+                }
                 onMeterStyleChange(newStyle)
             }
 
@@ -304,7 +312,18 @@ struct MenuBarSettingsPane: View {
                     Spacer(minLength: 0)
                     // No invisible percentage-on twin: seeing the width shrink is the
                     // point of the compact choice. Always use the production renderer.
-                    MenuBarPreviewPill(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
+                    // MS2 (2026-09-25 motion audit): the old and new pill crossfade in place,
+                    // trailing-aligned, so a pill edit no longer hard-swaps the strip while
+                    // the cards below it glide.
+                    ZStack(alignment: .trailing) {
+                        MenuBarPreviewPill(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
+                            .id(MenuBarPreviewKey(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage))
+                            .transition(.opacity)
+                    }
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                        value: MenuBarPreviewKey(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
+                    )
                 }
                 .frame(minHeight: 30)
             }
@@ -1048,5 +1067,18 @@ extension APIKeyProvider {
         case .openAI: return "sk-…"
         case .xAI: return "xai-…"
         }
+    }
+}
+
+/// MS2: what the Menu Bar pane's preview strip shows, so a change to it crossfades.
+/// `MenuBarMeter` is Equatable but not Hashable, and `.id` needs Hashable, so the meters are
+/// keyed by their value description, which changes exactly when what they draw does.
+private struct MenuBarPreviewKey: Hashable {
+    let meters: String
+    let showsPercentage: Bool
+
+    init(meters: [MenuBarMeter], showsPercentage: Bool) {
+        self.meters = String(describing: meters)
+        self.showsPercentage = showsPercentage
     }
 }

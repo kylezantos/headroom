@@ -217,7 +217,7 @@ struct SettingsView: View {
     /// different room, not the same content moving — and the sidebar's native selection
     /// highlight is left alone. The `ZStack` is what makes the `.id` swap a transition
     /// rather than a hard cut: it is the stable container the outgoing and incoming panes
-    /// overlap inside, the same shape as the Menu Bar preview at `SettingsPanes.swift:209`.
+    /// overlap inside, the same shape as the Menu Bar pane's `preview` strip (MS2).
     /// Panes stay stateless (KTD3), so nothing is lost when one is rebuilt.
     ///
     /// SM2 (2026-09-22): the symmetric 120ms dissolve overlapped two dense rooms at half

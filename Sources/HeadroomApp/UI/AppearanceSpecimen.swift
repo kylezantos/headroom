@@ -40,7 +40,7 @@ struct AppearanceSpecimen: View {
 
     /// M5A: the specimen dissolves old recipe → new recipe instead of hard-cutting, the
     /// Menu Bar preview's `.id` + `.transition(.opacity)` pattern
-    /// (`SettingsPanes.swift:209-217`). Its invisible-twin trick needs one change here:
+    /// (the Menu Bar pane's `preview` strip, MS2). Its invisible-twin trick needs one change here:
     /// Full and Micro are genuinely different heights (Full stacks the label over a
     /// full-width gauge, Micro is one line), so a twin pinned at the *widest* state would
     /// leave a permanent Full-sized gap under a Micro card. This twin **tracks** the

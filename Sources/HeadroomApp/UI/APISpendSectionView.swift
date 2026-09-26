@@ -353,8 +353,10 @@ struct APISpendSectionView: View {
             // CMM8: the reveal. Scale and slide are `.movement` on the S3A hover pair (in on
             // `hoverIn`, out on `hoverOut`) and snap under Reduce Motion; the fade is
             // `.crossfade` and keeps its timing (S2A). A hidden glyph takes no clicks.
-            .scaleEffect(revealed ? 1 : 0.6)
-            .offset(x: revealed ? 0 : 6)
+            // MS4 (2026-09-25 motion audit): from 97%, not 60%, and a 4pt slide — the house
+            // arrival scale (card parts, pill cards) — so the glyph resolves rather than pops.
+            .scaleEffect(revealed ? 1 : 0.97)
+            .offset(x: revealed ? 0 : 4)
             .animation(
                 HeadroomMotion.resolved(
                     revealed ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,

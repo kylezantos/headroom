@@ -10,9 +10,8 @@ struct ProviderLogoView: View {
     // The raw brand mark, no tinted container — matching the Mac popover. OA2: the imageset
     // artwork is trimmed to its ink, so the mark is sized by the shared measured rule
     // (`HeadroomBrandMark`: larger ink dimension = 13/15 of the slot, aspect preserved) and
-    // leading-aligned inside the fixed slot. Every provider's ink then hangs on one mark
-    // axis and the leftover slot falls on the trailing side, so the icon column stays
-    // aligned across rows — including for a reduced (`visualScale`) mark.
+    // centred in the fixed slot, so every mark shares one centre line and an even gap to
+    // its title — including a reduced (`visualScale`) mark.
     var body: some View {
         let slot = size * 1.35
         let mark = HeadroomBrandMark.markSize(for: providerID, slot: Double(slot))
@@ -28,7 +27,7 @@ struct ProviderLogoView: View {
             }
         }
         .frame(width: CGFloat(mark.width) * visualScale, height: CGFloat(mark.height) * visualScale)
-        .frame(width: slot, height: slot, alignment: .leading)
+        .frame(width: slot, height: slot)
         .accessibilityHidden(true)
     }
 

@@ -24,10 +24,10 @@ struct ProviderLogoView: View {
     var body: some View {
         // OA2: the SVGs are trimmed to their ink, so the mark's rendered size is the shared
         // measured rule (`HeadroomBrandMark`) rather than a per-provider guess — larger ink
-        // dimension = 13/15 of the slot, aspect preserved. The slot frame still owns layout,
-        // but the mark is *leading*-aligned inside it so every provider's ink hangs on the
-        // same left edge (the card's mark axis) and the leftover slot falls on the trailing
-        // side. Vertical stays centred: that already lines the mark up on the title's cap.
+        // dimension = 13/15 of the slot, aspect preserved. The mark is centred in its slot
+        // (Sep 2026): the marks differ in width by up to 3pt, and a shared left edge put all
+        // of that difference into the gap before the title, which is the gap the eye reads.
+        // Vertical centring already lines the mark up on the title's cap.
         let mark = HeadroomBrandMark.markSize(for: providerID.raw, slot: Double(size))
         let markWidth = CGFloat(mark.width)
         let markHeight = CGFloat(mark.height)
@@ -37,14 +37,14 @@ struct ProviderLogoView: View {
                 .renderingMode(.original)
                 .scaledToFit()
                 .frame(width: markWidth, height: markHeight)
-                .frame(width: hugsInk ? markWidth : size, height: size, alignment: .leading)
+                .frame(width: hugsInk ? markWidth : size, height: size)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: ProviderStyle.symbol(for: providerID))
                 .font(.system(size: markHeight, weight: .semibold))
                 .foregroundStyle(ProviderStyle.accent(for: providerID))
                 .frame(width: markWidth, height: markHeight)
-                .frame(width: hugsInk ? markWidth : size, height: size, alignment: .leading)
+                .frame(width: hugsInk ? markWidth : size, height: size)
                 .accessibilityHidden(true)
         }
     }

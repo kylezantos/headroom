@@ -675,8 +675,9 @@ public struct HeadroomBrandMarkSize: Sendable, Equatable {
 /// OA2 (Sep 2026) replaced a by-eye per-provider `opticalScale` with a measured rule. The
 /// brand SVGs are now trimmed so the path's tight bounding box *is* the viewBox, which
 /// makes "how big is this mark" a property of the artwork rather than of each surface's
-/// guess about it. Every surface then applies the same rule below and leading-aligns the
-/// result inside its slot, so all four marks hang on one mark axis. PA9 then layered a
+/// guess about it. Every surface then applies the same rule below and centres the result
+/// in its slot (Sep 2026; OA2 leading-aligned it, which left the narrow Cursor and Grok
+/// marks a visibly wider gap before their titles than Claude's). PA9 then layered a
 /// per-provider ink-mass correction on top of that shared box, because equal boxes of very
 /// unequal coverage do not read as one size.
 public enum HeadroomBrandMark {
@@ -696,12 +697,23 @@ public enum HeadroomBrandMark {
     /// PA9 (Sep 2026): first correction pass, weighting each mark against its coverage —
     /// the sparse marks grow, the dense ones shrink. These are starting values; live
     /// `--demo multi-4` captures in both appearances are what settles them.
+    ///
+    /// Grok 1.10 → 1.20 (Sep 2026): its slash tails take 24% of the ink width, so at 1.10
+    /// the ring — what the eye reads as the mark — measured ~10.8pt against Codex's 12pt and
+    /// read a size smaller. At 1.20 the ring lands at ~11.8pt and the hairline tails
+    /// overhang the 15pt slot by ~0.3pt a side.
+    ///
+    /// Claude 1.05 → 1.00, Cursor 0.94 → 1.03 (Sep 2026): scored in the centred 15pt slot as
+    /// the geometric mean of √(ink box) and √(ink area) — box alone overrates sparse marks,
+    /// area alone overrates dense ones — the four read Claude 11.6, Codex 11.1, Grok 11.2,
+    /// Cursor 10.2. Coverage alone had pushed Cursor down, but its cube is also the narrowest
+    /// box (0.88 aspect), so it read a size small. These values put all four at 11.0–11.2.
     public static func massCorrection(for providerID: String) -> Double {
         switch providerID {
-        case ProviderID.claude.raw: 1.05
+        case ProviderID.claude.raw: 1.00
         case ProviderID.codex.raw: 0.92
-        case ProviderID.grok.raw: 1.10
-        case ProviderID.cursor.raw: 0.94
+        case ProviderID.grok.raw: 1.20
+        case ProviderID.cursor.raw: 1.03
         default: 1.0
         }
     }
@@ -722,7 +734,7 @@ public enum HeadroomBrandMark {
         case ProviderID.claude.raw: 1.0
         case ProviderID.codex.raw: 1.0
         // Grok's slash is wider than it is tall; Cursor's cube is taller than it is wide.
-        // Neither is padded back to square — the slot's leftover goes on the trailing side.
+        // Neither is padded back to square — the slot's leftover splits either side.
         case ProviderID.grok.raw: 24.0 / 23.0332
         case ProviderID.cursor.raw: 21.0586 / 24.0
         default: 1.0

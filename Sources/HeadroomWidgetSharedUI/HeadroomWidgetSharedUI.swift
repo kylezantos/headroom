@@ -145,10 +145,10 @@ public struct HeadroomWidgetProviderIcon: View {
         self.size = size
     }
 
-    // OA2: same measured rule and leading alignment as the popover and the iOS app — the
-    // imageset artwork is trimmed to its ink, the larger ink dimension is 13/15 of the slot
-    // with the aspect preserved, and the leftover slot falls on the trailing side so every
-    // provider's mark hangs on one axis.
+    // OA2: same measured rule and centring as the popover and the iOS app — the imageset
+    // artwork is trimmed to its ink, the larger ink dimension is 13/15 of the slot with the
+    // aspect preserved, and the mark is centred in the slot so every provider's mark shares
+    // one centre line and an even gap to its name.
     //
     // WCM7: `.desaturated` in the accented/vibrant families. The brand mark is the one
     // channel that separates Claude from Codex, and a tinted mark loses it; desaturated
@@ -163,7 +163,7 @@ public struct HeadroomWidgetProviderIcon: View {
                 .widgetAccentedRenderingMode(.desaturated)
                 .scaledToFit()
                 .frame(width: markWidth, height: markHeight)
-                .frame(width: size, height: size, alignment: .leading)
+                .frame(width: size, height: size)
                 .accessibilityHidden(true)
         } else {
             Image(systemName: HeadroomWidgetStyle.symbol(for: providerID))
@@ -171,7 +171,7 @@ public struct HeadroomWidgetProviderIcon: View {
                 .widgetAccentedRenderingMode(.desaturated)
                 .scaledToFit()
                 .frame(width: markWidth, height: markHeight)
-                .frame(width: size, height: size, alignment: .leading)
+                .frame(width: size, height: size)
                 .foregroundStyle(HeadroomWidgetStyle.accent(for: providerID))
                 .accessibilityHidden(true)
         }

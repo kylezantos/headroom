@@ -232,14 +232,14 @@ struct BrandColorValuesTests {
     /// PA9 set the first non-1.0 corrections. Equal ink *boxes* turned out not to be equal ink
     /// *mass*: measured coverage inside the same 13pt box ran Codex 0.71, Cursor 0.56, Claude
     /// 0.42, Grok 0.25, which put Grok's hairline slash directly under Cursor's solid cube in
-    /// the four-provider card list. The corrections therefore have to run *opposite* to
-    /// coverage — sparse marks grow, dense marks shrink — and that direction is asserted here
-    /// so a later re-tune from live captures can move the magnitudes without silently
-    /// inverting the intent.
+    /// the four-provider card list. The extremes therefore run *opposite* to coverage — the
+    /// sparsest mark grows, the densest shrinks — and that direction is asserted here. The
+    /// two in between were re-tuned (Sep 2026) by measured optical size, which also weighs
+    /// the ink box: Cursor is dense but narrow, so it grows slightly.
     @Test func everyProviderRendersItsInkAtThirteenFifteenthsOfTheSlotTimesItsMassCorrection() {
         #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
         let corrections: [(ProviderID, Double)] = [
-            (.claude, 1.05), (.codex, 0.92), (.grok, 1.10), (.cursor, 0.94),
+            (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03),
         ]
         for (id, correction) in corrections {
             #expect(HeadroomBrandMark.massCorrection(for: id.raw) == correction, "\(id.raw) mass")
@@ -248,11 +248,10 @@ struct BrandColorValuesTests {
                 "\(id.raw) scale"
             )
         }
-        // Sparse ink grows, dense ink shrinks.
+        // The sparsest mark grows and the densest shrinks; the two between were settled by
+        // measured optical size, not coverage alone (Cursor's narrow box offsets its mass).
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw) > 1)
-        #expect(HeadroomBrandMark.massCorrection(for: ProviderID.claude.raw) > 1)
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw) < 1)
-        #expect(HeadroomBrandMark.massCorrection(for: ProviderID.cursor.raw) < 1)
         // Grok is the sparsest mark, Codex the densest, so they bound the table.
         for id in [ProviderID.claude, .codex, .cursor] {
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw)

@@ -10,7 +10,7 @@ These source SVGs are bundled for provider identity in Headroom's UI.
 OA2 (Sep 2026): every file's `viewBox` (and `width`/`height`) is trimmed so the path's tight
 ink bounding box *is* the viewBox — no art was scaled or re-pathed, only the frame around it.
 That makes "how big is this mark" a property of the artwork, which is what `HeadroomBrandMark`'s
-one sizing rule (larger ink dimension = 13/15 of the slot, leading-aligned) stands on. Grok and
+one sizing rule (larger ink dimension = 13/15 of the slot, centred in it) stands on. Grok and
 Cursor trim to non-square boxes and are deliberately *not* padded back to square. `BrandMarkInkTests`
 re-measures the shipped SVGs, so re-importing an untrimmed icon from LobeHub fails the suite.
 

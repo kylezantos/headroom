@@ -277,7 +277,8 @@ struct CodexWaitingCard: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .codex, size: 20)
-                ProgressView().controlSize(.small)
+                // Matches the 15pt title, not the 20pt mark, so it doesn't compete with the logo.
+                DotMatrixSpinner(size: 15)
                 Text(mode == .deviceCode ? "Finish device-code sign-in…" : "Finish signing in…")
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(SetupCardMetrics.titleKerning)

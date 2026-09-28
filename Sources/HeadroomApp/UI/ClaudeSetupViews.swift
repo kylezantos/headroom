@@ -511,8 +511,8 @@ struct ClaudeWaitingCard: View {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .claude, size: 20)
                 if content.showsProgress {
-                    ProgressView()
-                        .controlSize(.small)
+                    // Matches the 15pt title, not the 20pt mark, so it doesn't compete with the logo.
+                    DotMatrixSpinner(size: 15)
                 }
                 Text(content.title)
                     .font(.system(size: 15, weight: .semibold))

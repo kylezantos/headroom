@@ -610,7 +610,8 @@ struct PopoverView: View {
             ZStack(alignment: .leading) {
                 if store.isRefreshing {
                     HStack(spacing: 6) {
-                        ProgressView().controlSize(.small)
+                        // 13pt: about the line height of the 12pt label, so it reads as part of it.
+                        DotMatrixSpinner(size: 13)
                         Text("Refreshing…").font(.system(size: 12)).foregroundStyle(.secondary)
                     }
                     .transition(.opacity)

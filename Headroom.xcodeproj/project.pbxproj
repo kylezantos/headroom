@@ -22,6 +22,7 @@
 		084D12BD03637F092BEC19F5 /* SoftwareUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98CDEAF6EF0A499E6D0A8FA /* SoftwareUpdateController.swift */; };
 		08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */; };
 		0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */; };
+		09E2DFD7D56F4A7ABFED6FD8 /* DotMatrixSpinnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E1EF454A6A98444C5EC8B4 /* DotMatrixSpinnerTests.swift */; };
 		0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E542DE434B4A2F1EA525110E /* ProviderCardView.swift */; };
 		0C2A5419E7361328ED5ED0EE /* HeadroomWidgetTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */; };
 		0E2138255AC8C4AFA83B1EFC /* ResetClockFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E017709D234A921E25999F2 /* ResetClockFormatter.swift */; };
@@ -196,6 +197,7 @@
 		B380BB2769B4B2CE662D2B6E /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
 		B779B019A3EDF4D4AF443B69 /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */; };
+		B9C79A6FF8C05CF5169A6F63 /* DotMatrixSpinner.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE70496DA9E61237E7D473B5 /* DotMatrixSpinner.swift */; };
 		BAA0B4FCCEB2537768033FC5 /* BrandIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */; };
 		BBA4810865B29C46A518F02E /* InAppDisplayTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */; };
 		BDA68D06C64C691567AD5B71 /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
@@ -482,6 +484,7 @@
 		B60C38BCE8D085D56EEC5C0A /* UsageHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageHTTPClient.swift; sourceTree = "<group>"; };
 		B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPaneTests.swift; sourceTree = "<group>"; };
 		BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsInteractionTests.swift; sourceTree = "<group>"; };
+		BE70496DA9E61237E7D473B5 /* DotMatrixSpinner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotMatrixSpinner.swift; sourceTree = "<group>"; };
 		C025DD0467C17BEED8A13DCE /* SettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPane.swift; sourceTree = "<group>"; };
 		C08AE77A399A208C20733351 /* CodexAuthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAuthReader.swift; sourceTree = "<group>"; };
 		C12CBFA7FEC91C71F1F13E4A /* CredentialModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialModels.swift; sourceTree = "<group>"; };
@@ -528,6 +531,7 @@
 		F7339860B2F91C83B1108CED /* AccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStorage.swift; sourceTree = "<group>"; };
 		F767701AEE449C92A62002E4 /* CodexProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexProvider.swift; sourceTree = "<group>"; };
 		F79F757570AB27C93700E341 /* IOSCompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSCompanionView.swift; sourceTree = "<group>"; };
+		F7E1EF454A6A98444C5EC8B4 /* DotMatrixSpinnerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DotMatrixSpinnerTests.swift; sourceTree = "<group>"; };
 		F9ADDC10A509A2B2E5C0F48B /* HeadroomIOSTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSTimelineProvider.swift; sourceTree = "<group>"; };
 		FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotCache.swift; sourceTree = "<group>"; };
 		FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterStyle.swift; sourceTree = "<group>"; };
@@ -565,6 +569,7 @@
 				4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */,
 				56F54E6B7FA732E9C2BD087E /* ConnectedPayoffClaimTests.swift */,
 				C164E052923C8290A6B7C208 /* DemoLaunchTokenTests.swift */,
+				F7E1EF454A6A98444C5EC8B4 /* DotMatrixSpinnerTests.swift */,
 				1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */,
 				864A7A76DC0EC0C8CF12DF51 /* MenuBarPaneSizingTests.swift */,
 				2631CDFB3EFB8C74AE76D013 /* MenuBarPillArrangerTests.swift */,
@@ -786,6 +791,7 @@
 				28FECE6C7A3D1E55E26A7C55 /* ClaudeSetupViews.swift */,
 				8884B8D5664E9FA9DC416556 /* CodexSetupViews.swift */,
 				0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */,
+				BE70496DA9E61237E7D473B5 /* DotMatrixSpinner.swift */,
 				6BECE3EB6F9311F47B82E8D1 /* HeadroomMotion.swift */,
 				1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */,
 				33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */,
@@ -1265,6 +1271,7 @@
 				B818994597D1E269FF8EBB4E /* ClaudeExecutableDiscoveryInteractionTests.swift in Sources */,
 				4C9A17E37FBA04AF5ACDEFB5 /* ConnectedPayoffClaimTests.swift in Sources */,
 				9BD2988769C7AD1C495D078C /* DemoLaunchTokenTests.swift in Sources */,
+				09E2DFD7D56F4A7ABFED6FD8 /* DotMatrixSpinnerTests.swift in Sources */,
 				EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */,
 				1751C11B769ABFFA723E779A /* MenuBarPaneSizingTests.swift in Sources */,
 				7863890791F11A63594C27EB /* MenuBarPillArrangerTests.swift in Sources */,
@@ -1432,6 +1439,7 @@
 				66CAF608E41C4A15D88CCF2E /* ClaudeSetupViews.swift in Sources */,
 				66BA4AA745FB0E91177156D3 /* CodexSetupViews.swift in Sources */,
 				05084A1F94C75B3721E938C1 /* CopyFeedbackButton.swift in Sources */,
+				B9C79A6FF8C05CF5169A6F63 /* DotMatrixSpinner.swift in Sources */,
 				E34A369D991B59A298AFC73A /* HeadroomApp.swift in Sources */,
 				4DBD6C5E83BA20277C8B14C3 /* HeadroomLargeWidgetView.swift in Sources */,
 				7418A0A724FCE0A54421AC9A /* HeadroomMotion.swift in Sources */,

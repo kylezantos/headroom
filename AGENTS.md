@@ -158,6 +158,8 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
 
 ## Conventions
 
+- **UI work starts from [DESIGN.md](DESIGN.md)**: where every token lives (motion, colour,
+  spacing, type), which component does which job, and the rules for adding a new token.
 - **Reduce Motion and accessibility are best-effort for now (Sep 2026).** Keep the existing
   S2A policy and don't knowingly regress it, but don't hold a change back, or expand its
   scope, over Reduce Motion or accessibility polish. Reviews should report such gaps at low

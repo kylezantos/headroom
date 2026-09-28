@@ -3,15 +3,9 @@ import SwiftUI
 enum HeadroomTheme {
     static let tileRadius: CGFloat = 17
     static let entranceAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
-    static let valueSpring = Animation.spring(response: 0.3, dampingFraction: 0.9)
-
-    static func providerAccent(for id: String) -> Color {
-        switch id {
-        case ProviderID.claude.raw: Color(HeadroomBrandColorValues.claude)
-        case ProviderID.codex.raw: Color(HeadroomBrandColorValues.codex)
-        default: .secondary
-        }
-    }
+    /// M1A (mirrors `HeadroomMotion.valueSpring` on macOS): a bar that represents a value
+    /// must never overshoot it, so the spring is critically damped.
+    static let valueSpring = Animation.spring(response: 0.3, dampingFraction: 1.0)
 
     static func providerTextAccent(for id: String, scheme: ColorScheme) -> Color {
         guard let rgb = HeadroomWidgetColorValues.textAccent(for: id, dark: scheme == .dark) else { return .secondary }

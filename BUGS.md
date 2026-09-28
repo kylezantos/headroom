@@ -40,6 +40,8 @@ official `claude` CLI's `/usage` panel instead.
   of HeadroomIOS or HeadroomIOSWidgets, while `ProviderSetup.swift` is in all of them. Fix by
   moving the shared types out of the coordinator file or adjusting target membership, then
   confirm both iOS schemes build. Until then, iOS source changes are not compile-verified.
+  That includes the 2026-09-28 `HeadroomTheme` edit (critically damped `valueSpring`, unused
+  `providerAccent` removed), which has never been compiled.
 
 ## Test runs leave thousands of UserDefaults suites behind
 

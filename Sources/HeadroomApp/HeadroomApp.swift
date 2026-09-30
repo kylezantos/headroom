@@ -72,6 +72,13 @@ enum Entry {
             ))
             exit(1)
         }
+        if !DemoFixture.isEnabled, let running = SingleInstance.otherRunningCopy() {
+            let path = running.bundleURL?.path ?? "another location"
+            FileHandle.standardError.write(Data(
+                "Headroom is already running (pid \(running.processIdentifier), \(path)). Quit it first.\n".utf8
+            ))
+            exit(0)
+        }
         HeadroomApp.main()
     }
 
@@ -684,6 +691,21 @@ extension AppearancePreference {
         for window in NSApp.windows {
             window.appearance = nsAppearance
         }
+    }
+}
+
+/// Two copies of the bundle (the installed app plus a dev build, or a stray copy left in
+/// Downloads) share one bundle ID, but LaunchServices treats them as different apps: tapping
+/// a reminder launched `/Applications/Headroom.app` while a workspace build was already
+/// running (2026-09-30). Both copies then poll every CLI and post the same reminders, so the
+/// copy already running keeps the menu bar and a later launch exits. `swift run` has no
+/// bundle ID and is never blocked.
+enum SingleInstance {
+    static func otherRunningCopy() -> NSRunningApplication? {
+        guard let bundleIdentifier = Bundle.main.bundleIdentifier else { return nil }
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        return NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+            .first { $0.processIdentifier != currentPID && !$0.isTerminated }
     }
 }
 

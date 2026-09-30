@@ -250,17 +250,34 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
         var buffer = Data()
         // Ink asks the terminal for its background color before its first paint. A raw
         // openpty has no emulator to answer OSC 11, so respond with a neutral dark
-        // terminal value; otherwise Cursor waits forever and the probe sees only the
-        // query escape sequence.
-        usleep(100_000)
-        writeText("\u{1B}]11;rgb:0000/0000/0000\u{07}", to: master)
+        // terminal value; otherwise older builds wait forever and the probe sees only the
+        // query escape sequence. Answer only once the query is actually in the output:
+        // the signed-out screen ("Press any key to log in...") sends no query and treats
+        // any stdin byte as a keypress, so the old unconditional reply opened a browser
+        // login on every poll while `status` still reported signed in (2026-09-30).
+        let bootDeadline = Date().addingTimeInterval(boot)
         _ = drainUntil(
             master: master,
             maxSeconds: boot,
             into: &buffer,
-            condition: { isReadyPrompt($0) || isWorkspaceTrustPrompt($0) || isMCPApprovalPrompt($0) }
+            condition: isBootScreen,
+            rawCondition: containsBackgroundColorQuery
         )
+        if !isBootScreen(ANSI.strip(String(decoding: buffer, as: UTF8.self))),
+           containsBackgroundColorQuery(buffer) {
+            writeText("\u{1B}]11;rgb:0000/0000/0000\u{07}", to: master)
+            _ = drainUntil(
+                master: master,
+                maxSeconds: max(0, bootDeadline.timeIntervalSinceNow),
+                into: &buffer,
+                condition: isBootScreen
+            )
+        }
         let bootText = ANSI.strip(String(decoding: buffer, as: UTF8.self))
+        if isLoginPrompt(bootText) {
+            teardown()
+            return .loginRequired
+        }
         if isWorkspaceTrustPrompt(bootText) {
             teardown()
             return .workspaceTrustRequired
@@ -284,6 +301,10 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
         // workspace on the user's behalf (R2).
         drain(master: master, maxSeconds: 1.5, quiet: 1.5, into: &buffer)
         let settledText = ANSI.strip(String(decoding: buffer, as: UTF8.self))
+        if isLoginPrompt(settledText) {
+            teardown()
+            return .loginRequired
+        }
         if isWorkspaceTrustPrompt(settledText) {
             teardown()
             return .workspaceTrustRequired
@@ -333,7 +354,8 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
     /// themselves.
     static func isReadyPrompt(_ strippedText: String) -> Bool {
         guard !isWorkspaceTrustPrompt(strippedText),
-              !isMCPApprovalPrompt(strippedText)
+              !isMCPApprovalPrompt(strippedText),
+              !isLoginPrompt(strippedText)
         else { return false }
         return strippedText.localizedCaseInsensitiveContains("Cursor Agent")
             && (strippedText.localizedCaseInsensitiveContains("Ask (shift+tab to cycle)")
@@ -347,6 +369,28 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
 
     static func isMCPApprovalPrompt(_ strippedText: String) -> Bool {
         strippedText.localizedCaseInsensitiveContains("MCP Server Approval Required")
+    }
+
+    /// Cursor Agent 2026.09.28's signed-out screen. Every key except Ctrl-C/Ctrl-Z starts
+    /// the browser login, so this screen must never receive a byte; sign-in stays the
+    /// official `cursor-agent login` handoff.
+    static func isLoginPrompt(_ strippedText: String) -> Bool {
+        strippedText.localizedCaseInsensitiveContains("Press any key to log in")
+    }
+
+    /// Any screen the boot drain can stop on: one that proves typing is safe, or one
+    /// that must be handed to the user untouched.
+    static func isBootScreen(_ strippedText: String) -> Bool {
+        isReadyPrompt(strippedText)
+            || isWorkspaceTrustPrompt(strippedText)
+            || isMCPApprovalPrompt(strippedText)
+            || isLoginPrompt(strippedText)
+    }
+
+    /// Ink's OSC 11 background-color query. ANSI stripping removes it, so this reads the
+    /// raw bytes.
+    static func containsBackgroundColorQuery(_ raw: Data) -> Bool {
+        raw.range(of: Data("\u{1B}]11;?".utf8)) != nil
     }
 
     /// Cursor paints an arrow beside the active slash-command completion. Requiring the
@@ -442,7 +486,8 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
         master: Int32,
         maxSeconds: TimeInterval,
         into buffer: inout Data,
-        condition: (String) -> Bool
+        condition: (String) -> Bool,
+        rawCondition: (Data) -> Bool = { _ in false }
     ) -> Bool {
         let deadline = Date().addingTimeInterval(maxSeconds)
         var descriptor = pollfd(fd: master, events: Int16(POLLIN), revents: 0)
@@ -453,7 +498,8 @@ public struct CursorUsageCLIProbe: CursorUsageSource {
                 let count = read(master, &chunk, chunk.count)
                 guard count > 0 else { return false }
                 buffer.append(contentsOf: chunk.prefix(count))
-                if condition(ANSI.strip(String(decoding: buffer, as: UTF8.self))) {
+                if rawCondition(buffer)
+                    || condition(ANSI.strip(String(decoding: buffer, as: UTF8.self))) {
                     return true
                 }
             }

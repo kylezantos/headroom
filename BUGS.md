@@ -187,6 +187,14 @@ official `claude` CLI's `/usage` panel instead.
   the probe returned live usage. Find a reproducible unapproved-server case before
   describing the path as supported; see
   `docs/solutions/cursor-agent-usage-feasibility.md`.
+- **Killed probes can leave Cursor Agent housekeeping files behind (2026-09-30).** Cleaned
+  up on one machine: 7 `~/.local/share/cursor-agent/versions/*/.running/<pid>` markers
+  and 12 `~/.cursor/cli-config.json.<pid>.<uuid>.tmp` files, all from dead pids. The
+  markers matched probe runs that stopped on the signed-out screen. A normal `/usage` run
+  left none. They're harmless, but the probe's SIGTERM→SIGKILL teardown probably
+  interrupts the CLI's own cleanup. Unverified: whether Ctrl-C (which the signed-out
+  screen explicitly ignores as a login key) lets the CLI exit cleanly on the gate
+  screens. Check that against a live gate before changing teardown.
 
 ## Sign-in handoff residuals (2026-09-19)
 

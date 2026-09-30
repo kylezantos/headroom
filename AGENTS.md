@@ -310,7 +310,10 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   PTY** (`CursorUsageCLIProbe`), same official-client boundary as Claude — never reuse
   `WorkosCursorSessionToken`, read `state.vscdb`, or call private dashboard endpoints (ToS
   §1.5). Load-bearing PTY details: answer the OSC 11 background query or the first paint
-  stalls; send Enter as Kitty CSI-u (`ESC [ 13 u`); two positive gates before that single
+  stalls, but only once the query appears in the output — the signed-out screen ("Press any
+  key to log in...") sends no query and opens a browser login on any byte, and `status` can
+  still report signed in while the TUI shows it (2026-09-30), so classify it as login-required
+  before writing anything; send Enter as Kitty CSI-u (`ESC [ 13 u`); two positive gates before that single
   Enter — the `Ask (shift+tab to cycle)` ready prompt **and** the arrow-selected `/usage`
   autocomplete row. The selection gate matches `/→\s+\/usage(?:\s|$)/`: the live TUI pads
   the arrow with a *variable* number of spaces (`→  /usage`), so match whitespace-count-

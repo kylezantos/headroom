@@ -508,7 +508,8 @@ struct HeadroomApp: App {
                 // L1A: only the real status item follows the live menu bar. The Settings
                 // specimens keep the default pinned-dark palette because they sit on a
                 // fixed dark plate.
-                appearance: .menuBar
+                appearance: .menuBar,
+                updatingProviders: store.menuBarUpdatingProviders
             )
             .preferredColorScheme(resolvedScheme)
             .task { await store.start() }

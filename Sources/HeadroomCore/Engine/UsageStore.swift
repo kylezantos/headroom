@@ -44,6 +44,21 @@ public struct MenuBarSummary: Sendable, Equatable {
     }
 }
 
+/// W4 (Oct 2026, design/refresh-stamp-merge-round4.html): a user-requested refresh in
+/// progress, which the popover footer turns into a one-line receipt.
+public struct RefreshProgress: Sendable, Equatable {
+    public let total: Int
+    public let completed: Int
+    /// The account that finished most recently; nil until the first one does.
+    public let lastLanded: AccountKey?
+
+    public init(total: Int, completed: Int, lastLanded: AccountKey?) {
+        self.total = total
+        self.completed = completed
+        self.lastLanded = lastLanded
+    }
+}
+
 /// One compact status unit for the menu bar. Automatic mode renders one summary;
 /// an explicit provider selection renders one meter per provider.
 public struct MenuBarMeter: Sendable, Equatable {
@@ -123,6 +138,11 @@ public final class UsageStore {
     /// unmerged work. Timer-driven lane passes never set it, so the Refresh button does not
     /// disappear for half of every interval at the account envelope.
     public private(set) var isRefreshing = false
+    /// W4: the user-requested work behind `isRefreshing`, account by account. Nil once that
+    /// work drains, even while a spend fetch keeps `isRefreshing` up.
+    public private(set) var refreshProgress: RefreshProgress?
+    /// Accounts whose probe is running right now, timer passes included (round-3 S2).
+    public private(set) var probingAccounts: Set<AccountKey> = []
     @ObservationIgnored private var userWorkPending = false
     @ObservationIgnored private var apiSpendUserRefreshDepth = 0
     @ObservationIgnored private var apiSpendInFlight = false
@@ -683,6 +703,24 @@ public final class UsageStore {
 
         let meters = selectedMenuBarProviders.map { providerMenuBarMeter(for: $0) }
         return meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
+    }
+
+    /// Round-3 S2 (Oct 2026): providers whose main account is being probed right now. Each
+    /// pill shows its provider's main account, so its liquid sloshes exactly while that
+    /// number is being fetched, whether a timer or the user asked for it.
+    public var menuBarUpdatingProviders: Set<ProviderID> {
+        Set(probingAccounts.compactMap { key in
+            primaryKey(for: key.providerID) == key ? key.providerID : nil
+        })
+    }
+
+    /// W4: how the footer receipt names an account — the provider alone while it has one
+    /// account (labels are hidden then), "Claude Work" once it has several.
+    public func refreshReceiptTitle(for key: AccountKey) -> String {
+        let name = displayNames[key.providerID] ?? key.providerID.raw
+        let accounts = accounts(for: key.providerID)
+        guard accounts.count > 1, let account = accounts.first(where: { $0.key == key }) else { return name }
+        return "\(name) \(account.label)"
     }
 
     public var widgetsEnabled: Bool { preferences.widgetsEnabled }
@@ -1264,6 +1302,23 @@ extension UsageStore: AccountProbeSchedulerHost {
 
     func schedulerUserWorkDidChange(hasPending: Bool) {
         userWorkPending = hasPending
+        if !hasPending { refreshProgress = nil }
         recomputeRefreshing()
+    }
+
+    func schedulerProbeDidStart(_ key: AccountKey) {
+        if !probingAccounts.contains(key) { probingAccounts.insert(key) }
+    }
+
+    func schedulerProbeDidEnd(_ key: AccountKey) {
+        if probingAccounts.contains(key) { probingAccounts.remove(key) }
+    }
+
+    func schedulerUserProgressDidChange(total: Int, completed: Int, landed: AccountKey?) {
+        refreshProgress = RefreshProgress(
+            total: total,
+            completed: completed,
+            lastLanded: landed ?? refreshProgress?.lastLanded
+        )
     }
 }

@@ -74,8 +74,8 @@ struct PopoverHeaderStatusTests {
 
 /// R2M5: the slot used to collect `.live` captures and return nil for everything else, so
 /// first run, an all-stale popover and a capability failure showed a card full of retained
-/// numbers with no visible age anywhere. These pin the six lines it can now show, and the
-/// precedence between them.
+/// numbers with no visible age anywhere. Since Sep 2026 the age lives in the footer beside
+/// Refresh and the header speaks only for setup; these pin both lines and their precedence.
 @Suite
 struct PopoverHeaderStatusResolverTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -84,90 +84,74 @@ struct PopoverHeaderStatusResolverTests {
         setupText: String? = nil,
         waitingElapsed: TimeInterval? = nil,
         oldestLiveCapture: Date? = nil,
-        newestCheck: Date? = nil,
-        isRefreshing: Bool = false
+        newestCheck: Date? = nil
     ) -> PopoverHeaderStatusResolver.Input {
         PopoverHeaderStatusResolver.Input(
             setupText: setupText,
             waitingElapsed: waitingElapsed,
             oldestLiveCapture: oldestLiveCapture,
             newestCheck: newestCheck,
-            isRefreshing: isRefreshing,
             now: now
         )
     }
 
-    @Test func aLiveCaptureStillReadsAsTheUpdatedStamp() {
-        let status = PopoverHeaderStatusResolver.status(
+    /// Beside Refresh the stamp needs no "Updated" verb.
+    @Test func aLiveCaptureReadsAsABareAge() {
+        let status = PopoverHeaderStatusResolver.freshness(
             input(oldestLiveCapture: now.addingTimeInterval(-8 * 60))
         )
         #expect(status.kind == .updated)
-        #expect(status.text == "Updated 8 min ago")
+        #expect(status.text == "8 min ago")
         #expect(status.rollValue == 8)
     }
 
-    /// The whole point of R2M5: retained numbers on screen now carry a date.
+    @Test func aFreshCaptureReadsAsSentenceCase() {
+        let status = PopoverHeaderStatusResolver.freshness(input(oldestLiveCapture: now))
+        #expect(status.text == "Just now")
+    }
+
+    /// The whole point of R2M5: retained numbers on screen still carry a date, and say
+    /// they are not live.
     @Test func nothingLiveFallsBackToTheNewestObservation() {
-        let status = PopoverHeaderStatusResolver.status(
+        let status = PopoverHeaderStatusResolver.freshness(
             input(newestCheck: now.addingTimeInterval(-12 * 60))
         )
         #expect(status.kind == .lastChecked)
-        #expect(status.text == "Last checked 12 min ago")
+        #expect(status.text == "Checked 12 min ago")
         #expect(status.rollValue == 12)
     }
 
     @Test func firstRunSaysSoRatherThanGoingSilent() {
-        let status = PopoverHeaderStatusResolver.status(input())
+        let status = PopoverHeaderStatusResolver.freshness(input())
         #expect(status.kind == .never)
         #expect(status.text == "Not checked yet")
         #expect(status.rollValue == nil)
     }
 
-    @Test func aCycleInFlightWithNothingLiveReportsItself() {
-        let status = PopoverHeaderStatusResolver.status(
-            input(newestCheck: now.addingTimeInterval(-12 * 60), isRefreshing: true)
-        )
-        #expect(status.kind == .checking)
-        #expect(status.text == "Checking…")
+    /// The header is empty unless a setup card needs the user.
+    @Test func theHeaderIsQuietWithoutSetup() {
+        #expect(PopoverHeaderStatusResolver.setup(input(oldestLiveCapture: now)) == nil)
     }
 
-    /// A cycle in flight never hides a *live* stamp: the age is the more useful of the two.
-    @Test func aLiveStampOutranksACycleInFlight() {
-        let status = PopoverHeaderStatusResolver.status(
-            input(oldestLiveCapture: now.addingTimeInterval(-60), isRefreshing: true)
-        )
-        #expect(status.kind == .updated)
-    }
-
-    @Test func aSetupCardOwnsTheSlotWhileItIsOnScreen() {
-        let status = PopoverHeaderStatusResolver.status(
+    @Test func aSetupCardOwnsTheHeaderWhileItIsOnScreen() {
+        let status = PopoverHeaderStatusResolver.setup(
             input(setupText: "Sign in to Claude to begin", oldestLiveCapture: now)
         )
-        #expect(status.kind == .setup)
-        #expect(status.text == "Sign in to Claude to begin")
+        #expect(status?.kind == .setup)
+        #expect(status?.text == "Sign in to Claude to begin")
         // A phrase must never try to roll its letters into a number.
-        #expect(status.rollValue == nil)
+        #expect(status?.rollValue == nil)
     }
 
     /// R2M12: the clock replaces the card's own title rather than repeating it.
     @Test func anOpenHandoffReplacesTheEchoWithAClock() {
-        let status = PopoverHeaderStatusResolver.status(
+        let status = PopoverHeaderStatusResolver.setup(
             input(setupText: "Waiting for approval…", waitingElapsed: 45)
         )
-        #expect(status.kind == .waiting)
-        #expect(status.text == "Waiting 45s")
+        #expect(status?.kind == .waiting)
+        #expect(status?.text == "Waiting 45s")
         // WC1: the per-second clock never rolls.
-        #expect(status.rollValue == nil)
-    }
-
-    /// R2M5: the slot's identity changes with the *kind* of line, which is what makes the
-    /// swap a view replacement rather than a letter-by-letter roll.
-    @Test func aPhraseAndAStampAreDifferentSlotIdentities() {
-        let waiting = PopoverHeaderStatusResolver.status(
-            input(setupText: "Waiting for approval…", waitingElapsed: 0)
-        )
-        let updated = PopoverHeaderStatusResolver.status(input(oldestLiveCapture: now))
-        #expect(waiting.kind != updated.kind)
+        #expect(status?.rollValue == nil)
     }
 }
 

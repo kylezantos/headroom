@@ -528,6 +528,95 @@ struct AccountProbeSchedulerTests {
         #expect(cadence.accountCount == 2)
         #expect(!cadence.isStretched)
     }
+
+    // MARK: Menu-bar slosh and the refresh receipt (Oct 2026)
+
+    /// Round-3 S2: a pill sloshes while its provider's main account is being probed, timer
+    /// passes included, and only then; an extra account's probe moves nothing.
+    @Test func probingAccountsTrackRunningProbesAndOnlyAMainAccountMovesItsPill() async {
+        let order = ProbeOrder()
+        let lane = ProviderPollingLane.serial("claude-cli")
+        let extraID = AccountID("work")
+        let primary = LaneProbe(id: .claude, accountID: .primary, lane: lane, order: order,
+                                result: { .init(snapshot: self.liveSnapshot(.claude)) })
+        let extra = LaneProbe(id: .claude, accountID: extraID, lane: lane, order: order,
+                              result: { .init(snapshot: self.liveSnapshot(.claude)) })
+        let store = UsageStore(
+            providers: [primary, extra],
+            preferences: preferences(),
+            accounts: [.builtIn(for: .claude), ProviderAccount(id: extraID, providerID: .claude, label: "Work")]
+        )
+        #expect(store.probingAccounts.isEmpty)
+
+        primary.suspendNextFetch()
+        extra.suspendNextFetch()
+        store.dispatchDueNow()
+        await primary.waitUntilStarted()
+        #expect(store.probingAccounts == [primary.accountKey])
+        #expect(store.menuBarUpdatingProviders == [.claude])
+        // A timer pass is not user work, so there is no receipt.
+        #expect(store.refreshProgress == nil)
+
+        primary.release()
+        await extra.waitUntilStarted()
+        #expect(store.probingAccounts == [extra.accountKey])
+        #expect(store.menuBarUpdatingProviders.isEmpty)
+
+        extra.release()
+        await settle { store.probingAccounts.isEmpty }
+        #expect(store.probingAccounts.isEmpty)
+    }
+
+    /// W4: a user refresh reports each account as it finishes, then clears once drained so
+    /// the footer hands back to the stamp.
+    @Test func refreshProgressCountsLandedAccountsAndClearsWhenDrained() async {
+        let order = ProbeOrder()
+        let lane = ProviderPollingLane.serial("claude-cli")
+        let extraID = AccountID("work")
+        let primary = LaneProbe(id: .claude, accountID: .primary, lane: lane, order: order,
+                                result: { .init(snapshot: self.liveSnapshot(.claude)) })
+        let extra = LaneProbe(id: .claude, accountID: extraID, lane: lane, order: order,
+                              result: { .init(snapshot: self.liveSnapshot(.claude)) })
+        let store = UsageStore(
+            providers: [primary, extra],
+            preferences: preferences(),
+            accounts: [.builtIn(for: .claude), ProviderAccount(id: extraID, providerID: .claude, label: "Work")]
+        )
+        primary.suspendNextFetch()
+        extra.suspendNextFetch()
+        let refresh = Task { await store.refreshAll() }
+        await primary.waitUntilStarted()
+        #expect(store.refreshProgress == RefreshProgress(total: 2, completed: 0, lastLanded: nil))
+
+        primary.release()
+        await extra.waitUntilStarted()
+        #expect(store.refreshProgress == RefreshProgress(total: 2, completed: 1, lastLanded: primary.accountKey))
+
+        extra.release()
+        await refresh.value
+        #expect(store.refreshProgress == nil)
+        #expect(store.probingAccounts.isEmpty)
+    }
+
+    @Test func receiptTitleNamesTheAccountOnlyOnceAProviderHasSeveral() async {
+        let order = ProbeOrder()
+        let lane = ProviderPollingLane.serial("claude-cli")
+        let extraID = AccountID("work")
+        let claude = LaneProbe(id: .claude, accountID: .primary, lane: lane, order: order,
+                               result: { .init(snapshot: self.liveSnapshot(.claude)) })
+        let work = LaneProbe(id: .claude, accountID: extraID, lane: lane, order: order,
+                             result: { .init(snapshot: self.liveSnapshot(.claude)) })
+        let codex = LaneProbe(id: .codex, accountID: .primary, lane: .concurrent, order: order,
+                              result: { .init(snapshot: self.liveSnapshot(.codex)) })
+        let store = UsageStore(
+            providers: [claude, work, codex],
+            preferences: preferences(),
+            accounts: [.builtIn(for: .claude), ProviderAccount(id: extraID, providerID: .claude, label: "Work"),
+                       .builtIn(for: .codex)]
+        )
+        #expect(store.refreshReceiptTitle(for: work.accountKey) == "Claude Work")
+        #expect(store.refreshReceiptTitle(for: codex.accountKey) == "Codex")
+    }
 }
 
 // MARK: - Doubles

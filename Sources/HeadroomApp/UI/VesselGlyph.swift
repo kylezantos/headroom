@@ -11,8 +11,12 @@ import HeadroomCore
 /// into an `NSImage` and shown directly.
 /// It is not a template image: the fill is always severity-colored, while the vessel
 /// stroke stays neutral except in the critical band. Images are cached per whole-percent
-/// fill level, severity, and menu-bar appearance so live updates don't re-rasterize on every
-/// redraw. Static — no motion (user's standing rule).
+/// fill level, severity, menu-bar appearance and wave frame so live updates don't
+/// re-rasterize on every redraw.
+///
+/// Motion (Oct 2026, Kyle reversing the earlier static rule): while a pill's account is being
+/// checked its liquid surface becomes a travelling wave (`wavePhase`). Only the surface
+/// moves; the level is the usage and never does. `MenuBarSlosh` drives the frames.
 enum VesselGlyph {
     /// Point size tuned to sit level with system menu-bar glyphs (~16–18pt tall).
     static let menuBarSize = NSSize(width: 11, height: 18)
@@ -20,6 +24,9 @@ enum VesselGlyph {
     static let staticFill = 0.46
 
     @MainActor private static var cache: [ImageKey: NSImage] = [:]
+    /// The wave's height either side of the level: enough to read as liquid moving at
+    /// menu-bar size, too little for the level itself to seem to change.
+    private static let waveAmplitude: CGFloat = 0.7
 
     /// Cached vessel at the given fill (0…1); `nil` → the static decorative fill. The
     /// palette is part of the cache key (L1A): the same level renders differently on a light
@@ -28,7 +35,8 @@ enum VesselGlyph {
         fill: Double?,
         severity: UsageSeverity,
         isNeutral: Bool,
-        palette: MenuBarPalette
+        palette: MenuBarPalette,
+        wavePhase: Int? = nil
     ) -> NSImage {
         let clamped = min(1, max(0, fill ?? staticFill))
         let bucket = Int((clamped * 100).rounded())
@@ -36,7 +44,8 @@ enum VesselGlyph {
             fillBucket: bucket,
             severity: severity,
             isNeutral: isNeutral,
-            isDarkMenuBar: palette.isDarkMenuBar
+            isDarkMenuBar: palette.isDarkMenuBar,
+            wavePhase: wavePhase
         )
         if let cached = cache[key] { return cached }
         let image = render(
@@ -45,7 +54,8 @@ enum VesselGlyph {
             fill: CGFloat(bucket) / 100,
             severity: severity,
             isNeutral: isNeutral,
-            palette: palette
+            palette: palette,
+            wavePhase: wavePhase
         )
         cache[key] = image
         return image
@@ -57,7 +67,8 @@ enum VesselGlyph {
         fill: CGFloat,
         severity: UsageSeverity,
         isNeutral: Bool,
-        palette: MenuBarPalette
+        palette: MenuBarPalette,
+        wavePhase: Int?
     ) -> NSImage {
         let image = NSImage(size: size, flipped: false) { bounds in
             // Capsule wall (stroke stays inside the bounds).
@@ -78,15 +89,36 @@ enum VesselGlyph {
             NSGraphicsContext.saveGraphicsState()
             clip.addClip()
             // flipped: false → origin is bottom-left, so the liquid sits at the base.
-            let liquid = NSRect(x: inner.minX, y: inner.minY,
-                                width: inner.width, height: inner.height * fill)
             fillColor(for: severity, isNeutral: isNeutral, palette: palette).setFill()
-            NSBezierPath(rect: liquid).fill()
+            if let wavePhase, fill > 0 {
+                liquidSurface(in: inner, fill: fill, phase: wavePhase).fill()
+            } else {
+                NSBezierPath(rect: NSRect(x: inner.minX, y: inner.minY,
+                                          width: inner.width, height: inner.height * fill)).fill()
+            }
             NSGraphicsContext.restoreGraphicsState()
             return true
         }
         image.isTemplate = false
         return image
+    }
+
+    /// One wavelength across the vessel, shifted rightward a frame at a time. The sine is
+    /// centred on the level, so the liquid's mean height is the usage exactly.
+    private static func liquidSurface(in inner: NSRect, fill: CGFloat, phase: Int) -> NSBezierPath {
+        let level = inner.minY + inner.height * fill
+        let shift = CGFloat(phase) / CGFloat(MenuBarSlosh.frameCount)
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: inner.minX, y: inner.minY))
+        let steps = 24
+        for step in 0...steps {
+            let t = CGFloat(step) / CGFloat(steps)
+            let y = level + waveAmplitude * sin(2 * .pi * (t - shift))
+            path.line(to: NSPoint(x: inner.minX + inner.width * t, y: y))
+        }
+        path.line(to: NSPoint(x: inner.maxX, y: inner.minY))
+        path.close()
+        return path
     }
 
     // L1A (Sep 2026): the palette follows the *menu bar's* effective appearance instead of
@@ -121,12 +153,14 @@ enum VesselGlyph {
         let severity: String
         let isNeutral: Bool
         let isDarkMenuBar: Bool
+        let wavePhase: Int?
 
-        init(fillBucket: Int, severity: UsageSeverity, isNeutral: Bool, isDarkMenuBar: Bool) {
+        init(fillBucket: Int, severity: UsageSeverity, isNeutral: Bool, isDarkMenuBar: Bool, wavePhase: Int?) {
             self.fillBucket = fillBucket
             self.severity = String(describing: severity)
             self.isNeutral = isNeutral
             self.isDarkMenuBar = isDarkMenuBar
+            self.wavePhase = wavePhase
         }
     }
 }

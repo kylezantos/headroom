@@ -344,6 +344,14 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
   first-pass identity (Phase 2 owns visual density). The four-provider demo is
   `--demo multi-4` (popover) / the `fourProviders` `DemoScreenshotData` variant (iOS widget).
+- **The menu bar's only motion is the slosh (Oct 2026).** A pill's liquid surface travels
+  while its provider's main account is being probed, timer polls included
+  (`UsageStore.menuBarUpdatingProviders` → `MenuBarSlosh` → `VesselGlyph` wave frames). The
+  level never moves and the numeral still hard-cuts (M10A); a pill finishes its wave before
+  going flat, and Reduce Motion keeps it flat. The popover footer's stamp turns into a
+  per-account receipt during a user refresh (`refreshProgress`, `RefreshReceipt`). Both come
+  from the scheduler's probe and user-progress callbacks; see
+  `design/refresh-stamp-merge-round3.html` (S2) and `…-round4.html` (W4).
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

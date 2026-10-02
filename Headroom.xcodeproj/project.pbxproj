@@ -55,6 +55,7 @@
 		27C1E430A061869E4CE5B144 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */; };
 		27CDCE72E58279D40ED689EE /* MeterStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */; };
 		286DFC6129C0CB8BBC1D93DD /* StatusScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1516F991C6C196F0CDF676CC /* StatusScreen.swift */; };
+		2BBCD575C909816E909358A8 /* MenuBarSlosh.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC8BA877F597FA2B7FAC952 /* MenuBarSlosh.swift */; };
 		2D14D10C880662C7787515B5 /* CodexConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CC53FEEE716121A11701F1 /* CodexConnection.swift */; };
 		2D2C110659ED2DABB204B574 /* CLIExecutableLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */; };
 		2E00B0AFCCC8BDE9CD1E612B /* iCloudSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286C18406A7E80D0E42D1592 /* iCloudSnapshotSync.swift */; };
@@ -176,6 +177,7 @@
 		9FB9D89CA5CCEC804645882A /* UsageContinuityCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CE3E0A64B321BCD7FDD13A6 /* UsageContinuityCache.swift */; };
 		A047E9C26BABE691DE1FE3B1 /* CodexProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F767701AEE449C92A62002E4 /* CodexProvider.swift */; };
 		A0B30F5CE7ABAB50E4F4D0FA /* NotificationPosting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72890BB688FB17D4C12ABA7F /* NotificationPosting.swift */; };
+		A0F89272E20524BCCAD65483 /* RefreshReceiptTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ED98AE933F8E85263F6D5A5 /* RefreshReceiptTests.swift */; };
 		A113A612C726C4102627D24C /* AccountRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F81B2B4E053B23EBFA0DBCD /* AccountRegistry.swift */; };
 		A26582D2FF5A8D5A851910EF /* ResponsiveLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 926228C877EF61458BB10B50 /* ResponsiveLayoutUITests.swift */; };
 		A27287B223C2650991FA44FD /* PlanLabelPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */; };
@@ -400,6 +402,7 @@
 		3CFDB70D92C7145AFEEAF520 /* GrokUsageSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokUsageSource.swift; sourceTree = "<group>"; };
 		3D242FD4C2496701C8997F9A /* claude-color.svg */ = {isa = PBXFileReference; path = "claude-color.svg"; sourceTree = "<group>"; };
 		3D2DD5C8BCCC8BADC9508D07 /* GrokDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokDTOs.swift; sourceTree = "<group>"; };
+		3ED98AE933F8E85263F6D5A5 /* RefreshReceiptTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshReceiptTests.swift; sourceTree = "<group>"; };
 		42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		432AF864130D5870A2FC78CF /* PollingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingEngine.swift; sourceTree = "<group>"; };
 		4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeExecutableDiscoveryInteractionTests.swift; sourceTree = "<group>"; };
@@ -536,6 +539,7 @@
 		FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotCache.swift; sourceTree = "<group>"; };
 		FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterStyle.swift; sourceTree = "<group>"; };
 		FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RaisedTile.swift; sourceTree = "<group>"; };
+		FAC8BA877F597FA2B7FAC952 /* MenuBarSlosh.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarSlosh.swift; sourceTree = "<group>"; };
 		FBD1B51EA4877966201E1485 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		FE86E3CAB67CDE46DF18E438 /* VesselGlyph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VesselGlyph.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -580,6 +584,7 @@
 				5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */,
 				181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */,
 				38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */,
+				3ED98AE933F8E85263F6D5A5 /* RefreshReceiptTests.swift */,
 				18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */,
 			);
 			path = HeadroomAppTests;
@@ -797,6 +802,7 @@
 				33F01DBC9403CF9C5E718EEC /* InAppDisplayTile.swift */,
 				CAAC30B235FDF373550D04AD /* MenuBarLabel.swift */,
 				E129DC7D060EBB5B56418826 /* MenuBarPillArranger.swift */,
+				FAC8BA877F597FA2B7FAC952 /* MenuBarSlosh.swift */,
 				D15A53AE4F679F87EABE633E /* MeterGauge.swift */,
 				7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */,
 				83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */,
@@ -1282,6 +1288,7 @@
 				821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */,
 				DAF8C9B5E2CCBBEAA4547D02 /* PopoverHeaderStatusTests.swift in Sources */,
 				58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */,
+				A0F89272E20524BCCAD65483 /* RefreshReceiptTests.swift in Sources */,
 				FE1967B59E9E2C4E27FF31DD /* SetupWaitingClockRestoreTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -1451,6 +1458,7 @@
 				BBA4810865B29C46A518F02E /* InAppDisplayTile.swift in Sources */,
 				F4D04A6771D231DB885D09E5 /* MenuBarLabel.swift in Sources */,
 				CE9E932C7B2EF1B14A9E1E41 /* MenuBarPillArranger.swift in Sources */,
+				2BBCD575C909816E909358A8 /* MenuBarSlosh.swift in Sources */,
 				9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */,
 				64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */,
 				2E7C9D7AE7AE1AF08FF431F6 /* NotificationsSettingsPane.swift in Sources */,

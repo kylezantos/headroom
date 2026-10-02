@@ -6,13 +6,16 @@ import HeadroomCore
 /// selected weekly percentage optionally shown beside it. The glyph is tinted by weekly
 /// *severity* (healthy → amber → red), not by brand color, so the menu bar means "how
 /// close is my weekly allotment to running out" at a glance; a small warning dot appears
-/// when a provider needs re-auth, so a dead provider isn't silently invisible. Static
-/// only — no pulsing (user's standing rule).
+/// when a provider needs re-auth, so a dead provider isn't silently invisible. Never a
+/// pulse (user's standing rule).
 ///
 /// M10A (Sep 2026): the numeral hard-cuts on every poll, and that is a decision, not a gap.
 /// The label is one rasterized `NSImage` swapped whole, so `contentTransition` has nothing to
-/// attach to; faking a digit roll would mean re-rasterizing frames on a timer in the menu
-/// bar — looping work for a change nobody is watching. Do not add motion here.
+/// attach to; faking a digit roll would mean re-rasterizing frames on a timer.
+///
+/// The one motion here (Oct 2026, Kyle): a pill's liquid sloshes while its provider's main
+/// account is being checked (`MenuBarSlosh`). Frames run only during that work and the level
+/// never moves. Don't add any other motion to the label.
 struct MenuBarLabel: View {
     /// Which appearance the label paints for (L1A).
     enum Appearance {
@@ -26,6 +29,12 @@ struct MenuBarLabel: View {
     let meters: [MenuBarMeter]
     let showsPercentage: Bool
     var appearance: Appearance = .pinnedDark
+    /// Providers whose pill sloshes (`UsageStore.menuBarUpdatingProviders`). Only the real
+    /// status item passes any; the Settings specimens stay still.
+    var updatingProviders: Set<ProviderID> = []
+
+    @State private var slosh = MenuBarSlosh()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         // L1A: the palette is chosen from the *menu bar's* effective appearance, not the
@@ -37,11 +46,18 @@ struct MenuBarLabel: View {
         let result = MenuBarLabelRenderer.render(
             meters: meters,
             showsPercentage: showsPercentage,
-            palette: palette
+            palette: palette,
+            wavePhases: slosh.phases
         )
         Image(nsImage: result.image)
             .accessibilityLabel(result.accessibilityLabel)
             .help(result.tooltip)
+            .onChange(of: updatingProviders, initial: true) { _, updating in
+                slosh.update(updating, reduceMotion: reduceMotion)
+            }
+            .onChange(of: reduceMotion) { _, reduce in
+                slosh.update(updatingProviders, reduceMotion: reduce)
+            }
     }
 
     /// Read inside `body` so SwiftUI's observation tracking re-renders the image the moment
@@ -168,7 +184,8 @@ enum MenuBarLabelRenderer {
     static func render(
         meters: [MenuBarMeter],
         showsPercentage: Bool,
-        palette: MenuBarPalette
+        palette: MenuBarPalette,
+        wavePhases: [ProviderID: Int] = [:]
     ) -> MenuBarLabelRenderResult {
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
         let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?) in
@@ -194,7 +211,8 @@ enum MenuBarLabelRenderer {
                     fill: item.meter.fill,
                     severity: item.meter.summary.severity,
                     isNeutral: item.meter.summary.isNeutral,
-                    palette: palette
+                    palette: palette,
+                    wavePhase: item.meter.summary.providerID.flatMap { wavePhases[$0] }
                 )
                 vessel.draw(in: NSRect(x: x, y: 0, width: vesselWidth, height: height))
                 if item.meter.summary.needsAttention {

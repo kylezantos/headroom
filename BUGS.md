@@ -4,6 +4,15 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## App-target tests can't run while any Headroom.app is open
+
+- The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in
+  `HeadroomApp.swift`) also runs inside the XCTest host. With another Headroom.app running —
+  e.g. a different Conductor workspace's build — the `HeadroomAppTests` host prints "already
+  running" and exits 0, and xcodebuild reports "Early unexpected exit … before establishing
+  connection" (2026-10-02). Exempt the test host (`XCTestConfigurationFilePath` in the
+  environment) the way `--demo` is exempt.
+
 ## Focused render acceptance needs Screen Recording for the launching shell
 
 - `--menu-bar-only` and `--widgets-only` capture only through `screencapture -l` and fail

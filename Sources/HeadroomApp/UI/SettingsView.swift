@@ -330,6 +330,8 @@ struct SettingsView: View {
                 onRequestRemoval: { removalCandidate = $0 },
                 cancelMessageDismissal: { messageDismissals[$0]?.cancel() }
             )
+        case .about:
+            AboutSettingsPane(softwareUpdates: softwareUpdates)
         }
     }
 

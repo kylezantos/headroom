@@ -48,6 +48,7 @@
 		2310A2B62ACA0CAA20FDA2CE /* ClaudeAccountEmailReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */; };
 		23A49F90A5EF9ED0B6D0A077 /* WidgetTypeScale.swift in Sources */ = {isa = PBXBuildFile; fileRef = D396D8FF6350A769E62CD75C /* WidgetTypeScale.swift */; };
 		2437241F091A895D5EDDFC26 /* CodexAuthReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C08AE77A399A208C20733351 /* CodexAuthReader.swift */; };
+		24BF6A2DD1946A7AA6E78F09 /* AboutLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C87AA93B0F97F2D0379897 /* AboutLinks.swift */; };
 		258D60A36D7318D7FCEE3D37 /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
 		26694A6035B5631AA476C3B8 /* WidgetSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */; };
 		26A70E96DCC281DF9BDD869A /* IdentityRowResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */; };
@@ -362,6 +363,7 @@
 		1516F991C6C196F0CDF676CC /* StatusScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusScreen.swift; sourceTree = "<group>"; };
 		181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverHeaderStatusTests.swift; sourceTree = "<group>"; };
 		18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWaitingClockRestoreTests.swift; sourceTree = "<group>"; };
+		19C87AA93B0F97F2D0379897 /* AboutLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutLinks.swift; sourceTree = "<group>"; };
 		1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomTimelineProvider.swift; sourceTree = "<group>"; };
 		1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
 		1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomMotionTests.swift; sourceTree = "<group>"; };
@@ -617,6 +619,7 @@
 		2B5A3EF0BAEA59D9B960C11F /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				19C87AA93B0F97F2D0379897 /* AboutLinks.swift */,
 				6F81B2B4E053B23EBFA0DBCD /* AccountRegistry.swift */,
 				07F251BFF52315295F65977E /* BankedResetAcknowledgements.swift */,
 				42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */,
@@ -1299,6 +1302,7 @@
 			files = (
 				C783F2F2706BC1861515E895 /* APISpendPresentation.swift in Sources */,
 				93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */,
+				24BF6A2DD1946A7AA6E78F09 /* AboutLinks.swift in Sources */,
 				01F5298BBF7958F27A848A8A /* Account.swift in Sources */,
 				9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */,
 				E3DAD680F61370E67E369D19 /* AccountProbeScheduler.swift in Sources */,

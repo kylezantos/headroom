@@ -2,8 +2,8 @@ import AppKit
 import SwiftUI
 import HeadroomCore
 
-/// Sidebar column of the Settings window (R1/R3): identity block on top, then the seven
-/// destinations in two sections. Order and section membership are read straight off
+/// Sidebar column of the Settings window (R1/R3): identity block on top, then the
+/// destinations in their sections. Order and section membership are read straight off
 /// `SettingsPane`, so there is no second list to keep in sync.
 ///
 /// KTD1: the list is a value-driven `List(selection:)`, never `NavigationLink(destination:)`
@@ -61,21 +61,10 @@ struct SettingsSidebar: View {
 
             List(selection: $selection) {
                 ForEach(SettingsPane.Group.allCases) { group in
-                    Section(group.label) {
-                        ForEach(group.panes) { pane in
-                            Label {
-                                Text(pane.label)
-                            } icon: {
-                                Image(systemName: pane.symbolName)
-                                    .imageScale(pane.symbolScale)
-                            }
-                            // The column is sized for the longest destination
-                            // ("Widgets & iPhone", 108pt of glyphs at 13pt), but a
-                            // future name or a larger text size must truncate on one
-                            // line rather than wrap a sidebar row to two.
-                            .lineLimit(1)
-                            .tag(pane)
-                        }
+                    if let label = group.label {
+                        Section(label) { rows(for: group) }
+                    } else {
+                        Section { rows(for: group) }
                     }
                 }
             }
@@ -84,6 +73,23 @@ struct SettingsSidebar: View {
         }
         // R2M8: focus the destination list when the window opens.
         .defaultFocus($listFocused, true)
+    }
+
+    private func rows(for group: SettingsPane.Group) -> some View {
+        ForEach(group.panes) { pane in
+            Label {
+                Text(pane.label)
+            } icon: {
+                Image(systemName: pane.symbolName)
+                    .imageScale(pane.symbolScale)
+            }
+            // The column is sized for the longest destination
+            // ("Widgets & iPhone", 108pt of glyphs at 13pt), but a
+            // future name or a larger text size must truncate on one
+            // line rather than wrap a sidebar row to two.
+            .lineLimit(1)
+            .tag(pane)
+        }
     }
 
     /// Identity block replacing the removed window title and Done footer (KD3). The mark
@@ -153,6 +159,7 @@ extension SettingsPane {
         case .notifications: "bell"
         case .accounts: "person"
         case .apiSpend: "key"
+        case .about: "info.circle"
         }
     }
 
@@ -164,7 +171,7 @@ extension SettingsPane {
     var symbolScale: Image.Scale {
         switch self {
         case .accounts, .apiSpend: .large
-        case .general, .appearance, .menuBar, .widgets, .notifications: .medium
+        case .general, .appearance, .menuBar, .widgets, .notifications, .about: .medium
         }
     }
 }

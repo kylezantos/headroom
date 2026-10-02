@@ -117,14 +117,7 @@ struct GeneralSettingsPane: View {
             // (debug/CLI builds lack the Sparkle Info.plist keys). A button that can
             // never be pressed reads as broken. (R3: the removed footer's action.)
             if softwareUpdates.canCheckForUpdates {
-                SettingsTile("Updates") {
-                    ResponsiveControlRow(label: versionRowLabel) {
-                        Button("Check for Updates…") {
-                            softwareUpdates.checkForUpdates()
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
+                SoftwareUpdatesTile(softwareUpdates: softwareUpdates) {
                     VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                         SettingsSwitchRow(
                             title: "Automatically check for updates",
@@ -137,6 +130,47 @@ struct GeneralSettingsPane: View {
                     }
                 }
             }
+        }
+    }
+}
+
+/// The Updates tile: the version beside "Check for Updates…" and when Sparkle last looked.
+/// General and About both carry it; General adds the background-check switch under it, so
+/// the preference has one home.
+struct SoftwareUpdatesTile<Extra: View>: View {
+    let softwareUpdates: SoftwareUpdateControlling
+    private let extra: Extra
+
+    init(softwareUpdates: SoftwareUpdateControlling, @ViewBuilder extra: () -> Extra) {
+        self.softwareUpdates = softwareUpdates
+        self.extra = extra()
+    }
+
+    init(softwareUpdates: SoftwareUpdateControlling) where Extra == EmptyView {
+        self.init(softwareUpdates: softwareUpdates) { EmptyView() }
+    }
+
+    var body: some View {
+        SettingsTile("Updates") {
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                ResponsiveControlRow(label: versionRowLabel) {
+                    Button("Check for Updates…") {
+                        softwareUpdates.checkForUpdates()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+                // Sparkle's date isn't observable, so the line re-reads it on a slow tick
+                // and picks up a check made while the pane is open.
+                TimelineView(.periodic(from: .now, by: 15)) { _ in
+                    if let lastChecked = softwareUpdates.lastUpdateCheckDate {
+                        SettingsHelpText(
+                            text: "Last checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))"
+                        )
+                    }
+                }
+            }
+            extra
         }
     }
 
@@ -1080,5 +1114,85 @@ private struct MenuBarPreviewKey: Hashable {
     init(meters: [MenuBarMeter], showsPercentage: Bool) {
         self.meters = String(describing: meters)
         self.showsPercentage = showsPercentage
+    }
+}
+
+// MARK: - About
+
+/// Updates, the tip jar, and who made Headroom. Every row but the update check opens a
+/// browser; the URLs live in Core's `AboutLinks`.
+struct AboutSettingsPane: View {
+    let softwareUpdates: SoftwareUpdateControlling
+
+    var body: some View {
+        SettingsPaneScaffold(SettingsPane.about.label) {
+            // Hidden in debug/CLI builds for the same reason as General's: no updater.
+            if softwareUpdates.canCheckForUpdates {
+                SoftwareUpdatesTile(softwareUpdates: softwareUpdates)
+            }
+
+            SettingsTile("Support") {
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                    SettingsLinkList(links: [AboutLinks.tipJar])
+                    SettingsHelpText(text: AboutLinks.tipJarNote)
+                }
+            }
+
+            SettingsTile("Made by \(AboutLinks.makerName)") {
+                SettingsLinkList(links: AboutLinks.maker)
+            }
+        }
+    }
+}
+
+/// Outbound link rows separated by hairlines: title on the leading edge, destination and an
+/// arrow on the trailing edge, the same label-left/control-right grammar as every other row.
+struct SettingsLinkList: View {
+    let links: [AboutLink]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(links) { link in
+                if link.id != links.first?.id {
+                    Divider()
+                }
+                SettingsLinkRow(link: link)
+            }
+        }
+    }
+}
+
+private struct SettingsLinkRow: View {
+    let link: AboutLink
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(link.url)
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(link.title)
+                    .foregroundStyle(.primary)
+                Spacer(minLength: 12)
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(link.destination)
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+                .foregroundStyle(isHovered ? .primary : .secondary)
+                .lineLimit(1)
+            }
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(link.url.absoluteString)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(link.title), \(link.destination)")
+        .accessibilityHint("Opens in your browser")
+        .accessibilityAddTraits(.isLink)
     }
 }

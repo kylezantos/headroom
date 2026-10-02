@@ -127,11 +127,30 @@ struct MeterGauge: View {
     @ViewBuilder
     private func continuousTrack(shape: GaugeShape) -> some View {
         if shape == .machined {
-            RoundedRectangle(cornerRadius: gaugeHeight / 2, style: .continuous)
+            let well = RoundedRectangle(cornerRadius: gaugeHeight / 2, style: .continuous)
+            well
                 .fill(ProviderStyle.meterWellBackground(scheme: scheme))
                 .overlay {
-                    RoundedRectangle(cornerRadius: gaugeHeight / 2, style: .continuous)
-                        .strokeBorder(ProviderStyle.meterWellShadow(scheme: scheme), lineWidth: 0.75)
+                    if style.format == .full {
+                        // MX4: lit from above — a shade under the top edge fading out by 1.4pt,
+                        // a lip along the bottom 1pt, and a hairline that only holds the edge.
+                        let shade = ProviderStyle.meterWellTopShade(scheme: scheme)
+                        let lip = ProviderStyle.meterWellBottomLip(scheme: scheme)
+                        let height = max(gaugeHeight, 1)
+                        well.fill(LinearGradient(
+                            stops: [
+                                .init(color: shade, location: 0),
+                                .init(color: shade.opacity(0), location: 1.4 / height),
+                                .init(color: lip.opacity(0), location: 1 - 1 / height),
+                                .init(color: lip, location: 1),
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ))
+                        well.strokeBorder(ProviderStyle.meterWellHairline(scheme: scheme), lineWidth: 0.5)
+                    } else {
+                        well.strokeBorder(ProviderStyle.meterWellShadow(scheme: scheme), lineWidth: 0.75)
+                    }
                 }
         } else {
             // R2C15: at critical the track takes the critical hue at constant lightness, so
@@ -147,10 +166,18 @@ struct MeterGauge: View {
         }
     }
 
-    /// L8A: the menu bar vessel's recipe (`VesselGlyph.render`). The body is a plain rect of
-    /// `fillLength` and the *track's own shape* clips the whole layer, so the base inherits the
-    /// track's rounding while the trailing edge stays dead flat. The gradient fills still span
-    /// the body, not the track, because the clip sits outside the body's frame.
+    /// L8A: the body is `fillLength` long and the *track's own shape* clips the whole layer,
+    /// so the base inherits the track's rounding. The gradient fills span the body, not the
+    /// track, because the clip sits outside the body's frame.
+    ///
+    /// MX1/MX6 (Kyle, Oct 2026): "the full meters should actually be rounded on the ends, not
+    /// flat." The body is now its own capsule, so the trailing end curves the way the track
+    /// does; `fillLength` is floored at the fill's thickness so the smallest bar is a dot. This
+    /// supersedes L8A's flat trailing edge in the popover — the menu bar vessel keeps its own.
+    ///
+    /// MX4: under Machined's quarter marks the body is backed by the opaque well colour, so a
+    /// translucent fill (Ghost, Glass, dark Solid) no longer lets the marks show through the
+    /// lit run. Over the bare well that backing is invisible.
     private func continuousFillLayer(
         shape: GaugeShape,
         recipe: MeterFillRecipe,
@@ -158,10 +185,12 @@ struct MeterGauge: View {
     ) -> some View {
         let isVertical = shape == .tube
         return continuousFillBody(shape: shape, recipe: recipe)
+            .background(style.drawsQuarterMarks ? ProviderStyle.meterWellBackground(scheme: scheme) : .clear)
             .frame(
                 width: isVertical ? nil : fillLength,
                 height: isVertical ? fillLength : nil
             )
+            .clipShape(Capsule(style: .continuous))
             .frame(
                 maxWidth: .infinity,
                 maxHeight: .infinity,
@@ -189,7 +218,9 @@ struct MeterGauge: View {
         let center = continuousInset + CGFloat(MeterGeometry.capCenterOffset(
             fillLength: Double(fillLength),
             available: Double(available),
-            cap: cap
+            cap: cap,
+            // MX1: Full's cap lands flush on the fill's rounded end; Micro's straddles it.
+            flushWithFillEnd: style.format == .full
         ))
         let travel = center - CGFloat(cap.thickness) / 2
         return RoundedRectangle(cornerRadius: CGFloat(cap.cornerRadius), style: .continuous)
@@ -226,6 +257,7 @@ struct MeterGauge: View {
             LinearGradient(
                 colors: ProviderStyle.meterRampColors(
                     for: severity,
+                    format: style.format,
                     surface: shape == .machined ? .well : .flat,
                     scheme: scheme,
                     increasedContrast: increasedContrast
@@ -261,12 +293,17 @@ struct MeterGauge: View {
         )
         let rampStops = style.fill == .hueRamp
             ? MeterRecipe.rampStops(
+                format: style.format,
                 severity: severity,
                 scheme: scheme == .dark ? .dark : .light,
                 surface: .well,
                 increasedContrast: increasedContrast
             )
             : nil
+
+        // MX3: the lit tip stands proud of the row (Full only); the HStack's outer frame keeps
+        // the row at `gaugeHeight`, so the extra height overflows rather than growing the row.
+        let tipHeight = CGFloat(miniatureCell?.tipHeight ?? MeterGeometry.tipCellHeight(for: style.format))
 
         return HStack(spacing: gap) {
             ForEach(0..<cells, id: \.self) { index in
@@ -279,7 +316,7 @@ struct MeterGauge: View {
                     ))
                     .frame(
                         width: style.format == .micro ? CGFloat(MeterGeometry.microCellWidth) : nil,
-                        height: gaugeHeight
+                        height: index == lit - 1 ? tipHeight : gaugeHeight
                     )
                     .frame(maxWidth: style.format == .full ? .infinity : nil)
             }
@@ -300,7 +337,9 @@ struct MeterGauge: View {
         )
         switch cellRecipe {
         case .off:
+            // MX3: Full's fourteen empties step back so the lit run reads as the meter.
             return ProviderStyle.meterTickOff(scheme: scheme)
+                .opacity(style.format == .full ? HeadroomMeterColorValues.fullUnlitCellScale : 1)
         case .body(let fill):
             // FS1 (Kyle, Sep 2026): the tip is the reading; the body is the trail behind it.
             // Body cells step back to `segmentBodyAttenuation` of their own colour so the tip
@@ -393,7 +432,19 @@ struct MeterGauge: View {
         CGFloat(MeterGeometry.continuousFillLength(
             available: Double(available),
             fraction: clampedFraction,
-            format: style.format
+            minimum: MeterGeometry.roundedMinimumFillLength(
+                for: style.format,
+                thickness: Double(continuousFillThickness)
+            )
         ))
+    }
+
+    /// MX1: the fill's thickness across its travel axis — the track inside its inset.
+    private var continuousFillThickness: CGFloat {
+        let across: CGFloat = switch (style.format, resolvedShape) {
+        case (.micro, .tube): CGFloat(MeterGeometry.microTubeWidth)
+        default: gaugeHeight
+        }
+        return max(0, across - continuousInset * 2)
     }
 }

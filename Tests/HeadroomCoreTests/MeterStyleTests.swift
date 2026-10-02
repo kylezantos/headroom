@@ -87,11 +87,15 @@ struct MeterStyleTests {
         #expect(MeterGeometry.fullTrackHeight == 8)
         #expect(MeterGeometry.fullTrackInset == 1.5)
         // FS2: the Full cell is the Micro cell scaled up (~2.9×), not its own drawing.
-        #expect(MeterGeometry.fullCellHeight == 10)
-        #expect(MeterGeometry.fullCellGap == 4.5)
+        // MX3: Full cells sit at the 8pt track height with a 10pt proud tip.
+        #expect(MeterGeometry.fullCellHeight == 8)
+        #expect(MeterGeometry.fullCellGap == 3.5)
         #expect(MeterGeometry.microCellRadius == 1.5)
-        #expect(MeterGeometry.fullCellRadius == 2.6)
-        #expect(MeterGeometry.fullCellNominalWidth == 15.7)
+        #expect(MeterGeometry.fullCellRadius == 2.5)
+        #expect(MeterGeometry.fullCellNominalWidth == 16.6)
+        #expect(MeterGeometry.fullTipCellHeight == 10)
+        #expect(MeterGeometry.tipCellHeight(for: .full) == MeterGeometry.fullCap.length)
+        #expect(MeterGeometry.tipCellHeight(for: .micro) == MeterGeometry.microCellHeight)
         #expect(MeterGeometry.fullMinimumFillLength == 6)
         #expect(MeterGeometry.microMinimumFillLength == 3)
         #expect(MeterRecipe.cellCount(for: .micro) == 5)
@@ -105,11 +109,14 @@ struct MeterStyleTests {
     /// to a third of the cell pitch, and the corner radius is roughly a quarter to a third of
     /// the cell height. This test is the guard rail on a later retune of one format alone —
     /// it fails if Micro or Full drifts out of the shared band, not if either number moves.
+    ///
+    /// MX3 (Oct 2026) widened the gap floor 0.20 → 0.15: Full's tighter 3.5pt gap sits at
+    /// ≈ 17% of pitch, Micro's at 25%. The radius band is unchanged.
     @Test func segmentedCellsAreOneFamilyAcrossFormats() {
         let widths: [(format: GaugeFormat, width: Double)] = [
             (.micro, MeterGeometry.microCellWidth),
             // Full cells flex to fill the row; this is the width 10 of them land on across the
-            // popover's measured 278pt meter run — (278 − 13 × 4.5) / 14 ≈ 15.7.
+            // popover's measured 278pt meter run — (278 − 13 × 3.5) / 14 ≈ 16.6.
             (.full, MeterGeometry.fullCellNominalWidth),
         ]
         // Both formats are covered, so adding a third can't quietly skip the family check.
@@ -121,7 +128,7 @@ struct MeterStyleTests {
             let radius = MeterGeometry.cellRadius(for: format)
 
             let gapShare = gap / (width + gap)
-            #expect(gapShare >= 0.20, "\(format) gap/pitch \(gapShare) is below the family band")
+            #expect(gapShare >= 0.15, "\(format) gap/pitch \(gapShare) is below the family band")
             #expect(gapShare <= 0.30, "\(format) gap/pitch \(gapShare) is above the family band")
 
             let radiusShare = radius / height
@@ -184,19 +191,23 @@ struct MeterStyleTests {
         #expect(abs(mini.radius - real.r * scale) < 0.001)
         #expect(abs(mini.width / mini.height - real.w / real.h) < 0.001)
         #expect(abs(mini.gap / (mini.width + mini.gap) - real.g / (real.w + real.g)) < 0.001)
+        #expect(abs(mini.tipHeight - MeterGeometry.fullTipCellHeight * scale) < 0.001)
         #expect(MeterGeometry.miniatureCell(for: .micro).width == MeterGeometry.microCellWidth)
-        // Six miniature Full cells fit the 60pt Format fragment at the shipped proportions.
-        #expect(MeterGeometry.segmentCount(fittingWidth: 60, cellWidth: mini.width, gap: mini.gap) == 6)
+        #expect(MeterGeometry.miniatureCell(for: .micro).tipHeight == MeterGeometry.microCellHeight)
+        // MX3: the wider 8pt-tall Full cell scales to fewer, wider miniatures — four fit the
+        // 60pt Format fragment at the shipped proportions (six under FS2's taller cell).
+        #expect(MeterGeometry.segmentCount(fittingWidth: 60, cellWidth: mini.width, gap: mini.gap) == 4)
     }
 
     /// L7B: the cap is its own marker with Kyle's approved constants, not a slice of the fill.
     /// It is longer than its track on purpose — 1pt proud on each side of the 8pt full track
     /// and of the 5pt micro chip and tube.
     @Test func capGeometryMatchesTheApprovedMarkerConstants() {
+        // MX1: Full's cap is a 3pt round-ended pill.
         #expect(MeterGeometry.fullCap == MeterCapGeometry(
-            thickness: 2.5,
+            thickness: 3,
             length: 10,
-            cornerRadius: 1.25
+            cornerRadius: 1.5
         ))
         #expect(MeterGeometry.microCap == MeterCapGeometry(
             thickness: 2,
@@ -206,8 +217,8 @@ struct MeterStyleTests {
         #expect(MeterGeometry.cap(for: .full) == MeterGeometry.fullCap)
         #expect(MeterGeometry.cap(for: .micro) == MeterGeometry.microCap)
 
-        // Full · chip and machined: 2.5 wide × 10 tall, 1pt proud of the 8pt track.
-        #expect(MeterGeometry.fullCap.width(on: .horizontal) == 2.5)
+        // Full · chip and machined: 3 wide × 10 tall, 1pt proud of the 8pt track.
+        #expect(MeterGeometry.fullCap.width(on: .horizontal) == 3)
         #expect(MeterGeometry.fullCap.height(on: .horizontal) == 10)
         #expect(MeterGeometry.fullCap.overhang(onTrackThickness: MeterGeometry.fullTrackHeight) == 1)
 
@@ -239,6 +250,14 @@ struct MeterStyleTests {
         #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 1.4, format: .full) == 100)
         // A track shorter than the floor never overflows its own run.
         #expect(MeterGeometry.continuousFillLength(available: 4, fraction: 0.01, format: .full) == 4)
+
+        // MX1/MX6: the popover's rounded fills floor at their own thickness where that is larger.
+        #expect(MeterGeometry.roundedMinimumFillLength(for: .full, thickness: 8) == 8)
+        #expect(MeterGeometry.roundedMinimumFillLength(for: .full, thickness: 5) == 6)
+        #expect(MeterGeometry.roundedMinimumFillLength(for: .micro, thickness: 5) == 5)
+        #expect(MeterGeometry.roundedMinimumFillLength(for: .micro, thickness: 2) == 3)
+        #expect(MeterGeometry.continuousFillLength(available: 278, fraction: 0.01, minimum: 8) == 8)
+        #expect(MeterGeometry.continuousFillLength(available: 5, fraction: 0.01, minimum: 8) == 5)
 
         for format in GaugeFormat.allCases {
             #expect(MeterGeometry.continuousFillLength(available: 100, fraction: 0, format: format) == 0)
@@ -276,9 +295,15 @@ struct MeterStyleTests {
         #expect(parkedMicro - micro.thickness / 2 > 0)
 
         // At 100% the whole marker stays within the track.
-        #expect(MeterGeometry.capCenterOffset(fillLength: 100, available: 100, cap: full) == 98.75)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 100, available: 100, cap: full) == 98.5)
         #expect(MeterGeometry.capCenterOffset(fillLength: 32, available: 32, cap: micro) == 31)
         #expect(MeterGeometry.capCenterOffset(fillLength: 16, available: 16, cap: micro) == 15)
+
+        // MX1: flush, the cap's trailing edge lands on the fill end, and it still parks inside.
+        #expect(MeterGeometry.capCenterOffset(fillLength: 74, available: 100, cap: full, flushWithFillEnd: true) == 72.5)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 8, available: 100, cap: full, flushWithFillEnd: true) == 6.5)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 1, available: 100, cap: full, flushWithFillEnd: true) == 1.5)
+        #expect(MeterGeometry.capCenterOffset(fillLength: 100, available: 100, cap: full, flushWithFillEnd: true) == 98.5)
 
         // Degenerate track shorter than the cap: center it instead of producing a negative.
         #expect(MeterGeometry.capCenterOffset(fillLength: 2, available: 2, cap: full) == 1)
@@ -333,6 +358,76 @@ struct MeterStyleTests {
                 }
             }
         }
+    }
+
+    /// MX2 (Oct 2026): Full's Fade is a short, eased ramp — the fill's hue at reduced chroma,
+    /// shifted a fixed lightness step toward the card — and Micro keeps the surface-weighted
+    /// ramp unchanged. The hue pin from R2C12 holds for both.
+    @Test func fullRampIsShortEasedAndHoldsItsHue() {
+        for scheme in MeterColorScheme.allCases {
+            for increasedContrast in [false, true] {
+                for severity in [UsageSeverity.healthy, .low, .critical] {
+                    let label = "\(severity) \(scheme) ic=\(increasedContrast)"
+                    let stops = MeterRecipe.fullRampStops(
+                        severity: severity,
+                        scheme: scheme,
+                        increasedContrast: increasedContrast
+                    )
+                    let fill = HeadroomSeverityColorValues.fill(
+                        for: severity,
+                        dark: scheme == .dark,
+                        increasedContrast: increasedContrast
+                    )
+                    #expect(stops.end == fill, "\(label) end")
+                    #expect(stops.easing == HeadroomMeterColorValues.fullRampEasing)
+
+                    let start = HeadroomOKLCH(stops.start)
+                    let end = HeadroomOKLCH(stops.end)
+                    let shift = start.lightness - end.lightness
+                    let expected = HeadroomMeterColorValues.fullRampLightnessShift
+                    // Gamut clamping can trim the step by a hair at the saturated ends.
+                    #expect(abs(abs(shift) - expected) < 0.02, "\(label) shift \(shift)")
+                    #expect(scheme == .dark ? shift < 0 : shift > 0, "\(label) shifts toward the card")
+                    #expect(start.chroma < end.chroma, "\(label) start is the quieter end")
+
+                    let reference = end.hue
+                    for step in 0...20 {
+                        let hue = HeadroomOKLCH(stops.color(at: Double(step) / 20)).hue
+                        let drift = abs((hue - reference + 540).truncatingRemainder(dividingBy: 360) - 180)
+                        #expect(drift < 2, "\(label) at \(step): \(drift)°")
+                    }
+
+                    // Eased out: halfway along the bar is already past halfway to the fill.
+                    let halfway = HeadroomOKLCH(stops.color(at: 0.5)).lightness
+                    let linearHalfway = (start.lightness + end.lightness) / 2
+                    #expect(abs(halfway - end.lightness) < abs(linearHalfway - end.lightness), "\(label) eases")
+
+                    let samples = stops.gradientSamples
+                    #expect(samples.count == 9)
+                    #expect(channelDistance(samples[0], stops.start) < 0.001)
+                    #expect(channelDistance(samples[8], stops.end) < 0.001)
+
+                    // Format routing: Full takes this ramp on every surface; Micro keeps its own.
+                    for surface in [MeterRampSurface.flat, .well] {
+                        #expect(MeterRecipe.rampStops(
+                            format: .full, severity: severity, scheme: scheme,
+                            surface: surface, increasedContrast: increasedContrast
+                        ) == stops)
+                        #expect(MeterRecipe.rampStops(
+                            format: .micro, severity: severity, scheme: scheme,
+                            surface: surface, increasedContrast: increasedContrast
+                        ) == MeterRecipe.rampStops(
+                            severity: severity, scheme: scheme,
+                            surface: surface, increasedContrast: increasedContrast
+                        ))
+                    }
+                }
+            }
+        }
+        // Micro's linear ramp still draws exactly its three stops.
+        let micro = MeterRecipe.rampStops(severity: .low, scheme: .dark, surface: .flat)
+        #expect(micro.easing == 1)
+        #expect(micro.gradientSamples == [micro.start, micro.midpoint, micro.end])
     }
 
     /// R2C12: the Fill option named "Hue ramp" was the one thing in the meter that moved hue,

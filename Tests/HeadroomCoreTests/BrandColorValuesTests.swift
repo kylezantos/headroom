@@ -346,6 +346,15 @@ struct BrandColorValuesTests {
         ))
         #expect(HeadroomMeterColorValues.wellShadow(dark: true) == HeadroomTint(color: .black, opacity: 0.65))
         #expect(HeadroomMeterColorValues.wellShadow(dark: false) == HeadroomTint(color: .black, opacity: 0.20))
+        // MX4: Full Machined's lit-from-above well.
+        #expect(HeadroomMeterColorValues.wellTopShade(dark: true) == HeadroomTint(color: .black, opacity: 0.55))
+        #expect(HeadroomMeterColorValues.wellTopShade(dark: false) == HeadroomTint(color: .black, opacity: 0.16))
+        #expect(HeadroomMeterColorValues.wellBottomLip(dark: true) == HeadroomTint(color: .white, opacity: 0.06))
+        #expect(HeadroomMeterColorValues.wellBottomLip(dark: false) == HeadroomTint(color: .white, opacity: 0.55))
+        #expect(HeadroomMeterColorValues.wellHairline(dark: true) == HeadroomTint(color: .black, opacity: 0.35))
+        #expect(HeadroomMeterColorValues.wellHairline(dark: false) == HeadroomTint(color: .black, opacity: 0.06))
+        // MX3: Full's unlit cells step back from `tickOff`.
+        #expect(HeadroomMeterColorValues.fullUnlitCellScale == 0.70)
 
         #expect(HeadroomMeterColorValues.tickOff(dark: true) == HeadroomTint(color: .white, opacity: 0.09))
         #expect(HeadroomMeterColorValues.tickOff(dark: false) == HeadroomTint(color: .black, opacity: 0.08))
@@ -536,6 +545,26 @@ struct BrandColorValuesTests {
                         ).start
                         #expect(rgbChroma(start) >= 0.04, "\(severity), \(scheme), \(surface), ic=\(increasedContrast)")
                     }
+                }
+            }
+        }
+    }
+
+    /// MX2: the harshness Kyle saw was the dark Full Fade starting *below* the track it sits
+    /// on — mixed toward black, the start was a hole in the bar. Full's start now stays at or
+    /// above the dark track's lightness on both card fills, so the ramp only ever brightens.
+    @Test func darkFullRampStartsNeverSinkBelowTheTrack() {
+        for background in raisedTileFillColors(dark: true) {
+            let track = HeadroomOKLCH(composite(HeadroomWidgetColorValues.barTrack(dark: true), over: background))
+            for increasedContrast in [false, true] {
+                for severity in [UsageSeverity.healthy, .low, .critical] {
+                    let start = HeadroomOKLCH(MeterRecipe.fullRampStops(
+                        severity: severity,
+                        scheme: .dark,
+                        increasedContrast: increasedContrast
+                    ).start)
+                    #expect(start.lightness > track.lightness, "\(severity) ic=\(increasedContrast)")
+                    #expect(rgbChroma(start.rgb) >= 0.04, "\(severity) ic=\(increasedContrast) keeps its colour")
                 }
             }
         }

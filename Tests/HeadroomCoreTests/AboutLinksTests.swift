@@ -33,3 +33,10 @@ struct AboutLinksTests {
         #expect(!AboutLinks.tipJarNote.localizedCaseInsensitiveContains("open source"))
     }
 }
+
+extension AboutLinksTests {
+    @Test func headerAndTipJarCopyAreTheApprovedWording() {
+        #expect(AboutLinks.tagline == "AI usage limits + API spend right from your menu bar")
+        #expect(AboutLinks.tipJarNote == "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe.")
+    }
+}

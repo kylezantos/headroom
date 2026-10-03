@@ -54,13 +54,13 @@ struct GeneralSettingsPane: View {
     @Binding var intervalMinutes: Int
     @Binding var launchAtLogin: Bool
     @Binding var automaticUpdateChecks: Bool
+    @Binding var automaticUpdateDownloads: Bool
     let softwareUpdates: SoftwareUpdateControlling
     /// KTD12: names each provider whose effective interval exceeds the chosen one; nil
     /// while every promise is kept (R10).
     let cadenceSentence: String?
     let onIntervalChange: (Int) -> Void
     let onLaunchAtLoginChange: (Bool) -> Void
-    let onAutomaticUpdateChecksChange: (Bool) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -117,69 +117,64 @@ struct GeneralSettingsPane: View {
             // (debug/CLI builds lack the Sparkle Info.plist keys). A button that can
             // never be pressed reads as broken. (R3: the removed footer's action.)
             if softwareUpdates.canCheckForUpdates {
-                SoftwareUpdatesTile(softwareUpdates: softwareUpdates) {
-                    VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                        SettingsSwitchRow(
-                            title: "Automatically check for updates",
-                            isOn: $automaticUpdateChecks
-                        )
-                        .onChange(of: automaticUpdateChecks) { _, newValue in
-                            onAutomaticUpdateChecksChange(newValue)
-                        }
-                        SettingsHelpText(text: "Headroom checks in the background and tells you when a new version is ready.")
-                    }
-                }
+                SoftwareUpdatesTile(
+                    softwareUpdates: softwareUpdates,
+                    automaticChecks: $automaticUpdateChecks,
+                    automaticDownloads: $automaticUpdateDownloads
+                )
             }
         }
     }
 }
 
-/// The Updates tile: the version beside "Check for Updates…" and when Sparkle last looked.
-/// General and About both carry it; General adds the background-check switch under it, so
-/// the preference has one home.
-struct SoftwareUpdatesTile<Extra: View>: View {
+/// The Updates tile, carried by both General and About over the same bindings: the two
+/// Sparkle preferences, then "Check for Updates…" beside when Sparkle last looked. The
+/// version lives in the sidebar stamp and About's header, so this row doesn't repeat it.
+struct SoftwareUpdatesTile: View {
     let softwareUpdates: SoftwareUpdateControlling
-    private let extra: Extra
-
-    init(softwareUpdates: SoftwareUpdateControlling, @ViewBuilder extra: () -> Extra) {
-        self.softwareUpdates = softwareUpdates
-        self.extra = extra()
-    }
-
-    init(softwareUpdates: SoftwareUpdateControlling) where Extra == EmptyView {
-        self.init(softwareUpdates: softwareUpdates) { EmptyView() }
-    }
+    @Binding var automaticChecks: Bool
+    @Binding var automaticDownloads: Bool
 
     var body: some View {
         SettingsTile("Updates") {
+            SettingsSwitchRow(title: "Automatically check for updates", isOn: $automaticChecks)
+                .onChange(of: automaticChecks) { _, newValue in
+                    softwareUpdates.automaticallyChecksForUpdates = newValue
+                }
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                ResponsiveControlRow(label: versionRowLabel) {
-                    Button("Check for Updates…") {
-                        softwareUpdates.checkForUpdates()
+                SettingsSwitchRow(title: "Download and install updates automatically", isOn: $automaticDownloads)
+                    .onChange(of: automaticDownloads) { _, newValue in
+                        softwareUpdates.automaticallyDownloadsUpdates = newValue
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                // Sparkle's date isn't observable, so the line re-reads it on a slow tick
-                // and picks up a check made while the pane is open.
-                TimelineView(.periodic(from: .now, by: 15)) { _ in
-                    if let lastChecked = softwareUpdates.lastUpdateCheckDate {
-                        SettingsHelpText(
-                            text: "Last checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))"
-                        )
-                    }
-                }
+                SettingsHelpText(text: "Installs when you quit Headroom.")
             }
-            extra
+            // Sparkle only downloads on its own background checks, so with those off this
+            // switch could never act. Dimmed rather than hidden, so the dependency is visible.
+            .disabled(!automaticChecks)
+
+            checkRow
         }
     }
 
-    /// The bundle's version beside the check button, in the About-panel form
-    /// ("Version 1.4.0 (32)"). The tile only renders in a configured release bundle, so
-    /// the number is present in practice; the bare label is the safe fallback.
-    private var versionRowLabel: String {
-        guard let version = AppVersionLabel.plain else { return "Version" }
-        return "Version \(version)"
+    private var checkRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Button("Check for Updates…") {
+                softwareUpdates.checkForUpdates()
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            Spacer(minLength: 12)
+            // Sparkle's date isn't observable, so the line re-reads it on a slow tick and
+            // picks up a check made while the pane is open.
+            TimelineView(.periodic(from: .now, by: 15)) { _ in
+                if let lastChecked = softwareUpdates.lastUpdateCheckDate {
+                    Text("Last checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))")
+                        .font(SettingsType.help)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
     }
 }
 
@@ -1123,12 +1118,20 @@ private struct MenuBarPreviewKey: Hashable {
 /// browser; the URLs live in Core's `AboutLinks`.
 struct AboutSettingsPane: View {
     let softwareUpdates: SoftwareUpdateControlling
+    @Binding var automaticUpdateChecks: Bool
+    @Binding var automaticUpdateDownloads: Bool
 
     var body: some View {
         SettingsPaneScaffold(SettingsPane.about.label) {
+            AboutIdentityCard()
+
             // Hidden in debug/CLI builds for the same reason as General's: no updater.
             if softwareUpdates.canCheckForUpdates {
-                SoftwareUpdatesTile(softwareUpdates: softwareUpdates)
+                SoftwareUpdatesTile(
+                    softwareUpdates: softwareUpdates,
+                    automaticChecks: $automaticUpdateChecks,
+                    automaticDownloads: $automaticUpdateDownloads
+                )
             }
 
             SettingsTile("Support") {
@@ -1141,6 +1144,56 @@ struct AboutSettingsPane: View {
             SettingsTile("Made by \(AboutLinks.makerName)") {
                 SettingsLinkList(links: AboutLinks.maker)
             }
+        }
+    }
+}
+
+/// The pane's header: the app icon, name, version, and a one-line description, centred in one
+/// untitled tile so About opens on what the app is before the rows about it.
+private struct AboutIdentityCard: View {
+    private static let iconSize: CGFloat = 64
+    /// The sidebar's 8pt-at-28pt clip, scaled, so the two marks share one corner shape.
+    private static let iconCornerRadius: CGFloat = iconSize * 8 / 28
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        SettingsTile {
+            VStack(spacing: 0) {
+                if let image = AppIconGlyph.image {
+                    let shape = RoundedRectangle(cornerRadius: Self.iconCornerRadius, style: .continuous)
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: Self.iconSize, height: Self.iconSize)
+                        .clipShape(shape)
+                        // The sidebar mark's neutral inset outline (UI craft: image outlines).
+                        .overlay(
+                            shape.strokeBorder(
+                                (colorScheme == .dark ? Color.white : Color.black).opacity(0.10),
+                                lineWidth: 1
+                            )
+                        )
+                        .accessibilityHidden(true)
+                        .padding(.bottom, 12)
+                }
+                Text("Headroom")
+                    .font(SettingsType.paneTitle)
+                    .kerning(SettingsType.paneTitleKerning)
+                if let version = AppVersionLabel.plain {
+                    // Hidden under `swift run` (no bundle Info.plist), like the sidebar stamp.
+                    Text("Version \(version)")
+                        .font(SettingsType.help.monospaced())
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 3)
+                }
+                Text(AboutLinks.tagline)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 10)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .accessibilityElement(children: .combine)
         }
     }
 }

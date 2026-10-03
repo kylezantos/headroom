@@ -33,7 +33,10 @@ public enum AboutLinks {
 
     /// Headroom is free but not open source, so this is deliberately not "free and open source".
     public static let tipJarNote =
-        "Headroom is free. If it saves you time, you can leave a tip of any amount through Stripe."
+        "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe."
+
+    /// The one-line description under the name in the About header.
+    public static let tagline = "AI usage limits + API spend right from your menu bar"
 
     public static let makerName = "Kyle Zantos"
 

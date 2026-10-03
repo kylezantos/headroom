@@ -755,3 +755,10 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
 - **The Settings gallery previews Always colored only.** Color mode is not previewed.
 - **The status card's vessel keeps its old drawing.** `HeadroomVesselMark` fills by outer height
   and frames at 12×20, unlike `WidgetVesselGeometry` (11:18, inner-height liquid).
+- **Liquid Level large can seat a countdown on the wash's top edge.** In the render sweep,
+  Codex's "3d 2h" sits on the bright edge line when its level lands at that row's height.
+- **AppEnum options mirror Core by hand.** `HeadroomWidgetStyleOption`/`ColorOption` raw values
+  must equal `WidgetLayoutStyle`/`WidgetColorMode`; the intent compiles only into the extensions,
+  so no test catches a missing case (it renders the default style).
+- **The render harness does not pose the iPhone DEMO 14pt top inset**, so App Store screenshot
+  mode could overflow small tiles while the sweep stays green.

@@ -58,22 +58,8 @@ public struct HeadroomWidgetTypeUnit: DynamicProperty {
     public var wrappedValue: Double { unit }
 }
 
-/// WCL4: the medium centre rule starts at the first meter label's *cap* top, not its line-box
-/// top. The inset is the font's ascent minus its cap height — what sits above the capitals in
-/// a SwiftUI line box.
-public enum HeadroomWidgetTypography {
-    public static func capTopInset(size: Double, weight: Font.Weight, mono: Bool = false) -> CGFloat {
-        HeadroomWidgetFontMetrics.capTopInset(size: CGFloat(size), weight: weight, mono: mono)
-    }
-}
-
 /// WCL6: the measured metrics behind the two modifiers below.
 public enum HeadroomWidgetFontMetrics {
-    public static func capTopInset(size: CGFloat, weight: Font.Weight, mono: Bool = false) -> CGFloat {
-        let font = ctFont(size: size, weight: weight, mono: mono)
-        return max(0, CTFontGetAscent(font) - CTFontGetCapHeight(font))
-    }
-
     /// Distance from the baseline up to the middle of the capitals — the half-height the
     /// eye reads as the type's middle, and what a mixed-size row should centre on.
     public static func capHeightCenter(size: CGFloat, weight: Font.Weight, mono: Bool = false) -> CGFloat {

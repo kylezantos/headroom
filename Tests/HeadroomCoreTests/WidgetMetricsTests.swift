@@ -18,34 +18,18 @@ struct WidgetMetricsTests {
     @Test func markSlotsMatchTheCapHeightDerivation() {
         #expect(WidgetMetrics.markSlot(for: .small) == 15)
         #expect(WidgetMetrics.markSlot(for: .medium) == 16)
-        #expect(WidgetMetrics.markSlot(for: .large, step: .standard) == 20)
-        #expect(WidgetMetrics.markSlot(for: .large, step: .dense) == 18)
+        #expect(WidgetMetrics.markSlot(for: .large) == 20)
     }
-
 
     /// WCL3 sizes the mark from the name's cap height, so a bigger name must never get a
     /// smaller mark.
     @Test func theMarkSlotTracksTheNameSize() {
-        let pairs: [(WidgetFamily, WidgetTypeStep)] = [
-            (.small, .standard), (.medium, .standard), (.large, .standard), (.large, .dense),
-        ]
-        for (family, step) in pairs {
-            let name = WidgetTypeScale.scale(for: family, step: step).name
-            let slot = WidgetMetrics.markSlot(for: family, step: step)
-            #expect(slot > name * 0.9 && slot < name * 1.6, "\(family)/\(step): \(slot) for a \(name)pt name")
+        for family in WidgetFamily.allCases {
+            let name = WidgetTypeScale.scale(for: family).name
+            let slot = WidgetMetrics.markSlot(for: family)
+            #expect(slot > name * 0.9 && slot < name * 1.6, "\(family): \(slot) for a \(name)pt name")
         }
-        #expect(
-            WidgetMetrics.markSlot(for: .large, step: .standard)
-                > WidgetMetrics.markSlot(for: .large, step: .dense)
-        )
     }
-
-    // MARK: - WCL2 grouping
-
-
-
-
-
 
     // MARK: - WCW6 spend strip and WCL4 rules
 

@@ -33,12 +33,11 @@ public enum WidgetMetrics {
 
     /// WCL3: the brand mark's slot, sized from the name's cap height (`round(1.43 × cap
     /// height)`) so the mark and the word beside it carry the same visual weight.
-    public static func markSlot(for family: WidgetFamily, step: WidgetTypeStep = .standard) -> Double {
-        switch (family, step) {
-        case (.small, _): 15
-        case (.medium, _): 16
-        case (.large, .standard): 20
-        case (.large, .dense): 18
+    public static func markSlot(for family: WidgetFamily) -> Double {
+        switch family {
+        case .small: 15
+        case .medium: 16
+        case .large: 20
         }
     }
 

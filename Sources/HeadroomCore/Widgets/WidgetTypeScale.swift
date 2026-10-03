@@ -15,13 +15,6 @@ public enum WidgetFamily: Sendable, Equatable, CaseIterable {
 /// Collision-free spelling of `WidgetFamily` for files that also import WidgetKit.
 public typealias HeadroomWidgetFamily = WidgetFamily
 
-/// WCL1: the large family's two type steps. `.dense` exists only for the `compact` density
-/// tier; the small and medium families ignore the step entirely (they have one ladder each).
-public enum WidgetTypeStep: Sendable, Equatable, CaseIterable {
-    case standard
-    case dense
-}
-
 /// WCF1: one type ladder, in points, identical on macOS and iOS.
 ///
 /// Every widget body used to reach for semantic `Font` styles (`.caption`, `.headline`, …),
@@ -44,10 +37,6 @@ public struct WidgetTypeScale: Sendable, Equatable {
     public let label: Double
     /// Countdown and window-state text. Monospaced.
     public let countdown: Double
-    /// Percentage numeral. Semibold monospaced digits.
-    public let numeral: Double
-    /// The "left" suffix beside the numeral.
-    public let suffix: Double
     /// API spend amount. Semibold monospaced digits.
     public let spendAmount: Double
     /// The "used" / "left" word after a spend amount.
@@ -69,8 +58,6 @@ public struct WidgetTypeScale: Sendable, Equatable {
         nameKerning: Double,
         label: Double,
         countdown: Double,
-        numeral: Double,
-        suffix: Double,
         spendAmount: Double,
         spendSuffix: Double,
         footer: Double,
@@ -84,8 +71,6 @@ public struct WidgetTypeScale: Sendable, Equatable {
         self.nameKerning = nameKerning
         self.label = label
         self.countdown = countdown
-        self.numeral = numeral
-        self.suffix = suffix
         self.spendAmount = spendAmount
         self.spendSuffix = spendSuffix
         self.footer = footer
@@ -95,14 +80,12 @@ public struct WidgetTypeScale: Sendable, Equatable {
         self.pillHeight = pillHeight
     }
 
-    /// The ladder for one family. `step` is honoured on `.large` only — the small and medium
-    /// tiles have a single content mix each, so there is nothing for a dense step to buy
-    /// there (WCL1 chooses the step from the large tier's row count).
-    public static func scale(for family: WidgetFamily, step: WidgetTypeStep = .standard) -> WidgetTypeScale {
-        switch (family, step) {
-        case (.small, _):
-            // Small draws a header, a name and a numeral; `label`, `countdown` and `suffix`
-            // carry the medium values so a shared row view can read them without optionals,
+    /// The ladder for one family.
+    public static func scale(for family: WidgetFamily) -> WidgetTypeScale {
+        switch family {
+        case .small:
+            // Small draws a header, a name and a numeral; `label` and `countdown` carry the
+            // medium values so a shared row view can read them without optionals,
             // but the `.glance` configuration never lays them out (WCF5).
             WidgetTypeScale(
                 header: 11,
@@ -110,8 +93,6 @@ public struct WidgetTypeScale: Sendable, Equatable {
                 nameKerning: -0.15,
                 label: 12,
                 countdown: 11,
-                numeral: 18,
-                suffix: 11,
                 spendAmount: 13,
                 spendSuffix: 11,
                 footer: 11,
@@ -120,17 +101,13 @@ public struct WidgetTypeScale: Sendable, Equatable {
                 pillLabel: 9.5,
                 pillHeight: 15
             )
-        case (.medium, _):
-            // Medium's numeral steps down to 16 because two columns have to hold
-            // `label + countdown + numeral + suffix` inside one half of the tile (WCL7).
+        case .medium:
             WidgetTypeScale(
                 header: 11,
                 name: 14,
                 nameKerning: -0.15,
                 label: 12,
                 countdown: 11,
-                numeral: 16,
-                suffix: 11,
                 spendAmount: 13,
                 spendSuffix: 11,
                 footer: 11,
@@ -139,34 +116,13 @@ public struct WidgetTypeScale: Sendable, Equatable {
                 pillLabel: 9.5,
                 pillHeight: 15
             )
-        case (.large, .standard):
+        case .large:
             WidgetTypeScale(
                 header: 11,
                 name: 15,
                 nameKerning: -0.15,
                 label: 13,
                 countdown: 11,
-                numeral: 18,
-                suffix: 11,
-                spendAmount: 13,
-                spendSuffix: 11,
-                footer: 11,
-                statusTitle: 14,
-                statusMessage: 11.5,
-                pillLabel: 9.5,
-                pillHeight: 15
-            )
-        case (.large, .dense):
-            // The dense step is the only place fractional sizes appear: at 8+ rows the
-            // countdown and suffix give up half a point rather than being dropped.
-            WidgetTypeScale(
-                header: 11,
-                name: 14,
-                nameKerning: -0.15,
-                label: 12,
-                countdown: 10.5,
-                numeral: 16,
-                suffix: 10.5,
                 spendAmount: 13,
                 spendSuffix: 11,
                 footer: 11,

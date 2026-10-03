@@ -29,6 +29,20 @@ public struct WidgetStyleProviderRecipe: Sendable, Equatable, Identifiable {
     public var isWaiting: Bool { summary.freshness == .pending && windows.isEmpty }
     /// R6: whether this provider has any number to show.
     public var hasDisplayValue: Bool { windows.contains(where: \.hasDisplayValue) }
+    /// WCM5-v: the provider's on-wire stale reason, trimmed — the line large prints beside the
+    /// name. Nil when live, pending, or the reason is blank.
+    public var staleMessage: String? {
+        guard case .stale(let message, _) = summary.freshness else { return nil }
+        let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    /// KTD10: the secondary rows at one rung of `secondaryLadder`. A provider whose ladder is
+    /// shorter than the widget's rung count stays on its last rung.
+    public func secondary(atRung rung: Int) -> [WidgetWindowSummary] {
+        guard !secondaryLadder.isEmpty else { return [] }
+        return secondaryLadder[min(max(rung, 0), secondaryLadder.count - 1)]
+    }
 
     public init(summary: WidgetProviderSummary) {
         self.summary = summary
@@ -83,6 +97,10 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
     /// KTD10 for Tightest First large: `rankedRows` shed from the loosest end, down to the
     /// headline alone, so the tightest limits always survive.
     public let rankedRowsLadder: [[WidgetRankedRow]]
+    /// R11 for Tightest First large: the shown providers with no window to rank (pending, or
+    /// stale with nothing retained), in provider order, so the list never drops them. Empty for
+    /// the other styles and families.
+    public let providersWithoutRows: [WidgetStyleProviderRecipe]
     /// KTD9: Liquid Level's wash, one segment per shown provider. Empty for other styles.
     public let washSegments: [WidgetWashSegment]
     /// R14: the API spend strip and the "Updated N ago" footer are large-only.
@@ -90,6 +108,9 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
     public let showsFooter: Bool
 
     public var showsWashDivider: Bool { washSegments.count > 1 }
+    /// KTD10: how many shedding rungs the widget tries — the longest provider ladder, at least
+    /// one. Pair with `WidgetStyleProviderRecipe.secondary(atRung:)`.
+    public var ladderRungCount: Int { max(1, providers.map(\.secondaryLadder.count).max() ?? 1) }
 
     public init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope) {
         self.style = style
@@ -118,9 +139,11 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
             }
             rankedRows = rows
             rankedRowsLadder = rows.isEmpty ? [] : (1...rows.count).reversed().map { Array(rows.prefix($0)) }
+            providersWithoutRows = shown.filter(\.windows.isEmpty)
         } else {
             rankedRows = []
             rankedRowsLadder = []
+            providersWithoutRows = []
         }
 
         washSegments = style == .liquidLevel

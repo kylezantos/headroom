@@ -22,14 +22,13 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
 
     /// KTD10: small sheds the model and Spark rails before anything overlaps.
     private var small: some View {
-        let rungCount = context.recipe.providers.map(\.secondaryLadder.count).max() ?? 1
-        return ViewThatFits(in: .vertical) {
-            ForEach(0..<rungCount, id: \.self) { rung in
+        ViewThatFits(in: .vertical) {
+            ForEach(0..<context.recipe.ladderRungCount, id: \.self) { rung in
                 VStack(alignment: .leading, spacing: 0) {
                     Spacer(minLength: 0)
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(context.recipe.providers) { provider in
-                            smallBlock(provider, rails: provider.secondaryLadder[min(rung, provider.secondaryLadder.count - 1)])
+                            smallBlock(provider, rails: provider.secondary(atRung: rung))
                         }
                     }
                     Spacer(minLength: 0)
@@ -44,7 +43,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
             HStack(alignment: .center, spacing: CGFloat(WidgetMetrics.markGap)) {
                 mark(provider.id, CGFloat(context.slot))
                     .frame(width: CGFloat(context.slot), height: CGFloat(context.slot))
-                HeadroomWidgetName(provider.summary.displayName, size: 13)
+                HeadroomWidgetName(provider.summary.displayName, size: 13, kerning: context.scale.nameKerning)
                 Spacer(minLength: 4)
                 if !provider.isWaiting {
                     HeadroomWidgetNumeral(provider.primary, size: context.hero(), providerIsLive: live, now: context.now)
@@ -52,12 +51,12 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                 }
             }
             if provider.isWaiting {
-                HeadroomWidgetWaitingLine(size: 10.5).padding(.top, 6)
+                HeadroomWidgetWaitingLine(size: WidgetStyleType.compactCaption).padding(.top, 6)
             } else {
                 HeadroomWidgetNestedBars(provider: provider, rails: rails, colorMode: context.colorMode, family: .small, live: live)
                     .padding(.top, 6)
                 HeadroomWidgetDetailLine(window: provider.secondary.first ?? provider.primary, showsValue: !provider.secondary.isEmpty,
-                                         live: live, now: context.now, size: 10.5)
+                                         live: live, now: context.now, size: WidgetStyleType.compactCaption)
                     .padding(.top, 4)
             }
         }
@@ -77,7 +76,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
     private func mediumColumn(_ provider: WidgetStyleProviderRecipe) -> some View {
         let live = context.isLive(provider)
         return VStack(alignment: .leading, spacing: 0) {
-            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name,
+            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale,
                                       showsPlan: context.recipe.providers.count == 1, mark: mark)
             if provider.isWaiting {
                 HeadroomWidgetWaitingLine(size: 11).padding(.top, 14)
@@ -94,13 +93,13 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                 VStack(alignment: .leading, spacing: 2) {
                     if provider.secondary.isEmpty {
                         if let countdown = HeadroomWidgetWindowText.countdown(provider.primary, now: context.now) {
-                            HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: 10.5, ink: .countdown)
+                            HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: WidgetStyleType.compactCaption, ink: .countdown)
                         }
                     } else {
                         ForEach(provider.secondary) { window in
                             HStack(alignment: .firstTextBaseline, spacing: 5) {
                                 HeadroomWidgetFittingCaption([Self.labelAndCountdown(window, now: context.now), window.widgetDisplayLabel],
-                                                             size: 10.5, ink: .countdown)
+                                                             size: WidgetStyleType.compactCaption, ink: .countdown)
                                 Spacer(minLength: 4)
                                 HeadroomWidgetNumeral(window, size: context.rowNumeral, providerIsLive: live, now: context.now)
                             }
@@ -118,11 +117,9 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
     // MARK: Large
 
     private var large: some View {
-        let providers = context.recipe.providers
-        let rungCount = providers.map(\.secondaryLadder.count).max() ?? 1
-        return VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 0) {
             ViewThatFits(in: .vertical) {
-                ForEach(0..<rungCount, id: \.self) { rung in
+                ForEach(0..<context.recipe.ladderRungCount, id: \.self) { rung in
                     largeBlocks(rung: rung)
                 }
             }
@@ -137,7 +134,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
             Spacer(minLength: 4)
             ForEach(Array(context.recipe.providers.enumerated()), id: \.element.id) { index, provider in
                 if index > 0 { Spacer(minLength: 16) }
-                largeBlock(provider, rows: provider.secondaryLadder[min(rung, provider.secondaryLadder.count - 1)])
+                largeBlock(provider, rows: provider.secondary(atRung: rung))
             }
             Spacer(minLength: 4)
         }
@@ -147,7 +144,8 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
         let live = context.isLive(provider)
         let sibling = provider.hasSiblingPools
         return VStack(alignment: .leading, spacing: 0) {
-            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: true, mark: mark)
+            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true,
+                                      showsStaleReason: true, mark: mark)
             if provider.isWaiting {
                 HeadroomWidgetWaitingLine(size: 11).padding(.top, 10)
             } else {
@@ -177,7 +175,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                             .frame(minWidth: 36, alignment: .trailing)
                         if !sibling {
                             HeadroomWidgetCaption(HeadroomWidgetWindowText.countdown(window, now: context.now) ?? "",
-                                                  size: 10.5, ink: .countdown, mono: true)
+                                                  size: WidgetStyleType.compactCaption, ink: .countdown, mono: true)
                                 .frame(width: 44, alignment: .trailing)
                         }
                     }
@@ -267,22 +265,24 @@ struct HeadroomWidgetDetailLine: View {
     }
 }
 
-/// A provider name on a row it shares with a numeral (WCD1 neutral ink, −0.15 kern).
+/// A provider name on a row it shares with a numeral (WCD1 neutral ink, the ladder's name kern).
 struct HeadroomWidgetName: View {
     let text: String
     let size: Double
+    let kerning: Double
     @Environment(\.colorScheme) private var scheme
     @HeadroomWidgetTypeUnit private var typeUnit
 
-    init(_ text: String, size: Double) {
+    init(_ text: String, size: Double, kerning: Double) {
         self.text = text
         self.size = size
+        self.kerning = kerning
     }
 
     var body: some View {
         Text(text)
             .font(.system(size: size * typeUnit, weight: .semibold))
-            .kerning(-0.15)
+            .kerning(kerning)
             .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
             .lineLimit(1)
             .truncationMode(.tail)

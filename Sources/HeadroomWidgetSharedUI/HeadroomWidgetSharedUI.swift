@@ -140,16 +140,15 @@ public struct HeadroomWidgetProviderIcon: View {
 /// WCM5: the one attention glyph pair. Provider-level attention is an account-lifecycle
 /// fact, not a usage severity, so per R2C5 it comes off the severity ramp entirely and
 /// prints in neutral `secondaryText` — the old amber triangle was the *same* amber as a low
-/// bar, three meanings on one glyph. The circle marks a provider, the triangle a spend row.
+/// bar, three meanings on one glyph. The circle marks a provider; spend rows print their
+/// badge text instead of a glyph.
 public struct HeadroomWidgetAttentionGlyph: View {
     public enum Kind: Sendable, Equatable {
         case provider
-        case spend
 
         var symbol: String {
             switch self {
             case .provider: "exclamationmark.circle.fill"
-            case .spend: "exclamationmark.triangle.fill"
             }
         }
     }
@@ -181,23 +180,19 @@ public struct HeadroomWidgetAttentionGlyph: View {
     }
 }
 
-/// WCW6: the API-spend strip. No eyebrow — the craft floor bans them, and a 10pt tracked
-/// "API" was the same size as the amounts it labelled. The rule stays on large (spend is a
-/// different *tile* in the popover; here the rule does that separating job), while medium
-/// separates with air instead (WCL4). Each item is mark · amount · direction term, because
-/// "$58.90" alone means money gone on a period row and money left on a balance row, and the
-/// two render identically.
+/// WCW6: the API-spend strip, large only (R14). No eyebrow — the craft floor bans them, and a
+/// 10pt tracked "API" was the same size as the amounts it labelled. A rule separates it from
+/// the meters (spend is a different *tile* in the popover; here the rule does that job). Each
+/// item is mark · amount · direction term, because "$58.90" alone means money gone on a
+/// period row and money left on a balance row, and the two render identically.
 public struct HeadroomWidgetAPISpendStrip: View {
     private let summaries: [WidgetAPISpendSummary]
     private let now: Date
-    private let family: HeadroomWidgetFamily
-    private let scale: WidgetTypeScale
     private let footerText: String?
     /// WCF7/WCW6: the stamp's middle rung — the bare age ("38 min ago") that prints when the
     /// amounts and the full "Updated 38 min ago" cannot share the run, before the stamp
     /// drops whole.
     private let footerShortText: String?
-    private let showsRule: Bool
     /// The brand mark, injected by in-app renders (Settings, the harness) that have no brand
     /// asset catalog; widgets leave it nil and draw `HeadroomWidgetProviderIcon`.
     private let mark: ((String, CGFloat) -> AnyView)?
@@ -212,21 +207,16 @@ public struct HeadroomWidgetAPISpendStrip: View {
     public init(
         summaries: [WidgetAPISpendSummary],
         now: Date,
-        family: HeadroomWidgetFamily,
         scale: WidgetTypeScale,
         footerText: String?,
         footerShortText: String? = nil,
-        showsRule: Bool,
         mark: ((String, CGFloat) -> AnyView)? = nil
     ) {
         self.mark = mark
         self.summaries = summaries
         self.now = now
-        self.family = family
-        self.scale = scale
         self.footerText = footerText
         self.footerShortText = footerShortText
-        self.showsRule = showsRule
         _amountSize = ScaledMetric(wrappedValue: scale.spendAmount, relativeTo: .body)
         _termSize = ScaledMetric(wrappedValue: scale.spendSuffix, relativeTo: .body)
         _footerSize = ScaledMetric(wrappedValue: scale.footer, relativeTo: .body)
@@ -234,13 +224,11 @@ public struct HeadroomWidgetAPISpendStrip: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if showsRule {
-                Rectangle()
-                    .fill(HeadroomWidgetStyle.widgetHairline(scheme: scheme))
-                    .frame(height: HeadroomWidgetStyle.hairlineWidth(displayScale: displayScale))
-                    .padding(.bottom, CGFloat(WidgetMetrics.spendRuleToRow))
-                    .accessibilityHidden(true)
-            }
+            Rectangle()
+                .fill(HeadroomWidgetStyle.widgetHairline(scheme: scheme))
+                .frame(height: HeadroomWidgetStyle.hairlineWidth(displayScale: displayScale))
+                .padding(.bottom, CGFloat(WidgetMetrics.spendRuleToRow))
+                .accessibilityHidden(true)
             // WCF7: the stamp is the element that gives — dropped whole when the amounts
             // and it cannot share the run. The amounts never truncate; they are the payload.
             ViewThatFits(in: .horizontal) {
@@ -301,23 +289,15 @@ public struct HeadroomWidgetAPISpendStrip: View {
     }
 
     /// WCW6: large has the width to name the state — "Setup", "Rejected", "Denied",
-    /// "Stale" — and those strings were written for this surface and never printed. Medium
-    /// keeps the glyph and moves the word into the accessibility label; the glyph is
-    /// neutral per R2C5, since a spend key problem is not a usage severity.
+    /// "Stale" — and those strings were written for this surface and never printed.
     @ViewBuilder
     private func attention(_ status: APISpendRowStatus) -> some View {
         if let badge = status.shortBadge {
-            if family == .large {
-                Text(badge)
-                    .font(HeadroomWidgetType.font(size: termSize, weight: .medium))
-                    .foregroundStyle(badgeInk(status.tone))
-                    .lineLimit(1)
-                    .widgetCapHeightCentered(size: termSize, weight: .medium)
-            } else {
-                // WCF1: the glyph scales the ladder token itself, so it gets the raw
-                // `spendSuffix` rather than this view's already-scaled `termSize`.
-                HeadroomWidgetAttentionGlyph(kind: .spend, size: scale.spendSuffix)
-            }
+            Text(badge)
+                .font(HeadroomWidgetType.font(size: termSize, weight: .medium))
+                .foregroundStyle(badgeInk(status.tone))
+                .lineLimit(1)
+                .widgetCapHeightCentered(size: termSize, weight: .medium)
         }
     }
 

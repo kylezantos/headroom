@@ -74,6 +74,32 @@ struct WidgetStyleColorTests {
         }
     }
 
+    /// KTD5: each severity maps to its own token, with `dark` and `increasedContrast` passed
+    /// through — comparing the two modes alone would miss a swapped low/critical fill.
+    @Test func lowAndCriticalTakeTheirOwnSeverityTokens() {
+        let low = F.window(.weekly, label: "Weekly", percent: 40)
+        let critical = F.window(.weekly, label: "Weekly", percent: 9)
+        let staleLow = F.window(.weekly, label: "Weekly", percent: 40, freshness: .stale(observedAt: F.now))
+        let staleCritical = F.window(.weekly, label: "Weekly", percent: 9, freshness: .stale(observedAt: F.now))
+        #expect(low.severity == .low)
+        #expect(critical.severity == .critical)
+        for dark in [true, false] {
+            for increasedContrast in [true, false] {
+                let label = "dark \(dark), increased contrast \(increasedContrast)"
+                func fill(_ window: WidgetWindowSummary) -> HeadroomTint? {
+                    WidgetStyleColors.fill(for: window, colorMode: .solid, dark: dark, increasedContrast: increasedContrast)
+                }
+                let opaque = { (color: HeadroomRGBColor) in HeadroomTint(color: color, opacity: 1) }
+                #expect(fill(low) == opaque(HeadroomSeverityColorValues.lowFill(dark: dark, increasedContrast: increasedContrast)), "\(label)")
+                #expect(fill(critical) == opaque(HeadroomSeverityColorValues.criticalFill(dark: dark, increasedContrast: increasedContrast)), "\(label)")
+                #expect(fill(low) != fill(critical), "\(label)")
+                #expect(fill(staleLow) == opaque(HeadroomMeterColorValues.staleFill(for: UsageSeverity.low, dark: dark, increasedContrast: increasedContrast)), "\(label)")
+                #expect(fill(staleCritical) == opaque(HeadroomMeterColorValues.staleFill(for: UsageSeverity.critical, dark: dark, increasedContrast: increasedContrast)), "\(label)")
+                #expect(fill(staleLow) != fill(staleCritical), "\(label)")
+            }
+        }
+    }
+
     @Test func unavailableHasNoFill() {
         let w = F.window(.weekly, label: "Weekly", percent: 40, freshness: .unavailable(since: F.now))
         #expect(fill(w, .solid) == nil)

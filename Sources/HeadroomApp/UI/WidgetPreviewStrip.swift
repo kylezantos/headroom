@@ -26,8 +26,9 @@ struct WidgetPreviewStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// WidgetKit's macOS tile sizes. Anything else would make the preview a drawing of a
-    /// widget rather than a widget.
-    nonisolated private static let smallSize = CGSize(width: 170, height: 170)
+    /// widget rather than a widget. Small and the tile radius and margin are shared with
+    /// `WidgetStyleGalleryPicker`, whose thumbnails are the same small tile scaled down.
+    nonisolated static let smallSize = CGSize(width: 170, height: 170)
     nonisolated private static let mediumSize = CGSize(width: 364, height: 170)
     nonisolated private static let largeSize = CGSize(width: 364, height: 382)
     /// WP1: the desktop's own gutter — a medium tile is two smalls plus 24 — so the mosaic
@@ -88,7 +89,10 @@ struct WidgetPreviewStrip: View {
         .accessibilityLabel("Preview of the small, medium, and large macOS widgets in the \(style.displayName) style")
     }
 
-    nonisolated private static let tileRadius: CGFloat = 20
+    nonisolated static let tileRadius: CGFloat = 20
+    /// WidgetKit's default macOS content margins; the widget bodies deliberately add only a
+    /// small residual on top of them (KTD1).
+    nonisolated static let tileContentMargin: CGFloat = 16
 
     /// Never above true size: on a wide window the tiles are pixel-for-pixel real.
     nonisolated private static func scale(forWidth width: CGFloat) -> CGFloat {
@@ -139,18 +143,13 @@ struct WidgetPreviewStrip: View {
     private func tile(label: String, family: WidgetFamily, size: CGSize, scale: CGFloat) -> some View {
         let envelope = DemoScreenshotData.settingsPreviewEnvelope
         return VStack(alignment: .leading, spacing: Self.captionSpacing / scale) {
-            ZStack {
-                Self.tileBackground(dark: colorScheme == .dark)
-                HeadroomWidgetStyledBackground(style: style, family: family, envelope: envelope, colorMode: .default)
-                HeadroomWidgetStyledBody(
-                    style: style, family: family, envelope: envelope, colorMode: .default,
-                    now: DemoScreenshotData.settingsPreviewNow, footerPrefix: HeadroomWidgetCopy.macFooterPrefix,
-                    mark: { providerID, size in brandMark(providerID, size) }
-                )
-                // WidgetKit's default macOS content margins; the widget bodies deliberately
-                // add only a small residual on top of them (KTD1).
-                .padding(16)
-            }
+            HeadroomWidgetStyledTile(
+                style: style, family: family, envelope: envelope, colorMode: .default,
+                now: DemoScreenshotData.settingsPreviewNow, footerPrefix: HeadroomWidgetCopy.macFooterPrefix,
+                contentMargin: Self.tileContentMargin,
+                mark: { providerID, size in brandMark(providerID, size) }
+            )
+            .background { Self.tileBackground(dark: colorScheme == .dark) }
             .frame(width: size.width, height: size.height, alignment: .topLeading)
             .clipShape(RoundedRectangle(cornerRadius: Self.tileRadius, style: .continuous))
             // A tile on the desktop is lifted, not outlined; the shadow is what keeps

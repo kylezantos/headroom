@@ -45,12 +45,6 @@ struct DemoScreenshotDataVariantsTests {
         #expect(envelope.apiSpendProviders.count == fullEnvelope.apiSpendProviders.count)
     }
 
-
-
-
-
-
-
     @Test func claudeFixturesHaveExtraWeeklyWindow() {
         let fixtures = ["full", "noSpend", "claudeOnly", "claudeOnlyNoSpend", "codexFiveHourReturns", "attention"]
         for variantName in fixtures {

@@ -39,10 +39,6 @@ struct WidgetWindowLabelTests {
 
     // MARK: - WCW7 period noun
 
-
-
-
-
     @Test func namedBillingPoolsChooseTheLowestRemainingValue() {
         let cursorModels = billingWindow(label: "Cursor Models", percentRemaining: 69)
         let otherModels = billingWindow(label: "Other Models", percentRemaining: 37)
@@ -66,16 +62,6 @@ struct WidgetWindowLabelTests {
 
         #expect(provider(windows: [tighterBilling, weekly]).primarySubscriptionWindow?.kind == .weekly)
     }
-
-    // MARK: - WCW7 small header
-
-
-
-
-
-
-
-
 
     // MARK: - Fixtures
 

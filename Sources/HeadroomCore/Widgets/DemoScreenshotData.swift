@@ -418,7 +418,7 @@ public enum DemoScreenshotData {
     /// stale, unavailable and pending paths are posed against a fixed `now`.
     public static let styleFixtureNames = [
         "claudeCodex", "claudeGrok", "codexCursor", "grokCursor", "tightClaudeCursor",
-        "sparkOn", "staleUnavailable", "pending", "firstPending", "cursorOnly", "spend",
+        "sparkOn", "staleUnavailable", "pending", "firstPending", "signedOut", "cursorOnly", "spend",
     ]
 
     public static func styleFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
@@ -433,7 +433,7 @@ public enum DemoScreenshotData {
                 resetSchedule: .scheduled(now.addingTimeInterval(resetIn)),
                 resetLabel: nil,
                 observedAt: freshness.observedAt,
-                severity: percent <= 15 ? .critical : percent <= 50 ? .low : .healthy,
+                severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: percent)),
                 freshness: freshness,
                 billingPeriodDuration: pool
             )
@@ -478,6 +478,10 @@ public enum DemoScreenshotData {
         }
         let pending = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
                                             freshness: .pending, windows: [], renewalDate: nil)
+        // WCM5-v: a provider that needs the user, with no retained window — large prints its reason.
+        let signedOut = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
+                                              freshness: .stale(message: ProviderSetupOutcome.claudeLoginRequired.message, needsAttention: true),
+                                              windows: [], renewalDate: nil)
         switch name {
         case "claudeCodex": return envelope([claude(72, 38, 61), codex(41, 64)])
         case "claudeGrok": return envelope([claude(72, 38, 61), grok(56)])
@@ -494,6 +498,7 @@ public enum DemoScreenshotData {
             ])
         case "pending": return envelope([pending, codex(41, 64)])
         case "firstPending": return envelope([pending, grok(56)])
+        case "signedOut": return envelope([signedOut, codex(41, 64)])
         case "cursorOnly": return envelope([cursor(69, 37)])
         case "spend":
             return envelope([claude(72, 38, 61), codex(41, 64)],

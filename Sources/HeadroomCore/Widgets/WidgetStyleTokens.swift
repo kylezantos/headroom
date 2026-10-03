@@ -34,6 +34,16 @@ public enum WidgetStyleType {
         case (_, _): 12
         }
     }
+
+    /// Vessel Hero medium with one provider: the numerals on the secondary column, a step up
+    /// from the shared medium `rowNumeral` as the approved mock draws them (`num(x, 16)`).
+    public static let vesselHeroMediumRowNumeral = 16.0
+
+    /// The mocks' 10.5pt caption (`.cd` at 10.5px): Nested Meter's small detail line, medium
+    /// countdowns and large rail countdowns, Tightest First's small window label and large row
+    /// countdowns, and the small waiting line. Half a point under `WidgetTypeScale.countdown`;
+    /// like every caption it keeps Dynamic Type scaling through the caption view.
+    public static let compactCaption = 10.5
 }
 
 /// Layout tokens the four widget styles add (KTD6, KTD9, KTD10). Values are the approved
@@ -62,6 +72,13 @@ public enum WidgetStyleMetrics {
     public static let rowVesselWidth = 9.0
     public static let rowVesselHeight = 16.0
     public static let rowVesselStroke = 1.3
+    /// Vessel Hero medium with one provider: the secondary column's vessels, a size up from the
+    /// large list's 9 × 16 as the approved mock draws them (`vessel(x, 10, 18)`). Same stroke.
+    public static let mediumRowVesselWidth = 10.0
+    public static let mediumRowVesselHeight = 18.0
+    /// The brand-mark slot on a list row (Vessel Hero's and Tightest First's large lists),
+    /// smaller than the family's identity-row `WidgetMetrics.markSlot` (mock: `mk(x.p.id, 15)`).
+    public static let rowMark = 15.0
 
     /// KTD9: Liquid Level's wash in full color — fill alpha at the top and bottom of the
     /// liquid, and the bright top edge.

@@ -582,6 +582,16 @@ public enum WidgetUsageSeverity: String, Codable, Sendable {
     case healthy
     case low
     case critical
+
+    /// The wire form of `UsageSeverity`, whose bands stay the single source of truth — the
+    /// projector and the demo fixtures both map through here rather than re-deriving them.
+    public init(_ severity: UsageSeverity) {
+        switch severity {
+        case .healthy: self = .healthy
+        case .low: self = .low
+        case .critical: self = .critical
+        }
+    }
 }
 
 /// Builds the short WidgetKit timeline used to keep relative reset copy accurate between

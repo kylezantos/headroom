@@ -67,6 +67,10 @@ enum WidgetRenderHarness {
         try? FileManager.default.createDirectory(at: outDir, withIntermediateDirectories: true)
 
         let jobs = buildJobs()
+        guard !jobs.isEmpty else {
+            print("✗ No tiles to render for these filters")
+            exit(2)
+        }
         var overflows: [String] = []
         var stress: [String] = []
         var rendered: [(Job, String)] = []
@@ -105,7 +109,13 @@ enum WidgetRenderHarness {
 
     static func buildJobs() -> [Job] {
         let quick = CommandLine.arguments.contains("--widget-quick")
-        let styles = argument("--widget-style").map { [WidgetLayoutStyle(storedValue: $0)] } ?? WidgetLayoutStyle.allCases
+        // A mistyped filter must fail loudly: an unknown id silently became the default style
+        // (or no geometry at all) and the sweep passed green on work it never rendered.
+        if let requested = argument("--widget-style"), WidgetLayoutStyle(rawValue: requested) == nil {
+            print("Unknown style \(requested). Styles: \(WidgetLayoutStyle.allCases.map(\.rawValue).joined(separator: ", "))")
+            exit(2)
+        }
+        let styles = argument("--widget-style").flatMap { WidgetLayoutStyle(rawValue: $0) }.map { [$0] } ?? WidgetLayoutStyle.allCases
         if let requested = argument("--widget-fixture"), !DemoScreenshotData.styleFixtureNames.contains(requested) {
             print("Unknown fixture \(requested). Fixtures: \(DemoScreenshotData.styleFixtureNames.joined(separator: ", "))")
             exit(2)
@@ -113,6 +123,10 @@ enum WidgetRenderHarness {
         let fixtures = argument("--widget-fixture").map { [$0] } ?? (quick ? ["claudeCodex"] : DemoScreenshotData.styleFixtureNames)
         let geometryNames = argument("--widget-geometry").map { [$0] } ?? ["mac", "ios61"]
         let chosen = geometries.filter { geometryNames.contains($0.name) }
+        if chosen.isEmpty {
+            print("Unknown geometry \(geometryNames.joined(separator: ", ")). Geometries: \(geometries.map(\.name).joined(separator: ", "))")
+            exit(2)
+        }
 
         var jobs: [Job] = []
         for style in styles {
@@ -168,17 +182,13 @@ enum WidgetRenderHarness {
 
     private static func tileView(job: Job, envelope: WidgetSnapshotEnvelope, size: CGSize, margin: CGFloat, collector: ProbeCollector) -> some View {
         let shape = RoundedRectangle(cornerRadius: job.geometry.radius, style: .continuous)
-        return ZStack {
-            background(job)
-            HeadroomWidgetStyledBackground(style: job.style, family: job.family, envelope: envelope, colorMode: job.colorMode)
-            HeadroomWidgetStyledBody(
-                style: job.style, family: job.family, envelope: envelope, colorMode: job.colorMode,
-                now: now, footerPrefix: job.geometry.footerPrefix
-            ) { id, markSize in
-                ProviderLogoView(providerID: ProviderID(id), size: markSize)
-            }
-            .padding(margin)
+        return HeadroomWidgetStyledTile(
+            style: job.style, family: job.family, envelope: envelope, colorMode: job.colorMode,
+            now: now, footerPrefix: job.geometry.footerPrefix, contentMargin: margin
+        ) { id, markSize in
+            ProviderLogoView(providerID: ProviderID(id), size: markSize)
         }
+        .background { background(job) }
         .frame(width: size.width, height: size.height)
         .clipShape(shape)
         .overlayPreferenceValue(HeadroomWidgetProbeKey.self) { anchors in

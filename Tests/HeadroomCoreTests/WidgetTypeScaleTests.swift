@@ -12,8 +12,6 @@ struct WidgetTypeScaleTests {
         #expect(scale.nameKerning == -0.15)
         #expect(scale.label == 12)
         #expect(scale.countdown == 11)
-        #expect(scale.numeral == 18)
-        #expect(scale.suffix == 11)
     }
 
     @Test func mediumLadderMatchesThePlan() {
@@ -22,75 +20,40 @@ struct WidgetTypeScaleTests {
         #expect(scale.name == 14)
         #expect(scale.label == 12)
         #expect(scale.countdown == 11)
-        #expect(scale.numeral == 16)
-        #expect(scale.suffix == 11)
     }
 
-    @Test func largeStandardLadderMatchesThePlan() {
-        let scale = WidgetTypeScale.scale(for: .large, step: .standard)
+    @Test func largeLadderMatchesThePlan() {
+        let scale = WidgetTypeScale.scale(for: .large)
         #expect(scale.name == 15)
         #expect(scale.label == 13)
         #expect(scale.countdown == 11)
-        #expect(scale.numeral == 18)
-        #expect(scale.suffix == 11)
-    }
-
-    @Test func largeDenseLadderMatchesThePlan() {
-        let scale = WidgetTypeScale.scale(for: .large, step: .dense)
-        #expect(scale.name == 14)
-        #expect(scale.label == 12)
-        #expect(scale.countdown == 10.5)
-        #expect(scale.numeral == 16)
-        #expect(scale.suffix == 10.5)
     }
 
     /// The sizes that do not vary by family — the spend strip, the footer, the status card and
     /// the plan pill are the same object wherever they appear.
     @Test func familyInvariantSizesAreTheSameOnEveryLadder() {
         for family in WidgetFamily.allCases {
-            for step in WidgetTypeStep.allCases {
-                let scale = WidgetTypeScale.scale(for: family, step: step)
-                let label = "\(family)/\(step)"
-                #expect(scale.spendAmount == 13, "\(label)")
-                #expect(scale.spendSuffix == 11, "\(label)")
-                #expect(scale.footer == 11, "\(label)")
-                #expect(scale.statusTitle == 14, "\(label)")
-                #expect(scale.statusMessage == 11.5, "\(label)")
-                #expect(scale.pillLabel == 9.5, "\(label)")
-                #expect(scale.pillHeight == 15, "\(label)")
-                #expect(scale.header == 11, "\(label)")
-                #expect(scale.nameKerning == -0.15, "\(label)")
-            }
+            let scale = WidgetTypeScale.scale(for: family)
+            let label = "\(family)"
+            #expect(scale.spendAmount == 13, "\(label)")
+            #expect(scale.spendSuffix == 11, "\(label)")
+            #expect(scale.footer == 11, "\(label)")
+            #expect(scale.statusTitle == 14, "\(label)")
+            #expect(scale.statusMessage == 11.5, "\(label)")
+            #expect(scale.pillLabel == 9.5, "\(label)")
+            #expect(scale.pillHeight == 15, "\(label)")
+            #expect(scale.header == 11, "\(label)")
+            #expect(scale.nameKerning == -0.15, "\(label)")
         }
     }
 
-    /// The dense step belongs to the large family's compact tier; small and medium have one
-    /// content mix each and ignore it.
-    @Test func onlyTheLargeFamilyHonoursTheDenseStep() {
-        #expect(WidgetTypeScale.scale(for: .small, step: .dense) == WidgetTypeScale.scale(for: .small))
-        #expect(WidgetTypeScale.scale(for: .medium, step: .dense) == WidgetTypeScale.scale(for: .medium))
-        #expect(WidgetTypeScale.scale(for: .large, step: .dense) != WidgetTypeScale.scale(for: .large))
-    }
-
-    /// WCF1's hierarchy, on every ladder: the numeral is the glance value, the name outranks
-    /// the label, and the countdown is the quietest thing in the row.
+    /// WCF1's hierarchy, on every ladder: the name outranks the label, and the countdown is
+    /// the quietest thing in the row.
     @Test func everyLadderKeepsItsHierarchy() {
         for family in WidgetFamily.allCases {
-            for step in WidgetTypeStep.allCases {
-                let scale = WidgetTypeScale.scale(for: family, step: step)
-                let label = "\(family)/\(step)"
-                #expect(scale.numeral > scale.name, "\(label)")
-                #expect(scale.name >= scale.label, "\(label)")
-                #expect(scale.label >= scale.countdown, "\(label)")
-                #expect(scale.suffix <= scale.numeral, "\(label)")
-            }
+            let scale = WidgetTypeScale.scale(for: family)
+            #expect(scale.name >= scale.label, "\(family)")
+            #expect(scale.label >= scale.countdown, "\(family)")
         }
     }
-
-    // MARK: - WCF2 numeral column
-
-
-
-
-
 }

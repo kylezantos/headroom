@@ -22,7 +22,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
     @ViewBuilder private var small: some View {
         if let provider = context.recipe.providers.first {
             VStack(alignment: .leading, spacing: 0) {
-                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: false, mark: mark)
+                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: false, mark: mark)
                 Spacer(minLength: 4)
                 hero(provider, size: context.hero(1), extra: nil)
                 Spacer(minLength: 4)
@@ -45,7 +45,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                         HeadroomWidgetRule(.vertical).padding(.vertical, 4)
                     }
                     VStack(alignment: .leading, spacing: 0) {
-                        HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: true, mark: mark)
+                        HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true, mark: mark)
                         Spacer(minLength: 4)
                         hero(provider, size: context.hero(), extra: nil)
                         Spacer(minLength: 4)
@@ -62,7 +62,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
         let live = context.isLive(provider)
         return HStack(alignment: .top, spacing: 20) {
             VStack(alignment: .leading, spacing: 0) {
-                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: true, mark: mark)
+                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true, mark: mark)
                 Spacer(minLength: 4)
                 hero(provider, size: context.hero(1), extra: nil)
             }
@@ -72,10 +72,12 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                 ForEach(provider.secondary) { window in
                     HStack(alignment: .center, spacing: 8) {
                         HeadroomWidgetVessel(window, colorMode: context.colorMode, providerIsLive: live,
-                                             geometry: WidgetVesselGeometry(width: 10, height: 18, stroke: WidgetStyleMetrics.rowVesselStroke))
+                                             geometry: WidgetVesselGeometry(width: WidgetStyleMetrics.mediumRowVesselWidth,
+                                                                            height: WidgetStyleMetrics.mediumRowVesselHeight,
+                                                                            stroke: WidgetStyleMetrics.rowVesselStroke))
                         HeadroomWidgetCaption(window.widgetDisplayLabel, size: context.scale.label, ink: .label)
                         Spacer(minLength: 4)
-                        HeadroomWidgetNumeral(window, size: 16, providerIsLive: live, now: context.now)
+                        HeadroomWidgetNumeral(window, size: WidgetStyleType.vesselHeroMediumRowNumeral, providerIsLive: live, now: context.now)
                     }
                 }
                 if let countdown = HeadroomWidgetWindowText.countdown(provider.primary, now: context.now) {
@@ -91,22 +93,23 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
 
     private var large: some View {
         let providers = context.recipe.providers
-        let rungCount = providers.map(\.secondaryLadder.count).max() ?? 1
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 16) {
                 ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
                     if index > 0 { HeadroomWidgetRule(.vertical) }
                     VStack(alignment: .leading, spacing: 16) {
-                        HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: true, mark: mark)
+                        HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true,
+                                                  showsStaleReason: true, mark: mark)
                         hero(provider, size: context.hero(), extra: HeadroomWidgetWindowText.countdown(provider.primary, now: context.now))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .headroomWidgetProviderAccessibility(provider, now: context.now)
+                    // R15: the column speaks its hero only; each row below is its own element.
+                    .headroomWidgetProviderAccessibility(provider, windows: [provider.primary].compactMap { $0 }, now: context.now)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
             ViewThatFits(in: .vertical) {
-                ForEach(0..<rungCount, id: \.self) { rung in
+                ForEach(0..<context.recipe.ladderRungCount, id: \.self) { rung in
                     largeRows(rung: rung)
                 }
             }
@@ -118,7 +121,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
 
     @ViewBuilder private func largeRows(rung: Int) -> some View {
         let rows = context.recipe.providers.flatMap { provider in
-            provider.secondaryLadder[min(rung, provider.secondaryLadder.count - 1)].map {
+            provider.secondary(atRung: rung).map {
                 HeadroomWidgetProviderWindow(provider: provider, window: $0)
             }
         }
@@ -132,7 +135,8 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                     let provider = row.provider, window = row.window
                     let live = context.isLive(provider)
                     HStack(alignment: .center, spacing: 9) {
-                        mark(provider.id, 15).frame(width: 15, height: 15)
+                        mark(provider.id, CGFloat(WidgetStyleMetrics.rowMark))
+                            .frame(width: CGFloat(WidgetStyleMetrics.rowMark), height: CGFloat(WidgetStyleMetrics.rowMark))
                         HeadroomWidgetCaption(window.widgetDisplayLabel, size: context.scale.label, ink: .label)
                             .fixedSize()
                         if let countdown = HeadroomWidgetWindowText.countdown(window, now: context.now) {

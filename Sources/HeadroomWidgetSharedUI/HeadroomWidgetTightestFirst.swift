@@ -30,7 +30,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(alignment: .center, spacing: CGFloat(WidgetMetrics.markGap)) {
                             mark(provider.id, CGFloat(context.slot)).frame(width: CGFloat(context.slot), height: CGFloat(context.slot))
-                            HeadroomWidgetName(provider.summary.displayName, size: 13)
+                            HeadroomWidgetName(provider.summary.displayName, size: 13, kerning: context.scale.nameKerning)
                             Spacer(minLength: 4)
                             if !provider.isWaiting {
                                 HeadroomWidgetNumeral(provider.tightest, size: context.hero(), providerIsLive: live, now: context.now)
@@ -38,18 +38,19 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                             }
                         }
                         if provider.isWaiting {
-                            HeadroomWidgetWaitingLine(size: 10.5)
+                            HeadroomWidgetWaitingLine(size: WidgetStyleType.compactCaption)
                         } else {
                             HStack(alignment: .center, spacing: 7) {
                                 HeadroomWidgetStyleBar(provider.tightest, colorMode: context.colorMode, providerIsLive: live,
                                                        height: CGFloat(WidgetStyleMetrics.tightestRowBar))
-                                HeadroomWidgetCaption(provider.tightest?.widgetDisplayLabel ?? "", size: 10.5, ink: .countdown)
+                                HeadroomWidgetCaption(provider.tightest?.widgetDisplayLabel ?? "", size: WidgetStyleType.compactCaption, ink: .countdown)
                                     .frame(maxWidth: 62, alignment: .trailing)
                                     .fixedSize()
                             }
                         }
                     }
-                    .headroomWidgetProviderAccessibility(provider, now: context.now)
+                    // R15: spoken in the order this style ranks them, tightest first.
+                    .headroomWidgetProviderAccessibility(provider, windows: WidgetWindowRanking.ranked(provider.windows), now: context.now)
                 }
             }
             Spacer(minLength: 0)
@@ -70,7 +71,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
     private func mediumColumn(_ provider: WidgetStyleProviderRecipe) -> some View {
         let live = context.isLive(provider)
         return VStack(alignment: .leading, spacing: 0) {
-            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: true, mark: mark)
+            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true, mark: mark)
             Spacer(minLength: 4)
             if provider.isWaiting {
                 HeadroomWidgetWaitingLine(size: context.scale.countdown)
@@ -89,7 +90,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .headroomWidgetProviderAccessibility(provider, now: context.now)
+        .headroomWidgetProviderAccessibility(provider, windows: WidgetWindowRanking.ranked(provider.windows), now: context.now)
     }
 
     // MARK: Large
@@ -100,18 +101,16 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
             HeadroomWidgetCaption(WidgetStyleCopy.tightestLargeHeading, size: context.scale.header)
             if let headline = context.recipe.rankedRows.first {
                 headlineView(headline).padding(.top, 10)
+                // R11: providers with nothing to rank sit under the list on every rung, so the
+                // ladder sheds ranked rows before it can cut them.
                 ViewThatFits(in: .vertical) {
                     ForEach(0..<ladder.count, id: \.self) { rung in
-                        rows(Array(ladder[rung].dropFirst()))
+                        rows(Array(ladder[rung].dropFirst()), unranked: context.recipe.providersWithoutRows)
                     }
                 }
                 .frame(maxHeight: .infinity, alignment: .top)
             } else {
-                ForEach(context.recipe.providers) { provider in
-                    HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: false, mark: mark)
-                        .padding(.top, 10)
-                    HeadroomWidgetWaitingLine(size: context.scale.countdown).padding(.top, 4)
-                }
+                unranked(context.recipe.providersWithoutRows)
                 Spacer(minLength: 0)
             }
             HeadroomWidgetStyleTail(context: context, mark: mark)
@@ -143,19 +142,20 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
     }
 
     @ViewBuilder
-    private func rows(_ rows: [WidgetRankedRow]) -> some View {
+    private func rows(_ rows: [WidgetRankedRow], unranked providers: [WidgetStyleProviderRecipe]) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !rows.isEmpty {
+            if !rows.isEmpty || !providers.isEmpty {
                 HeadroomWidgetRule().padding(.top, 16).padding(.bottom, 2)
             }
             ForEach(rows) { row in
                 let live = isLive(row)
                 HStack(alignment: .center, spacing: 9) {
-                    mark(row.providerID, 15).frame(width: 15, height: 15)
+                    mark(row.providerID, CGFloat(WidgetStyleMetrics.rowMark))
+                        .frame(width: CGFloat(WidgetStyleMetrics.rowMark), height: CGFloat(WidgetStyleMetrics.rowMark))
                     VStack(alignment: .leading, spacing: 1) {
                         HeadroomWidgetCaption("\(row.providerName) · \(row.window.widgetDisplayLabel)", size: 12.5, ink: .label)
                         if let countdown = HeadroomWidgetWindowText.countdown(row.window, now: context.now) {
-                            HeadroomWidgetCaption(countdown, size: 10.5, ink: .countdown, mono: true)
+                            HeadroomWidgetCaption(countdown, size: WidgetStyleType.compactCaption, ink: .countdown, mono: true)
                         }
                     }
                     .frame(width: 118, alignment: .leading)
@@ -169,6 +169,23 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                 .accessibilityLabel("\(row.providerName) \(row.window.widgetDisplayLabel)")
                 .accessibilityValue(HeadroomWidgetWindowText.accessibilityValue(row.window, providerIsLive: live, now: context.now))
             }
+            unranked(providers)
+        }
+    }
+
+    /// R11/WCM5-v: a provider with no window to rank — its identity row (with the stale reason)
+    /// and, while Headroom has not read it yet, the waiting line.
+    private func unranked(_ providers: [WidgetStyleProviderRecipe]) -> some View {
+        ForEach(providers) { provider in
+            VStack(alignment: .leading, spacing: 4) {
+                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: false,
+                                          showsStaleReason: true, mark: mark)
+                if provider.isWaiting {
+                    HeadroomWidgetWaitingLine(size: context.scale.countdown)
+                }
+            }
+            .padding(.top, 10)
+            .headroomWidgetProviderAccessibility(provider, now: context.now)
         }
     }
 

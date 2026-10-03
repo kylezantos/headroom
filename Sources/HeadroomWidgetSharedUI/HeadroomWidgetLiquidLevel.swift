@@ -27,7 +27,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
     @ViewBuilder private var small: some View {
         if let provider = context.recipe.providers.first {
             VStack(alignment: .leading, spacing: 0) {
-                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: false, mark: mark)
+                HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: false, mark: mark)
                 Spacer(minLength: 4)
                 heroBlock(provider, size: context.hero(1), extra: nil)
             }
@@ -61,7 +61,8 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
         let single = context.recipe.providers.count == 1
         let live = context.isLive(provider)
         return VStack(alignment: .leading, spacing: 0) {
-            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, nameSize: context.scale.name, showsPlan: single, mark: mark)
+            HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: single,
+                                      showsStaleReason: large, mark: mark)
             if large {
                 heroBlock(provider, size: context.hero(), extra: HeadroomWidgetWindowText.countdown(provider.primary, now: context.now))
                     .padding(.top, 10)
@@ -69,7 +70,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
                 ViewThatFits(in: .vertical) {
                     ForEach(0..<provider.secondaryLadder.count, id: \.self) { rung in
                         VStack(alignment: .leading, spacing: 0) {
-                            ForEach(provider.secondaryLadder[rung]) { window in
+                            ForEach(provider.secondary(atRung: rung)) { window in
                                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                                     HeadroomWidgetCaption(window.widgetDisplayLabel, size: context.scale.label, ink: .label)
                                     Spacer(minLength: 4)

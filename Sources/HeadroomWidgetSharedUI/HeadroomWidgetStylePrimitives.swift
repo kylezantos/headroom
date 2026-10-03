@@ -124,50 +124,9 @@ extension Color {
 
 // MARK: - Countdown and accessibility
 
-public enum HeadroomWidgetWindowText {
-    /// WCW1: the bare countdown ("4d 6h", "now"); nothing when unresolved or unavailable.
-    public static func countdown(_ window: WidgetWindowSummary?, now: Date) -> String? {
-        guard let window, !window.freshness.isUnavailable else { return nil }
-        return window.resetSchedule.meterResetLine(now: now)?.countdown
-    }
-
-    /// WCW8: an em dash, never "--".
-    public static func percent(_ window: WidgetWindowSummary?) -> String {
-        guard let value = window?.displayPercentRemaining else { return "—" }
-        return "\(Int(value.rounded()))%"
-    }
-
-    /// R15: the spoken value for one window — shared by every style so the wording cannot
-    /// drift between them.
-    public static func accessibilityValue(_ window: WidgetWindowSummary?, providerIsLive: Bool, now: Date) -> String {
-        guard let window else { return "no reading yet" }
-        var parts: [String] = []
-        if let value = window.displayPercentRemaining {
-            parts.append("\(Int(value.rounded())) percent left")
-        }
-        if window.freshness.isStale { parts.append("last known") }
-        if window.freshness.isUnavailable { parts.append("unavailable") }
-        if !providerIsLive { parts.append("provider needs attention") }
-        if window.severity == .critical, providerIsLive, window.freshness.isLive { parts.append("low") }
-        if !window.freshness.isUnavailable {
-            parts.append(Countdown.resetText(
-                schedule: window.resetSchedule,
-                utilization: window.utilization,
-                isLive: window.freshness.isLive,
-                now: now
-            ))
-        }
-        return parts.joined(separator: ", ")
-    }
-
-    /// R15: one element per provider — its name, then each window in visual order.
-    public static func providerAccessibility(_ provider: WidgetStyleProviderRecipe, windows: [WidgetWindowSummary], now: Date) -> String {
-        guard !provider.isWaiting else { return WidgetStyleCopy.waiting }
-        let isLive = provider.summary.freshness == .live
-        return windows.map { "\($0.widgetDisplayLabel): \(accessibilityValue($0, providerIsLive: isLive, now: now))" }
-            .joined(separator: "; ")
-    }
-}
+/// The window strings live in Core (`WidgetWindowText`) so their branches are unit-tested; this
+/// alias keeps the style views' spelling.
+public typealias HeadroomWidgetWindowText = WidgetWindowText
 
 // MARK: - Numeral (R5)
 
@@ -213,29 +172,34 @@ public struct HeadroomWidgetNumeral: View {
 
 // MARK: - Identity row
 
-/// Mark · name · plan capsule · attention glyph. The plan capsule is the first thing to go
-/// when the row is short (KTD10), then the name truncates; the mark never shrinks.
+/// Mark · name · plan capsule · attention glyph · stale reason. The plan capsule is the first
+/// thing to go when the row is short (KTD10), then the name truncates; the mark never shrinks.
 public struct HeadroomWidgetIdentityRow<Mark: View>: View {
     private let provider: WidgetStyleProviderRecipe
     private let slot: Double
-    private let nameSize: Double
+    private let scale: WidgetTypeScale
     private let showsPlan: Bool
+    private let showsStaleReason: Bool
     private let mark: (String, CGFloat) -> Mark
 
     @Environment(\.colorScheme) private var scheme
     @HeadroomWidgetTypeUnit private var typeUnit
 
+    /// `showsStaleReason`: WCM5-v — large is the one family with room to print the provider's
+    /// on-wire stale reason after the glyph.
     public init(
         provider: WidgetStyleProviderRecipe,
         slot: Double,
-        nameSize: Double,
+        scale: WidgetTypeScale,
         showsPlan: Bool,
+        showsStaleReason: Bool = false,
         @ViewBuilder mark: @escaping (String, CGFloat) -> Mark
     ) {
         self.provider = provider
         self.slot = slot
-        self.nameSize = nameSize
+        self.scale = scale
         self.showsPlan = showsPlan
+        self.showsStaleReason = showsStaleReason
         self.mark = mark
     }
 
@@ -249,13 +213,13 @@ public struct HeadroomWidgetIdentityRow<Mark: View>: View {
     }
 
     private func row(plan: Bool) -> some View {
-        let size = nameSize * typeUnit
+        let size = scale.name * typeUnit
         return HStack(spacing: CGFloat(WidgetMetrics.markGap)) {
             mark(provider.id, CGFloat(slot))
                 .frame(width: CGFloat(slot), height: CGFloat(slot))
             Text(provider.summary.displayName)
                 .font(.system(size: size, weight: .semibold))
-                .kerning(-0.15)
+                .kerning(scale.nameKerning)
                 .foregroundStyle(HeadroomWidgetStyle.accountTitle(scheme: scheme))
                 .lineLimit(1)
                 .truncationMode(.tail)
@@ -265,19 +229,45 @@ public struct HeadroomWidgetIdentityRow<Mark: View>: View {
                 HeadroomWidgetPlanCapsule(label: label)
                     .widgetCapHeightCentered(size: size, weight: .semibold)
             }
-            if provider.summary.freshness.needsAttention || provider.summary.freshness.isStale {
+            if provider.summary.freshness.isStale {
                 HeadroomWidgetAttentionGlyph(kind: .provider, size: 10)
                     .fixedSize()
                     .widgetCapHeightCentered(size: size, weight: .semibold)
             }
+            if showsStaleReason, let message = provider.staleMessage {
+                reason(message)
+            }
             Spacer(minLength: 0)
         }
+    }
+
+    /// WCM5-v: the reason in tertiary ink, one line. WCF7: it is the row's last flexible element
+    /// and gives first — negative priority, and no ideal width, so it never costs the plan
+    /// capsule its rung or pushes the name out; it takes only what the row has left, and drops
+    /// whole rather than print a one-letter fragment.
+    private func reason(_ message: String) -> some View {
+        let reasonSize = scale.countdown * typeUnit
+        // Four ems is roughly "Sign…": below that the reason is a fragment, not a phrase.
+        let fragmentWidth = CGFloat(reasonSize * 4)
+        return ViewThatFits(in: .horizontal) {
+            Text(message)
+                .font(HeadroomWidgetType.font(size: reasonSize))
+                .foregroundStyle(HeadroomWidgetStyle.tertiaryText(scheme: scheme))
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .widgetCapHeightCentered(size: reasonSize, weight: .regular)
+                .frame(minWidth: fragmentWidth, idealWidth: fragmentWidth, maxWidth: .infinity, alignment: .leading)
+                .headroomWidgetProbe()
+            Color.clear.frame(width: 0, height: 0)
+        }
+        .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
+        .layoutPriority(-1)
     }
 }
 
 public extension HeadroomWidgetIdentityRow where Mark == HeadroomWidgetProviderIcon {
-    init(provider: WidgetStyleProviderRecipe, slot: Double, nameSize: Double, showsPlan: Bool) {
-        self.init(provider: provider, slot: slot, nameSize: nameSize, showsPlan: showsPlan) { id, size in
+    init(provider: WidgetStyleProviderRecipe, slot: Double, scale: WidgetTypeScale, showsPlan: Bool, showsStaleReason: Bool = false) {
+        self.init(provider: provider, slot: slot, scale: scale, showsPlan: showsPlan, showsStaleReason: showsStaleReason) { id, size in
             HeadroomWidgetProviderIcon(providerID: id, size: size)
         }
     }
@@ -669,6 +659,6 @@ extension View {
     func headroomWidgetProviderAccessibility(_ provider: WidgetStyleProviderRecipe, windows: [WidgetWindowSummary]? = nil, now: Date) -> some View {
         accessibilityElement(children: .ignore)
             .accessibilityLabel(provider.summary.displayName)
-            .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: windows ?? provider.windows, now: now))
+            .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: windows, now: now))
     }
 }

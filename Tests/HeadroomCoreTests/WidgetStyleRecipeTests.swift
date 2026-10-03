@@ -23,7 +23,7 @@ enum StyleFixture {
             percentRemaining: percent,
             resetSchedule: .scheduled(now.addingTimeInterval(resetIn)),
             resetLabel: nil,
-            severity: severity ?? (percent <= 15 ? .critical : percent <= 50 ? .low : .healthy),
+            severity: severity ?? WidgetUsageSeverity(UsageSeverity(percentRemaining: percent)),
             freshness: freshness,
             billingPeriodDuration: billingPeriod
         )
@@ -332,5 +332,109 @@ struct WidgetStyleSimplificationTests {
     @Test func resetsInSaysNowAtTheReset() {
         #expect(WidgetStyleCopy.resetsIn("3h 15m") == "Resets in 3h 15m")
         #expect(WidgetStyleCopy.resetsIn("now") == "Resets now")
+    }
+}
+
+struct WidgetStyleRecipeReviewTests {
+    typealias F = StyleFixture
+
+    private static let signedOut = F.provider(
+        "claude", "Claude", freshness: .stale(message: "  Sign in with the official Claude CLI \n", needsAttention: true), []
+    )
+
+    // MARK: Tightest First large keeps windowless providers (R11)
+
+    @Test func tightestFirstLargeKeepsAPendingProviderBesideRankedRows() {
+        let pending = F.provider("claude", "Claude", freshness: .pending, [])
+        let recipe = F.recipe(.tightestFirst, .large, [pending, F.codex()])
+        #expect(recipe.providersWithoutRows.map(\.id) == ["claude"])
+        #expect(recipe.providersWithoutRows.first?.isWaiting == true)
+        #expect(recipe.rankedRows.map(\.providerID) == ["codex", "codex"])
+    }
+
+    @Test func tightestFirstLargeKeepsAStaleProviderWithNoWindows() {
+        let recipe = F.recipe(.tightestFirst, .large, [Self.signedOut, F.codex()])
+        #expect(recipe.providersWithoutRows.map(\.id) == ["claude"])
+        #expect(recipe.providersWithoutRows.first?.isWaiting == false)
+        #expect(recipe.rankedRows.map(\.providerID) == ["codex", "codex"])
+    }
+
+    @Test func providersWithoutRowsFollowProviderOrder() {
+        // A widget shows at most two providers; with neither ranked, both stay, in order.
+        let pending = F.provider("codex", "Codex", freshness: .pending, [])
+        let recipe = F.recipe(.tightestFirst, .large, [Self.signedOut, pending])
+        #expect(recipe.providersWithoutRows.map(\.id) == ["claude", "codex"])
+        #expect(recipe.rankedRows.isEmpty)
+    }
+
+    @Test func providersWithoutRowsIsEmptyOutsideTightestFirstLarge() {
+        let pending = F.provider("claude", "Claude", freshness: .pending, [])
+        #expect(F.recipe(.tightestFirst, .large, [F.claude(), F.codex()]).providersWithoutRows.isEmpty)
+        for style in WidgetLayoutStyle.allCases {
+            for family in WidgetFamily.allCases where !(style == .tightestFirst && family == .large) {
+                #expect(F.recipe(style, family, [pending, F.codex()]).providersWithoutRows.isEmpty, "\(style)/\(family)")
+            }
+        }
+    }
+
+    // MARK: Ladder rungs (KTD10)
+
+    @Test func ladderRungCountIsTheLongestProviderLadder() {
+        // Claude sheds Fable (2 rungs); Grok has nothing to shed (1 rung).
+        let recipe = F.recipe(.nestedMeter, .large, [F.claude(), F.grok()])
+        #expect(recipe.providers.map(\.secondaryLadder.count) == [2, 1])
+        #expect(recipe.ladderRungCount == 2)
+        #expect(F.recipe(.nestedMeter, .large, []).ladderRungCount == 1)
+    }
+
+    @Test func secondaryAtRungClampsAShorterLadderToItsLastRung() {
+        let both = F.provider("x", "X", [
+            F.window(.fiveHour, label: "5h", percent: 70),
+            F.window(.weekly, label: "Weekly", percent: 50),
+            F.window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 60),
+            F.window(.other("Spark weekly"), label: "Spark weekly", percent: 80),
+        ])
+        let recipe = F.recipe(.nestedMeter, .large, [both, F.grok()])
+        #expect(recipe.providers.map(\.secondaryLadder.count) == [3, 1])
+        #expect(recipe.ladderRungCount == 3)
+        let labels = { (p: WidgetStyleProviderRecipe, rung: Int) in p.secondary(atRung: rung).map(\.widgetDisplayLabel) }
+        let x = recipe.providers[0], grok = recipe.providers[1]
+        let claude = F.recipe(.nestedMeter, .large, [F.claude()]).providers[0]
+        #expect(labels(x, 0) == ["5-hour", "Fable", "Spark"])
+        #expect(labels(x, 1) == ["5-hour", "Fable"])
+        #expect(labels(x, 2) == ["5-hour"])
+        #expect(labels(claude, 0) == ["5-hour", "Fable"])
+        #expect(labels(claude, 1) == ["5-hour"])
+        #expect(labels(claude, 2) == ["5-hour"])
+        for rung in 0..<recipe.ladderRungCount {
+            #expect(grok.secondary(atRung: rung).isEmpty)
+        }
+        #expect(labels(claude, 99) == ["5-hour"])
+        #expect(labels(claude, -1) == ["5-hour", "Fable"])
+    }
+
+    // MARK: Stale reason (WCM5-v)
+
+    @Test func staleMessageIsTheTrimmedReasonOnlyWhenStale() {
+        let stale = F.recipe(.nestedMeter, .large, [Self.signedOut]).providers[0]
+        #expect(stale.staleMessage == "Sign in with the official Claude CLI")
+        #expect(F.recipe(.nestedMeter, .large, [F.claude()]).providers[0].staleMessage == nil)
+        let pending = F.provider("claude", "Claude", freshness: .pending, [])
+        #expect(F.recipe(.nestedMeter, .large, [pending]).providers[0].staleMessage == nil)
+        let blank = F.provider("claude", "Claude", freshness: .stale(message: "  ", needsAttention: false), [])
+        #expect(F.recipe(.nestedMeter, .large, [blank]).providers[0].staleMessage == nil)
+    }
+
+    @Test func signedOutFixturePosesAWindowlessProviderThatNeedsAttention() throws {
+        #expect(DemoScreenshotData.styleFixtureNames.contains("signedOut"))
+        let envelope = try #require(DemoScreenshotData.styleFixture("signedOut", now: F.now))
+        let providers = envelope.widgetProviders
+        #expect(providers.map(\.id) == ["claude", "codex"])
+        #expect(providers[0].windows.isEmpty)
+        #expect(providers[0].freshness.needsAttention)
+        #expect(providers[1].freshness == .live)
+        let recipe = WidgetStyleRecipe(style: .tightestFirst, family: .large, envelope: envelope)
+        #expect(recipe.providersWithoutRows.map(\.id) == ["claude"])
+        #expect(recipe.providersWithoutRows.first?.staleMessage?.isEmpty == false)
     }
 }

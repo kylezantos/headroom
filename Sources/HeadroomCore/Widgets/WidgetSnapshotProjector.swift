@@ -119,7 +119,7 @@ public enum WidgetSnapshotProjector {
             resetLabel: window.resetLabel,
             resetTimeZoneIdentifier: window.resetTimeZoneIdentifier,
             observedAt: window.observedAt ?? window.freshness.observedAt ?? capturedAt,
-            severity: widgetSeverity(window.severity),
+            severity: WidgetUsageSeverity(window.severity),
             freshness: widgetFreshness(window.freshness),
             billingPeriodDuration: billingPeriodDuration(window.kind)
         )
@@ -164,14 +164,6 @@ public enum WidgetSnapshotProjector {
                 return label.localizedCaseInsensitiveContains("weekly") ? .other(label) : nil
             }
             return .other(label)
-        }
-    }
-
-    private static func widgetSeverity(_ severity: UsageSeverity) -> WidgetUsageSeverity {
-        switch severity {
-        case .healthy: .healthy
-        case .low: .low
-        case .critical: .critical
         }
     }
 }

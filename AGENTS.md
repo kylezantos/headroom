@@ -71,6 +71,22 @@ bind to the `@Observable` store.
 The popover meter style is one global `MeterStyle`, persisted as three independent
 UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStore`. It affects
 only the macOS popover: widget, phone, and menu-bar projections intentionally carry no style.
+
+**Widget styles (Oct 2026).** Each placed widget chooses its own **Style** (Nested Meter —
+the default — Vessel Hero, Tightest First, Liquid Level) and **Color** (Always colored, Only
+when low) in Edit Widget. Both extensions use one `AppIntentConfiguration` with
+`HeadroomWidgetConfigurationIntent` (`Sources/HeadroomWidgets/HeadroomWidgetConfigurationIntent.swift`,
+compiled into both extensions only) and keep their original kind strings so placed widgets
+survive the update. Style and color are Foundation enums in Core (`WidgetLayoutStyle`,
+`WidgetColorMode`) with an unknown-value fallback to the defaults; nothing about style is in
+the widget envelope (schema stays 3). Every per-style decision — shown providers, primary and
+tightest windows (`WidgetWindowRanking`: lowest displayed value first, stale alongside live,
+unavailable last), shedding ladders, Liquid Level's wash segments, large-only spend and footer
+— is a pure, tested `WidgetStyleRecipe`; the shared views in `HeadroomWidgetSharedUI` only lay
+recipes out through `HeadroomWidgetStyledBody` plus the full-bleed `HeadroomWidgetStyledBackground`,
+which every caller (both hosts, Settings, the harness) draws under the padded content. Settings ›
+Widgets & iPhone previews the styles but never sets them. Plan:
+`docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
 Tube remains a stored shape when Full is selected, but `GaugeShape.resolved(for:)` renders it
 as Chip until the user returns to Micro.
 
@@ -130,6 +146,7 @@ swift test                         # unit suite (fast, all mocked — no CLI/net
 ./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
+swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick]  # headless widget-style renders + overflow sweep
 swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # live app with fixture data (screenshots, multi-account preview; multi-20 is the tested envelope)
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```
@@ -180,6 +197,13 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
 
 ## Gotchas
 
+- **Widget style views must pass the render sweep.** `swift run Headroom --render-widgets <dir>`
+  renders every style × family × fixture × appearance at macOS and 6.1″ sizes and exits non-zero
+  if any probed element (`.headroomWidgetProbe()`) leaves its tile's content box (WCF7: drop whole
+  elements, then truncate text; never `minimumScaleFactor`). New payload views carry the probe.
+  WidgetKit's rendering mode is read through `@HeadroomWidgetRendering` so the harness can pose
+  the monochrome and stripped branches; don't read `widgetRenderingMode` directly in a style view.
+  `ImageRenderer` ignores Dynamic Type, so xxLarge still needs a device look.
 - **Pill-shelf drag positions come from `PillShelfLayout`, never an `.offset`.** The layout
   places the dragged card at the pointer and, on release, at its drop slot in one animation;
   the store commits after it lands. Every offset-based handover jumped. See

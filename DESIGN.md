@@ -49,7 +49,7 @@ All paths are under `Sources/`.
 | Settings type | `SettingsType` (`SettingsRows.swift`) | paneTitle 20 semibold · tileTitle 15 semibold · groupLabel 13 semibold · help 11 · swatchLabel 11 medium · footnote 10. Neighbouring roles differ in size or ink, not weight alone. |
 | Settings copy | `SettingsCopy` | Any string two panes print. |
 | Optical alignment | `HeadroomApp/UI/OpticalLeading.swift` | `.opticalLeading(_:size:weight:)` for text starting a card line; `.capHeightCentered(size:weight:)` for mixed-size rows. Not for chip labels. |
-| Widgets / iOS | `HeadroomCore/Widgets/WidgetMetrics.swift`, `WidgetTypeScale.swift`, `HeadroomWidgetSharedUI/` | Widget-only type ladders and optics (CoreText, since AppKit isn't available there). Layout contract: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`. |
+| Widgets / iOS | `HeadroomCore/Widgets/WidgetMetrics.swift`, `WidgetTypeScale.swift`, `WidgetStyleTokens.swift` (`WidgetStyleType` hero numerals, `WidgetStyleMetrics` bars, rails, wash), `WidgetVesselGeometry.swift`, `HeadroomWidgetSharedUI/` | Widget-only type ladders and optics (CoreText, since AppKit isn't available there). Hero numerals are fixed size; labels keep Dynamic Type. The widget vessel keeps the menu-bar 11:18 proportion and is sized to the numeral's digit ink (`HeadroomWidgetFontMetrics.digitInk`). Color comes from `WidgetStyleColors.fill(for:colorMode:)`. Contracts: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md` (WC anchors still in force) and `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`. |
 | iOS companion app | `HeadroomIOS/DesignSystem/` | `HeadroomTheme` (tile radius 17, its own entrance/value animations, provider colours) and `.headroomTile` (`Elevation.swift`, ring-glow elevation from `design/ios-companion.html`). Colours come from the same Core values. |
 | Meter rendering | `HeadroomCore/Models/MeterStyle.swift` (`MeterRecipe`) → `MeterGauge` | The pure format × shape × fill contract. `MeterGauge` is the popover's only meter renderer. |
 
@@ -76,6 +76,7 @@ All paths are under `Sources/`.
 | Status line under an account | `StatusSentence` + `StatusSentenceSeverity` | Severity (meter) colours |
 | Plan / period / stale capsule | `.identityCapsule`, `PlanCapsule` | Padding-sized capsules (they drift in height) |
 | Usage meter | `UsageBarView` / `MeterGauge` via `MeterRecipe` | New bar drawing |
+| Widget style body | `HeadroomWidgetStyledBody` + `HeadroomWidgetStyledBackground` over a `WidgetStyleRecipe`; pieces `HeadroomWidgetStyleBar`, `HeadroomWidgetVessel`/`HeadroomWidgetVesselNumeral`, `HeadroomWidgetNumeral`, `HeadroomWidgetIdentityRow`, `HeadroomWidgetFittingCaption` | Per-host widget layouts; deciding windows or fills in a view |
 | Loading placeholder | `SkeletonMeter` | Spinners, pulses |
 | Provider mark | `ProviderLogoView` (macOS and iOS each have one) | Loading SVGs directly |
 | Revealing a Settings sub-option | `.transition(.settingsReveal)` | Ad-hoc slide/scale |

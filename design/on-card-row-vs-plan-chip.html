@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Headroom · Row button vs plan capsule</title>
+<style>
+  /* The shipped V6′ row (flat fill 0.045, no edge) reads as a long plan capsule (flat fill
+     secondary·0.12 ≈ 0.06, no edge). Each option gives the button a property a badge never has. */
+  :root { --zoom: 1.5; --house: cubic-bezier(0.22,1,0.36,1); }
+  body { margin: 0; background: #0a0b0e; color: #eceef2; font: 14px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1500px; margin: 0 auto; padding: 36px 28px 80px; }
+  h1 { font-size: 24px; margin: 0 0 6px; }
+  p.lede { color: rgba(236,238,242,.62); max-width: 860px; margin: 0 0 24px; }
+  .opt { display: grid; grid-template-columns: 260px 1fr 1fr; gap: 18px; align-items: center; padding: 18px 0; border-top: 1px solid rgba(255,255,255,.07); }
+  .opt h2 { font-size: 15px; margin: 0 0 4px; } .opt h2 span { color: #7fb2ff; font: 600 12px "SF Mono", monospace; margin-right: 8px; }
+  .opt p { margin: 0; font-size: 13px; color: rgba(236,238,242,.62); }
+  .stage { zoom: var(--zoom); border-radius: 12px; padding: 12px; background: #1d1f23; }
+  .stage.light { background: #f1f3f6; }
+  .card { width: 330px; border-radius: 12px; padding: 13px; background: linear-gradient(#25272d, #191b21); box-shadow: inset 0 0 0 1px rgba(255,255,255,.065), inset 0 1px 0 rgba(255,255,255,.14);
+          --ink: #f2f2f7; --ink-rgb: 242,242,247; --ink2: rgba(235,235,245,.62); --ink3: rgba(235,235,245,.42); --wt: 255,255,255; --cap: rgba(235,235,245,.066); --capink: rgba(235,235,245,.6); }
+  .light .card { background: linear-gradient(#fff, #fbfbfc); box-shadow: inset 0 0 0 1px rgba(0,0,0,.05);
+          --ink: #1d1f24; --ink-rgb: 29,31,36; --ink2: rgba(61,61,66,.82); --ink3: rgba(61,61,66,.55); --wt: 0,0,0; --cap: rgba(0,0,0,.06); --capink: rgba(61,61,66,.7); }
+  .acct + .acct { margin-top: 16px; }
+  .id { display: flex; align-items: center; gap: 6px; height: 20px; }
+  .mark { width: 15px; display: grid; place-items: center; } .mark i { width: 11px; height: 11px; border-radius: 50%; background: #e0805a; display: block; }
+  .title { font-size: 15px; font-weight: 600; letter-spacing: -.15px; color: var(--ink2); }
+  .cap { height: 18px; padding: 0 6px; border-radius: 9px; background: var(--cap); color: var(--capink); font-size: 10.5px; font-weight: 500; letter-spacing: .2px; display: inline-flex; align-items: center; margin-left: 2px; }
+  .line { display: flex; align-items: center; gap: 4px; margin: 6px 0 0 20px; }
+  .row { flex: 1; display: flex; align-items: baseline; gap: 6px; padding: 6px 7px; border-radius: 7px; font-size: 11.5px; line-height: 15px; font-weight: 500; color: var(--ink2); position: relative;
+         transition: background-color .12s var(--house), box-shadow .12s var(--house), color .12s var(--house); }
+  .row b { color: var(--ink); font-weight: 600; }
+  .row .g, .row .a { color: var(--ink3); display: inline-grid; place-items: center; transition: color .12s var(--house), transform .12s var(--house); }
+  .row .g { width: 14px; } .row .g svg { width: 13px; height: 11px; }
+  .row .a { margin-left: auto; align-self: center; } .row .a svg { width: 9px; height: 9px; }
+  .row:hover { color: var(--ink); } .row:hover .g, .row:hover .a { color: var(--ink); } .row:hover .a { transform: translate(1px,-1px); }
+  .ico { width: 26px; height: 26px; display: grid; place-items: center; color: var(--ink3); border-radius: 7px; } .ico svg { width: 12px; height: 12px; }
+  .meter { margin: 4px 0 0 21px; display: flex; align-items: baseline; font-size: 13.5px; font-weight: 600; color: var(--ink); }
+  .meter .r { color: var(--ink3); font-size: 12px; font-weight: 500; margin-left: 6px; }
+  .meter .p { margin-left: auto; font-size: 19px; } .meter .l { color: var(--ink3); font-size: 11.5px; margin-left: 5px; }
+
+  /* O0 shipped V6′ */
+  .o0 .row { background: rgba(var(--wt), .045); } .o0 .row:hover { background: rgba(var(--wt), .08); }
+  /* A Hairline, no fill */
+  .oA .row { box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .16); } .oA .row:hover { background: rgba(var(--wt), .045); box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .22); }
+  .oA .light .row { box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.13); }
+  /* B Fill + hairline */
+  .oB .row { background: rgba(var(--wt), .03); box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .10); } .oB .row:hover { background: rgba(var(--wt), .065); box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .15); }
+  .oB .light .row { background: rgba(0,0,0,.02); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.09); }
+  /* C Recessed: darker than the card in dark, a lifted white plate in light — the opposite of the capsule's tint in each */
+  .oC .row { background: rgba(0,0,0,.20); box-shadow: inset 0 1px 1.5px rgba(0,0,0,.30), 0 0.5px 0 rgba(255,255,255,.05); } .oC .row:hover { background: rgba(0,0,0,.27); }
+  .oC .light .row { background: #fff; box-shadow: 0 0 0 0.5px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06); } .oC .light .row:hover { background: #fafafa; box-shadow: 0 0 0 0.5px rgba(0,0,0,.11), 0 1px 3px rgba(0,0,0,.08); }
+  /* D Bare until hover */
+  .oD .row:hover { background: rgba(var(--wt), .06); }
+</style>
+</head>
+<body><div class="wrap">
+<h1>Row button vs plan capsule</h1>
+<p class="lede">V6′ shipped a flat grey fill (0.045) with no edge. The plan capsule is also a flat grey fill (secondary × 0.12 ≈ 0.06) with no edge, so the row reads as a long capsule. Each option gives the button something a badge never has. Hover the rows to try them.</p>
+<div id="opts"></div>
+</div>
+<script>
+const G = '<svg viewBox="0 0 14 12" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"><rect x=".9" y="1.1" width="12.2" height="9.8" rx="2.2"/><path d="M3.9 4.4 5.8 6 3.9 7.6M7.2 7.7h2.6"/></svg>';
+const A = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5V8M9.3 2.7 2.5 9.5"/></svg>';
+const R = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6a4 4 0 1 1-1.2-2.85"/><path d="M9.2 1.4v2.3H6.9"/></svg>';
+const O = [
+  ['o0','Shipped V6′','Flat fill, no edge. The same material as the capsule.'],
+  ['oA','A · Hairline, no fill','The rule "filled = label, outlined = button". A 0.5pt ring (0.16) and nothing inside, with the fill appearing on hover. The lightest option with a visible shape.'],
+  ['oB','B · Fill + hairline','Keeps V6′\'s presence with a lighter fill (0.03) and adds a faint 0.5pt ring (0.10). Badges have no edge, so the edge alone separates them.'],
+  ['oC','C · Opposite material','The row goes the other way from the capsule: darker than the card in dark (recessed), a lifted white plate in light. The capsule is a tint, the row is a surface.'],
+  ['oD','D · Bare until hover','No shape at rest. The bold verb, glyph and ↗ carry it, and the fill appears under the pointer. It can\'t look like a capsule because it has no box (this brings back hover-only chrome).'],
+];
+const acct = (name, cap, body) => `<div class="acct"><div class="id"><span class="mark"><i></i></span><span class="title">${name}</span><span class="cap">${cap}</span></div>${body}</div>`;
+const row = `<div class="line"><div class="row"><span class="g">${G}</span><span><b>Sign in</b> with the official Claude CLI</span><span class="a">${A}</span></div><span class="ico">${R}</span></div>`;
+const meter = `<div class="meter">Weekly<span class="r">3d 23h</span><span class="p">38%</span><span class="l">left</span></div>`;
+const card = () => `<div class="card">${acct('Personal','Max',meter)}${acct('Work','Pro',row)}${acct('Studio','Max',row)}</div>`;
+document.getElementById('opts').innerHTML = O.map(([c,t,d]) => `<section class="opt ${c}"><div><h2><span>${t.split(' ')[0]}</span>${t.replace(/^\S+\s(· )?/,'')}</h2><p>${d}</p></div><div class="stage">${card()}</div><div class="stage light">${card()}</div></section>`).join('');
+</script>
+</body></html>

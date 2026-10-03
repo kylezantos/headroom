@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headroom · O15 row button, twelve variations</title>
+<style>
+  /* Round 2 of design/on-card-secondary-button-options.html. O15 won ("more economical
+     with the space"); every variation below keeps its idea — the status sentence IS the
+     button — and changes chrome, affordance, alignment or the secondary action.
+     Tokens as round 1 (from design/refresh-stamp-merge-round4.html + ClaudeSetupViews.swift:718). */
+  :root {
+    --house: cubic-bezier(0.22, 1, 0.36, 1);
+    --page: #0a0b0e; --page-ink: #eceef2;
+    --page-ink2: rgba(236,238,242,0.62); --page-ink3: rgba(236,238,242,0.42);
+    --panel: #121418; --panel-ring: rgba(255,255,255,0.07);
+    --annot: #7fb2ff;
+    --zoom: 1.5;
+    font-synthesis: none;
+  }
+  .stage {
+    --pop: #1d1f23; --tile-top: #25272d; --tile-bot: #191b21;
+    --ring: rgba(255,255,255,0.065); --rim-top: rgba(255,255,255,0.14);
+    --ink: #f2f2f7; --ink-rgb: 242,242,247;
+    --ink2: rgba(235,235,245,0.66); --ink3: rgba(235,235,245,0.48);
+    --wt: 255,255,255; --lip: rgba(255,255,255,0.12);
+    --accent: #e88f69; --accent-rgb: 232,143,105;
+    --crit: #ff7a6e; --crit-rgb: 255,122,110;
+    --dot-on: #33C759; --dot-off: rgba(235,235,245,0.13);
+  }
+  body.light .stage {
+    --pop: #f1f3f6; --tile-top: #ffffff; --tile-bot: #fbfbfc;
+    --ring: rgba(0,0,0,0.05); --rim-top: rgba(255,255,255,0.9);
+    --ink: #1d1f24; --ink-rgb: 29,31,36;
+    --ink2: rgba(61,61,66,0.84); --ink3: rgba(61,61,66,0.62);
+    --wt: 0,0,0; --lip: rgba(255,255,255,0.8);
+    --accent: #B3541C; --accent-rgb: 179,84,28;
+    --crit: #d1352b; --crit-rgb: 209,53,43;
+    --dot-on: #29A84D; --dot-off: rgba(40,40,46,0.12);
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--page); }
+  body { margin: 0; color: var(--page-ink); font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1480px; margin: 0 auto; padding: 0 28px 140px; }
+  header.top { padding: 44px 0 6px; }
+  header.top h1 { font-size: 28px; line-height: 1.15; margin: 0 0 10px; letter-spacing: -0.01em; }
+  header.top p { color: var(--page-ink2); max-width: 860px; margin: 0 0 8px; }
+  code { font: 12px "SF Mono", ui-monospace, monospace; color: var(--page-ink); background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; }
+  .toolbar { position: sticky; top: 0; z-index: 10; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 12px 0; margin-bottom: 18px; background: linear-gradient(var(--page) 75%, transparent); }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--panel-ring); border-radius: 8px; padding: 2px; }
+  .seg button, .tbtn { font: 500 12.5px/1 inherit; font-family: inherit; color: var(--page-ink2); background: none; border: 0; padding: 7px 11px; border-radius: 6px; cursor: pointer; }
+  .seg button.on { background: rgba(255,255,255,0.10); color: var(--page-ink); }
+  .tbtn { background: var(--panel); border: 1px solid var(--panel-ring); color: var(--page-ink); }
+  .tbtn:hover { background: #1a1d22; }
+  .tally { color: var(--page-ink3); font-size: 12.5px; margin-left: auto; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, calc(358px * var(--zoom) + 34px)), 1fr)); gap: 18px; }
+  .opt { background: var(--panel); border: 1px solid var(--panel-ring); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .opt.baseline { border-color: rgba(127,178,255,0.35); }
+  .opt-head { padding: 14px 16px 10px; display: flex; gap: 10px; align-items: baseline; }
+  .opt-id { font: 600 12px "SF Mono", ui-monospace, monospace; color: var(--annot); flex: none; }
+  .opt-name { font-weight: 600; font-size: 15px; }
+  .opt-axis { margin-left: auto; font-size: 11px; color: var(--page-ink3); white-space: nowrap; flex: none; text-transform: uppercase; letter-spacing: .05em; }
+  .opt-tag { padding: 0 16px 12px; color: var(--page-ink2); font-size: 13px; margin: 0; }
+  .stage-wrap { padding: 0 16px; }
+  .stage { background: var(--pop); border-radius: 12px; padding: 14px; zoom: var(--zoom); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; }
+  .card { width: 330px; margin: 0 auto; background: linear-gradient(var(--tile-top), var(--tile-bot)); border-radius: 12px; padding: 13px 13px 14px; box-shadow: inset 0 0 0 1px var(--ring), inset 0 1px 0 var(--rim-top); }
+  .acct + .acct { margin-top: 16px; }
+  .idrow { display: flex; align-items: center; gap: 6px; height: 20px; }
+  .mark { width: 15px; height: 15px; flex: none; display: grid; place-items: center; }
+  .mark svg { width: 14px; height: 14px; }
+  .title { font-size: 15px; font-weight: 600; letter-spacing: -0.15px; color: var(--ink2); }
+  .title.live { color: var(--ink); }
+  /* healthy reference account: one meter row, to judge the row's weight against live data */
+  .meter { display: flex; align-items: baseline; margin: 6px 0 0 21px; font-size: 13.5px; font-weight: 600; }
+  .meter .rs { color: var(--ink3); font-weight: 500; font-size: 12px; margin-left: 6px; }
+  .meter .dots { margin-left: auto; display: inline-flex; gap: 2.5px; align-self: center; margin-right: 12px; }
+  .meter .dots i { width: 7px; height: 7px; border-radius: 2px; background: var(--dot-on); }
+  .meter .dots i.off { background: var(--dot-off); }
+  .meter .pct { font-size: 19px; font-weight: 600; letter-spacing: -0.3px; width: 50px; text-align: right; }
+  .meter .lf { color: var(--ink3); font-size: 11.5px; font-weight: 500; margin-left: 5px; }
+
+  .states { margin: 12px auto 0; width: 330px; background: linear-gradient(var(--tile-top), var(--tile-bot)); border-radius: 12px; box-shadow: inset 0 0 0 1px var(--ring); padding: 4px 13px; }
+  .state { display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 8px 0 9px; }
+  .state + .state { border-top: 0.5px solid rgba(var(--wt), .07); }
+  .state .lbl { padding-left: 21px; font-size: 9px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink3); font-weight: 600; }
+  .state .line { flex: 1; margin: 0 !important; }
+
+  .notes { padding: 14px 16px 4px; font-size: 13px; color: var(--page-ink2); }
+  .notes dl { margin: 0; display: grid; grid-template-columns: 84px 1fr; gap: 6px 10px; }
+  .notes dt { color: var(--page-ink3); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; padding-top: 1px; }
+  .notes dd { margin: 0; }
+  .decide { margin-top: auto; padding: 12px 16px 16px; border-top: 1px solid var(--panel-ring); }
+  .decide .row { display: flex; gap: 6px; margin-bottom: 8px; }
+  .decide button { flex: 1; font: 500 12.5px/1 inherit; font-family: inherit; padding: 8px 0; border-radius: 7px; cursor: pointer; background: rgba(255,255,255,0.04); color: var(--page-ink2); border: 1px solid var(--panel-ring); }
+  .decide button:hover { background: rgba(255,255,255,0.08); color: var(--page-ink); }
+  .decide button.on[data-v="approve"] { background: rgba(51,199,89,0.16); border-color: rgba(51,199,89,0.5); color: #8fe3a6; }
+  .decide button.on[data-v="deny"]    { background: rgba(255,87,74,0.14); border-color: rgba(255,87,74,0.45); color: #ffa198; }
+  .decide button.on[data-v="discuss"] { background: rgba(127,178,255,0.14); border-color: rgba(127,178,255,0.45); color: #b5d2ff; }
+  .decide textarea { width: 100%; min-height: 38px; resize: vertical; font: 13px/1.4 inherit; font-family: inherit; background: #0e1013; color: var(--page-ink); border: 1px solid var(--panel-ring); border-radius: 7px; padding: 7px 9px; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; background: #23262c; color: var(--page-ink); padding: 9px 14px; border-radius: 8px; font-size: 13px; transition: opacity .2s var(--house), transform .2s var(--house); pointer-events: none; }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ============================================================
+     THE ROW. One markup for every variation:
+       .line > .b.row (lead glyph? · .txt · .aff) + .sec (secondary)
+     Variation classes on .stage restyle it. .f-hover/.f-press force states.
+     ============================================================ */
+  .b { -webkit-appearance: none; appearance: none; border: 0; background: none; margin: 0; font-family: inherit; cursor: default; position: relative; display: inline-flex; align-items: center; gap: 6px; color: inherit; text-align: left;
+       transition: background-color .12s var(--house), box-shadow .12s var(--house), color .12s var(--house), transform .1s var(--house), opacity .12s var(--house), width .18s var(--house), padding .18s var(--house); }
+  .b svg { flex: none; }
+  .line { display: flex; align-items: center; gap: 4px; margin: 7px 0 0 15px; }
+  .row { flex: 1; min-width: 0; padding: 6px 7px 6px 6px; border-radius: 7px; font-size: 11.5px; line-height: 15px; font-weight: 500; color: var(--ink); }
+  .row .txt { flex: 1; min-width: 0; }
+  .row .aff { color: var(--ink3); display: inline-flex; align-items: center; gap: 3px; transition: transform .12s var(--house), color .12s var(--house); align-self: flex-start; margin-top: 2px; }
+  .row .aff svg { width: 11px; height: 11px; }
+  .row .lead { display: none; }
+  .row.crit .txt { color: var(--crit); }
+  .row:hover .aff, .row.f-hover .aff { color: var(--ink2); transform: translate(1px, -1px); }
+  .row:active, .row.f-press { transform: scale(0.985); }
+
+  /* default fill (V0) */
+  .row { background: rgba(var(--wt), .035); }
+  .row:hover, .row.f-hover { background: rgba(var(--wt), .07); }
+  .row:active, .row.f-press { background: rgba(var(--wt), .10); }
+
+  /* waiting line: not a button — nothing to open; spinner sits where the row's text starts */
+  .wait { padding: 6px 7px 6px 6px; flex: 1; display: flex; align-items: center; gap: 6px; font-size: 11.5px; line-height: 15px; font-weight: 500; color: var(--ink2); }
+  .spin { width: 11px; height: 11px; border-radius: 50%; border: 1.5px solid rgba(var(--wt), .14); border-top-color: var(--ink2); animation: spin 1s linear infinite; flex: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* secondary: icon (default) */
+  .sec { display: inline-flex; align-items: center; flex: none; }
+  .ico { width: 26px; height: 26px; justify-content: center; border-radius: 7px; color: var(--ink3); padding: 0; gap: 0; overflow: hidden; white-space: nowrap; font-size: 11.5px; font-weight: 500; }
+  .ico svg { width: 12px; height: 12px; }
+  .ico .lab { display: none; }
+  .ico:hover, .ico.f-hover { background: rgba(var(--wt), .07); color: var(--ink); }
+  .ico:active, .ico.f-press { background: rgba(var(--wt), .10); transform: scale(0.96); }
+
+  /* ---- V1 Bare until hover ---- */
+  .v1 .row { background: transparent; }
+  .v1 .row:hover, .v1 .row.f-hover { background: rgba(var(--wt), .06); }
+  .v1 .row:active, .v1 .row.f-press { background: rgba(var(--wt), .09); }
+
+  /* ---- V2 Hairline row ---- */
+  .v2 .row { background: transparent; box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .20); }
+  .v2 .row:hover, .v2 .row.f-hover { background: rgba(var(--wt), .04); box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .28); }
+  .v2 .row:active, .v2 .row.f-press { background: rgba(var(--wt), .07); }
+
+  /* ---- V3 Lit-edge row ---- */
+  .v3 .row { background: transparent; }
+  .v3 .row::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(rgba(var(--wt), .17), rgba(var(--wt), .02) 85%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+  body.light .v3 .row::before { background: linear-gradient(rgba(0,0,0,.05), rgba(0,0,0,.17)); }
+  .v3 .row:hover, .v3 .row.f-hover { background: rgba(var(--wt), .035); }
+  .v3 .row:active, .v3 .row.f-press { background: rgba(var(--wt), .06); }
+
+  /* ---- V4 Recessed row ---- */
+  .v4 .row { background: rgba(0,0,0,.18); box-shadow: inset 0 1px 1.5px rgba(0,0,0,.38), 0 0.5px 0 rgba(255,255,255,.06); }
+  body.light .v4 .row { background: rgba(0,0,0,.03); box-shadow: inset 0 1px 1.5px rgba(0,0,0,.09), 0 0.5px 0 #fff; }
+  .v4 .row:hover, .v4 .row.f-hover { background: rgba(0,0,0,.25); }
+  .v4 .row:active, .v4 .row.f-press { background: rgba(0,0,0,.32); }
+  body.light .v4 .row:hover, body.light .v4 .row.f-hover { background: rgba(0,0,0,.05); }
+  body.light .v4 .row:active, body.light .v4 .row.f-press { background: rgba(0,0,0,.075); }
+
+  /* ---- V5 Mark-slot glyph, full width ---- */
+  .v5 .line { margin-left: -4px; }
+  .v5 .row { padding-left: 4px; gap: 6px; }
+  .v5 .row .lead { display: grid; place-items: center; width: 15px; height: 15px; color: var(--ink3); transition: color .12s var(--house); }
+  .v5 .row .lead svg { width: 11px; height: 11px; }
+  .v5 .row:hover .lead, .v5 .row.f-hover .lead { color: var(--ink); }
+  .v5 .row .aff { display: none; }
+  .v5 .row.crit .lead { color: var(--crit); }
+  .v5 .wait { padding-left: 6px; gap: 8px; }
+
+  /* ---- V6 Accent verb ---- */
+  .v6 .row { background: rgba(var(--wt), .025); color: var(--ink2); }
+  .v6 .row .verb { color: var(--accent); font-weight: 600; }
+  .v6 .row .aff { color: rgba(var(--accent-rgb), .75); }
+  .v6 .row:hover .aff, .v6 .row.f-hover .aff { color: var(--accent); }
+  .v6 .row.crit .txt { color: var(--ink2); }
+  .v6 .row.crit .verb { color: var(--crit); }
+  .v6 .row.crit .aff { color: rgba(var(--crit-rgb), .8); }
+
+  /* ---- V7 Destination caption ---- */
+  .v7 .row .aff { font-size: 10.5px; font-weight: 500; letter-spacing: .01em; margin-top: 0.5px; }
+  .v7 .row .aff svg { width: 9px; height: 9px; }
+
+  /* ---- V8 Brand-tinted row ---- */
+  .v8 .row { background: rgba(var(--accent-rgb), .075); box-shadow: inset 0 0 0 0.5px rgba(var(--accent-rgb), .16); }
+  .v8 .row .aff { color: rgba(var(--accent-rgb), .8); }
+  .v8 .row:hover, .v8 .row.f-hover { background: rgba(var(--accent-rgb), .12); }
+  .v8 .row:hover .aff, .v8 .row.f-hover .aff { color: var(--accent); }
+  .v8 .row:active, .v8 .row.f-press { background: rgba(var(--accent-rgb), .17); }
+  .v8 .row.crit { background: rgba(var(--crit-rgb), .07); box-shadow: inset 0 0 0 0.5px rgba(var(--crit-rgb), .16); }
+  .v8 .row.crit .aff { color: rgba(var(--crit-rgb), .8); }
+  .v8 .row.crit:hover, .v8 .row.crit.f-hover { background: rgba(var(--crit-rgb), .11); }
+
+  /* ---- V9 Split row: secondary inside the same shape ---- */
+  .v9 .line { gap: 0; background: rgba(var(--wt), .035); border-radius: 7px; }
+  .v9 .line.waiting { background: transparent; box-shadow: inset 0 0 0 0.5px rgba(var(--wt), .10); }
+  .v9 .row { background: transparent; border-radius: 7px 0 0 7px; }
+  .v9 .row:hover, .v9 .row.f-hover { background: rgba(var(--wt), .045); }
+  .v9 .row:active, .v9 .row.f-press { background: rgba(var(--wt), .075); transform: none; }
+  .v9 .sec { align-self: stretch; position: relative; }
+  .v9 .sec::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 0.5px; background: rgba(var(--wt), .14); }
+  .v9 .ico { height: auto; align-self: stretch; width: 30px; border-radius: 0 7px 7px 0; }
+  .v9 .ico:active, .v9 .ico.f-press { transform: none; }
+
+  /* ---- V10 Reveal label ---- */
+  .v10 .ico { width: auto; padding: 0 7px; gap: 0; }
+  .v10 .ico .lab { display: inline-block; max-width: 0; opacity: 0; transition: max-width .2s var(--house), opacity .14s var(--house), margin .2s var(--house); }
+  .v10 .ico:hover .lab, .v10 .ico.f-hover .lab { max-width: 80px; opacity: 1; margin-left: 5px; }
+
+  /* ---- V11 Callout rule ---- */
+  .v11 .line { margin-left: 0; gap: 4px; }
+  .v11 .row { background: transparent; padding-left: 0; gap: 0; }
+  .v11 .row::before { content: ""; width: 2px; align-self: stretch; border-radius: 1px; background: rgba(var(--accent-rgb), .7); margin: 1px 13px 1px 6.5px; flex: none; transition: background-color .12s var(--house); }
+  .v11 .row.crit::before { background: rgba(var(--crit-rgb), .75); }
+  .v11 .row:hover, .v11 .row.f-hover { background: rgba(var(--wt), .045); }
+  .v11 .row:hover::before, .v11 .row.f-hover::before { background: var(--accent); }
+  .v11 .row:active, .v11 .row.f-press { background: rgba(var(--wt), .075); }
+  .v11 .wait { padding-left: 3px; gap: 10px; }
+
+  /* ---- V12 Settings-style list row ---- */
+  .v12 .row { padding: 7px 8px 7px 6px; font-weight: 400; font-size: 12px; background: rgba(var(--wt), .04); box-shadow: inset 0 0.5px 0 var(--lip); border-radius: 8px; }
+  body.light .v12 .row { background: rgba(0,0,0,.03); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.06); }
+  .v12 .row .aff svg { width: 8px; height: 8px; }
+  .v12 .row:hover .aff, .v12 .row.f-hover .aff { transform: translateX(1.5px); }
+  .v12 .sec .ico { width: auto; padding: 0 7px; height: 30px; }
+  .v12 .sec .ico svg { display: none; }
+  .v12 .sec .ico .lab { display: inline; }
+  /* ---- V13 = V3 lit edge + V5 glyph, box on the title axis ----
+     The box edge sits on the account title's text axis (21pt, less CMM6's 1pt outdent),
+     so the terminal glyph is indented inside it, one step in from the brand mark. */
+  .v13 .line { margin-left: 20px; }
+  .v13 .row { background: transparent; padding-left: 7px; gap: 6px; }
+  .v13 .row::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(rgba(var(--wt), .17), rgba(var(--wt), .02) 85%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+  body.light .v13 .row::before { background: linear-gradient(rgba(0,0,0,.035), rgba(0,0,0,.12)); }
+  .v13 .state .line { margin-left: 20px !important; }
+  .v13 .row:hover, .v13 .row.f-hover { background: rgba(var(--wt), .035); }
+  .v13 .row:active, .v13 .row.f-press { background: rgba(var(--wt), .06); }
+  .v13 .row .lead { display: grid; place-items: center; width: 12px; height: 15px; color: var(--ink3); transition: color .12s var(--house); align-self: flex-start; }
+  .v13 .row .lead svg { width: 11px; height: 11px; }
+  .v13 .row:hover .lead, .v13 .row.f-hover .lead { color: var(--ink); }
+  .v13 .row.crit .lead { color: var(--crit); }
+  .v13 .row .aff { display: none; }
+  .v13 .wait { padding-left: 7.5px; gap: 6.5px; }   /* spinner centred on the glyph column, text on the row's text edge */
+  .opt.fresh { border-color: rgba(51,199,89,0.45); }
+  /* ---- V13b = V13 refined ----
+     1 failure text stays neutral (red text in a button reads destructive); 2 the terminal
+     glyph stays on failure rows, tinted critical; 3 sentence rests at ink2, lifts on hover;
+     4 light mode is raised (half-strength CMM3 light), not an inverted edge; 5 apple.terminal. */
+  .v13b .line { margin-left: 20px; }
+  .v13b .state .line { margin-left: 20px !important; }
+  .v13b .row { background: transparent; padding-left: 7px; gap: 6px; color: var(--ink2); transition: background-color .12s var(--house), box-shadow .12s var(--house), color .12s var(--house), transform .1s var(--house); }
+  .v13b .row::before { content: ""; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none;
+    background: linear-gradient(rgba(var(--wt), .17), rgba(var(--wt), .02) 85%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box exclude, linear-gradient(#000 0 0); }
+  .v13b .row:hover, .v13b .row.f-hover { background: rgba(var(--wt), .035); color: var(--ink); }
+  .v13b .row:active, .v13b .row.f-press { background: rgba(var(--wt), .06); color: var(--ink); }
+  .v13b .row.crit .txt { color: inherit; }
+  .v13b .row .lead { display: grid; place-items: center; width: 14px; height: 15px; color: var(--ink3); transition: color .12s var(--house); align-self: flex-start; }
+  .v13b .row .lead svg { width: 13px; height: 11px; }
+  .v13b .row:hover .lead, .v13b .row.f-hover .lead, .v13b .row.f-press .lead { color: var(--ink); }
+  .v13b .row.crit .lead, .v13b .row.crit:hover .lead { color: var(--crit); }
+  .v13b .row .aff { display: none; }
+  .v13b .wait { padding-left: 8.5px; gap: 7.5px; }   /* spinner centred on the 14pt glyph column, text on the row's text edge */
+  body.light .v13b .row::before { display: none; }
+  body.light .v13b .row { background: rgba(0,0,0,.02); box-shadow: inset 0 0 0 0.5px rgba(0,0,0,.055), inset 0 1px 0 rgba(255,255,255,.8), 0 0.5px 1px rgba(0,0,0,.06); }
+  body.light .v13b .row:hover, body.light .v13b .row.f-hover { background: rgba(0,0,0,.035); }
+  body.light .v13b .row:active, body.light .v13b .row.f-press { background: rgba(0,0,0,.055); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>O15, the sentence is the button: twelve variations</h1>
+    <p>Round 2 of <code>on-card-secondary-button-options.html</code>. Every variation keeps O15's idea: the status sentence is the click target and the separate button row disappears. What changes is the chrome, the hint that it's clickable, the alignment, and how the secondary action is handled.</p>
+    <p>Each card shows the three states the row has to handle. <b>Personal</b> is signed out (Sign In + Check Now). <b>Work</b> is waiting on Terminal (Stop Waiting only, and the line isn't clickable). <b>Team</b> has a two-line failure (Try Again + Check Now). <b>Side</b> is a healthy account, for judging weight against live data. <b>V0</b> is O15 exactly as drawn in round 1.</p>
+    <p>One rule holds across all of them: <b>↗ always means "hands off to Terminal,"</b> which covers both Sign In and Try Again. Check Now moves to a refresh glyph, Stop Waiting to ✕.</p>
+  </header>
+  <div class="toolbar">
+    <div class="seg" id="theme"><button data-t="dark" class="on">Dark</button><button data-t="light">Light</button></div>
+    <div class="seg" id="zoom"><button data-z="1">1×</button><button data-z="1.5" class="on">1.5×</button><button data-z="2">2×</button></div>
+    <button class="tbtn" id="copy">Copy answers</button>
+    <button class="tbtn" id="reset">Clear answers</button>
+    <span class="tally" id="tally"></span>
+  </div>
+  <div class="grid" id="grid"></div>
+</div>
+<div class="toast" id="toast">Copied</div>
+<script>
+const I = {
+  out:  '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2.5h5.5V8M9.3 2.7 2.5 9.5"/></svg>',
+  redo: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M10 6a4 4 0 1 1-1.2-2.85"/><path d="M9.2 1.4v2.3H6.9"/></svg>',
+  x:    '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M3 3l6 6M9 3 3 9"/></svg>',
+  win:  '<svg viewBox="0 0 14 12" fill="none" stroke="currentColor" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round"><rect x="0.9" y="1.1" width="12.2" height="9.8" rx="2.2"/><path d="M3.9 4.4 5.8 6 3.9 7.6M7.2 7.7h2.6"/></svg>',
+  term: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 3.5 5 6 2.5 8.5M6.5 8.5h3"/></svg>',
+  warn: '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6 3.2v3.3M6 8.6v.1"/><circle cx="6" cy="6" r="4.8"/></svg>',
+  chev: '<svg viewBox="0 0 8 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 2l4 4-4 4"/></svg>',
+};
+const CLAUDE = '<svg viewBox="0 0 24 24" fill="#D97757"><path d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.7-.37.065-.659.391-.576 2.212-2.82 1.335-1.744.861-1.004-.006-.146h-.054l-5.912 3.836-1.052.135-.453-.424.056-.697.215-.227 1.784-1.227-.006.006z"/></svg>';
+
+// Copy from the shipped strings (ProviderSetup.swift:205, SetupSessions.swift:578).
+const ROWS = {
+  signIn:  { verb: 'Sign in', rest: ' with the official Claude CLI', crit: false, sec: ['redo', 'Check Now'], dest: 'Terminal', lead: 'term' },
+  failure: { verb: 'Try again', rest: '.', pre: 'Terminal didn’t open. The CLI command was copied. ', crit: true, sec: ['redo', 'Check Now'], dest: 'Retry', lead: 'warn' },
+};
+
+const V = [
+  { id:'V0', name:'O15 as drawn', axis:'box hangs 6pt', baseline:true,
+    tag:'Round 1\'s winner, unchanged: a quiet fill (.035), ↗ at the end, and Check Now as a refresh icon.',
+    why:'The reference point.', trade:'The icon-only Check Now loses its words, and the failure row has no cue that it\'s clickable beyond the fill.' },
+  { id:'V13', name:'V3 + V5, box on the title axis', axis:'box on title', fresh:true,
+    tag:'The lit-edge chrome from V3 with V5\'s terminal glyph. The box starts on the title\'s left edge, so the glyph sits inside it, one step in from the brand mark.',
+    why:'Three columns from left to right: brand mark, action glyph, sentence. The box lines up with the title above it the way chip boxes do today (CMM2, with the 1pt CMM6 outdent), so the row reads as belonging to that account. The waiting spinner takes the glyph\'s column, and the failure warning icon does too.',
+    swift:'<code>CardActionRow</code>\'s leading inset (<code>meterContentInset − chipBoxOutdent</code>) for the box. Inside: <code>Image(systemName: "apple.terminal")</code> in a 12pt frame, 6pt spacing, then the sentence. Lit-edge <code>strokeBorder</code> with a <code>LinearGradient</code> (.17 → .02).',
+    trade:'The sentence moves about 25pt right of where it sits today, so long failure messages wrap one line sooner. With no fill, the box shape depends on the top edge.' },
+  { id:'V13b', name:'V13, refined', axis:'box on title', fresh:true,
+    tag:'V13 with five fixes: neutral failure text, the terminal glyph on every row, a dimmer sentence that lifts on hover, a raised light mode, and the real apple.terminal symbol.',
+    why:'<b>1</b> Failure text stays neutral, because red text in a button reads as destructive and Try Again is a recovery. <b>2</b> The terminal glyph stays on failure rows, tinted red, so it always means "hands off to Terminal" and the colour carries the warning. <b>3</b> The sentence rests one step dimmer (ink2) and lifts to full with the glyph on hover, so the account name outranks its action again. <b>4</b> Light mode is raised, using half-strength CMM3 light: a .02 fill, a white top lip, a .055 ring and a soft 0.5pt shadow. That replaces the inverted edge that read as an input field. <b>5</b> The glyph is drawn after <code>apple.terminal</code> (a window with >_ inside) instead of a bare >_.',
+    swift:'As V13, plus <code>.foregroundStyle(hovering ? ink : ink2)</code> on the sentence. On failure rows, the glyph takes the critical tint and the sentence keeps the neutral ink. Light mode gets its own chrome branch, as <code>SetupChipButtonStyle</code> already has. <code>Image(systemName: "apple.terminal")</code> at 11pt.',
+    trade:'The sentence moves 2pt further right than V13 (the glyph column is 14pt to fit the window shape). At 1×, check the dark edge in the live popover. If it disappears, add a white .02 fill rather than strengthening the edge.' },
+  { id:'V1', name:'Bare until hover', axis:'text on axis',
+    tag:'No fill at rest. It reads as a sentence with a ↗ until you point at it.',
+    why:'The lightest version. At rest the card goes back to plain text, and the ↗ is the only sign of an action. The box appears under the pointer.',
+    swift:'The row style\'s fill is <code>hovering ? .white.opacity(0.06) : .clear</code>. The ↗ is <code>arrow.up.forward</code> at 9pt in ink3.',
+    trade:'Brings back hover-only chrome (retired in PA11b) for this one control. A ↗ alone is a weak hint that it\'s clickable.' },
+  { id:'V2', name:'Hairline row', axis:'box hangs 6pt',
+    tag:'A 0.5pt outline around the sentence, no fill.',
+    why:'Shows the click target clearly without adding mass, and reads like a field or tile you can tap.',
+    swift:'<code>RoundedRectangle(cornerRadius: 7).strokeBorder(.white.opacity(0.20), lineWidth: 0.5)</code>, with a fill only on hover.',
+    trade:'An outline around text can look like an input field. Invisible on a non-Retina external display.' },
+  { id:'V3', name:'Lit-edge row', axis:'box hangs 6pt',
+    tag:'The round-1 O3 edge on a full-width row: bright at the top, fading out.',
+    why:'Keeps the CMM3 "light catching the lip" detail at the size of a whole row, so the row looks crafted rather than drawn.',
+    swift:'A <code>strokeBorder</code> with a <code>LinearGradient</code> stroke style (.17 → .02, top to bottom). Light mode flips to darker at the bottom.',
+    trade:'The fade makes it the quietest outlined option, and at 1× the bottom edge disappears.' },
+  { id:'V4', name:'Recessed row', axis:'box hangs 6pt',
+    tag:'The row is set into the card like the meter wells.',
+    why:'A recessed row sits under the surface instead of on top of it, so it doesn\'t compete with the meters. It also matches the well language the meters already use.',
+    swift:'A black .18 fill, a blurred inner shadow masked to the shape, and an outer 0.5pt white .06 line underneath.',
+    trade:'Recessed can read as "input field" or "disabled". The press state has to go deeper to register.' },
+  { id:'V5', name:'Glyph in the mark column', axis:'text on axis',
+    tag:'A terminal glyph sits in the 15pt mark column under the brand mark. The row runs the full card width and the ↗ goes away.',
+    why:'Fixes O15\'s alignment: the sentence stays exactly on the 21pt content axis (the same place it sits today) because the glyph fills the mark slot, and the box edge lines up with the brand mark. The glyph says "Terminal" without needing an arrow.',
+    swift:'<code>HStack(spacing: IdentityRowMetrics.spacing)</code> with <code>Image(systemName: "apple.terminal")</code> in a <code>markSlotWidth</code> frame, then the sentence. Failure rows use <code>exclamationmark.circle</code>.',
+    trade:'A second icon column under the brand mark. On failure the glyph switches to a warning, so the glyph means state rather than destination.' },
+  { id:'V6', name:'Accent verb', axis:'box hangs 6pt',
+    tag:'Only the action words take colour ("Sign in", "Try again"). The rest of the sentence drops to secondary ink.',
+    why:'You can see the action inside the sentence without any extra chrome. The row reads as one line that does what its coloured words say, and failure rows colour the verb red instead of the whole sentence.',
+    swift:'<code>Text("Sign in").foregroundStyle(accent).fontWeight(.semibold) + Text(" with the official Claude CLI")</code> inside the row button.',
+    trade:'The copy has to start with (or contain) the verb. "Terminal didn’t open…" needs a rewrite to end with "Try again" in a natural way.' },
+  { id:'V7', name:'Destination caption', axis:'box hangs 6pt',
+    tag:'The trailing ↗ becomes a small caption, "Terminal ↗", that says where you\'ll land.',
+    why:'Answers "what happens when I click this?" before the click. That matters because it opens a different app, which is the one surprising thing about these rows.',
+    swift:'A trailing <code>Label("Terminal", systemImage: "arrow.up.forward")</code> at 10.5pt in ink3, with the icon after the title through a custom <code>LabelStyle</code>.',
+    trade:'Takes about 55pt of width, so long sentences wrap sooner. Failure rows need a different caption ("Retry").' },
+  { id:'V8', name:'Brand-tinted row', axis:'box hangs 6pt',
+    tag:'A very faint wash in the provider\'s colour, with an accent ↗. Failure rows wash red.',
+    why:'The row is clearly the account\'s next step and carries its provider\'s identity. Colour replaces outline and shadow as the cue.',
+    swift:'The accent at .075 fill and a 0.5pt .16 ring from <code>ProviderStyle</code>. Critical rows use the critical tint.',
+    trade:'Four provider colours of row across the popover. A tinted Claude row sits close to the amber "Low" warning colour.' },
+  { id:'V9', name:'Split row', axis:'box hangs 6pt',
+    tag:'The secondary action moves inside the same shape, behind a hairline divider.',
+    why:'One shape per account instead of a row plus a loose icon. The pair reads as a single control, and the icon\'s hit area grows to the full row height.',
+    swift:'<code>HStack(spacing: 0)</code> inside one background: the row button, a 0.5pt <code>Divider</code> inset 6pt, then an icon button 30pt wide. Each half has its own hover fill.',
+    trade:'The secondary is still icon-only. The waiting state (no primary action) needs its own shape: outline only, ✕ at the end.' },
+  { id:'V10', name:'Reveal label', axis:'box hangs 6pt',
+    tag:'The secondary icon expands to show its words ("Check Now", "Stop Waiting") on hover.',
+    why:'Fixes the one real loss in O15: an icon-only Check Now. The row stays compact at rest, and the label is there the moment you aim at it. The motion is a single expansion, not a loop.',
+    swift:'Icon plus a <code>Text</code> whose frame animates from 0 to its ideal width on <code>onHover</code> with <code>HeadroomMotion.hoverIn</code>. The row shrinks to make room (<code>layoutPriority</code>).',
+    trade:'Layout moves on hover (the row narrows). Under Reduce Motion it snaps, or the label could just show as a tooltip.' },
+  { id:'V11', name:'Callout rule', axis:'rule in mark column',
+    tag:'No box. A 2pt accent rule in the mark column marks the line as actionable, the way a callout does.',
+    why:'The most editorial option. The rule sits directly under the brand mark, so each account gets a coloured spine pointing at its next step. Failure rules turn red, and waiting swaps the rule for the spinner.',
+    swift:'An <code>overlay(alignment: .leading)</code> with a 2pt <code>Capsule</code> in the accent, centred on the mark column. The row fill appears only on hover.',
+    trade:'Callout rules usually mean "note", not "button". Clickability rests on the ↗ and the hover.' },
+  { id:'V12', name:'Settings-style list row', axis:'box hangs 6pt',
+    tag:'A taller (30pt) row with a › chevron and regular-weight text, like a System Settings row. The secondary is text.',
+    why:'Borrows the most familiar "tap this row" pattern on macOS, so nothing needs explaining. Keeping the secondary as text means no words are lost.',
+    swift:'A row style with 7pt vertical padding, <code>chevron.right</code> at 8pt in ink3, and <code>.font(.system(size: 12))</code>. The secondary is a plain text button.',
+    trade:'› suggests "go deeper in this app", which is the wrong cue for a Terminal hand-off. About 4pt taller per row than V0.' },
+];
+
+function rowHTML(v, kind, f='') {
+  const r = ROWS[kind];
+  const txt = r.pre
+    ? (v.id === 'V6' ? `${r.pre}<span class="verb">${r.verb}</span>${r.rest}` : `${r.pre}${r.verb}${r.rest}`)
+    : `<span class="verb">${r.verb}</span>${r.rest}`;
+  const aff = v.id === 'V7' ? `${r.dest}${I.out}` : v.id === 'V12' ? I.chev : I.out;
+  const sec = secHTML(v, r.sec, f);
+  return `<div class="line"><button class="b row ${r.crit ? 'crit' : ''} ${f}"><span class="lead">${I[v.id === 'V13b' ? 'win' : r.lead]}</span><span class="txt">${txt}</span><span class="aff">${aff}</span></button>${sec}</div>`;
+}
+function secHTML(v, [icon, label], f='') {
+  return `<span class="sec"><button class="b ico ${f}" title="${label}">${I[icon]}<span class="lab">${label}</span></button></span>`;
+}
+function waitHTML(v, f='') {
+  return `<div class="line waiting"><div class="wait"><span class="spin"></span>Waiting for sign-in…</div>${secHTML(v, ['x', 'Stop Waiting'], f)}</div>`;
+}
+const idrow = (name, live) => `<div class="idrow"><span class="mark">${CLAUDE}</span><span class="title ${live ? 'live' : ''}">${name}</span></div>`;
+const meter = `<div class="meter">Weekly<span class="rs">4d 15h</span><span class="dots"><i></i><i></i><i></i><i></i><i class="off"></i></span><span class="pct">84%</span><span class="lf">left</span></div>`;
+
+document.getElementById('grid').innerHTML = V.map(v => `
+  <section class="opt ${v.baseline ? 'baseline' : ''} ${v.fresh ? 'fresh' : ''}" data-id="${v.id}">
+    <div class="opt-head"><span class="opt-id">${v.id}</span><span class="opt-name">${v.name}</span><span class="opt-axis">${v.axis}</span></div>
+    <p class="opt-tag">${v.tag}</p>
+    <div class="stage-wrap"><div class="stage v${v.id.slice(1)}">
+      <div class="card">
+        <div class="acct">${idrow('Personal')}${rowHTML(v, 'signIn')}</div>
+        <div class="acct">${idrow('Work')}${waitHTML(v)}</div>
+        <div class="acct">${idrow('Team')}${rowHTML(v, 'failure')}</div>
+        <div class="acct">${idrow('Side', true)}${meter}</div>
+      </div>
+      <div class="states">
+        <div class="state"><span class="lbl">Rest</span>${rowHTML(v, 'signIn')}</div>
+        <div class="state"><span class="lbl">Hover</span>${rowHTML(v, 'signIn', 'f-hover')}</div>
+        <div class="state"><span class="lbl">Pressed</span>${rowHTML(v, 'signIn', 'f-press')}</div>
+      </div>
+    </div></div>
+    <div class="notes"><dl>
+      <dt>Why</dt><dd>${v.why}</dd>
+      ${v.swift ? `<dt>SwiftUI</dt><dd>${v.swift}</dd>` : ''}
+      <dt>Trade-off</dt><dd>${v.trade}</dd>
+    </dl></div>
+    ${v.baseline ? '' : `<div class="decide">
+      <div class="row"><button data-v="approve">Approve</button><button data-v="deny">Deny</button><button data-v="discuss">Discuss</button></div>
+      <textarea placeholder="Comment (optional)"></textarea>
+    </div>`}
+  </section>`).join('');
+
+document.querySelectorAll('#theme button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#theme button').forEach(x => x.classList.toggle('on', x === b));
+  document.body.classList.toggle('light', b.dataset.t === 'light');
+});
+document.querySelectorAll('#zoom button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#zoom button').forEach(x => x.classList.toggle('on', x === b));
+  document.documentElement.style.setProperty('--zoom', b.dataset.z);
+});
+
+const KEY = 'headroom-o15-row-variations-v1';
+const state = JSON.parse(localStorage.getItem(KEY) || '{}');
+const total = V.filter(v => !v.baseline).length;
+const save = () => { localStorage.setItem(KEY, JSON.stringify(state)); tally(); };
+function tally() {
+  const v = Object.values(state), c = k => v.filter(x => x.v === k).length;
+  document.getElementById('tally').textContent = `${c('approve')} approved · ${c('deny')} denied · ${c('discuss')} to discuss · ${total - v.filter(x => x.v).length} open`;
+}
+document.querySelectorAll('.opt').forEach(sec => {
+  const id = sec.dataset.id, d = sec.querySelector('.decide');
+  if (!d) return;
+  const s = state[id] || (state[id] = {});
+  const btns = d.querySelectorAll('button'), ta = d.querySelector('textarea');
+  const paint = () => btns.forEach(b => b.classList.toggle('on', b.dataset.v === s.v));
+  btns.forEach(b => b.onclick = () => { s.v = s.v === b.dataset.v ? undefined : b.dataset.v; paint(); save(); });
+  ta.value = s.c || ''; ta.oninput = () => { s.c = ta.value; save(); };
+  paint();
+});
+tally();
+document.getElementById('copy').onclick = async () => {
+  const lines = ['## O15 row variations: answers', ''];
+  V.filter(v => !v.baseline).forEach(v => {
+    const s = state[v.id] || {};
+    if (!s.v && !s.c) return;
+    lines.push(`- **${v.id} ${v.name}**: ${s.v ? s.v[0].toUpperCase() + s.v.slice(1) : 'No verdict'}${s.c ? `. ${s.c.trim()}` : ''}`);
+  });
+  if (lines.length === 2) lines.push('_No answers yet._');
+  await navigator.clipboard.writeText(lines.join('\n'));
+  const t = document.getElementById('toast'); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1400);
+};
+document.getElementById('reset').onclick = () => { if (confirm('Clear all answers?')) { localStorage.removeItem(KEY); location.reload(); } };
+</script>
+</body>
+</html>

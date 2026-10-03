@@ -29,6 +29,14 @@ enum HeadroomMotion {
     static let hoverIn = quickSettle
     static let hoverOut = Animation.smooth(duration: 0.18, extraBounce: 0)
 
+    /// Row hover (Kyle, 2026-10-03: the account row's hover "has a sudden flash"). `hoverIn`
+    /// suits a glyph pill: its strong ease-out lands ~80% of the change in the first 30ms,
+    /// which on a full-width row whose fill, edge, sentence and glyph all brighten together
+    /// reads as a blink. A colour change wants a plain `ease` (Emil Kowalski's rule for hover
+    /// and colour), still in quicker than out, per S3A.
+    static let rowHoverIn = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.16)
+    static let rowHoverOut = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.24)
+
     // MARK: Springs — critically damped. Apple reserves bounce for motion that inherits a
     // gesture's momentum, and since PS5 nothing here carries any.
 

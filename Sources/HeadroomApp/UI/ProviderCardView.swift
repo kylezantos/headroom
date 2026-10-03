@@ -383,7 +383,7 @@ struct ProviderCardView: View {
         // above it — so this stack no longer spaces its own children.
         VStack(alignment: .leading, spacing: 0) {
             singleAccountContentGroup
-            if let activeSetupAccount {
+            if let activeSetupAccount, !singleAccountWaitingLineHostsStop {
                 // B3X: this row follows whichever body rendered above it, and the four
                 // bodies do not share one content axis — a guided setup card lays out at
                 // its own edge, the compact recovery card behind its own 18pt mark, an
@@ -412,11 +412,20 @@ struct ProviderCardView: View {
             || claudeGuidedSetupOutcome != nil
             || snapshot.codexConnectionAction != nil {
             0
-        } else if providerSetupOutcome != nil {
-            ProviderSetupRecoveryCard.contentInset
         } else {
             IdentityRowMetrics.meterContentInset
         }
+    }
+
+    /// V13b: true while the single-account recovery body is showing `CardRowWaitingLine`,
+    /// which then carries Stop Waiting itself. Mirrors `singleAccountContent`'s branch order.
+    private var singleAccountWaitingLineHostsStop: Bool {
+        guard activeSetupAccount?.key == primaryAccount.key,
+              claudeSessionOwnedState == nil,
+              claudeGuidedSetupOutcome == nil,
+              snapshot.codexConnectionAction == nil,
+              providerSetupOutcome != nil else { return false }
+        return SetupSessions.isWaiting(for: primaryAccount)
     }
 
     /// R2M1: `singleAccountContent`'s branches *are* the card's setup states — Connect,
@@ -517,27 +526,32 @@ struct ProviderCardView: View {
                 }
             }
         } else if let outcome = providerSetupOutcome {
+            // V13b (Kyle, 2026-10-03): the compact recovery card is now the same identity row
+            // and action row a signed-out account shows in a multi-account card, so one account
+            // and several read alike. It was a provider mark beside the status with chips below.
             let presentation = outcome.recoveryPresentation
-            ProviderSetupRecoveryCard(
-                providerID: providerID,
-                presentation: presentation,
-                onPrimaryAction: {
-                    performRecovery(
-                        presentation.primaryAction,
-                        for: primaryAccount,
-                        onRetry: onRetrySetup
+            VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToSentenceGap) {
+                accountIdentityRow(for: primaryEntry)
+                if SetupSessions.isWaiting(for: primaryAccount) {
+                    CardRowWaitingLine(account: primaryAccount, showsStopWaiting: singleAccountWaitingLineHostsStop)
+                } else {
+                    CardRowAction(
+                        message: presentation.status,
+                        severity: .forSetupOutcome(outcome),
+                        accountLabel: primaryAccount.label,
+                        primary: .init(label: presentation.primaryLabel, recovery: presentation.primaryAction) {
+                            performRecovery(presentation.primaryAction, for: primaryAccount, onRetry: onRetrySetup)
+                        },
+                        secondary: presentation.secondaryAction.flatMap { action in
+                            presentation.secondaryLabel.map { label in
+                                .init(label: label, recovery: action) {
+                                    performRecovery(action, for: primaryAccount, onRetry: onRetrySetup)
+                                }
+                            }
+                        }
                     )
-                },
-                onSecondaryAction: presentation.secondaryAction.map { secondaryAction in
-                    {
-                        performRecovery(
-                            secondaryAction,
-                            for: primaryAccount,
-                            onRetry: onRetrySetup
-                        )
-                    }
                 }
-            )
+            }
         } else {
             // R4A: in step with `AccountSectionView`'s identity→body gap — one grouping
             // rhythm whether the card carries one account or several.
@@ -570,16 +584,17 @@ struct ProviderCardView: View {
             // notice's own action row instead of sitting at the end of the sentence.
             // `indented: false` on purpose — this notice heads a guided Connect card whose
             // own content starts at the card's 13pt edge, so 34 would misalign the pair.
-            VStack(alignment: .leading, spacing: 0) {
-                StatusSentence(text: message, severity: .critical, indented: false)
-                    .accessibilityLabel("Setup failed. \(message)")
-                // B3X: the sentence above is `indented: false`, so the chip label matches it
-                // at the card's own edge rather than the 34pt axis it never reaches here.
-                CardActionRow(labelInset: 0) {
-                    Button("Check Now", action: onCheckNow)
-                        .buttonStyle(SetupChipButtonStyle(size: .small))
-                }
-            }
+            // V13b: the failure sentence is its own Check Now row, boxed at the card's edge
+            // (CMM6's 1pt outdent) because the guided card below lays out from there too.
+            CardRowAction(
+                message: message,
+                severity: .critical,
+                accountLabel: account.label,
+                primary: .init(label: "Check Now", systemImage: "arrow.clockwise",
+                               opensElsewhere: false, perform: onCheckNow),
+                leadingInset: -IdentityRowMetrics.chipBoxOutdent,
+                trailingInset: 0
+            )
         }
     }
 
@@ -878,53 +893,6 @@ struct ProviderCardView: View {
     }
 }
 
-/// Compact fallback for typed setup outcomes that do not need the richer first-run
-/// cards. Labels and available actions come directly from the core recovery table.
-private struct ProviderSetupRecoveryCard: View {
-    let providerID: ProviderID
-    let presentation: ProviderRecoveryPresentation
-    let onPrimaryAction: () -> Void
-    let onSecondaryAction: (() -> Void)?
-
-    /// B3X: this card carries its own mark column rather than the identity row's, so its
-    /// content axis is its own 18pt mark plus 7pt gap — not `IdentityRowMetrics`' 21.
-    private static let markSlotWidth: CGFloat = 18
-    private static let markGap: CGFloat = 7
-    static let contentInset = markSlotWidth + markGap
-
-    var body: some View {
-        // P4C/B3: status line first, then one leading action row — the primary first.
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: Self.markGap) {
-                ProviderLogoView(providerID: providerID, size: Self.markSlotWidth)
-                Text(presentation.status)
-                    .font(.system(size: 12.5, weight: .medium))
-                    // R2B2: the one wrapping `Text` in a popover card that PB11's leading
-                    // pass missed. Two points brings it into the same band as every other
-                    // wrapping sentence here.
-                    .lineSpacing(2)
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 0)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("Setup needed. \(presentation.status)")
-            // B3X: the chip labels land under the status text, not under the mark.
-            CardActionRow(labelInset: Self.contentInset) {
-                // B3: the last native control inside a popover card — a `.borderedProminent`
-                // button beside two chips — becomes a chip. One recipe, position carries
-                // primacy.
-                Button(presentation.primaryLabel, action: onPrimaryAction)
-                    .buttonStyle(SetupChipButtonStyle(size: .small))
-                if let secondaryLabel = presentation.secondaryLabel,
-                   let onSecondaryAction {
-                    Button(secondaryLabel, action: onSecondaryAction)
-                        .buttonStyle(SetupChipButtonStyle(size: .small))
-                }
-            }
-        }
-    }
-}
-
 struct ProviderCapabilityRecoveryView: View {
     /// The same recovery block renders at a popover card's foot and inside the Accounts
     /// tile. B3A sizes the chips per surface and P4C only re-places the popover one — a
@@ -956,15 +924,11 @@ struct ProviderCapabilityRecoveryView: View {
         // leading row starting at the mark column, primary first — the same order the
         // Settings group already used.
         VStack(alignment: .leading, spacing: 0) {
-            messages
             switch placement {
             case .cardFoot:
-                CardActionRow {
-                    primaryButton
-                    secondaryButton
-                    stopWaitingButton
-                }
+                cardFoot
             case .settingsGroup:
+                messages
                 HStack(spacing: 8) {
                     primaryButton
                     secondaryButton
@@ -972,6 +936,62 @@ struct ProviderCapabilityRecoveryView: View {
                 }
                 .padding(.top, 8)
             }
+        }
+    }
+
+    /// V13b (Kyle, 2026-10-03): at a card foot the status sentence is the primary action's
+    /// row, the secondary trails it as a glyph, and Stop Waiting follows as a ✕ — the same
+    /// language as an account row. A refused or disabled primary leaves an unboxed line that
+    /// still carries whatever actions remain. Settings keeps its chips beside the tile's
+    /// other controls.
+    @ViewBuilder private var cardFoot: some View {
+        let recovery = presentation.recovery
+        VStack(alignment: .leading, spacing: 8) {
+            if presentation.state(for: recovery.primaryAction) == .enabled {
+                CardRowAction(
+                    message: recovery.status,
+                    accountLabel: nil,
+                    primary: .init(label: recovery.primaryLabel, recovery: recovery.primaryAction,
+                                   perform: onPrimaryAction),
+                    secondary: secondaryRowAction
+                ) {
+                    stopWaitingGlyph
+                }
+            } else {
+                CardRowStatusLine(message: recovery.status, severity: .attention) {
+                    Color.clear.frame(height: 1)
+                } trailing: {
+                    if let secondaryRowAction {
+                        CardRowGlyphButton(label: secondaryRowAction.label,
+                                           systemImage: secondaryRowAction.systemImage,
+                                           accountLabel: nil,
+                                           action: secondaryRowAction.perform)
+                    }
+                    stopWaitingGlyph
+                }
+            }
+            if let refusalMessage {
+                CardRowStatusLine(message: refusalMessage, severity: .attention) {
+                    Color.clear.frame(height: 1)
+                } trailing: {
+                    EmptyView()
+                }
+                .accessibilityLabel(refusalMessage)
+            }
+        }
+    }
+
+    private var secondaryRowAction: CardRowButtonAction? {
+        guard let label = presentation.recovery.secondaryLabel,
+              let action = presentation.recovery.secondaryAction,
+              presentation.state(for: action) == .enabled,
+              let onSecondaryAction else { return nil }
+        return .init(label: label, recovery: action, perform: onSecondaryAction)
+    }
+
+    @ViewBuilder private var stopWaitingGlyph: some View {
+        if let stopWaitingAccount {
+            StopWaitingButton(account: stopWaitingAccount, style: .glyph)
         }
     }
 
@@ -1043,6 +1063,8 @@ struct StopWaitingButton: View {
     enum Style: Equatable {
         case chip(SetupChipButtonStyle.Size)
         case bordered
+        /// V13b: the trailing ✕ on an account's waiting line.
+        case glyph
     }
 
     let account: ProviderAccount
@@ -1080,6 +1102,11 @@ struct StopWaitingButton: View {
             isConfirming = true
         }
         switch style {
+        case .glyph:
+            CardRowGlyphButton(label: "Stop Waiting", systemImage: "xmark", accountLabel: account.label) {
+                onConfirmationPresented()
+                isConfirming = true
+            }
         case .chip(let size):
             action.buttonStyle(SetupChipButtonStyle(size: size))
         case .bordered:
@@ -1139,6 +1166,389 @@ struct CardActionRow<Content: View>: View {
         // R2C11: the trailing bound is the meter column's right edge, box-to-edge as well.
         .padding(.trailing, trailingInset)
         .padding(.top, topPadding)
+    }
+}
+
+/// O15/V13b (Kyle, 2026-10-03; `design/on-card-row-button-variations.html`): an account
+/// row's status sentence *is* its primary action, so the separate chip row is gone. Four
+/// boxed chips across two signed-out accounts outweighed the meters; one quiet row per
+/// account, with the secondary action reduced to a trailing glyph, is lighter and shorter.
+///
+/// The box sits on the account title's axis with CMM6's 1pt outdent, like the chips it
+/// replaces. The action glyph sits inside the box, one column in from the brand mark, and the
+/// sentence follows it. The action's own label ("Sign In") moves to the help tooltip and the
+/// accessibility label, because the sentence already says what the click is for.
+struct CardRowAction<Accessory: View>: View {
+    typealias Action = CardRowButtonAction
+
+    let message: String
+    let severity: StatusSentenceSeverity
+    /// Names the account in the accessibility label ("Sign In for Work"); nil on a
+    /// provider-level row, which has no account to name.
+    let accountLabel: String?
+    let primary: Action
+    let secondary: Action?
+    let leadingInset: CGFloat
+    let trailingInset: CGFloat
+    /// Extra trailing controls after the secondary glyph — the capability card's Stop Waiting.
+    let accessory: Accessory
+
+    init(
+        message: String,
+        severity: StatusSentenceSeverity = .attention,
+        accountLabel: String?,
+        primary: Action,
+        secondary: Action? = nil,
+        leadingInset: CGFloat = CardRowMetrics.titleAxisInset,
+        trailingInset: CGFloat = IdentityRowMetrics.contentTrailingInset,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.message = message
+        self.severity = severity
+        self.accountLabel = accountLabel
+        self.primary = primary
+        self.secondary = secondary
+        self.leadingInset = leadingInset
+        self.trailingInset = trailingInset
+        self.accessory = accessory()
+    }
+
+    @Environment(\.colorScheme) private var scheme
+
+    /// V6′ (Kyle, 2026-10-03): no per-provider accent — the action words take the sentence's
+    /// full label ink and semibold against the secondary rest. Critical rows keep the red on
+    /// the verb and the glyph rather than on the whole sentence.
+    private var criticalInk: Color? {
+        severity == .critical ? ProviderStyle.criticalText(scheme: scheme) : nil
+    }
+
+    private var actionInk: Color {
+        criticalInk ?? ProviderStyle.meterLabelInk(scheme: scheme)
+    }
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            Button(action: primary.perform) {
+                Text(Self.accented(message, verb: primary.label, ink: actionInk))
+            }
+                .buttonStyle(CardRowButtonStyle(
+                    systemImage: primary.systemImage,
+                    criticalInk: criticalInk,
+                    showsArrow: primary.opensElsewhere
+                ))
+                .help(primary.label)
+                .accessibilityLabel(accountLabel.map { "\(primary.label) for \($0)" } ?? primary.label)
+                .accessibilityValue(message)
+            if let secondary {
+                CardRowGlyphButton(
+                    label: secondary.label,
+                    systemImage: secondary.systemImage,
+                    accountLabel: accountLabel,
+                    action: secondary.perform
+                )
+            }
+            accessory
+        }
+        .cardRowAxis(leading: leadingInset, trailing: trailingInset)
+    }
+
+    /// V6: the words that name the action ("Sign in", "try again", "sign in again") take the
+    /// action ink and semibold weight; the rest of the sentence stays secondary. The label is
+    /// found in the sentence rather than added to it, so no copy changes. A sentence that
+    /// doesn't contain its action ("Couldn't read Codex sign-in data" → Check Now) stays
+    /// plain, and the tinted glyph is the only colour on the row.
+    static func accented(_ message: String, verb: String, ink: Color) -> AttributedString {
+        var text = AttributedString(message)
+        if let range = text.range(of: verb, options: [.caseInsensitive, .diacriticInsensitive]) {
+            text[range].swiftUI.foregroundColor = ink
+            text[range].swiftUI.font = .system(size: CardRowMetrics.fontSize, weight: .semibold)
+        }
+        return text
+    }
+}
+
+extension CardRowAction where Accessory == EmptyView {
+    init(
+        message: String,
+        severity: StatusSentenceSeverity = .attention,
+        accountLabel: String?,
+        primary: Action,
+        secondary: Action? = nil,
+        leadingInset: CGFloat = CardRowMetrics.titleAxisInset,
+        trailingInset: CGFloat = IdentityRowMetrics.contentTrailingInset
+    ) {
+        self.init(message: message, severity: severity, accountLabel: accountLabel, primary: primary,
+                  secondary: secondary, leadingInset: leadingInset, trailingInset: trailingInset) {
+            EmptyView()
+        }
+    }
+}
+
+/// One action on a `CardRowAction`: the row itself, or its trailing glyph.
+struct CardRowButtonAction {
+    let label: String
+    let systemImage: String
+    /// Whether the click leaves Headroom (Terminal, a web page). Only those rows carry the
+    /// trailing ↗; Check Now re-reads in place.
+    var opensElsewhere: Bool = true
+    let perform: () -> Void
+}
+
+extension CardRowButtonAction {
+    /// A typed recovery action: the glyph and the ↗ come from where the action routes.
+    @MainActor init(label: String, recovery: SetupRecoveryAction, perform: @escaping () -> Void) {
+        let route = SetupSessions.recoveryRoute(for: recovery)
+        self.init(label: label, systemImage: route.systemImage, opensElsewhere: route != .checkNow, perform: perform)
+    }
+}
+
+/// V13b: a status line that has nothing to open (waiting on Terminal, a refused handoff) but
+/// still lines up with `CardRowAction`: its leading view takes the glyph column and its
+/// sentence starts where an action row's sentence does. Deliberately unboxed — a box would
+/// say "click me" over a line that does nothing.
+struct CardRowStatusLine<Leading: View, Trailing: View>: View {
+    let message: String
+    var severity: StatusSentenceSeverity = .progress
+    var leadingInset: CGFloat = CardRowMetrics.titleAxisInset
+    var trailingInset: CGFloat = IdentityRowMetrics.contentTrailingInset
+    @ViewBuilder let leading: Leading
+    @ViewBuilder let trailing: Trailing
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: CardRowMetrics.glyphGap) {
+                leading
+                    .frame(width: CardRowMetrics.glyphColumn)
+                Text(message)
+                    .font(.system(size: CardRowMetrics.fontSize, weight: .medium))
+                    .foregroundStyle(severity.ink(scheme: scheme))
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, CardRowMetrics.leadingPadding)
+            .padding(.vertical, CardRowMetrics.verticalPadding)
+            trailing
+        }
+        .cardRowAxis(leading: leadingInset, trailing: trailingInset)
+    }
+}
+
+/// V13b: an account waiting on its Terminal handoff. The spinner takes the action glyph's
+/// column, so it sits under the terminal glyph of the row it replaced, and Stop Waiting is the
+/// line's trailing glyph whenever this line is what's on screen (R13 keeps it reachable).
+struct CardRowWaitingLine: View {
+    let account: ProviderAccount
+    let showsStopWaiting: Bool
+
+    var body: some View {
+        CardRowStatusLine(
+            message: (SetupSessions.waitingPhase(for: account)
+                ?? .waitingForUser(.signIn)).copy.title,
+            severity: .progress
+        ) {
+            ProgressView()
+                .controlSize(.mini)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+        } trailing: {
+            if showsStopWaiting {
+                StopWaitingButton(account: account, style: .glyph)
+            }
+        }
+    }
+}
+
+enum CardRowMetrics {
+    static let fontSize: CGFloat = 11.5
+    static let glyphSize: CGFloat = 11
+    /// V13b: 14pt, not the brand mark's 15 — the narrowest column `apple.terminal` fits.
+    static let glyphColumn: CGFloat = 14
+    static let glyphGap: CGFloat = 6
+    static let leadingPadding: CGFloat = 7
+    static let trailingPadding: CGFloat = 7
+    static let verticalPadding: CGFloat = 6
+    static let cornerRadius: CGFloat = 7
+    /// A full-width row at the chips' 0.96 lurches; the mock settled on a hair of give.
+    static let pressScale: CGFloat = 0.985
+    /// CMM2/CMM6: the box on the account title's axis, hung 1pt outside it like the chips.
+    static let titleAxisInset = IdentityRowMetrics.meterContentInset - IdentityRowMetrics.chipBoxOutdent
+}
+
+private extension View {
+    /// CMM2/CMM6: box on the title axis by default. R2C11: the trailing edge is the meter
+    /// column's, so the trailing glyph lines up with the usage rows above it. A card whose
+    /// content starts at its own edge (the guided-setup failure notice) passes its own insets.
+    func cardRowAxis(leading: CGFloat, trailing: CGFloat) -> some View {
+        padding(.leading, leading)
+            .padding(.trailing, trailing)
+    }
+}
+
+/// V13b: the trailing secondary action — Check Now, Stop Waiting, Use Device Code — as a glyph
+/// in the popover's glyph-only `HoverButtonStyle`. Its label lives in the tooltip and the
+/// accessibility label.
+struct CardRowGlyphButton: View {
+    let label: String
+    let systemImage: String
+    let accountLabel: String?
+    let action: () -> Void
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.system(size: 11.5, weight: .medium))
+                .frame(width: 12, height: 12)
+        }
+        .buttonStyle(HoverButtonStyle(
+            horizontalPadding: 7,
+            verticalPadding: 7,
+            hoverForegroundColor: ProviderStyle.meterLabelInk(scheme: scheme)
+        ))
+        .foregroundStyle(.tertiary)
+        .help(label)
+        .accessibilityLabel(accountLabel.map { "\(label) for \($0)" } ?? label)
+    }
+}
+
+/// The account row's button on V13b's layout (Kyle, 2026-10-03). V13b's lit edge "feels
+/// heavy"; V6 swapped it for a flat fill, which then matched the plan capsule, so the chrome is
+/// now B's fill plus hairline (see `chrome`). From V6′ it keeps no provider accent, a semibold
+/// action verb in label ink against a secondary rest, and the trailing ↗ on rows that leave
+/// Headroom — it brightens and lifts a point up-and-right on hover. The rest of the sentence
+/// rests one step dimmer than an account title and lifts with it.
+struct CardRowButtonStyle: ButtonStyle {
+    let systemImage: String
+    /// Set on critical rows only: the glyph takes the red, everything else stays neutral.
+    var criticalInk: Color? = nil
+    var showsArrow: Bool = true
+
+    @Environment(\.colorScheme) private var scheme
+
+    func makeBody(configuration: Configuration) -> some View {
+        StyleBody(configuration: configuration, systemImage: systemImage,
+                  criticalInk: criticalInk, showsArrow: showsArrow, scheme: scheme)
+    }
+
+    private struct StyleBody: View {
+        let configuration: Configuration
+        let systemImage: String
+        let criticalInk: Color?
+        let showsArrow: Bool
+        let scheme: ColorScheme
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @State private var hovering = false
+
+        private var dark: Bool { scheme == .dark }
+        private var lifted: Bool { hovering || configuration.isPressed }
+
+        var body: some View {
+            let shape = RoundedRectangle(cornerRadius: CardRowMetrics.cornerRadius, style: .continuous)
+            let hoverAnimation = hovering ? HeadroomMotion.rowHoverIn : HeadroomMotion.rowHoverOut
+            let pressAnimation = configuration.isPressed ? HeadroomMotion.pressDown : HeadroomMotion.settle
+            HStack(alignment: .firstTextBaseline, spacing: CardRowMetrics.glyphGap) {
+                Image(systemName: systemImage)
+                    .font(.system(size: CardRowMetrics.glyphSize, weight: .medium))
+                    .foregroundStyle(glyphStyle)
+                    .frame(width: CardRowMetrics.glyphColumn)
+                configuration.label
+                    .font(.system(size: CardRowMetrics.fontSize, weight: .medium))
+                    .foregroundStyle(textStyle)
+                    .lineSpacing(2)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if showsArrow {
+                    Image(systemName: "arrow.up.forward")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(glyphStyle)
+                        // The lift is movement, so it resolves on its own animation below and
+                        // Reduce Motion keeps only the brightening.
+                        .offset(x: lifted && !reduceMotion ? 1 : 0, y: lifted && !reduceMotion ? -1 : 0)
+                        .animation(HeadroomMotion.resolved(hoverAnimation, .movement, reduceMotion: reduceMotion),
+                                   value: lifted)
+                }
+            }
+            .padding(.leading, CardRowMetrics.leadingPadding)
+            .padding(.trailing, CardRowMetrics.trailingPadding)
+            .padding(.vertical, CardRowMetrics.verticalPadding)
+            .background { chrome(shape) }
+            .contentShape(shape)
+            // S2A: fill and ink are colour changes and keep their timing under Reduce Motion;
+            // the press scale is the only movement.
+            .animation(HeadroomMotion.resolved(hoverAnimation, .crossfade, reduceMotion: reduceMotion),
+                       value: hovering)
+            .animation(HeadroomMotion.resolved(pressAnimation, .crossfade, reduceMotion: reduceMotion),
+                       value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed ? CardRowMetrics.pressScale : 1)
+            .animation(HeadroomMotion.resolved(pressAnimation, .movement, reduceMotion: reduceMotion),
+                       value: configuration.isPressed)
+            .onHover { hovering = $0 }
+        }
+
+        /// B (Kyle, 2026-10-03; `design/on-card-row-vs-plan-chip.html`): V6′'s flat grey fill
+        /// was the plan capsule's material, so the row read as a long capsule. A lighter fill
+        /// plus a 0.5pt edge separates them — the plan capsule has no edge. White over the dark
+        /// card, black over the light one. (C, the recessed/raised plate, was tried live first.)
+        private func chrome(_ shape: RoundedRectangle) -> some View {
+            let base = dark ? Color.white : Color.black
+            return shape
+                .fill(base.opacity(Self.fillSteps[step]))
+                .overlay(shape.strokeBorder(base.opacity(Self.edgeSteps[step]), lineWidth: 0.5))
+        }
+
+        private var step: Int { configuration.isPressed ? 2 : (hovering ? 1 : 0) }
+        /// Hover is a small step on a control seen many times a day; the edge firming up does
+        /// more of the work than the fill.
+        private static let fillSteps: [Double] = [0.03, 0.055, 0.08]
+        private static let edgeSteps: [Double] = [0.10, 0.14, 0.14]
+
+        /// One concrete ink at two opacities, never `.secondary` ↔ a `Color`: SwiftUI can't
+        /// interpolate a hierarchical style into a colour, so that swap hard-cut the whole
+        /// sentence from dim to bright in one frame — the hover's flash.
+        private var labelInk: Color { ProviderStyle.meterLabelInk(scheme: scheme) }
+
+        private var textStyle: Color {
+            labelInk.opacity(lifted ? 0.88 : 0.62)
+        }
+
+        /// The leading glyph and the ↗: dim at rest, brighter on hover; a critical row's red
+        /// throughout.
+        private var glyphStyle: Color {
+            if let criticalInk { return criticalInk }
+            return labelInk.opacity(lifted ? 0.78 : 0.42)
+        }
+    }
+}
+
+extension SetupRowChip {
+    /// V13b: the glyph says where the click lands. `apple.terminal` is every handoff to the
+    /// official CLI (Sign In, Try Again, workspace approval), `globe` opens a web page,
+    /// `arrow.clockwise` re-reads the account.
+    @MainActor var opensElsewhere: Bool { systemImage != "arrow.clockwise" }
+
+    @MainActor var systemImage: String {
+        switch self {
+        case .tryAgain, .signIn: "apple.terminal"
+        case .checkNow: "arrow.clockwise"
+        case .recovery(let action, _): SetupSessions.recoveryRoute(for: action).systemImage
+        }
+    }
+}
+
+extension SetupSessions.RecoveryRoute {
+    var systemImage: String {
+        switch self {
+        case .documentation, .privacyGuidance: "globe"
+        // The device-code flow also runs in Terminal, but it sits beside a Terminal sign-in
+        // as the alternative, so it needs a glyph of its own: the code is what you type.
+        case .setup(.deviceCode): "number"
+        case .setup, .workspaceTrust, .cursorTools: "apple.terminal"
+        case .checkNow: "arrow.clockwise"
+        }
     }
 }
 

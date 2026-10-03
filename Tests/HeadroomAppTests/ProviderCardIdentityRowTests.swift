@@ -496,3 +496,58 @@ struct UsageBarsStackRowKeyTests {
         #expect(Set(keys).count == 2)
     }
 }
+
+/// V13b/V6′ (2026-10-03): an account row's sentence is its primary action. These pin the two
+/// decisions the row makes on its own — which words it marks as the action, and which glyph
+/// (and ↗) an action gets from where it routes.
+@Suite
+@MainActor
+struct CardRowActionTests {
+    private func accentedRange(_ message: String, verb: String) -> String? {
+        let text = CardRowAction<EmptyView>.accented(message, verb: verb, ink: .red)
+        let marked = text.runs.filter { $0.swiftUI.font != nil }
+        guard marked.count == 1, let run = marked.first else { return marked.isEmpty ? nil : "multiple" }
+        return String(text[run.range].characters)
+    }
+
+    @Test func theActionWordsInsideTheSentenceAreTheOnesMarked() {
+        #expect(accentedRange(ProviderSignInCopy.status(for: .claude), verb: ProviderSignInCopy.button) == "Sign in")
+        #expect(accentedRange("Update Claude Code, then try again.", verb: "Try Again") == "try again")
+        #expect(accentedRange("Codex sign-in isn’t stored privately — sign in again",
+                              verb: ProviderSignInCopy.buttonAgain) == "sign in again")
+    }
+
+    /// No copy is invented: a sentence that doesn't name its action stays plain.
+    @Test func aSentenceWithoutItsActionStaysPlain() {
+        #expect(accentedRange("Couldn’t read Codex sign-in data", verb: "Check Now") == nil)
+        #expect(String(CardRowAction<EmptyView>.accented("Sign-in wasn’t confirmed.", verb: "Sign In",
+                                                         ink: .red).characters) == "Sign-in wasn’t confirmed.")
+    }
+
+    @Test func terminalHandoffsWebPagesAndRereadsEachGetTheirOwnGlyph() {
+        for action in [SetupRecoveryAction.openClaudeSetup, .connectCodex, .reconnectCodex, .connectGrok,
+                       .reconnectGrok, .connectCursor, .openClaudeWorkspace, .openCursorWorkspace,
+                       .reviewCursorTools, .resolveCodexStorage] {
+            #expect(SetupSessions.recoveryRoute(for: action).systemImage == "apple.terminal")
+        }
+        for action in [SetupRecoveryAction.installClaudeCLI, .installCodexCLI, .installGrokCLI,
+                       .installCursorAgent, .showPrivacyGuidance] {
+            #expect(SetupSessions.recoveryRoute(for: action).systemImage == "globe")
+        }
+        // Device code is the alternative beside a Terminal sign-in, so it can't share its glyph.
+        #expect(SetupSessions.recoveryRoute(for: .connectCodexDeviceCode).systemImage == "number")
+        #expect(SetupSessions.recoveryRoute(for: .checkNow).systemImage == "arrow.clockwise")
+    }
+
+    /// The ↗ promises the click leaves Headroom, so Check Now — a re-read in place — never
+    /// carries it.
+    @Test func onlyActionsThatLeaveHeadroomCarryTheArrow() {
+        #expect(SetupRowChip.checkNow.opensElsewhere == false)
+        #expect(SetupRowChip.recovery(.checkNow, label: "Check Now").opensElsewhere == false)
+        #expect(SetupRowChip.tryAgain.opensElsewhere)
+        #expect(SetupRowChip.signIn.opensElsewhere)
+        #expect(SetupRowChip.recovery(.installClaudeCLI, label: "Install Claude Code").opensElsewhere)
+        #expect(CardRowButtonAction(label: "Check Now", recovery: .checkNow, perform: {}).opensElsewhere == false)
+        #expect(CardRowButtonAction(label: "Sign In", recovery: .connectGrok, perform: {}).opensElsewhere)
+    }
+}

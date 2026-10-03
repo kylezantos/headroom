@@ -38,7 +38,7 @@ All paths are under `Sources/`.
 
 | Concern | Token home | Notes |
 |---|---|---|
-| Motion | `HeadroomApp/UI/HeadroomMotion.swift` | `settle` (house curve, 200ms), `quickSettle`, `pressDown` + `pressScale` 0.96, `hoverIn`/`hoverOut`, `valueSpring` (critically damped, never overshoots a value), `reorder`, `paneIn`/`paneOut`, `partIn`/`partOut`. Reduce Motion: wrap with `resolved(_:_:reduceMotion:)`, `fade`, `numericText`. |
+| Motion | `HeadroomApp/UI/HeadroomMotion.swift` | `settle` (house curve, 200ms), `quickSettle`, `pressDown` + `pressScale` 0.96, `hoverIn`/`hoverOut` (glyph pills), `rowHoverIn`/`rowHoverOut` (plain ease for full-width rows whose ink changes on hover), `valueSpring` (critically damped, never overshoots a value), `reorder`, `paneIn`/`paneOut`, `partIn`/`partOut`. Reduce Motion: wrap with `resolved(_:_:reduceMotion:)`, `fade`, `numericText`. |
 | Brand & semantic colour (shared with widgets/iOS) | `HeadroomCore/Models/BrandColorValues.swift` | `HeadroomBrandColorValues`, `HeadroomBrandRamp` (OKLCH), `HeadroomWidgetColorValues` (text inks, hairlines, wells, fills), `HeadroomSeverityColorValues`. SwiftUI-free. |
 | Colour call surface (macOS) | `HeadroomApp/UI/ProviderStyle.swift` | `accent`, `textAccent`, `secondaryText`/`tertiaryText`, `accountTitleInk`, meter inks, `severityColor`/`severityFill`, `recessedWell`, CTA gradients, SVG mark per scheme. |
 | Popover shell | `PopoverCardMetrics` (`PopoverView.swift`) | Shell width 384, margin 19, card width derived from them. |
@@ -69,7 +69,8 @@ All paths are under `Sources/`.
 | Settings row | `SettingsSwitchRow`, `ResponsiveControlRow`, `SettingsGroupLabel`, `SettingsHelpText`, `SettingsSuccessStatus`, `SettingsPillBadge` | Raw `Toggle` + `Text` stacks |
 | Swatch / thumbnail picker | `SettingsSwatchButtonStyle` + `.selectionChrome` + `.settingsSelectionGroup` | Custom selection borders |
 | Primary action (one per card) | `ClaudePrimaryButtonStyle` / `CodexPrimaryButtonStyle` | A second primary |
-| Any text-labelled secondary button | `SetupChipButtonStyle` (`.regular` card foot, `.small` account row) | `HoverButtonStyle` on a word |
+| An account's status + its recovery (sign in, try again, install, check now) on a popover card | `CardRowAction` — the sentence is the primary action, the secondary trails as a glyph; `CardRowStatusLine` / `CardRowWaitingLine` when there is nothing to open | A status sentence with a chip row under it |
+| Any other text-labelled secondary button | `SetupChipButtonStyle` (`.regular` card foot, `.small` account row, Settings) | `HoverButtonStyle` on a word |
 | Glyph-only control (gear, +, …, copy, trash, chevron) | `HoverButtonStyle` | A chip container |
 | A row of card actions | `CardActionRow` / `ActionChipFlow` | Manual `HStack` wrapping |
 | Account / spend title line | `IdentityRow` | Re-deriving title recipe |

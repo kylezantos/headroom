@@ -566,7 +566,7 @@ struct AccountSectionView: View {
                 HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
                 value: sessionKey
             )
-            if showsStopWaiting, setupState != .blockedByOpenHandoff {
+            if showsStopWaiting, setupState != .blockedByOpenHandoff, !showsWaitingPhaseRow(setupState) {
                 // P4C/R4A/B3: the section's one action row, leading-aligned at the mark
                 // column. The stack's own spacing supplies part of R4A's 12pt gap, so the
                 // row adds the rest.
@@ -696,24 +696,23 @@ struct AccountSectionView: View {
             // crossfades. The scope that drives it is the section's `sessionKey` one.
             Group {
                 if let refusalMessage = setupHandoffRefusalMessage(for: setupState) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        StatusSentence(text: refusalMessage, severity: .attention)
-                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
-                            StopWaitingButton(account: account, style: .chip(.small))
-                        }
+                    // V13b: nothing to open here, so an unboxed line on the action rows' text
+                    // edge, with Stop Waiting as its trailing glyph.
+                    CardRowStatusLine(message: refusalMessage, severity: .attention) {
+                        Color.clear.frame(height: 1)
+                    } trailing: {
+                        StopWaitingButton(account: account, style: .glyph)
                     }
                 } else if case .blockedByProviderLogin = setupState {
-                    VStack(alignment: .leading, spacing: 0) {
-                        StatusSentence(
-                            text: "Another \(providerDisplayName) sign-in is open",
-                            severity: .attention
+                    CardRowAction(
+                        message: "Another \(providerDisplayName) sign-in is open",
+                        accountLabel: account.label,
+                        primary: .init(
+                            label: "Continue \(providerDisplayName) Setup",
+                            systemImage: "apple.terminal",
+                            perform: { SetupSessions.continueSetup(for: account) }
                         )
-                        CardActionRow(trailingInset: IdentityRowMetrics.contentTrailingInset) {
-                            Button("Continue Setup") { SetupSessions.continueSetup(for: account) }
-                                .buttonStyle(SetupChipButtonStyle(size: .small))
-                                .accessibilityLabel("Continue \(providerDisplayName) setup for \(account.label)")
-                        }
-                    }
+                    )
                 } else if isWaitingForSetup {
                     waitingPhaseRow
                 } else {
@@ -777,17 +776,32 @@ struct AccountSectionView: View {
     /// R13/KTD12 (2026-09-19 sign-in plan): the row's Check Now is gone on every provider.
     /// Its one control is the Stop Waiting chip the section renders below, which R13 keeps
     /// reachable through the confirming phase.
+    ///
+    /// V13b (2026-10-03): the spinner moved from the mark column into the action glyph's
+    /// column, so it sits under the terminal glyph of the row it replaced, and Stop Waiting
+    /// became this line's trailing glyph instead of a chip row of its own.
     private var waitingPhaseRow: some View {
-        HStack(alignment: .top, spacing: IdentityRowMetrics.spacing) {
-            ProgressView()
-                .controlSize(.mini)
-                .frame(width: IdentityRowMetrics.markSlotWidth, height: 15)
-            StatusSentence(
-                text: (SetupSessions.waitingPhase(for: account)
-                    ?? .waitingForUser(.signIn)).copy.title,
-                severity: .progress,
-                indented: false
-            )
+        CardRowWaitingLine(account: account, showsStopWaiting: hostsStopWaiting)
+    }
+
+    /// R13: Stop Waiting stays reachable through every session phase. While the waiting line
+    /// is on screen it carries the control itself; otherwise the section's own row does.
+    private var hostsStopWaiting: Bool {
+        showsStopWaiting && SetupSessions.state(for: account) != .blockedByOpenHandoff
+    }
+
+    /// Whether `stateContent` is drawing `waitingPhaseRow` for this state — the same branch
+    /// order `sessionOwnedRow` and `signInContent` take.
+    private func showsWaitingPhaseRow(_ setupState: SetupSessionState) -> Bool {
+        switch snapshot.freshness {
+        case .pending:
+            return setupRowRecovery(for: setupState) == .sessionOnly
+        case .stale(let reason) where reason.isPermanent:
+            if setupHandoffRefusalMessage(for: setupState) != nil { return false }
+            if case .blockedByProviderLogin = setupState { return false }
+            return isWaitingForSetup
+        default:
+            return false
         }
     }
 
@@ -807,20 +821,31 @@ struct AccountSectionView: View {
         presentation: ProviderRecoveryPresentation?,
         hasFailureMessage: Bool
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            StatusSentence(text: message, severity: severity)
-            CardActionRow(topPadding: 8, trailingInset: IdentityRowMetrics.contentTrailingInset) {
-                ForEach(setupRowChips(
-                    state: setupState,
-                    presentation: presentation,
-                    hasFailureMessage: hasFailureMessage
-                )) { chip in
-                    Button(chip.label) { perform(chip) }
-                        .buttonStyle(SetupChipButtonStyle(size: .small))
-                        .accessibilityLabel("\(chip.label) for \(account.label)")
-                }
+        let chips = setupRowChips(
+            state: setupState,
+            presentation: presentation,
+            hasFailureMessage: hasFailureMessage
+        )
+        // V13b: the sentence is the primary chip and the second chip trails it as a glyph.
+        // `setupRowChips` never returns more than two.
+        return Group {
+            if let primary = chips.first {
+                CardRowAction(
+                    message: message,
+                    severity: severity,
+                    accountLabel: account.label,
+                    primary: rowAction(primary),
+                    secondary: chips.dropFirst().first.map(rowAction)
+                )
+            } else {
+                StatusSentence(text: message, severity: severity)
             }
         }
+    }
+
+    private func rowAction(_ chip: SetupRowChip) -> CardRowButtonAction {
+        .init(label: chip.label, systemImage: chip.systemImage,
+              opensElsewhere: chip.opensElsewhere, perform: { perform(chip) })
     }
 
     private var isWaitingForSetup: Bool {

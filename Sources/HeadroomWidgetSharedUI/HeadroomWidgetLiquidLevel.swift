@@ -3,7 +3,7 @@ import HeadroomCore
 #endif
 import SwiftUI
 
-/// 15 Liquid Level (widget-styles plan). The widget is the vessel: each provider's column fills
+/// Liquid Level (widget-styles plan). The widget is the vessel: each provider's column fills
 /// from the bottom to its primary window's level. The wash itself is the full-bleed layer
 /// (`HeadroomWidgetStyledBackground`, KTD9); this view is the type over it.
 struct HeadroomWidgetLiquidLevel<Mark: View>: View {
@@ -31,7 +31,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
                 Spacer(minLength: 4)
                 heroBlock(provider, size: context.hero(1), extra: nil)
             }
-            .providerAccessibility(provider, now: context.now)
+            .headroomWidgetProviderAccessibility(provider, now: context.now)
         }
     }
 
@@ -85,7 +85,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
                 heroBlock(provider, size: context.hero(), extra: nil, mediumDetail: true)
             }
         }
-        .providerAccessibility(provider, now: context.now)
+        .headroomWidgetProviderAccessibility(provider, now: context.now)
     }
 
     // MARK: Pieces
@@ -113,7 +113,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
         let base = WidgetStyleCopy.leftCaption(for: primary, in: provider)
         let isSmall = context.family == .small
         guard mediumDetail || isSmall else { return [base] }
-        if let other = provider.secondary.first(where: { $0.widgetRole == .fiveHour }) ?? provider.secondary.first {
+        if let other = provider.companion {
             return ["\(base) · \(other.widgetDisplayLabel) \(HeadroomWidgetWindowText.percent(other))", base]
         }
         if let countdown = HeadroomWidgetWindowText.countdown(primary, now: context.now) {

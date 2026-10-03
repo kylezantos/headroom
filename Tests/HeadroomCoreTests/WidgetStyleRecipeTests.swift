@@ -299,3 +299,38 @@ struct WidgetStyleRecipeTests {
         #expect(p.primary == nil)
     }
 }
+
+struct WidgetStyleSimplificationTests {
+    typealias F = StyleFixture
+
+    @Test func companionIsTheFiveHourWindowElseTheNextWindow() {
+        #expect(F.recipe(.vesselHero, .medium, [F.claude()]).providers[0].companion?.kind == .fiveHour)
+        #expect(F.recipe(.vesselHero, .medium, [F.cursor()]).providers[0].companion?.label == "Cursor Models")
+        #expect(F.recipe(.vesselHero, .medium, [F.grok()]).providers[0].companion == nil)
+    }
+
+    @Test func demotingKeepsEveryFieldButFreshness() {
+        let live = F.window(.weekly, label: "Weekly", percent: 40)
+        let demoted = live.demotedToStale()
+        #expect(demoted.freshness.isStale)
+        #expect(demoted.percentRemaining == live.percentRemaining)
+        #expect(demoted.resetSchedule == live.resetSchedule)
+        #expect(demoted.severity == live.severity)
+        let unavailable = F.window(.weekly, label: "Weekly", percent: 40, freshness: .unavailable(since: F.now))
+        #expect(unavailable.demotedToStale() == unavailable)
+    }
+
+    @Test func aStaleProvidersWashTakesTheStaleWindow() {
+        let codex = F.provider("codex", "Codex", freshness: .stale(message: "x", needsAttention: false), [
+            F.window(.weekly, label: "Weekly", percent: 64),
+        ])
+        let recipe = F.recipe(.liquidLevel, .medium, [F.claude(), codex])
+        #expect(recipe.washSegments[0].window?.freshness.isLive == true)
+        #expect(recipe.washSegments[1].window?.freshness.isStale == true)
+    }
+
+    @Test func resetsInSaysNowAtTheReset() {
+        #expect(WidgetStyleCopy.resetsIn("3h 15m") == "Resets in 3h 15m")
+        #expect(WidgetStyleCopy.resetsIn("now") == "Resets now")
+    }
+}

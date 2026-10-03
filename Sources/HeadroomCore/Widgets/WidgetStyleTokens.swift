@@ -73,3 +73,45 @@ public enum WidgetStyleMetrics {
     /// opacity, never an opaque fill.
     public static let washMonochromeOpacity = 0.12
 }
+
+/// KTD5: the one fill every widget style paints with — bars, rails, vessel liquid and the
+/// liquid wash. Severity comes from the data (`window.severity`), never recomputed here.
+public enum WidgetStyleColors {
+    public static func fill(
+        for window: WidgetWindowSummary,
+        colorMode: WidgetColorMode,
+        dark: Bool,
+        increasedContrast: Bool
+    ) -> HeadroomTint? {
+        switch window.freshness {
+        case .unavailable:
+            return nil
+        case .stale:
+            switch window.severity {
+            case .healthy:
+                // The `WidgetUsageSeverity` overload maps healthy to the neutral stale grey,
+                // which is the event mode; Always colored takes the popover's tinted green.
+                return colorMode == .solid
+                    ? opaque(HeadroomMeterColorValues.staleFill(for: UsageSeverity.healthy, dark: dark, increasedContrast: increasedContrast))
+                    : opaque(HeadroomWidgetColorValues.staleNeutralFill(dark: dark))
+            case .low, .critical:
+                return opaque(HeadroomMeterColorValues.staleFill(for: window.severity, dark: dark, increasedContrast: increasedContrast))
+            }
+        case .live:
+            switch window.severity {
+            case .healthy:
+                return colorMode == .solid
+                    ? opaque(HeadroomSeverityColorValues.healthyFill(dark: dark, increasedContrast: increasedContrast))
+                    : HeadroomWidgetColorValues.neutralFill(dark: dark)
+            case .low:
+                return opaque(HeadroomSeverityColorValues.lowFill(dark: dark, increasedContrast: increasedContrast))
+            case .critical:
+                return opaque(HeadroomSeverityColorValues.criticalFill(dark: dark, increasedContrast: increasedContrast))
+            }
+        }
+    }
+
+    private static func opaque(_ color: HeadroomRGBColor) -> HeadroomTint {
+        HeadroomTint(color: color, opacity: 1)
+    }
+}

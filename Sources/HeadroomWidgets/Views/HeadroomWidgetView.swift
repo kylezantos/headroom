@@ -34,7 +34,7 @@ struct HeadroomWidgetView: View {
             }
             // WCF4: the system content margin on every family, vertical included. The large
             // family used to zero its vertical margins so its equal spacers could own all
-            // the slack; `HeadroomLargeRhythm` now distributes weighted slack inside a fixed
+            // the slack; the style bodies now distribute their own slack inside a fixed
             // margin, which is the same rule the iPhone host has always followed.
             content
                 .padding(contentMargins)

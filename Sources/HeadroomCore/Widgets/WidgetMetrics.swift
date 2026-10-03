@@ -1,8 +1,7 @@
 import Foundation
 
-/// WCF3 / WCF4: the widget layout constants shared by both hosts. The per-family rhythm that
-/// lived here (WCL1/WCL2/WCL4/WCL5) retired with the old layout (2026-10-02 widget-styles
-/// plan); the styles' own tokens are `WidgetStyleMetrics`.
+/// WCF3 / WCF4: the widget layout constants shared by both hosts. Each style's own tokens are
+/// `WidgetStyleMetrics`.
 ///
 /// These were per-file literals in four view bodies, which is how the Mac medium tile and the
 /// iPhone medium tile ended up with different margins, different gutters and different

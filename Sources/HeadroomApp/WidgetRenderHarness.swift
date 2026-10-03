@@ -153,7 +153,7 @@ enum WidgetRenderHarness {
         func add(_ problem: String) { if !problems.contains(problem) { problems.append(problem) } }
     }
 
-    static func render(_ job: Job) -> (NSImage?, [String]) {
+    static func render(_ job: Job) -> (CGImage?, [String]) {
         guard let envelope = DemoScreenshotData.styleFixture(job.fixture, now: now),
               let base = job.geometry.sizes[job.family],
               let margin = job.geometry.margins[job.family]
@@ -163,8 +163,7 @@ enum WidgetRenderHarness {
         let tile = tileView(job: job, envelope: envelope, size: size, margin: margin, collector: collector)
         let renderer = ImageRenderer(content: tile)
         renderer.scale = 2
-        let image = renderer.nsImage
-        return (image, collector.problems)
+        return (renderer.cgImage, collector.problems)
     }
 
     private static func tileView(job: Job, envelope: WidgetSnapshotEnvelope, size: CGSize, margin: CGFloat, collector: ProbeCollector) -> some View {
@@ -205,14 +204,7 @@ enum WidgetRenderHarness {
     private static func background(_ job: Job) -> some View {
         switch job.rendering {
         case .fullColor:
-            LinearGradient(
-                colors: [
-                    color(HeadroomWidgetColorValues.containerBackgroundTop(dark: job.dark)),
-                    color(HeadroomWidgetColorValues.containerBackgroundMiddle(dark: job.dark)),
-                    color(HeadroomWidgetColorValues.containerBackgroundBottom(dark: job.dark)),
-                ],
-                startPoint: .top, endPoint: .bottom
-            )
+            WidgetPreviewStrip.tileBackground(dark: job.dark)
         case .monochrome:
             // An approximation of a tinted glass tile; the real accented look needs a device.
             LinearGradient(colors: [Color(red: 0.24, green: 0.30, blue: 0.40), Color(red: 0.16, green: 0.21, blue: 0.30)],
@@ -222,14 +214,8 @@ enum WidgetRenderHarness {
         }
     }
 
-    private static func color(_ rgb: HeadroomRGBColor) -> Color {
-        Color(red: rgb.red, green: rgb.green, blue: rgb.blue)
-    }
-
-    private static func write(_ image: NSImage, to url: URL) -> Bool {
-        guard let tiff = image.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let png = rep.representation(using: .png, properties: [:]) else { return false }
+    private static func write(_ image: CGImage, to url: URL) -> Bool {
+        guard let png = NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:]) else { return false }
         return (try? png.write(to: url)) != nil
     }
 

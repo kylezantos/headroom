@@ -71,16 +71,17 @@ public extension HeadroomWidgetStyledBody where Mark == HeadroomWidgetProviderIc
 /// KTD9: the layer a style paints behind the margins. Only Liquid Level has one; every caller
 /// draws it under the padded content, inside the tile's clip.
 public struct HeadroomWidgetStyledBackground: View {
-    private let recipe: WidgetStyleRecipe
+    /// Only Liquid Level has a layer, so the other styles skip building a recipe at all.
+    private let recipe: WidgetStyleRecipe?
     private let colorMode: WidgetColorMode
 
     public init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode) {
-        recipe = WidgetStyleRecipe(style: style, family: family, envelope: envelope)
+        recipe = style == .liquidLevel ? WidgetStyleRecipe(style: style, family: family, envelope: envelope) : nil
         self.colorMode = colorMode
     }
 
     public var body: some View {
-        if !recipe.washSegments.isEmpty {
+        if let recipe, !recipe.washSegments.isEmpty {
             HeadroomWidgetLiquidWash(segments: recipe.washSegments, colorMode: colorMode, showsDivider: recipe.showsWashDivider)
         }
     }

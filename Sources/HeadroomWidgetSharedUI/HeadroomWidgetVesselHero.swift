@@ -3,7 +3,7 @@ import HeadroomCore
 #endif
 import SwiftUI
 
-/// 02 Vessel Hero (widget-styles plan). The Headroom vessel beside each provider's primary
+/// Vessel Hero (widget-styles plan). The Headroom vessel beside each provider's primary
 /// number — the menu-bar pill at hero size, exactly as tall as the digits (R4).
 struct HeadroomWidgetVesselHero<Mark: View>: View {
     let context: HeadroomWidgetStyleContext
@@ -28,7 +28,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                 Spacer(minLength: 4)
                 secondLine(provider)
             }
-            .providerAccessibility(provider, now: context.now)
+            .headroomWidgetProviderAccessibility(provider, now: context.now)
         }
     }
 
@@ -52,7 +52,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                         secondLine(provider)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .providerAccessibility(provider, now: context.now)
+                    .headroomWidgetProviderAccessibility(provider, now: context.now)
                 }
             }
         }
@@ -79,12 +79,12 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                     }
                 }
                 if let countdown = HeadroomWidgetWindowText.countdown(provider.primary, now: context.now) {
-                    HeadroomWidgetCaption("Resets in \(countdown)", size: context.scale.countdown, ink: .countdown, mono: true)
+                    HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: context.scale.countdown, ink: .countdown, mono: true)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .providerAccessibility(provider, now: context.now)
+        .headroomWidgetProviderAccessibility(provider, now: context.now)
     }
 
     // MARK: Large
@@ -101,7 +101,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                         hero(provider, size: context.hero(), extra: HeadroomWidgetWindowText.countdown(provider.primary, now: context.now))
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .providerAccessibility(provider, now: context.now)
+                    .headroomWidgetProviderAccessibility(provider, now: context.now)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -183,7 +183,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
     @ViewBuilder
     private func secondLine(_ provider: WidgetStyleProviderRecipe) -> some View {
         let live = context.isLive(provider)
-        if let other = provider.secondary.first(where: { $0.widgetRole == .fiveHour }) ?? provider.secondary.first {
+        if let other = provider.companion {
             // WCF7: the countdown drops whole, then the label truncates; the value never gives.
             ViewThatFits(in: .horizontal) {
                 if let countdown = HeadroomWidgetWindowText.countdown(other, now: context.now) {
@@ -192,7 +192,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                 secondLineRow(other, live: live, countdown: nil, labelFixed: false)
             }
         } else if let countdown = HeadroomWidgetWindowText.countdown(provider.primary, now: context.now) {
-            HeadroomWidgetCaption("Resets in \(countdown)", size: context.scale.countdown, ink: .countdown, mono: true)
+            HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: context.scale.countdown, ink: .countdown, mono: true)
         }
     }
 }
@@ -209,15 +209,6 @@ extension HeadroomWidgetVesselHero {
                     .fixedSize()
             }
         }
-    }
-}
-
-extension View {
-    /// R15: one VoiceOver element per provider — its name, then its windows in visual order.
-    func providerAccessibility(_ provider: WidgetStyleProviderRecipe, now: Date) -> some View {
-        accessibilityElement(children: .ignore)
-            .accessibilityLabel(provider.summary.displayName)
-            .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: provider.windows, now: now))
     }
 }
 

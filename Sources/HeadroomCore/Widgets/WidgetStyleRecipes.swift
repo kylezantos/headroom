@@ -20,6 +20,11 @@ public struct WidgetStyleProviderRecipe: Sendable, Equatable, Identifiable {
     public let secondaryLadder: [[WidgetWindowSummary]]
 
     public var id: String { summary.id }
+    /// The window a style shows beside the primary one: the 5-hour window when there is one,
+    /// else the next window in popover order (Vessel Hero's second line, Liquid Level's detail).
+    public var companion: WidgetWindowSummary? {
+        secondary.first { $0.widgetRole == .fiveHour } ?? secondary.first
+    }
     /// A provider Headroom has not read yet (R11): no meter values, a waiting caption.
     public var isWaiting: Bool { summary.freshness == .pending && windows.isEmpty }
     /// R6: whether this provider has any number to show.
@@ -120,9 +125,10 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
 
         washSegments = style == .liquidLevel
             ? shown.map { provider in
+                // WCM5: a stale provider's wash takes the stale fill, as its rows do.
                 WidgetWashSegment(
                     providerID: provider.id,
-                    window: provider.primary,
+                    window: provider.summary.freshness == .live ? provider.primary : provider.primary?.demotedToStale(),
                     fraction: provider.primary?.displayPercentRemaining.map { min(1, max(0, $0 / 100)) }
                 )
             }
@@ -150,6 +156,11 @@ public enum WidgetStyleCopy {
         case .fiveHour, .model, .spark:
             return "\(window.widgetDisplayLabel) left"
         }
+    }
+
+    /// "Resets in 3h 15m" — or "Resets now" at the reset itself, as the popover's tooltip says.
+    public static func resetsIn(_ countdown: String) -> String {
+        countdown == "now" ? "Resets now" : "Resets in \(countdown)"
     }
 
     /// R11: a provider Headroom has not read yet.

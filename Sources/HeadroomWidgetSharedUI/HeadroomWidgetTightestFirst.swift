@@ -3,7 +3,7 @@ import HeadroomCore
 #endif
 import SwiftUI
 
-/// 12 Tightest First (widget-styles plan). Whichever window is lowest is what limits you, so
+/// Tightest First (widget-styles plan). Whichever window is lowest is what limits you, so
 /// each provider shows its binding window big and named; large is a list from tightest to
 /// roomiest that sheds from the loose end (R3, KTD10).
 struct HeadroomWidgetTightestFirst<Mark: View>: View {
@@ -49,7 +49,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                             }
                         }
                     }
-                    .providerAccessibility(provider, now: context.now)
+                    .headroomWidgetProviderAccessibility(provider, now: context.now)
                 }
             }
             Spacer(minLength: 0)
@@ -89,7 +89,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .providerAccessibility(provider, now: context.now)
+        .headroomWidgetProviderAccessibility(provider, now: context.now)
     }
 
     // MARK: Large
@@ -130,7 +130,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                     .widgetCapHeightCentered(size: context.hero(), weight: .semibold, mono: true)
             }
             if let countdown = HeadroomWidgetWindowText.countdown(row.window, now: context.now) {
-                HeadroomWidgetCaption("Resets in \(countdown)", size: context.scale.countdown, ink: .countdown, mono: true)
+                HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: context.scale.countdown, ink: .countdown, mono: true)
                     .padding(.top, 3)
             }
             HeadroomWidgetStyleBar(row.window, colorMode: context.colorMode, providerIsLive: live,

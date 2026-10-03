@@ -47,47 +47,6 @@ public enum HeadroomWidgetStyle {
         Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
-    /// Bar-fill tier, mirroring the popover (`ProviderStyle.severityFill`): vivid in the
-    /// default light appearance, reverting to the 3:1-passing text-tier values under
-    /// Increase Contrast. Text and the attention glyphs keep `severityColor`. See
-    /// `HeadroomSeverityColorValues` for why the tiers differ.
-    public static func severityFill(
-        for severity: WidgetUsageSeverity,
-        scheme: ColorScheme,
-        increasedContrast: Bool
-    ) -> Color {
-        Color(HeadroomSeverityColorValues.fill(
-            for: severity,
-            dark: scheme == .dark,
-            increasedContrast: increasedContrast
-        ))
-    }
-
-    /// WCM1: what a *healthy live* bar paints. Green as the resting state carries no
-    /// information; the popover's shipped default (`MeterStyle.default.fill ==
-    /// .colorAsEvent`) already paints healthy neutral, and it is the precondition for WCM2
-    /// and WCD1 — a red bar is only an alarm on a tile where nothing else is coloured.
-    public static func neutralFill(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.neutralFill(dark: scheme == .dark))
-    }
-
-    /// WCM3: what a bar paints when its window (or its provider) is no longer live. The
-    /// row keeps its own severity hue at 0.35 chroma, so a stale critical is still faintly
-    /// red and a stale healthy is the neutral stale tone — the old `secondaryText` fill made
-    /// a retired bar the loudest bar on the tile.
-    public static func staleFill(
-        for severity: WidgetUsageSeverity,
-        scheme: ColorScheme,
-        increasedContrast: Bool
-    ) -> Color {
-        Color(HeadroomMeterColorValues.staleFill(
-            for: severity,
-            dark: scheme == .dark,
-            increasedContrast: increasedContrast
-        ))
-    }
-
-
     public static func criticalText(scheme: ColorScheme) -> Color {
         Color(HeadroomSeverityColorValues.criticalText(dark: scheme == .dark))
     }

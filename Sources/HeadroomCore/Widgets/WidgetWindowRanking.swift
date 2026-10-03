@@ -25,6 +25,25 @@ public extension WidgetWindowSummary {
 
     /// R11: an unavailable window has no number to show, and must never look like 0%.
     var hasDisplayValue: Bool { displayPercentRemaining != nil }
+
+    /// WCM5: a stale provider's rows take the stale treatment even when the row itself was
+    /// live at capture. Every other field is kept.
+    func demotedToStale() -> WidgetWindowSummary {
+        guard freshness.isLive else { return self }
+        return WidgetWindowSummary(
+            kind: kind, label: label, percentRemaining: percentRemaining, utilization: utilization,
+            resetSchedule: resetSchedule, resetLabel: resetLabel, resetTimeZoneIdentifier: resetTimeZoneIdentifier,
+            observedAt: observedAt, severity: severity, freshness: .stale(observedAt: observedAt ?? .distantPast),
+            billingPeriodDuration: billingPeriodDuration
+        )
+    }
+}
+
+public extension WidgetProviderFreshness {
+    var isStale: Bool {
+        if case .stale = self { return true }
+        return false
+    }
 }
 
 /// KTD4: the one window ranking every widget style uses.

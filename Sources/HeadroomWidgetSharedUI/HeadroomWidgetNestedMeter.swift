@@ -3,7 +3,7 @@ import HeadroomCore
 #endif
 import SwiftUI
 
-/// 19 Nested Meter (widget-styles plan; default style). The primary window is a thick bar; the
+/// Nested Meter (widget-styles plan; default style). The primary window is a thick bar; the
 /// other windows hang beneath it as thin rails, the way the 5-hour window draws from the week.
 /// Cursor's sibling pools are not nested, so they draw as equal bars (R2).
 struct HeadroomWidgetNestedMeter<Mark: View>: View {
@@ -61,9 +61,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                     .padding(.top, 4)
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(provider.summary.displayName)
-        .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: provider.windows, now: context.now))
+        .headroomWidgetProviderAccessibility(provider, now: context.now)
     }
 
     // MARK: Medium
@@ -96,7 +94,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                 VStack(alignment: .leading, spacing: 2) {
                     if provider.secondary.isEmpty {
                         if let countdown = HeadroomWidgetWindowText.countdown(provider.primary, now: context.now) {
-                            HeadroomWidgetCaption("Resets in \(countdown)", size: 10.5, ink: .countdown)
+                            HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: 10.5, ink: .countdown)
                         }
                     } else {
                         ForEach(provider.secondary) { window in
@@ -114,9 +112,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
             Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(provider.summary.displayName)
-        .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: provider.windows, now: context.now))
+        .headroomWidgetProviderAccessibility(provider, now: context.now)
     }
 
     // MARK: Large
@@ -189,9 +185,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                 }
             }
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(provider.summary.displayName)
-        .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: [provider.primary].compactMap { $0 } + rows, now: context.now))
+        .headroomWidgetProviderAccessibility(provider, windows: [provider.primary].compactMap { $0 } + rows, now: context.now)
     }
 
     static func labelAndCountdown(_ window: WidgetWindowSummary, now: Date) -> String {

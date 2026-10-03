@@ -283,13 +283,6 @@ public extension HeadroomWidgetIdentityRow where Mark == HeadroomWidgetProviderI
     }
 }
 
-extension WidgetProviderFreshness {
-    var isStale: Bool {
-        if case .stale = self { return true }
-        return false
-    }
-}
-
 /// WCW9: capsule 15 high, label 9.5 medium +0.2, `secondary @ 0.12`, `planLabel` ink.
 public struct HeadroomWidgetPlanCapsule: View {
     private let label: String
@@ -360,18 +353,9 @@ public struct HeadroomWidgetStyleBar: View {
         .headroomWidgetProbe()
     }
 
+    /// WCM5: a stale provider's rows take the stale treatment.
     private var effectiveWindow: WidgetWindowSummary? {
-        guard let window else { return nil }
-        guard !providerIsLive, window.freshness.isLive else { return window }
-        // WCM5: a stale provider's rows take the stale treatment even when the row itself
-        // was live at capture.
-        return WidgetWindowSummary(
-            kind: window.kind, label: window.label, percentRemaining: window.percentRemaining,
-            utilization: window.utilization, resetSchedule: window.resetSchedule, resetLabel: window.resetLabel,
-            resetTimeZoneIdentifier: window.resetTimeZoneIdentifier, observedAt: window.observedAt,
-            severity: window.severity, freshness: .stale(observedAt: window.observedAt ?? .distantPast),
-            billingPeriodDuration: window.billingPeriodDuration
-        )
+        providerIsLive ? window : window?.demotedToStale()
     }
 
     private func fillLength(_ available: CGFloat) -> CGFloat? {
@@ -471,19 +455,10 @@ public struct HeadroomWidgetVessel: View {
 
     private var liquidColor: Color? {
         guard rendering.usesFullColorTokens else { return .primary }
-        guard let window else { return nil }
-        if !providerIsLive, window.freshness.isLive {
-            return HeadroomWidgetStyle.styleFill(
-                for: WidgetWindowSummary(
-                    kind: window.kind, label: window.label, percentRemaining: window.percentRemaining,
-                    resetSchedule: window.resetSchedule, resetLabel: window.resetLabel,
-                    severity: window.severity, freshness: .stale(observedAt: window.observedAt ?? .distantPast),
-                    billingPeriodDuration: window.billingPeriodDuration
-                ),
-                colorMode: colorMode, scheme: scheme, increasedContrast: contrast == .increased
-            )
-        }
-        return HeadroomWidgetStyle.styleFill(for: window, colorMode: colorMode, scheme: scheme, increasedContrast: contrast == .increased)
+        return HeadroomWidgetStyle.styleFill(
+            for: providerIsLive ? window : window?.demotedToStale(),
+            colorMode: colorMode, scheme: scheme, increasedContrast: contrast == .increased
+        )
     }
 }
 
@@ -507,12 +482,10 @@ public struct HeadroomWidgetVesselNumeral: View {
     }
 
     public var body: some View {
-        let ink = HeadroomWidgetFontMetrics.digitInk(size: CGFloat(numeralSize), weight: .semibold)
-        let height = ((ink.ascent + ink.descent) * 2).rounded() / 2
-        let geometry = WidgetVesselGeometry(height: Double(height))
-        HStack(alignment: .firstTextBaseline, spacing: CGFloat((numeralSize * WidgetStyleMetrics.heroVesselGapRatio).rounded())) {
-            HeadroomWidgetVessel(window, colorMode: colorMode, providerIsLive: providerIsLive, geometry: geometry)
-                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - ink.descent }
+        let descent = HeadroomWidgetFontMetrics.digitInk(size: CGFloat(numeralSize), weight: .semibold).descent
+        HStack(alignment: .firstTextBaseline, spacing: Self.gap(numeralSize: numeralSize)) {
+            HeadroomWidgetVessel(window, colorMode: colorMode, providerIsLive: providerIsLive, geometry: Self.geometry(numeralSize: numeralSize))
+                .alignmentGuide(.firstTextBaseline) { d in d[.bottom] - descent }
             HeadroomWidgetNumeral(window, size: numeralSize, providerIsLive: providerIsLive, now: now)
         }
     }
@@ -520,10 +493,17 @@ public struct HeadroomWidgetVesselNumeral: View {
     /// The numeral's leading offset from the vessel's left edge, so a caption can hang under
     /// the numeral rather than under the vessel.
     public static func captionIndent(numeralSize: Double) -> CGFloat {
+        CGFloat(geometry(numeralSize: numeralSize).width) + gap(numeralSize: numeralSize)
+    }
+
+    /// The vessel's height is the digits' ink span, rounded to the half point.
+    private static func geometry(numeralSize: Double) -> WidgetVesselGeometry {
         let ink = HeadroomWidgetFontMetrics.digitInk(size: CGFloat(numeralSize), weight: .semibold)
-        let height = ((ink.ascent + ink.descent) * 2).rounded() / 2
-        let geometry = WidgetVesselGeometry(height: Double(height))
-        return CGFloat(geometry.width) + CGFloat((numeralSize * WidgetStyleMetrics.heroVesselGapRatio).rounded())
+        return WidgetVesselGeometry(height: Double(((ink.ascent + ink.descent) * 2).rounded() / 2))
+    }
+
+    private static func gap(numeralSize: Double) -> CGFloat {
+        CGFloat((numeralSize * WidgetStyleMetrics.heroVesselGapRatio).rounded())
     }
 }
 
@@ -610,7 +590,7 @@ public struct HeadroomWidgetCaption: View {
     private let weight: Font.Weight
     private let mono: Bool
 
-    public enum Ink { case secondary, label, countdown, tertiary }
+    public enum Ink { case secondary, label, countdown }
 
     @Environment(\.colorScheme) private var scheme
     @HeadroomWidgetTypeUnit private var typeUnit
@@ -637,7 +617,6 @@ public struct HeadroomWidgetCaption: View {
         case .secondary: HeadroomWidgetStyle.secondaryText(scheme: scheme)
         case .label: HeadroomWidgetStyle.labelInk(scheme: scheme)
         case .countdown: HeadroomWidgetStyle.countdownInk(scheme: scheme)
-        case .tertiary: HeadroomWidgetStyle.tertiaryText(scheme: scheme)
         }
     }
 }
@@ -682,5 +661,14 @@ public struct HeadroomWidgetFittingCaption: View {
             }
             HeadroomWidgetCaption(options[options.count - 1], size: size, ink: ink, mono: mono)
         }
+    }
+}
+
+extension View {
+    /// R15: one VoiceOver element per provider — its name, then its windows in visual order.
+    func headroomWidgetProviderAccessibility(_ provider: WidgetStyleProviderRecipe, windows: [WidgetWindowSummary]? = nil, now: Date) -> some View {
+        accessibilityElement(children: .ignore)
+            .accessibilityLabel(provider.summary.displayName)
+            .accessibilityValue(HeadroomWidgetWindowText.providerAccessibility(provider, windows: windows ?? provider.windows, now: now))
     }
 }

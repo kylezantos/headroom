@@ -26,6 +26,12 @@ struct HeadroomWidgetView: View {
             if showsContainerBackground && renderingMode == .fullColor {
                 HeadroomWidgetContainerBackground()
             }
+            // KTD9 (widget-styles plan): a style's full-bleed layer — Liquid Level's wash —
+            // sits under the padded content. It reads the rendering mode itself, so it also
+            // draws (as a translucent primary wash) in accented and StandBy.
+            if case .content(let envelope) = entry.state {
+                HeadroomWidgetStyledBackground(style: entry.style, family: coreFamily, envelope: envelope, colorMode: entry.colorMode)
+            }
             // WCF4: the system content margin on every family, vertical included. The large
             // family used to zero its vertical margins so its equal spacers could own all
             // the slack; `HeadroomLargeRhythm` now distributes weighted slack inside a fixed
@@ -61,22 +67,15 @@ struct HeadroomWidgetView: View {
         case .pending:
             statusCard(.macPending)
         case .content(let envelope):
-            switch family {
-            case .systemSmall:
-                HeadroomSmallWidgetView(envelope: envelope, now: entry.date)
-            case .systemMedium:
-                HeadroomMediumWidgetView(
-                    envelope: envelope,
-                    now: entry.date,
-                    footerPrefix: HeadroomWidgetCopy.macFooterPrefix
-                )
-            default:
-                HeadroomLargeWidgetView(
-                    envelope: envelope,
-                    now: entry.date,
-                    footerPrefix: HeadroomWidgetCopy.macFooterPrefix
-                )
-            }
+            // R7: the style and color this widget chose in Edit Widget.
+            HeadroomWidgetStyledBody(
+                style: entry.style,
+                family: coreFamily,
+                envelope: envelope,
+                colorMode: entry.colorMode,
+                now: entry.date,
+                footerPrefix: HeadroomWidgetCopy.macFooterPrefix
+            )
         }
     }
 

@@ -28,8 +28,16 @@ struct HeadroomIOSWidgetView: View {
             if showsContainerBackground && renderingMode == .fullColor {
                 HeadroomWidgetContainerBackground()
             }
+            // KTD9 (widget-styles plan): a style's full-bleed layer — Liquid Level's wash —
+            // sits under the padded content and reads the rendering mode itself.
+            if let envelope = displayedEnvelope {
+                HeadroomWidgetStyledBackground(style: entry.style, family: coreFamily, envelope: envelope, colorMode: entry.colorMode)
+            }
             stateContent
                 .padding(familyContentMargins)
+                // The DEMO capsule sits top-trailing; in demo mode the content steps down so
+                // the capsule never lands on a numeral or plan capsule.
+                .padding(.top, isDemoMode ? 14 : 0)
         }
         .overlay(alignment: .topTrailing) {
             if isDemoMode {
@@ -119,15 +127,22 @@ struct HeadroomIOSWidgetView: View {
         if case .demo = entry.state { true } else { false }
     }
 
-    @ViewBuilder
+    /// R7: the style and color this widget chose in Edit Widget.
     private func content(_ envelope: WidgetSnapshotEnvelope) -> some View {
-        switch family {
-        case .systemSmall:
-            HeadroomSmallWidgetView(envelope: envelope, now: entry.date)
-        case .systemMedium:
-            HeadroomMediumWidgetView(envelope: envelope, now: entry.date, footerPrefix: footerPrefix)
-        default:
-            HeadroomLargeWidgetView(envelope: envelope, now: entry.date, footerPrefix: footerPrefix)
+        HeadroomWidgetStyledBody(
+            style: entry.style,
+            family: coreFamily,
+            envelope: envelope,
+            colorMode: entry.colorMode,
+            now: entry.date,
+            footerPrefix: footerPrefix
+        )
+    }
+
+    private var displayedEnvelope: WidgetSnapshotEnvelope? {
+        switch entry.state {
+        case .demo(let envelope), .content(let envelope): envelope
+        default: nil
         }
     }
 

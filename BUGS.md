@@ -30,19 +30,6 @@ official `claude` CLI's `/usage` panel instead.
   made the glass flicker, so do not reach for that. When judging popover corners, use
   `./Scripts/build-app.sh` and the bundled app rather than `--demo` under `swift run`.
 
-## HeadroomIOS target no longer compiles (found 2026-09-23)
-
-- **Broken on `main` at a6a7bcf4, independent of any branch.** `xcodebuild -scheme HeadroomIOS
-  -destination 'generic/platform=iOS Simulator' build` fails with 11 errors in
-  `Sources/HeadroomCore/Models/ProviderSetup.swift`: `SetupSessionState`, `SetupHandoffPurpose`,
-  `SetupHandoffMode`, and `SetupHandoffCompletion` are not in scope. Those types live in
-  `Engine/SetupSessionCoordinator.swift`, which is a member of the Core and macOS targets but not
-  of HeadroomIOS or HeadroomIOSWidgets, while `ProviderSetup.swift` is in all of them. Fix by
-  moving the shared types out of the coordinator file or adjusting target membership, then
-  confirm both iOS schemes build. Until then, iOS source changes are not compile-verified.
-  That includes the 2026-09-28 `HeadroomTheme` edit (critically damped `valueSpring`, unused
-  `providerAccent` removed), which has never been compiled.
-
 ## Test runs leave thousands of UserDefaults suites behind
 
 - `~/Library/Preferences` holds thousands of `co.zantos.headroom.app-interactions.<UUID>` and

@@ -96,6 +96,7 @@
 		4DBD6C5E83BA20277C8B14C3 /* HeadroomLargeWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7ED804443718B4D6417D23AB /* HeadroomLargeWidgetView.swift */; };
 		4DEC566AFA3E1C14AEFC4D92 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */; };
 		4EA657309B9F48B811B1C9D5 /* HeadroomTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */; };
+		4F4BE64BFDC85F0178EB29B1 /* SetupWaitingPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421EBD8CA908233D4F707159 /* SetupWaitingPhase.swift */; };
 		5008B2F6E2EF64BBE31CBE01 /* DemoModeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE9F956D9F249904E8CE412 /* DemoModeUITests.swift */; };
 		5272B3EA7F8B4ED5D53400F9 /* HeadroomIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */; };
 		53F82A4681F8E2F99F11176B /* UsageDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3231CDC5E0AF2C8DE6B924FD /* UsageDTOs.swift */; };
@@ -400,6 +401,7 @@
 		3CFDB70D92C7145AFEEAF520 /* GrokUsageSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokUsageSource.swift; sourceTree = "<group>"; };
 		3D242FD4C2496701C8997F9A /* claude-color.svg */ = {isa = PBXFileReference; path = "claude-color.svg"; sourceTree = "<group>"; };
 		3D2DD5C8BCCC8BADC9508D07 /* GrokDTOs.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GrokDTOs.swift; sourceTree = "<group>"; };
+		421EBD8CA908233D4F707159 /* SetupWaitingPhase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWaitingPhase.swift; sourceTree = "<group>"; };
 		42F9263C0DCBF001A272FE49 /* LaunchAtLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchAtLogin.swift; sourceTree = "<group>"; };
 		432AF864130D5870A2FC78CF /* PollingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PollingEngine.swift; sourceTree = "<group>"; };
 		4427B82F14B989841CD982C6 /* ClaudeExecutableDiscoveryInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeExecutableDiscoveryInteractionTests.swift; sourceTree = "<group>"; };
@@ -668,6 +670,7 @@
 				77C0D46544DF7793280C86B5 /* LaneSchedule.swift */,
 				432AF864130D5870A2FC78CF /* PollingEngine.swift */,
 				C40B2D2A8F7E2BCA4823C279 /* SetupSessionCoordinator.swift */,
+				421EBD8CA908233D4F707159 /* SetupWaitingPhase.swift */,
 				0CE3E0A64B321BCD7FDD13A6 /* UsageContinuityCache.swift */,
 				316B9C4940604D925421AD2A /* UsageStore.swift */,
 				60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */,
@@ -1355,6 +1358,7 @@
 				E29E2B87772530D886E3F94F /* SettingsPane.swift in Sources */,
 				61AEE4C12CA5652095E6559A /* SetupCompletionCommand.swift in Sources */,
 				C86BB4BF2961A5AFC310AA84 /* SetupSessionCoordinator.swift in Sources */,
+				4F4BE64BFDC85F0178EB29B1 /* SetupWaitingPhase.swift in Sources */,
 				0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */,
 				7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */,
 				9FB9D89CA5CCEC804645882A /* UsageContinuityCache.swift in Sources */,

@@ -132,3 +132,29 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
         showsFooter = family == .large
     }
 }
+
+/// Strings the widget styles share. Display only; nothing here touches the wire format.
+public enum WidgetStyleCopy {
+    /// The caption under a hero numeral: "weekly left", "monthly left", or — when a provider
+    /// bills several sibling pools, or the hero is a 5-hour or model window — the window's own
+    /// name ("Other Models left", "5-hour left"), so the number is never captioned with a
+    /// period it does not belong to.
+    public static func leftCaption(for window: WidgetWindowSummary, in provider: WidgetStyleProviderRecipe) -> String {
+        switch window.widgetRole {
+        case .weekly:
+            return "weekly left"
+        case .pool:
+            if provider.hasSiblingPools { return "\(window.widgetDisplayLabel) left" }
+            let duration = window.billingPeriodDuration ?? 0
+            return duration >= 28 * 86_400 ? "monthly left" : "weekly left"
+        case .fiveHour, .model, .spark:
+            return "\(window.widgetDisplayLabel) left"
+        }
+    }
+
+    /// R11: a provider Headroom has not read yet.
+    public static let waiting = "Waiting for first reading"
+    /// Tightest First's small caption and large heading.
+    public static let tightestSmallHeading = "Tightest limit"
+    public static let tightestLargeHeading = "Tightest first"
+}

@@ -269,6 +269,20 @@ struct WidgetStyleRecipeTests {
         #expect(p.isWaiting == false)
     }
 
+    @Test func leftCaptionsNameThePeriodOrTheWindow() {
+        let claude = F.recipe(.vesselHero, .medium, [F.claude()]).providers[0]
+        #expect(WidgetStyleCopy.leftCaption(for: claude.primary!, in: claude) == "weekly left")
+        let grok = F.recipe(.vesselHero, .medium, [F.grok()]).providers[0]
+        #expect(WidgetStyleCopy.leftCaption(for: grok.primary!, in: grok) == "weekly left")
+        let cursor = F.recipe(.vesselHero, .medium, [F.cursor()]).providers[0]
+        #expect(WidgetStyleCopy.leftCaption(for: cursor.primary!, in: cursor) == "Other Models left")
+        let fable = claude.windows.first { $0.widgetRole == .model }!
+        #expect(WidgetStyleCopy.leftCaption(for: fable, in: claude) == "Fable left")
+        let monthly = F.provider("x", "X", [F.window(.other("Monthly"), label: "Monthly", percent: 50, billingPeriod: F.month)])
+        let m = F.recipe(.vesselHero, .medium, [monthly]).providers[0]
+        #expect(WidgetStyleCopy.leftCaption(for: m.primary!, in: m) == "monthly left")
+    }
+
     @Test func everyStyleFixtureResolvesWithASelection() {
         for name in DemoScreenshotData.styleFixtureNames {
             let envelope = DemoScreenshotData.styleFixture(name, now: F.now)

@@ -693,6 +693,9 @@ public struct HeadroomWidgetAPISpendStrip: View {
     /// drops whole.
     private let footerShortText: String?
     private let showsRule: Bool
+    /// The brand mark, injected by in-app renders (Settings, the harness) that have no brand
+    /// asset catalog; widgets leave it nil and draw `HeadroomWidgetProviderIcon`.
+    private let mark: ((String, CGFloat) -> AnyView)?
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.displayScale) private var displayScale
@@ -708,8 +711,10 @@ public struct HeadroomWidgetAPISpendStrip: View {
         scale: WidgetTypeScale,
         footerText: String?,
         footerShortText: String? = nil,
-        showsRule: Bool
+        showsRule: Bool,
+        mark: ((String, CGFloat) -> AnyView)? = nil
     ) {
+        self.mark = mark
         self.summaries = summaries
         self.now = now
         self.family = family
@@ -766,7 +771,11 @@ public struct HeadroomWidgetAPISpendStrip: View {
     private func item(_ summary: WidgetAPISpendSummary) -> some View {
         let status = rowStatus(summary)
         return HStack(alignment: .center, spacing: 5) {
-            HeadroomWidgetProviderIcon(providerID: summary.id, size: 13)
+            if let mark {
+                mark(summary.id, 13)
+            } else {
+                HeadroomWidgetProviderIcon(providerID: summary.id, size: 13)
+            }
             Text(amountText(summary))
                 .font(HeadroomWidgetType.font(size: amountSize, weight: .semibold, mono: true))
                 .foregroundStyle(amountColor(summary))

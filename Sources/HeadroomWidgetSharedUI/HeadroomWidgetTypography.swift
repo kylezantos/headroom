@@ -133,6 +133,29 @@ public enum HeadroomWidgetFontMetrics {
         return rects[0].origin.x
     }
 
+    /// KTD7 (2026-10-02 widget-styles plan): the ink of the digit "0" at this face — how far
+    /// it rises above the baseline and how far its round bottom overshoots below it. Vessel
+    /// Hero sizes its vessel to exactly this span so the two shapes start and end on the same
+    /// lines. "0" is the measure because it is round at both ends, as the vessel is.
+    public static func digitInk(size: CGFloat, weight: Font.Weight, mono: Bool = true) -> (ascent: CGFloat, descent: CGFloat) {
+        let key = MetricKey(size: size, weight: weightValue(weight), mono: mono, character: "0")
+        let ascent = digitAscentCache.value(for: key) { digitBounds(size: size, weight: weight, mono: mono).maxY }
+        let descent = digitDescentCache.value(for: key) { max(0, -digitBounds(size: size, weight: weight, mono: mono).minY) }
+        return (ascent, descent)
+    }
+
+    private static func digitBounds(size: CGFloat, weight: Font.Weight, mono: Bool) -> CGRect {
+        let font = ctFont(size: size, weight: weight, mono: mono)
+        var units = Array("0".utf16)
+        var glyphs = [CGGlyph](repeating: 0, count: 1)
+        guard CTFontGetGlyphsForCharacters(font, &units, &glyphs, 1) else {
+            return CGRect(x: 0, y: 0, width: 0, height: CTFontGetCapHeight(font))
+        }
+        var rects = [CGRect](repeating: .zero, count: 1)
+        CTFontGetBoundingRectsForGlyphs(font, .horizontal, &glyphs, &rects, 1)
+        return rects[0]
+    }
+
     private static func ctFont(size: CGFloat, weight: Font.Weight, mono: Bool) -> CTFont {
         let value = weightValue(weight)
         #if canImport(UIKit)
@@ -198,6 +221,8 @@ public enum HeadroomWidgetFontMetrics {
     }
 
     private static let capCache = Cache()
+    private static let digitAscentCache = Cache()
+    private static let digitDescentCache = Cache()
     private static let bearingCache = Cache()
 }
 

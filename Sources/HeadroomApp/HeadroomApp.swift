@@ -35,6 +35,13 @@ enum Entry {
             runPhoneSyncDump()
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-widgets") {
+            // KTD12 (widget-styles plan): headless renders of every widget style.
+            let outDir = CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : "widget-shots"
+            MainActor.assumeIsolated { WidgetRenderHarness.run(outputDirectory: outDir) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-popover") {
             let outDir = CommandLine.arguments.indices.contains(index + 1)
                 ? CommandLine.arguments[index + 1] : "popover-shots"
@@ -1141,6 +1148,7 @@ enum AppComposition {
     ) -> Bool {
         arguments.contains("--demo")
             || arguments.contains("--render-popover")
+            || arguments.contains("--render-widgets")
             || usesNoOpWidgetExporter(environment: environment)
             || !bundle.supportsUserNotifications
     }

@@ -1,20 +1,22 @@
 import Foundation
 import WidgetKit
 
-struct HeadroomIOSTimelineProvider: TimelineProvider {
+/// KTD1 (2026-10-02 widget-styles plan): an App Intent provider so each placed widget carries
+/// its own Style and Color from Edit Widget. The kind string is unchanged, so widgets placed
+/// before the update keep their identity and pick up the parameter defaults.
+struct HeadroomIOSTimelineProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> HeadroomIOSWidgetEntry {
         HeadroomIOSWidgetEntry(date: .now, state: .demo(DemoScreenshotData.envelope))
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (HeadroomIOSWidgetEntry) -> Void) {
+    func snapshot(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> HeadroomIOSWidgetEntry {
         if context.isPreview {
-            completion(HeadroomIOSWidgetEntry(date: .now, state: .demo(DemoScreenshotData.envelope)))
-        } else {
-            completion(entry(date: .now))
+            return entry(date: .now, state: .demo(DemoScreenshotData.envelope), configuration: configuration)
         }
+        return entry(date: .now, state: resolvedState(), configuration: configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<HeadroomIOSWidgetEntry>) -> Void) {
+    func timeline(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> Timeline<HeadroomIOSWidgetEntry> {
         let now = Date.now
         let state = resolvedState()
         let envelope: WidgetSnapshotEnvelope?
@@ -23,13 +25,22 @@ struct HeadroomIOSTimelineProvider: TimelineProvider {
         default: envelope = nil
         }
         let entries = WidgetTimelineSchedule.entryDates(for: envelope, now: now).map { date in
-            HeadroomIOSWidgetEntry(date: date, state: state)
+            entry(date: date, state: state, configuration: configuration)
         }
-        completion(Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now))))
+        return Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now)))
     }
 
-    private func entry(date: Date) -> HeadroomIOSWidgetEntry {
-        HeadroomIOSWidgetEntry(date: date, state: resolvedState())
+    private func entry(
+        date: Date,
+        state: IOSWidgetSnapshotState,
+        configuration: HeadroomWidgetConfigurationIntent
+    ) -> HeadroomIOSWidgetEntry {
+        HeadroomIOSWidgetEntry(
+            date: date,
+            state: state,
+            style: configuration.layoutStyle,
+            colorMode: configuration.colorMode
+        )
     }
 
     private func resolvedState() -> IOSWidgetSnapshotState {

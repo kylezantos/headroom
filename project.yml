@@ -133,6 +133,8 @@ targets:
         excludes:
           - HeadroomIOSWidgets.entitlements
           - Info.plist
+      # KTD1/KTD2 (widget-styles plan): one Edit Widget intent shared with the macOS extension.
+      - path: Sources/HeadroomWidgets/HeadroomWidgetConfigurationIntent.swift
       - path: Sources/HeadroomSharedResources/BrandIcons.xcassets
       - path: Sources/HeadroomCore/Models/ProviderID.swift
       - path: Sources/HeadroomCore/Models/Countdown.swift

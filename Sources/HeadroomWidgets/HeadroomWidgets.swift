@@ -12,7 +12,13 @@ struct HeadroomUsageWidget: Widget {
     private let kind = "HeadroomUsageWidget"
 
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: kind, provider: HeadroomTimelineProvider()) { entry in
+        // KTD1: same kind string as the shipped StaticConfiguration, so placed widgets keep
+        // their identity and take the intent's defaults (Nested Meter, Always colored).
+        AppIntentConfiguration(
+            kind: kind,
+            intent: HeadroomWidgetConfigurationIntent.self,
+            provider: HeadroomTimelineProvider()
+        ) { entry in
             HeadroomWidgetView(entry: entry)
         }
         .configurationDisplayName("Headroom")

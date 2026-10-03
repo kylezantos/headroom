@@ -5,35 +5,46 @@ import WidgetKit
 
 private let widgetTimelineLogger = Logger(subsystem: "com.kylezantos.headroom.widgets", category: "timeline")
 
-struct HeadroomTimelineProvider: TimelineProvider {
+/// KTD1 (2026-10-02 widget-styles plan): an App Intent provider so each placed widget carries
+/// its own Style and Color from Edit Widget. The kind string is unchanged, so widgets placed
+/// before the update keep their identity and pick up the parameter defaults.
+struct HeadroomTimelineProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> HeadroomWidgetEntry {
         HeadroomWidgetEntry(date: .now, state: .content(DemoScreenshotData.envelope))
     }
 
-    func getSnapshot(in context: Context, completion: @escaping (HeadroomWidgetEntry) -> Void) {
+    func snapshot(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> HeadroomWidgetEntry {
         // WCW4: the widget gallery is the product's first impression, and a machine that has
         // not run Headroom yet would otherwise show it a status card. The iOS provider has
         // always had this branch; the Mac one did not.
         if context.isPreview {
-            completion(HeadroomWidgetEntry(date: .now, state: .content(DemoScreenshotData.envelope)))
-        } else {
-            completion(entry(date: .now))
+            return entry(date: .now, state: .content(DemoScreenshotData.envelope), configuration: configuration)
         }
+        return entry(date: .now, state: resolvedState(), configuration: configuration)
     }
 
-    func getTimeline(in context: Context, completion: @escaping (Timeline<HeadroomWidgetEntry>) -> Void) {
+    func timeline(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> Timeline<HeadroomWidgetEntry> {
         let now = Date.now
         let state = resolvedState()
         let envelope: WidgetSnapshotEnvelope?
         if case .content(let content) = state { envelope = content } else { envelope = nil }
         let entries = WidgetTimelineSchedule.entryDates(for: envelope, now: now).map { date in
-            HeadroomWidgetEntry(date: date, state: state)
+            entry(date: date, state: state, configuration: configuration)
         }
-        completion(Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now))))
+        return Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now)))
     }
 
-    private func entry(date: Date) -> HeadroomWidgetEntry {
-        HeadroomWidgetEntry(date: date, state: resolvedState())
+    private func entry(
+        date: Date,
+        state: HeadroomWidgetState,
+        configuration: HeadroomWidgetConfigurationIntent
+    ) -> HeadroomWidgetEntry {
+        HeadroomWidgetEntry(
+            date: date,
+            state: state,
+            style: configuration.layoutStyle,
+            colorMode: configuration.colorMode
+        )
     }
 
     private func resolvedState() -> HeadroomWidgetState {

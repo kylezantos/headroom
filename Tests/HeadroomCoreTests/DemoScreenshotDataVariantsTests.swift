@@ -45,59 +45,11 @@ struct DemoScreenshotDataVariantsTests {
         #expect(envelope.apiSpendProviders.count == fullEnvelope.apiSpendProviders.count)
     }
 
-    @Test func fullFixtureHas7RowsRegularTier() {
-        let envelope = DemoScreenshotData.envelope(for: "full")
-        let density = LargeWidgetDensity(envelope: envelope)
-        #expect(density == .regular)
-        // Rows: 2 headers + (Claude 3 meters + Codex 1 meter) + 1 spend = 7
-        let meterCount = envelope.providers.reduce(0) { $0 + $1.subscriptionWindows.count + $1.extraWeeklyWindows.count }
-        #expect(meterCount == 4)
-    }
 
-    @Test func noSpendFixtureHas6RowsRegularTier() {
-        let envelope = DemoScreenshotData.envelope(for: "noSpend")
-        let density = LargeWidgetDensity(envelope: envelope)
-        #expect(density == .regular)
-        // Rows: 2 headers + (Claude 3 meters + Codex 1 meter) + 0 spend = 6
-        let meterCount = envelope.providers.reduce(0) { $0 + $1.subscriptionWindows.count + $1.extraWeeklyWindows.count }
-        #expect(meterCount == 4)
-    }
 
-    @Test func claudeOnlyFixtureHas5RowsRoomyTier() {
-        let envelope = DemoScreenshotData.envelope(for: "claudeOnly")
-        let density = LargeWidgetDensity(envelope: envelope)
-        #expect(density == .roomy)
-        // Rows: 1 header + (Claude 3 meters) + 1 spend = 5
-        let meterCount = envelope.providers.reduce(0) { $0 + $1.subscriptionWindows.count + $1.extraWeeklyWindows.count }
-        #expect(meterCount == 3)
-    }
 
-    @Test func claudeOnlyNoSpendFixtureHas4RowsRoomyTier() {
-        let envelope = DemoScreenshotData.envelope(for: "claudeOnlyNoSpend")
-        let density = LargeWidgetDensity(envelope: envelope)
-        #expect(density == .roomy)
-        // Rows: 1 header + (Claude 3 meters) + 0 spend = 4
-        let meterCount = envelope.providers.reduce(0) { $0 + $1.subscriptionWindows.count + $1.extraWeeklyWindows.count }
-        #expect(meterCount == 3)
-    }
 
-    @Test func codexFiveHourReturnsFixtureHas8RowsCompactTier() {
-        let envelope = DemoScreenshotData.envelope(for: "codexFiveHourReturns")
-        let density = LargeWidgetDensity(envelope: envelope)
-        #expect(density == .compact)
-        // Rows: 2 headers + (Claude 3 meters + Codex 2 meters) + 1 spend = 8
-        let meterCount = envelope.providers.reduce(0) { $0 + $1.subscriptionWindows.count + $1.extraWeeklyWindows.count }
-        #expect(meterCount == 5)
-    }
 
-    @Test func attentionFixtureHas7RowsRegularTierWithStale() {
-        let envelope = DemoScreenshotData.envelope(for: "attention")
-        let density = LargeWidgetDensity(envelope: envelope)
-        #expect(density == .regular)
-        // Rows: 2 headers + (Claude 3 meters + Codex 1 meter) + 1 spend = 7
-        let meterCount = envelope.providers.reduce(0) { $0 + $1.subscriptionWindows.count + $1.extraWeeklyWindows.count }
-        #expect(meterCount == 4)
-    }
 
     @Test func claudeFixturesHaveExtraWeeklyWindow() {
         let fixtures = ["full", "noSpend", "claudeOnly", "claudeOnlyNoSpend", "codexFiveHourReturns", "attention"]

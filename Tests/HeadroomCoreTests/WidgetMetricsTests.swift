@@ -22,23 +22,6 @@ struct WidgetMetricsTests {
         #expect(WidgetMetrics.markSlot(for: .large, step: .dense) == 18)
     }
 
-    @Test func theContentAxisIsTheMarkSlotPlusTheGap() {
-        #expect(WidgetMetrics.markGap == 6)
-        #expect(WidgetMetrics.contentAxis(for: .small) == 21)
-        #expect(WidgetMetrics.contentAxis(for: .medium) == 22)
-        #expect(WidgetMetrics.contentAxis(for: .large, step: .standard) == 26)
-        #expect(WidgetMetrics.contentAxis(for: .large, step: .dense) == 24)
-
-        for family in WidgetFamily.allCases {
-            for step in WidgetTypeStep.allCases {
-                #expect(
-                    WidgetMetrics.contentAxis(for: family, step: step)
-                        == WidgetMetrics.markSlot(for: family, step: step) + WidgetMetrics.markGap,
-                    "\(family)/\(step)"
-                )
-            }
-        }
-    }
 
     /// WCL3 sizes the mark from the name's cap height, so a bigger name must never get a
     /// smaller mark.
@@ -59,44 +42,16 @@ struct WidgetMetricsTests {
 
     // MARK: - WCL2 grouping
 
-    @Test func labelToBarIsOneNumberEverywhere() {
-        #expect(WidgetMetrics.labelToBar == 7)
-    }
 
-    @Test func smallRhythmMatchesThePlan() {
-        #expect(WidgetMetrics.smallHeaderToRows == 22)
-        #expect(WidgetMetrics.smallRowToRow == 12)
-        #expect(WidgetMetrics.smallBarHeight == 8)
-    }
 
-    @Test func mediumRhythmMatchesThePlan() {
-        #expect(WidgetMetrics.mediumHeaderToMeter == 6)
-        #expect(WidgetMetrics.mediumMeterToMeter == 10)
-        #expect(WidgetMetrics.mediumBarHeight == 6)
-        #expect(WidgetMetrics.mediumGutter == 28)
-        #expect(WidgetMetrics.mediumSpendAirFloor == 14)
-    }
 
-    /// The grouping ratio WCL2 protects: a meter's label belongs to its bar more tightly than
-    /// one meter belongs to the next, which in turn is tighter than a header's own group.
-    @Test func mediumKeepsItsGroupingRatio() {
-        #expect(WidgetMetrics.mediumHeaderToMeter < WidgetMetrics.mediumMeterToMeter)
-        #expect(WidgetMetrics.labelToBar < WidgetMetrics.mediumMeterToMeter)
-        #expect(WidgetMetrics.labelToBar < WidgetMetrics.smallRowToRow)
-    }
 
-    /// WCL4: each column's bar ends half the gutter clear of the centre rule, which is the
-    /// number that makes the rule read as a divider instead of a border on one column.
-    @Test func theMediumGutterLeavesFourteenPointsOfClearanceOnEachSideOfTheRule() {
-        #expect(WidgetMetrics.mediumGutter / 2 == 14)
-    }
 
     // MARK: - WCW6 spend strip and WCL4 rules
 
     @Test func spendAndRuleTokensMatchThePlan() {
         #expect(WidgetMetrics.spendItemGap == 10)
         #expect(WidgetMetrics.spendRuleToRow == 9)
-        #expect(WidgetMetrics.suffixGap == 5)
         #expect(WidgetMetrics.hairline == 1)
     }
 }

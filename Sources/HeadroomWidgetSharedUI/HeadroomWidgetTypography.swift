@@ -38,7 +38,7 @@ public enum HeadroomWidgetType {
 
 /// WCF1: the one Dynamic Type multiplier the widget bodies share.
 ///
-/// `HeadroomWidgetUsageMeter`, `HeadroomWidgetAPISpendStrip` and `HeadroomWidgetStatusCard`
+/// `HeadroomWidgetAPISpendStrip` and `HeadroomWidgetStatusCard`
 /// each hold their own `@ScaledMetric(relativeTo: .body)` per ladder step, but the family
 /// bodies set the provider name, the small header, the footer stamp, the plan pill, the
 /// stale sentence and the attention glyph straight from `WidgetTypeScale` — so at the

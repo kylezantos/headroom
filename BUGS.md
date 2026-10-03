@@ -697,29 +697,44 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
 - **StandBy / stripped-background contexts (WCM8)** return full-strength neutrals when
   `showsWidgetContainerBackground == false`. Same: reasoned from the token derivations, not seen on
   a device in StandBy.
-- **Fill-aware density selection (WCL1, option B).** Tiers still count rows (headers + meters).
-  A `Scale` with estimated row/header heights that picks the roomiest tier fitting the tile height
-  is the monotonic-by-construction follow-up; needs the tile height passed in.
 - **Brand-tinted names are not plumbed to widgets (WCD1).** Widgets take the popover's default
   neutral `accountTitle`; the popover's `AccountTitleInk` preference does not reach the envelope.
   Stated decision, not an accident.
 - **Envelope schema stays at 3.** Not built, by decision: percentage mode ("used"), `MeterStyle`
   (format/shape/fill), typed capability state (would let the attention glyph become a word),
-  multi-account rows, interactive `AppIntent` widgets, widget-string localisation.
-- **The render harness is macOS-only.** `.context/qc/widgets/render-harness/` renders the shared
-  bodies with `ImageRenderer`; with WCF1's pinned points the type now matches across platforms, but
-  iPhone line heights, `.accented`, StandBy, and **Dynamic Type at `xxLarge`** still need a
-  Simulator or device — macOS `ImageRenderer` ignores `.dynamicTypeSize`, so the whole-ladder
-  `@ScaledMetric` scaling (WCF1) and the vertical fit rungs it can trigger (WCF7) were verified by
-  shrinking the tile instead of growing the type.
-- **Medium countdown appears on single-provider tiles only (WCL9).** Measured in the mock: a
-  two-column medium at the 28pt gutter cannot hold `label + countdown + reserved column + suffix`,
-  so the two-rung ladder drops it whole there. If the countdown matters on two-column medium, the
-  honest options are a wordless medium or exempting the label row from the content axis.
-- **`HeadroomWidgetSharedUI` has no automated coverage.** The module is compiled into the
-  `Headroom` app target that `HeadroomAppTests` imports, but no test touches it: the bar's
-  fill/ink selection (WCM1–WCM3), the meter's `ViewThatFits` ladders (WCF7), the medium spend-air
-  rung, and `HeadroomLargeRhythm`'s gap arithmetic are verified only by the offscreen harness
-  sweep. Follow-up: lift the fill/ink selector into a Core `WidgetBarRecipe` and the rhythm gaps
-  into `LargeWidgetDensity.rhythmGaps(blockHeights:available:)`, both testable; add
-  `WidgetFontMetricsTests` cross-checking the CoreText port against `OpticalLeading`.
+  multi-account rows, interactive (`Button(intent:)`) widgets, widget-string localisation. The
+  per-widget Style and Color options (widget-styles plan, 2026-10-02) are an App Intent
+  *configuration*, not an interactive widget, and need no envelope change.
+- **The render harness is macOS-only.** `swift run Headroom --render-widgets <dir>` renders the
+  real style bodies with `ImageRenderer` and fails on any element outside its tile. iPhone line
+  heights, `.accented`/StandBy as WidgetKit actually draws them, and **Dynamic Type at
+  `xxLarge`** still need a device — macOS `ImageRenderer` ignores `.dynamicTypeSize`, so the
+  harness's `shrunk` pass (85% tiles) stands in, and its findings are warnings, not failures.
+  As of 2026-10-03 the shrunk pass shows Nested Meter and Tightest First small/medium crowding
+  the margin by a few points (rails drop and labels truncate first; nothing overlaps).
+- **`HeadroomWidgetSharedUI` view code is verified by renders, not tests.** The style decisions
+  (ranking, shown providers, shedding ladders, wash segments, color resolver, vessel geometry)
+  are Core recipes under `swift test`; the views that lay them out are checked by the
+  `--render-widgets` sweep only. Follow-up: `WidgetFontMetricsTests` cross-checking the CoreText
+  digit-ink and cap-height port against AppKit.
+
+### Widget styles (2026-10-02)
+
+Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
+
+- **The Static → App Intent upgrade is unverified on device (KTD1).** Apple documents no
+  supported path; developers report placed iPhone widgets freezing until a reboot. Kyle's spike
+  check is `docs/qa/2026-10-03-widget-config-upgrade-spike.md`. If it fails, the fallback is a
+  release note telling people to remove and re-add the widget.
+- **Liquid Level's wash in accented, vibrant and StandBy is reasoned, not measured (KTD9).** It
+  draws `.primary` at 0.12 with an accentable top edge; nobody has seen it on a tinted iPhone, a
+  Tahoe desktop behind windows, or StandBy.
+- **Old data is not dimmed.** When the Mac sleeps, the envelope stays "live" and an iPhone widget
+  can show hours-old numbers in full color, with no footer on small and medium (R14). Needs a
+  threshold on `generatedAt` that applies to every style.
+- **Per-widget provider choice.** Small Vessel Hero and small Liquid Level show the first widget
+  provider (or the second when the first has no value yet). Choosing which provider a widget
+  shows would be a third Edit Widget parameter.
+- **The Settings gallery previews Always colored only.** Color mode is not previewed.
+- **The status card's vessel keeps its old drawing.** `HeadroomVesselMark` fills by outer height
+  and frames at 12×20, unlike `WidgetVesselGeometry` (11:18, inner-height liquid).

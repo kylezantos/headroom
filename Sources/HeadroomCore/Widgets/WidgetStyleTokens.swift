@@ -56,9 +56,6 @@ public enum WidgetStyleMetrics {
     public static let tightestHeadlineBar = 8.0
     public static let tightestRowBar = 5.0
 
-    /// The bar height the shared usage meter uses on large (was `LargeWidgetDensity.regular`).
-    public static let largeMeterBar = 7.0
-
     /// Vessel Hero: the gap between vessel and numeral, as a fraction of the numeral size.
     public static let heroVesselGapRatio = 0.2
     /// The small vessel beside a list row's numeral, and its stroke.

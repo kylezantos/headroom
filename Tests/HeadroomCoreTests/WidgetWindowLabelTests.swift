@@ -39,24 +39,9 @@ struct WidgetWindowLabelTests {
 
     // MARK: - WCW7 period noun
 
-    @Test func periodNounReadsThePrimaryWindow() {
-        #expect(provider(windows: [window(kind: .weekly, label: "Weekly")]).periodNoun == "Weekly")
-        #expect(
-            provider(windows: [billingWindow(label: "Monthly", duration: 30 * 24 * 3600)]).periodNoun == "Monthly"
-        )
-    }
 
-    @Test func aFiveHourOnlyProviderHasNoPeriodNoun() {
-        #expect(provider(windows: [window(kind: .fiveHour, label: "Current session")]).periodNoun == nil)
-    }
 
-    @Test func aProviderWithNoWindowsHasNoPeriodNoun() {
-        #expect(provider(windows: []).periodNoun == nil)
-    }
 
-    @Test func anUnrecognisedBillingNounIsNotCaptioned() {
-        #expect(provider(windows: [billingWindow(label: "Quarterly", duration: 90 * 24 * 3600)]).periodNoun == nil)
-    }
 
     @Test func namedBillingPoolsChooseTheLowestRemainingValue() {
         let cursorModels = billingWindow(label: "Cursor Models", percentRemaining: 69)
@@ -84,81 +69,13 @@ struct WidgetWindowLabelTests {
 
     // MARK: - WCW7 small header
 
-    @Test func oneWeeklyProviderCaptionsTheTileWeekly() {
-        #expect(envelope(providers: [provider(windows: [window(kind: .weekly, label: "Weekly")])])
-            .smallHeaderTitle == "Weekly left")
-    }
 
-    @Test func twoWeeklyProvidersStillCaptionTheTileWeekly() {
-        let weekly = provider(windows: [window(kind: .weekly, label: "Weekly"), window(kind: .fiveHour, label: "5-hour")])
-        #expect(envelope(providers: [weekly, provider(id: "codex", windows: weekly.windows)])
-            .smallHeaderTitle == "Weekly left")
-    }
 
-    @Test func twoMonthlyBillingProvidersCaptionTheTileMonthly() {
-        let monthly = billingWindow(label: "Monthly", duration: 30 * 24 * 3600)
-        #expect(
-            envelope(providers: [
-                provider(id: "grok", windows: [monthly]),
-                provider(id: "cursor", windows: [monthly]),
-            ]).smallHeaderTitle == "Monthly left"
-        )
-    }
 
-    /// The caption has to be true of every row under it. A weekly provider beside a monthly
-    /// one makes either noun a half-truth, so the tile says the honest thing instead.
-    @Test func mixedPeriodsFallBackToUsage() {
-        #expect(
-            envelope(providers: [
-                provider(id: "claude", windows: [window(kind: .weekly, label: "Weekly")]),
-                provider(id: "cursor", windows: [billingWindow(label: "Monthly", duration: 30 * 24 * 3600)]),
-            ]).smallHeaderTitle == "Usage left"
-        )
-    }
 
-    @Test func aPendingProviderFallsBackToUsage() {
-        var pending = provider(id: "codex", windows: [window(kind: .weekly, label: "Weekly")])
-        pending = WidgetProviderSummary(
-            id: pending.id,
-            displayName: pending.displayName,
-            planLabel: nil,
-            freshness: .pending,
-            windows: pending.windows,
-            renewalDate: nil
-        )
-        #expect(
-            envelope(providers: [
-                provider(id: "claude", windows: [window(kind: .weekly, label: "Weekly")]),
-                pending,
-            ]).smallHeaderTitle == "Usage left"
-        )
-    }
 
-    @Test func aProviderWithNoWindowsFallsBackToUsage() {
-        #expect(
-            envelope(providers: [
-                provider(id: "claude", windows: [window(kind: .weekly, label: "Weekly")]),
-                provider(id: "grok", windows: []),
-            ]).smallHeaderTitle == "Usage left"
-        )
-    }
 
-    @Test func anEmptyEnvelopeFallsBackToUsage() {
-        #expect(envelope(providers: []).smallHeaderTitle == "Usage left")
-    }
 
-    /// Only the providers the widget actually draws can caption it.
-    @Test func theHeaderReadsOnlyTheShownProviders() {
-        let selected = envelope(
-            providers: [
-                provider(id: "claude", windows: [window(kind: .weekly, label: "Weekly")]),
-                provider(id: "codex", windows: [window(kind: .weekly, label: "Weekly")]),
-                provider(id: "cursor", windows: [billingWindow(label: "Monthly", duration: 30 * 24 * 3600)]),
-            ],
-            selection: ["claude", "codex"]
-        )
-        #expect(selected.smallHeaderTitle == "Weekly left")
-    }
 
     // MARK: - Fixtures
 

@@ -481,45 +481,6 @@ public extension WidgetWindowSummary {
     }
 }
 
-public extension WidgetProviderSummary {
-    /// WCW7: the period noun this provider bills by — "Weekly" or "Monthly" — or `nil` when
-    /// its primary window is not a period at all (a 5-hour-only provider), which is what makes
-    /// a small tile's header fall back to "Usage left".
-    var periodNoun: String? {
-        guard let window = primarySubscriptionWindow else { return nil }
-        if window.kind == .weekly { return "Weekly" }
-        guard window.isBillingPeriod else { return nil }
-        switch window.label.lowercased() {
-        case "weekly": return "Weekly"
-        case "monthly": return "Monthly"
-        default: return nil
-        }
-    }
-}
-
-public extension WidgetSnapshotEnvelope {
-    /// WCW7: the small family's header line.
-    ///
-    /// Small has room for one caption and it has to be true of every row under it. When both
-    /// shown providers bill by the same period the header can name it ("Weekly left"); the
-    /// moment they differ, or one has not been read yet, naming either period would caption
-    /// the tile with a claim only half its rows support — so it says "Usage left".
-    var smallHeaderTitle: String {
-        let shown = widgetProviders
-        guard !shown.isEmpty else { return "\(WidgetWindowSummary.fallbackLabel) left" }
-        var shared: String?
-        for provider in shown {
-            if provider.freshness == .pending { return "\(WidgetWindowSummary.fallbackLabel) left" }
-            guard let noun = provider.periodNoun else {
-                return "\(WidgetWindowSummary.fallbackLabel) left"
-            }
-            if let shared, shared != noun { return "\(WidgetWindowSummary.fallbackLabel) left" }
-            shared = noun
-        }
-        return "\(shared ?? WidgetWindowSummary.fallbackLabel) left"
-    }
-}
-
 private struct LegacyWidgetProviderSummary: Codable {
     let id: String
     let displayName: String

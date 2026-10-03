@@ -1,6 +1,8 @@
 import Foundation
 
-/// WCF3 / WCF4 / WCL2 / WCL5: the widget layout constants, shared by both hosts.
+/// WCF3 / WCF4: the widget layout constants shared by both hosts. The per-family rhythm that
+/// lived here (WCL1/WCL2/WCL4/WCL5) retired with the old layout (2026-10-02 widget-styles
+/// plan); the styles' own tokens are `WidgetStyleMetrics`.
 ///
 /// These were per-file literals in four view bodies, which is how the Mac medium tile and the
 /// iPhone medium tile ended up with different margins, different gutters and different
@@ -41,52 +43,12 @@ public enum WidgetMetrics {
         }
     }
 
-    /// WCF3: the leading content axis — `markSlot + markGap`. 21 / 22 / 26 / 24.
-    ///
-    /// Leading side only. There is deliberately no trailing mirror of the gutter: a widget
-    /// has no card padding to mirror, so bars run to the content edge and the tile reads as
-    /// full-bleed instead of as a card that lost its frame.
-    public static func contentAxis(for family: WidgetFamily, step: WidgetTypeStep = .standard) -> Double {
-        markSlot(for: family, step: step) + markGap
-    }
-
-    // MARK: - Grouping (WCL2)
-
-    /// Meter label → its bar, on every family. The label and the bar are one object; this gap
-    /// is smaller than any gap between meters so the pairing reads before the list does.
-    public static let labelToBar: Double = 7
-
-    // MARK: - Small (WCL5)
-
-    /// Small's header caption → the first row.
-    public static let smallHeaderToRows: Double = 22
-    /// Small row → row.
-    public static let smallRowToRow: Double = 12
-    /// WCL5: small spends its slack on the payload — the widest bar of any family.
-    public static let smallBarHeight: Double = 8
-
-    // MARK: - Medium (WCL2 / WCL4)
-
-    /// Provider header → first meter.
-    public static let mediumHeaderToMeter: Double = 6
-    /// Meter → meter within one provider.
-    public static let mediumMeterToMeter: Double = 10
-    public static let mediumBarHeight: Double = 6
-    /// WCL4: the gutter between medium's two columns. The centre rule is one device pixel
-    /// centred in it, so each bar ends 14pt clear of the rule.
-    public static let mediumGutter: Double = 28
-    /// WCL4: medium has no spend hairline. A flexible spacer with this floor separates the
-    /// spend row from the meter band instead.
-    public static let mediumSpendAirFloor: Double = 14
-
     // MARK: - Spend strip (WCW6)
 
     /// Gap between two spend clusters.
     public static let spendItemGap: Double = 10
     /// Large's spend rule → the spend row.
     public static let spendRuleToRow: Double = 9
-    /// Numeral → its "left" / "used" suffix.
-    public static let suffixGap: Double = 5
 
     // MARK: - Rules (WCL4)
 

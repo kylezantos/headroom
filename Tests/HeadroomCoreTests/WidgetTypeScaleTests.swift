@@ -89,40 +89,8 @@ struct WidgetTypeScaleTests {
 
     // MARK: - WCF2 numeral column
 
-    @Test func numeralColumnWidthsMatchTheMeasuredTable() {
-        #expect(WidgetTypeScale.numeralColumnWidth(forNumeralSize: 18) == 52)
-        #expect(WidgetTypeScale.numeralColumnWidth(forNumeralSize: 16) == 47.5)
-        #expect(WidgetTypeScale.numeralColumnWidth(forNumeralSize: 14) == 42)
-    }
 
-    @Test func eachLadderReadsItsOwnColumnWidth() {
-        #expect(WidgetTypeScale.scale(for: .small).numeralColumnWidth == 52)
-        #expect(WidgetTypeScale.scale(for: .medium).numeralColumnWidth == 47.5)
-        #expect(WidgetTypeScale.scale(for: .large, step: .standard).numeralColumnWidth == 52)
-        #expect(WidgetTypeScale.scale(for: .large, step: .dense).numeralColumnWidth == 47.5)
-    }
 
-    @Test func sizesBetweenTheStopsInterpolateLinearly() {
-        #expect(abs(WidgetTypeScale.numeralColumnWidth(forNumeralSize: 15) - 44.75) < 0.0001)
-        #expect(abs(WidgetTypeScale.numeralColumnWidth(forNumeralSize: 17) - 49.75) < 0.0001)
-    }
 
-    /// A future ladder size gets a sane column instead of a clamp — the column keeps growing
-    /// with the glyphs it has to hold.
-    @Test func sizesOutsideTheTableExtrapolateAlongTheNearestSegment() {
-        let small = WidgetTypeScale.numeralColumnWidth(forNumeralSize: 12)
-        let large = WidgetTypeScale.numeralColumnWidth(forNumeralSize: 20)
-        #expect(abs(small - 36.5) < 0.0001)
-        #expect(abs(large - 56.5) < 0.0001)
-        #expect(small > 0)
-    }
 
-    @Test func theColumnIsMonotonicInTheNumeralSize() {
-        var previous = 0.0
-        for size in stride(from: 10.0, through: 24.0, by: 0.5) {
-            let width = WidgetTypeScale.numeralColumnWidth(forNumeralSize: size)
-            #expect(width > previous, "\(size)pt")
-            previous = width
-        }
-    }
 }

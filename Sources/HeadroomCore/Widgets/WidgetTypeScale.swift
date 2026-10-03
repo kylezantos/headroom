@@ -177,36 +177,4 @@ public struct WidgetTypeScale: Sendable, Equatable {
             )
         }
     }
-
-    /// WCF2: the reserved numeral column for this ladder's numeral size.
-    public var numeralColumnWidth: Double {
-        Self.numeralColumnWidth(forNumeralSize: numeral)
-    }
-
-    /// WCF2: the width the percentage column reserves, so "7%" and "100%" put their bars and
-    /// their names in the same place on every row of every tile.
-    ///
-    /// The table is the widest string the column can hold — "100%" — in SF semibold
-    /// monospaced digits. Core cannot link AppKit, so the numbers are measured once and
-    /// stored: `NSFont.monospacedDigitSystemFont(ofSize:weight: .semibold)` renders "100%" at
-    /// 40.89 / 46.17 / 51.42 pt for 14 / 16 / 18, and the shipped column rounds each up to
-    /// **42 / 47.5 / 52** so the glyphs never touch the suffix. (Measured with
-    /// `.context/qc/widgets/measure.swift`, the widget audit's sizing harness.)
-    ///
-    /// Sizes between the stops interpolate linearly; sizes outside them extrapolate along the
-    /// nearest segment, so a future ladder size still gets a sane column instead of a clamp.
-    public static func numeralColumnWidth(forNumeralSize size: Double) -> Double {
-        let stops: [(size: Double, width: Double)] = [(14, 42), (16, 47.5), (18, 52)]
-        func interpolate(_ lower: (size: Double, width: Double), _ upper: (size: Double, width: Double)) -> Double {
-            let progress = (size - lower.size) / (upper.size - lower.size)
-            return lower.width + (upper.width - lower.width) * progress
-        }
-        if size <= stops[0].size {
-            return max(0, interpolate(stops[0], stops[1]))
-        }
-        for (lower, upper) in zip(stops, stops.dropFirst()) where size <= upper.size {
-            return interpolate(lower, upper)
-        }
-        return interpolate(stops[stops.count - 2], stops[stops.count - 1])
-    }
 }

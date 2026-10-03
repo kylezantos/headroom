@@ -12,6 +12,13 @@ protocol SoftwareUpdateControlling: AnyObject {
     /// Sparkle owns the storage (`SUEnableAutomaticChecks`), so Headroom keeps no
     /// second copy that could drift from it.
     var automaticallyChecksForUpdates: Bool { get set }
+    /// Sparkle's own persisted silent-install preference (`SUAutomaticallyUpdate`): a found
+    /// update downloads in the background and installs when the app quits. Only takes effect
+    /// while background checks are on, so the switch is dependent on that one.
+    var automaticallyDownloadsUpdates: Bool { get set }
+    /// Sparkle's record of its last completed check (manual or background), shown as
+    /// "Last checked …" under the Updates rows. Nil before the first check.
+    var lastUpdateCheckDate: Date? { get }
     func checkForUpdates()
 }
 
@@ -61,6 +68,29 @@ final class SoftwareUpdateController: NSObject, ObservableObject, SoftwareUpdate
         }
     }
 
+    var automaticallyDownloadsUpdates: Bool {
+        get {
+            #if canImport(Sparkle)
+            return updaterController?.updater.automaticallyDownloadsUpdates ?? false
+            #else
+            return false
+            #endif
+        }
+        set {
+            #if canImport(Sparkle)
+            updaterController?.updater.automaticallyDownloadsUpdates = newValue
+            #endif
+        }
+    }
+
+    var lastUpdateCheckDate: Date? {
+        #if canImport(Sparkle)
+        return updaterController?.updater.lastUpdateCheckDate
+        #else
+        return nil
+        #endif
+    }
+
     func checkForUpdates() {
         #if canImport(Sparkle)
         updaterController?.checkForUpdates(nil)
@@ -81,5 +111,7 @@ final class DisabledSoftwareUpdateController: SoftwareUpdateControlling {
     /// No updater to defer to, so this is a plain stored value: previews and tests can
     /// still drive the switch without Sparkle present.
     var automaticallyChecksForUpdates: Bool = false
+    var automaticallyDownloadsUpdates: Bool = false
+    var lastUpdateCheckDate: Date? { nil }
     func checkForUpdates() {}
 }

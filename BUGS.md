@@ -4,6 +4,15 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## App-target tests can't run while any Headroom.app is open
+
+- The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in
+  `HeadroomApp.swift`) also runs inside the XCTest host. With another Headroom.app running —
+  e.g. a different Conductor workspace's build — the `HeadroomAppTests` host prints "already
+  running" and exits 0, and xcodebuild reports "Early unexpected exit … before establishing
+  connection" (2026-10-02). Exempt the test host (`XCTestConfigurationFilePath` in the
+  environment) the way `--demo` is exempt.
+
 ## Focused render acceptance needs Screen Recording for the launching shell
 
 - `--menu-bar-only` and `--widgets-only` capture only through `screencapture -l` and fail
@@ -174,6 +183,14 @@ official `claude` CLI's `/usage` panel instead.
   the probe returned live usage. Find a reproducible unapproved-server case before
   describing the path as supported; see
   `docs/solutions/cursor-agent-usage-feasibility.md`.
+- **Killed probes can leave Cursor Agent housekeeping files behind (2026-09-30).** Cleaned
+  up on one machine: 7 `~/.local/share/cursor-agent/versions/*/.running/<pid>` markers
+  and 12 `~/.cursor/cli-config.json.<pid>.<uuid>.tmp` files, all from dead pids. The
+  markers matched probe runs that stopped on the signed-out screen. A normal `/usage` run
+  left none. They're harmless, but the probe's SIGTERM→SIGKILL teardown probably
+  interrupts the CLI's own cleanup. Unverified: whether Ctrl-C (which the signed-out
+  screen explicitly ignores as a login key) lets the CLI exit cleanly on the gate
+  screens. Check that against a live gate before changing teardown.
 
 ## Sign-in handoff residuals (2026-09-19)
 

@@ -626,6 +626,34 @@ public enum HeadroomMeterColorValues {
     /// different meters.
     public static let segmentBodyAttenuation: Double = 0.70
 
+    /// MX3 (Kyle, Oct 2026): how much of `tickOff` a Full *unlit* cell keeps. Fourteen unlit
+    /// tiles at full `tickOff` were as loud as the dimmed trail, so the row read as a grid; at
+    /// 0.70 the lit run reads as the meter and the empties as its scale. Micro's five cells keep
+    /// `tickOff` as is.
+    public static let fullUnlitCellScale: Double = 0.70
+
+    /// MX2 (Kyle, Oct 2026): Full Fade's start — the fill's own hue, `fullRampChromaScale` of
+    /// its chroma, `fullRampLightnessShift` toward the card — eased out by `fullRampEasing`.
+    /// Tuned side by side against the old surface-weighted ramp in the options doc.
+    public static let fullRampLightnessShift: Double = 0.14
+    public static let fullRampChromaScale: Double = 0.65
+    public static let fullRampEasing: Double = 1.3
+
+    /// MX4 (Kyle, Oct 2026): Full Machined's well is lit from above instead of outlined — a
+    /// shade under the top edge, a faint lip along the bottom, and a hairline that only holds
+    /// the edge. Micro Machined keeps `wellShadow`'s outline; at 6pt the shading is invisible.
+    public static func wellTopShade(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0.55 : 0.16)
+    }
+
+    public static func wellBottomLip(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .white, opacity: dark ? 0.06 : 0.55)
+    }
+
+    public static func wellHairline(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: .black, opacity: dark ? 0.35 : 0.06)
+    }
+
     /// R2C18: the dim a *flat* (non-tip) severity fill takes in dark — the continuous Solid
     /// bar and the segmented body's severity cell. These two numbers were untokenised inline
     /// literals in `MeterGauge.flatSeverityColor`; they belong beside

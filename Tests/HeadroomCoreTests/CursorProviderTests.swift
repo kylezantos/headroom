@@ -336,6 +336,10 @@ private struct StubCursorSource: CursorUsageSource {
         #expect(!CursorUsageCLIProbe.isReadyPrompt("Cursor Agent\nMCP Server Approval Required\nPlan, search, build anything"))
         #expect(CursorUsageCLIProbe.isMCPApprovalPrompt("MCP Server Approval Required\nReview servers"))
         #expect(CursorUsageCLIProbe.isWorkspaceTrustPrompt("/!\\ Workspace Trust Required\n[a] Trust this workspace\n[q] Quit"))
+        #expect(CursorUsageCLIProbe.isLoginPrompt("Cursor Agent\nv2026.09.28-64d2043\nPress any key to log in..."))
+        #expect(!CursorUsageCLIProbe.isReadyPrompt("Cursor Agent\nPress any key to log in...\nAsk (shift+tab to cycle)"))
+        #expect(CursorUsageCLIProbe.containsBackgroundColorQuery(Data("\u{1B}[2J\u{1B}]11;?\u{07}".utf8)))
+        #expect(!CursorUsageCLIProbe.containsBackgroundColorQuery(Data("\u{1B}[2J\u{1B}[H".utf8)))
 
         #expect(CursorUsageCLIProbe.isUsageAutocompleteSelected("→ /usage\n/context"))
         // The live TUI pads the arrow-to-command gap with several spaces and trails the
@@ -396,6 +400,22 @@ private struct StubCursorSource: CursorUsageSource {
         )
 
         #expect(await probe.capturePanel() == .mcpApprovalRequired)
+        #expect(!FileManager.default.fileExists(atPath: workspace.appendingPathComponent("unexpected-input").path))
+    }
+
+    /// The signed-out screen starts a browser login on any byte, including an
+    /// unsolicited OSC 11 reply, so it must be classified before anything is written.
+    @Test func signedOutScreenNeverReceivesPTYInput() async throws {
+        let (executable, workspace) = try fakeCursorAgent(named: "cursor-agent-login")
+        defer { try? FileManager.default.removeItem(at: workspace.deletingLastPathComponent()) }
+        let probe = CursorUsageCLIProbe(
+            cursorPath: executable.path,
+            workingDirectory: workspace.path,
+            bootTimeout: 4,
+            panelTimeout: 4
+        )
+
+        #expect(await probe.capturePanel() == .loginRequired)
         #expect(!FileManager.default.fileExists(atPath: workspace.appendingPathComponent("unexpected-input").path))
     }
 

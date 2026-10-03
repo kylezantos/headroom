@@ -53,6 +53,7 @@ struct SettingsView: View {
     /// L13: mirrors Sparkle's stored preference so the Updates switch repaints on
     /// toggle; the updater stays the source of truth and is written on change.
     @State private var automaticUpdateChecks = false
+    @State private var automaticUpdateDownloads = false
     @State private var apiSpendPeriod: APISpendPeriod = .currentMonth
     @State private var apiKeyDrafts: [APIKeyProvider: String] = [:]
     @State private var savedKeyProviders: Set<APIKeyProvider> = []
@@ -251,6 +252,7 @@ struct SettingsView: View {
                 intervalMinutes: $intervalMinutes,
                 launchAtLogin: $launchAtLogin,
                 automaticUpdateChecks: $automaticUpdateChecks,
+                automaticUpdateDownloads: $automaticUpdateDownloads,
                 softwareUpdates: softwareUpdates,
                 cadenceSentence: cadenceSentence,
                 onIntervalChange: { newValue in
@@ -259,9 +261,6 @@ struct SettingsView: View {
                 },
                 onLaunchAtLoginChange: { newValue in
                     try? launchControl.setEnabled(newValue)
-                },
-                onAutomaticUpdateChecksChange: { newValue in
-                    softwareUpdates.automaticallyChecksForUpdates = newValue
                 }
             )
         case .appearance:
@@ -333,6 +332,12 @@ struct SettingsView: View {
                 onSaveKey: { key, provider in saveKey(key, for: provider) },
                 onRequestRemoval: { removalCandidate = $0 },
                 cancelMessageDismissal: { messageDismissals[$0]?.cancel() }
+            )
+        case .about:
+            AboutSettingsPane(
+                softwareUpdates: softwareUpdates,
+                automaticUpdateChecks: $automaticUpdateChecks,
+                automaticUpdateDownloads: $automaticUpdateDownloads
             )
         }
     }
@@ -464,6 +469,7 @@ struct SettingsView: View {
         apiSpendPeriod = store.apiSpendPeriod
         launchAtLogin = launchControl.isEnabled
         automaticUpdateChecks = softwareUpdates.automaticallyChecksForUpdates
+        automaticUpdateDownloads = softwareUpdates.automaticallyDownloadsUpdates
     }
 
     /// Presence only (never the key material): selects the configured summary or the

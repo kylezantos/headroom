@@ -23,6 +23,13 @@ protocol AccountProbeSchedulerHost: AnyObject {
     func schedulerLaneDidGoIdle(_ lane: ProviderPollingLane)
     /// User-initiated work started or drained (KTD2).
     func schedulerUserWorkDidChange(hasPending: Bool)
+    /// An account's probe started or ended, timer and user work alike. The menu-bar pill of
+    /// a provider's main account sloshes in between (Oct 2026, round-3 S2).
+    func schedulerProbeDidStart(_ key: AccountKey)
+    func schedulerProbeDidEnd(_ key: AccountKey)
+    /// User-requested work moved on: `completed` of the `total` accounts requested since it
+    /// began, and the account that just finished, if any (Oct 2026, round-4 W4 receipt).
+    func schedulerUserProgressDidChange(total: Int, completed: Int, landed: AccountKey?)
 }
 
 /// Per-lane due-queue engine (2026-09-19 polling plan, KTD1, KTD2, KTD6–KTD9, KTD11).
@@ -62,6 +69,10 @@ final class AccountProbeScheduler {
     private var lanes: [ProviderPollingLane: LaneState] = [:]
     /// Accounts a user action marked due and that have not merged yet (KTD2).
     private var userPending: Set<AccountKey> = []
+    /// W4: how many accounts the current run of user work asked for and has finished. Both
+    /// restart when user work begins from nothing pending.
+    private var userTotal = 0
+    private var userCompleted = 0
     /// A user action may perform provider-wide setup before queueing its account probe.
     /// Preserve that task-local discovery generation across the scheduler's own task hop so
     /// the probe can reuse the setup result instead of starting a second CLI search.
@@ -375,6 +386,7 @@ final class AccountProbeScheduler {
         if preReservedAttachmentGeneration == nil { lanes[lane]?.inFlight.insert(key) }
         let attachment = preReservedAttachmentGeneration ?? host.schedulerAttachmentGeneration(for: key)
         inFlightAttachment[key] = attachment
+        host.schedulerProbeDidStart(key)
 
         let result = await CLIExecutableRefreshContext.$generation.withValue(locatorGeneration) {
             await provider.fetchResult()
@@ -387,6 +399,8 @@ final class AccountProbeScheduler {
         lanes[lane]?.inFlight.remove(key)
         appendToLog(LaneSchedule.ProbeSpan(start: start, end: end), lane: lane, now: end, chosen: liveHost.schedulerChosenInterval)
         let accepted = liveHost.schedulerMerge(key: key, result: result, attachmentGeneration: attachment)
+        // After the merge, so a pill calms on the number it just fetched.
+        liveHost.schedulerProbeDidEnd(key)
         // A result the store refused (reset, handoff boundary, detached row) says nothing
         // about the row that now holds this key, so it must not move its backoff either.
         if accepted, var record = records[key] {
@@ -486,8 +500,11 @@ final class AccountProbeScheduler {
 
     private func insertUserPending(_ key: AccountKey) {
         let wasEmpty = userPending.isEmpty
-        userPending.insert(key)
+        if wasEmpty { userTotal = 0; userCompleted = 0 }
+        guard userPending.insert(key).inserted else { return }
+        userTotal += 1
         if wasEmpty { host?.schedulerUserWorkDidChange(hasPending: true) }
+        host?.schedulerUserProgressDidChange(total: userTotal, completed: userCompleted, landed: nil)
     }
 
     private func finish(_ key: AccountKey) {
@@ -496,7 +513,10 @@ final class AccountProbeScheduler {
         if let waiters = completionWaiters.removeValue(forKey: key) {
             for waiter in waiters { waiter.resume() }
         }
-        guard userPending.remove(key) != nil, userPending.isEmpty else { return }
+        guard userPending.remove(key) != nil else { return }
+        userCompleted += 1
+        host?.schedulerUserProgressDidChange(total: userTotal, completed: userCompleted, landed: key)
+        guard userPending.isEmpty else { return }
         host?.schedulerUserWorkDidChange(hasPending: false)
         let waiters = userWaiters
         userWaiters.removeAll()

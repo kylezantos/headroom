@@ -116,6 +116,18 @@ enum ProviderStyle {
         color(HeadroomMeterColorValues.wellShadow(dark: scheme == .dark))
     }
 
+    static func meterWellTopShade(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.wellTopShade(dark: scheme == .dark))
+    }
+
+    static func meterWellBottomLip(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.wellBottomLip(dark: scheme == .dark))
+    }
+
+    static func meterWellHairline(scheme: ColorScheme) -> Color {
+        color(HeadroomMeterColorValues.wellHairline(dark: scheme == .dark))
+    }
+
     static func meterTickOff(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.tickOff(dark: scheme == .dark))
     }
@@ -190,19 +202,23 @@ enum ProviderStyle {
     /// R2C12: the ramp's gradient stops. Three, not two — SwiftUI interpolates a two-colour
     /// gradient in its own space, so the explicit middle stop is what holds the drawn bar on
     /// the OKLCH path the recipe computed. See `MeterRampStops.color(at:)`.
+    ///
+    /// MX2: Full draws its softer, eased ramp, which needs more than one middle stop to hold
+    /// its curve — `gradientSamples` supplies them. Micro's linear ramp is unchanged.
     static func meterRampColors(
         for severity: UsageSeverity,
+        format: GaugeFormat,
         surface: MeterRampSurface,
         scheme: ColorScheme,
         increasedContrast: Bool
     ) -> [Color] {
-        let stops = MeterRecipe.rampStops(
+        MeterRecipe.rampStops(
+            format: format,
             severity: severity,
             scheme: scheme == .dark ? .dark : .light,
             surface: surface,
             increasedContrast: increasedContrast
-        )
-        return [Color(stops.start), Color(stops.midpoint), Color(stops.end)]
+        ).gradientSamples.map { Color($0) }
     }
 
     static func meterGhostBody(

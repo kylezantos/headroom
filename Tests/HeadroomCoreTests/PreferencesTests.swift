@@ -304,7 +304,7 @@ struct PreferencesTests {
 
     @Test func settingsPaneOrderAndGroupsMatchTheSidebar() {
         // R1: sidebar order and its two section headers are derived from the enum.
-        #expect(SettingsPane.allCases == [.general, .appearance, .menuBar, .widgets, .notifications, .accounts, .apiSpend])
+        #expect(SettingsPane.allCases == [.general, .appearance, .menuBar, .widgets, .notifications, .accounts, .apiSpend, .about])
         #expect(SettingsPane.allCases.map(\.label) == [
             "General",
             "Appearance",
@@ -313,17 +313,19 @@ struct PreferencesTests {
             "Notifications",
             "Accounts",
             "API Spend",
+            "About",
         ])
 
-        #expect(SettingsPane.Group.allCases == [.preferences, .sources])
+        #expect(SettingsPane.Group.allCases == [.preferences, .sources, .about])
         // R2B1: the header reads "App"; the raw value stays `preferences` so nothing that
         // persisted a group name migrates.
-        #expect(SettingsPane.Group.allCases.map(\.label) == ["App", "Sources"])
+        #expect(SettingsPane.Group.allCases.map(\.label) == ["App", "Sources", nil])
         #expect(SettingsPane.Group.preferences.rawValue == "preferences")
         // R1 (notifications plan): Notifications is the last App destination, after Widgets.
         #expect(SettingsPane.Group.preferences.panes == [.general, .appearance, .menuBar, .widgets, .notifications])
         #expect(SettingsPane.Group.sources.panes == [.accounts, .apiSpend])
-        // The two groups partition all seven panes without overlap.
+        #expect(SettingsPane.Group.about.panes == [.about])
+        // The groups partition every pane without overlap.
         #expect(SettingsPane.Group.allCases.flatMap(\.panes) == SettingsPane.allCases)
     }
 

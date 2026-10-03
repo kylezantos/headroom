@@ -119,16 +119,28 @@ public enum MeterGeometry {
     /// formats: the gap is ≈ 22–25% of the cell pitch, and the corner radius is ≈ 26–30% of
     /// the cell height. `MeterStyleTests` pins the ratios so a later retune of one format
     /// cannot silently drift away from the other.
-    public static let fullCellHeight = 10.0
-    public static let fullCellGap = 4.5
+    ///
+    /// MX3 (Kyle, Oct 2026, `design/meter-execution-pass-options.html`): the 10pt row of
+    /// free-standing tiles read as a row of keys. Full cells now sit at 8pt — the height of
+    /// every other Full track — at a 3.5pt gap and r2.5, and the tip cell stands proud of the
+    /// row (`fullTipCellHeight`) the way the Glass/Ghost cap stands proud of the chip. The
+    /// radius share holds the FS2 band; the gap share moves to ≈ 17%, which is what the
+    /// family test's widened floor records.
+    public static let fullCellHeight = 8.0
+    public static let fullCellGap = 3.5
     public static let microCellRadius = 1.5
-    public static let fullCellRadius = 2.6
+    public static let fullCellRadius = 2.5
+
+    /// MX3: the Full tip cell is 1pt proud on each side of the 8pt row — the same 10pt the
+    /// continuous cap (`fullCap.length`) stands at, so the tip names the reading the way the
+    /// cap does. It overflows the row rather than growing it. Micro's tip stays flush.
+    public static let fullTipCellHeight = 10.0
 
     /// FS2: reference only — Full cells flex to fill the row, so there is no stored width. A
     /// 14-cell row across the popover's measured 278pt meter run lands each cell at
-    /// (278 − 13 × 4.5) / 14 ≈ 15.7pt, which is the width the family ratios above are stated at.
-    /// Nothing renders from this; the family test and the doc comments do.
-    public static let fullCellNominalWidth = 15.7
+    /// (278 − 13 × 3.5) / 14 ≈ 16.6pt (MX3), which is the width the family ratios above are
+    /// stated at. Nothing renders from this; the family test and the doc comments do.
+    public static let fullCellNominalWidth = 16.6
 
     public static func cellHeight(for format: GaugeFormat) -> Double {
         switch format {
@@ -151,6 +163,14 @@ public enum MeterGeometry {
         }
     }
 
+    /// MX3: the lit tip cell's height. Full stands proud of its row; Micro stays flush.
+    public static func tipCellHeight(for format: GaugeFormat) -> Double {
+        switch format {
+        case .full: fullTipCellHeight
+        case .micro: microCellHeight
+        }
+    }
+
     /// FS3 (Kyle, Sep 2026): the Settings Format swatch must preview the *real* Full row in
     /// small — "update the preview to be accurate too". A miniature cell is therefore the
     /// format's own cell scaled uniformly down to the Micro cell height, so its proportions
@@ -161,19 +181,28 @@ public enum MeterGeometry {
         public let height: Double
         public let gap: Double
         public let radius: Double
+        /// MX3: the tip scales with the rest of the cell, so the swatch keeps the proud tip.
+        public let tipHeight: Double
     }
 
     public static func miniatureCell(for format: GaugeFormat) -> MiniatureCell {
         switch format {
         case .micro:
-            return MiniatureCell(width: microCellWidth, height: microCellHeight, gap: microCellGap, radius: microCellRadius)
+            return MiniatureCell(
+                width: microCellWidth,
+                height: microCellHeight,
+                gap: microCellGap,
+                radius: microCellRadius,
+                tipHeight: microCellHeight
+            )
         case .full:
             let scale = microCellHeight / fullCellHeight
             return MiniatureCell(
                 width: fullCellNominalWidth * scale,
                 height: fullCellHeight * scale,
                 gap: fullCellGap * scale,
-                radius: fullCellRadius * scale
+                radius: fullCellRadius * scale,
+                tipHeight: fullTipCellHeight * scale
             )
         }
     }
@@ -204,10 +233,14 @@ public enum MeterGeometry {
     public static let fullMinimumFillLength = 6.0
     public static let microMinimumFillLength = 3.0
 
-    /// L7B: the approved cap constants. Full is 2.5 × 10 with r 1.25 on the 8pt track, so it
-    /// stands 1pt proud on each side; Micro is 2 × 7 with square ends — the same pair serves
-    /// the 32×5 chip and the 5×16 tube, because the tube is that marker rotated a quarter turn.
-    public static let fullCap = MeterCapGeometry(thickness: 2.5, length: 10, cornerRadius: 1.25)
+    /// L7B: the approved cap constants. Full stands 1pt proud on each side of the 8pt track;
+    /// Micro is 2 × 7 with square ends — the same pair serves the 32×5 chip and the 5×16 tube,
+    /// because the tube is that marker rotated a quarter turn.
+    ///
+    /// MX1 (Oct 2026): Full's cap went 2.5 → 3pt thick with fully round ends (r 1.5) and now
+    /// sits flush with the fill's rounded end (`capCenterOffset(…, flushWithFillEnd:)`), so the
+    /// marker still names the exact reading without overhanging the round end.
+    public static let fullCap = MeterCapGeometry(thickness: 3, length: 10, cornerRadius: 1.5)
     public static let microCap = MeterCapGeometry(thickness: 2, length: 7, cornerRadius: 0)
 
     public static func cap(for format: GaugeFormat) -> MeterCapGeometry {
@@ -224,30 +257,52 @@ public enum MeterGeometry {
         }
     }
 
-    /// L8A: the fill body is a plain rect of `fraction × available`, floored at the format's
-    /// minimum so a nonzero value never disappears. The track's own shape — not this length —
-    /// supplies the rounded base, which is why the trailing edge lands flat.
+    /// MX1/MX6 (Oct 2026): the popover's continuous fills end in a round cap, so their floor is
+    /// at least the fill's own thickness — a 1% bar is a clean dot rather than a sliver with
+    /// two round ends crushed together. The format floor still applies where it is larger
+    /// (Full machined's 5pt inner fill keeps 6). The widgets keep the plain format floor.
+    public static func roundedMinimumFillLength(for format: GaugeFormat, thickness: Double) -> Double {
+        max(minimumFillLength(for: format), thickness)
+    }
+
+    /// L8A: the fill body is `fraction × available`, floored at the format's minimum so a
+    /// nonzero value never disappears. The widgets draw it as a flat-ended rect; the popover
+    /// rounds its end (MX1) and passes the rounded floor as `minimum`.
     public static func continuousFillLength(
         available: Double,
         fraction: Double,
         format: GaugeFormat
     ) -> Double {
+        continuousFillLength(available: available, fraction: fraction, minimum: minimumFillLength(for: format))
+    }
+
+    public static func continuousFillLength(
+        available: Double,
+        fraction: Double,
+        minimum: Double
+    ) -> Double {
         guard available > 0, fraction.isFinite, fraction > 0 else { return 0 }
-        return min(available, max(minimumFillLength(for: format), available * min(1, fraction)))
+        return min(available, max(minimum, available * min(1, fraction)))
     }
 
     /// L7B: the cap's center rides the fill's flat trailing edge, measured along the travel
     /// axis from the inside of the track's leading end. It is clamped to the track's own run
     /// so the marker never floats half-off the end at 100%; at the minimum fill length it
     /// parks with the fill, which is why it cannot collide with the leading end.
+    ///
+    /// MX1: `flushWithFillEnd` moves the centre back half a thickness so the cap's trailing
+    /// edge lands on the fill's rounded end instead of straddling it. Full uses it; Micro's
+    /// square marker still straddles its end.
     public static func capCenterOffset(
         fillLength: Double,
         available: Double,
-        cap: MeterCapGeometry
+        cap: MeterCapGeometry,
+        flushWithFillEnd: Bool = false
     ) -> Double {
         let half = cap.thickness / 2
         guard available > cap.thickness else { return max(0, available / 2) }
-        return min(max(fillLength, half), available - half)
+        let center = flushWithFillEnd ? fillLength - half : fillLength
+        return min(max(center, half), available - half)
     }
 }
 
@@ -295,10 +350,14 @@ public enum MeterColorScheme: String, CaseIterable, Sendable {
 public struct MeterRampStops: Sendable, Equatable {
     public let start: HeadroomRGBColor
     public let end: HeadroomRGBColor
+    /// MX2: the ease-out exponent applied to progress before interpolating. 1 is the linear
+    /// ramp Micro keeps; Full's softer ramp eases so most of the bar sits near the true colour.
+    public let easing: Double
 
-    public init(start: HeadroomRGBColor, end: HeadroomRGBColor) {
+    public init(start: HeadroomRGBColor, end: HeadroomRGBColor, easing: Double = 1) {
         self.start = start
         self.end = end
+        self.easing = easing
     }
 
     /// R2C12: the ramp traverses OKLCH at its severity's fixed hue.
@@ -309,13 +368,24 @@ public struct MeterRampStops: Sendable, Equatable {
     /// OKLCH with the hue pinned is what makes the name true — the ramp changes lightness and
     /// chroma only, and `MeterStyleTests` asserts the drift across it stays under 2°.
     public func color(at progress: Double) -> HeadroomRGBColor {
-        HeadroomOKLCH(start).interpolated(to: HeadroomOKLCH(end), progress: progress).rgb
+        let t = min(1, max(0, progress))
+        let eased = easing == 1 ? t : 1 - pow(1 - t, easing)
+        return HeadroomOKLCH(start).interpolated(to: HeadroomOKLCH(end), progress: eased).rgb
     }
 
     /// The stop a two-colour SwiftUI gradient would otherwise interpolate through in sRGB.
     /// Handing the gradient an explicit middle stop is what keeps the drawn bar on the OKLCH
     /// path instead of the straight line between its endpoints.
     public var midpoint: HeadroomRGBColor { color(at: 0.5) }
+
+    /// The gradient's stops, evenly spaced in position. A linear ramp needs only its midpoint
+    /// to stay on the OKLCH path; an eased one (MX2) samples more so the curve survives
+    /// SwiftUI's linear interpolation between stops.
+    public var gradientSamples: [HeadroomRGBColor] {
+        guard easing != 1 else { return [start, midpoint, end] }
+        let count = 9
+        return (0..<count).map { color(at: Double($0) / Double(count - 1)) }
+    }
 }
 
 /// A semantic fill choice. The app supplies scheme-specific visual tokens for each case;
@@ -405,6 +475,48 @@ public enum MeterRecipe {
             hue: severityStop.hue
         )
         return MeterRampStops(start: start.rgb, end: end)
+    }
+
+    /// MX2 (Kyle, Oct 2026): Full's Fade read harsh — the start was the fill mixed toward
+    /// white or black, and in dark that landed *below* the track it sits on, so a 278pt bar
+    /// swept from a hole to the vivid fill. Full's ramp instead keeps the fill's hue, scales
+    /// its chroma, and shifts lightness a fixed step toward the card (lighter in light, darker
+    /// in dark), eased out. One construction for chip, machined, and segmented — the surface
+    /// split (`rampStartSeverityMix`) is Micro's alone now, and Micro keeps it unchanged.
+    public static func fullRampStops(
+        severity: UsageSeverity,
+        scheme: MeterColorScheme,
+        increasedContrast: Bool = false
+    ) -> MeterRampStops {
+        let end = HeadroomSeverityColorValues.fill(
+            for: severity,
+            dark: scheme == .dark,
+            increasedContrast: increasedContrast
+        )
+        let severityStop = HeadroomOKLCH(end)
+        let shift = HeadroomMeterColorValues.fullRampLightnessShift * (scheme == .dark ? -1 : 1)
+        let start = HeadroomOKLCH(
+            lightness: min(0.98, max(0, severityStop.lightness + shift)),
+            chroma: severityStop.chroma * HeadroomMeterColorValues.fullRampChromaScale,
+            hue: severityStop.hue
+        )
+        return MeterRampStops(start: start.rgb, end: end, easing: HeadroomMeterColorValues.fullRampEasing)
+    }
+
+    /// The ramp a format draws: Full's softer MX2 ramp, or Micro's surface-weighted one.
+    public static func rampStops(
+        format: GaugeFormat,
+        severity: UsageSeverity,
+        scheme: MeterColorScheme,
+        surface: MeterRampSurface,
+        increasedContrast: Bool = false
+    ) -> MeterRampStops {
+        switch format {
+        case .full:
+            fullRampStops(severity: severity, scheme: scheme, increasedContrast: increasedContrast)
+        case .micro:
+            rampStops(severity: severity, scheme: scheme, surface: surface, increasedContrast: increasedContrast)
+        }
     }
 
     public static func cellRecipe(

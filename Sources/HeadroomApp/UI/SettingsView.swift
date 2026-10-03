@@ -42,6 +42,9 @@ struct SettingsView: View {
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
     @State private var accountTitleInk: AccountTitleInk = .neutral
     @State private var meterStyle: MeterStyle = .default
+    /// R16: the widget style Settings › Widgets & iPhone previews. View state only — widgets
+    /// choose their own style in Edit Widget. `--widget-style` seeds it for the harness.
+    @State private var widgetPreviewStyle: WidgetLayoutStyle = AppComposition.demoWidgetStyle()
     @State private var widgetsEnabled = true
     @State private var showCodexSparkCountersInApp = true
     @State private var showCodexSparkCountersInWidgets = false
@@ -288,6 +291,7 @@ struct SettingsView: View {
         case .widgets:
             WidgetsSettingsPane(
                 store: store,
+                previewStyle: $widgetPreviewStyle,
                 widgetsEnabled: $widgetsEnabled,
                 showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
                 syncToIPhoneEnabled: $syncToIPhoneEnabled

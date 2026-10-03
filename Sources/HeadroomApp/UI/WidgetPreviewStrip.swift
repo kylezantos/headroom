@@ -18,6 +18,9 @@ struct WidgetPreviewStrip: View {
     /// Dims the tiles when widget export is off, which is what the widgets themselves do
     /// (they fall back to the "Widgets Paused" status card once the snapshot stops).
     let widgetsEnabled: Bool
+    /// R16 (widget-styles plan): the style the gallery below is previewing. Preview only —
+    /// each widget's own style is chosen in Edit Widget.
+    var style: WidgetLayoutStyle = .default
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -82,7 +85,7 @@ struct WidgetPreviewStrip: View {
         )
         .allowsHitTesting(false)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Preview of the small, medium, and large macOS widgets")
+        .accessibilityLabel("Preview of the small, medium, and large macOS widgets in the \(style.displayName) style")
     }
 
     nonisolated private static let tileRadius: CGFloat = 20
@@ -116,28 +119,10 @@ struct WidgetPreviewStrip: View {
 
     private func mosaic(scale: CGFloat) -> some View {
         HStack(alignment: .top, spacing: Self.tileGap) {
-            tile(label: "Large", size: Self.largeSize, scale: scale) {
-                HeadroomLargeWidgetView(
-                    envelope: DemoScreenshotData.settingsPreviewEnvelope,
-                    now: DemoScreenshotData.settingsPreviewNow,
-                    mark: { providerID, size in brandMark(providerID, size) }
-                )
-            }
+            tile(label: "Large", family: .large, size: Self.largeSize, scale: scale)
             VStack(alignment: .leading, spacing: Self.rowGap(scale: scale)) {
-                tile(label: "Medium", size: Self.mediumSize, scale: scale) {
-                    HeadroomMediumWidgetView(
-                        envelope: DemoScreenshotData.settingsPreviewEnvelope,
-                        now: DemoScreenshotData.settingsPreviewNow,
-                        mark: { providerID, size in brandMark(providerID, size) }
-                    )
-                }
-                tile(label: "Small", size: Self.smallSize, scale: scale) {
-                    HeadroomSmallWidgetView(
-                        envelope: DemoScreenshotData.settingsPreviewEnvelope,
-                        now: DemoScreenshotData.settingsPreviewNow,
-                        mark: { providerID, size in brandMark(providerID, size) }
-                    )
-                }
+                tile(label: "Medium", family: .medium, size: Self.mediumSize, scale: scale)
+                tile(label: "Small", family: .small, size: Self.smallSize, scale: scale)
             }
         }
     }
@@ -149,23 +134,28 @@ struct WidgetPreviewStrip: View {
         ProviderLogoView(providerID: ProviderID(providerID), size: size)
     }
 
-    private func tile<Content: View>(
-        label: String,
-        size: CGSize,
-        scale: CGFloat,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: Self.captionSpacing / scale) {
-            content()
+    /// The real styled body over the widgets' own gradient, with the style's full-bleed
+    /// layer (Liquid Level's wash, KTD9) drawn inside the tile's clip beneath the margins.
+    private func tile(label: String, family: WidgetFamily, size: CGSize, scale: CGFloat) -> some View {
+        let envelope = DemoScreenshotData.settingsPreviewEnvelope
+        return VStack(alignment: .leading, spacing: Self.captionSpacing / scale) {
+            ZStack {
+                Self.tileBackground(dark: colorScheme == .dark)
+                HeadroomWidgetStyledBackground(style: style, family: family, envelope: envelope, colorMode: .default)
+                HeadroomWidgetStyledBody(
+                    style: style, family: family, envelope: envelope, colorMode: .default,
+                    now: DemoScreenshotData.settingsPreviewNow, footerPrefix: HeadroomWidgetCopy.macFooterPrefix,
+                    mark: { providerID, size in brandMark(providerID, size) }
+                )
                 // WidgetKit's default macOS content margins; the widget bodies deliberately
                 // add only a small residual on top of them (KTD1).
                 .padding(16)
-                .frame(width: size.width, height: size.height, alignment: .topLeading)
-                .background(tileBackground)
-                .clipShape(RoundedRectangle(cornerRadius: Self.tileRadius, style: .continuous))
-                // A tile on the desktop is lifted, not outlined; the shadow is what keeps
-                // it legible against the well in light appearance.
-                .shadow(color: .black.opacity(colorScheme == .dark ? 0.34 : 0.18), radius: 4, y: 1)
+            }
+            .frame(width: size.width, height: size.height, alignment: .topLeading)
+            .clipShape(RoundedRectangle(cornerRadius: Self.tileRadius, style: .continuous))
+            // A tile on the desktop is lifted, not outlined; the shadow is what keeps
+            // it legible against the well in light appearance.
+            .shadow(color: .black.opacity(colorScheme == .dark ? 0.34 : 0.18), radius: 4, y: 1)
             Text(label)
                 .font(.system(size: Self.captionFontSize / scale))
                 // T8: secondary, not tertiary — the faintest ink on a tinted well was the
@@ -178,9 +168,8 @@ struct WidgetPreviewStrip: View {
     /// The widgets' own three-stop falloff. Redrawn here rather than shared because the
     /// two widget extensions each keep their own `HeadroomWidgetContainerBackground` copy;
     /// the colors come from the one Core token set, so the surfaces cannot drift.
-    private var tileBackground: some View {
-        let dark = colorScheme == .dark
-        return LinearGradient(
+    static func tileBackground(dark: Bool) -> some View {
+        LinearGradient(
             colors: [
                 Color(HeadroomWidgetColorValues.containerBackgroundTop(dark: dark)),
                 Color(HeadroomWidgetColorValues.containerBackgroundMiddle(dark: dark)),

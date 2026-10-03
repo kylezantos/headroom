@@ -709,6 +709,8 @@ private struct PartBlur: ViewModifier, @preconcurrency Animatable {
 
 struct WidgetsSettingsPane: View {
     let store: UsageStore
+    /// R16: which style the specimen previews. Held by `SettingsView` (panes are stateless).
+    @Binding var previewStyle: WidgetLayoutStyle
     @Binding var widgetsEnabled: Bool
     @Binding var showCodexSparkCountersInWidgets: Bool
     @Binding var syncToIPhoneEnabled: Bool
@@ -716,7 +718,13 @@ struct WidgetsSettingsPane: View {
         SettingsPaneScaffold(SettingsPane.widgets.label) {
             // L9P: sits on the pane background above the tile, like the Appearance
             // specimen — it is the subject of the pane, not another setting.
-            WidgetPreviewStrip(widgetsEnabled: widgetsEnabled)
+            WidgetPreviewStrip(widgetsEnabled: widgetsEnabled, style: previewStyle)
+
+            // R16/KTD13: the styles a widget can take, previewed above. Choosing one here
+            // changes the preview only; each widget picks its style in Edit Widget.
+            SettingsTile("Widget style") {
+                WidgetStyleGalleryPicker(selection: $previewStyle)
+            }
 
             SettingsTile {
                 WidgetSettingsSection(

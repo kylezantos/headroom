@@ -90,6 +90,16 @@ struct DemoLaunchTokenTests {
         #expect(AppComposition.widgetExporter() is NoOpWidgetSnapshotExporter)
     }
 
+    @Test func widgetStyleTokenSelectsThePreviewedStyle() {
+        #expect(AppComposition.demoWidgetStyle(arguments: ["Headroom", "--widget-style", "tightestFirst"]) == .tightestFirst)
+    }
+
+    @Test func absentOrUnknownWidgetStyleTokenPreviewsNestedMeter() {
+        #expect(AppComposition.demoWidgetStyle(arguments: ["Headroom"]) == .nestedMeter)
+        #expect(AppComposition.demoWidgetStyle(arguments: ["Headroom", "--widget-style", "classic"]) == .nestedMeter)
+        #expect(AppComposition.demoWidgetStyle(arguments: ["Headroom", "--widget-style"]) == .nestedMeter)
+    }
+
     @Test func meterStyleAndAccountTitleInkTokensCoexist() {
         let arguments = [
             "Headroom", "--demo", "multi-2",

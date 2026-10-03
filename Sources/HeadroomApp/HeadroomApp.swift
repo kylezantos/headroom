@@ -990,6 +990,16 @@ enum AppComposition {
         return style
     }
 
+    /// `--widget-style <id>` (widget-styles plan, KTD13): which style Settings › Widgets &
+    /// iPhone previews, for the `--render-popover --widgets-only` harness. An absent or
+    /// unknown id previews the default style.
+    static func demoWidgetStyle(arguments: [String] = CommandLine.arguments) -> WidgetLayoutStyle {
+        guard let index = arguments.firstIndex(of: "--widget-style"),
+              arguments.indices.contains(index + 1)
+        else { return .default }
+        return WidgetLayoutStyle(storedValue: arguments[index + 1])
+    }
+
     /// `--account-title-ink <neutral|brand>`, the review seam for `AccountTitleInk.brand`.
     /// Reseeds the landed default when absent for the same reason `demoMeterStyle` does.
     static func demoAccountTitleInk(arguments: [String] = CommandLine.arguments) -> AccountTitleInk {

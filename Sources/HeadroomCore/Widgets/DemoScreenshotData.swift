@@ -411,6 +411,97 @@ public enum DemoScreenshotData {
         )
     }
 
+    // MARK: - Widget style fixtures (2026-10-02 widget-styles plan, U2)
+
+    /// Named envelopes for the widget-style render harness (`--render-widgets`). Each sets a
+    /// widget provider selection and varied reset times so every style's provider, pool,
+    /// stale, unavailable and pending paths are posed against a fixed `now`.
+    public static let styleFixtureNames = [
+        "claudeCodex", "claudeGrok", "codexCursor", "grokCursor", "tightClaudeCursor",
+        "sparkOn", "staleUnavailable", "pending", "firstPending", "cursorOnly", "spend",
+    ]
+
+    public static func styleFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
+        func w(
+            _ kind: WidgetWindowKind, _ label: String, _ percent: Double,
+            resetIn: TimeInterval, freshness: WidgetWindowFreshness = .live, pool: TimeInterval? = nil
+        ) -> WidgetWindowSummary {
+            WidgetWindowSummary(
+                kind: kind,
+                label: label,
+                percentRemaining: percent,
+                resetSchedule: .scheduled(now.addingTimeInterval(resetIn)),
+                resetLabel: nil,
+                observedAt: freshness.observedAt,
+                severity: percent <= 15 ? .critical : percent <= 50 ? .low : .healthy,
+                freshness: freshness,
+                billingPeriodDuration: pool
+            )
+        }
+        let hour: TimeInterval = 3_600, day: TimeInterval = 86_400
+        func claude(_ a: Double, _ b: Double, _ c: Double, fiveHourReset: TimeInterval = 3.25 * hour, weekReset: TimeInterval = 4.25 * day,
+                    fable: WidgetWindowFreshness = .live) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max", freshness: .live, windows: [
+                w(.fiveHour, "5h", a, resetIn: fiveHourReset),
+                w(.weekly, "Weekly", b, resetIn: weekReset),
+                w(.other("Weekly (Fable)"), "Weekly (Fable)", c, resetIn: weekReset, freshness: fable),
+            ], renewalDate: nil)
+        }
+        func codex(_ a: Double, _ b: Double, spark: Double? = nil, freshness: WidgetProviderFreshness = .live,
+                   windowFreshness: WidgetWindowFreshness = .live) -> WidgetProviderSummary {
+            var windows = [
+                w(.fiveHour, "5h", a, resetIn: 2.1 * hour, freshness: windowFreshness),
+                w(.weekly, "Weekly", b, resetIn: 3.1 * day, freshness: windowFreshness),
+            ]
+            if let spark { windows.append(w(.other("Spark weekly"), "Spark weekly", spark, resetIn: 3.1 * day)) }
+            return WidgetProviderSummary(id: ProviderID.codex.raw, displayName: "Codex", planLabel: "Pro Lite",
+                                         freshness: freshness, windows: windows, renewalDate: nil)
+        }
+        func grok(_ a: Double, freshness: WidgetWindowFreshness = .live) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: ProviderID.grok.raw, displayName: "Grok", planLabel: "SuperGrok", freshness: .live, windows: [
+                w(.other("Weekly"), "Weekly", a, resetIn: 3.2 * day, freshness: freshness, pool: 7 * day),
+            ], renewalDate: nil)
+        }
+        func cursor(_ a: Double, _ b: Double, resetIn: TimeInterval = 2.2 * day) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: ProviderID.cursor.raw, displayName: "Cursor", planLabel: "Pro+", freshness: .live, windows: [
+                w(.other("Cursor Models"), "Cursor Models", a, resetIn: resetIn, pool: 30 * day),
+                w(.other("Other Models"), "Other Models", b, resetIn: resetIn, pool: 30 * day),
+            ], renewalDate: nil)
+        }
+        func spendRow(_ id: ProviderID, _ name: String, _ amount: Double) -> WidgetAPISpendSummary {
+            WidgetAPISpendSummary(id: id.raw, displayName: name, amount: amount, currency: "usd",
+                                  periodLabel: "Current month", capturedAt: now, freshness: .live)
+        }
+        func envelope(_ providers: [WidgetProviderSummary], spend: [WidgetAPISpendSummary] = []) -> WidgetSnapshotEnvelope {
+            WidgetSnapshotEnvelope(generatedAt: now.addingTimeInterval(-4 * 60), status: .enabled, providers: providers,
+                                   apiSpendProviders: spend, widgetProviderSelection: providers.map(\.id))
+        }
+        let pending = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
+                                            freshness: .pending, windows: [], renewalDate: nil)
+        switch name {
+        case "claudeCodex": return envelope([claude(72, 38, 61), codex(41, 64)])
+        case "claudeGrok": return envelope([claude(72, 38, 61), grok(56)])
+        case "codexCursor": return envelope([codex(41, 64), cursor(69, 37)])
+        case "grokCursor": return envelope([grok(56), cursor(69, 37)])
+        case "tightClaudeCursor":
+            return envelope([claude(12, 9, 23, fiveHourReset: 1.66 * hour, weekReset: 1.1 * day), cursor(31, 8, resetIn: 6.1 * day)])
+        case "sparkOn": return envelope([claude(72, 38, 61), codex(41, 64, spark: 22)])
+        case "staleUnavailable":
+            return envelope([
+                claude(72, 38, 5, fable: .stale(observedAt: now.addingTimeInterval(-2 * hour))),
+                codex(41, 64, freshness: .stale(message: "Codex could not be read", needsAttention: false),
+                      windowFreshness: .unavailable(since: now.addingTimeInterval(-6 * hour))),
+            ])
+        case "pending": return envelope([pending, codex(41, 64)])
+        case "firstPending": return envelope([pending, grok(56)])
+        case "cursorOnly": return envelope([cursor(69, 37)])
+        case "spend":
+            return envelope([claude(72, 38, 61), codex(41, 64)],
+                            spend: [spendRow(.claude, "Anthropic API", 142.67), spendRow(.codex, "OpenAI API", 58.90)])
+        default: return nil
+        }
+    }
+
     // MARK: Helpers
 
     private static func window(

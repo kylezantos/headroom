@@ -222,7 +222,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   not motion or re-render cost. Changes that add an animation, a scroll or geometry callback, a
   timer, an `onAppear` correction, a per-row formatter, or a fast-changing store read in the
   popover, Settings or the scene body should be checked with body counts and back-to-back
-  before/after runs. The method and the hot-spot checklist (implicit animation over a measured
+  before/after runs (`--bench-ui`, see Commands). The method and the hot-spot checklist (implicit animation over a measured
   container, per-frame `@State` in a big body, store reads in `App.body`/scene closures) are in
   `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
 

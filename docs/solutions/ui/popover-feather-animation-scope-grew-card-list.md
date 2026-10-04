@@ -204,8 +204,8 @@ outside the closure, so they take their final values at once.
   `--render-popover` proves the settled layout and nothing else.
 - Harness idea, not built: an offscreen check that hosts `PopoverView` for each `--demo` fixture,
   drives frames for 600ms after attach, and fails if the scroll viewport height takes more than one
-  non-zero value or the root body runs again. The audit's bench did this by hand in an uncommitted
-  worktree.
+  non-zero value or the root body runs again. `--bench-ui popover` now prints that frame-by-frame probe
+  (viewport height and root passes per frame).
 
 ## Related Issues
 

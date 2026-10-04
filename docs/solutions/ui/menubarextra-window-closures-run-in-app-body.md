@@ -177,7 +177,7 @@ enum AppComposition {
 - `settingsCredentialStore` is a `static let`, built once per launch, next to `notificationClient`
   (`:1166`). The demo-versus-Keychain choice moved with it unchanged.
 
-Measured on the offscreen perf bench (an uncommitted harness), `multi-20`, Settings showing
+Measured on the offscreen perf bench (then uncommitted; now `--bench-ui`), `multi-20`, Settings showing
 Accounts. The bench cannot host the real `MenuBarExtra` scene, so it timed a stand-in view whose
 body built the label and `SettingsView` the way the scene body does, with old and new builds run
 back to back:

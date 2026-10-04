@@ -182,7 +182,7 @@ private final class PopoverScrollModel {
 - The indicator's look, its timing (900ms hold, `quickSettle` in, `settle` out) and its S2A
   behaviour are unchanged. Only where the state lives moved.
 
-Measured on the offscreen perf bench (an uncommitted harness), `multi-20`, with the old and new
+Measured on the offscreen perf bench (then uncommitted; now `--bench-ui`), `multi-20`, with the old and new
 builds run back to back in the same session:
 
 | | Before | After |
@@ -248,8 +248,8 @@ capsule's opacity are not re-evaluated on every frame.
   `PopoverView.body` and `PopoverScrollIndicator.body`, run `swift run Headroom --demo multi-20`,
   open the popover and scroll. The root should log nothing, and the indicator should log once per
   frame. `_printChanges()` is an underscored debug API, so remove it before committing. For totals
-  per scroll step, put a counter line in each body using a small helper of your own (the audit's
-  uncommitted bench used one; nothing like it is in the tree). The offscreen check sketched in the FA1 doc would catch this too if it also
+  per scroll step, put a counter line in each body with `BenchCounters.hit(_:)`, which
+  `--bench-ui` builds compile in with `-DHEADROOM_BENCH` (a no-op otherwise). The offscreen check sketched in the FA1 doc would catch this too if it also
   drove scroll steps and failed on any root pass.
 - **Still open:** every `ProviderCardView` re-renders on any store change (fresh closures, plus
   `now` per BUGS.md), so one account refresh re-runs all cards. BUGS.md puts that at about 240ms of

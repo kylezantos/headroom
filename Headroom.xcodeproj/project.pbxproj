@@ -30,6 +30,7 @@
 		09E2DFD7D56F4A7ABFED6FD8 /* DotMatrixSpinnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E1EF454A6A98444C5EC8B4 /* DotMatrixSpinnerTests.swift */; };
 		0A685B2041A3418A5897E50C /* UseItUpLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */; };
 		0A7E6FC306A8B682679DB334 /* PlanCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61976BDA86182356251A6D79 /* PlanCapsule.swift */; };
+		0B63C0DE1712F05B12FA7F40 /* CompanionSyncCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */; };
 		0BC3C1ED6DB48000AD0A6982 /* ProviderCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E542DE434B4A2F1EA525110E /* ProviderCardView.swift */; };
 		0C2A5419E7361328ED5ED0EE /* HeadroomWidgetTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */; };
 		0DB37291C4A766B66C8B5942 /* WidgetLayoutStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA59F148939EB6AC45B4BD65 /* WidgetLayoutStyle.swift */; };
@@ -294,6 +295,7 @@
 		B2E74D2787539CB61B9DCA79 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = FBD1B51EA4877966201E1485 /* PrivacyInfo.xcprivacy */; };
 		B37989A7665033C855949C1C /* StatusSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2373CA31089F62FECDF85D07 /* StatusSentence.swift */; };
 		B380BB2769B4B2CE662D2B6E /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
+		B6099A17FC050E89A37ED1B2 /* CompanionSyncCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */; };
 		B779B019A3EDF4D4AF443B69 /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		B7B4BCBDAFCFC897ECCAACD9 /* WidgetLayoutStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA59F148939EB6AC45B4BD65 /* WidgetLayoutStyle.swift */; };
 		B7D06FBDC03D1DE273B772DA /* AccountEmail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */; };
@@ -400,6 +402,7 @@
 		FEF2C46BA6A484AB140E1E7A /* NotificationPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 368710686B033F2FD75F9DE0 /* NotificationPreferences.swift */; };
 		FF0A564EBBE31782DE36A152 /* CursorAccountEmailReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9BCC5DAE24A255072D6B1B0 /* CursorAccountEmailReader.swift */; };
 		FF3FBC74B1AA0603DA851D0F /* Sparkle.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		FF51120F85727DA6AAD172A5 /* CompanionSyncCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -598,6 +601,7 @@
 		80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeThumbnailPicker.swift; sourceTree = "<group>"; };
 		8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedWidgetSnapshotModels.swift; sourceTree = "<group>"; };
 		83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPane.swift; sourceTree = "<group>"; };
+		84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSyncCodec.swift; sourceTree = "<group>"; };
 		864A7A76DC0EC0C8CF12DF51 /* MenuBarPaneSizingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPaneSizingTests.swift; sourceTree = "<group>"; };
 		864FC2FB47A9E7D44E659809 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
 		86D2C4B7BA8C794A93EDC3E8 /* HeadroomWidgetPreviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetPreviews.swift; sourceTree = "<group>"; };
@@ -853,6 +857,7 @@
 				5D7E9C365CC8B08666DEB89F /* CompanionAttentionCopy.swift */,
 				97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */,
 				B6019B00EF172D09CACA2F6B /* CompanionIdentityProbe.swift */,
+				84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */,
 				EBF0EAE65138B3BD555EEACD /* CompanionSyncModels.swift */,
 				9B5C67D6F363B547DDC89B75 /* CompanionWireDate.swift */,
 				286C18406A7E80D0E42D1592 /* iCloudSnapshotSync.swift */,
@@ -1524,6 +1529,7 @@
 				0738487256E4F5D6D56EFA44 /* CompanionAttentionCopy.swift in Sources */,
 				AF8D92D2E50538EC7D2B00B2 /* CompanionDemoModeStore.swift in Sources */,
 				7FCEE91A8EFC7A47D19698CE /* CompanionIdentityProbe.swift in Sources */,
+				B6099A17FC050E89A37ED1B2 /* CompanionSyncCodec.swift in Sources */,
 				965B242E1A65C3A896067132 /* CompanionSyncModels.swift in Sources */,
 				32024093974A4B48D8AF6528 /* CompanionWireDate.swift in Sources */,
 				6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */,
@@ -1614,6 +1620,7 @@
 				A06967DD095208F09CBFC0D2 /* CompanionAttentionCopy.swift in Sources */,
 				DC1870CA40E1A553BF305430 /* CompanionDemoModeStore.swift in Sources */,
 				8EB4B80CB33393EF22DAEFB2 /* CompanionIdentityProbe.swift in Sources */,
+				FF51120F85727DA6AAD172A5 /* CompanionSyncCodec.swift in Sources */,
 				917A6C1AAA68C10FBFA81FE0 /* CompanionSyncModels.swift in Sources */,
 				580AB8BAD476B2611A8DF611 /* CompanionWireDate.swift in Sources */,
 				4050D3B78E0AD7AC09CF5314 /* Countdown.swift in Sources */,
@@ -1810,6 +1817,7 @@
 				5620F4F237849FCB69F90A1C /* CompanionDemoModeStore.swift in Sources */,
 				E96E8DC7DD25A474AB975BF9 /* CompanionIdentityProbe.swift in Sources */,
 				B2C10E922C19A9F4D624BE54 /* CompanionPreviewSeed.swift in Sources */,
+				0B63C0DE1712F05B12FA7F40 /* CompanionSyncCodec.swift in Sources */,
 				4F53646C65B38D4BC258D0F7 /* CompanionSyncModels.swift in Sources */,
 				3CBA1C8ED82070A932C51E3B /* CompanionWireDate.swift in Sources */,
 				CD29C4379A86CAC8A03AF46A /* Countdown.swift in Sources */,

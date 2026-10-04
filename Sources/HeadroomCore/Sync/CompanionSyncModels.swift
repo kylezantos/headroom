@@ -620,3 +620,296 @@ public struct CompanionReminderSummary: Codable, Equatable, Sendable {
         if !scope.isEmpty { try c.encode(scope.map(\.rawValue), forKey: .scope) }
     }
 }
+
+public enum CompanionSyncValidationError: Error, Equatable, Sendable {
+    case identity, version, generation, count, state
+}
+
+/// Shared by validated model construction and version-only codec routing.
+enum CompanionTransportValidation {
+    static func uuid(_ value: String) throws -> String {
+        guard let uuid = UUID(uuidString: value) else {
+            throw CompanionSyncValidationError.identity
+        }
+        return uuid.uuidString.lowercased()
+    }
+
+    static func headerVersions(schema: Int, minimumReader: Int) throws {
+        guard schema >= 1, minimumReader >= 1 else { throw CompanionSyncValidationError.version }
+    }
+
+    static func modelVersions(schema: Int, minimumReader: Int) throws {
+        try headerVersions(schema: schema, minimumReader: minimumReader)
+        guard schema >= 4 else { throw CompanionSyncValidationError.version }
+    }
+}
+
+public struct CompanionRequest: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let minimumReaderVersion: Int
+    public let requestID: String
+    public let requestedAt: CompanionWireDate
+    public let sourceID: String
+
+    public init(
+        schemaVersion: Int = 4,
+        minimumReaderVersion: Int = 1,
+        requestID: String,
+        requestedAt: CompanionWireDate,
+        sourceID: String
+    ) throws {
+        try CompanionTransportValidation.modelVersions(
+            schema: schemaVersion, minimumReader: minimumReaderVersion)
+        self.schemaVersion = schemaVersion
+        self.minimumReaderVersion = minimumReaderVersion
+        self.requestID = try CompanionTransportValidation.uuid(requestID)
+        self.requestedAt = requestedAt
+        self.sourceID = try CompanionTransportValidation.uuid(sourceID)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion = "v"
+        case minimumReaderVersion = "r"
+        case requestID = "q"
+        case requestedAt = "t"
+        case sourceID = "i"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            schemaVersion: c.decode(Int.self, forKey: .schemaVersion),
+            minimumReaderVersion: c.decode(Int.self, forKey: .minimumReaderVersion),
+            requestID: c.decode(String.self, forKey: .requestID),
+            requestedAt: c.decode(CompanionWireDate.self, forKey: .requestedAt),
+            sourceID: c.decode(String.self, forKey: .sourceID)
+        )
+    }
+}
+
+public enum CompanionAnsweredOutcome: String, Codable, Equatable, Sendable {
+    case finished, cooldown, failed, unknown
+
+    public init(from decoder: any Decoder) throws {
+        self = try companionFallback(Self.self, from: decoder, fallback: .unknown)
+    }
+}
+
+public struct CompanionAnsweredRequest: Codable, Equatable, Sendable {
+    public let requestID: String
+    public let outcome: CompanionAnsweredOutcome
+    public let finishedGeneration: Int64?
+
+    public init(
+        requestID: String, outcome: CompanionAnsweredOutcome, finishedGeneration: Int64? = nil
+    ) throws {
+        guard outcome != .unknown else { throw CompanionSyncValidationError.state }
+        guard finishedGeneration.map({ $0 >= 0 }) != false else {
+            throw CompanionSyncValidationError.generation
+        }
+        if outcome == .finished || outcome == .cooldown {
+            guard finishedGeneration != nil else { throw CompanionSyncValidationError.generation }
+        }
+        self.requestID = try CompanionTransportValidation.uuid(requestID)
+        self.outcome = outcome
+        self.finishedGeneration = finishedGeneration
+    }
+
+    /// Last valid answer per UUID, in terminal input order, bounded independently of active membership.
+    public static func terminalHistory(_ answers: [Self]) -> [Self] {
+        var seen: Set<String> = []
+        let latest = answers.reversed().filter { seen.insert($0.requestID).inserted }
+        return Array(latest.reversed().suffix(8))
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case requestID = "q"
+        case outcome = "o"
+        case finishedGeneration = "g"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            requestID: c.decode(String.self, forKey: .requestID),
+            outcome: c.decode(CompanionAnsweredOutcome.self, forKey: .outcome),
+            finishedGeneration: c.decodeIfPresent(Int64.self, forKey: .finishedGeneration)
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(requestID, forKey: .requestID)
+        try c.encode(outcome, forKey: .outcome)
+        try c.encodeIfPresent(finishedGeneration, forKey: .finishedGeneration)
+    }
+}
+
+public struct CompanionLastLanded: Codable, Equatable, Sendable {
+    public let providerID: String
+    public let accountID: String
+    public let live: Bool
+
+    public init(providerID: String, accountID: String, live: Bool) throws {
+        guard ["claude", "codex", "grok", "cursor"].contains(providerID), !accountID.isEmpty else {
+            throw CompanionSyncValidationError.identity
+        }
+        self.providerID = providerID
+        self.accountID = accountID
+        self.live = live
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case providerID = "p"
+        case accountID = "a"
+        case live = "l"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            providerID: c.decode(String.self, forKey: .providerID),
+            accountID: c.decode(String.self, forKey: .accountID),
+            live: c.decode(Bool.self, forKey: .live)
+        )
+    }
+}
+
+public enum CompanionReceiptState: String, Codable, Equatable, Sendable {
+    case accepted, running, finished, cooldown, unknown
+
+    public init(from decoder: any Decoder) throws {
+        self = try companionFallback(Self.self, from: decoder, fallback: .unknown)
+    }
+}
+
+/// Leaf omissions are explicit: an invalid landed row/terminal answer cannot invent success.
+private struct CompanionLossyLeaf<Value: Decodable>: Decodable {
+    let value: Value?
+
+    init(from decoder: any Decoder) throws {
+        value = try? Value(from: decoder)
+    }
+}
+
+public struct CompanionReceipt: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let minimumReaderVersion: Int
+    public let sourceID: String
+    public let state: CompanionReceiptState
+    public let requestIDs: [String]
+    public let answeredRequests: [CompanionAnsweredRequest]
+    public let startedAt: CompanionWireDate?
+    public let finishedAt: CompanionWireDate?
+    public let checkedAt: CompanionWireDate?
+    public let total: Int?
+    public let completed: Int?
+    public let lastLanded: CompanionLastLanded?
+    public let finishedGeneration: Int64?
+
+    public init(
+        schemaVersion: Int = 4,
+        minimumReaderVersion: Int = 1,
+        sourceID: String,
+        state: CompanionReceiptState,
+        requestIDs: [String],
+        answeredRequests: [CompanionAnsweredRequest] = [],
+        startedAt: CompanionWireDate? = nil,
+        finishedAt: CompanionWireDate? = nil,
+        checkedAt: CompanionWireDate? = nil,
+        total: Int? = nil,
+        completed: Int? = nil,
+        lastLanded: CompanionLastLanded? = nil,
+        finishedGeneration: Int64? = nil
+    ) throws {
+        try CompanionTransportValidation.modelVersions(
+            schema: schemaVersion, minimumReader: minimumReaderVersion)
+        guard state != .unknown else { throw CompanionSyncValidationError.state }
+        guard (total == nil) == (completed == nil) else { throw CompanionSyncValidationError.count }
+        if let total, let completed {
+            guard total >= 0, completed >= 0, completed <= total else {
+                throw CompanionSyncValidationError.count
+            }
+        }
+        if state == .running {
+            guard total != nil, completed != nil else { throw CompanionSyncValidationError.count }
+        }
+        guard finishedGeneration.map({ $0 >= 0 }) != false else {
+            throw CompanionSyncValidationError.generation
+        }
+        if state == .finished || state == .cooldown {
+            guard finishedGeneration != nil else { throw CompanionSyncValidationError.generation }
+        }
+        if state == .cooldown {
+            guard checkedAt != nil else { throw CompanionSyncValidationError.state }
+        }
+        self.schemaVersion = schemaVersion
+        self.minimumReaderVersion = minimumReaderVersion
+        self.sourceID = try CompanionTransportValidation.uuid(sourceID)
+        self.state = state
+        self.requestIDs = try Array(Set(requestIDs.map(CompanionTransportValidation.uuid))).sorted()
+        self.answeredRequests = CompanionAnsweredRequest.terminalHistory(answeredRequests)
+        self.startedAt = startedAt
+        self.finishedAt = finishedAt
+        self.checkedAt = checkedAt
+        self.total = total
+        self.completed = completed
+        self.lastLanded = lastLanded
+        self.finishedGeneration = finishedGeneration
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion = "v"
+        case minimumReaderVersion = "r"
+        case sourceID = "i"
+        case state = "s"
+        case requestIDs = "q"
+        case answeredRequests = "a"
+        case startedAt = "t"
+        case finishedAt = "f"
+        case checkedAt = "c"
+        case total = "n"
+        case completed = "d"
+        case lastLanded = "l"
+        case finishedGeneration = "g"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            schemaVersion: c.decode(Int.self, forKey: .schemaVersion),
+            minimumReaderVersion: c.decode(Int.self, forKey: .minimumReaderVersion),
+            sourceID: c.decode(String.self, forKey: .sourceID),
+            state: c.decode(CompanionReceiptState.self, forKey: .state),
+            requestIDs: c.decode([String].self, forKey: .requestIDs),
+            answeredRequests: c.companionDecodeIfAbsent(
+                [CompanionLossyLeaf<CompanionAnsweredRequest>].self, forKey: .answeredRequests
+            )?.compactMap(\.value) ?? [],
+            startedAt: c.decodeIfPresent(CompanionWireDate.self, forKey: .startedAt),
+            finishedAt: c.decodeIfPresent(CompanionWireDate.self, forKey: .finishedAt),
+            checkedAt: c.decodeIfPresent(CompanionWireDate.self, forKey: .checkedAt),
+            total: c.decodeIfPresent(Int.self, forKey: .total),
+            completed: c.decodeIfPresent(Int.self, forKey: .completed),
+            lastLanded: c.decodeIfPresent(
+                CompanionLossyLeaf<CompanionLastLanded>.self, forKey: .lastLanded)?.value,
+            finishedGeneration: c.decodeIfPresent(Int64.self, forKey: .finishedGeneration)
+        )
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(minimumReaderVersion, forKey: .minimumReaderVersion)
+        try c.encode(sourceID, forKey: .sourceID)
+        try c.encode(state, forKey: .state)
+        try c.encode(requestIDs, forKey: .requestIDs)
+        if !answeredRequests.isEmpty { try c.encode(answeredRequests, forKey: .answeredRequests) }
+        try c.encodeIfPresent(startedAt, forKey: .startedAt)
+        try c.encodeIfPresent(finishedAt, forKey: .finishedAt)
+        try c.encodeIfPresent(checkedAt, forKey: .checkedAt)
+        try c.encodeIfPresent(total, forKey: .total)
+        try c.encodeIfPresent(completed, forKey: .completed)
+        try c.encodeIfPresent(lastLanded, forKey: .lastLanded)
+        try c.encodeIfPresent(finishedGeneration, forKey: .finishedGeneration)
+    }
+}

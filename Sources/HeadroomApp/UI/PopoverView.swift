@@ -21,15 +21,11 @@ struct PopoverView: View {
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
-    /// Content extends past the scroll cap and isn't scrolled to the bottom — gates
-    /// the bottom fade so it never softens a fully visible last card.
-    @State private var scrollContinuesBelow = false
-    /// L2A: live scroll geometry driving the bespoke gutter indicator. The system
-    /// scroller is hidden, so this is the only position and length cue.
-    @State private var scrollMetrics = PopoverScrollMetrics()
-    @State private var scrollIndicatorVisible = false
-    @State private var scrollIndicatorHideTask: Task<Void, Never>?
+    /// L2A: live scroll geometry for the bottom feather and the bespoke gutter indicator.
+    /// SC1 (2026-10-03 perf bench): held in a model that only those two child views read.
+    /// As `@State` here, every scroll frame re-ran this whole body and rebuilt every card —
+    /// ~80ms a frame at 20 accounts.
+    @State private var scroll = PopoverScrollModel()
     /// Measured height of the card stack. `MenuBarExtra(.window)` sizes its window to the
     /// content's ideal height, and a `ScrollView` has no ideal height of its own — left to
     /// self-size it collapsed to zero and the popover opened at 127pt with no cards
@@ -164,7 +160,7 @@ struct PopoverView: View {
                 }
                 // L2A: the stock overlay scroller sat on the card border and painted a
                 // near-black well over the card interior when it expanded. We hide it and
-                // draw our own in the 19pt shell gutter instead (see `scrollIndicator`),
+                // draw our own in the 19pt shell gutter instead (see `PopoverScrollIndicator`),
                 // which also retires main's borrowed 10pt scroller gutter — the viewport
                 // and the cards are the same width again.
                 .scrollIndicators(.hidden)
@@ -185,29 +181,13 @@ struct PopoverView: View {
                         content: geometry.contentSize.height
                     )
                 } action: { _, metrics in
-                    scrollMetrics = metrics
-                    scrollContinuesBelow = metrics.continuesBelow
-                    flashScrollIndicator(overflows: metrics.overflows)
+                    scroll.update(metrics)
                 }
-                .mask {
-                    VStack(spacing: 0) {
-                        Rectangle().fill(.black)
-                        LinearGradient(
-                            stops: Self.featherStops(fadesOut: scrollContinuesBelow),
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: Self.featherHeight)
-                    }
-                }
-                // S2A: the feather is pure mask opacity, so Reduce Motion keeps the
-                // 200ms softening rather than hard-cutting the card edge.
-                .animation(
-                    HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                    value: scrollContinuesBelow
-                )
+                // FA1: the feather animates its own opacity only (see `PopoverScrollFeather`).
+                .mask { PopoverScrollFeather(model: scroll) }
                 // Applied outside the mask so the indicator never feathers at the ends,
                 // and outside the feather animations so its position tracks the scroll 1:1.
-                .overlay(alignment: .topTrailing) { scrollIndicator }
+                .overlay(alignment: .topTrailing) { PopoverScrollIndicator(model: scroll) }
                 .frame(height: forcedCardsHeight ?? min(cardsHeight, 640))
                 footer(now: context.date)
             }
@@ -231,101 +211,6 @@ struct PopoverView: View {
 
     /// M5A follow-up: one key for the whole card list, read once per body pass.
     private var meterRecipeKey: String { MeterRecipeKey.key(for: store.meterStyle) }
-
-    // MARK: - Scroll feather (R2C23)
-
-    /// R2C23: 14pt, down from 26 — the old band was taller than a whole Micro meter row, so
-    /// the last chip in the list rendered as a half-dissolved ghost and the card's bottom rim
-    /// never drew at all. Notification Centre, Raycast and Linear all fade ~12–16pt.
-    private static let featherHeight: CGFloat = 14
-
-    /// R2C23: non-linear, so the fade is back-loaded and the top two-thirds of the band stays
-    /// crisp — a soft edge rather than missing data. A straight `LinearGradient` between two
-    /// colours could not express it; these are its three stops.
-    private static let featherOpacities: [Double] = [1.0, 0.55, 0.0]
-
-    /// `fadesOut: false` is the gated case — a popover that doesn't scroll keeps its crisp
-    /// last card edge.
-    private static func featherStops(fadesOut: Bool) -> [Gradient.Stop] {
-        let opacities = fadesOut
-            ? featherOpacities
-            : Array(repeating: 1.0, count: featherOpacities.count)
-        let lastIndex = Double(opacities.count - 1)
-        return opacities.enumerated().map { index, opacity in
-            Gradient.Stop(color: .black.opacity(opacity), location: Double(index) / lastIndex)
-        }
-    }
-
-    // MARK: - Bespoke scroll indicator (L2A)
-
-    /// A 3pt capsule whose centre sits 8pt from the shell's right edge, so it lives wholly
-    /// inside the 19pt gutter and never touches a card (the cards' right edge is 19pt in).
-    /// No track, no well, no hover growth — the three things the stock scroller was faulted
-    /// for. Drawn only while the content overflows the 640pt cap.
-    @ViewBuilder private var scrollIndicator: some View {
-        if scrollMetrics.overflows {
-            Capsule()
-                .fill(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.30))
-                .opacity(scrollIndicatorVisible ? 1 : 0)
-                // Fade-out is the specified 200ms on `settle`'s curve; the appearance is
-                // the shorter `quickSettle` so the cue is already there when the finger
-                // lands. S2A: the capsule only ever changes opacity, so Reduce Motion keeps
-                // both timings — the geometry below is what stays untweened.
-                .animation(scrollIndicatorAnimation, value: scrollIndicatorVisible)
-                // Geometry sits outside the animation scope so the capsule slides with the
-                // scroll rather than easing behind it.
-                .frame(
-                    width: PopoverScrollIndicatorMetrics.width,
-                    height: scrollIndicatorLength
-                )
-                .offset(x: PopoverScrollIndicatorMetrics.gutterOffset, y: scrollIndicatorOffsetY)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-
-    private var scrollIndicatorAnimation: Animation? {
-        HeadroomMotion.resolved(
-            scrollIndicatorVisible ? HeadroomMotion.quickSettle : HeadroomMotion.settle,
-            .crossfade,
-            reduceMotion: reduceMotion
-        )
-    }
-
-    /// Proportional length — viewport × (viewport / content) — floored at 24pt so a very
-    /// long list still leaves something to see, and capped by the inset track.
-    private var scrollIndicatorLength: CGFloat {
-        let viewport = scrollMetrics.viewport
-        let content = scrollMetrics.content
-        guard viewport > 0, content > viewport else { return 0 }
-        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
-        return min(track, max(PopoverScrollIndicatorMetrics.minimumLength, viewport * (viewport / content)))
-    }
-
-    private var scrollIndicatorOffsetY: CGFloat {
-        let viewport = scrollMetrics.viewport
-        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
-        let travel = max(track - scrollIndicatorLength, 0)
-        let scrollable = max(scrollMetrics.content - viewport, 1)
-        let progress = min(max(scrollMetrics.offset / scrollable, 0), 1)
-        return PopoverScrollIndicatorMetrics.endInset + travel * progress
-    }
-
-    /// Appears on scroll, holds 900ms, then fades. Each geometry change restarts the hold,
-    /// so a continuous drag keeps it lit and it settles once the list stops moving.
-    private func flashScrollIndicator(overflows: Bool) {
-        scrollIndicatorHideTask?.cancel()
-        guard overflows else {
-            scrollIndicatorVisible = false
-            return
-        }
-        scrollIndicatorVisible = true
-        scrollIndicatorHideTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
-            guard !Task.isCancelled else { return }
-            scrollIndicatorVisible = false
-        }
-    }
 
     /// Native pattern: navigating out of the transient menu-bar popover into the persistent
     /// Settings window dismisses the popover (mirrors Control Center → System Settings). The
@@ -929,6 +814,144 @@ private struct PopoverScrollMetrics: Equatable {
 
     var overflows: Bool { viewport > 0 && content > viewport + 1 }
     var continuesBelow: Bool { offset + viewport < content - 4 }
+}
+
+/// SC1: the scroll chrome's state, out of `PopoverView`'s body. Each property is written
+/// only when it changes, so a scroll frame re-renders the indicator alone and the feather
+/// only when the list stops or starts continuing below the cap.
+@MainActor
+@Observable
+private final class PopoverScrollModel {
+    private(set) var metrics = PopoverScrollMetrics()
+    /// Content extends past the scroll cap and isn't scrolled to the bottom — gates the
+    /// bottom fade so it never softens a fully visible last card.
+    private(set) var continuesBelow = false
+    private(set) var indicatorVisible = false
+    @ObservationIgnored private var indicatorHideTask: Task<Void, Never>?
+
+    /// Called only when the metrics changed (`onScrollGeometryChange` compares them).
+    func update(_ metrics: PopoverScrollMetrics) {
+        self.metrics = metrics
+        if continuesBelow != metrics.continuesBelow { continuesBelow = metrics.continuesBelow }
+        flashIndicator(overflows: metrics.overflows)
+    }
+
+    /// Appears on scroll, holds 900ms, then fades. Each geometry change restarts the hold,
+    /// so a continuous drag keeps it lit and it settles once the list stops moving.
+    private func flashIndicator(overflows: Bool) {
+        indicatorHideTask?.cancel()
+        guard overflows else {
+            if indicatorVisible { indicatorVisible = false }
+            return
+        }
+        if !indicatorVisible { indicatorVisible = true }
+        indicatorHideTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            self?.indicatorVisible = false
+        }
+    }
+}
+
+/// The scroll viewport's mask (R2C23): crisp everywhere except a back-loaded bottom fade while
+/// content continues below the cap.
+///
+/// FA1 (2026-10-03 perf bench): the fade's animation is scoped to the band's opacity. It used
+/// to wrap the whole ScrollView, and the feather flips in the same transaction as the open's
+/// 0 → measured height change, so the card list grew open over ~12 frames on every open —
+/// the entrance M9C removed — re-rendering the popover on each frame.
+private struct PopoverScrollFeather: View {
+    let model: PopoverScrollModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// R2C23: 14pt, down from 26 — the old band was taller than a whole Micro meter row, so
+    /// the last chip in the list rendered as a half-dissolved ghost and the card's bottom rim
+    /// never drew at all. Notification Centre, Raycast and Linear all fade ~12–16pt.
+    private static let featherHeight: CGFloat = 14
+
+    /// R2C23: non-linear, so the fade is back-loaded and the top two-thirds of the band stays
+    /// crisp — a soft edge rather than missing data. A straight `LinearGradient` between two
+    /// colours could not express it; these are its three stops.
+    private static let featherStops: [Gradient.Stop] = [
+        Gradient.Stop(color: .black, location: 0),
+        Gradient.Stop(color: .black.opacity(0.55), location: 0.5),
+        Gradient.Stop(color: .black.opacity(0), location: 1),
+    ]
+
+    var body: some View {
+        let fadesOut = model.continuesBelow
+        VStack(spacing: 0) {
+            Rectangle().fill(.black)
+            ZStack {
+                LinearGradient(stops: Self.featherStops, startPoint: .top, endPoint: .bottom)
+                // The gated case: an opaque band over the fade, so a popover that doesn't
+                // scroll keeps its crisp last card edge. FA1: the body-scoped animation
+                // reaches this opacity only — never the band's place in a growing viewport.
+                // S2A: pure mask opacity, so Reduce Motion keeps the 200ms softening.
+                Rectangle().fill(.black)
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
+                    ) { $0.opacity(fadesOut ? 0 : 1) }
+            }
+            .frame(height: Self.featherHeight)
+        }
+    }
+}
+
+/// L2A: a 3pt capsule whose centre sits 8pt from the shell's right edge, so it lives wholly
+/// inside the 19pt gutter and never touches a card (the cards' right edge is 19pt in).
+/// No track, no well, no hover growth — the three things the stock scroller was faulted
+/// for. Drawn only while the content overflows the 640pt cap.
+private struct PopoverScrollIndicator: View {
+    let model: PopoverScrollModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        if model.metrics.overflows {
+            Capsule()
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.30))
+                .opacity(model.indicatorVisible ? 1 : 0)
+                // Fade-out is the specified 200ms on `settle`'s curve; the appearance is
+                // the shorter `quickSettle` so the cue is already there when the finger
+                // lands. S2A: the capsule only ever changes opacity, so Reduce Motion keeps
+                // both timings — the geometry below is what stays untweened.
+                .animation(visibilityAnimation, value: model.indicatorVisible)
+                // Geometry sits outside the animation scope so the capsule slides with the
+                // scroll rather than easing behind it.
+                .frame(width: PopoverScrollIndicatorMetrics.width, height: length)
+                .offset(x: PopoverScrollIndicatorMetrics.gutterOffset, y: offsetY)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var visibilityAnimation: Animation? {
+        HeadroomMotion.resolved(
+            model.indicatorVisible ? HeadroomMotion.quickSettle : HeadroomMotion.settle,
+            .crossfade,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    /// Proportional length — viewport × (viewport / content) — floored at 24pt so a very
+    /// long list still leaves something to see, and capped by the inset track.
+    private var length: CGFloat {
+        let viewport = model.metrics.viewport
+        let content = model.metrics.content
+        guard viewport > 0, content > viewport else { return 0 }
+        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
+        return min(track, max(PopoverScrollIndicatorMetrics.minimumLength, viewport * (viewport / content)))
+    }
+
+    private var offsetY: CGFloat {
+        let metrics = model.metrics
+        let track = max(metrics.viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
+        let travel = max(track - length, 0)
+        let scrollable = max(metrics.content - metrics.viewport, 1)
+        let progress = min(max(metrics.offset / scrollable, 0), 1)
+        return PopoverScrollIndicatorMetrics.endInset + travel * progress
+    }
 }
 
 private struct PopoverSurfaceModifier: ViewModifier {

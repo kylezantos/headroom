@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import AppKit
 import HeadroomCore
@@ -1691,60 +1694,6 @@ extension UsageBarsStack {
             return (RowKey(kind: window.kind, occurrence: occurrence), window)
         }
     }
-}
-
-/// Varied-width placeholder meter (audit UI-13): previews the true row shape so the
-/// pending state reads intentional, not broken. Shared by both card paths.
-struct SkeletonMeter: View {
-    let labelWidth: CGFloat
-    let valueWidth: CGFloat
-    let format: GaugeFormat
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        switch format {
-        case .full:
-            VStack(alignment: .leading, spacing: 5) {
-                skeletonTextRow
-                Capsule().fill(track).frame(height: MeterGeometry.fullTrackHeight)
-            }
-        case .micro:
-            HStack {
-                skeletonLabel
-                Spacer(minLength: 6)
-                Capsule()
-                    .fill(track)
-                    .frame(
-                        width: MeterGeometry.microChipWidth,
-                        height: MeterGeometry.microChipHeight
-                    )
-                skeletonValue
-            }
-        }
-    }
-
-    private var skeletonTextRow: some View {
-        HStack {
-            skeletonLabel
-            Spacer(minLength: 6)
-            skeletonValue
-        }
-    }
-
-    private var skeletonLabel: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .fill(track)
-            .frame(width: labelWidth, height: 13)
-    }
-
-    private var skeletonValue: some View {
-        RoundedRectangle(cornerRadius: 4)
-            .fill(track)
-            .frame(width: valueWidth, height: 13)
-    }
-
-    private var track: Color { ProviderStyle.barTrack(scheme: scheme) }
 }
 
 // MARK: - Shared command recovery row

@@ -36,6 +36,8 @@ targets:
       # L9P: the Widgets & iPhone settings pane previews the real small/medium widget
       # bodies. Compiled into the app the same way the two widget extensions compile it.
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
     dependencies:
       - target: HeadroomCore
       - target: HeadroomWidgets
@@ -69,6 +71,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
       - path: Sources/HeadroomWidgets
         excludes:
           - HeadroomWidgets.entitlements
@@ -109,6 +113,8 @@ targets:
           - WidgetSnapshotProjector.swift
       # U12 previews the real widget styles in the phone's read-only gallery.
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
     dependencies:
       - target: HeadroomIOSWidgets
         embed: true
@@ -127,6 +133,8 @@ targets:
     platform: iOS
     sources:
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
       - path: Sources/HeadroomIOSWidgets
         excludes:
           - HeadroomIOSWidgets.entitlements

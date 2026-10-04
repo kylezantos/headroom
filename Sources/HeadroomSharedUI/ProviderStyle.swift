@@ -1,13 +1,17 @@
 import SwiftUI
+#if SWIFT_PACKAGE
 import HeadroomCore
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 
 /// Static per-provider visual identity (design review): a brand-ish accent color and
 /// SF Symbol so Claude and Codex cards are distinguishable at a glance. Static only —
 /// no pulsing/animated indicators (user's standing rule).
-enum ProviderStyle {
+public enum ProviderStyle {
     /// Claude and Codex ship a single color mark that reads on both schemes; Grok and
     /// Cursor are monochrome brands, so they carry a light/dark SVG pair selected here.
-    static func svgResourceName(for id: ProviderID, scheme: ColorScheme) -> String? {
+    public static func svgResourceName(for id: ProviderID, scheme: ColorScheme) -> String? {
         switch id {
         case .claude: return "claude-color"
         case .codex: return "codex-color"
@@ -17,7 +21,7 @@ enum ProviderStyle {
         }
     }
 
-    static func accent(for id: ProviderID) -> Color {
+    public static func accent(for id: ProviderID) -> Color {
         switch id {
         case .claude: return Color(HeadroomBrandColorValues.claude)
         case .codex: return Color(HeadroomBrandColorValues.codex)
@@ -30,7 +34,7 @@ enum ProviderStyle {
     /// Brand-tinted provider *title* color, shared with the widgets
     /// (`HeadroomWidgetColorValues.textAccent` — WCAG-tuned per scheme) so the popover
     /// and widget headers read as one system (Jul 2026 widget-alignment pass).
-    static func textAccent(for id: ProviderID, scheme: ColorScheme) -> Color {
+    public static func textAccent(for id: ProviderID, scheme: ColorScheme) -> Color {
         guard let rgb = HeadroomWidgetColorValues.textAccent(for: id.raw, dark: scheme == .dark) else {
             return .primary
         }
@@ -40,12 +44,12 @@ enum ProviderStyle {
     /// Widget-tuned label grays (WCAG-checked in `HeadroomWidgetColorValues`), adopted
     /// over the system `.secondary`/`.tertiary` — system tertiary sat at ~2.3:1 on the
     /// dark tile; the shared token reaches ~4.2:1 and keeps all surfaces in step.
-    static func secondaryText(scheme: ColorScheme) -> Color {
+    public static func secondaryText(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)
     }
 
-    static func tertiaryText(scheme: ColorScheme) -> Color {
+    public static func tertiaryText(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)
     }
@@ -54,7 +58,7 @@ enum ProviderStyle {
     /// chosen mode — `.neutral` is the recessive grey token, `.brand` is the per-provider
     /// tint the widget headers use, for people who want the popover colored the way they
     /// are used to.
-    static func accountTitleInk(for id: ProviderID, ink: AccountTitleInk, scheme: ColorScheme) -> Color {
+    public static func accountTitleInk(for id: ProviderID, ink: AccountTitleInk, scheme: ColorScheme) -> Color {
         switch ink {
         case .neutral: return accountTitleInk(scheme: scheme)
         case .brand: return textAccent(for: id, scheme: scheme)
@@ -63,7 +67,7 @@ enum ProviderStyle {
 
     /// T1A: the neutral grey on its own. Kept for surfaces that are not account titles and
     /// for the `.neutral` branch above.
-    static func accountTitleInk(scheme: ColorScheme) -> Color {
+    public static func accountTitleInk(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.accountTitle(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)
     }
@@ -72,78 +76,78 @@ enum ProviderStyle {
     /// |Lc| ≈ 20 on the dark card against ≈ 40 in light — the plan name is the only thing
     /// saying which subscription a meter measures, so it now has a token that reads the same
     /// in both appearances. See `HeadroomWidgetColorValues.planLabel`.
-    static func planLabelInk(scheme: ColorScheme) -> Color {
+    public static func planLabelInk(scheme: ColorScheme) -> Color {
         color(HeadroomWidgetColorValues.planLabel(dark: scheme == .dark))
     }
 
-    static func barTrack(scheme: ColorScheme) -> Color {
+    public static func barTrack(scheme: ColorScheme) -> Color {
         let tint = HeadroomWidgetColorValues.barTrack(dark: scheme == .dark)
         return Color(tint.color).opacity(tint.opacity)
     }
 
     /// R2C15: the track carries the critical hue the shrinking fill no longer can. Every
     /// other severity keeps the neutral track. See `HeadroomMeterColorValues.criticalBarTrack`.
-    static func barTrack(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
+    public static func barTrack(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
         guard severity == .critical else { return barTrack(scheme: scheme) }
         return Color(HeadroomMeterColorValues.criticalBarTrack(dark: scheme == .dark))
     }
 
-    static func meterLabelInk(scheme: ColorScheme) -> Color {
+    public static func meterLabelInk(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.labelInk(dark: scheme == .dark))
     }
 
-    static func meterCountdownInk(scheme: ColorScheme) -> Color {
+    public static func meterCountdownInk(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.countdownInk(dark: scheme == .dark))
     }
 
-    static func meterGlassA(scheme: ColorScheme) -> Color {
+    public static func meterGlassA(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.glassA(dark: scheme == .dark))
     }
 
-    static func meterGlassB(scheme: ColorScheme) -> Color {
+    public static func meterGlassB(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.glassB(dark: scheme == .dark))
     }
 
-    static func meterGlassRim(scheme: ColorScheme) -> Color {
+    public static func meterGlassRim(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.glassRim(dark: scheme == .dark))
     }
 
-    static func meterWellBackground(scheme: ColorScheme) -> Color {
+    public static func meterWellBackground(scheme: ColorScheme) -> Color {
         Color(HeadroomMeterColorValues.wellBackground(dark: scheme == .dark))
     }
 
-    static func meterWellShadow(scheme: ColorScheme) -> Color {
+    public static func meterWellShadow(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.wellShadow(dark: scheme == .dark))
     }
 
-    static func meterWellTopShade(scheme: ColorScheme) -> Color {
+    public static func meterWellTopShade(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.wellTopShade(dark: scheme == .dark))
     }
 
-    static func meterWellBottomLip(scheme: ColorScheme) -> Color {
+    public static func meterWellBottomLip(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.wellBottomLip(dark: scheme == .dark))
     }
 
-    static func meterWellHairline(scheme: ColorScheme) -> Color {
+    public static func meterWellHairline(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.wellHairline(dark: scheme == .dark))
     }
 
-    static func meterTickOff(scheme: ColorScheme) -> Color {
+    public static func meterTickOff(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.tickOff(dark: scheme == .dark))
     }
 
-    static func meterTickGlass(scheme: ColorScheme) -> Color {
+    public static func meterTickGlass(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.tickGlass(dark: scheme == .dark))
     }
 
-    static func meterTickGlassCap(scheme: ColorScheme) -> Color {
+    public static func meterTickGlassCap(scheme: ColorScheme) -> Color {
         color(HeadroomMeterColorValues.tickGlassCap(dark: scheme == .dark))
     }
 
     /// R2C16: the `.stale` fill keeps its severity's lightness and hue at reduced chroma
     /// instead of collapsing to the system secondary grey — a stale critical is still a
     /// critical. See `HeadroomMeterColorValues.staleFill`.
-    static func meterStaleFill(
+    public static func meterStaleFill(
         for severity: UsageSeverity,
         scheme: ColorScheme,
         increasedContrast: Bool
@@ -158,12 +162,12 @@ enum ProviderStyle {
     /// R2C18: the recessed well shared by the setup flow's command wells and the Settings
     /// preview wells. The Settings panes reached this through `ClaudeSetupStyle.wellBackground`
     /// — a Claude-branded token owning a pane with no Claude in it. Same value, one home.
-    static func recessedWell(dark: Bool) -> Color {
+    public static func recessedWell(dark: Bool) -> Color {
         color(HeadroomWidgetColorValues.recessedWell(dark: dark))
     }
 
     /// R2C18: the setup flow's quiet-chip label ink, shared with the neutral text bases.
-    static func setupChipInk(dark: Bool) -> Color {
+    public static func setupChipInk(dark: Bool) -> Color {
         color(HeadroomWidgetColorValues.setupChipInk(dark: dark))
     }
 
@@ -174,28 +178,28 @@ enum ProviderStyle {
     // the one constant-hue ramp in `HeadroomBrandRamp`. These take `dark:` rather than a
     // `ColorScheme` because that is what the setup styles already resolve.
 
-    static func claudeCTATop(dark: Bool) -> Color {
+    public static func claudeCTATop(dark: Bool) -> Color {
         Color(HeadroomBrandRamp.claudeCTATop(dark: dark))
     }
 
-    static func claudeCTABottom(dark: Bool) -> Color {
+    public static func claudeCTABottom(dark: Bool) -> Color {
         Color(HeadroomBrandRamp.claudeCTABottom(dark: dark))
     }
 
-    static func codexCTATop(dark: Bool) -> Color {
+    public static func codexCTATop(dark: Bool) -> Color {
         Color(HeadroomBrandRamp.codexCTATop(dark: dark))
     }
 
-    static func codexCTABottom(dark: Bool) -> Color {
+    public static func codexCTABottom(dark: Bool) -> Color {
         Color(HeadroomBrandRamp.codexCTABottom(dark: dark))
     }
 
-    static func connectedInk(dark: Bool) -> Color {
+    public static func connectedInk(dark: Bool) -> Color {
         Color(HeadroomBrandRamp.connectedInk(dark: dark))
     }
 
     /// PB13: the quarter-mark hairline, same split as `meterStaleFill`.
-    static func meterQuarterMark(scheme: ColorScheme) -> Color {
+    public static func meterQuarterMark(scheme: ColorScheme) -> Color {
         Color.primary.opacity(HeadroomMeterColorValues.quarterMarkOpacity(dark: scheme == .dark))
     }
 
@@ -205,7 +209,7 @@ enum ProviderStyle {
     ///
     /// MX2: Full draws its softer, eased ramp, which needs more than one middle stop to hold
     /// its curve — `gradientSamples` supplies them. Micro's linear ramp is unchanged.
-    static func meterRampColors(
+    public static func meterRampColors(
         for severity: UsageSeverity,
         format: GaugeFormat,
         surface: MeterRampSurface,
@@ -221,7 +225,7 @@ enum ProviderStyle {
         ).gradientSamples.map { Color($0) }
     }
 
-    static func meterGhostBody(
+    public static func meterGhostBody(
         for severity: UsageSeverity,
         scheme: ColorScheme,
         increasedContrast: Bool
@@ -240,7 +244,7 @@ enum ProviderStyle {
     /// too close to amber to read as "warning". Brand identity stays in the logo + plan
     /// pill; the bar's job is to signal how much is left. No animation: a threshold, not
     /// a pulse, so it honors the standing no-pulsing rule.
-    static func severityColor(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
+    public static func severityColor(for severity: UsageSeverity, scheme: ColorScheme) -> Color {
         Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
@@ -249,7 +253,7 @@ enum ProviderStyle {
     /// `\.colorSchemeContrast` at the SwiftUI boundary — the Core token stays a pure Bool
     /// so both branches are testable. Only bars, caps, segments, and ramps use this;
     /// numerals, icons, and the "Low" pill stay on `severityColor(for:scheme:)`.
-    static func severityFill(
+    public static func severityFill(
         for severity: UsageSeverity,
         scheme: ColorScheme,
         increasedContrast: Bool
@@ -263,11 +267,11 @@ enum ProviderStyle {
 
     /// Critical-as-text ink (H3a), decoupled from the bar fill so the chipless multi-account
     /// numeral clears WCAG AA at 18pt semibold. See `HeadroomSeverityColorValues.criticalText`.
-    static func criticalText(scheme: ColorScheme) -> Color {
+    public static func criticalText(scheme: ColorScheme) -> Color {
         Color(HeadroomSeverityColorValues.criticalText(dark: scheme == .dark))
     }
 
-    static func symbol(for id: ProviderID) -> String {
+    public static func symbol(for id: ProviderID) -> String {
         switch id {
         case .claude: return "sparkle"
         case .codex: return "chevron.left.forwardslash.chevron.right"
@@ -300,7 +304,7 @@ private struct AccountTitleInkKey: EnvironmentKey {
     static let defaultValue: AccountTitleInk = .neutral
 }
 
-extension EnvironmentValues {
+public extension EnvironmentValues {
     var accountTitleInk: AccountTitleInk {
         get { self[AccountTitleInkKey.self] }
         set { self[AccountTitleInkKey.self] = newValue }
@@ -320,7 +324,7 @@ private struct AccountTitleInkStyle: ViewModifier {
     }
 }
 
-extension View {
+public extension View {
     func accountTitleInk(for providerID: ProviderID) -> some View {
         modifier(AccountTitleInkStyle(providerID: providerID))
     }

@@ -1,13 +1,24 @@
+#if SWIFT_PACKAGE
 import HeadroomCore
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 import SwiftUI
 
 /// Plan pill with an optional banked-reset bead. Hover, Critical, and the first-show
 /// reveal all resolve in `PlanCapsulePresentation`; this view only paints that result.
-struct PlanCapsule: View {
-    let planDisplayName: String?
-    let bankedResets: Int?
-    let isCritical: Bool
-    let isRevealing: Bool
+public struct PlanCapsule: View {
+    public let planDisplayName: String?
+    public let bankedResets: Int?
+    public let isCritical: Bool
+    public let isRevealing: Bool
+
+    public init(planDisplayName: String?, bankedResets: Int?, isCritical: Bool, isRevealing: Bool) {
+        self.planDisplayName = planDisplayName
+        self.bankedResets = bankedResets
+        self.isCritical = isCritical
+        self.isRevealing = isRevealing
+    }
 
     @State private var isHovering = false
     /// Stays true for the frame that leaves Critical or reveal, so that close uses
@@ -16,7 +27,7 @@ struct PlanCapsule: View {
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    var body: some View {
+    public var body: some View {
         let presentation = PlanCapsulePresentation.resolve(
             planDisplayName: planDisplayName,
             bankedResets: bankedResets,

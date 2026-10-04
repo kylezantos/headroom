@@ -23,7 +23,8 @@ lives, which component does which job, and the rules for extending them.
 5. **Things that look the same behave the same.** A filled, outlined chip is *state*; a flat
    pill is a *metadata label* (`IdentityCapsuleStyle`). Every text button has a resting
    container; bare glyph buttons only in toolbar/title rows.
-6. **Motion only from `HeadroomMotion`** (macOS; iOS uses `HeadroomTheme`). Never declare
+6. **Motion only from `HeadroomMotion`** (shared vocabulary; the phone currently uses
+   `HeadroomTheme` until its adoption in the iOS parity round). Never declare
    your own curve, duration, or spring in a view. No pulsing, breathing, or looping
    attention animations, ever.
 7. **Provider parity** (AGENTS.md): styling reaches Claude, Codex, Grok, and Cursor alike.
@@ -38,12 +39,12 @@ All paths are under `Sources/`.
 
 | Concern | Token home | Notes |
 |---|---|---|
-| Motion | `HeadroomApp/UI/HeadroomMotion.swift` | `settle` (house curve, 200ms), `quickSettle`, `pressDown` + `pressScale` 0.96, `hoverIn`/`hoverOut` (glyph pills), `rowHoverIn`/`rowHoverOut` (plain ease for full-width rows whose ink changes on hover), `valueSpring` (critically damped, never overshoots a value), `reorder`, `paneIn`/`paneOut`, `partIn`/`partOut`. Reduce Motion: wrap with `resolved(_:_:reduceMotion:)`, `fade`, `numericText`. |
+| Motion | `HeadroomSharedUI/HeadroomMotion.swift` | `settle` (house curve, 200ms), `quickSettle`, `pressDown` + `pressScale` 0.96, `hoverIn`/`hoverOut` (glyph pills), `rowHoverIn`/`rowHoverOut` (plain ease for full-width rows whose ink changes on hover), `valueSpring` (critically damped, never overshoots a value), `reorder`, `paneIn`/`paneOut`, `partIn`/`partOut`. Reduce Motion: wrap with `resolved(_:_:reduceMotion:)`, `fade`, `numericText`. AppKit event detection and window curve stay in `HeadroomApp/UI/HeadroomMotion+AppKit.swift`. |
 | Brand & semantic colour (shared with widgets/iOS) | `HeadroomCore/Models/BrandColorValues.swift` | `HeadroomBrandColorValues`, `HeadroomBrandRamp` (OKLCH), `HeadroomWidgetColorValues` (text inks, hairlines, wells, fills), `HeadroomSeverityColorValues`. SwiftUI-free. |
-| Colour call surface (macOS) | `HeadroomApp/UI/ProviderStyle.swift` | `accent`, `textAccent`, `secondaryText`/`tertiaryText`, `accountTitleInk`, meter inks, `severityColor`/`severityFill`, `recessedWell`, CTA gradients, SVG mark per scheme. |
+| Colour call surface (shared; currently adopted by macOS) | `HeadroomSharedUI/ProviderStyle.swift` | `accent`, `textAccent`, `secondaryText`/`tertiaryText`, `accountTitleInk`, meter inks, `severityColor`/`severityFill`, `recessedWell`, CTA gradients, SVG mark per scheme. |
 | Popover shell | `PopoverCardMetrics` (`PopoverView.swift`) | Shell width 384, margin 19, card width derived from them. |
-| Provider card | `ProviderCardView.swift`, `IdentityRowMetrics` | Card: `.padding(13)` + `.raisedTile(cornerRadius: 10)`. Identity row: mark slot 15, gap 6, title 15 semibold / −0.15 kern, capsule height 18, capsule label 10.5 medium / +0.2 kern. |
-| Capsules & chips | `IdentityCapsuleStyle`, `.identityCapsule(fill:horizontalPadding:border:)` | Metadata fill 0.12, stale fill 0.18, state border 0.35 @ 1pt. |
+| Provider card | `HeadroomApp/UI/ProviderCardView.swift`, `HeadroomSharedUI/IdentityCapsule.swift` (`IdentityRowMetrics`) | Card: `.padding(13)` + `.raisedTile(cornerRadius: 10)`. Identity row: mark slot 15, gap 6, title 15 semibold / −0.15 kern, capsule height 18, capsule label 10.5 medium / +0.2 kern. |
+| Capsules & chips | `HeadroomSharedUI/IdentityCapsule.swift`: `IdentityCapsuleStyle`, `.identityCapsule(fill:horizontalPadding:border:)` | Metadata fill 0.12, stale fill 0.18, state border 0.35 @ 1pt. |
 | Setup cards | `SetupCardMetrics`, `ClaudeSetupStyle`, `CodexSetupStyle` | Gaps 6 / 12 / 20. Body 12.5, notes 11. The two provider enums stay decoupled by design; their numbers live in `HeadroomBrandRamp`. |
 | Settings spacing | `SettingsMetrics` (`SettingsRows.swift`) | labelToControl 4 · labelToStackedControl 6 · withinGroup 8 · headerToContent 10 · groupToGroup 20 · tileToTile 28. Segmented pickers max 220 wide. |
 | Settings type | `SettingsType` (`SettingsRows.swift`) | paneTitle 20 semibold · tileTitle 15 semibold · groupLabel 13 semibold · help 11 · swatchLabel 11 medium · footnote 10. Neighbouring roles differ in size or ink, not weight alone. |
@@ -51,7 +52,16 @@ All paths are under `Sources/`.
 | Optical alignment | `HeadroomApp/UI/OpticalLeading.swift` | `.opticalLeading(_:size:weight:)` for text starting a card line; `.capHeightCentered(size:weight:)` for mixed-size rows. Not for chip labels. |
 | Widgets / iOS | `HeadroomCore/Widgets/WidgetMetrics.swift`, `WidgetTypeScale.swift`, `WidgetStyleTokens.swift` (`WidgetStyleType` hero numerals, `WidgetStyleMetrics` bars, rails, wash), `WidgetVesselGeometry.swift`, `HeadroomWidgetSharedUI/` | Widget-only type ladders and optics (CoreText, since AppKit isn't available there). Hero numerals are fixed size; labels keep Dynamic Type. The widget vessel keeps the menu-bar 11:18 proportion and is sized to the numeral's digit ink (`HeadroomWidgetFontMetrics.digitInk`). Color comes from `WidgetStyleColors.fill(for:colorMode:)`. Contracts: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md` (WC anchors still in force) and `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`. |
 | iOS companion app | `HeadroomIOS/DesignSystem/` | `HeadroomTheme` (tile radius 17, its own entrance/value animations, provider colours) and `.headroomTile` (`Elevation.swift`, ring-glow elevation from `design/ios-companion.html`). Colours come from the same Core values. |
-| Meter rendering | `HeadroomCore/Models/MeterStyle.swift` (`MeterRecipe`) → `MeterGauge` | The pure format × shape × fill contract. `MeterGauge` is the popover's only meter renderer. |
+| Meter rendering | `HeadroomCore/Models/MeterStyle.swift` (`MeterRecipe`) → `HeadroomSharedUI/MeterGauge.swift` | The pure format × shape × fill contract. `MeterGauge` is the popover's only meter renderer. |
+
+`HeadroomSharedUI/` also owns `PlanCapsule`, `StatusSentence` / `StatusSentenceSeverity`,
+`SkeletonMeter`, and `DotMatrixSpinner` (with its vendored MIT header). Xcode compiles the
+folder directly into both apps and widget extensions; Swift Package consumers use the
+public `HeadroomSharedUI` module, which depends on Core and `HeadroomWidgetSharedUI`.
+The Mac identity row stays in `HeadroomApp/UI/ProviderCardIdentityRows.swift` until U3.
+The phone compiles these components but keeps its current screens and `HeadroomTheme`
+until its adoption in later units. The shared status sentence uses `widgetOpticalLeading`;
+its Mac metrics are characterized against `OpticalLeading` in the app tests.
 
 **Known gaps:**
 - iOS keeps its own motion values in `HeadroomTheme` rather than sharing `HeadroomMotion`.

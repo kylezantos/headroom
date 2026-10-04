@@ -1,14 +1,18 @@
 import SwiftUI
+#if SWIFT_PACKAGE
 import HeadroomCore
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 
 /// The popover's one shape × fill renderer. All visual decisions that affect how much
 /// is lit come from `MeterRecipe`; this view only turns those semantic recipes into
 /// SwiftUI geometry.
-struct MeterGauge: View {
-    let style: MeterStyle
-    let fraction: Double
-    let severity: UsageSeverity
-    let freshness: UsageWindowFreshness
+public struct MeterGauge: View {
+    public let style: MeterStyle
+    public let fraction: Double
+    public let severity: UsageSeverity
+    public let freshness: UsageWindowFreshness
     /// AP2 / FS2: swatch-only request for a *miniature* segmented gauge. `nil` — the default,
     /// and the only value any real meter uses — means the shipped cell count and the format's
     /// own cell metrics. Non-nil means "draw this many cells as the format's *miniature* cell
@@ -19,7 +23,21 @@ struct MeterGauge: View {
     /// FS2 made the Full cell 14.5pt tall, so overriding only the count would comb the swatch
     /// into micro-width × full-height slivers; the swatch's whole point is "the same little
     /// chips, just more of them, placed differently". Non-segmented shapes ignore it.
-    var miniatureSegmentCount: Int? = nil
+    public var miniatureSegmentCount: Int? = nil
+
+    public init(
+        style: MeterStyle,
+        fraction: Double,
+        severity: UsageSeverity,
+        freshness: UsageWindowFreshness,
+        miniatureSegmentCount: Int? = nil
+    ) {
+        self.style = style
+        self.fraction = fraction
+        self.severity = severity
+        self.freshness = freshness
+        self.miniatureSegmentCount = miniatureSegmentCount
+    }
 
     @Environment(\.colorScheme) private var scheme
     // Fill tier lookup: Increase Contrast swaps the vivid light bar fills back to the
@@ -35,7 +53,7 @@ struct MeterGauge: View {
         return min(1, max(0, fraction))
     }
 
-    var body: some View {
+    public var body: some View {
         Group {
             switch resolvedShape {
             case .chip:
@@ -448,3 +466,14 @@ struct MeterGauge: View {
         return max(0, across - continuousInset * 2)
     }
 }
+
+#if DEBUG && os(iOS)
+#Preview("Shared micro chip") {
+    MeterGauge(
+        style: MeterStyle(format: .micro, shape: .chip, fill: .colorAsEvent),
+        fraction: 0.68,
+        severity: .healthy,
+        freshness: .live
+    )
+}
+#endif

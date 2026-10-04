@@ -17,6 +17,14 @@ struct OpticalLeadingTests {
         OpticalLeading.correction(for: text, size: 13, weight: .semibold)
     }
 
+    /// U2: extracting StatusSentence must retain its Mac content-axis alignment when
+    /// the shared component adopts the existing cross-platform CoreText helper.
+    @Test(arguments: ["Sign in", "Waiting", "Open setup", "Try again", "", "🙂 hello"])
+    func sharedStatusSentenceKeepsItsOpticalAxis(_ text: String) {
+        #expect(HeadroomWidgetFontMetrics.leadingCorrection(for: text, size: 11.5, weight: .medium)
+            == OpticalLeading.correction(for: text, size: 11.5, weight: .medium))
+    }
+
     @Test func emptyTextNeedsNoCorrection() {
         #expect(OpticalLeading.correction(for: "", size: 15, weight: .semibold) == 0)
         #expect(OpticalLeading.correction(for: "", font: .systemFont(ofSize: 15, weight: .semibold)) == 0)

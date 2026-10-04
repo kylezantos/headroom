@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 
 /// A quiet button style that finally makes the popover's controls *feel* clickable

@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import HeadroomCore
 #if SWIFT_PACKAGE

@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 
 /// R2M9: the three copy-to-clipboard glyph buttons wrote the pasteboard and changed nothing

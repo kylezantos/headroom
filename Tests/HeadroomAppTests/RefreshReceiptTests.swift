@@ -43,38 +43,3 @@ import Testing
         #expect(line(run, phase: .spinner) != nil)
     }
 }
-
-/// Round-3 S2 (Oct 2026): the menu-bar slosh frame clock. Stepped by hand (`autoTick: false`).
-@MainActor
-@Suite
-struct MenuBarSloshTests {
-    @Test func aPillSloshesWhileItsAccountIsCheckedAndFinishesItsWaveBeforeGoingFlat() {
-        let slosh = MenuBarSlosh(autoTick: false)
-        slosh.update([.claude], reduceMotion: false)
-        #expect(slosh.phases == [.claude: 0])
-
-        for _ in 0..<3 { slosh.advance() }
-        slosh.update([], reduceMotion: false)
-        // The check ended mid-wave: the surface keeps travelling to the end of the cycle.
-        #expect(slosh.sloshing == [.claude])
-        for _ in 0..<(MenuBarSlosh.frameCount - 4) { slosh.advance() }
-        #expect(slosh.sloshing == [.claude])
-        slosh.advance()
-        #expect(slosh.sloshing.isEmpty)
-        #expect(slosh.phase == 0)
-    }
-
-    @Test func onlyThePillsBeingCheckedMove() {
-        let slosh = MenuBarSlosh(autoTick: false)
-        slosh.update([.codex], reduceMotion: false)
-        #expect(slosh.phases[.claude] == nil)
-        #expect(slosh.phases[.codex] == 0)
-    }
-
-    @Test func reduceMotionKeepsEveryPillFlat() {
-        let slosh = MenuBarSlosh(autoTick: false)
-        slosh.update([.claude], reduceMotion: false)
-        slosh.update([.claude], reduceMotion: true)
-        #expect(slosh.phases.isEmpty)
-    }
-}

@@ -557,7 +557,9 @@ struct MenuBarPreviewPill: View {
         // PB13: read inside `body` so the observation registers here and the plate repaints
         // with the label the moment the bar flips.
         let darkMenuBar = MenuBarAppearanceMonitor.shared.isDarkMenuBar
-        return MenuBarLabel(meters: meters, showsPercentage: showsPercentage, appearance: .menuBar)
+        // KTD13: pending mains preview the static ghost; real readings and value-choice
+        // specimens keep their meaningful fills. Palette follows the bar, motion never does.
+        return MenuBarLabel(meters: meters, showsPercentage: showsPercentage, appearance: .menuBar, motionEnabled: false)
             .menuBarPreviewPlate(darkMenuBar: darkMenuBar)
     }
 }

@@ -1,6 +1,9 @@
 import SwiftUI
 import AppKit
 import HeadroomCore
+#if canImport(HeadroomWidgetSharedUI)
+import HeadroomWidgetSharedUI
+#endif
 
 /// The always-visible menu bar content (R5, UI-03): the compact vessel glyph, with the
 /// selected weekly percentage optionally shown beside it. The glyph is tinted by weekly
@@ -13,9 +16,8 @@ import HeadroomCore
 /// The label is one rasterized `NSImage` swapped whole, so `contentTransition` has nothing to
 /// attach to; faking a digit roll would mean re-rasterizing frames on a timer.
 ///
-/// The one motion here (Oct 2026, Kyle): a pill's liquid sloshes while its provider's main
-/// account is being checked (`MenuBarSlosh`). Frames run only during that work and the level
-/// never moves. Don't add any other motion to the label.
+/// KTD13 (Oct 2026): slosh while a main account is probed, plus a four-frame print on its
+/// first live reading. The level stays fixed and the numeral still hard-cuts (M10A).
 struct MenuBarLabel: View {
     /// Which appearance the label paints for (L1A).
     enum Appearance {
@@ -32,9 +34,15 @@ struct MenuBarLabel: View {
     /// Providers whose pill sloshes (`UsageStore.menuBarUpdatingProviders`). Only the real
     /// status item passes any; the Settings specimens stay still.
     var updatingProviders: Set<ProviderID> = []
+    var automatic = false
+    /// Appearance is independent: Settings follows the live palette but always stays still.
+    var motionEnabled = false
+    var sourceAccounts: [ProviderID: AccountKey] = [:]
+    var probeEndTimes: [ProviderID: Date] = [:]
 
     @State private var slosh = MenuBarSlosh()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.loadingDate) private var pinnedDate
 
     var body: some View {
         // L1A: the palette is chosen from the *menu bar's* effective appearance, not the
@@ -43,21 +51,38 @@ struct MenuBarLabel: View {
         // color in `MenuBarPalette` is an explicit constant, so the render never depends on
         // which appearance SwiftUI happens to rasterize `Image(nsImage:)` against.
         let palette = MenuBarPalette(isDarkMenuBar: isDarkMenuBar)
-        let result = MenuBarLabelRenderer.render(
-            meters: meters,
-            showsPercentage: showsPercentage,
-            palette: palette,
-            wavePhases: slosh.phases
-        )
+        let presentations = Dictionary(meters.map { meter in
+            (MenuBarSlosh.key(for: meter, automatic: automatic), motionEnabled
+                ? slosh.presentation(for: meter, automatic: automatic, at: pinnedDate ?? slosh.frameDate)
+                : MenuBarSlosh.staticPresentation(for: meter))
+        }, uniquingKeysWith: { _, latest in latest })
+        let result = MenuBarLabelRenderer.render(meters: meters, showsPercentage: showsPercentage,
+            palette: palette, automatic: automatic, presentations: presentations)
         Image(nsImage: result.image)
             .accessibilityLabel(result.accessibilityLabel)
             .help(result.tooltip)
-            .onChange(of: updatingProviders, initial: true) { _, updating in
-                slosh.update(updating, reduceMotion: reduceMotion)
+            .onChange(of: motionInput, initial: true) { _, input in
+                guard input.enabled else { slosh.suspend(); return }
+                slosh.update(meters: input.meters, automatic: input.automatic, updating: input.updating,
+                             reduceMotion: input.reduceMotion, sourceAccounts: input.sources,
+                             probeEndTimes: input.ends, clockEnabled: input.pinnedDate == nil, at: input.pinnedDate ?? Date())
             }
-            .onChange(of: reduceMotion) { _, reduce in
-                slosh.update(updatingProviders, reduceMotion: reduce)
-            }
+            .onDisappear { slosh.suspend() }
+    }
+
+    private struct MotionInput: Equatable {
+        let meters: [MenuBarMeter]
+        let automatic: Bool
+        let enabled: Bool
+        let updating: Set<ProviderID>
+        let reduceMotion: Bool
+        let sources: [ProviderID: AccountKey]
+        let ends: [ProviderID: Date]
+        let pinnedDate: Date?
+    }
+    private var motionInput: MotionInput {
+        MotionInput(meters: meters, automatic: automatic, enabled: motionEnabled,
+                    updating: updatingProviders, reduceMotion: reduceMotion, sources: sourceAccounts, ends: probeEndTimes, pinnedDate: pinnedDate)
     }
 
     /// Read inside `body` so SwiftUI's observation tracking re-renders the image the moment
@@ -79,14 +104,23 @@ struct MenuBarStatusLabel: View {
 
     var body: some View {
         let _ = BenchCounters.hit("MenuBarStatusLabel")
+        let sources = Dictionary(uniqueKeysWithValues: store.providerOrder.map {
+            ($0, AccountKey(providerID: $0, accountID: store.primaryAccount(for: $0)?.id ?? .primary))
+        })
+        let ends = store.lastProbeEndTimes
         MenuBarLabel(
             meters: store.menuBarMeters,
             showsPercentage: store.showMenuBarPercentage,
             // L1A: only the real status item follows the live menu bar. The Settings
-            // specimens keep the default pinned-dark palette because they sit on a
-            // fixed dark plate.
+            // specimens follow that same palette with their motion explicitly disabled.
             appearance: .menuBar,
-            updatingProviders: store.menuBarUpdatingProviders
+            updatingProviders: store.menuBarUpdatingProviders,
+            automatic: store.menuBarFillSource.providerIDs == nil,
+            motionEnabled: true,
+            sourceAccounts: sources,
+            probeEndTimes: Dictionary(uniqueKeysWithValues: sources.compactMap { provider, key in
+                ends[key].map { (provider, $0) }
+            })
         )
     }
 }
@@ -206,7 +240,8 @@ enum MenuBarLabelRenderer {
         meters: [MenuBarMeter],
         showsPercentage: Bool,
         palette: MenuBarPalette,
-        wavePhases: [ProviderID: Int] = [:]
+        automatic: Bool = false,
+        presentations: [MenuBarSlosh.MeterKey: MenuBarSlosh.Presentation] = [:]
     ) -> MenuBarLabelRenderResult {
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
         let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?) in
@@ -233,7 +268,9 @@ enum MenuBarLabelRenderer {
                     severity: item.meter.summary.severity,
                     isNeutral: item.meter.summary.isNeutral,
                     palette: palette,
-                    wavePhase: item.meter.summary.providerID.flatMap { wavePhases[$0] }
+                    wavePhase: presentations[MenuBarSlosh.key(for: item.meter, automatic: automatic)]?.wavePhase,
+                    ink: presentations[MenuBarSlosh.key(for: item.meter, automatic: automatic)]?.ink
+                        ?? MenuBarSlosh.staticPresentation(for: item.meter).ink
                 )
                 vessel.draw(in: NSRect(x: x, y: 0, width: vesselWidth, height: height))
                 if item.meter.summary.needsAttention {

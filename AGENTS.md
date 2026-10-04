@@ -379,11 +379,18 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
   first-pass identity (Phase 2 owns visual density). The four-provider demo is
   `--demo multi-4` (popover) / the `fourProviders` `DemoScreenshotData` variant (iOS widget).
-- **The menu bar's only motion is the slosh (Oct 2026).** A pill's liquid surface travels
+- **The menu bar sloshes and prints its first live reading (Oct 2026).** A pill's liquid surface travels
   while its provider's main account is being probed, timer polls included
   (`UsageStore.menuBarUpdatingProviders` → `MenuBarSlosh` → `VesselGlyph` wave frames). The
   level never moves and the numeral still hard-cuts (M10A); a pill finishes its wave before
-  going flat, and Reduce Motion keeps it flat. The popover footer's stamp turns into a
+  going flat. A pending main shows a 3×6 halftone ghost; its first live reading prints in
+  four frames at 10fps, while stale results and main-account switches never print (KTD13).
+  Reduce Motion keeps the wave flat and blends ghost to solid uniformly. Settings previews
+  use the same ghost image path with motion disabled. Keep this label one rasterized Image:
+  nesting `LoadingTimeline` in `MenuBarExtra` reproduced an endless status-button update loop
+  during App test bootstrap. `MenuBarSlosh` owns its small bounded clock instead, deriving
+  frames from Core's wall clock and stopping after the wave/print deadline (KTD17 exception).
+  The popover footer's stamp turns into a
   per-account receipt during a user refresh (`refreshProgress`, `RefreshReceipt`). Both come
   from the scheduler's probe and user-progress callbacks; see
   `design/refresh-stamp-merge-round3.html` (S2) and `…-round4.html` (W4).

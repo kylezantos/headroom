@@ -32,11 +32,6 @@ struct APISpendSectionView: View {
         return widest
     }
 
-    private var amountColumnWidth: CGFloat {
-        Self.amountColumnWidth(for: store.apiSpendProviderOrder.compactMap { rowModel(for: $0).amount })
-    }
-
-
     /// S5A: the top-up glyph lives in the identity row's 21pt trailing gutter, to the right
     /// of the amount — 3pt gap plus an 18pt slot. The slot is reserved on every row (empty
     /// where the provider has no billing page), so no amount shifts because its neighbour
@@ -47,8 +42,10 @@ struct APISpendSectionView: View {
     private static let topUpGlyphSize: CGFloat = 13
 
     var body: some View {
-        let models = store.apiSpendProviderOrder.map(rowModel(for:))
+        let models = rowModels()
         if !models.isEmpty {
+            // Measured once per pass, not once per row: every row reads it (2026-10-03 perf bench).
+            let amountWidth = Self.amountColumnWidth(for: models.compactMap(\.amount))
             // S5A: no eyebrow and no divider. The card now speaks the provider cards'
             // language — identity rows on the shared content axis, chunked by the same 22pt
             // gap the account sections use, inside the byte-identical tile.
@@ -62,7 +59,7 @@ struct APISpendSectionView: View {
                 // block again and keeps the account gap.
                 VStack(alignment: .leading, spacing: Self.rowGap(for: models)) {
                     ForEach(models) { model in
-                        spendRow(model)
+                        spendRow(model, amountWidth: amountWidth)
                     }
                 }
                 actionRow(models)
@@ -98,12 +95,21 @@ struct APISpendSectionView: View {
         var showsCTA: Bool { status.showsCTA(hasAmount: amount != nil) }
     }
 
-    private func rowModel(for id: ProviderID) -> SpendRowModel {
+    /// The period label is the same for every row, and formatting it is a date format, so it
+    /// is resolved once per pass here rather than inside each row (2026-10-03 perf bench).
+    private func rowModels() -> [SpendRowModel] {
+        let order = store.apiSpendProviderOrder
+        guard !order.isEmpty else { return [] }
+        let periodLabel = store.apiSpendPeriod.displayLabel(now: now)
+        return order.map { rowModel(for: $0, periodLabel: periodLabel) }
+    }
+
+    private func rowModel(for id: ProviderID, periodLabel: String) -> SpendRowModel {
         let snapshot = store.apiSpendSnapshot(for: id)
         let identity = APISpendPresentation.popoverIdentity(displayName: snapshot.displayName)
         let context = APISpendPresentation.contextLabel(
             kind: snapshot.kind,
-            periodLabel: store.apiSpendPeriod.displayLabel(now: now)
+            periodLabel: periodLabel
         )
         // Badge, sub-line and button title all come from one Core decision, so a rejected
         // key can no longer be badged "Needs setup" next to an "Add Key" button.
@@ -127,7 +133,7 @@ struct APISpendSectionView: View {
 
     // MARK: - Row
 
-    @ViewBuilder private func spendRow(_ model: SpendRowModel) -> some View {
+    @ViewBuilder private func spendRow(_ model: SpendRowModel, amountWidth: CGFloat) -> some View {
         let snapshot = model.snapshot
         // S5A: the sentence sits where an account's meters sit — indented to the content
         // axis, below the name — so a stale spend row and a stale account row have the same
@@ -135,7 +141,7 @@ struct APISpendSectionView: View {
         // it (sentence → action row, from `CardActionRow`), 13 to the card edge.
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 0) {
-                identityLine(model)
+                identityLine(model, amountWidth: amountWidth)
                     // RM1: colour only — the tag ⇄ chip swap and the amount's ink — inside a
                     // fixed-height line, so this scope keeps its crossfade under Reduce Motion.
                     .animation(
@@ -180,7 +186,7 @@ struct APISpendSectionView: View {
         )
     }
 
-    private func identityLine(_ model: SpendRowModel) -> some View {
+    private func identityLine(_ model: SpendRowModel, amountWidth: CGFloat) -> some View {
         HStack(spacing: IdentityRowMetrics.spacing) {
             ProviderLogoView(providerID: model.snapshot.providerID, size: IdentityRowMetrics.markSlotWidth)
             Text(model.title)
@@ -214,7 +220,7 @@ struct APISpendSectionView: View {
                 // same three trailing columns — figure, suffix, empty 21pt gutter — and one
                 // right edge. Nothing is reserved when a provider has no billing page; the
                 // amount is right-aligned regardless.
-                amountColumn(model)
+                amountColumn(model, width: amountWidth)
                     // S5A (Kyle): the amount never gives up width and never drops to a second
                     // line — at the popover's 299pt content width the chip truncates first.
                     .layoutPriority(2)
@@ -253,7 +259,7 @@ struct APISpendSectionView: View {
     /// suffix is the meter rows' own "used"/"left" object in the shared `MeterSuffixColumn`,
     /// so the amount's digits land on the same right edge as the percentages above them and
     /// the two figures read as one family rather than two.
-    @ViewBuilder private func amountColumn(_ model: SpendRowModel) -> some View {
+    @ViewBuilder private func amountColumn(_ model: SpendRowModel, width: CGFloat) -> some View {
         let amount = model.amount
         let providerID = model.snapshot.providerID
         let revealed = hoveredTopUp == providerID
@@ -299,7 +305,7 @@ struct APISpendSectionView: View {
                 // reach the glyph. Only where a billing page exists.
                 .help(topUpHelp(for: model) ?? "")
                 // S5A: every row's last digit lands on the numeral column's right edge.
-                .frame(width: amountColumnWidth, alignment: .trailing)
+                .frame(width: width, alignment: .trailing)
             MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
         }
     }

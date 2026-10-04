@@ -24,9 +24,13 @@ instead of using this token to determine account login.
 - Signed entitlement inspection: only App Group/KVS presence and matching values
   are reported; no provisioning profiles, identities, account or device IDs.
 - Local logs: `.context/ios-parity-work/logs/u4-identity-*`.
-- Corrected device inspection: physical iPhone `iPhone17,1` is disconnected. The
-  earlier connected `iPhone18,1` was a simulator, not a physical-device state change.
-  No install, launch, account switch or physical pass is claimed; reconnect first.
+- Corrected device inspection: the earlier connected `iPhone18,1` was a simulator.
+  A direct device-details query established a connection to physical `iPhone17,1`
+  running iOS 27.0.1. The verified signed Debug 1.5 (33) app was installed with
+  `devicectl` (exit 0); an exact-bundle query confirmed one installed app at 1.5 (33).
+  Kyle opens the app and runs the manual baseline. No physical identity pass or
+  account switch is claimed. Allowlisted installation receipts are in
+  `.context/ios-parity-work/u4-physical-*-summary.json`.
 
 Build using cached signing assets only (no portal provisioning updates):
 

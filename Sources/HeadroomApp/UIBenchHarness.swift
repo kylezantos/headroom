@@ -42,6 +42,7 @@ enum UIBenchHarness {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
         NSApp.appearance = NSAppearance(named: .aqua)
+        installCleanupOnSignals()
 
         Task { @MainActor in
             BenchCounters.enabled = true
@@ -58,6 +59,9 @@ enum UIBenchHarness {
             if !BenchCounters.isCompiledIn {
                 say("# body counts unavailable — build with -DHEADROOM_BENCH (swift build -c release -Xswiftc -DHEADROOM_BENCH)")
             }
+            #if DEBUG
+            say("# DEBUG build: timings are not comparable with release runs — use swift build -c release")
+            #endif
             await runSection(options)
             removeCreatedSuites()
             var exitCode: Int32 = 0
@@ -295,6 +299,26 @@ enum UIBenchHarness {
         createdSuites = []
     }
 
+    /// Ctrl-C, `kill`, and the `perl -e 'alarm N'` time limit the docs recommend still remove this
+    /// run's own suites (code review, 2026-10-04): without this, an interrupted run left its
+    /// plists behind and no later run would clean them up.
+    private static var signalSources: [any DispatchSourceSignal] = []
+
+    private static func installCleanupOnSignals() {
+        for sig in [SIGINT, SIGTERM, SIGALRM] {
+            signal(sig, SIG_IGN)
+            let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+            source.setEventHandler {
+                MainActor.assumeIsolated {
+                    removeCreatedSuites()
+                    exit(128 + sig)
+                }
+            }
+            source.resume()
+            signalSources.append(source)
+        }
+    }
+
     /// cfprefsd writes an emptied domain lazily (about 10s later, or when this process exits),
     /// which re-creates a plist deleted before that write. A read of the domain from another
     /// process makes it write first, so the delete that follows is the last word. Measured
@@ -471,7 +495,7 @@ enum UIBenchHarness {
     private static func measurePopoverOpen(_ store: UsageStore, label: String) async -> PopoverOpen {
         BenchCounters.reset()
         var sample = PopoverOpen()
-        let interval = signposter.beginInterval("popover-open", id: signposter.makeSignpostID(), "\(label)")
+        let interval = signposter.beginInterval("popover-open", id: signposter.makeSignpostID(), "\(label, privacy: .public)")
         let cpu0 = cpuNow()
         let t0 = clock.now
         let hosting = NSHostingView(rootView: popoverRoot(store))
@@ -692,7 +716,7 @@ enum UIBenchHarness {
             for step in 1...10 {
                 BenchCounters.reset()
                 BenchCounters.recordSequence = true
-                let interval = signposter.beginInterval("scroll-step", id: signposter.makeSignpostID(), "\(scenario.rawValue)#\(sweep).\(step)")
+                let interval = signposter.beginInterval("scroll-step", id: signposter.makeSignpostID(), "\(scenario.rawValue, privacy: .public)#\(sweep).\(step)")
                 let cpu0 = cpuNow()
                 var origin = clip.bounds.origin
                 origin.y += clip.isFlipped ? 60 : -60
@@ -773,7 +797,7 @@ enum UIBenchHarness {
         BenchCounters.recordSequence = printSequence
         defer { BenchCounters.recordSequence = false }
         var sample = SettingsOpen()
-        let interval = signposter.beginInterval("settings-open", id: signposter.makeSignpostID(), "\(label)")
+        let interval = signposter.beginInterval("settings-open", id: signposter.makeSignpostID(), "\(label, privacy: .public)")
         let cpu0 = cpuNow()
         let t0 = clock.now
         let host = makeHost(
@@ -878,7 +902,7 @@ enum UIBenchHarness {
         var sample = PaneSwitch(from: from, to: to, instant: instant, firstInto: firstInto)
         let interval = signposter.beginInterval(
             "pane-switch", id: signposter.makeSignpostID(),
-            "\(scenario.rawValue) \(from.rawValue)->\(to.rawValue) instant=\(instant)"
+            "\(scenario.rawValue, privacy: .public) \(from.rawValue, privacy: .public)->\(to.rawValue, privacy: .public) instant=\(instant)"
         )
         let cpu0 = cpuNow()
         let t0 = clock.now
@@ -1006,7 +1030,7 @@ enum UIBenchHarness {
         BenchCounters.recordSequence = true
         defer { BenchCounters.recordSequence = false }
         let passesBefore = framePassesDone
-        let interval = signposter.beginInterval("store-change", id: signposter.makeSignpostID(), "\(id)")
+        let interval = signposter.beginInterval("store-change", id: signposter.makeSignpostID(), "\(id, privacy: .public)")
         let cpu0 = cpuNow()
         let t0 = clock.now
         guard mutate() else {

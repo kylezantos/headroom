@@ -491,6 +491,8 @@ struct HeadroomApp: App {
         }
     }
 
+    // ML1: `--bench-ui scene` measures `BenchSceneStandIn` (UIBenchHarness.swift), not this body.
+    // Mirror a change to what this body reads or builds into the stand-in before measuring it.
     var body: some Scene {
         MenuBarExtra {
             PopoverView(store: store) {

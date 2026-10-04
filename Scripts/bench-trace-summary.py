@@ -62,10 +62,14 @@ def export_trace(trace, out_dir):
         ("signposts.xml", ["--xpath", SIGNPOSTS_XPATH]),
     ]:
         path = os.path.join(out_dir, name)
-        if os.path.exists(path):
+        # Reuse an export only if it is newer than the trace, so re-recording under the same name
+        # re-exports; write to a temp file first so an interrupted export never looks complete.
+        if os.path.exists(path) and os.path.getmtime(path) >= os.path.getmtime(trace):
             continue
-        with open(path, "wb") as out:
+        tmp = path + ".tmp"
+        with open(tmp, "wb") as out:
             subprocess.run(["xcrun", "xctrace", "export", "--input", trace, *args], stdout=out, check=True)
+        os.replace(tmp, path)
 
 
 def target_binary(toc_path):
@@ -131,7 +135,7 @@ def compact(el, ids):
 def load_samples(path):
     """Main-thread samples as (time, weight ms, ((frame, binary), ...) leaf first)."""
     cache = path + ".pkl"
-    if os.path.exists(cache):
+    if os.path.exists(cache) and os.path.getmtime(cache) >= os.path.getmtime(path):
         with open(cache, "rb") as f:
             return pickle.load(f)
     ids = {}

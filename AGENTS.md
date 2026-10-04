@@ -143,6 +143,9 @@ never auto-merged.
 ```bash
 swift build                        # HeadroomCore + Headroom
 swift test                         # unit suite (fast, all mocked — no CLI/network/Keychain)
+xcodegen generate                  # regenerate the project after project.yml changes
+xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build
+# Required pre-PR iOS build (app + extension), alongside swift build and swift test.
 ./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
@@ -167,8 +170,9 @@ never collapse them into a generic “released.” Preflight dedicated test envi
 security/browser handoffs before publishing. Do not brute-force menu-bar UI, configure iPhone
 Mirroring during a release, or use broad process termination to clean up QA copies.
 
-Building requires Xcode 26.6 / Swift 6.3.3. The app targets macOS 15+ on Apple silicon; a real
-macOS 15 Apple-silicon runtime smoke is required before advertising Sequoia support. Claude
+Building requires Xcode 27.0 / Swift 6.4 (iOS 27 SDK). The iOS deployment target remains
+26.0; guard any iOS 27 API with an availability check. The app targets macOS 15+ on Apple
+silicon; a real macOS 15 Apple-silicon runtime smoke is required before advertising Sequoia support. Claude
 requires the `claude` CLI logged in; Codex requires its CLI-managed `~/.codex/auth.json`.
 When Codex auth is missing or rejected, the app delegates recovery to official `codex login`
 in Terminal and never owns the browser callback, token refresh, or auth-file writes.
@@ -181,6 +185,11 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   S2A policy and don't knowingly regress it, but don't hold a change back, or expand its
   scope, over Reduce Motion or accessibility polish. Reviews should report such gaps at low
   priority rather than as blockers.
+- **Both iOS targets include Core by whole folder**: `Models/`, `Notifications/`,
+  `Settings/` (except `LaunchAtLogin.swift`), `Sync/`, and `Widgets/` (except
+  `WidgetSnapshotProjector.swift`). Files in those folders reference only types in the
+  same five folders; Mac-only logic belongs in `Engine/`, `Providers/`, `Credentials/`
+  or the Mac app. Do not replace this with a hand-picked file list (KTD4, iOS parity plan).
 - **Swift 6 strict concurrency is on.** `CredentialStore` is an `actor`; `UsageStore` is
   `@MainActor`; models and providers are `Sendable`. Keep it compiling clean under complete
   concurrency checking.

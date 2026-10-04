@@ -8,16 +8,6 @@ public enum CLIExecutableLocationSource: String, Sendable, Equatable {
     case npmGlobalPrefix
 }
 
-public enum CLIExecutableDiscoveryIssue: String, Sendable, Equatable {
-    case shellTimeout
-    case shellSpawnFailure
-    case invalidShellOutput
-    case inaccessibleCandidate
-    case invalidatedHint
-    case launchRace
-    case npmPrefixUnresolved
-}
-
 public enum CLIExecutableLocation: Sendable, Equatable {
     case available(path: String, source: CLIExecutableLocationSource)
     case confirmedAbsent

@@ -87,7 +87,7 @@ enum HeadroomTheme {
     }
 }
 
-extension Color {
+private extension Color {
     init(_ rgb: HeadroomRGBColor) {
         self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }

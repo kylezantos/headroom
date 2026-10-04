@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		003475AF90FE48BDC8A0142D /* HeadroomWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */; };
+		008E5A956B0AF7D1DA3E1082 /* UsageDisplayValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */; };
 		019741076E359239D592FBAA /* WidgetMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC42D808487CA15143AB4C5 /* WidgetMetrics.swift */; };
 		01F5298BBF7958F27A848A8A /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E052D0EBE1013A87240C92E /* Account.swift */; };
 		02764C9BA6011A766AAA4C0B /* UsageStoreAccountLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */; };
@@ -320,6 +321,7 @@
 		CF22CB3A48143FC447489CDE /* PlanLabelPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */; };
 		CF28E127690E64919223A88B /* WidgetStyleTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CE67ED9AC9F588F9A8541D7 /* WidgetStyleTokens.swift */; };
 		CF39C7420354FC5F96C08134 /* AboutLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C87AA93B0F97F2D0379897 /* AboutLinks.swift */; };
+		CF81E4F7AC743B51E146D6F3 /* UsageDisplayValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */; };
 		D13E8EE9A513FB1311992870 /* AppearanceSetting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ACD1DA362EC2FD0CB1EC33E /* AppearanceSetting.swift */; };
 		D1555D574BE940BF3FDBAD65 /* WidgetRenderHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = B49C7C65F1B7ABF91BF20A62 /* WidgetRenderHarness.swift */; };
 		D1C3E5C00AE4A34C313BCD99 /* ProviderStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6FF1909CDDFAD43F6C9736 /* ProviderStyle.swift */; };
@@ -374,6 +376,7 @@
 		F62DAF730EDE3B259C130864 /* HeadroomWidgetTightestFirst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E40442ADD49193D247EF655 /* HeadroomWidgetTightestFirst.swift */; };
 		F77225CB525B717288DECA96 /* BankedResetNotificationBaseline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F20CCF51B5304F622A8D2C4 /* BankedResetNotificationBaseline.swift */; };
 		F774EA8D4BD1E7D73A49AF80 /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38B4DB6BBC85EE182B8E5F23 /* CredentialStore.swift */; };
+		F7851818441DCAF68200D356 /* UsageDisplayValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */; };
 		F8179E56D738A55B68B52535 /* WidgetWindowText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D35190A84A6D65EDE1CDB8 /* WidgetWindowText.swift */; };
 		F817D60864F9BDA258A27083 /* libHeadroomCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2741A92799D95F6286BABBBA /* libHeadroomCore.a */; };
 		F89AF3D1FF6B5D5A36FE9DA3 /* ProviderTileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 011EA7A2C3C7BB00DFF35A3F /* ProviderTileView.swift */; };
@@ -622,6 +625,7 @@
 		AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseItUpLedger.swift; sourceTree = "<group>"; };
 		ADE095E97E527C8706D4FA61 /* HeadroomAppIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomAppIconView.swift; sourceTree = "<group>"; };
 		AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetTypography.swift; sourceTree = "<group>"; };
+		AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageDisplayValue.swift; sourceTree = "<group>"; };
 		B029B49864BCFD59A2CD48A8 /* AccountsSettingsTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsTile.swift; sourceTree = "<group>"; };
 		B0C0028BD003CD015FBDD181 /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
 		B1D6A674D86360BC89246A09 /* CursorProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorProvider.swift; sourceTree = "<group>"; };
@@ -1107,6 +1111,7 @@
 				F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */,
 				6E017709D234A921E25999F2 /* ResetClockFormatter.swift */,
 				88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */,
+				AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */,
 				B25D0ABB800B858F720C7128 /* UsageModels.swift */,
 				B0C0028BD003CD015FBDD181 /* UsageProvider.swift */,
 				A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */,
@@ -1549,6 +1554,7 @@
 				7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */,
 				9FB9D89CA5CCEC804645882A /* UsageContinuityCache.swift in Sources */,
 				53F82A4681F8E2F99F11176B /* UsageDTOs.swift in Sources */,
+				F7851818441DCAF68200D356 /* UsageDisplayValue.swift in Sources */,
 				335F51D0ECC1A4D0C24EB985 /* UsageHTTPClient.swift in Sources */,
 				2297981DC8A61B98CBA7DBF3 /* UsageModels.swift in Sources */,
 				307D624803DC3ED94BFA429B /* UsageProvider.swift in Sources */,
@@ -1638,6 +1644,7 @@
 				4AEA3574511C70E0334DE60B /* SkeletonMeter.swift in Sources */,
 				8DAAC6344FDF9F16DD1E8BEC /* StatusSentence.swift in Sources */,
 				72EF5606C8FA8717D9249DE0 /* SyncedWidgetSnapshotModels.swift in Sources */,
+				CF81E4F7AC743B51E146D6F3 /* UsageDisplayValue.swift in Sources */,
 				D3F3534EAFDA072660FF15DD /* UsageModels.swift in Sources */,
 				A2E1518C6D7BBF7F00E54170 /* UsageProvider.swift in Sources */,
 				A7C4BE377B15415C81E20452 /* UsageSeverityColorValues.swift in Sources */,
@@ -1835,6 +1842,7 @@
 				17E6B11B42B15BCB5CAD53BD /* StatusSentence.swift in Sources */,
 				B779B019A3EDF4D4AF443B69 /* SyncedWidgetSnapshotModels.swift in Sources */,
 				46BD02EFDD1709E853B5CA73 /* UsageBarView.swift in Sources */,
+				008E5A956B0AF7D1DA3E1082 /* UsageDisplayValue.swift in Sources */,
 				80F20CC2F1292AB610A972D5 /* UsageModels.swift in Sources */,
 				146C9A913C3D3101510BF00D /* UsageProvider.swift in Sources */,
 				8AEE8745B4BEB1F7C43CA96B /* UsageSeverityColorValues.swift in Sources */,

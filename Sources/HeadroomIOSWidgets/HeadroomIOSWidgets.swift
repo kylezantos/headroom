@@ -5,6 +5,9 @@ import WidgetKit
 struct HeadroomIOSWidgets: WidgetBundle {
     var body: some Widget {
         HeadroomIOSUsageWidget()
+        #if DEBUG
+        HeadroomIdentityProbeWidget()
+        #endif
     }
 }
 

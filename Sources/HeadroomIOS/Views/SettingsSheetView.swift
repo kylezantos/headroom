@@ -85,6 +85,7 @@ struct SettingsSheetView: View {
 
                     #if DEBUG
                     diagnosticsSection(now: context.date)
+                    IdentityProbeDiagnosticsSection(isDemoMode: isDemoMode)
                     #endif
                 }
                 .navigationTitle("Settings")

@@ -1,6 +1,9 @@
 import SwiftUI
 import AppKit
 import HeadroomCore
+#if canImport(HeadroomWidgetSharedUI)
+import HeadroomWidgetSharedUI
+#endif
 
 /// The native popover (U7). Composes one card per provider on a system surface, a gear
 /// that opens Settings, and a Quit control (required — the app has no Dock presence,
@@ -119,7 +122,13 @@ struct PopoverView: View {
                                     },
                                     onRetryProvider: { store.refreshProviderNow(id) },
                                     onRetryAccount: { store.refreshAccountNow($0.key) },
-                                    claimBankedResetReveal: { store.claimBankedResetReveal(for: $0, currentCount: $1) }
+                                    claimBankedResetReveal: { store.claimBankedResetReveal(for: $0, currentCount: $1) },
+                                    loadingForAccount: { key in
+                                        // R6/R10: evaluated by glyph children, not this large body.
+                                        AccountLoadingState.resolve(key: key, checking: store.accountActionCheckingKeys,
+                                            probing: store.probingAccounts, ends: store.lastProbeEndTimes,
+                                            fullRefresh: store.fullRefreshInFlight)
+                                    }
                                 )
                                 .id(meterRecipeKey)
                                 .transition(.opacity)
@@ -498,114 +507,127 @@ struct PopoverView: View {
         return store.appDisplaySnapshot(for: .codex).codexConnectionAction
     }
 
-    /// Refresh carries its own in-flight state: while a cycle runs the word gives way to the
-    /// system spinner in the same bezel and the button disables (UI-02 — a manual refresh
-    /// spawns a multi-second Claude session, so the button must not read as broken). The
-    /// freshness stamp sits beside it, next to the control that changes it (Sep 2026), and
-    /// turns into the refresh receipt while one runs (W4).
     private func footer(now: Date) -> some View {
         let freshness = PopoverHeaderStatusResolver.freshness(statusInput(now: now))
-        let receipt = RefreshReceipt.line(
-            progress: store.isRefreshing ? store.refreshProgress : nil,
-            title: { store.refreshReceiptTitle(for: $0) },
-            isLive: { if case .live = store.snapshot(for: $0).freshness { true } else { false } }
-        )
-        return HStack(spacing: 10) {
-            // PA11b (Kyle): "we do need the resting container for all our buttons."
-            // Keep the footer on AppKit's native bordered style. A custom `ButtonStyle`
-            // label is rehosted upside down when a cached `MenuBarExtra` panel changes
-            // appearance; the native style owns its label and chrome as one surface.
-            Button { store.refreshNow() } label: {
-                // Hidden rather than removed, so the bezel keeps its width under the spinner.
-                Text("Refresh").opacity(store.isRefreshing ? 0 : 1)
-            }
-            // A second click would only queue behind the cycle already running.
-            .disabled(store.isRefreshing)
-            // The native bezel draws its label as a still image, so a live spinner inside
-            // the label never animates; it's laid over the bezel instead.
-            .overlay {
-                if store.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                        .transition(.opacity)
-                        .allowsHitTesting(false)
-                }
-            }
-            // M11A/S2A: the swap is opacity in a fixed slot, so Reduce Motion keeps the
-            // crossfade instead of blinking the control out from under the pointer.
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: store.isRefreshing
-            )
-            // R2M8: ⌘R is the category's own convention (Raycast, Linear, Ice all ship it)
-            // and a utility opened 30× a day should not need the pointer. The swap is driven
-            // by `isRefreshing`, i.e. by the work, not by the click — so Emil's "keyboard
-            // actions don't animate" rule needs nothing here.
-            .keyboardShortcut("r", modifiers: .command)
-            .accessibilityLabel(store.isRefreshing ? "Refreshing usage" : "Refresh")
-            // W4 (round-4 receipt roll): while a refresh you started runs, the stamp's slot
-            // becomes a one-line receipt that rolls upward as each account lands, then hands
-            // back to the stamp. The ZStack holds both lines mid-roll; a stamp and "Not
-            // checked yet" are different lines too, as in the header slot.
-            ZStack(alignment: .leading) {
-                if let receipt {
-                    receiptLine(receipt)
-                        .id(receipt)
-                        .transition(receiptTransition)
-                } else {
-                    statusLine(freshness)
-                        .transition(receiptTransition)
-                }
-            }
-            .clipped()
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: freshness.kind
-            )
-            // Resolved as a crossfade: under Reduce Motion the transition below is opacity
-            // alone, so keeping the timing keeps the fade (S2A).
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: receipt
-            )
-            Spacer(minLength: 0)
-            // PA11b: same native bordered control as Refresh — the app's only two
-            // whole-app controls read as one pair and share the appearance-safe path.
-            Button("Quit") { NSApplication.shared.terminate(nil) }
+        return RefreshFooter(store: store, freshness: freshness)
+    }
+}
+
+/// KTD17/KTD18: only the small footer observes fast work signals and redraws its clock.
+/// The card stack and PopoverView's minute timeline never receive per-frame state writes.
+private struct RefreshFooter: View {
+    let store: UsageStore
+    let freshness: PopoverHeaderStatus
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.loadingDate) private var pinnedDate
+
+    var body: some View {
+        let meters = store.menuBarMeters
+        let mains = Dictionary(uniqueKeysWithValues: store.providerOrder.compactMap { id in
+            store.primaryAccount(for: id).map { (id, $0.key) }
+        })
+        let run = store.userRefreshRun
+        let work = store.visibleRefreshWork
+        let probing = store.probingAccounts
+        let ends = store.lastProbeEndTimes
+        let spend = store.apiSpendInFlightProviders
+        let now = pinnedDate ?? Date()
+        let makeRecipe: (Date) -> ReprintRecipe = { date in
+            ReprintRecipe(meters: meters, automatic: store.menuBarFillSource.providerIDs == nil,
+                currentMains: mains, run: run, probingAccounts: probing, probeEndTimes: ends,
+                spendInFlightProviders: spend, visibleWork: work, now: date, reduceMotion: reduceMotion)
         }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .buttonBorderShape(.roundedRectangle(radius: 7))
-        .font(.system(size: 12.5, weight: .semibold))
+        let current = makeRecipe(now)
+        // The one-shot expiry pauses this timeline after the hold, last print or wave.
+        let deadlines = [work.clearedAt?.addingTimeInterval(LoadingMotionConstants.endHoldDuration)]
+            + (run?.entries.values.filter { $0.origin != .setupCheck }.map {
+                ($0.landedAt ?? $0.requestedAt).addingTimeInterval(
+                    $0.landedAt == nil ? LoadingMotionConstants.ghostWipeDuration : LoadingMotionConstants.printDuration)
+            } ?? []).map(Optional.some)
+            + ends.values.map { Optional(Date(timeIntervalSince1970: floor($0.timeIntervalSince1970) + 1)) }
+        let ongoingMotion = !reduceMotion && (current.phase == .spinner || current.phase == .spendTail)
+            && (!probing.isEmpty || current.phase == .spendTail)
+        let printing = current.pills.contains { pill in
+            switch pill.ink {
+            case .printing, .crossfade: true
+            default: false
+            }
+        }
+        LoadingTimeline(active: ongoingMotion,
+                        until: current.needsTimeline ? deadlines.compactMap { $0 }.max() : nil,
+                        interval: printing ? 1 / 30 : LoadingMotionConstants.sloshFrameInterval) { date in
+            let recipe = makeRecipe(date)
+            let receipt = RefreshReceipt.line(run: run, phase: recipe.phase, now: date,
+                                              title: { store.refreshReceiptTitle(for: $0) })
+            HStack(spacing: 10) {
+                // PA11b: native bezel owns its appearance-safe chrome and cached label.
+                Button { store.refreshNow() } label: {
+                    Text("Refresh").opacity(recipe.isEnabled ? 1 : 0)
+                }
+                .disabled(!recipe.isEnabled)
+                .overlay {
+                    if !recipe.isEnabled {
+                        ZStack {
+                            HalftonePillRow(pills: recipe.pills)
+                                // KTD19: changing to an unrequested main crossfades uniformly;
+                                // the Core recipe never invents a fresh print for that account.
+                                .id(meters.map { $0.sourceAccountKey })
+                                .transition(.opacity)
+                        }
+                        .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                                    reduceMotion: reduceMotion), value: meters.map { $0.sourceAccountKey })
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                    }
+                }
+                .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                            reduceMotion: reduceMotion), value: recipe.isEnabled)
+                // R2M8: ⌘R follows the work, never a click-specific animation. R5 keeps
+                // it enabled during setup-only checks; KTD9 disables through spend and hold.
+                .keyboardShortcut("r", modifiers: .command)
+                .accessibilityLabel(recipe.isEnabled ? "Refresh" : "Refreshing usage")
+                ZStack(alignment: .leading) {
+                    if let receipt {
+                        receiptLine(receipt).id(receipt).transition(receiptTransition)
+                    } else {
+                        Text(freshness.text)
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .contentTransition(freshness.rollValue.map {
+                                HeadroomMotion.numericText(value: $0, reduceMotion: reduceMotion)
+                            } ?? .identity)
+                            .id(freshness.kind)
+                            .transition(receiptTransition)
+                    }
+                }
+                .clipped()
+                .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                            reduceMotion: reduceMotion), value: freshness.kind)
+                .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                            reduceMotion: reduceMotion), value: receipt)
+                Spacer(minLength: 0)
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .buttonBorderShape(.roundedRectangle(radius: 7))
+            .font(.system(size: 12.5, weight: .semibold))
+        }
     }
 
-    /// M2A: states only move forward, so each new line rolls up from below. Reduce Motion
-    /// swaps lines with a crossfade instead.
     private var receiptTransition: AnyTransition {
-        reduceMotion
-            ? .opacity
-            : .asymmetric(
-                insertion: .move(edge: .bottom).combined(with: .opacity),
-                removal: .move(edge: .top).combined(with: .opacity)
-            )
+        reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
+                                              removal: .move(edge: .top).combined(with: .opacity))
     }
 
-    /// The stamp's own size and inks: the account reads at secondary, the check and the
-    /// count recede to tertiary so the name carries the line.
     private func receiptLine(_ line: RefreshReceipt.Line) -> some View {
         HStack(spacing: 5) {
             if line.checked {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8.5, weight: .bold))
-                    .foregroundStyle(.tertiary)
+                Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold)).foregroundStyle(.tertiary)
             }
-            Text(line.text)
-                .foregroundStyle(.secondary)
-            if let count = line.count {
-                Text(count)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            }
+            Text(line.text).foregroundStyle(.secondary)
+            if let count = line.count { Text(count).foregroundStyle(.tertiary).padding(.leading, 2) }
         }
         .font(.system(size: 11).monospacedDigit())
         .lineLimit(1)
@@ -623,22 +645,23 @@ enum RefreshReceipt {
         let count: String?
     }
 
-    /// Nil once the user's work has drained, which hands the slot back to the stamp.
-    static func line(
-        progress: RefreshProgress?,
-        title: (AccountKey) -> String,
-        isLive: (AccountKey) -> Bool
-    ) -> Line? {
-        guard let progress, progress.total > 0 else { return nil }
-        guard let landed = progress.lastLanded else {
-            let noun = progress.total == 1 ? "account" : "accounts"
-            return Line(checked: false, text: "Checking \(progress.total) \(noun)…", count: nil)
+    /// R4/R5: the recipe owns hand-back, and recorded outcomes own the checkmark.
+    static func line(run: UserRefreshRun?, phase: ReprintRecipe.Phase, now: Date,
+                     title: (AccountKey) -> String) -> Line? {
+        guard phase != .rest, let run else { return nil }
+        let entries = run.entries.filter { $0.value.origin != .setupCheck && $0.value.requestedAt <= now }
+        guard !entries.isEmpty else { return nil }
+        let landed = entries.filter { $0.value.outcome != nil && $0.value.landedAt.map { $0 <= now } == true }
+        let latest = landed.max {
+            if $0.value.landedAt != $1.value.landedAt { return $0.value.landedAt! < $1.value.landedAt! }
+            // Pinned fixtures may land together; a dictionary's iteration order is not a receipt order.
+            return $0.key.description < $1.key.description
         }
-        return Line(
-            checked: isLive(landed),
-            text: title(landed),
-            count: "\(progress.completed) of \(progress.total)"
-        )
+        guard let latest else {
+            return Line(checked: false, text: "Checking \(entries.count) \(entries.count == 1 ? "account" : "accounts")…", count: nil)
+        }
+        return Line(checked: latest.value.outcome == .live, text: title(latest.key),
+                    count: "\(landed.count) of \(entries.count)")
     }
 }
 

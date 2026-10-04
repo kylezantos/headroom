@@ -1,6 +1,9 @@
 import SwiftUI
 import AppKit
 import HeadroomCore
+#if canImport(HeadroomWidgetSharedUI)
+import HeadroomWidgetSharedUI
+#endif
 
 /// First-run Claude sign-in flow (onboarding redesign, Jul 2026): the trust-required
 /// failure renders as a calm, guided "Sign in to Claude" card — value proposition, one
@@ -456,6 +459,11 @@ struct ClaudeWaitingCardContent: Equatable {
     /// Review #2 (2026-09-19 sign-in review): false where the copyable command would launch
     /// a CLI staging has already refused. See `claudeShellOffersManualCommand`.
     let showsManualCommand: Bool
+    var phase: SetupWaitingPhase? = nil
+
+    func loadingMotion(reduceMotion: Bool) -> SetupMotion {
+        SetupMotion.resolve(phase: showsProgress ? phase : nil, surface: .card, reduceMotion: reduceMotion)
+    }
 }
 
 /// Review #2: the version gate refuses a CLI below 2.1.41 because its sign-in can never be
@@ -491,7 +499,8 @@ func claudeWaitingCardContent(
         token: copy.token,
         showsProgress: true,
         actions: actions,
-        showsManualCommand: showsManualCommand
+        showsManualCommand: showsManualCommand,
+        phase: phase ?? .waitingForUser(.signIn)
     )
 }
 
@@ -504,6 +513,7 @@ struct ClaudeWaitingCard: View {
     let perform: (ClaudeWaitingCardAction) -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let dark = scheme == .dark
@@ -511,8 +521,10 @@ struct ClaudeWaitingCard: View {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .claude, size: 20)
                 if content.showsProgress {
-                    // Matches the 15pt title, not the 20pt mark, so it doesn't compete with the logo.
-                    DotMatrixSpinner(size: 15)
+                    let loading = content.loadingMotion(reduceMotion: reduceMotion)
+                    // R7: a persistent vessel occupies the old title indicator's slot.
+                    HalftoneVesselView(state: .init(id: "claude-setup", level: loading.level),
+                                      motion: loading.motion, width: 10, height: 16, columns: 4, rows: 8)
                 }
                 Text(content.title)
                     .font(.system(size: 15, weight: .semibold))

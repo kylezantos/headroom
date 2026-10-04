@@ -1,6 +1,9 @@
 import SwiftUI
 import AppKit
 import HeadroomCore
+#if canImport(HeadroomWidgetSharedUI)
+import HeadroomWidgetSharedUI
+#endif
 
 /// M5A: the identity a meter-style crossfade swaps on. `MeterStyle` is `Equatable`, not
 /// `Hashable`, so the swap keys on the drawn recipe; `resolvedShape` rather than `shape` is
@@ -19,6 +22,46 @@ struct ProviderAccountEntry: Identifiable {
     let account: ProviderAccount
     let snapshot: UsageSnapshot
     var id: AccountID { account.id }
+}
+
+/// R6/R10: a value projection keeps ProviderCardView independent of the store. The
+/// supplied read is evaluated only by the small glyph boundary that needs fast signals.
+struct AccountLoadingState {
+    var showsAccessory = false
+    var isProbing = false
+    var endedAt: Date? = nil
+    var motion: LoadingMotion { isProbing ? .slosh : .still }
+
+    static func resolve(key: AccountKey, checking: Set<AccountKey>, probing: Set<AccountKey>,
+                        ends: [AccountKey: Date], fullRefresh: Bool) -> Self {
+        Self(showsAccessory: !fullRefresh && checking.contains(key),
+             isProbing: probing.contains(key), endedAt: ends[key])
+    }
+}
+
+struct AccountActionPill: View {
+    let readLoading: () -> AccountLoadingState
+    var body: some View {
+        let loading = readLoading()
+        if loading.showsAccessory {
+            MiniPill(mode: loading.motion.miniPillMode, sloshEndedAt: loading.endedAt)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+
+struct FetchingUsageLine: View {
+    let readLoading: () -> AccountLoadingState
+    var body: some View {
+        let loading = readLoading()
+        HStack(spacing: IdentityRowMetrics.spacing) {
+            HalftoneVesselView(state: .init(id: "fetching", level: LoadingMotionConstants.decorativeLevel),
+                              motion: loading.motion, sloshEndedAt: loading.endedAt)
+            Text("Fetching usage…")
+                .font(.system(size: 11.5, weight: .medium))
+        }
+        .foregroundStyle(.tertiary)
+    }
 }
 
 /// R13/KTD12 (2026-09-19 sign-in plan): Stop Waiting follows the *session*, not the open
@@ -233,6 +276,7 @@ struct ProviderCardView: View {
     /// capability entry and make the popover re-announce it.
     var announcesAccessibilityEvents: Bool = true
     var claimBankedResetReveal: ((AccountKey, Int?) -> Bool)? = nil
+    var loadingForAccount: (AccountKey) -> AccountLoadingState = { _ in .init() }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -473,6 +517,7 @@ struct ProviderCardView: View {
                 if SetupSessions.isWaiting(for: primaryAccount) {
                     CodexWaitingCard(
                         mode: SetupSessions.mode(for: primaryAccount),
+                        phase: SetupSessions.waitingPhase(for: primaryAccount),
                         onReopen: { SetupSessions.continueSetup(for: primaryAccount) }
                     )
                 } else if action == .showPrivacyGuidance {
@@ -644,7 +689,8 @@ struct ProviderCardView: View {
             showsStopWaiting: showsStopWaiting,
             onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) },
             showsMark: showsMark,
-            claimBankedResetReveal: claimBankedResetReveal
+            claimBankedResetReveal: claimBankedResetReveal,
+            readLoading: { loadingForAccount(entry.account.key) }
         )
     }
 
@@ -778,7 +824,8 @@ struct ProviderCardView: View {
             showsConnectedChip: showsConnectedChip,
             bankedResets: entry?.snapshot.bankedResets,
             isCritical: entry?.snapshot.hasLiveCriticalResettableWindow ?? false,
-            isRevealing: isRevealingBankedResets
+            isRevealing: isRevealingBankedResets,
+            loadingAccessory: { loadingForAccount(account.key) }
         )
     }
 
@@ -857,12 +904,7 @@ struct ProviderCardView: View {
         VStack(alignment: .leading, spacing: 9) {
             SkeletonMeter(labelWidth: 72, valueWidth: 42, format: meterStyle.format)
             SkeletonMeter(labelWidth: 86, valueWidth: 36, format: meterStyle.format)
-            Text("Fetching usage…")
-                // PB11: was `.caption2`, the only Dynamic-Type-scaled font in a card whose
-                // every other size is fixed — so it drifted out of step with the meters
-                // above it under a non-default text size.
-                .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(.tertiary)
+            FetchingUsageLine(readLoading: { loadingForAccount(primaryAccount.key) })
         }
         .padding(.leading, IdentityRowMetrics.meterContentInset)
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
@@ -1344,20 +1386,37 @@ struct CardRowStatusLine<Leading: View, Trailing: View>: View {
 struct CardRowWaitingLine: View {
     let account: ProviderAccount
     let showsStopWaiting: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func loadingMotion(phase: SetupWaitingPhase?, reduceMotion: Bool) -> SetupMotion {
+        // KTD10: Kyle approved the native looping Mini Pill preview on 2026-10-04.
+        SetupMotion.resolve(phase: phase ?? .waitingForUser(.signIn), surface: .row,
+                            reduceMotion: reduceMotion, rowDripApproved: true)
+    }
 
     var body: some View {
+        let phase = SetupSessions.waitingPhase(for: account) ?? .waitingForUser(.signIn)
+        let loading = loadingMotion(phase: phase, reduceMotion: reduceMotion)
         CardRowStatusLine(
-            message: (SetupSessions.waitingPhase(for: account)
-                ?? .waitingForUser(.signIn)).copy.title,
+            message: phase.copy.title,
             severity: .progress
         ) {
-            ProgressView()
-                .controlSize(.mini)
+            MiniPill(mode: loading.motion.miniPillMode, level: loading.level)
                 .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
         } trailing: {
             if showsStopWaiting {
                 StopWaitingButton(account: account, style: .glyph)
             }
+        }
+    }
+}
+
+extension LoadingMotion {
+    var miniPillMode: MiniPill.Mode {
+        switch self {
+        case .still: .still
+        case .slosh: .slosh
+        case .drip: .drip
         }
     }
 }

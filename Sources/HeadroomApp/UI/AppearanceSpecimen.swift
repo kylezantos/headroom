@@ -125,7 +125,8 @@ struct AppearanceSpecimen: View {
                 now: Date(),
                 onRetrySetup: {},
                 onRetryAccount: { _ in },
-                announcesAccessibilityEvents: false
+                announcesAccessibilityEvents: false,
+                loadingForAccount: { _ in .init() }
             )
             // G1A: the specimen is the popover's card, so it reads the ink from the
             // environment the same way — set here because Settings is not the popover.

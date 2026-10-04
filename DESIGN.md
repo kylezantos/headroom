@@ -25,7 +25,10 @@ lives, which component does which job, and the rules for extending them.
    container; bare glyph buttons only in toolbar/title rows.
 6. **Motion only from `HeadroomMotion`** (macOS; iOS uses `HeadroomTheme`). Never declare
    your own curve, duration, or spring in a view. No pulsing, breathing, or looping
-   attention animations, ever.
+   attention animations, ever. The loading drip is the approved exception: one falling
+   drop per 1.8s while waiting on the user, with a 0.45s fall and 0.6s ripple; no scale or
+   opacity pulse. Slosh, print, ghost wipe, end hold and drain durations live in
+   `HeadroomCore/Widgets/LoadingMotion.swift` (loading-language KTD21).
 7. **Provider parity** (AGENTS.md): styling reaches Claude, Codex, Grok, and Cursor alike.
    Per-provider values go through `ProviderStyle`. Never special-case one provider's look inline.
 8. **Chrome is restrained and layered.** Low-alpha fill + faint ring + 1pt inset lip + 1pt
@@ -79,6 +82,7 @@ All paths are under `Sources/`.
 | Usage meter | `UsageBarView` / `MeterGauge` via `MeterRecipe` | New bar drawing |
 | Widget style body | `HeadroomWidgetStyledBody` + `HeadroomWidgetStyledBackground` over a `WidgetStyleRecipe`; pieces `HeadroomWidgetStyleBar`, `HeadroomWidgetVessel`/`HeadroomWidgetVesselNumeral`, `HeadroomWidgetNumeral`, `HeadroomWidgetIdentityRow`, `HeadroomWidgetFittingCaption` | Per-host widget layouts; deciding windows or fills in a view |
 | Loading placeholder | `SkeletonMeter` | Spinners, pulses |
+| Loading and waiting vessel | `HalftoneVesselView` / `HalftonePillRow` (shared), `MiniPill` (macOS rows) | Slosh while working, drip while waiting on the user, ghost → print when a fresh reading lands; `SetupMotion` and `ReprintRecipe` decide states. |
 | Provider mark | `ProviderLogoView` (macOS and iOS each have one) | Loading SVGs directly |
 | Revealing a Settings sub-option | `.transition(.settingsReveal)` | Ad-hoc slide/scale |
 

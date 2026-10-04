@@ -167,10 +167,13 @@ struct APISpendSectionView: View {
                 // inks too. X5 (Kyle): `indented` is the leading on the content axis, and the
                 // trailing inset stays 0, so the sentence runs to 13pt from the card edge and
                 // wraps on measure instead of tearing at 155pt.
-                StatusSentence(
-                    text: message,
-                    severity: StatusSentenceSeverity.forSpendTone(model.status.tone)
-                )
+                Group {
+                    if snapshot.freshness == .pending {
+                        SpendWaitingLine(store: store, providerID: snapshot.providerID, message: message)
+                    } else {
+                        StatusSentence(text: message, severity: StatusSentenceSeverity.forSpendTone(model.status.tone))
+                    }
+                }
                     .accessibilityHidden(true)
                     // M4A: freshness is a colour-and-presence change, so the line fades in
                     // and out rather than sliding.
@@ -474,5 +477,27 @@ struct APISpendSectionView: View {
             if let message = model.status.message { parts.append(message) }
         }
         return parts.joined(separator: ", ")
+    }
+}
+
+/// R11: only this small waiting line observes spend activity; the shared spend card
+/// retains its existing formatting and layout boundaries for all four providers.
+struct SpendWaitingLine: View {
+    let store: UsageStore
+    let providerID: ProviderID
+    let message: String
+
+    static func motion(providerID: ProviderID, inFlight: Set<ProviderID>) -> LoadingMotion {
+        inFlight.contains(providerID) ? .slosh : .still
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: IdentityRowMetrics.spacing) {
+            MiniPill(mode: Self.motion(providerID: providerID, inFlight: store.apiSpendInFlightProviders).miniPillMode)
+                .foregroundStyle(.tertiary)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+            StatusSentence(text: message, severity: .quiet, indented: false)
+        }
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
     }
 }

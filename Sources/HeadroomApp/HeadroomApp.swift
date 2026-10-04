@@ -509,39 +509,31 @@ struct HeadroomApp: App {
                     store.refreshOnPopoverOpen()
                 }
         } label: {
-            MenuBarLabel(
-                meters: store.menuBarMeters,
-                showsPercentage: store.showMenuBarPercentage,
-                // L1A: only the real status item follows the live menu bar. The Settings
-                // specimens keep the default pinned-dark palette because they sit on a
-                // fixed dark plate.
-                appearance: .menuBar,
-                updatingProviders: store.menuBarUpdatingProviders
-            )
-            .preferredColorScheme(resolvedScheme)
-            .task { await store.start() }
-            // Attach to the status item's own window once the scene exists (L1A). The menu
-            // bar's appearance is not the process appearance: a light system appearance over
-            // a dark wallpaper still gets a dark menu bar, which is exactly the case the old
-            // dark pin got right by accident and a system-appearance check would get wrong.
-            .task { MenuBarAppearanceMonitor.shared.start() }
-            // Track OS light/dark flips so `.system` content re-resolves live (chrome
-            // follows the OS on its own via `NSApp.appearance == nil`). Attached to the
-            // always-present label, not the on-demand popover, so it never misses a change.
-            .onReceive(DistributedNotificationCenter.default().publisher(
-                for: Notification.Name("AppleInterfaceThemeChangedNotification")
-            )) { _ in
-                systemIsDark = SystemAppearance.isDark()
-                // An OS theme flip repaints the menu bar backplate; re-read it in case the
-                // status window was replaced and the KVO has nothing to fire from (L1A).
-                MenuBarAppearanceMonitor.shared.refresh()
-            }
-            // Re-read the OS truth on any theme switch so a Light→System flip resolves
-            // against the live setting, not a possibly-stale mirror.
-            .onChange(of: appearancePreference) { _, _ in
-                systemIsDark = SystemAppearance.isDark()
-                MenuBarAppearanceMonitor.shared.refresh()
-            }
+            MenuBarStatusLabel(store: store)
+                .preferredColorScheme(resolvedScheme)
+                .task { await store.start() }
+                // Attach to the status item's own window once the scene exists (L1A). The menu
+                // bar's appearance is not the process appearance: a light system appearance over
+                // a dark wallpaper still gets a dark menu bar, which is exactly the case the old
+                // dark pin got right by accident and a system-appearance check would get wrong.
+                .task { MenuBarAppearanceMonitor.shared.start() }
+                // Track OS light/dark flips so `.system` content re-resolves live (chrome
+                // follows the OS on its own via `NSApp.appearance == nil`). Attached to the
+                // always-present label, not the on-demand popover, so it never misses a change.
+                .onReceive(DistributedNotificationCenter.default().publisher(
+                    for: Notification.Name("AppleInterfaceThemeChangedNotification")
+                )) { _ in
+                    systemIsDark = SystemAppearance.isDark()
+                    // An OS theme flip repaints the menu bar backplate; re-read it in case the
+                    // status window was replaced and the KVO has nothing to fire from (L1A).
+                    MenuBarAppearanceMonitor.shared.refresh()
+                }
+                // Re-read the OS truth on any theme switch so a Light→System flip resolves
+                // against the live setting, not a possibly-stale mirror.
+                .onChange(of: appearancePreference) { _, _ in
+                    systemIsDark = SystemAppearance.isDark()
+                    MenuBarAppearanceMonitor.shared.refresh()
+                }
         }
         .menuBarExtraStyle(.window)
 
@@ -551,11 +543,7 @@ struct HeadroomApp: App {
                 appearancePreference: $appearancePreference,
                 softwareUpdates: softwareUpdates,
                 preferences: preferences,
-                // Demo runs stay off the real Keychain: the unsigned debug binary would
-                // otherwise raise one prompt per API-key provider every time Settings opens.
-                credentialStore: DemoFixture.isEnabled
-                    ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
-                    : CredentialStore(),
+                credentialStore: AppComposition.settingsCredentialStore,
                 // U6: the one client per launch; inert under `--demo` and unbundled runs (KTD9).
                 notificationClient: AppComposition.notificationClient
             )
@@ -1165,6 +1153,13 @@ enum AppComposition {
     ) -> Bool {
         environment["XCTestConfigurationFilePath"] != nil
     }
+
+    /// The Settings window's key store, one per launch rather than one per scene-body pass.
+    /// Demo runs stay off the real Keychain: the unsigned debug binary would otherwise raise
+    /// one prompt per API-key provider every time Settings opens.
+    static let settingsCredentialStore: CredentialStore = DemoFixture.isEnabled
+        ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
+        : CredentialStore()
 
     /// U5: the one notification client per launch. The store's coordinator posts through
     /// it and `SettingsView` reads and requests permission through it (U6).

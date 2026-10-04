@@ -788,9 +788,6 @@ checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-s
   each pass, so one account refresh re-runs all cards (after #157, ~240ms CPU per refresh at 20 accounts, ~140ms at 5;
   ~360ms / ~150ms before it).
   `PopoverView` also calls `appDisplaySnapshot` ~3× per account and builds `statusInput` twice.
-- **Popover first frame may open collapsed.** Before its first layout the popover reports 124pt
-  (`cardsHeight` starts at 0); correct after it. Whether `MenuBarExtra` sizes from the earlier
-  answer is unmeasured — seed `cardsHeight` from the last measured value if a live check shows it.
 - **First open per launch (M9A arrival) pegs the main thread** ~740ms at 20 accounts after #157 (~890ms before; ~135ms at 5): each meter row makes three state writes in its `.task`.
 - **The duplicate-login scan reruns on every Claude capture** while Settings is open (its
   fingerprint carries `capturedAt`), reads every `.claude.json` even with one Claude account, and

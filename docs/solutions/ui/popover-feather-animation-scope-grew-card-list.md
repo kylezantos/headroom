@@ -29,8 +29,11 @@ whole `ScrollView`. On every open, the feather's gate flipped in the same update
 scroll frame from 0 to its measured height, so that scope animated the frame change too. The card
 list grew open over about 10–12 frames (about 5 slower ones at 20 accounts): the entrance motion
 M9C had removed, back under another name and re-rendering the popover on each frame. This was
-measured on an offscreen host of the real `PopoverView`; a live check in the `MenuBarExtra` window
-was still pending when this was written.
+measured on an offscreen host of the real `PopoverView`. A live check on 2026-10-04 (Tahoe,
+`--demo multi-5`, release build with the fix) confirmed it in the real `MenuBarExtra` window: a
+capture taken within ~200ms of the window appearing showed the full card list at final height, and
+the only difference from the settled frame was the meter fills still drawing in (the first-open
+arrival, M9A).
 
 Both halves landed on 2026-07-16: the feather's scope in an accounts polish pass, and the measured
 scroll frame in the zero-height fix (`docs/solutions/popover-scrollview-zero-height.md`). From then
@@ -214,9 +217,9 @@ outside the closure, so they take their final values at once.
   everything in a transaction, not just the thing you meant.
 - `docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md` — M9C and S2A.
 - `docs/plans/2026-09-09-001-feat-craft-round2-plan.md` — R2C23, the feather.
-- `BUGS.md` › "Popover & Settings snappiness residuals (2026-10-03 perf audit)". Still open: before
-  its first layout the popover reports 124pt because `cardsHeight` starts at 0, and whether
-  `MenuBarExtra` sizes the window from that is unmeasured.
+- `BUGS.md` › "Popover & Settings snappiness residuals (2026-10-03 perf audit)". Before its first layout the popover
+  reports 124pt because `cardsHeight` starts at 0; the live check showed `MenuBarExtra` sizes the
+  window after that layout (it first appears at its final height), so this does not reach the screen.
 - `docs/solutions/ui/popover-scroll-geometry-state-rerendered-whole-popover.md` — SC1, same commit:
   the per-frame scroll-geometry writes that turned each grow frame into a full popover re-render.
 - `docs/solutions/ui/menubarextra-window-closures-run-in-app-body.md` — same audit (#157): `MenuBarExtra`

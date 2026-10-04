@@ -446,8 +446,6 @@ seeded there can be stale when the window reopens (see "The flip side" in the ML
   - Every `ProviderCardView` re-renders on any store change (after #157, ~240ms CPU per refresh at 20 accounts,
     ~140ms at 5),
     and `PopoverView` calls `appDisplaySnapshot` about 3× per account.
-  - The popover may open collapsed: it reports 124pt before its first layout, and whether
-    `MenuBarExtra` sizes the window from that is unmeasured.
   - The first open per launch (the M9A arrival) pegs the main thread for ~740ms at 20 accounts
     after #157:
     three state writes per meter row.
@@ -455,4 +453,7 @@ seeded there can be stale when the window reopens (see "The flip side" in the ML
     detached scans can stack.
   - The saved-key presence check reads the secret, where an attributes-only query would do.
   - `--render-popover`'s multi-account path never draws the spend card.
-- Also open: the live checks #157 lists (the popover opening on Tahoe, and a Sequoia runtime).
+- Also open: a macOS 15 (Sequoia) runtime check. The Tahoe live check is done: on 2026-10-04 the
+  `--demo multi-5` popover's `MenuBarExtra` window first appeared at its final 384×764pt and never
+  resized (sampled with `CGWindowListCopyWindowInfo` every ~1.5ms), and the same window was reused
+  on reopen. So `MenuBarExtra` sizes after the first layout, not from the 124pt pre-layout answer.

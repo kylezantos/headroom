@@ -19,6 +19,71 @@ struct UsageStoreRefreshRunTests {
         })
     }
 
+    private func reprint(_ store: UsageStore, at date: Date) -> ReprintRecipe {
+        ReprintRecipe(meters: store.menuBarMeters, automatic: true, currentMains: [:],
+            run: store.userRefreshRun, probingAccounts: store.probingAccounts, probeEndTimes: store.lastProbeEndTimes,
+            spendInFlightProviders: store.apiSpendInFlightProviders, visibleWork: store.visibleRefreshWork, now: date)
+    }
+
+    @Test func landedAccountActionHoldsThenRestsWhileUnrelatedSetupContinues() async {
+        let clock = MutableDateSource(t0)
+        let setup = probe(.claude, clock: clock)
+        let action = probe(.codex, clock: clock)
+        setup.suspendNextFetch()
+        action.suspendNextFetch()
+        let store = UsageStore(providers: [setup, action], preferences: preferences(), now: clock.now)
+        store.refreshAccountNow(setup.accountKey, origin: .setupCheck)
+        await setup.waitUntilStarted()
+        #expect(reprint(store, at: clock.now()).phase == .rest)
+        #expect(store.visibleRefreshWork == VisibleRefreshWork())
+        store.refreshAccountNow(action.accountKey, origin: .accountAction)
+        await action.waitUntilStarted()
+        #expect(reprint(store, at: clock.now()).phase == .spinner)
+        #expect(store.visibleRefreshWork == VisibleRefreshWork(isInFlight: true))
+        clock.set(t0.addingTimeInterval(1))
+        action.release()
+        await store.scheduler.waitForCompletion(of: action.accountKey)
+        #expect(store.isRefreshing)
+        #expect(store.probingAccounts == [setup.accountKey])
+        #expect(store.visibleRefreshWork == VisibleRefreshWork(clearedAt: clock.now()))
+        #expect(reprint(store, at: clock.now().addingTimeInterval(0.49)).phase == .hold)
+        #expect(reprint(store, at: clock.now().addingTimeInterval(0.5)).phase == .rest)
+        clock.set(t0.addingTimeInterval(3))
+        setup.release()
+        await store.scheduler.waitUntilLanesIdle()
+        #expect(reprint(store, at: clock.now()).phase == .rest)
+        #expect(store.visibleRefreshWork.clearedAt == t0.addingTimeInterval(1))
+    }
+
+    @Test func spendOnlyCompletionHoldsEvenWithRetainedSetupHistory() async {
+        let clock = MutableDateSource(t0)
+        let setup = probe(.claude, clock: clock)
+        setup.suspendNextFetch()
+        let spend = RefreshRunSpendProbe(id: .codex)
+        spend.gate.suspendNextFetch()
+        let prefs = preferences()
+        prefs.setSurfaceEnabled(true, for: .openAIAPI)
+        let store = UsageStore(providers: [setup], apiSpendProviders: [spend], preferences: prefs, now: clock.now)
+        store.refreshAccountNow(setup.accountKey, origin: .setupCheck)
+        await setup.waitUntilStarted()
+        #expect(reprint(store, at: clock.now()).phase == .rest)
+        setup.release()
+        await store.scheduler.waitUntilLanesIdle()
+        #expect(store.visibleRefreshWork == VisibleRefreshWork())
+        let setupRunID = store.userRefreshRun?.id
+        clock.set(t0.addingTimeInterval(0.1))
+        let refresh = Task { await store.refreshAPISpendOnly() }
+        await spend.gate.waitUntilStarted()
+        #expect(reprint(store, at: clock.now()).phase == .spendTail)
+        clock.set(t0.addingTimeInterval(0.2))
+        spend.gate.release()
+        await refresh.value
+        #expect(store.userRefreshRun?.id == setupRunID)
+        #expect(store.visibleRefreshWork == VisibleRefreshWork(clearedAt: clock.now()))
+        #expect(reprint(store, at: clock.now().addingTimeInterval(0.49)).phase == .hold)
+        #expect(reprint(store, at: clock.now().addingTimeInterval(0.5)).phase == .rest)
+    }
+
     @Test func fullRunRetainsEveryLandingAndClearTimeThenANewRequestStartsFresh() async {
         let clock = MutableDateSource(t0)
         let providers = [ProviderID.claude, .codex, .grok].map { probe($0, clock: clock) }
@@ -123,6 +188,7 @@ struct UsageStoreRefreshRunTests {
         store.refreshAccountNow(provider.accountKey, origin: .setupCheck)
         await store.scheduler.waitUntilLanesIdle()
         #expect(store.userRefreshRun?.entries.values.allSatisfy { $0.origin == .setupCheck } == true)
+        #expect(store.visibleRefreshWork == VisibleRefreshWork())
         clock.set(t0.addingTimeInterval(301))
         store.clearExpiredUserRefreshRun(at: clock.now())
         provider.suspendNextFetch()
@@ -174,6 +240,8 @@ struct UsageStoreRefreshRunTests {
         #expect(store.userRefreshRun?.entries[provider.accountKey]?.outcome == .live)
         #expect(store.userRefreshRun?.refreshingClearedAt == nil)
         #expect(store.apiSpendInFlightProviders == [.claude])
+        #expect(store.visibleRefreshWork.isInFlight)
+        #expect(reprint(store, at: clock.now()).phase == .spendTail)
         clock.set(t0.addingTimeInterval(3))
         store.clearExpiredUserRefreshRun(at: clock.now())
         #expect(store.userRefreshRun?.id == id)
@@ -288,12 +356,24 @@ struct UsageStoreRefreshRunTests {
         let refresh = Task { await store.refreshAPISpendOnly() }
         await spend.gate.waitUntilStarted()
         #expect(store.apiSpendInFlightProviders == [.codex])
+        #expect(store.userRefreshRun == nil)
+        #expect(store.refreshingClearedAt == nil)
         await store.refreshAPISpendOnly()
         #expect(spend.fetchCount == 1)
+        clock.set(t0.addingTimeInterval(3))
         spend.gate.release()
         await refresh.value
         #expect(store.apiSpendInFlightProviders.isEmpty)
         #expect(!store.isRefreshing)
+        #expect(store.refreshingClearedAt == clock.now())
+        let held = ReprintRecipe(meters: store.menuBarMeters, automatic: true, currentMains: [:],
+            run: store.userRefreshRun, probingAccounts: store.probingAccounts, probeEndTimes: store.lastProbeEndTimes,
+            spendInFlightProviders: store.apiSpendInFlightProviders, visibleWork: store.visibleRefreshWork, now: clock.now().addingTimeInterval(0.49))
+        #expect(held.phase == .hold)
+        let rested = ReprintRecipe(meters: store.menuBarMeters, automatic: true, currentMains: [:],
+            run: store.userRefreshRun, probingAccounts: store.probingAccounts, probeEndTimes: store.lastProbeEndTimes,
+            spendInFlightProviders: store.apiSpendInFlightProviders, visibleWork: store.visibleRefreshWork, now: clock.now().addingTimeInterval(0.5))
+        #expect(rested.phase == .rest)
     }
 
     @Test func accountAndProviderChecksStayScoped() async {

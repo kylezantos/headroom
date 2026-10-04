@@ -65,10 +65,21 @@ public struct MenuBarMeter: Sendable, Equatable {
     public let summary: MenuBarSummary
     /// 0...1 fill for the vessel, or nil for the static decorative level.
     public let fill: Double?
+    /// KTD13: nil fill also means signed out or decorative; only pending means ghost.
+    public let awaitingFirstReading: Bool
+    /// U8 distinguishes a fresh first result from a stale result carrying retained windows.
+    public let isLiveReading: Bool
+    /// Explicit provider pills use this to avoid a first-reading print on Make Main.
+    /// Automatic mode has one stable rendering identity and no single source account.
+    public let sourceAccountKey: AccountKey?
 
-    public init(summary: MenuBarSummary, fill: Double?) {
+    public init(summary: MenuBarSummary, fill: Double?, awaitingFirstReading: Bool = false,
+                isLiveReading: Bool = false, sourceAccountKey: AccountKey? = nil) {
         self.summary = summary
         self.fill = fill
+        self.awaitingFirstReading = awaitingFirstReading
+        self.isLiveReading = isLiveReading
+        self.sourceAccountKey = sourceAccountKey
     }
 }
 
@@ -138,6 +149,12 @@ public final class UsageStore {
     /// unmerged work. Timer-driven lane passes never set it, so the Refresh button does not
     /// disappear for half of every interval at the account envelope.
     public private(set) var isRefreshing = false
+    /// Scheduler-wide clear time for run retention; visible work has its own hold clock.
+    public private(set) var refreshingClearedAt: Date?
+    public private(set) var visibleRefreshWork = VisibleRefreshWork()
+    @ObservationIgnored private var visibleRefreshOperationDepth = 0
+    /// A 0.5s visible hold plus 0.2s bookkeeping grace, distinct from ghost-wipe timing.
+    private static let refreshRunRetentionDuration: TimeInterval = 0.7
     /// W4: the user-requested work behind `isRefreshing`, account by account. Nil once that
     /// work drains, even while a spend fetch keeps `isRefreshing` up.
     public private(set) var refreshProgress: RefreshProgress?
@@ -715,7 +732,12 @@ public final class UsageStore {
     /// own vessel/percentage pair; automatic mode keeps the existing compact summary.
     public var menuBarMeters: [MenuBarMeter] {
         guard menuBarFillSource.providerIDs != nil else {
-            return [MenuBarMeter(summary: menuBarSummary, fill: menuBarFill)]
+            let summary = menuBarSummary
+            return [MenuBarMeter(
+                summary: summary, fill: menuBarFill,
+                awaitingFirstReading: summary.isNeutral && providerOrder.contains { snapshot(for: $0).freshness == .pending },
+                isLiveReading: summary.providerID.map { snapshot(for: $0).freshness == .live } ?? false
+            )]
         }
 
         let meters = selectedMenuBarProviders.map { providerMenuBarMeter(for: $0) }
@@ -787,6 +809,13 @@ public final class UsageStore {
     /// duty-cycle gate, and the call returns once the lanes it started have drained — the
     /// contract the store tests and the launch refresh rely on.
     public func refreshAll(origin: UserRefreshOrigin = .fullRefresh) async {
+        if origin != .setupCheck { visibleRefreshOperationDepth += 1 }
+        defer {
+            if origin != .setupCheck {
+                visibleRefreshOperationDepth -= 1
+                recomputeVisibleRefreshWork()
+            }
+        }
         if origin == .fullRefresh {
             fullRefreshOperationDepth += 1
             fullRefreshInFlight = true
@@ -859,10 +888,12 @@ public final class UsageStore {
     public func refreshAPISpendOnly() async {
         if apiSpendInFlight { return }
         apiSpendInFlight = true
+        visibleRefreshOperationDepth += 1
         apiSpendUserRefreshDepth += 1
         recomputeRefreshing()
         defer {
             apiSpendInFlight = false
+            visibleRefreshOperationDepth -= 1
             apiSpendUserRefreshDepth -= 1
             recomputeRefreshing()
         }
@@ -878,26 +909,37 @@ public final class UsageStore {
     }
 
     private func recomputeRefreshing() {
+        recomputeVisibleRefreshWork()
         let next = userWorkPending || apiSpendUserRefreshDepth > 0
         guard isRefreshing != next else { return }
         isRefreshing = next
+        refreshingClearedAt = next ? nil : now()
         if !next, userRefreshRun != nil {
-            let clearedAt = now()
+            let clearedAt = refreshingClearedAt!
             userRefreshRun?.refreshingClearedAt = clearedAt
             let runID = userRefreshRun?.id
             refreshRunRetentionTask?.cancel()
             refreshRunRetentionTask = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(700))
+                try? await Task.sleep(for: .seconds(Self.refreshRunRetentionDuration))
                 guard !Task.isCancelled, let self, self.userRefreshRun?.id == runID else { return }
                 self.clearExpiredUserRefreshRun(at: self.now())
             }
         }
     }
 
+    private func recomputeVisibleRefreshWork() {
+        let pending = userRefreshRun?.entries.values.contains {
+            $0.origin != .setupCheck && $0.outcome == nil
+        } ?? false
+        let next = pending || visibleRefreshOperationDepth > 0
+        guard visibleRefreshWork.isInFlight != next else { return }
+        visibleRefreshWork = VisibleRefreshWork(isInFlight: next, clearedAt: next ? nil : now())
+    }
+
     /// A clock seam for testing the 0.5s hold plus 0.2s retention without a real wait.
     func clearExpiredUserRefreshRun(at date: Date) {
         guard !isRefreshing, let clearedAt = userRefreshRun?.refreshingClearedAt,
-              date.timeIntervalSince(clearedAt) >= 0.7 else { return }
+              date.timeIntervalSince(clearedAt) >= Self.refreshRunRetentionDuration else { return }
         userRefreshRun = nil
     }
 
@@ -1233,7 +1275,10 @@ public final class UsageStore {
                     isNeutral: true,
                     needsAttention: needsAttention
                 ),
-                fill: nil
+                fill: nil,
+                awaitingFirstReading: snapshot(for: id).freshness == .pending,
+                isLiveReading: snapshot(for: id).freshness == .live,
+                sourceAccountKey: primaryKey(for: id)
             )
         }
 
@@ -1249,7 +1294,10 @@ public final class UsageStore {
                 severity: resolved.window.severity,
                 needsAttention: needsAttention
             ),
-            fill: usagePercentageMode.fraction(for: resolved.window)
+            fill: usagePercentageMode.fraction(for: resolved.window),
+            awaitingFirstReading: snapshot(for: id).freshness == .pending,
+            isLiveReading: snapshot(for: id).freshness == .live,
+            sourceAccountKey: primaryKey(for: id)
         )
     }
 
@@ -1366,6 +1414,7 @@ extension UsageStore: AccountProbeSchedulerHost {
     func schedulerUserRunDidChange(_ run: UserRefreshRun) {
         refreshRunRetentionTask?.cancel()
         userRefreshRun = run
+        recomputeVisibleRefreshWork()
     }
 
     func schedulerUserWorkDidChange(hasPending: Bool) {

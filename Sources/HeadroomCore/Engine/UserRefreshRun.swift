@@ -1,5 +1,17 @@
 import Foundation
 
+/// R5/KTD9: visible user work excludes setup verification, even when the scheduler still
+/// retains that work alongside a completed account action. Its hold has its own clock.
+public struct VisibleRefreshWork: Sendable, Equatable {
+    public let isInFlight: Bool
+    public let clearedAt: Date?
+
+    public init(isInFlight: Bool = false, clearedAt: Date? = nil) {
+        self.isInFlight = isInFlight
+        self.clearedAt = clearedAt
+    }
+}
+
 /// The reason a key joined user work (loading-language KTD1–KTD3). Timer probes have no
 /// entry unless they satisfy a request that arrived while they were already running.
 public enum UserRefreshOrigin: Sendable, Equatable {

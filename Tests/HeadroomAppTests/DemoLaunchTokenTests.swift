@@ -29,13 +29,22 @@ struct DemoLaunchTokenTests {
     }
 
     /// Non-demo behavior stays byte-identical: the shipping app still reads and writes
-    /// `.standard`, which is also what this (non-demo) test process resolves to.
+    /// `.standard`, even though the hosted unit suite itself launches isolated fixtures.
     @Test func aNormalLaunchKeepsTheStandardDomain() {
         #expect(AppComposition.resolveLaunchDefaults(arguments: ["Headroom"]) === UserDefaults.standard)
         #expect(AppComposition.resolveLaunchDefaults(
             arguments: ["Headroom", "--render-popover", "shots"]
         ) === UserDefaults.standard)
-        #expect(AppComposition.launchDefaults === UserDefaults.standard)
+    }
+
+    @Test func hostedUnitSuiteUsesIsolatedLaunchDefaults() {
+        #expect(DemoFixture.isEnabled)
+        #expect(AppComposition.launchDefaults !== UserDefaults.standard)
+        let key = "headroom-hosted-suite-domain-probe-\(UUID().uuidString)"
+        AppComposition.launchDefaults.set(true, forKey: key)
+        defer { AppComposition.launchDefaults.removeObject(forKey: key) }
+        #expect(AppComposition.launchDefaults.bool(forKey: key))
+        #expect(UserDefaults.standard.object(forKey: key) == nil)
     }
 
     // MARK: --account-title-ink

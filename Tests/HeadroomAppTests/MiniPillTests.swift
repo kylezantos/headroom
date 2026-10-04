@@ -1,0 +1,56 @@
+import Foundation
+import SwiftUI
+import Testing
+import HeadroomCore
+@testable import Headroom
+
+@MainActor
+@Suite
+struct MiniPillTests {
+    @Test func fallingDropStaysInsideTheVesselAtTheReadableFloor() throws {
+        for frame in 0..<14 {
+            let pose = MiniPillPose(mode: .drip, level: 0.7,
+                                    date: Date(timeIntervalSince1970: Double(frame) / 30), reduceMotion: false)
+            let drop = try #require(pose.drop)
+            #expect(drop.width >= 1.2)
+            #expect(MiniPillPose.inner.contains(drop))
+        }
+    }
+
+    @Test func reduceMotionHasDateIndependentDistinctWorkingAndWaitingStills() {
+        let dates = [Date(timeIntervalSince1970: 0.1), Date(timeIntervalSince1970: 0.8)]
+        let waits = dates.map { MiniPillPose(mode: .drip, level: 0.46, date: $0, reduceMotion: true) }
+        let work = dates.map { MiniPillPose(mode: .slosh, level: 0.46, date: $0, reduceMotion: true) }
+        #expect(waits.allSatisfy { $0.level == 0 && $0.drop == nil && $0.ripple == nil && $0.wavePhase == nil })
+        #expect(work.allSatisfy { $0.level == 0.46 && $0.drop == nil && $0.wavePhase == nil })
+        #expect(waits[0].liquidPath == waits[1].liquidPath)
+        #expect(work[0].liquidPath == work[1].liquidPath)
+        #expect(waits[0].liquidPath != work[0].liquidPath)
+    }
+
+    @Test func drainUsesTheStartingLevelAndFinishesEmpty() {
+        let date = Date(timeIntervalSince1970: 0)
+        #expect(MiniPillPose(mode: .drain(progress: 0), level: 0.73, date: date, reduceMotion: false).level == 0.73)
+        #expect(MiniPillPose(mode: .drain(progress: 1), level: 0.73, date: date, reduceMotion: false).level == 0)
+    }
+
+    @Test func allRowCountsFitAndKeepTheirInputOrder() {
+        for count in 1...4 {
+            let layout = HalftonePillRow.Layout(count: count)
+            #expect(layout.origins.count == count)
+            #expect(layout.origins == layout.origins.sorted())
+            #expect(layout.origins.first! >= 0)
+            #expect(layout.origins.last! + layout.pillWidth <= layout.width)
+            #expect(abs(layout.origins.first! - (layout.width - layout.origins.last! - layout.pillWidth)) < 0.001)
+            #expect(layout.columns == (count == 4 ? 3 : 4))
+        }
+    }
+
+    @Test nonisolated func timelinePausesWhenStillPinnedOrAfterItsTail() {
+        let now = Date(timeIntervalSince1970: 10)
+        #expect(LoadingTimeline<EmptyView>.isPaused(active: false, until: nil, now: now, pinned: false))
+        #expect(LoadingTimeline<EmptyView>.isPaused(active: true, until: nil, now: now, pinned: true))
+        #expect(!LoadingTimeline<EmptyView>.isPaused(active: false, until: now.addingTimeInterval(0.2), now: now, pinned: false))
+        #expect(LoadingTimeline<EmptyView>.isPaused(active: false, until: now, now: now, pinned: false))
+    }
+}

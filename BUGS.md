@@ -773,9 +773,10 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
 
 ## Popover & Settings snappiness residuals (2026-10-03 perf audit)
 
-The audit's fixes 1–6 shipped (feather animation scope, scroll chrome out of `PopoverView`'s
+The audit's fixes 1–6 land in #157 (feather animation scope, scroll chrome out of `PopoverView`'s
 body, `MenuBarStatusLabel`, Settings opening on its stored pane, batched Settings-open writes,
-the spend month label). Measured offscreen; numbers in the PR.
+the spend month label). Measured offscreen; numbers in the PR. How to measure, and the hot-spot
+checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
 
 - **Pane switches build in the click's frame, then blur in.** Into Appearance, Widgets,
   Notifications or Accounts takes ~60–70ms (multi-5) before anything moves, ~259ms into Accounts
@@ -784,16 +785,24 @@ the spend month label). Measured offscreen; numbers in the PR.
   account rows; the Appearance specimen builds its card twice (hidden twin) and passes
   `now: Date()`, so it is never equal.
 - **Every card re-renders on any store change.** `ProviderCardView` gets fresh closures and `now`
-  each pass, so one account refresh re-runs all cards (~360ms CPU at 20 accounts, ~150ms at 5).
+  each pass, so one account refresh re-runs all cards (after #157, ~240ms CPU per refresh at 20 accounts, ~140ms at 5;
+  ~360ms / ~150ms before it).
   `PopoverView` also calls `appDisplaySnapshot` ~3× per account and builds `statusInput` twice.
 - **Popover first frame may open collapsed.** Before its first layout the popover reports 124pt
   (`cardsHeight` starts at 0); correct after it. Whether `MenuBarExtra` sizes from the earlier
   answer is unmeasured — seed `cardsHeight` from the last measured value if a live check shows it.
-- **First open per launch (M9A arrival) pegs the main thread** ~890ms at 20 accounts (137ms at
-  5): each meter row makes three state writes in its `.task`.
+- **First open per launch (M9A arrival) pegs the main thread** ~740ms at 20 accounts after #157 (~890ms before; ~135ms at 5): each meter row makes three state writes in its `.task`.
 - **The duplicate-login scan reruns on every Claude capture** while Settings is open (its
   fingerprint carries `capturedAt`), reads every `.claude.json` even with one Claude account, and
   `Task.detached` ignores cancellation, so a 20-account refresh stacks ~20 overlapping scans.
 - **The saved-key presence check reads the secret.** `refreshSavedKeyPresence` calls
   `CredentialStore.apiKey(for:)`, which returns key data; an attributes-only existence query
   would do.
+- **The perf bench is not committed.** The audit's offscreen `--bench-ui` harness (body counters,
+  frame-by-frame probes, signposted Time Profiler runs) was throwaway; the solution doc above has
+  the recipe. Committing it needs a supported seam to select a Settings pane and a body counter
+  that compiles out of shipping builds.
+- **`--render-popover`'s multi-account path never draws the spend card.** `renderMulti` builds its
+  store with `apiSpendProviders: []`, so `spend-states` / `spend-retained` captures show only the
+  provider cards, and the spend card (where the month-label formatter hot spot lived) is never
+  rendered or measured there.

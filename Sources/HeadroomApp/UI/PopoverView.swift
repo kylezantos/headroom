@@ -24,7 +24,7 @@ struct PopoverView: View {
     /// L2A: live scroll geometry for the bottom feather and the bespoke gutter indicator.
     /// SC1 (2026-10-03 perf bench): held in a model that only those two child views read.
     /// As `@State` here, every scroll frame re-ran this whole body and rebuilt every card —
-    /// ~80ms a frame at 20 accounts.
+    /// ~40ms and 230 view bodies per scroll step at 20 accounts.
     @State private var scroll = PopoverScrollModel()
     /// Measured height of the card stack. `MenuBarExtra(.window)` sizes its window to the
     /// content's ideal height, and a `ScrollView` has no ideal height of its own — left to

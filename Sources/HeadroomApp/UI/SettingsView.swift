@@ -36,7 +36,9 @@ struct SettingsView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// LP1 (2026-10-03 perf bench): nil until `loadPreferences` picks the room. Seeded with
     /// `.general`, every open built General — twice — before switching to the stored pane,
-    /// and that switch played the pane transition inside the window's own fade-in.
+    /// and that switch played the pane transition inside the window's own fade-in. Not seeded
+    /// in `init` either: the `Window` content is built in `App.body`, which rarely re-runs, so
+    /// an init-time seed could reopen on a stale pane (see the App.body solution doc).
     @State private var sidebarSelection: SettingsPane?
     /// KB1: whether the latest pane switch came from the keyboard.
     @State private var paneSwitchIsInstant = false

@@ -165,7 +165,7 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
     @ViewBuilder
     private func hero(_ provider: WidgetStyleProviderRecipe, size: Double, extra: String?) -> some View {
         if provider.isWaiting {
-            HeadroomWidgetWaitingLine(size: context.scale.countdown)
+            HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
         } else {
             VStack(alignment: .leading, spacing: 5) {
                 HeadroomWidgetVesselNumeral(provider.primary, colorMode: context.colorMode, providerIsLive: context.isLive(provider),

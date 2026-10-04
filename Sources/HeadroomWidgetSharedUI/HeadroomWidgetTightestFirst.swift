@@ -38,7 +38,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                             }
                         }
                         if provider.isWaiting {
-                            HeadroomWidgetWaitingLine(size: WidgetStyleType.compactCaption)
+                            HeadroomWidgetWaitingLine(provider: provider, size: WidgetStyleType.compactCaption)
                         } else {
                             HStack(alignment: .center, spacing: 7) {
                                 HeadroomWidgetStyleBar(provider.tightest, colorMode: context.colorMode, providerIsLive: live,
@@ -74,7 +74,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
             HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true, mark: mark)
             Spacer(minLength: 4)
             if provider.isWaiting {
-                HeadroomWidgetWaitingLine(size: context.scale.countdown)
+                HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
             } else if let tightest = provider.tightest {
                 HeadroomWidgetNumeral(tightest, size: context.hero(), providerIsLive: live, now: context.now)
                 HeadroomWidgetCaption(Self.captionLine(tightest, now: context.now), size: context.scale.countdown, ink: .label)
@@ -181,7 +181,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                 HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: false,
                                           showsStaleReason: true, mark: mark)
                 if provider.isWaiting {
-                    HeadroomWidgetWaitingLine(size: context.scale.countdown)
+                    HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
                 }
             }
             .padding(.top, 10)

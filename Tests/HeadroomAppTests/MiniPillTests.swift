@@ -53,4 +53,29 @@ struct MiniPillTests {
         #expect(!LoadingTimeline<EmptyView>.isPaused(active: false, until: now.addingTimeInterval(0.2), now: now, pinned: false))
         #expect(LoadingTimeline<EmptyView>.isPaused(active: false, until: now, now: now, pinned: false))
     }
+
+    @Test nonisolated func timelineExpirySettlesTheWaveAndHoldWhilePinnedRendersStayFixed() {
+        let lastTick = Date(timeIntervalSince1970: 10.9)
+        let now = Date(timeIntervalSince1970: 11.01)
+        let end = Date(timeIntervalSince1970: 10.55)
+        let paused = LoadingTimeline<EmptyView>.isPaused(active: false, until: Date(timeIntervalSince1970: 11), now: now, pinned: false)
+        let settled = LoadingTimeline<EmptyView>.frameDate(pinned: nil, paused: paused, now: now, scheduled: lastTick)
+        #expect(settled == now)
+        #expect(!LoadingCheckRecipe(isChecking: false, endedAt: end, now: settled, reduceMotion: false).isWorking)
+        #expect(!LoadingMotionClock.isSloshing(active: false, endedAt: end, now: settled))
+        let footerRecipe: (Date) -> ReprintRecipe = { date in
+            ReprintRecipe(meters: [], automatic: true, currentMains: [:], run: nil,
+                          probingAccounts: [], probeEndTimes: [:], spendInFlightProviders: [],
+                          visibleWork: VisibleRefreshWork(clearedAt: Date(timeIntervalSince1970: 10.5)), now: date)
+        }
+        #expect(footerRecipe(settled).isEnabled)
+
+        let running = LoadingTimeline<EmptyView>.frameDate(pinned: nil, paused: false, now: now, scheduled: lastTick)
+        #expect(running == lastTick)
+        #expect(LoadingCheckRecipe(isChecking: false, endedAt: end, now: running, reduceMotion: false).isWorking)
+        #expect(footerRecipe(running).phase == .hold)
+        let pinned = LoadingTimeline<EmptyView>.frameDate(pinned: lastTick, paused: true, now: now, scheduled: now)
+        #expect(pinned == lastTick)
+        #expect(LoadingMotionClock.isSloshing(active: false, endedAt: end, now: pinned))
+    }
 }

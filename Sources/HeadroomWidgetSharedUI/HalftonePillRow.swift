@@ -31,10 +31,13 @@ public struct HalftonePillRow: View {
 
     private let pills: [LoadingPillState]
     private let labelWidth: Double
+    private let sloshEndedAt: Date?
 
-    public init(pills: [LoadingPillState] = LoadingPillState.ghostRow(), labelWidth: Double = 44) {
+    public init(pills: [LoadingPillState] = LoadingPillState.ghostRow(), labelWidth: Double = 44,
+                sloshEndedAt: Date? = nil) {
         self.pills = Array(pills.prefix(4))
         self.labelWidth = labelWidth
+        self.sloshEndedAt = sloshEndedAt
     }
 
     public var body: some View {
@@ -42,7 +45,7 @@ public struct HalftonePillRow: View {
         HStack(spacing: layout.gap) {
             ForEach(pills) { pill in
                 HalftoneVesselView(state: pill, width: layout.pillWidth, height: layout.height,
-                                  columns: layout.columns, rows: 8)
+                                  columns: layout.columns, rows: 8, sloshEndedAt: sloshEndedAt)
             }
         }
         .frame(width: layout.width, height: layout.height)

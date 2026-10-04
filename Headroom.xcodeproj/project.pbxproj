@@ -157,6 +157,7 @@
 		66E4583ADD507D5406CD36C5 /* MenuBarSloshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A044F73D162D5EAE3187A63A /* MenuBarSloshTests.swift */; };
 		68B150A448ABB34FED5F186B /* MiniPillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 763735EF16F2593857131203 /* MiniPillTests.swift */; };
 		68DA01023BB593CAEB8B2890 /* LoadingClockEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2581B169C4378C1874F324DF /* LoadingClockEnvironment.swift */; };
+		68E1808821DCB4FE160943F3 /* WidgetLoadingRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2672C9213F046079E9B235EF /* WidgetLoadingRecipes.swift */; };
 		6B0099CBE13F0228E0439F5F /* HeadroomWidgetNestedMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */; };
 		6B344BCC0AF722731067E9B1 /* AppearanceSpecimen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D1ABBFC7400DB7B365ADAF /* AppearanceSpecimen.swift */; };
 		6B973081D0827D6B75293F95 /* GrokProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517F99ED6491D1BC1A6858EF /* GrokProvider.swift */; };
@@ -190,6 +191,7 @@
 		85A5F90A427E0FFBBCC82308 /* MeterStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */; };
 		87C1ACD1CD131F351400DF91 /* HeadroomWidgetStyledBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCDB3DAE232C200FAA8BB2B /* HeadroomWidgetStyledBody.swift */; };
 		884748EF121113FABD54F4AD /* SetupWaitingMotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9F7733E2584FA8F6050BC65 /* SetupWaitingMotionTests.swift */; };
+		893C7A00AD4C0E41D5AF07D3 /* WidgetLoadingRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2672C9213F046079E9B235EF /* WidgetLoadingRecipes.swift */; };
 		898AC9E2DA72AE3F4FFF0FE8 /* MirrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */; };
 		8AA5705AC7EA53BA210B5289 /* HeadroomIOSWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73E274D961861C31917C337F /* HeadroomIOSWidgetView.swift */; };
 		8AEE8745B4BEB1F7C43CA96B /* UsageSeverityColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */; };
@@ -295,6 +297,7 @@
 		D68163551E31D133ED32CA8F /* BrandColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */; };
 		D6D5B83162A906AE2930A473 /* WidgetStyleGalleryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD1F07D8DEC1CE423DF3CDD /* WidgetStyleGalleryPicker.swift */; };
 		D7CAC892DFB775932331FFBA /* GrokUsageSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFDB70D92C7145AFEEAF520 /* GrokUsageSource.swift */; };
+		DA291C84DE7EE92F924B1887 /* WidgetLoadingRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2672C9213F046079E9B235EF /* WidgetLoadingRecipes.swift */; };
 		DAF8C9B5E2CCBBEAA4547D02 /* PopoverHeaderStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */; };
 		DAFB4F586505C2785C8CE80A /* WidgetSnapshotProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */; };
 		DB2514373E5EB9C06D56A2D1 /* HalftoneVesselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1DD9B783BF0C5BF905D129C /* HalftoneVesselView.swift */; };
@@ -455,6 +458,7 @@
 		21DE6A53BF9F70EB068EA592 /* cursor-light.svg */ = {isa = PBXFileReference; path = "cursor-light.svg"; sourceTree = "<group>"; };
 		2581B169C4378C1874F324DF /* LoadingClockEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingClockEnvironment.swift; sourceTree = "<group>"; };
 		2631CDFB3EFB8C74AE76D013 /* MenuBarPillArrangerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPillArrangerTests.swift; sourceTree = "<group>"; };
+		2672C9213F046079E9B235EF /* WidgetLoadingRecipes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetLoadingRecipes.swift; sourceTree = "<group>"; };
 		271BAABD34D394E2014676BC /* ProviderStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderStyle.swift; sourceTree = "<group>"; };
 		2741A92799D95F6286BABBBA /* libHeadroomCore.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libHeadroomCore.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		27D4E775DFC514D0F36ED61E /* PlanCapsule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCapsule.swift; sourceTree = "<group>"; };
@@ -880,6 +884,7 @@
 				9D9ED968B51E2C69E6EB40F5 /* LoadingMotion.swift */,
 				E25CC17492F28F0E69876941 /* MirrorPresentation.swift */,
 				FA59F148939EB6AC45B4BD65 /* WidgetLayoutStyle.swift */,
+				2672C9213F046079E9B235EF /* WidgetLoadingRecipes.swift */,
 				9EC42D808487CA15143AB4C5 /* WidgetMetrics.swift */,
 				FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */,
 				099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */,
@@ -1529,6 +1534,7 @@
 				FA12FAB798F3E875BEF00193 /* UseItUpLedger.swift in Sources */,
 				BE725AD9CDAE659F6C69C52B /* UserRefreshRun.swift in Sources */,
 				B7B4BCBDAFCFC897ECCAACD9 /* WidgetLayoutStyle.swift in Sources */,
+				68E1808821DCB4FE160943F3 /* WidgetLoadingRecipes.swift in Sources */,
 				019741076E359239D592FBAA /* WidgetMetrics.swift in Sources */,
 				26694A6035B5631AA476C3B8 /* WidgetSnapshotCache.swift in Sources */,
 				60C26D7C155F96DDC45CA804 /* WidgetSnapshotExporter.swift in Sources */,
@@ -1587,6 +1593,7 @@
 				D3F3534EAFDA072660FF15DD /* UsageModels.swift in Sources */,
 				A7C4BE377B15415C81E20452 /* UsageSeverityColorValues.swift in Sources */,
 				A6C16B14124470F91F66F7DF /* WidgetLayoutStyle.swift in Sources */,
+				893C7A00AD4C0E41D5AF07D3 /* WidgetLoadingRecipes.swift in Sources */,
 				B2B64F43857F12A807F65162 /* WidgetMetrics.swift in Sources */,
 				E7C55EA508D810C1DBA2504E /* WidgetSnapshotCache.swift in Sources */,
 				EF347E65B94D120C55BFEB66 /* WidgetSnapshotExporter.swift in Sources */,
@@ -1756,6 +1763,7 @@
 				8AEE8745B4BEB1F7C43CA96B /* UsageSeverityColorValues.swift in Sources */,
 				079F32150EB353B7459F9A1E /* VesselMark.swift in Sources */,
 				0DB37291C4A766B66C8B5942 /* WidgetLayoutStyle.swift in Sources */,
+				DA291C84DE7EE92F924B1887 /* WidgetLoadingRecipes.swift in Sources */,
 				3175D9971AAD03AE5A6592B6 /* WidgetMetrics.swift in Sources */,
 				77917E6B75DF9DFD17899C30 /* WidgetSnapshotCache.swift in Sources */,
 				4BF249D4C7CEAE5DA58A40ED /* WidgetSnapshotExporter.swift in Sources */,

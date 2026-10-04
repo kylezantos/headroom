@@ -37,12 +37,17 @@ public struct LoadingTimeline<Content: View>: View {
         pinned || (!active && (until.map { $0 <= now } ?? true))
     }
 
+    nonisolated public static func frameDate(pinned: Date?, paused: Bool, now: Date, scheduled: Date) -> Date {
+        // KTD17: expiry renders the settled state even if a paused schedule retains its last tick.
+        pinned ?? (paused ? now : scheduled)
+    }
+
     public var body: some View {
         let now = pinnedDate ?? Date()
         let paused = Self.isPaused(active: active, until: until, now: now, pinned: pinnedDate != nil)
             || (!active && expired == until)
         TimelineView(.animation(minimumInterval: interval, paused: paused)) { context in
-            content(pinnedDate ?? context.date)
+            content(Self.frameDate(pinned: pinnedDate, paused: paused, now: now, scheduled: context.date))
         }
         .task(id: until) {
             expired = nil

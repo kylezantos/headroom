@@ -27,6 +27,11 @@ public struct WidgetStyleProviderRecipe: Sendable, Equatable, Identifiable {
     }
     /// A provider Headroom has not read yet (R11): no meter values, a waiting caption.
     public var isWaiting: Bool { summary.freshness == .pending && windows.isEmpty }
+    /// KTD15: a placeholder carries neutral decorative ink, never a usage value.
+    public var waitingPill: LoadingPillState? {
+        guard isWaiting else { return nil }
+        return LoadingPillState(id: "waiting-\(id)", level: LoadingMotionConstants.decorativeLevel, ink: .ghost)
+    }
     /// R6: whether this provider has any number to show.
     public var hasDisplayValue: Bool { windows.contains(where: \.hasDisplayValue) }
     /// WCM5-v: the provider's on-wire stale reason, trimmed — the line large prints beside the

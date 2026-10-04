@@ -257,6 +257,7 @@ struct ProviderCardView: View {
         providerCardSessionKey(SetupSessions.state(for: primaryAccount))
     }
     var body: some View {
+        let _ = BenchCounters.hit("ProviderCardView")
         Group {
             if let presentation = capabilityRecoveryPresentation(
                    state: capabilityStatus?.state,

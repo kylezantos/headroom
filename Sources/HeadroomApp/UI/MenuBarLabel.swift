@@ -70,6 +70,27 @@ struct MenuBarLabel: View {
     }
 }
 
+/// The real status item's label, reading the store from its own body (ML1, 2026-10-03 perf
+/// bench). `MenuBarExtra`'s label closure runs inside `App.body`, so reading the meters there
+/// made every probe start, probe end and merge re-run the whole scene — rebuilding the
+/// popover and re-rendering whichever Settings pane was open (~50–124ms at 20 accounts).
+struct MenuBarStatusLabel: View {
+    let store: UsageStore
+
+    var body: some View {
+        let _ = BenchCounters.hit("MenuBarStatusLabel")
+        MenuBarLabel(
+            meters: store.menuBarMeters,
+            showsPercentage: store.showMenuBarPercentage,
+            // L1A: only the real status item follows the live menu bar. The Settings
+            // specimens keep the default pinned-dark palette because they sit on a
+            // fixed dark plate.
+            appearance: .menuBar,
+            updatingProviders: store.menuBarUpdatingProviders
+        )
+    }
+}
+
 /// The live appearance of the menu bar itself (L1A).
 ///
 /// `MenuBarExtra` hands out no `NSStatusItem`, so there is no supported handle on the status

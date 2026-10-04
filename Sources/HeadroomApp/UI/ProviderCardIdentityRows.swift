@@ -526,6 +526,7 @@ struct AccountSectionView: View {
     private var account: ProviderAccount { entry.account }
 
     var body: some View {
+        let _ = BenchCounters.hit("AccountSectionView")
         // The session is read once per render and handed down. Every scope below wants the
         // same value, and the read stays here inside `body` so the `@Observable` coordinator
         // dependency is still registered.

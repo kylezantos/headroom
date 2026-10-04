@@ -762,3 +762,40 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   so no test catches a missing case (it renders the default style).
 - **The render harness does not pose the iPhone DEMO 14pt top inset**, so App Store screenshot
   mode could overflow small tiles while the sweep stays green.
+
+## Settings sidebar app icon drops its `<feMerge>` filter (2026-10-03)
+
+- `Sources/HeadroomApp/Resources/AppIcon/vessel-app-icon.svg` uses `<feMerge>`, which CoreSVG
+  does not support ("Filter primitive: <feMerge> is currently not supported", logged during the
+  popover/Settings perf bench). `AppIconGlyph` loads that SVG through `NSImage`, so the Settings
+  sidebar's identity mark renders without whatever that filter adds. Flatten the filter into the
+  paths or ship a pre-rendered PDF/PNG for the sidebar.
+
+## Popover & Settings snappiness residuals (2026-10-03 perf audit)
+
+The audit's fixes 1–6 land in #157 (feather animation scope, scroll chrome out of `PopoverView`'s
+body, `MenuBarStatusLabel`, Settings opening on its stored pane, batched Settings-open writes,
+the spend month label). Measured offscreen; numbers in the PR. How to measure, and the hot-spot
+checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
+
+- **Pane switches build in the click's frame, then blur in.** Into Appearance, Widgets,
+  Notifications or Accounts takes ~60–70ms (multi-5) before anything moves, ~259ms into Accounts
+  at 20 accounts; then `settingsPane`'s 200ms fade from a 3pt blur plays. Candidates: instant or
+  ≤120ms opacity-only for clicks (keyboard is already instant, KB1); a `LazyVStack` for the
+  account rows; the Appearance specimen builds its card twice (hidden twin) and passes
+  `now: Date()`, so it is never equal.
+- **Every card re-renders on any store change.** `ProviderCardView` gets fresh closures and `now`
+  each pass, so one account refresh re-runs all cards (after #157, ~240ms CPU per refresh at 20 accounts, ~140ms at 5;
+  ~360ms / ~150ms before it).
+  `PopoverView` also calls `appDisplaySnapshot` ~3× per account and builds `statusInput` twice.
+- **First open per launch (M9A arrival) pegs the main thread** ~740ms at 20 accounts after #157 (~890ms before; ~135ms at 5): each meter row makes three state writes in its `.task`.
+- **The duplicate-login scan reruns on every Claude capture** while Settings is open (its
+  fingerprint carries `capturedAt`), reads every `.claude.json` even with one Claude account, and
+  `Task.detached` ignores cancellation, so a 20-account refresh stacks ~20 overlapping scans.
+- **The saved-key presence check reads the secret.** `refreshSavedKeyPresence` calls
+  `CredentialStore.apiKey(for:)`, which returns key data; an attributes-only existence query
+  would do.
+- **`--render-popover`'s multi-account path never draws the spend card.** `renderMulti` builds its
+  store with `apiSpendProviders: []`, so `spend-states` / `spend-retained` captures show only the
+  provider cards, and the spend card (where the month-label formatter hot spot lived) is never
+  rendered or measured there.

@@ -36,6 +36,7 @@ struct MeterGauge: View {
     }
 
     var body: some View {
+        let _ = BenchCounters.hit("MeterGauge")
         Group {
             switch resolvedShape {
             case .chip:

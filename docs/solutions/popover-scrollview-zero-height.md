@@ -1,3 +1,21 @@
+---
+title: "Popover opened empty — ScrollView collapsed to zero height in MenuBarExtra(.window)"
+date: 2026-07-16
+last_updated: 2026-10-04
+category: ui
+module: HeadroomApp/PopoverView
+problem_type: ui_bug
+component: frontend
+symptoms:
+  - "The popover opened with only its header and footer and no provider cards"
+  - "The live window measured 384 x 127pt (header, footer and padding) instead of about 429pt"
+  - "The menu bar label was correct and live, so it looked like a store data bug"
+root_cause: wrong_api
+resolution_type: code_fix
+severity: high
+tags: [swiftui, scrollview, menubarextra, popover, self-sizing-window, layout]
+---
+
 # Popover opened empty — ScrollView collapsed to zero height in `MenuBarExtra(.window)`
 
 **Anchor:** `#popover-scroll-height` · **Date:** 2026-07-16 · **Area:** `PopoverView`
@@ -55,13 +73,18 @@ loop, and the height then tracks content (verified 370pt with a 3-window stack, 
 
 ## Why the tests and the harness both missed it
 
-**This is the part worth remembering.** `PopoverRenderHarness` rendered a *perfect* popover,
-cards and all — because `ImageRenderer` proposes a concrete size, so the ScrollView sizes
-fine there. The bug exists **only in a real window**. The 228-test suite covers logic, not
-layout, so it was green too.
+**This is the part worth remembering.** In July 2026 `PopoverRenderHarness` rendered a *perfect*
+popover, cards and all — because `ImageRenderer` proposes a concrete size, so the ScrollView sizes
+fine there. The bug existed **only in a real, self-sizing window**. The 228-test suite covers logic,
+not layout, so it was green too. (The harness has since moved to an `NSHostingView` in a parked
+window captured with `screencapture -l`, `Sources/HeadroomApp/PopoverRenderHarness.swift:248-300`,
+but it still captures one settled still after a delay: it shows final layout, not first-frame
+sizing.)
 
-Two green signals, one broken app. A layout regression in a self-sizing window is invisible to
-both an offscreen renderer and a unit test — the only reliable check is the live window:
+Two green signals, one broken app. A layout regression in a self-sizing window is invisible to an
+image renderer and to a unit test. The live window is the authoritative check, but driving it takes
+over the user's screen, so keep it for final acceptance and ask first (DESIGN.md › "Verifying a UI
+change"):
 
 ```bash
 osascript -e 'tell application "System Events" to tell process "Headroom" \
@@ -70,4 +93,19 @@ osascript -e 'tell application "System Events" to tell process "Headroom" \
   to get {position, size} of window 1'
 ```
 
-A popover measuring ~127pt tall is this bug; a healthy one tracks its content (≈370–640pt).
+A popover measuring about header-plus-footer height (127pt in July 2026) is this bug; a healthy
+one tracks its content (≈370–640pt).
+
+For a cheaper first signal that needs no screen, host `PopoverView` in an `NSHostingView` inside a
+parked window and read `fittingSize` after the first layout pass, as
+`docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md` describes.
+With the October 2026 header, the pre-layout answer (before `cardsHeight` is measured) is 124pt and
+the post-layout one tracks the cards. That check was not run against this exact regression.
+
+## Related
+
+- `docs/solutions/ui/popover-feather-animation-scope-grew-card-list.md` — because the popover is
+  rebuilt on every open, this measured frame starts at 0 each time; an implicit animation scope
+  around it animated that change into a grow-in on every open (fixed in #157).
+- `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md` — offscreen
+  measurement and the hot-spot checklist.

@@ -148,6 +148,8 @@ swift test                         # unit suite (fast, all mocked — no CLI/net
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick]  # headless widget-style renders + overflow sweep
 swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # live app with fixture data (screenshots, multi-account preview; multi-20 is the tested envelope)
+swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi20] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
+# Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```
 
@@ -215,6 +217,15 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   `BUGS.md` remain; Core recipe tests prove decisions, not SwiftUI rendering or window sizing. The
   harness does honour `--meter-style`, so `--render-popover <dir> --meter-style full.segmented.ghost`
   is the way to sanity-check the Settings swatches and specimen in a non-default style headlessly.
+
+- **Snappiness is measured, not eyeballed (Oct 2026).** A still render proves the settled layout,
+  not motion or re-render cost. Changes that add an animation, a scroll or geometry callback, a
+  timer, an `onAppear` correction, a per-row formatter, or a fast-changing store read in the
+  popover, Settings or the scene body should be checked with body counts and back-to-back
+  before/after runs (`--bench-ui`, see Commands; its `scene` section measures a stand-in for
+  `HeadroomApp.body`, so mirror scene-body changes into `BenchSceneStandIn` first). The method and the hot-spot checklist (implicit animation over a measured
+  container, per-frame `@State` in a big body, store reads in `App.body`/scene closures) are in
+  `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
 
 - **The Claude probe is print-first, PTY-fallback.** `ClaudeUsageCLIProbe` first runs
   `claude -p "/usage" --no-session-persistence` (non-interactive, ~2s, atomic report — no

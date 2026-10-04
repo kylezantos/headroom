@@ -216,6 +216,14 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   harness does honour `--meter-style`, so `--render-popover <dir> --meter-style full.segmented.ghost`
   is the way to sanity-check the Settings swatches and specimen in a non-default style headlessly.
 
+- **Snappiness is measured, not eyeballed (Oct 2026).** A still render proves the settled layout,
+  not motion or re-render cost. Changes that add an animation, a scroll or geometry callback, a
+  timer, an `onAppear` correction, a per-row formatter, or a fast-changing store read in the
+  popover, Settings or the scene body should be checked with body counts and back-to-back
+  before/after runs. The method and the hot-spot checklist (implicit animation over a measured
+  container, per-frame `@State` in a big body, store reads in `App.body`/scene closures) are in
+  `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
+
 - **The Claude probe is print-first, PTY-fallback.** `ClaudeUsageCLIProbe` first runs
   `claude -p "/usage" --no-session-persistence` (non-interactive, ~2s, atomic report — no
   TUI repaints to garble labels, no partial paint of the separately fetched model rows).

@@ -88,6 +88,9 @@ All paths are under `Sources/`.
   is a sanity check only, not final evidence (see `BUGS.md`).
 - Final check: `swift run Headroom --demo <scenario>` in the live popover, both light and
   dark appearances. Ask before driving the screen.
+- Motion and performance: a still proves layout, not what moved or what it cost. Check frames
+  and body counts offscreen, before and after, per
+  `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
 - Check both appearances, and Increase Contrast/Reduce Transparency (tiles fall back to
   solid + separator).
 - Design explorations and decisions: `design/*.html` (options docs) and `docs/plans/`

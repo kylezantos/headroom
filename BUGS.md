@@ -795,10 +795,6 @@ checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-s
 - **The saved-key presence check reads the secret.** `refreshSavedKeyPresence` calls
   `CredentialStore.apiKey(for:)`, which returns key data; an attributes-only existence query
   would do.
-- **The perf bench is not committed.** The audit's offscreen `--bench-ui` harness (body counters,
-  frame-by-frame probes, signposted Time Profiler runs) was throwaway; the solution doc above has
-  the recipe. Committing it needs a supported seam to select a Settings pane and a body counter
-  that compiles out of shipping builds.
 - **`--render-popover`'s multi-account path never draws the spend card.** `renderMulti` builds its
   store with `apiSpendProviders: []`, so `spend-states` / `spend-retained` captures show only the
   provider cards, and the spend card (where the month-label formatter hot spot lived) is never

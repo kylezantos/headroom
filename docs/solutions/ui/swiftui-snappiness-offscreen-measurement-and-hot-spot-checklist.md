@@ -53,216 +53,125 @@ The user does not allow agents to drive their desktop for measurement: no live c
 on-screen capture. So the audit
 measured offscreen. A static review (the swiftui-pro skill and a motion lens) produced hypotheses.
 A benchmark harness then hosted the real `PopoverView` and `SettingsView` offscreen and measured
-each one. That harness was throwaway. It lived in an uncommitted worktree and is not in the repo, so this
-doc records the recipe in enough detail to rebuild it, and recommends committing it (end of
-Guidance §1).
+each one. That harness is now the hidden `--bench-ui` diagnostic; Guidance §1 says how to run it
+and how it measures.
 
 ## Guidance
 
 ### 1. The measurement recipe
 
-**Entry point.** Add a hidden flag that `Entry.main()` dispatches next to `--render-widgets` and
-`--render-popover` (`Sources/HeadroomApp/HeadroomApp.swift:38-50`). The audit used
-`--bench-ui <section> [--scenario single|multi3|multi5|multi20] [--pane <SettingsPane>] [--runs n]
-[--tag name]`. Add the flag to `AppComposition.usesInertNotificationClient`
-(`HeadroomApp.swift:1172-1182`) so the run never reaches `UNUserNotificationCenter` (KTD9). Set
-`NSApp.setActivationPolicy(.accessory)`, run the scenarios in a `Task { @MainActor in …; exit(0) }`,
-then call `app.run()`.
+**Run it.** The harness is the hidden `--bench-ui` diagnostic
+(`Sources/HeadroomApp/UIBenchHarness.swift`), dispatched from `Entry.main()` next to
+`--render-popover` and listed in `AppComposition.usesInertNotificationClient` (KTD9). Build a
+release binary with the body counter compiled in, copy it under a unique name, and run one section
+per process, in the foreground, with a time limit (macOS has no `timeout`):
 
-**Park the window below the wallpaper. Never make it key, and never activate the app.** The level,
-collection behaviour and `orderFrontRegardless` are `PopoverRenderHarness`'s
-(`PopoverRenderHarness.swift:271-288`); the opacity lines are the bench's:
-
-```swift
-let window = NSWindow(contentRect: rect, styleMask: [.borderless], backing: .buffered, defer: false)
-window.isReleasedWhenClosed = false
-window.isOpaque = false
-window.backgroundColor = .clear
-// On screen as far as the window server knows, but below the wallpaper, so nobody sees it.
-window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
-window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
-window.orderFrontRegardless()   // no makeKey, no NSApp.activate
+```bash
+swift build -c release -Xswiftc -DHEADROOM_BENCH
+cp .build/release/Headroom .build/release/HRBenchUI
+perl -e 'alarm 900; exec @ARGV' .build/release/HRBenchUI --bench-ui popover --scenario multi5 --runs 12 \
+  --json bench/popover-multi5.json > bench/popover-multi5.stdout 2>&1
 ```
 
-Settings used a titled window (`[.titled, .closable, .resizable, .fullSizeContentView]` with a
-transparent title bar) at `SettingsView.windowWidth` × `windowHeight`, parked the same way.
+| Section | What it measures |
+| --- | --- |
+| `popover` | One open per run, timed phase by phase (build, fit, window, layout, display, flush, re-fit, resize), then 600ms of driven frames: post-open CPU, bodies, and frames that re-ran the popover root. Then one untimed open printed frame by frame: `fittingSize`, scroll viewport, geometry reports, bodies. |
+| `scroll` | Ten 60pt steps through the card list per sweep (`--runs` sweeps): CPU and bodies per step, then the indicator's hide. |
+| `settings` | Settings opened on each stored pane in turn (or `--pane`): wall time, CPU, bodies, and whether General was built (LP1). |
+| `switch` | Instant switches over every ordered pair of panes (`--runs` passes), then each pane from General and back, animated. |
+| `counts` | Bodies and CPU per interaction: Settings opening, a change only the menu bar reads, refreshes with changed and unchanged data, saved-key presence, and the popover's first-open arrival, refreshes and idle. |
+| `scene` | ML1's stand-in for `HeadroomApp.body` against a direct Settings host. |
+| `all` | All of the above in one process, for a trace. |
 
-**Time one open, phase by phase.** Model an assumed version of what `MenuBarExtra(.window)`
-does: ask the content for its size, make the window, lay out, draw, and commit.
+`--scenario` picks the store fixture (`multi5` by default, `multi20` for `scroll` and `scene`).
+Stdout is a human-readable table; `--json` also writes cold, warm median and p90, CPU and body
+counts per scenario, so two builds can be diffed. Run 0 in each process is the cold open.
 
-```swift
-let clock = ContinuousClock()
-func cpuNow() -> UInt64 { clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID) }  // CPU time of this thread only
+**The body counter compiles out of shipping builds.** `BenchCounters`
+(`Sources/HeadroomApp/BenchCounters.swift`) is live only under `-DHEADROOM_BENCH`. Without the
+flag, `hit` and `mark` are inlined no-ops, so the `let _ = BenchCounters.hit("Name")` line at the
+top of each instrumented body costs nothing. Timings still run, body counts print as unavailable,
+and `switch` can't run, because the pane seam is compiled out too. The instrumented bodies are the
+ones this checklist relies on: the popover root and its `TimelineView` closure, the cards, account
+sections, meter rows and gauges, the scroll chrome, the spend card, `MenuBarStatusLabel`, and the
+Settings root, sidebar, scaffold, each pane, the specimen and `ClaudeDuplicateLoginScan`. Add a
+line when a new view joins that list. `PopoverView` also marks each `onScrollGeometryChange`
+report and `cardsHeight` write; that marker is the frame-by-frame viewport readout that exposed
+FA1's grow.
 
-let cpu0 = cpuNow(); let t0 = clock.now
-let hosting = NSHostingView(rootView: PopoverView(store: store, onOpenSettings: {}))
-let fit0 = hosting.fittingSize        // before any window: 124pt here, because cardsHeight starts at 0
-hosting.frame = NSRect(origin: .zero, size: fit0)
-let window = makeParkedWindow(hosting.frame)
-window.contentView = hosting
-window.orderFrontRegardless()
-hosting.layoutSubtreeIfNeeded()
-window.displayIfNeeded()
-CATransaction.flush()
-let fit1 = hosting.fittingSize        // after the first layout
-if fit1 != fit0 {                     // the "resize pass"
-    window.setContentSize(fit1)
-    hosting.frame = NSRect(origin: .zero, size: fit1)
-    hosting.layoutSubtreeIfNeeded(); window.displayIfNeeded(); CATransaction.flush()
-}
-let syncWall = clock.now - t0
-let syncCPU = cpuNow() - cpu0
-```
+**How it hosts.** Every window is parked the way `PopoverRenderHarness` parks its windows: on
+screen for the window server but below the wallpaper, never key, with the app never activated
+(`makeWindow`). A popover open models an assumed version of what `MenuBarExtra(.window)` does: ask
+the content for its size (124pt before any layout, because `cardsHeight` starts at 0), make the
+window, lay out, draw, flush, ask again, and resize once if the answer changed. `clock.now` is read
+between every step and `CLOCK_THREAD_CPUTIME_ID` around the whole, so each phase gets its own
+wall time and the open gets main-thread CPU.
 
-Read `clock.now` between every step, so each phase gets its own number (build, fit, window,
-layout, display, flush, re-fit, resize).
+**It drives frames itself.** The parked window is occluded and nothing drove its display cycle:
+animations and post-open geometry updates rendered only when the bench ran a pass (observed, not a
+documented AppKit guarantee). So it runs 60Hz passes that do work only when something is dirty
+(`Host.framePass`), the way AppKit treats a visible window. Walking a clean 20-account tree on every
+frame would add about 4ms of harness-only cost. Steps that wait until quiet (Settings opening, a
+pane switch) loop a 1ms sleep plus a full render pass until a turn runs no view bodies.
 
-**Drive frames yourself after the open.** In this bench the parked window was occluded and nothing drove
-its display cycle: animations and post-open geometry updates rendered only when the bench ran a pass
-(observed, not a documented AppKit guarantee). Drive 60Hz passes that do work only when something is
-dirty, the way AppKit treats a visible window:
+**Every scenario is signposted** (subsystem `co.zantos.headroom.bench`, `.pointsOfInterest`), with
+the scenario, pane or switch in the label, so a Time Profiler trace can be sliced by scenario.
 
-```swift
-func framePass(_ hosting: NSView, _ window: NSWindow) {
-    if hosting.needsLayout || window.viewsNeedDisplay || hosting.needsDisplay {
-        hosting.layoutSubtreeIfNeeded()
-        window.displayIfNeeded()
-    }
-    CATransaction.flush()
-}
-
-// 600ms covers the 350ms arrival beat and the start of its spring (run 0 only; later runs find
-// rows already landed), plus any implicit animation the open starts.
-let start = clock.now
-while clock.now - start < .milliseconds(600) {
-    try? await Task.sleep(for: .milliseconds(16))
-    framePass(hosting, window)
-}
-```
-
-The dirty check matters: walking a clean 20-account tree on every frame cost about 4ms of harness
-overhead (the bench author's measurement). For "wait until quiet" steps (Settings opening, a pane switch), loop a 1ms sleep plus a
-full render pass until a turn runs no view bodies.
-
-**Count bodies.** Add a counter, plus one line at the top of each view body you care about. The
-audit instrumented about 55 bodies.
-
-```swift
-@MainActor enum BenchCounters {
-    static var enabled = false
-    static var recordSequence = false
-    static var counts: [String: Int] = [:]
-    static var sequence: [String] = []
-    static var total = 0
-    static func hit(_ name: String) {
-        guard enabled else { return }
-        total += 1
-        counts[name, default: 0] += 1
-        if recordSequence { sequence.append(name) }
-    }
-    static func mark(_ note: String) { if enabled && recordSequence { sequence.append("·" + note) } }
-    static func reset() { counts = [:]; sequence = []; total = 0 }   // before every scenario
-}
-
-var body: some View {
-    let _ = BenchCounters.hit("ProviderCardView")
-    // …
-}
-```
-
-Optionally record an ordered sequence plus markers that aren't bodies, such as
-`BenchCounters.mark("scrollMetrics(viewport=\(metrics.viewport))")` inside the
-`onScrollGeometryChange` action, or `mark("cardsHeight=\(height)")` in `onGeometryChange`. Printing
-those markers after every 16ms frame is the frame-by-frame viewport readout that exposed FA1's grow.
-
-**Signpost every scenario** so the Time Profiler trace can be sliced by scenario later:
-
-```swift
-let signposter = OSSignposter(
-    logHandle: OSLog(subsystem: "co.zantos.headroom.bench", category: .pointsOfInterest)
-)
-let state = signposter.beginInterval("popover-open", id: signposter.makeSignpostID(), "\(label)")
-// … measure …
-signposter.endInterval("popover-open", state)
-```
-
-The `.pointsOfInterest` category is what the Points of Interest instrument in the Time Profiler
-template records.
+**Seams.** Settings' pane selection is private `@State`, so `HEADROOM_BENCH` builds compile in a
+`BenchSettingsSeam` notification that `SettingsView` applies the way a sidebar click does
+(`paneSwitchIsInstant`, then `sidebarSelection`). LP1's first selection still comes from
+`loadPreferences`. `App.body` can't be hosted in a view, so `BenchSceneStandIn` builds the label and
+Settings the way `HeadroomApp.body` does today. If the scene body changes shape, change the
+stand-in to match.
 
 **Fixtures and hygiene.**
 
-- Build the store from `DemoFixture`: the single-account snapshots,
-  `multiFixture(for: .multiThree)` and `(for: .multiFive)`, and the `multi-20` account list from
-  `generatedAccounts(provider:count:)` without its simulated 4-second probes, so `refreshAll()`
-  lands every row before timing starts. Give `SettingsView` a `DemoAPIKeyStore` and
+- Stores come from `DemoFixture`: the single-account snapshots, `multiFixture(for: .multiThree)`
+  and `(for: .multiFive)`, and the `multi-20` account list without its simulated 4-second probes, so
+  `refreshAll()` lands every row before timing starts. Settings gets in-memory key stores and
   `ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil })`, so the bench never touches the
   Keychain or the user's `.claude.json`.
-- Give every run fresh `UserDefaults` suites (`co.zantos.headroom.bench.<UUID>` for `Preferences`
-  and `co.zantos.headroom.bench.accounts.<UUID>` for the `AccountRegistry`), and call `removePersistentDomain(forName:)` on each before exit.
-  That empties the domains, but the plist files stayed in `~/Library/Preferences` (eleven were still
-  there after the audit). Delete `co.zantos.headroom.bench.*.plist` after a session.
-- Measure release builds only: `swift build -c release --product Headroom`. A debug build runs
-  unoptimized generic SwiftUI code and distorts every number.
-- Copy the binary under a new name next to the original in `.build/release/`. The audit used
-  `HRBenchUI`, then `Headroom-before` and `Headroom-after`. A unique name keeps the trace, `ps`, and
-  Instruments' per-binary attribution unambiguous when `/Applications/Headroom.app` is installed and
-  running. The frozen copies also let you re-run the old build after the tree has moved on.
-- Run one process per invocation, one at a time, in the foreground, with output to a file and a time
-  limit (macOS has no `timeout`):
-  `perl -e 'alarm 900; exec @ARGV' .build/release/HRBenchUI --bench-ui popover --scenario multi5 --runs 12 --tag suite/popover-multi5 > suite/popover-multi5.stdout 2>&1`.
-  Run 0 in each process is the cold open. Extra `--runs 0` processes give more cold samples.
+- Every run gets fresh `UserDefaults` suites (`co.zantos.headroom.bench.<UUID>` and
+  `co.zantos.headroom.bench.accounts.<UUID>`) and deletes them before exit, plist included.
+  `removePersistentDomain(forName:)` alone left the files behind (eleven after the audit). Deleting
+  the file straight away doesn't work either: cfprefsd writes the emptied domain about 10 seconds
+  later, or when the process exits, and re-creates it. So the harness runs a read-only
+  `defaults read <suite>` first, which makes cfprefsd write immediately, and then deletes the file.
+- Measure release builds only. A debug build runs unoptimized generic SwiftUI code and distorts
+  every number.
+- The unique binary name (`HRBenchUI` above, or `Headroom-before` and `Headroom-after`) keeps the
+  trace, `ps`, and Instruments' per-binary attribution unambiguous when `/Applications/Headroom.app`
+  is installed and running. Frozen copies also let you re-run the old build after the tree has moved
+  on. `--bench-ui` is dispatched before the single-instance check, so it runs beside the real app.
 
 **Time Profiler, sliced by signposts.**
 
 ```bash
-xcrun xctrace record --template 'Time Profiler' --output headroom-bench.trace \
-  --launch -- .build/release/HRBenchUI --bench-ui all --runs 8 --tag trace-all
-xcrun xctrace export --input headroom-bench.trace --toc > trace-toc.xml
-xcrun xctrace export --input headroom-bench.trace \
-  --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' > time-profile.xml
-xcrun xctrace export --input headroom-bench.trace \
-  --xpath '/trace-toc/run[@number="1"]/data/table[@schema="OSSignpostIntervals"]' > signposts.xml
+xcrun xctrace record --template 'Time Profiler' --instrument 'Points of Interest' \
+  --output bench.trace --launch -- .build/release/HRBenchUI --bench-ui all --runs 8
+Scripts/bench-trace-summary.py bench.trace
 ```
 
-Then join the two exports with a short script (Python's `xml.etree.ElementTree.iterparse` works):
+The script exports the trace's time-profile and signpost tables into `bench.trace.export/`. It keeps
+main-thread samples, assigns each to the bench interval that contains it, and prints, per scenario,
+the share of samples under known cost buckets (layout `sizeThatFits`, CoreText and text layout,
+`DateFormatter`/`udat_`, accessibility, AppKit controls and CoreUI, glass and material, geometry
+actions) and the nearest frame from the app's own binary. That second view is how
+`APISpendPeriod.displayLabel` surfaced. A full-suite trace exports to about 170MB of XML, so the
+parsed samples are cached next to the export.
 
-- **Resolve the export's references.** Each value appears in full once with `id="N"`, and every
-  later row points back to it with `ref="N"`. Keep an id-to-value map for every element kind
-  (frames, binaries, backtraces, threads, weights, sample times), or most rows come out empty.
-- **Keep main-thread samples only** (the thread's `fmt` starts with `Main Thread`). Each sample
-  weighed 1ms in this trace.
-- **Assign samples to intervals.** Sample times and signpost start times share one clock
-  (nanoseconds from trace start). Sort the intervals by start and binary-search each sample into the
-  interval that contains it. The interval's start message (the label) splits the work by scenario,
-  pane, or switch target.
-- **Bucket within each interval** by frame-name pattern (layout `sizeThatFits`, CoreText and text
-  layout, `DateFormatter`/`udat_`, accessibility, AppKit controls and CoreUI, glass and material,
-  geometry actions), and by the nearest frame from your own binary. That second view is how
-  `APISpendPeriod.displayLabel` surfaced.
-- The 124-second full-suite trace exported to about 170MB of XML. Cache the parsed samples (a
-  pickle) before you start iterating on queries.
-
-**Seams the bench needed.** Settings' pane selection is private `@State`, so the audit installed a
-temporary closure from `SettingsView.onAppear` that set `paneSwitchIsInstant` and `sidebarSelection`
-directly. `App.body` can't be hosted in a view, so ML1's numbers came from a stand-in view whose
-body did what the scene body does (see that doc). Both seams were throwaway.
-
-**Caveats.** Everything was offscreen; the real `MenuBarExtra` and `Window` scenes were never
-driven. 120Hz, GPU and Liquid Glass compositing were not measured, and thread CPU time counts only
-the app's main thread, not WindowServer. The machine had Xcode 27 / Swift 6.4 (AGENTS.md names
+**Caveats.** Everything is offscreen; the real `MenuBarExtra` and `Window` scenes are never driven.
+120Hz, GPU and Liquid Glass compositing are not measured, and thread CPU time counts only the
+app's main thread, not WindowServer. The audit's machine had Xcode 27 / Swift 6.4 (AGENTS.md names
 26.6 / 6.3.3) on macOS 26.6.2, so the SwiftUI runtime was the OS's.
-
-**Open follow-up: commit the bench.** Promote this to a committed hidden `--bench-ui` diagnostic,
-like `--render-popover`. It needs a supported seam for selecting a Settings pane, and an opt-in body
-counter that compiles to nothing in shipping builds. Not done as of #157; tracked in `BUGS.md` under the snappiness residuals.
 
 ### 2. What to measure
 
 - **Cold and warm, separately.** Run 0 in a fresh process pays first-use costs (type metadata,
   fonts, images). In the baseline suite the single-account popover's synchronous open took 101ms
   cold against 38ms warm, and 397ms against 308ms at 20 accounts. Prime what the real app would
-  already have drawn: the bench rendered `MenuBarLabel` first, because the status item renders at
-  launch, and opened the popover before timing Settings, because Settings opens from the popover.
+  already have drawn: the bench renders `MenuBarStatusLabel` first, because the status item renders
+  at launch, and opens the popover before timing Settings, because Settings opens from the popover.
   Compare warm medians of 12 runs, and report cold on its own.
 - **Body counts for each interaction:** the open, one scroll step, a pane switch, one account
   refresh, a change only the menu bar reads, and idle. Each has an expected count, and for the
@@ -537,15 +446,13 @@ seeded there can be stale when the window reopens (see "The flip side" in the ML
   - Every `ProviderCardView` re-renders on any store change (after #157, ~240ms CPU per refresh at 20 accounts,
     ~140ms at 5),
     and `PopoverView` calls `appDisplaySnapshot` about 3× per account.
+  - The popover may open collapsed: it reports 124pt before its first layout, and whether
+    `MenuBarExtra` sizes the window from that is unmeasured.
   - The first open per launch (the M9A arrival) pegs the main thread for ~740ms at 20 accounts
     after #157:
     three state writes per meter row.
   - The duplicate-login scan reruns on every Claude capture while Settings is open, and overlapping
     detached scans can stack.
   - The saved-key presence check reads the secret, where an attributes-only query would do.
-  - Committing `--bench-ui` (Guidance §1), and `--render-popover`'s multi-account path never drawing
-    the spend card.
-- Also open: a macOS 15 (Sequoia) runtime check. The Tahoe live check is done: on 2026-10-04 the
-  `--demo multi-5` popover's `MenuBarExtra` window first appeared at its final 384×764pt and never
-  resized (sampled with `CGWindowListCopyWindowInfo` every ~1.5ms), and the same window was reused
-  on reopen. So `MenuBarExtra` sizes after the first layout, not from the 124pt pre-layout answer.
+  - `--render-popover`'s multi-account path never draws the spend card.
+- Also open: the live checks #157 lists (the popover opening on Tahoe, and a Sequoia runtime).

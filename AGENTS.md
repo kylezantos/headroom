@@ -148,6 +148,8 @@ swift test                         # unit suite (fast, all mocked — no CLI/net
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick]  # headless widget-style renders + overflow sweep
 swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # live app with fixture data (screenshots, multi-account preview; multi-20 is the tested envelope)
+swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi20] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
+# Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```
 

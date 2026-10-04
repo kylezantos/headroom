@@ -42,6 +42,7 @@ struct APISpendSectionView: View {
     private static let topUpGlyphSize: CGFloat = 13
 
     var body: some View {
+        let _ = BenchCounters.hit("APISpendSectionView")
         let models = rowModels()
         if !models.isEmpty {
             // Measured once per pass, not once per row: every row reads it (2026-10-03 perf bench).

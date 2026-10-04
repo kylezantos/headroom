@@ -78,6 +78,7 @@ struct MenuBarStatusLabel: View {
     let store: UsageStore
 
     var body: some View {
+        let _ = BenchCounters.hit("MenuBarStatusLabel")
         MenuBarLabel(
             meters: store.menuBarMeters,
             showsPercentage: store.showMenuBarPercentage,

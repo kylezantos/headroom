@@ -145,6 +145,7 @@ struct NotificationsSettingsPane: View {
     }
 
     var body: some View {
+        let _ = BenchCounters.hit("NotificationsSettingsPane")
         let presentation = presentation
         SettingsPaneScaffold(SettingsPane.notifications.label) {
             if presentation.showsPermissionNotice {

@@ -41,7 +41,9 @@ struct PopoverView: View {
     private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
     var body: some View {
+        let _ = BenchCounters.hit("PopoverView")
         TimelineView(.periodic(from: .now, by: 60)) { context in
+            let _ = BenchCounters.hit("PopoverView.timeline")
             let accountsByVisibleProvider = store.providerOrder.reduce(
                 into: [ProviderID: [ProviderAccount]]()
             ) { accounts, providerID in
@@ -156,7 +158,10 @@ struct PopoverView: View {
                     // Scroll content is laid out at its ideal height regardless of the
                     // ScrollView's own frame, so this reports the true stack height even
                     // on the first pass while the frame below is still zero.
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardsHeight = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        BenchCounters.mark("cardsHeight=\($0)")
+                        cardsHeight = $0
+                    }
                 }
                 // L2A: the stock overlay scroller sat on the card border and painted a
                 // near-black well over the card interior when it expanded. We hide it and
@@ -181,6 +186,7 @@ struct PopoverView: View {
                         content: geometry.contentSize.height
                     )
                 } action: { _, metrics in
+                    BenchCounters.mark("scrollMetrics(viewport=\(metrics.viewport),content=\(metrics.content))")
                     scroll.update(metrics)
                 }
                 // FA1: the feather animates its own opacity only (see `PopoverScrollFeather`).
@@ -879,6 +885,7 @@ private struct PopoverScrollFeather: View {
     ]
 
     var body: some View {
+        let _ = BenchCounters.hit("PopoverScrollFeather")
         let fadesOut = model.continuesBelow
         VStack(spacing: 0) {
             Rectangle().fill(.black)
@@ -908,6 +915,7 @@ private struct PopoverScrollIndicator: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        let _ = BenchCounters.hit("PopoverScrollIndicator")
         if model.metrics.overflows {
             Capsule()
                 .fill(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.30))

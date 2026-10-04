@@ -117,6 +117,7 @@ struct SettingsView: View {
     var frameHeightOverride: CGFloat? = nil
 
     var body: some View {
+        let _ = BenchCounters.hit("SettingsView")
         NavigationSplitView {
             SettingsSidebar(selection: sidebarBinding)
                 // KTD1: the removal must sit on the sidebar column's content — applied to
@@ -158,6 +159,16 @@ struct SettingsView: View {
             idealHeight: frameHeightOverride ?? Self.windowHeight
         )
         .onAppear { loadPreferences() }
+        #if HEADROOM_BENCH
+        // `--bench-ui`'s pane seam: the same two writes a sidebar click makes, in one update
+        // (KB1). Compiled only into bench builds; LP1's first selection still comes from
+        // `loadPreferences`.
+        .onReceive(NotificationCenter.default.publisher(for: BenchSettingsSeam.selectPane)) { note in
+            guard let request = note.object as? BenchSettingsSeam.Request else { return }
+            paneSwitchIsInstant = request.instant
+            sidebarSelection = request.pane
+        }
+        #endif
         // R18: re-check permission every time Settings opens, and again whenever Headroom
         // comes back to the front — the way back from "Open System Settings…".
         .task { await refreshNotificationAuthorization() }
@@ -541,6 +552,7 @@ private struct ClaudeDuplicateLoginScan: View {
     @Binding var labels: [AccountKey: String]
 
     var body: some View {
+        let _ = BenchCounters.hit("ClaudeDuplicateLoginScan")
         Color.clear
             .accessibilityHidden(true)
             .task(id: fingerprint) {

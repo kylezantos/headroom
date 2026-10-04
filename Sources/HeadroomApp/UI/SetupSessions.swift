@@ -225,7 +225,7 @@ enum SetupSessions {
             accountExists: { key in
                 store.accounts(for: key.providerID).contains(where: { $0.key == key })
             },
-            requestRefresh: { key in store.refreshAccountNow(key) },
+            requestRefresh: { key in store.refreshAccountNow(key, origin: .setupCheck) },
             resetBoundary: { key in store.invalidateUsageForAccountReset(key) },
             // KTD9 (2026-09-19 sign-in plan): a check already in flight when Terminal
             // exits must not settle the verification that follows it.

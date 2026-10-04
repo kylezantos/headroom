@@ -223,6 +223,7 @@ struct ProviderCardView: View {
     let anyProviderMultiAccount: Bool
     let now: Date
     let onRetrySetup: () -> Void
+    var onRetryProvider: (() -> Void)? = nil
     /// Retry scoped to one account — the multi-account rows use this so watching one
     /// sign-in doesn't re-probe the whole fleet. Defaults to the whole-card retry.
     var onRetryAccount: ((ProviderAccount) -> Void)? = nil
@@ -346,12 +347,12 @@ struct ProviderCardView: View {
                         performRecovery(
                             presentation.recovery.primaryAction,
                             for: primaryAccount,
-                            onRetry: onRetrySetup
+                            onRetry: onRetryProvider ?? onRetrySetup
                         )
                     },
                     onSecondaryAction: presentation.recovery.secondaryAction.map { action in
                         {
-                            performRecovery(action, for: primaryAccount, onRetry: onRetrySetup)
+                            performRecovery(action, for: primaryAccount, onRetry: onRetryProvider ?? onRetrySetup)
                         }
                     }
                 )

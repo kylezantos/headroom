@@ -116,7 +116,10 @@ struct PopoverView: View {
                                     meterStyle: store.meterStyle,
                                     anyProviderMultiAccount: anyProviderMultiAccount,
                                     now: context.date,
-                                    onRetrySetup: { store.refreshNow() },
+                                    onRetrySetup: {
+                                        if let account = store.primaryAccount(for: id) { store.refreshAccountNow(account.key) }
+                                    },
+                                    onRetryProvider: { store.refreshProviderNow(id) },
                                     onRetryAccount: { store.refreshAccountNow($0.key) },
                                     claimBankedResetReveal: { store.claimBankedResetReveal(for: $0, currentCount: $1) }
                                 )

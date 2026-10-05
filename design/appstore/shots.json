@@ -1,0 +1,464 @@
+{
+  "schema": 1,
+  "signoff": "pending Kyle",
+  "status": "DRAFT frame table (U18). Captions are copied verbatim from the approved copy work; every headline and eyebrow is still a recommended draft awaiting Kyle. No frame here is App Store-ready.",
+  "sources": {
+    "copy": "perth-v1 docs/release/appstore-1.5-copy.md (Screenshot storyboard and frame manifest; Choices awaiting Kyle)",
+    "storyboard": "perth-v1 design/appstore/1.5-graphite-storyboard.html (embedded storyboard-data manifest; geometry reproduced in compositor.html)",
+    "plan": "docs/plans/2026-10-04-0923-feat-ios-parity-round-plan.md (R31, R38, KTD21, U18)",
+    "research": "docs/plans/2026-10-04-ios-parity-research/appstore.md (Direction A Graphite, section 6)"
+  },
+  "captionStatusLegend": {
+    "settled": "Kyle approved this exact string.",
+    "recommended draft, awaiting Kyle": "Recommended in the copy doc; Kyle has not chosen it (copy doc: 'Eyebrows — Sentence-case readouts' and 'Headlines and order — Recommended sequence', both under Choices awaiting Kyle)."
+  },
+  "eyebrowStyle": {
+    "value": "readout",
+    "status": "recommended draft, awaiting Kyle",
+    "alternatives": ["topic", "none"]
+  },
+  "devices": {
+    "iphone69": {
+      "label": "iPhone 6.9-inch",
+      "width": 1320,
+      "height": 2868,
+      "simulatorName": "AppStore iPhone 17 Pro Max",
+      "simulatorDeviceType": "com.apple.CoreSimulator.SimDeviceType.iPhone-17-Pro-Max"
+    },
+    "ipad13": {
+      "label": "iPad 13-inch",
+      "width": 2064,
+      "height": 2752,
+      "simulatorName": "AppStore iPad Pro 13",
+      "simulatorDeviceType": "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB"
+    }
+  },
+  "conditionalSwaps": [
+    { "when": "U6 spike + U9 acceptance (remote check)", "action": "X-check replaces I9" },
+    { "when": "U15 spike + U16 acceptance (phone reminders)", "action": "X-reminders replaces I10" },
+    { "when": "U17 acceptance (Lock Screen widgets)", "action": "X-lock inserts at iPhone slot 6; I6 and I7 become 7 and 8; I8 moves to reserve" },
+    { "when": "Meter-style copy or capture cannot ship, after U14 acceptance", "action": "X-siri replaces I8" }
+  ],
+  "frames": [
+    {
+      "id": "I1",
+      "number": 1,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Claude · 5-hour · 72% left",
+      "headline": "Room left on four AI plans",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U21",
+      "composition": "Dark app capture. Four provider cards; 72% Claude session, 38% weekly, 61% Fable.",
+      "captureNotes": [
+        "U7 fixtures unify Fable at 54% left (CompanionDemoData.fableUtilization = 46 used); the storyboard composition says 61%. The capture will show 54% unless the fixture or the composition changes."
+      ],
+      "output": "iphone69-01-room-left-on-four-ai-plans-dark.png"
+    },
+    {
+      "id": "I2",
+      "number": 2,
+      "device": "iphone69",
+      "kind": "widgets",
+      "appearance": "dark",
+      "eyebrow": "Nested Meter · large",
+      "headline": "The same numbers, as widgets",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "widgets",
+      "widgetWall": "home",
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U18, U21",
+      "composition": "Home Screen composition: Nested Meter large (Claude/Codex), Vessel Hero smalls (Grok/Cursor). Primary accounts only.",
+      "captureNotes": [
+        "Widgets have no per-widget provider choice: every placed widget reads the same main-account projection and shows the Mac's widget selection (at most two providers). Vessel Hero smalls for Grok and Cursor beside a Claude/Codex Nested Meter is not a state a real Home Screen can reach. The wall renders what real widgets would show from the fourProviders variant (Nested Meter large plus Vessel Hero and Tightest First smalls) until Kyle picks an honest composition."
+      ],
+      "output": "iphone69-02-the-same-numbers-as-widgets-dark.png"
+    },
+    {
+      "id": "I3",
+      "number": 3,
+      "device": "iphone69",
+      "kind": "mac",
+      "appearance": "dark",
+      "eyebrow": "From your Mac · 2 min ago",
+      "headline": "Your Mac does the reading",
+      "foot": "Requires Headroom for Mac",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U18, U21; Mac capture gate",
+      "composition": "Mac menu-bar strip and popover behind phone capture. Match readings: Claude weekly 38%, Codex weekly 64%.",
+      "macCapture": null,
+      "captureNotes": [
+        "TODO: Mac imagery needs `swift run Headroom --render-popover <dir>` for the multi-4 scenario, which today renders a plain two-provider popover (BUGS.md: 'The harness's multi-account path renders neither Grok/Cursor nor the spend card'), or one live --demo multi-4 capture Kyle explicitly approves. The capture script skips this frame until macCapture points at an approved PNG."
+      ],
+      "output": "iphone69-03-your-mac-does-the-reading-dark.png"
+    },
+    {
+      "id": "I4",
+      "number": 4,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Claude · Personal, Work, Studio",
+      "headline": "Each account gets its own rows",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "multi-account",
+      "variant": "multiAccount",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U4, U8, U21",
+      "composition": "Claude Personal/Work/Studio and Codex Personal/Work stacked by provider. Main accounts first.",
+      "captureNotes": [],
+      "output": "iphone69-04-each-account-gets-its-own-rows-dark.png"
+    },
+    {
+      "id": "I5",
+      "number": 5,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "API spend · current period",
+      "headline": "API spend next to plan usage",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "spend",
+      "variant": "multiAccount",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U21",
+      "composition": "Show Anthropic, OpenAI and xAI spend below plans, with period chips. No dollar amounts in captions.",
+      "captureNotes": [
+        "No U7 variant is spend-first, and none carries xAI spend (multiAccount and fourProviders publish Anthropic and OpenAI only). The spend rows sit below five accounts, so the usage screen's opening position may not show them. Needs a spend-first variant or a scroll anchor from U8/U21, and an xAI spend fixture if the composition keeps xAI."
+      ],
+      "output": "iphone69-05-api-spend-next-to-plan-usage-dark.png"
+    },
+    {
+      "id": "I6",
+      "number": 6,
+      "device": "iphone69",
+      "kind": "widgets",
+      "appearance": "dark",
+      "eyebrow": "4 styles · set in Edit Widget",
+      "headline": "A different style per widget",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "widget-styles",
+      "variant": "fourProviders",
+      "screen": "widgets",
+      "widgetWall": "styles",
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U18, U21",
+      "composition": "Four widget styles: Nested Meter, Vessel Hero, Tightest First, Liquid Level. Use actual iOS widgets.",
+      "captureNotes": [
+        "The wall draws the shared widget views at iOS widget point sizes inside the app; it is not SpringBoard. Draft layout: Nested Meter medium, Vessel Hero and Tightest First smalls, Liquid Level medium."
+      ],
+      "output": "iphone69-06-a-different-style-per-widget-dark.png"
+    },
+    {
+      "id": "I7",
+      "number": 7,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Work · weekly · 12% left",
+      "headline": "Turns red at 15% left",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "multi-account-critical",
+      "variant": "multiAccount",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U18, U21",
+      "composition": "Red 12% weekly numeral in Claude Work. Pair with Tightest First widget using the same main-account reading.",
+      "captureNotes": [
+        "multiAccount already poses Claude Work weekly at 12% left (88 used). Claude Personal is main in every variant, so a Tightest First widget would show Personal, not Work: the widget pairing needs a fixture with Work as main (copy doc: do not pretend widgets aggregate accounts)."
+      ],
+      "output": "iphone69-07-turns-red-at-15-left-dark.png"
+    },
+    {
+      "id": "I8",
+      "number": 8,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Meter style · same as Mac",
+      "headline": "Your meter style carries over",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "display-choices",
+      "variant": "displayChoices",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U12, U21",
+      "composition": "Four actual card captures: micro.chip.event, full.segmented.ghost, micro.tube.hue, full.machined.event.",
+      "captureNotes": [
+        "displayChoices poses one style (full.segmented.ghost). Four styles in one frame needs four captures composed side by side, or a phone --meter-style launch argument; neither exists yet."
+      ],
+      "output": "iphone69-08-your-meter-style-carries-over-dark.png"
+    },
+    {
+      "id": "I9",
+      "number": 9,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "light",
+      "eyebrow": "Claude · 5-hour · 72% left",
+      "headline": "Room left before each reset",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers-light",
+      "variant": "fourProviders",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U21",
+      "composition": "Light appearance usage screen, settled. Default replacement while the remote-refresh gate is open.",
+      "captureNotes": [],
+      "output": "iphone69-09-room-left-before-each-reset-light.png"
+    },
+    {
+      "id": "I10",
+      "number": 10,
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Settings · iPhone sync",
+      "headline": "Sign-ins stay on your Mac",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "multi-account",
+      "variant": "multiAccount",
+      "screen": "settings",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U12, U21",
+      "composition": "Settings capture with sync age, Explore Demo and the one-line Get Headroom for Mac row.",
+      "captureNotes": [
+        "`--demo-screen settings` is parsed in Core but not yet routed by the app (U12). Until then this launch lands on the usage screen."
+      ],
+      "output": "iphone69-10-sign-ins-stay-on-your-mac-dark.png"
+    },
+    {
+      "id": "P1",
+      "number": 1,
+      "device": "ipad13",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "7 accounts · 4 providers",
+      "headline": "Room for all seven accounts",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "seven-accounts",
+      "variant": "multiAccount",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U21",
+      "composition": "Full-screen iPad capture: Claude 3, Codex 2, Grok 1, Cursor 1, plus spend. No resize handle.",
+      "captureNotes": [
+        "No U7 variant has seven accounts across four providers (multiAccount is Claude 3 + Codex 2; fourProviders is one each). Needs a seven-account variant from U21, or the caption re-counted to the fixture."
+      ],
+      "output": "ipad13-01-room-for-all-seven-accounts-dark.png"
+    },
+    {
+      "id": "P2",
+      "number": 2,
+      "device": "ipad13",
+      "kind": "widgets",
+      "appearance": "dark",
+      "eyebrow": "Nested Meter · large",
+      "headline": "The same numbers, as widgets",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "widgets",
+      "widgetWall": "home",
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U18, U21",
+      "composition": "Actual iPad Home Screen widgets: Nested Meter large and Vessel Hero smalls.",
+      "captureNotes": [
+        "iPad 13-inch widget point sizes are unverified; the wall uses estimates (see WidgetWallView)."
+      ],
+      "output": "ipad13-02-the-same-numbers-as-widgets-dark.png"
+    },
+    {
+      "id": "P3",
+      "number": 3,
+      "device": "ipad13",
+      "kind": "mac",
+      "appearance": "dark",
+      "eyebrow": "From your Mac · 2 min ago",
+      "headline": "Your Mac does the reading",
+      "foot": "Requires Headroom for Mac",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "usage",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U8, U18, U21; Mac capture gate",
+      "composition": "Mac menu-bar strip and popover behind full-width iPad capture, matching readings and stamp.",
+      "macCapture": null,
+      "captureNotes": [
+        "TODO: same Mac capture gate as I3 (BUGS.md multi-account harness gap)."
+      ],
+      "output": "ipad13-03-your-mac-does-the-reading-dark.png"
+    },
+    {
+      "id": "P4",
+      "number": 4,
+      "device": "ipad13",
+      "kind": "widgets",
+      "appearance": "dark",
+      "eyebrow": "4 styles · set in Edit Widget",
+      "headline": "A different style per widget",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "widget-styles",
+      "variant": "fourProviders",
+      "screen": "widgets",
+      "widgetWall": "styles",
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U18, U21",
+      "composition": "The four styles at native iPad widget metrics.",
+      "captureNotes": [
+        "iPad 13-inch widget point sizes are unverified; the wall uses estimates (see WidgetWallView)."
+      ],
+      "output": "ipad13-04-a-different-style-per-widget-dark.png"
+    },
+    {
+      "id": "P5",
+      "number": 5,
+      "device": "ipad13",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Settings · iPhone sync",
+      "headline": "Sign-ins stay on your Mac",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "multi-account",
+      "variant": "multiAccount",
+      "screen": "settings",
+      "widgetWall": null,
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U12, U21",
+      "composition": "Actual iPad Settings sheet, with About and sync rows.",
+      "captureNotes": [
+        "`--demo-screen settings` is not yet routed by the app (U12)."
+      ],
+      "output": "ipad13-05-sign-ins-stay-on-your-mac-dark.png"
+    }
+  ],
+  "reserve": [
+    {
+      "id": "X-check",
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "light",
+      "eyebrow": "Pull to refresh · asks your Mac",
+      "headline": "Pull down to ask your Mac",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "receipt",
+      "variant": "fourProviders",
+      "screen": "usage",
+      "widgetWall": null,
+      "gate": "check",
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U6 spike, U9, U21",
+      "composition": "Light appearance, Asking your Mac… receipt state. No speed claim. Replaces I9.",
+      "captureNotes": [
+        "No launch argument poses a mid-receipt state; needs a capture path from U9/U21."
+      ],
+      "output": "iphone69-09-pull-down-to-ask-your-mac-light.png"
+    },
+    {
+      "id": "X-lock",
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Lock Screen · Claude weekly 38%",
+      "headline": "Readable while locked",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "lock-screen",
+      "widgetWall": null,
+      "gate": "lock",
+      "dependsOnU16": false,
+      "dependsOnU17": true,
+      "dependencies": "U17, U21",
+      "composition": "Real Lock Screen: rectangular Claude widget, circular Codex/Cursor, inline reading. Insert at 6; move I8 to reserve.",
+      "captureNotes": [
+        "lock-screen is not a --demo-screen value; it needs its own capture path once U17 ships."
+      ],
+      "output": "iphone69-06-readable-while-locked-dark.png"
+    },
+    {
+      "id": "X-reminders",
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "From your Mac · use-it-up reminder",
+      "headline": "Reminders from your Mac",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "reminder",
+      "variant": "multiAccount",
+      "screen": "notification",
+      "widgetWall": null,
+      "gate": "reminders",
+      "dependsOnU16": true,
+      "dependsOnU17": false,
+      "dependencies": "U15 spike, U16, U21",
+      "composition": "Actual delivered Lock Screen notification; generic account names; no promise of exact delivery time. Replaces I10.",
+      "captureNotes": [
+        "notification is not a --demo-screen value; it needs its own capture path once U16 ships."
+      ],
+      "output": "iphone69-10-reminders-from-your-mac-dark.png"
+    },
+    {
+      "id": "X-siri",
+      "device": "iphone69",
+      "kind": "phone",
+      "appearance": "dark",
+      "eyebrow": "Siri · Shortcuts",
+      "headline": "Siri reads the last Mac update",
+      "captionStatus": "recommended draft, awaiting Kyle",
+      "storyboardFixture": "four-providers",
+      "variant": "fourProviders",
+      "screen": "siri",
+      "widgetWall": null,
+      "gate": "siri",
+      "dependsOnU16": false,
+      "dependsOnU17": false,
+      "dependencies": "U14, U21",
+      "composition": "Actual Siri answer with age and left wording. Replace I8 only if meter-style copy/capture cannot ship.",
+      "captureNotes": [
+        "siri is not a --demo-screen value; it needs its own capture path once U14 ships."
+      ],
+      "output": "iphone69-08-siri-reads-the-last-mac-update-dark.png"
+    }
+  ]
+}

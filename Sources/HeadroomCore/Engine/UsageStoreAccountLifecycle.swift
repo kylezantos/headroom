@@ -81,6 +81,8 @@ extension UsageStore {
             for: providerID,
             reason: .notLoggedIn(Self.finishSignInMessage)
         )
+        // R17: a new account reaches the phone without waiting for a refresh.
+        exportPhoneSyncSnapshot()
         return account
     }
 
@@ -90,6 +92,8 @@ extension UsageStore {
         accountsByProvider[key.providerID] = accountRegistry.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         )
+        // R17 / KTD9: titles are resolved on the Mac, so a rename re-exports them.
+        exportPhoneSyncSnapshot()
     }
 
     public func canPromoteAccount(_ key: AccountKey) -> Bool {

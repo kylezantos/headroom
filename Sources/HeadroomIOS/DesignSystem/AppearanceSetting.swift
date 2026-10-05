@@ -1,19 +1,13 @@
 import SwiftUI
 
-enum AppearanceSetting: String, CaseIterable, Identifiable {
-    case system
-    case light
-    case dark
+/// U12: the phone's theme is Core's `AppearancePreference`, the Mac's own System / Light / Dark
+/// enum, so the two can't drift. Theme stays a phone-only choice and never syncs (S3); the
+/// stored raw values ("system", "light", "dark") are unchanged, so existing choices survive.
+/// The alias keeps the app's call sites as they are.
+typealias AppearanceSetting = AppearancePreference
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .system: "System"
-        case .light: "Light"
-        case .dark: "Dark"
-        }
-    }
+extension AppearancePreference {
+    var title: String { label }
 
     var colorScheme: ColorScheme? {
         switch self {

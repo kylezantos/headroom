@@ -121,8 +121,8 @@ public final class UsageStore {
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
     public private(set) var usagePercentageMode: UsagePercentageMode
-    /// G1A: popover-only account-title ink, mirrored the same way `meterStyle` is — the
-    /// menu bar, widgets, and phone projections deliberately carry no title ink.
+    /// G1A: account-title ink, mirrored the same way `meterStyle` is. The menu bar and
+    /// widgets carry no title ink; the phone's display block does (iPhone parity KTD11).
     public private(set) var accountTitleInk: AccountTitleInk
     public private(set) var meterStyle: MeterStyle
     public private(set) var menuBarFillSource: MenuBarFillSource
@@ -207,12 +207,17 @@ public final class UsageStore {
     /// KTD1: use-it-up reminders and the banked-reset notice. Optional so tests, the demo
     /// store, and the render harness compose without it.
     let notificationCoordinator: NotificationCoordinator?
-    private let now: @Sendable () -> Date
+    let now: @Sendable () -> Date
     /// Builds the concrete provider for a newly added account. Lives in the composition
     /// root (R13) and is injected so the store never names concrete provider types.
     let providerFactory: (@MainActor (ProviderAccount) -> any UsageProvider)?
     let widgetExporter: (any WidgetSnapshotExporting)?
-    let phoneSyncExporter: (any WidgetSnapshotExporting)?
+    /// KTD8 (iPhone parity plan): the coalesced v3 + v4 publisher. The store hands it a
+    /// fresh capture on every change that reaches the phone; it decides when to write.
+    let phoneSyncExporter: (any CompanionPhoneSyncing)?
+    /// Test seam for the per-account setup-session overlay (KTD10). Nil reads the
+    /// attached coordinator.
+    @ObservationIgnored var companionSessionLookup: (@MainActor (AccountKey) -> CompanionSessionInput?)?
     private(set) var engine: PollingEngine?
     private var isStarting = false
     @ObservationIgnored var removingAccounts: Set<AccountKey> = []
@@ -243,7 +248,7 @@ public final class UsageStore {
         notificationCoordinator: NotificationCoordinator? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
         widgetExporter: (any WidgetSnapshotExporting)? = nil,
-        phoneSyncExporter: (any WidgetSnapshotExporting)? = nil
+        phoneSyncExporter: (any CompanionPhoneSyncing)? = nil
     ) {
         self.providers = providers
         self.apiSpendProviders = apiSpendProviders
@@ -316,6 +321,8 @@ public final class UsageStore {
         self.enabledSurfaces = Set(UsageSurface.allCases.filter { preferences.isSurfaceEnabled($0) })
         scheduler.host = self
         for provider in providers { scheduler.register(provider) }
+        // KTD8: heartbeats and forced republishes capture fresh state on the main actor.
+        phoneSyncExporter?.bind { [weak self] in self?.companionCapture() }
     }
 
     private static func restoredSnapshot(
@@ -481,6 +488,8 @@ public final class UsageStore {
     public func reschedulePolling() {
         refreshPollCadences()
         engine?.reschedule()
+        // R17: the chosen interval travels in the manifest and sets the phone's dim rule.
+        exportPhoneSyncSnapshot()
     }
 
     public func setShowMenuBarPercentage(_ enabled: Bool) {
@@ -491,18 +500,22 @@ public final class UsageStore {
     public func setUsagePercentageMode(_ mode: UsagePercentageMode) {
         preferences.usagePercentageMode = mode
         usagePercentageMode = mode
+        // KTD11: display choices reach the phone's display block, never Mac widgets.
+        exportPhoneSyncSnapshot()
     }
 
     public func setAccountTitleInk(_ ink: AccountTitleInk) {
         guard accountTitleInk != ink else { return }
         preferences.accountTitleInk = ink
         accountTitleInk = ink
+        exportPhoneSyncSnapshot()
     }
 
     public func setMeterStyle(_ style: MeterStyle) {
         guard meterStyle != style else { return }
         preferences.meterStyle = style
         meterStyle = style
+        exportPhoneSyncSnapshot()
     }
 
     public func setMenuBarFillSource(_ source: MenuBarFillSource) {
@@ -521,6 +534,7 @@ public final class UsageStore {
         preferences.widgetPriorityProviders = filtered.providerIDs?.sorted { $0.raw < $1.raw } ?? []
         widgetPrioritySource = filtered
         exportWidgetSnapshot()
+        exportPhoneSyncSnapshot()
     }
 
     public var menuBarProviderOrder: [ProviderID] {
@@ -644,6 +658,7 @@ public final class UsageStore {
     public func setShowCodexSparkCountersInApp(_ enabled: Bool) {
         preferences.showCodexSparkCountersInApp = enabled
         showCodexSparkCountersInApp = enabled
+        exportPhoneSyncSnapshot()
     }
 
     public func setShowCodexSparkCountersInWidgets(_ enabled: Bool) {
@@ -657,12 +672,15 @@ public final class UsageStore {
         guard useItUpRemindersEnabled != enabled else { return }
         preferences.useItUpRemindersEnabled = enabled
         useItUpRemindersEnabled = enabled
+        // KTD19: the manifest's reminder summary mirrors the Notifications pane.
+        exportPhoneSyncSnapshot()
     }
 
     public func setBankedResetNotificationsEnabled(_ enabled: Bool) {
         guard bankedResetNotificationsEnabled != enabled else { return }
         preferences.bankedResetNotificationsEnabled = enabled
         bankedResetNotificationsEnabled = enabled
+        exportPhoneSyncSnapshot()
     }
 
     /// Persists the list in the given order, clamped. R6: sorting belongs to a committed
@@ -672,6 +690,7 @@ public final class UsageStore {
         guard reminderRules != clamped else { return }
         preferences.reminderRules = clamped
         reminderRules = clamped
+        exportPhoneSyncSnapshot()
     }
 
     /// R4/R6: a committed row edit clamps, replaces the row with the same ID, and resorts.
@@ -699,6 +718,7 @@ public final class UsageStore {
         guard reminderScope != scope else { return }
         preferences.reminderScope = scope
         reminderScope = scope
+        exportPhoneSyncSnapshot()
     }
 
     /// R8: whether "Reset to defaults" should show.
@@ -1180,13 +1200,20 @@ public final class UsageStore {
         widgetExporter.export(widgetSnapshot(widgetsEnabled: preferences.widgetsEnabled, generatedAt: generatedAt))
     }
 
-    func exportPhoneSyncSnapshot(generatedAt: Date = .now) {
+    /// KTD8 (iPhone parity plan): marks the phone path dirty with a fresh capture. The
+    /// publisher coalesces, so calling this on every merge never means a write per merge.
+    func exportPhoneSyncSnapshot() {
         guard let phoneSyncExporter else { return }
-        phoneSyncExporter.export(widgetSnapshot(widgetsEnabled: preferences.syncToIPhoneEnabled, generatedAt: generatedAt))
+        phoneSyncExporter.submit(companionCapture())
     }
 
-    /// Widgets mirror each provider's *primary* account — the widget schema and the
-    /// iPhone mirror stay single-account (a glanceable tile can't rank five logins).
+    /// KTD8: pending phone writes flush on system sleep and app quit.
+    public func flushPhoneSync() async {
+        await phoneSyncExporter?.flushNow()
+    }
+
+    /// Mac widgets mirror each provider's *primary* account — a glanceable tile can't rank
+    /// five logins. The phone's v4 payload carries every account (`companionCapture`).
     private func widgetSnapshot(widgetsEnabled: Bool, generatedAt: Date) -> WidgetSnapshotEnvelope {
         let primarySnapshots = Dictionary(uniqueKeysWithValues: providerOrder.map { ($0, snapshot(for: $0)) })
         return WidgetSnapshotProjector.project(
@@ -1203,7 +1230,7 @@ public final class UsageStore {
         )
     }
 
-    private func resolvedWidgetProviderSelection() -> [ProviderID] {
+    func resolvedWidgetProviderSelection() -> [ProviderID] {
         switch widgetPrioritySource.filtered(to: providerOrder) {
         case .auto:
             return Array(providerOrder.prefix(2))
@@ -1391,11 +1418,12 @@ extension UsageStore: AccountProbeSchedulerHost {
         let accepted = mergeResult(
             key: key, result: result, notifiesSetup: notifiesSetup, attachmentGeneration: attachmentGeneration
         )
-        // KTD9 / R19: compact surfaces mirror the primary, so its merge exports at once
-        // instead of waiting for every extra in the lane. A full refresh exports once at
-        // its end instead.
-        if accepted, fullRefreshDepth == 0, primaryKey(for: key.providerID) == key {
-            exportWidgetSnapshot()
+        // KTD9 / R19: Mac widgets mirror the primary, so its merge exports at once instead
+        // of waiting for every extra in the lane. iPhone parity KTD8 amends AE7: an extra's
+        // merge now marks the phone path dirty too, but never reloads Mac WidgetKit
+        // timelines. A full refresh exports once at its end instead.
+        if accepted, fullRefreshDepth == 0 {
+            if primaryKey(for: key.providerID) == key { exportWidgetSnapshot() }
             exportPhoneSyncSnapshot()
         }
         return accepted

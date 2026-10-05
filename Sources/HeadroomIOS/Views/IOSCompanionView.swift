@@ -36,9 +36,6 @@ struct IOSCompanionView: View {
     var body: some View {
         NavigationStack {
             content
-                .environment(
-                    \.phoneDisplayResolver,
-                    PhoneDisplayResolver.demoLaunchOverride(base: inheritedDisplayResolver) ?? inheritedDisplayResolver)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -61,7 +58,12 @@ struct IOSCompanionView: View {
                         appearance: $appearance,
                         onEnterDemo: enterDemo,
                         onExitDemo: exitDemo,
-                        forcesLargeDetent: opensSettingsForCapture
+                        forcesLargeDetent: opensSettingsForCapture,
+                        snapshot: snapshot,
+                        // U9 fills the last check-now round trip.
+                        lastCheckNow: nil,
+                        // U12: Settings › Demo switched the variant; re-read the demo data.
+                        onDemoVariantChange: { Task { await refresh() } }
                     )
                 }
         }
@@ -144,7 +146,6 @@ struct IOSCompanionView: View {
     }
 
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.phoneDisplayResolver) private var inheritedDisplayResolver
 
     /// The Settings sheet's sync rows. The Mac's source ID is a random lineage UUID, never a
     /// name to show, so the sheet reads "Headroom on Mac".
@@ -194,6 +195,9 @@ struct IOSCompanionView: View {
             sessionDemoEnabled = false
             demoWidgetUnavailable = false
             demoModeStore.setEnabled(false)
+            // U12: a UI test that picked a variant in Settings › Demo leaves the App Group
+            // back on the unset default ("full"), so suites that read it start clean.
+            demoModeStore.setVariant("full")
         }
         if CompanionPreviewSeed.isEnabled {
             // KTD21: the preview seed writes only the demo store, never a real cache, and

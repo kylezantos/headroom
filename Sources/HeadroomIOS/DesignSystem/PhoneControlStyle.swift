@@ -3,9 +3,10 @@ import UIKit
 
 /// U8 (U9-A "Neutral, like the Mac popover"; R4, G6): the phone's control colours, built from
 /// the named Core values in `HeadroomControlColorValues`. The root `.tint` covers bare text
-/// buttons, toolbar items and links; filled buttons and switches name their own fill, label
-/// and on-state because SwiftUI's defaults would paint a white label on the near-white dark
-/// fill and a full-ink switch track that swallows its knob. No `AccentColor` asset: the
+/// buttons, toolbar items and links; filled buttons and switches (U12's
+/// `PhoneSettingsStyle.switchTint`) name their own fill, label and on-state, because SwiftUI's
+/// defaults would paint a white label on the near-white dark fill and a full-ink switch track
+/// that swallows its knob. No `AccentColor` asset: the
 /// catalog is shared with the Mac app.
 enum PhoneControlStyle {
     /// The root `.tint` (scheme-adaptive).
@@ -25,11 +26,6 @@ extension View {
         buttonStyle(.borderedProminent)
             .tint(PhoneControlStyle.buttonFill)
             .foregroundStyle(PhoneControlStyle.buttonLabel)
-    }
-
-    /// A switch's neutral on-state. Apply to each `Toggle` (U12's Settings rows).
-    func headroomSwitchTint() -> some View {
-        tint(PhoneControlStyle.switchOn)
     }
 }
 

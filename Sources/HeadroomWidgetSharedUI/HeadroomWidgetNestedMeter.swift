@@ -24,20 +24,29 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
     private var small: some View {
         ViewThatFits(in: .vertical) {
             ForEach(0..<context.recipe.ladderRungCount, id: \.self) { rung in
-                VStack(alignment: .leading, spacing: 0) {
-                    Spacer(minLength: 0)
-                    VStack(alignment: .leading, spacing: 12) {
-                        ForEach(context.recipe.providers) { provider in
-                            smallBlock(provider, rails: provider.secondary(atRung: rung))
-                        }
-                    }
-                    Spacer(minLength: 0)
-                }
+                smallStack(rung: rung, showsDetail: true)
+            }
+            // U13: only while the dimmed sentence takes a line, a last resort — the detail lines
+            // go; the numerals and bars stay. A fresh widget keeps its shipped ladder.
+            if context.recipe.isDimmed {
+                smallStack(rung: context.recipe.ladderRungCount - 1, showsDetail: false)
             }
         }
     }
 
-    private func smallBlock(_ provider: WidgetStyleProviderRecipe, rails: [WidgetWindowSummary]) -> some View {
+    private func smallStack(rung: Int, showsDetail: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Spacer(minLength: 0)
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(context.recipe.providers) { provider in
+                    smallBlock(provider, rails: provider.secondary(atRung: rung), showsDetail: showsDetail)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func smallBlock(_ provider: WidgetStyleProviderRecipe, rails: [WidgetWindowSummary], showsDetail: Bool) -> some View {
         let live = context.isLive(provider)
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center, spacing: CGFloat(WidgetMetrics.markGap)) {
@@ -55,9 +64,11 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
             } else {
                 HeadroomWidgetNestedBars(provider: provider, rails: rails, colorMode: context.colorMode, family: .small, live: live)
                     .padding(.top, 6)
-                HeadroomWidgetDetailLine(window: provider.secondary.first ?? provider.primary, showsValue: !provider.secondary.isEmpty,
-                                         live: live, now: context.now, size: WidgetStyleType.compactCaption)
-                    .padding(.top, 4)
+                if showsDetail {
+                    HeadroomWidgetDetailLine(window: provider.secondary.first ?? provider.primary, showsValue: !provider.secondary.isEmpty,
+                                             live: live, now: context.now, size: WidgetStyleType.compactCaption)
+                        .padding(.top, 4)
+                }
             }
         }
         .headroomWidgetProviderAccessibility(provider, now: context.now)
@@ -65,15 +76,30 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
 
     // MARK: Medium
 
-    private var medium: some View {
+    /// KTD10 (U13): while the dimmed sentence takes a line, the rows under the bars shed
+    /// Spark, then model rows, then all of them; the rails stay. A fresh widget keeps every row.
+    @ViewBuilder private var medium: some View {
+        if context.recipe.isDimmed {
+            ViewThatFits(in: .vertical) {
+                ForEach(0..<context.recipe.ladderRungCount, id: \.self) { rung in
+                    mediumColumns { $0.secondary(atRung: rung) }
+                }
+                mediumColumns { _ in [] }
+            }
+        } else {
+            mediumColumns { $0.secondary }
+        }
+    }
+
+    private func mediumColumns(rows: @escaping (WidgetStyleProviderRecipe) -> [WidgetWindowSummary]) -> some View {
         HStack(alignment: .top, spacing: 22) {
             ForEach(context.recipe.providers) { provider in
-                mediumColumn(provider)
+                mediumColumn(provider, rows: rows(provider))
             }
         }
     }
 
-    private func mediumColumn(_ provider: WidgetStyleProviderRecipe) -> some View {
+    private func mediumColumn(_ provider: WidgetStyleProviderRecipe, rows: [WidgetWindowSummary]) -> some View {
         let live = context.isLive(provider)
         return VStack(alignment: .leading, spacing: 0) {
             HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale,
@@ -96,7 +122,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                             HeadroomWidgetCaption(WidgetStyleCopy.resetsIn(countdown), size: WidgetStyleType.compactCaption, ink: .countdown)
                         }
                     } else {
-                        ForEach(provider.secondary) { window in
+                        ForEach(rows) { window in
                             HStack(alignment: .firstTextBaseline, spacing: 5) {
                                 HeadroomWidgetFittingCaption([Self.labelAndCountdown(window, now: context.now), window.widgetDisplayLabel],
                                                              size: WidgetStyleType.compactCaption, ink: .countdown)

@@ -11,6 +11,7 @@ struct HeadroomIOSApp: App {
     var body: some Scene {
         WindowGroup {
             IOSCompanionView(appearance: appearanceBinding)
+                .demoWidgetWall()
                 .preferredColorScheme(appearanceBinding.wrappedValue.colorScheme)
                 // U8 (U9-A, G6): one neutral tint for the whole app — no system blue anywhere
                 // and no AccentColor asset (the catalog is shared with the Mac app).

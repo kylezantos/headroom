@@ -31,16 +31,17 @@ struct HeadroomIOSWidgetView: View {
             // KTD9 (widget-styles plan): a style's full-bleed layer — Liquid Level's wash —
             // sits under the padded content and reads the rendering mode itself.
             if let envelope = displayedEnvelope {
-                HeadroomWidgetStyledBackground(style: entry.style, family: coreFamily, envelope: envelope, colorMode: entry.colorMode)
+                HeadroomWidgetStyledBackground(style: entry.style, family: coreFamily, envelope: envelope, colorMode: entry.colorMode,
+                                               freshness: entry.freshnessTreatment)
             }
             stateContent
                 .padding(familyContentMargins)
                 // The DEMO capsule sits top-trailing; in demo mode the content steps down so
                 // the capsule never lands on a numeral or plan capsule.
-                .padding(.top, isDemoMode ? 14 : 0)
+                .padding(.top, showsDemoCapsule ? 14 : 0)
         }
         .overlay(alignment: .topTrailing) {
-            if isDemoMode {
+            if showsDemoCapsule {
                 demoCapsule
             }
         }
@@ -127,6 +128,9 @@ struct HeadroomIOSWidgetView: View {
         if case .demo = entry.state { true } else { false }
     }
 
+    /// The host's `--demo` screenshot presentation hides the capsule (U7).
+    private var showsDemoCapsule: Bool { isDemoMode && entry.showsDemoBadge }
+
     /// R7: the style and color this widget chose in Edit Widget.
     private func content(_ envelope: WidgetSnapshotEnvelope) -> some View {
         HeadroomWidgetStyledBody(
@@ -135,7 +139,8 @@ struct HeadroomIOSWidgetView: View {
             envelope: envelope,
             colorMode: entry.colorMode,
             now: entry.date,
-            footerPrefix: footerPrefix
+            footerPrefix: footerPrefix,
+            freshness: entry.freshnessTreatment
         )
     }
 

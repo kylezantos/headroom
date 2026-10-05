@@ -26,7 +26,7 @@ enum PhoneCardMetrics {
 
 /// What every card on one screen shares.
 struct PhoneCardContext {
-    let choices: PhoneDisplayChoices
+    let display: ResolvedPhoneDisplay
     let usesAccountRows: Bool
     let widgetProviderIDs: [String]
     let ladder: CompanionDropLadder
@@ -98,7 +98,7 @@ struct PhoneProviderCard: View {
         VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
             providerIdentityRow
             PhoneSkeletonBody(
-                format: context.choices.meterStyle.format,
+                format: context.display.meterStyle.format,
                 line: provider.showsWaitingForMac(surfaceDimmed: context.surfaceDimmed)
                     ? CompanionCardCopy.waitingForMac
                     : CompanionCardPresentation.pendingLine(surfaceDimmed: context.surfaceDimmed),
@@ -252,7 +252,7 @@ struct PhoneAccountSection: View {
             }
         case .pending:
             PhoneSkeletonBody(
-                format: context.choices.meterStyle.format,
+                format: context.display.meterStyle.format,
                 line: CompanionCardPresentation.pendingLine(surfaceDimmed: context.surfaceDimmed),
                 scale: scale
             )
@@ -261,8 +261,8 @@ struct PhoneAccountSection: View {
 
     private func meterRows(dimmed: Bool) -> some View {
         PhoneMeterRows(
-            windows: CompanionCardPresentation.rows(for: account, showsSparkRows: context.choices.showsSparkRows),
-            choices: context.choices,
+            windows: CompanionCardPresentation.rows(context.display.appWindows(account.windows)),
+            display: context.display,
             now: context.now,
             dimmed: dimmed,
             arrivalKey: AccountKey(
@@ -276,7 +276,7 @@ struct PhoneAccountSection: View {
 /// The popover's meter stack at phone scale (`UsageBarsStack`).
 struct PhoneMeterRows: View {
     let windows: [WidgetWindowSummary]
-    let choices: PhoneDisplayChoices
+    let display: ResolvedPhoneDisplay
     let now: Date
     let dimmed: Bool
     let arrivalKey: AccountKey
@@ -297,9 +297,9 @@ struct PhoneMeterRows: View {
                     ForEach(Self.keyed(windows), id: \.key) { row in
                         UsageBarView(
                             reading: UsageMeterReading(widgetSummary: row.window),
-                            percentageMode: choices.percentageMode,
+                            percentageMode: display.percentageMode,
                             now: now,
-                            meterStyle: choices.meterStyle,
+                            meterStyle: display.meterStyle,
                             dimmed: dimmed,
                             arrivalKey: arrivalKey,
                             scale: scale
@@ -318,7 +318,7 @@ struct PhoneMeterRows: View {
     }
 
     private var rowGap: CGFloat {
-        choices.meterStyle.format == .micro ? PhoneCardMetrics.microRowGap : PhoneCardMetrics.fullRowGap
+        display.meterStyle.format == .micro ? PhoneCardMetrics.microRowGap : PhoneCardMetrics.fullRowGap
     }
 
     static func keyed(_ windows: [WidgetWindowSummary]) -> [(key: String, window: WidgetWindowSummary)] {

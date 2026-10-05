@@ -14,7 +14,6 @@ struct MirrorView: View {
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.phoneDisplayResolver) private var displayResolver
 
     /// KTD3: the phone's one Dynamic Type unit over the popover ramp. Every shared row, gap
     /// and reservation on this screen multiplies by it.
@@ -29,7 +28,9 @@ struct MirrorView: View {
     private static let tileGap: CGFloat = 20
 
     var body: some View {
-        let choices = displayResolver.resolve(content.display)
+        // KTD11: U12's one store ("Match my Mac" or the phone's override). It is observable,
+        // so a Settings change re-renders the cards.
+        let display = PhoneDemoMeterStyle.applied(to: PhoneDisplayPreferencesStore.app.resolve(mac: content.display))
         // A per-minute `now` so "Updated N min ago" and the reset countdowns tick without a
         // data poll — same pattern the Mac popover uses.
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
@@ -45,7 +46,7 @@ struct MirrorView: View {
                     if content.providers.isEmpty && content.apiSpend.isEmpty {
                         emptyLine
                     }
-                    cards(context(choices: choices, now: timeline.date))
+                    cards(context(display: display, now: timeline.date))
                     if !content.apiSpend.isEmpty {
                         APISpendMirrorView(summaries: content.apiSpend, now: timeline.date)
                             .frame(maxWidth: horizontalSizeClass == .regular ? 640 : .infinity)
@@ -68,7 +69,7 @@ struct MirrorView: View {
             .navigationSubtitle(updatedText(now: timeline.date))
             .navigationBarTitleDisplayMode(.large)
         }
-        .environment(\.accountTitleInk, choices.accountTitleInk)
+        .environment(\.accountTitleInk, display.accountTitleInk)
         .sheet(item: $disclosedTitle) { disclosed in
             PhoneTitleDisclosureSheet(disclosed: disclosed)
         }
@@ -78,9 +79,9 @@ struct MirrorView: View {
         #endif
     }
 
-    private func context(choices: PhoneDisplayChoices, now: Date) -> PhoneCardContext {
+    private func context(display: ResolvedPhoneDisplay, now: Date) -> PhoneCardContext {
         PhoneCardContext(
-            choices: choices,
+            display: display,
             usesAccountRows: CompanionCardPresentation.usesAccountRows(content.providers),
             widgetProviderIDs: CompanionCardPresentation.widgetProviderIDs(content),
             ladder: content.ladder,

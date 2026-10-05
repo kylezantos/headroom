@@ -438,3 +438,255 @@ struct WidgetStyleRecipeReviewTests {
         #expect(recipe.providersWithoutRows.first?.staleMessage?.isEmpty == false)
     }
 }
+
+/// U13 (iOS parity plan): the dimmed and past-reset treatments are recipe outputs shared by
+/// every style and family (KTD15, R10, R11).
+struct WidgetFreshnessRecipeTests {
+    typealias F = StyleFixture
+    static let utc = TimeZone(identifier: "UTC")!
+    static let us = Locale(identifier: "en_US")
+    static let minute: TimeInterval = 60
+    static let everyCase: [(WidgetLayoutStyle, WidgetFamily)] = WidgetLayoutStyle.allCases.flatMap { style in
+        WidgetFamily.allCases.map { (style, $0) }
+    }
+
+    static func treatment(dimmedSince: Date? = nil, host: WidgetFreshnessTreatment.Host = .phone, now: Date = F.now)
+        -> WidgetFreshnessTreatment
+    {
+        WidgetFreshnessTreatment(now: now, dimmedSince: dimmedSince, host: host, timeZone: utc, locale: us)
+    }
+
+    /// Claude whose 5-hour window reset `ago` with no newer reading; it is the lowest window,
+    /// so ranking would headline it if it kept its number.
+    static func claudePastFiveHourReset(ago: TimeInterval = 20 * 60, observedAt: Date? = nil) -> WidgetProviderSummary {
+        F.provider("claude", "Claude", plan: "Max", [
+            WidgetWindowSummary(kind: .fiveHour, label: "5h", percentRemaining: 4, resetSchedule: .scheduled(F.now.addingTimeInterval(-ago)),
+                                resetLabel: nil, observedAt: observedAt, severity: .critical),
+            F.window(.weekly, label: "Weekly", percent: 38, resetIn: 4 * 86_400),
+            F.window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 61, resetIn: 4 * 86_400),
+        ])
+    }
+
+    static func recipe(_ style: WidgetLayoutStyle, _ family: WidgetFamily, _ providers: [WidgetProviderSummary],
+                       _ treatment: WidgetFreshnessTreatment, spend: Bool = false) -> WidgetStyleRecipe {
+        WidgetStyleRecipe(style: style, family: family, envelope: F.envelope(providers, spend: spend), freshness: treatment)
+    }
+
+    static func allWindows(_ recipe: WidgetStyleRecipe) -> [WidgetWindowSummary] {
+        recipe.providers.flatMap(\.windows)
+    }
+
+    // MARK: No change while fresh
+
+    @Test func aFreshSurfaceLaysOutExactlyAsBefore() {
+        for (style, family) in Self.everyCase {
+            let plain = F.recipe(style, family, [F.claude(), F.codex()], spend: true)
+            let treated = Self.recipe(style, family, [F.claude(), F.codex()], Self.treatment(), spend: true)
+            #expect(treated.providers == plain.providers, "\(style) \(family)")
+            #expect(treated.rankedRows == plain.rankedRows)
+            #expect(treated.washSegments == plain.washSegments)
+            #expect(treated.showsFooter == plain.showsFooter)
+            #expect(treated.pastResetNotes.isEmpty)
+            #expect(!treated.isDimmed && treated.dimmedCaptions.isEmpty)
+        }
+    }
+
+    // MARK: Past reset (R11, AE6)
+
+    @Test func aPastResetWindowTakesTheUnavailablePathInEveryStyle() {
+        for (style, family) in Self.everyCase {
+            let recipe = Self.recipe(style, family, [Self.claudePastFiveHourReset(), F.codex()], Self.treatment())
+            guard let claude = recipe.providers.first(where: { $0.id == "claude" }) else {
+                Issue.record("\(style) \(family) dropped Claude"); continue
+            }
+            let fiveHour = claude.windows.first { $0.kind == .fiveHour }
+            #expect(fiveHour?.hasDisplayValue == false, "\(style) \(family)")
+            #expect(fiveHour?.freshness == .unavailable(since: F.now.addingTimeInterval(-20 * Self.minute)))
+            // Ranked last: the 4% it last showed never headlines.
+            #expect(claude.tightest?.kind == .weekly, "\(style) \(family)")
+            #expect(WidgetWindowRanking.ranked(claude.windows).last?.kind == .fiveHour)
+            #expect(WidgetWindowText.percent(fiveHour) == "—")
+            #expect(WidgetWindowText.countdown(fiveHour, now: F.now) == nil)
+        }
+    }
+
+    @Test func tightestFirstLargeRanksAPastResetWindowLast() {
+        let recipe = Self.recipe(.tightestFirst, .large, [Self.claudePastFiveHourReset(), F.codex()], Self.treatment())
+        #expect(recipe.rankedRows.last?.id == "claude|fiveHour")
+        #expect(recipe.rankedRows.first?.id == "claude|weekly")
+    }
+
+    @Test func aPastResetPrimaryLeavesNoWashOrFill() {
+        let weeklyPast = F.provider("grok", "Grok", [
+            WidgetWindowSummary(kind: .other("Weekly"), label: "Weekly", percentRemaining: 56,
+                                resetSchedule: .scheduled(F.now.addingTimeInterval(-15 * Self.minute)), resetLabel: nil,
+                                severity: .healthy, billingPeriodDuration: F.week),
+        ])
+        for family in WidgetFamily.allCases {
+            let recipe = Self.recipe(.liquidLevel, family, [weeklyPast, F.cursor()], Self.treatment())
+            let segment = recipe.washSegments.first { $0.providerID == "grok" }
+            if family == .small {
+                // R6: small shows one provider, and one with nothing to show yields to the next.
+                #expect(recipe.providers.map(\.id) == ["cursor"])
+            } else {
+                #expect(segment?.fraction == nil, "\(family)")
+            }
+        }
+        let nested = Self.recipe(.nestedMeter, .large, [weeklyPast], Self.treatment())
+        #expect(nested.providers.first?.primary.map { WidgetStyleColors.fill(for: $0, colorMode: .solid, dark: true, increasedContrast: false) } == .some(nil))
+    }
+
+    @Test func eachShownProviderGetsOneResetNoteInEveryStyle() {
+        for (style, family) in Self.everyCase {
+            let recipe = Self.recipe(style, family, [Self.claudePastFiveHourReset(), F.codex()], Self.treatment())
+            #expect(recipe.pastResetNotes.map(\.providerID) == ["claude"], "\(style) \(family)")
+            #expect(recipe.pastResetNotes.first?.windowID == "fiveHour")
+            #expect(recipe.pastResetNotes.first?.resetAt == F.now.addingTimeInterval(-20 * Self.minute))
+            #expect(recipe.pastResetNoteRungs == [recipe.pastResetNotes])
+        }
+    }
+
+    @Test func noteRungsShedToTheFirstProvidersNoteBeforeDroppingWhole() {
+        let codexPast = F.provider("codex", "Codex", [
+            WidgetWindowSummary(kind: .fiveHour, label: "5h", percentRemaining: 41, resetSchedule: .scheduled(F.now.addingTimeInterval(-14 * Self.minute)),
+                                resetLabel: nil, severity: .healthy),
+        ])
+        for (style, family) in Self.everyCase where !(family == .small && [.vesselHero, .liquidLevel].contains(style)) {
+            let recipe = Self.recipe(style, family, [Self.claudePastFiveHourReset(), codexPast], Self.treatment())
+            #expect(recipe.pastResetNoteRungs.map { $0.map(\.providerID) } == [["claude", "codex"], ["claude"]], "\(style) \(family)")
+        }
+        #expect(F.recipe(.nestedMeter, .small, [F.claude()]).pastResetNoteRungs.isEmpty)
+    }
+
+    @Test func resetNoteCopyNamesTheWindowAndWaitsForTheMacOnThePhone() {
+        let time = WidgetClockText.text(for: F.now.addingTimeInterval(-20 * Self.minute), now: F.now, timeZone: Self.utc, locale: Self.us)
+        let phone = Self.recipe(.nestedMeter, .medium, [Self.claudePastFiveHourReset(), F.codex()], Self.treatment())
+        #expect(phone.pastResetNotes.first?.captions == [
+            "Claude 5-hour reset at \(time) · waiting for your Mac", "Claude 5-hour reset at \(time)", "Reset at \(time)",
+        ])
+        // One shown provider: the name is redundant. The Mac reads its own app: no "waiting".
+        let mac = Self.recipe(.vesselHero, .small, [Self.claudePastFiveHourReset(), F.codex()], Self.treatment(host: .mac))
+        #expect(mac.pastResetNotes.first?.captions == ["5-hour reset at \(time)", "Reset at \(time)"])
+    }
+
+    @Test func aResetInsideTheGraceKeepsItsNumber() {
+        let recipe = Self.recipe(.nestedMeter, .medium, [Self.claudePastFiveHourReset(ago: 9 * Self.minute)], Self.treatment())
+        #expect(recipe.providers[0].windows.first { $0.kind == .fiveHour }?.hasDisplayValue == true)
+        #expect(recipe.pastResetNotes.isEmpty)
+    }
+
+    @Test func aReadingAfterTheResetKeepsItsNumber() {
+        let provider = Self.claudePastFiveHourReset(observedAt: F.now.addingTimeInterval(-5 * Self.minute))
+        let recipe = Self.recipe(.tightestFirst, .large, [provider], Self.treatment())
+        #expect(recipe.rankedRows.first?.window.kind == .fiveHour)
+        #expect(recipe.pastResetNotes.isEmpty)
+    }
+
+    @Test func theNoteNamesTheMostRecentResetWhenSeveralPassed() {
+        let both = F.provider("codex", "Codex", [
+            WidgetWindowSummary(kind: .fiveHour, label: "5h", percentRemaining: 41, resetSchedule: .scheduled(F.now.addingTimeInterval(-15 * Self.minute)),
+                                resetLabel: nil, severity: .healthy),
+            WidgetWindowSummary(kind: .weekly, label: "Weekly", percentRemaining: 64, resetSchedule: .scheduled(F.now.addingTimeInterval(-40 * Self.minute)),
+                                resetLabel: nil, severity: .healthy),
+        ])
+        let recipe = Self.recipe(.nestedMeter, .large, [both], Self.treatment())
+        #expect(recipe.pastResetNotes.map(\.windowID) == ["fiveHour"])
+        #expect(!recipe.providers[0].hasDisplayValue)
+    }
+
+    // MARK: Dimmed (R10)
+
+    @Test func dimmingDemotesEveryWindowToStaleInEveryStyle() {
+        let since = F.now.addingTimeInterval(-90 * Self.minute)
+        for (style, family) in Self.everyCase {
+            let recipe = Self.recipe(style, family, [F.claude(), F.codex()], Self.treatment(dimmedSince: since), spend: true)
+            #expect(recipe.isDimmed)
+            #expect(!Self.allWindows(recipe).isEmpty)
+            #expect(Self.allWindows(recipe).allSatisfy { $0.freshness.isStale && $0.hasDisplayValue }, "\(style) \(family)")
+            // Desaturated: the stale fill, never a live severity fill at reduced opacity.
+            for window in Self.allWindows(recipe) {
+                let fill = WidgetStyleColors.fill(for: window, colorMode: .solid, dark: false, increasedContrast: false)
+                #expect(fill?.opacity == 1)
+                #expect(fill != WidgetStyleColors.fill(for: F.claude().windows[0], colorMode: .solid, dark: false, increasedContrast: false))
+            }
+            #expect(recipe.washSegments.allSatisfy { $0.window?.freshness.isStale == true })
+            #expect(recipe.rankedRows.allSatisfy { $0.window.freshness.isStale })
+            // The dimmed sentence takes the place of the footer and the spend strip on large.
+            #expect(!recipe.showsFooter)
+            #expect(!recipe.showsSpend)
+        }
+    }
+
+    @Test func dimmingNeverStacksWithPerRowStaleOrUnavailable() {
+        let staleAt = F.now.addingTimeInterval(-3 * 3_600)
+        let claude = F.provider("claude", "Claude", [
+            F.window(.weekly, label: "Weekly", percent: 38, freshness: .stale(observedAt: staleAt)),
+            F.window(.fiveHour, label: "5h", percent: 72, freshness: .unavailable(since: staleAt)),
+        ])
+        let plain = F.recipe(.nestedMeter, .large, [claude])
+        let dimmed = Self.recipe(.nestedMeter, .large, [claude], Self.treatment(dimmedSince: staleAt))
+        #expect(dimmed.providers[0].windows == plain.providers[0].windows)
+    }
+
+    @Test func dimmingKeepsTheSameRankingAndShedding() {
+        for (style, family) in Self.everyCase {
+            let plain = F.recipe(style, family, [F.claude(), F.cursor()])
+            let dimmed = Self.recipe(style, family, [F.claude(), F.cursor()], Self.treatment(dimmedSince: F.now))
+            #expect(dimmed.providers.map(\.id) == plain.providers.map(\.id))
+            #expect(dimmed.providers.map { $0.primary?.id } == plain.providers.map { $0.primary?.id }, "\(style) \(family)")
+            #expect(dimmed.providers.map { $0.tightest?.id } == plain.providers.map { $0.tightest?.id })
+            #expect(dimmed.rankedRows.map(\.id) == plain.rankedRows.map(\.id))
+            #expect(dimmed.ladderRungCount == plain.ladderRungCount)
+        }
+    }
+
+    @Test func dimmedCopyNamesTheLastTimeTheMacWasHeardFrom() {
+        let since = F.now.addingTimeInterval(-90 * Self.minute)
+        let time = WidgetClockText.text(for: since, now: F.now, timeZone: Self.utc, locale: Self.us)
+        let phone = Self.recipe(.liquidLevel, .small, [F.claude()], Self.treatment(dimmedSince: since))
+        #expect(phone.dimmedCaptions == ["No update from your Mac since \(time)", "No update since \(time)", "Since \(time)"])
+        #expect(phone.dimmedCaptions.allSatisfy { !$0.localizedCaseInsensitiveContains("asleep") })
+        let mac = Self.recipe(.liquidLevel, .small, [F.claude()], Self.treatment(dimmedSince: since, host: .mac))
+        #expect(mac.dimmedCaptions.first == "No update from Headroom since \(time)")
+    }
+
+    @Test func dimmedAndPastResetTogetherHideTheNumberAndKeepTheNote() {
+        let recipe = Self.recipe(.vesselHero, .medium, [Self.claudePastFiveHourReset(), F.codex()],
+                                 Self.treatment(dimmedSince: F.now.addingTimeInterval(-2 * 3_600)))
+        let fiveHour = recipe.providers[0].windows.first { $0.kind == .fiveHour }
+        #expect(fiveHour?.freshness.isUnavailable == true)
+        #expect(recipe.pastResetNotes.count == 1)
+        #expect(recipe.isDimmed)
+    }
+
+    // MARK: Widget host factory (KTD15 widget floor)
+
+    @Test func theWidgetTreatmentDimsOnlyPastTheWidgetFloor() {
+        let inputs = CompanionFreshnessInputs(generatedAt: F.now, firstSeen: F.now, largestEffectiveIntervalSeconds: 300, isV3Only: false)
+        let before = WidgetFreshnessTreatment.widget(inputs: inputs, now: F.now.addingTimeInterval(59 * Self.minute), host: .phone)
+        let after = WidgetFreshnessTreatment.widget(inputs: inputs, now: F.now.addingTimeInterval(60 * Self.minute), host: .phone)
+        #expect(!before.isDimmed)
+        #expect(after.dimmedSince == F.now)
+        #expect(after.now == F.now.addingTimeInterval(60 * Self.minute))
+        #expect(!WidgetFreshnessTreatment.widget(inputs: nil, now: F.now.addingTimeInterval(9 * 3_600), host: .phone).isDimmed)
+    }
+
+    @Test func theMacWidgetDimsAtTheV3OnlyThresholdFromItsOwnExport() {
+        let exported = F.now
+        let inputs = CompanionFreshnessInputs(generatedAt: exported, firstSeen: exported, largestEffectiveIntervalSeconds: nil, isV3Only: true)
+        #expect(!WidgetFreshnessTreatment.widget(inputs: inputs, now: exported.addingTimeInterval(119 * Self.minute), host: .mac).isDimmed)
+        #expect(WidgetFreshnessTreatment.widget(inputs: inputs, now: exported.addingTimeInterval(120 * Self.minute), host: .mac).isDimmed)
+    }
+
+    // MARK: Clock text
+
+    @Test func clockTextIsATimeTodayAWeekdayThisWeekAndADateBefore() {
+        let today = WidgetClockText.text(for: F.now.addingTimeInterval(-20 * Self.minute), now: F.now, timeZone: Self.utc, locale: Self.us)
+        #expect(today.contains("7:40"))
+        #expect(!today.contains("Fri") && !today.contains("Jan"))
+        let yesterday = WidgetClockText.text(for: F.now.addingTimeInterval(-10 * 3_600), now: F.now, timeZone: Self.utc, locale: Self.us)
+        #expect(yesterday.contains("Thu") && yesterday.contains("10:00"))
+        let older = WidgetClockText.text(for: F.now.addingTimeInterval(-9 * 86_400), now: F.now, timeZone: Self.utc, locale: Self.us)
+        #expect(older == "Jan 6")
+    }
+}

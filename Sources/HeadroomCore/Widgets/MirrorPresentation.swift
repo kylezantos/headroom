@@ -56,11 +56,11 @@ public enum CompanionCardPresentation {
     }
 
     /// R3/P20: 5-hour first, then weekly and billing pools, then model rows — the popover's
-    /// `UsageSnapshot.fiveHourFirst()` rank, stable within a rank. KTD11/KTD13: Spark rows
-    /// arrive flagged and are shown only when the resolved display choice allows them.
-    public static func rows(for account: CompanionResolvedAccount, showsSparkRows: Bool) -> [WidgetWindowSummary] {
-        account.windows
-            .filter { !$0.isSpark || showsSparkRows }
+    /// `UsageSnapshot.fiveHourFirst()` rank, stable within a rank. KTD11/KTD13: the caller
+    /// passes the windows the phone's display choice keeps (`ResolvedPhoneDisplay.appWindows`
+    /// filters flagged Spark rows by the phone's switch).
+    public static func rows(_ windows: [CompanionResolvedWindow]) -> [WidgetWindowSummary] {
+        windows
             .map(\.summary)
             .enumerated()
             .sorted { (rank($0.element), $0.offset) < (rank($1.element), $1.offset) }

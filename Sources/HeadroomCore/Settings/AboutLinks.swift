@@ -31,6 +31,15 @@ public enum AboutLinks {
         url: "https://headroom.zantos.co/tip"
     )
 
+    /// G9 (iPhone parity plan): the iPhone app's App Store page, linked from the Mac's
+    /// Widgets & iPhone pane. The ID-only form survives the listing's rename to "Headroom
+    /// by Kyle Zantos"; the ID is the live listing's (`docs/plans/2026-10-04-ios-parity-research/appstore.md`).
+    public static let iPhoneApp = AboutLink(
+        title: "Get Headroom for iPhone",
+        destination: "App Store",
+        url: "https://apps.apple.com/app/id6787519784"
+    )
+
     /// Headroom is free but not open source, so this is deliberately not "free and open source".
     public static let tipJarNote =
         "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe."
@@ -39,6 +48,17 @@ public enum AboutLinks {
     public static let tagline = "AI usage limits + API spend right from your menu bar"
 
     public static let makerName = "Kyle Zantos"
+
+    /// U12 / R23: the phone's one-line row to the Mac app. Kyle (S4-C): short enough that the
+    /// row never wraps, so the trailing edge carries only the outbound arrow, not the domain.
+    public static let getHeadroomForMac = AboutLink(
+        title: "Get Headroom for Mac",
+        destination: "headroom.zantos.co",
+        url: "https://headroom.zantos.co"
+    )
+
+    /// The phone's About header line. The phone has no tip jar this round (S4-C).
+    public static let companionTagline = "iPhone & iPad companion"
 
     /// The "Made by" rows, in display order. GitHub is the profile, not the repo: the
     /// repository is private, so a repo link would 404 for everyone but its owner.

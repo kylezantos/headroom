@@ -41,12 +41,6 @@ enum HeadroomTheme {
         ]
         return LinearGradient(colors: stops, startPoint: .top, endPoint: .bottom)
     }
-
-    /// Transitional: the Settings sheet (U12, stream D) still reads its secondary ink here.
-    /// Retire it once that sheet moves to `ProviderStyle.secondaryText(scheme:)`.
-    static func secondaryText(_ scheme: ColorScheme) -> Color {
-        ProviderStyle.secondaryText(scheme: scheme)
-    }
 }
 
 private extension Color {

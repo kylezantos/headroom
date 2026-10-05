@@ -72,8 +72,7 @@ struct MirrorPresentationTests {
         let weekly = window(.weekly)
         let fiveHour = window(.fiveHour)
         let pool = window(.other("Cursor Models"), billing: 30 * 86_400)
-        let rows = CompanionCardPresentation.rows(
-            for: account("primary", windows: [fable, weekly, pool, fiveHour]), showsSparkRows: true)
+        let rows = CompanionCardPresentation.rows(account("primary", windows: [fable, weekly, pool, fiveHour]).windows)
         #expect(rows.map(\.kind) == [.fiveHour, .weekly, .other("Cursor Models"), .other("Weekly (Fable)")])
     }
 
@@ -83,8 +82,12 @@ struct MirrorPresentationTests {
             accountID: "primary", title: "Personal", planName: nil, freshness: .live, attention: nil,
             bankedResets: nil, capturedAt: now,
             windows: [CompanionResolvedWindow(summary: window(.fiveHour), isSpark: false), spark], isMain: true)
-        #expect(CompanionCardPresentation.rows(for: acct, showsSparkRows: false).map(\.kind) == [.fiveHour])
-        #expect(CompanionCardPresentation.rows(for: acct, showsSparkRows: true).count == 2)
+        func display(spark: Bool) -> ResolvedPhoneDisplay {
+            PhoneDisplayPreferences.resolve(
+                mac: CompanionDisplayBlock(appSparkEnabled: spark), phone: .default)
+        }
+        #expect(CompanionCardPresentation.rows(display(spark: false).appWindows(acct.windows)).map(\.kind) == [.fiveHour])
+        #expect(CompanionCardPresentation.rows(display(spark: true).appWindows(acct.windows)).count == 2)
     }
 
     // MARK: Bodies (R4, R8, KTD10)

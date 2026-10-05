@@ -29,11 +29,14 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
     public let fillFraction: Double
     public let refillText: String?
     public let shortRefillText: String?
+    /// WCW1: the bare countdown ("4d 2h") for detail lines that already name the window.
+    public let countdownText: String?
+    public let shortCountdownText: String?
     public let resetText: String?
     public let accessibilityText: String
     public var usesKnockout: Bool { state.usesKnockout }
 
-    init(provider: WidgetProviderSummary?, window sourceWindow: WidgetWindowSummary?, family: LockScreenWidgetFamily, isDemo: Bool, now: Date) {
+    init(provider: WidgetProviderSummary?, window sourceWindow: WidgetWindowSummary?, family: LockScreenWidgetFamily, isDemo: Bool, demoCaption: Bool, now: Date) {
         let window = provider?.freshness.isStale == true ? sourceWindow?.demotedToStale() : sourceWindow
         self.window = window
         let state: LockScreenWindowState
@@ -76,20 +79,25 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
             stateCaption = label
             shortStateCaption = compactLabel
         }
-        // R10 explicitly gives Demo the circle caption even for Cursor pool numbers.
-        caption = isDemo && family == .circle ? "Demo" : stateCaption
-        shortCaption = isDemo && family == .circle ? "Demo" : shortStateCaption
+        // R10 explicitly gives Demo the circle caption even for Cursor pool numbers. Gauge
+        // Pair is two circle gauges with no name line, so it follows the circle rule.
+        caption = isDemo && demoCaption ? "Demo" : stateCaption
+        shortCaption = isDemo && demoCaption ? "Demo" : shortStateCaption
 
         if let window, !window.freshness.isUnavailable,
            let line = window.resetSchedule.meterResetLine(now: now),
            let deadline = window.resetSchedule.deadline {
             refillText = line.countdown == "now" ? "Refills now" : "Refills in \(line.countdown)"
+            countdownText = line.countdown
+            shortCountdownText = line.shortCountdown
             shortRefillText = line.shortCountdown == "now" ? "Refills now" : "Refills in \(line.shortCountdown)"
             resetText = line.countdown == "now" ? line.tooltip
                 : "Resets \(ResetClockFormatter.phrase(for: deadline, now: now))"
         } else {
             refillText = nil
             shortRefillText = nil
+            countdownText = nil
+            shortCountdownText = nil
             resetText = nil
         }
 
@@ -119,11 +127,11 @@ public struct LockScreenProviderSlot: Sendable, Equatable, Identifiable {
     public let accessibilityText: String
     public var id: String { "\(providerID)|\(primary.window?.id ?? "missing")" }
 
-    init(provider: WidgetProviderSummary?, providerID: String, window: WidgetWindowSummary?, secondary: [WidgetWindowSummary], family: LockScreenWidgetFamily, isDemo: Bool, now: Date) {
+    init(provider: WidgetProviderSummary?, providerID: String, window: WidgetWindowSummary?, secondary: [WidgetWindowSummary], family: LockScreenWidgetFamily, isDemo: Bool, demoCaption: Bool, now: Date) {
         self.providerID = providerID
         providerName = provider?.displayName ?? ProviderID(providerID).displayName
-        primary = LockScreenWindowRecipe(provider: provider, window: window, family: family, isDemo: isDemo, now: now)
-        self.secondary = secondary.map { LockScreenWindowRecipe(provider: provider, window: $0, family: family, isDemo: isDemo, now: now) }
+        primary = LockScreenWindowRecipe(provider: provider, window: window, family: family, isDemo: isDemo, demoCaption: demoCaption, now: now)
+        self.secondary = secondary.map { LockScreenWindowRecipe(provider: provider, window: $0, family: family, isDemo: isDemo, demoCaption: demoCaption, now: now) }
         hasSiblingPools = provider?.weeklyWindow == nil && (provider?.windows.filter(\.isBillingPeriod).count ?? 0) > 1
         accessibilityText = ([providerName, primary.accessibilityText] + self.secondary.map(\.accessibilityText)).joined(separator: ", ")
     }
@@ -133,10 +141,13 @@ public struct LockScreenWidgetStatusForm: Sendable, Equatable {
     public let circleWord: String
     public let title: String
     public let message: String
+    /// WCW4: the status mark's own level, never a reading.
+    public let vesselFill: Double
     public var inlineText: String { "Headroom · \(title)" }
 
     init(_ status: WidgetStatusState) {
         circleWord = status.lockScreenWord
+        vesselFill = status.vesselFill
         title = status.title
         message = status.message
     }
@@ -156,6 +167,28 @@ public struct LockScreenWidgetRecipe: Sendable, Equatable {
     public let inlineImage: LockScreenInlineImage
     public let accessibilityElements: [String]
     public var headingPrefix: String { isDemo ? "Demo · " : "" }
+
+    /// R10: the name a rectangle prints for a slot. One provider prefixes "Demo · "; a pair
+    /// has no room for the prefix, so the first slot's name becomes "Demo" and its mark
+    /// still names the provider. Circles and Gauge Pair carry Demo in the caption instead.
+    public func displayName(forSlotAt index: Int) -> String {
+        guard slots.indices.contains(index) else { return "" }
+        let name = slots[index].providerName
+        guard isDemo else { return name }
+        if slots.count > 1 { return index == 0 ? "Demo" : name }
+        return headingPrefix + name
+    }
+
+    /// R11: a title line that stands for the main window (Nested Rows, which prints no
+    /// caption) names Cursor's pool, never a bare "Cursor N%".
+    public func title(forSlotAt index: Int) -> String {
+        guard slots.indices.contains(index) else { return "" }
+        let slot = slots[index]
+        guard slot.providerID == ProviderID.cursor.raw, slot.primary.window != nil,
+              ![.off, .pending, .signIn].contains(slot.primary.state) else { return displayName(forSlotAt: index) }
+        let pool = slot.primary.window?.widgetDisplayLabel ?? slot.providerName
+        return slots.count > 1 ? pool : headingPrefix + pool
+    }
     public var accessibilityText: String { accessibilityElements.joined(separator: "; ") }
 
     public init(style: WidgetLayoutStyle, family: LockScreenWidgetFamily, providerChoice: LockScreenProviderChoice, state: IOSWidgetSnapshotState, now: Date) {
@@ -209,7 +242,8 @@ public struct LockScreenWidgetRecipe: Sendable, Equatable {
         func slot(_ provider: WidgetStyleProviderRecipe?, _ window: WidgetWindowSummary?, secondary: [WidgetWindowSummary] = []) -> LockScreenProviderSlot {
             LockScreenProviderSlot(
                 provider: provider?.summary, providerID: provider?.id ?? providerChoice.providerID?.raw ?? "headroom",
-                window: window, secondary: secondary, family: family, isDemo: demo, now: now
+                window: window, secondary: secondary, family: family, isDemo: demo,
+                demoCaption: family == .circle || (family == .rectangle && style == .tightestFirst), now: now
             )
         }
 
@@ -307,8 +341,19 @@ enum LockScreenWidgetCopy {
         let minimal = slots.map { label($0, compact: true, minimal: true) }.joined(separator: " · ")
         let refill = tightest ? slots.first?.primary.refillText.map { " · " + $0.lowercased() } ?? "" : ""
         let shortRefill = tightest ? slots.first?.primary.shortRefillText.map { " · " + $0.lowercased() } ?? "" : ""
+        var texts = [full + refill, short + refill, minimal + shortRefill]
+        // Design 10: a narrow Tightest First line keeps the window and a bare countdown
+        // ("5-hour 8% · 3h") before it drops the window name; Cursor always keeps it (R11).
+        if tightest, let slot = slots.first, let countdown = slot.primary.shortCountdownText,
+           ![.off, .pending, .signIn].contains(slot.primary.state) {
+            let isCursor = slot.providerID == ProviderID.cursor.raw
+            let pool = compactWindowLabel(slot.primary.window, providerID: slot.providerID)
+            let window = "\(isCursor ? "Cursor \(pool)" : pool) \(slot.primary.numberText) · \(countdown)"
+            texts = [full + refill, short + refill, window]
+            if !isCursor { texts.append("\(slot.primary.numberText) · \(countdown)") }
+        }
         var candidates: [String] = []
-        for text in [full + refill, short + refill, minimal + shortRefill] {
+        for text in texts {
             let candidate = prefix + text
             if !candidates.contains(candidate) { candidates.append(candidate) }
         }

@@ -4,7 +4,7 @@ import HeadroomCore
 import SwiftUI
 
 /// KTD5/KTD6: presentation of Core's resolved states, independent of home rendering modes.
-private enum HeadroomWidgetLockScreenInk {
+enum HeadroomWidgetLockScreenInk {
     static func numeral(_ state: LockScreenWindowState) -> Color {
         switch state {
         case .stale: Color(white: LockScreenWidgetTokens.halfInk)
@@ -13,6 +13,16 @@ private enum HeadroomWidgetLockScreenInk {
         case .critical, .live: Color(white: LockScreenWidgetTokens.fullInk)
         }
     }
+
+    /// R7/R8: a mark beside a provider with no reading steps back to secondary ink.
+    static func mark(_ state: LockScreenWindowState) -> Double {
+        switch state {
+        case .off, .pending, .signIn: LockScreenWidgetTokens.secondaryInk
+        default: LockScreenWidgetTokens.fullInk
+        }
+    }
+
+    static let label = Color(white: LockScreenWidgetTokens.secondaryInk)
 
     static func caption(_ state: LockScreenWindowState) -> Color {
         switch state {
@@ -29,7 +39,7 @@ private enum HeadroomWidgetLockScreenInk {
 }
 
 /// R16: both system privacy and gallery placeholders suppress every data-bearing fill.
-private struct HeadroomWidgetLockScreenEnvironment: DynamicProperty {
+struct HeadroomWidgetLockScreenEnvironment: DynamicProperty {
     @Environment(\.isLuminanceReduced) var isLuminanceReduced
     @Environment(\.redactionReasons) private var redactionReasons
 
@@ -37,10 +47,10 @@ private struct HeadroomWidgetLockScreenEnvironment: DynamicProperty {
         redactionReasons.contains(.privacy) || redactionReasons.contains(.placeholder)
     }
 
-    func liquidFill(for recipe: LockScreenWindowRecipe) -> Color {
+    func liquidFill(for state: LockScreenWindowState) -> Color {
         isLuminanceReduced
             ? Color(white: LockScreenWidgetTokens.alwaysOnWash)
-            : HeadroomWidgetLockScreenInk.fill(recipe.state)
+            : HeadroomWidgetLockScreenInk.fill(state)
     }
 }
 
@@ -66,20 +76,6 @@ public struct HeadroomWidgetLockScreenBrandMark<Mark: View>: View {
             .fixedSize()
             .accessibilityHidden(true)
             .headroomWidgetProbe()
-    }
-}
-
-public extension HeadroomWidgetLockScreenBrandMark where Mark == AnyView {
-    /// KTD6/KTD7: iOS uses its existing assets; the Mac harness injects ProviderLogoView.
-    init(providerID: String, size: CGFloat, ink: Double = LockScreenWidgetTokens.fullInk) {
-        self.init(providerID: providerID, size: size, ink: ink) { id, slot in
-            let dimensions = HeadroomBrandMark.markSize(for: id, slot: Double(slot))
-            let image = HeadroomWidgetStyle.assetName(for: id).map { Image($0) }
-                ?? Image(systemName: HeadroomWidgetStyle.symbol(for: id))
-            return AnyView(image.resizable().renderingMode(.template).scaledToFit()
-                .frame(width: dimensions.width, height: dimensions.height)
-                .frame(width: slot, height: slot))
-        }
     }
 }
 
@@ -135,11 +131,13 @@ public struct HeadroomWidgetLockScreenNumeral: View {
 public struct HeadroomWidgetLockScreenCaption: View {
     private let recipe: LockScreenWindowRecipe
     private let compact: Bool
+    private let size: Double
     @HeadroomWidgetTypeUnit private var typeUnit
 
-    public init(_ recipe: LockScreenWindowRecipe, compact: Bool = false) {
+    public init(_ recipe: LockScreenWindowRecipe, compact: Bool = false, size: Double = LockScreenWidgetTokens.captionSize) {
         self.recipe = recipe
         self.compact = compact
+        self.size = size
     }
 
     public var body: some View {
@@ -155,7 +153,7 @@ public struct HeadroomWidgetLockScreenCaption: View {
                 .truncationMode(.tail)
                 .headroomWidgetProbe()
         }
-        .font(.system(size: LockScreenWidgetTokens.captionSize * typeUnit))
+        .font(.system(size: size * typeUnit, weight: .semibold))
         .foregroundStyle(HeadroomWidgetLockScreenInk.caption(recipe.state))
         .privacySensitive()
         .headroomWidgetProbe()
@@ -192,23 +190,37 @@ public struct HeadroomWidgetLockScreenArc: View {
     }
 }
 
-/// R2: Cursor sibling pools use equal bars; rolling windows use the thinner rails.
+/// R2: Cursor sibling pools use equal bars; rolling windows use the thinner rails. A nil
+/// width fills the offered width (Nested Rows); the badge passes its fixed bar width.
 public struct HeadroomWidgetLockScreenNestedBars: View {
     private let slot: LockScreenProviderSlot
+    private let width: Double?
+    private let parentHeight: Double
+    private let railHeight: Double
+    private let gap: Double
     private var environment = HeadroomWidgetLockScreenEnvironment()
 
-    public init(_ slot: LockScreenProviderSlot) { self.slot = slot }
+    public init(_ slot: LockScreenProviderSlot,
+                width: Double? = LockScreenWidgetTokens.nestedBarWidth,
+                parentHeight: Double = LockScreenWidgetTokens.nestedParentHeight,
+                railHeight: Double = LockScreenWidgetTokens.nestedRailHeight,
+                gap: Double = LockScreenWidgetTokens.nestedRailGap) {
+        self.slot = slot
+        self.width = width
+        self.parentHeight = parentHeight
+        self.railHeight = railHeight
+        self.gap = gap
+    }
 
     public var body: some View {
-        VStack(spacing: LockScreenWidgetTokens.nestedRailGap) {
-            bar(slot.primary, height: LockScreenWidgetTokens.nestedParentHeight)
+        VStack(spacing: gap) {
+            bar(slot.primary, height: parentHeight)
             ForEach(Array(slot.secondary.enumerated()), id: \.offset) { _, recipe in
-                bar(recipe, height: slot.hasSiblingPools
-                    ? LockScreenWidgetTokens.nestedParentHeight : LockScreenWidgetTokens.nestedRailHeight)
+                bar(recipe, height: slot.hasSiblingPools ? parentHeight : railHeight)
             }
         }
-        .frame(width: LockScreenWidgetTokens.nestedBarWidth)
-        .fixedSize()
+        .frame(width: width.map { CGFloat($0) })
+        .fixedSize(horizontal: width != nil, vertical: true)
         .accessibilityHidden(true)
         .headroomWidgetProbe()
     }
@@ -217,8 +229,11 @@ public struct HeadroomWidgetLockScreenNestedBars: View {
         Capsule().fill(Color(white: LockScreenWidgetTokens.trackInk))
             .overlay(alignment: .leading) {
                 if !environment.hidesContent, recipe.fillFraction > 0 {
-                    Capsule().fill(HeadroomWidgetLockScreenInk.fill(recipe.state))
-                        .frame(width: LockScreenWidgetTokens.nestedBarWidth * recipe.fillFraction)
+                    GeometryReader { geometry in
+                        // R8: a nonzero reading never shrinks below a round end cap.
+                        Capsule().fill(HeadroomWidgetLockScreenInk.fill(recipe.state))
+                            .frame(width: max(height, geometry.size.width * recipe.fillFraction))
+                    }
                 }
             }
             .frame(height: height)
@@ -252,12 +267,19 @@ public struct HeadroomWidgetLockScreenWash: View {
 
 /// KTD6: identical capsule geometry and digit-ink optics to the home vessel, in one ink.
 public struct HeadroomWidgetLockScreenVessel: View {
-    private let recipe: LockScreenWindowRecipe
+    private let fraction: Double
+    private let state: LockScreenWindowState
     private let geometry: WidgetVesselGeometry
     private var environment = HeadroomWidgetLockScreenEnvironment()
 
     public init(_ recipe: LockScreenWindowRecipe, geometry: WidgetVesselGeometry) {
-        self.recipe = recipe
+        self.init(fraction: recipe.fillFraction, state: recipe.state, geometry: geometry)
+    }
+
+    /// WCW4/R9: the status mark draws `WidgetStatusState.vesselFill`, never a reading.
+    public init(fraction: Double, state: LockScreenWindowState = .live, geometry: WidgetVesselGeometry) {
+        self.fraction = fraction
+        self.state = state
         self.geometry = geometry
     }
 
@@ -267,12 +289,12 @@ public struct HeadroomWidgetLockScreenVessel: View {
     }
 
     public var body: some View {
-        let liquid = geometry.liquidHeight(fraction: recipe.fillFraction)
+        let liquid = geometry.liquidHeight(fraction: fraction)
         ZStack {
             Capsule().inset(by: geometry.stroke / 2)
                 .stroke(Color(white: LockScreenWidgetTokens.secondaryInk), lineWidth: geometry.stroke)
             if !environment.hidesContent, liquid > 0 {
-                Rectangle().fill(environment.liquidFill(for: recipe))
+                Rectangle().fill(environment.liquidFill(for: state))
                     .frame(height: liquid)
                     .frame(maxHeight: .infinity, alignment: .bottom)
                     .frame(width: geometry.innerWidth, height: geometry.innerHeight)

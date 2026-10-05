@@ -87,6 +87,23 @@ recipes out through `HeadroomWidgetStyledBody` plus the full-bleed `HeadroomWidg
 which every caller (both hosts, Settings, the harness) draws under the padded content. Settings ›
 Widgets & iPhone previews the styles but never sets them. Plan:
 `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
+**Lock Screen widgets (Oct 2026).** A second widget in the iOS extension, kind
+`HeadroomIOSLockScreenWidget` with its own `HeadroomLockScreenConfigurationIntent`, offers circle,
+rectangle and inline sizes on the iPhone and iPad Lock Screens. Edit Widget offers **Style** (the
+same four names, default **Liquid Level**) and **Provider** (Automatic, Claude, Codex, Grok,
+Cursor); there is no Color. Each style draws one approved design per size
+(`design/lock-screen-widget-ideas.html`). Every decision — which provider (circle: home R6 pick;
+rectangle and inline: the two widget providers; Tightest First on Automatic: every synced provider),
+the R8 state order, captions, Cursor pool names, demo labels, status forms, inline text candidates
+and the stepped inline image — is the pure, tested `LockScreenWidgetRecipe`; the shared
+`HeadroomWidgetLockScreenBody` only lays it out in one ink of opaque grays (`LockScreenWidgetTokens`).
+A pinned provider missing from the envelope shows "Off" and never falls back to another provider.
+Like the home widgets, it shows each provider's main account only (schema 3 carries no others) —
+the stated multi-account parity exception. `--render-widgets` also renders every Lock Screen
+style × size × provider × fixture at three phone geometries, normal, Always On and privacy
+(`--widget-family lock|home` filters). The inline vessel images are generated from Core geometry
+with `swift run Headroom --generate-lock-screen-vessels`. Plan:
+`docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`.
 Tube remains a stored shape when Full is selected, but `GaugeShape.resolved(for:)` renders it
 as Chip until the user returns to Micro.
 
@@ -204,6 +221,14 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   WidgetKit's rendering mode is read through `@HeadroomWidgetRendering` so the harness can pose
   the monochrome and stripped branches; don't read `widgetRenderingMode` directly in a style view.
   `ImageRenderer` ignores Dynamic Type, so xxLarge still needs a device look.
+- **Lock Screen views stay one-ink and platform-neutral.** Shared UI never names a WidgetKit
+  accessory family or `AccessoryWidgetBackground` (they don't compile for macOS); the iOS host maps
+  sizes to `LockScreenWidgetFamily` and injects marks and backdrops through
+  `HeadroomWidgetLockScreenArt`. Never default the Lock Screen style through
+  `WidgetLayoutStyle.default` (that is the home default, Nested Meter); use
+  `LockScreenWidgetChoices`. Ink is opaque gray lightness (`Color(white:)` from
+  `LockScreenWidgetTokens`), never white with opacity — vibrant rendering maps lightness, not alpha
+  (KTD5).
 - **Pill-shelf drag positions come from `PillShelfLayout`, never an `.offset`.** The layout
   places the dragged card at the pointer and, on release, at its drop slot in one animation;
   the store commits after it lands. Every offset-based handover jumped. See

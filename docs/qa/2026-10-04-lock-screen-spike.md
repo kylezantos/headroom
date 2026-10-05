@@ -77,3 +77,30 @@ U3's full Core suite passed **1,233 tests in 89 suites**; the post-U4 run passed
 Simulator observations establish discovery, configuration, custom-image support and demo reloads. They do not establish physical Always On, first-unlock cache behavior or OS privacy redaction. U2's remaining physical answers and U5/U6 remain pending.
 
 The macOS app test gate also passed after U4: `./Scripts/build-app.sh --deps-only` exited 0, then the plan's `HeadroomAppTests` command exited 0 with **250 tests in 36 suites passed** and `** TEST SUCCEEDED **` (`.context/lock-screen-u4-macos-app-tests.log`). No Headroom.app was running at test start. Actor-isolation warnings in `ProviderCardIdentityRowTests.swift` are recorded in BUGS.md for follow-up. The isolated QA Simulator was shut down after evidence capture; other simulators were left untouched.
+
+## U5/U6 final designs — 2026-10-05
+
+At Kyle's direction, U5/U6 proceeded before the two physical answers above. Neither gates the drawing: KTD13 only adds a status word, and the bodies already draw every fill, arc, bar and vessel empty under `.privacy` and `.placeholder` redaction (R16). Both answers move into the device acceptance session below.
+
+- The scaffold views and `LockScreenInlineSpike` image are gone. The host draws `HeadroomWidgetLockScreenBody` from `LockScreenWidgetRecipe` for all three sizes, with template brand marks and `AccessoryWidgetBackground` injected.
+- The inline image is eleven `LockScreenInlineVessel0…10` template SVGs generated from `WidgetVesselGeometry` by `swift run Headroom --generate-lock-screen-vessels`.
+- `swift test`: **1,238 tests in 90 suites passed** (`.context/u6-core-tests.log`).
+- `swift run Headroom --render-widgets .context/lock-full --widget-family lock`: **7,200 Lock Screen tiles, no overflow** — 4 styles × 3 sizes × 5 provider choices × 17 fixtures plus demo and 5 status forms × 3 phone geometries × normal and Always On, plus privacy on two sources.
+- Home sweep (`--widget-family home`): all **864 home PNGs byte-identical** to `.context/lock-screen-home-before`.
+- `HeadroomIOS` and `HeadroomIOSWidgets` Simulator builds and the generic iOS device build exited 0 (`.context/u6-*.log`).
+- macOS `HeadroomAppTests` could not run: another workspace's Headroom.app was open, so the test host exited early (the BUGS.md single-instance item). Last green run: post-U4, 250 tests in 36 suites.
+
+## U9 device acceptance — pending (Kyle)
+
+Install the device build (`.context/lock-screen-spike-device/Build/Products/Debug-iphoneos/HeadroomIOS.app`) and record pass/fail for each:
+
+1. Each style in each size, on Automatic and pinned to each provider.
+2. Dark, light and photo wallpapers.
+3. Always On (fills fade, the low-number badge becomes an outline).
+4. Privacy: Allow Access When Locked → Lock Screen Widgets off. Record whether drawn shapes as well as text disappear (the open U2 question).
+5. Reboot, then inspect before the first unlock (the open U2 question; KTD13).
+6. Largest Dynamic Type.
+7. An iPad Lock Screen if available.
+8. Edit Widget defaults on a newly placed widget (Liquid Level, Automatic).
+9. Demo mode labels "Demo" in every size.
+10. A provider switched off on the Mac shows "Off" when pinned.

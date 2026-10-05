@@ -1,7 +1,9 @@
 import SwiftUI
 import WidgetKit
 
-/// U2 device spike only: U6 replaces this text scaffold with the tested Core recipe bodies.
+/// KTD1/KTD6 (2026-10-04 Lock Screen plan): the host maps WidgetKit's accessory sizes to
+/// Core, builds the recipe and injects the iOS-only art. Every drawing decision lives in
+/// `LockScreenWidgetRecipe` and the shared `HeadroomWidgetLockScreenBody`.
 struct HeadroomLockScreenWidgetView: View {
     @Environment(\.widgetFamily) private var family
     let entry: HeadroomLockScreenWidgetEntry
@@ -9,7 +11,7 @@ struct HeadroomLockScreenWidgetView: View {
     var body: some View {
         Group {
             if let lockScreenFamily {
-                scaffold(for: lockScreenFamily)
+                content(for: lockScreenFamily)
             }
         }
         .containerBackground(for: .widget) { Color.clear }
@@ -35,93 +37,55 @@ struct HeadroomLockScreenWidgetView: View {
     }
 
     @ViewBuilder
-    private func scaffold(for family: LockScreenWidgetFamily) -> some View {
+    private func content(for family: LockScreenWidgetFamily) -> some View {
+        if entry.isPlaceholder {
+            placeholder(for: family)
+        } else {
+            HeadroomWidgetLockScreenBody(
+                recipe: LockScreenWidgetRecipe(style: entry.style, family: family,
+                                               providerChoice: entry.providerChoice,
+                                               state: entry.state, now: entry.date),
+                art: Self.art
+            ) { image in
+                // KTD9: inline renders only text and one image, so the icon stays a bare Image.
+                switch image {
+                case .warning: Image(systemName: "exclamationmark.circle")
+                case .vessel(let level):
+                    Image(LockScreenInlineVesselArt.assetName(level: level)).renderingMode(.template)
+                }
+            }
+        }
+    }
+
+    /// KTD10/R16: the neutral placeholder carries no provider, number or filled shape.
+    @ViewBuilder
+    private func placeholder(for family: LockScreenWidgetFamily) -> some View {
         switch family {
-        case .circle:
-            VStack(spacing: 2) {
-                Text(providerName).font(.caption2)
-                Text(number).font(.system(size: LockScreenWidgetTokens.liquidNumeral, weight: .semibold))
-                Text(isDemo ? "Demo" : caption).font(.system(size: LockScreenWidgetTokens.captionSize))
-            }
-            .lineLimit(1)
-        case .rectangle:
-            HStack(spacing: 6) {
-                // U2 diagnostic: observe whether system privacy redaction also removes a
-                // drawn fill. Final R16 behavior is implemented after the device answer.
-                if !entry.isPlaceholder {
-                    RoundedRectangle(cornerRadius: 3)
-                        .fill(Color(white: LockScreenWidgetTokens.secondaryInk))
-                        .frame(width: 12, height: 24)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(isDemo ? "Demo · " : "")\(providerName)")
-                    Text("\(caption) · \(number)")
-                }
-                .font(.caption)
-                .lineLimit(1)
-            }
         case .inline:
-            if entry.isPlaceholder {
-                Text("Headroom · —")
-            } else {
-                // KTD9/U2: one custom template image next to system-styled text. Kyle's
-                // device answer is the gate before generating the real stepped images.
-                Label {
-                    Text("\(isDemo ? "Demo · " : "")\(providerName) \(caption) \(number)")
-                } icon: {
-                    Image("LockScreenInlineSpike")
-                        .renderingMode(.template)
-                }
+            Text("Headroom · —")
+        case .circle:
+            ZStack {
+                AccessoryWidgetBackground()
+                Text("—").font(.system(size: LockScreenWidgetTokens.liquidNumeral, weight: .semibold))
             }
+        case .rectangle:
+            Text("Headroom")
+                .font(.system(size: 13, weight: .semibold))
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         }
     }
 
-    private var envelope: WidgetSnapshotEnvelope? {
-        switch entry.state {
-        case .content(let envelope), .demo(let envelope): envelope
-        default: nil
-        }
-    }
-
-    private var isDemo: Bool {
-        if case .demo = entry.state { true } else { false }
-    }
-
-    private var provider: WidgetProviderSummary? {
-        guard let envelope else { return nil }
-        if let pinned = entry.providerChoice.providerID {
-            return envelope.providers.first { $0.id == pinned.raw }
-        }
-        return envelope.widgetProviders.first
-    }
-
-    private var providerName: String {
-        if entry.isPlaceholder { return "Headroom" }
-        return provider?.displayName ?? entry.providerChoice.providerID?.displayName ?? "Headroom"
-    }
-
-    private var window: WidgetWindowSummary? {
-        provider?.primarySubscriptionWindow ?? provider?.windows.first
-    }
-
-    private var number: String {
-        entry.isPlaceholder ? "—" : WidgetWindowText.percent(window)
-    }
-
-    private var caption: String {
-        if entry.isPlaceholder { return "—" }
-        if let window { return window.label }
-        if let provider {
-            return provider.freshness == .pending ? "Waiting" : "Sign in"
-        }
-        if envelope != nil { return "Off" }
-        switch entry.state {
-        case .disabled: return "Sync is off"
-        case .setupNeeded: return "iCloud is off"
-        case .waitingForMac: return "Waiting for Mac"
-        case .corrupt: return "Can't read data"
-        case .incompatibleSchema: return "Update Headroom"
-        case .demo, .content: return "Off"
-        }
-    }
+    /// KTD7: the existing brand assets as template silhouettes; `AccessoryWidgetBackground`
+    /// is the system's own backdrop for circles and the Liquid Strip.
+    private static let art = HeadroomWidgetLockScreenArt(
+        mark: { id, slot in
+            let dimensions = HeadroomBrandMark.markSize(for: id, slot: Double(slot))
+            let image = HeadroomWidgetStyle.assetName(for: id).map { Image($0) }
+                ?? Image(systemName: HeadroomWidgetStyle.symbol(for: id))
+            return AnyView(image.resizable().renderingMode(.template).scaledToFit()
+                .frame(width: dimensions.width, height: dimensions.height)
+                .frame(width: slot, height: slot))
+        },
+        accessoryBackground: { AnyView(AccessoryWidgetBackground()) }
+    )
 }

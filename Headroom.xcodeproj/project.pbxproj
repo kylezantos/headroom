@@ -18,6 +18,8 @@
 		05084A1F94C75B3721E938C1 /* CopyFeedbackButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */; };
 		063561C489DFDA04C68585D0 /* NotificationClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782638CBD6A15B5240AFCD53 /* NotificationClientTests.swift */; };
 		06769F1846A5C3F03083EFBE /* HeadroomIOSWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE287C9A19A4E94BB93E88F /* HeadroomIOSWidgets.swift */; };
+		06EE14EF72ADFB00F1C5E3CD /* HeadroomWidgetLockScreenCircles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */; };
+		077094AD45B0D19F4BA3FBCA /* HeadroomWidgetLockScreenInline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A2F9F06B26CB4E5FF4A110 /* HeadroomWidgetLockScreenInline.swift */; };
 		079F32150EB353B7459F9A1E /* VesselMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0627C951970F44087A8EE593 /* VesselMark.swift */; };
 		07DD05A5A542C61C98C43C14 /* HeadroomWidgetStyledBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCDB3DAE232C200FAA8BB2B /* HeadroomWidgetStyledBody.swift */; };
 		07F7A0F664386AC8CE9247BC /* HeadroomWidgetTightestFirst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E40442ADD49193D247EF655 /* HeadroomWidgetTightestFirst.swift */; };
@@ -42,11 +44,14 @@
 		11ED633FEA9659E1F74B6EAC /* CursorUsageCLIProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DAAABDBD948B90C80CB3D65 /* CursorUsageCLIProbe.swift */; };
 		1290F9171352D90CDC04EE99 /* APISpendSectionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BC8195F504F14F4E8C6F5BC /* APISpendSectionView.swift */; };
 		12F9E3D3CE88B3DCCAD5F01E /* HeadroomWidgetStylePrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5520BF4DF5B5A5F5A5EF30F /* HeadroomWidgetStylePrimitives.swift */; };
+		155C72D6DE67F9624B839444 /* HeadroomWidgetLockScreenBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */; };
 		15C18CFDA6C299324208B274 /* WidgetStyleRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD9777C14EEBA0E245CF768 /* WidgetStyleRecipes.swift */; };
 		15EEFD226FCB5864E97EAA12 /* UsageBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF2BA56351FD2FA2E4940F33 /* UsageBarView.swift */; };
 		1751C11B769ABFFA723E779A /* MenuBarPaneSizingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 864A7A76DC0EC0C8CF12DF51 /* MenuBarPaneSizingTests.swift */; };
+		185BBCF2B26B07104ED955E8 /* HeadroomWidgetLockScreenInline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A2F9F06B26CB4E5FF4A110 /* HeadroomWidgetLockScreenInline.swift */; };
 		18FDEF22E0619E554966F64D /* HeadroomWidgetPreviews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86D2C4B7BA8C794A93EDC3E8 /* HeadroomWidgetPreviews.swift */; };
 		1942AF183353BD9C307B35AE /* UserNotificationClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 310B2A176A3A663576EB2092 /* UserNotificationClient.swift */; };
+		197352673E0AB788F7C752A1 /* LockScreenInlineVesselArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79538F403F4CE237DF73606E /* LockScreenInlineVesselArt.swift */; };
 		1A1CB66C5F5CBF3C88C9D3A5 /* WidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */; };
 		1B540F4332DC3E721D094854 /* ResetSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */; };
 		1CC6767039DF2A0E63E12719 /* HeadroomIOSWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -82,6 +87,7 @@
 		335F51D0ECC1A4D0C24EB985 /* UsageHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60C38BCE8D085D56EEC5C0A /* UsageHTTPClient.swift */; };
 		33D97E578C67DD091A65D977 /* HeadroomTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6E320E9A4358094FFE458B /* HeadroomTheme.swift */; };
 		33F4E619E256E723243ED1B3 /* grok-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = CDC9199DC7DC96DF143A8480 /* grok-dark.svg */; };
+		3488C0B1ABFA3C37C787A233 /* LockScreenInlineVesselArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79538F403F4CE237DF73606E /* LockScreenInlineVesselArt.swift */; };
 		351C19F8454F736D4E3EFE06 /* ProviderID.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */; };
 		364862D7346ED5C3C1F795A2 /* HeadroomWidgetStylePrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5520BF4DF5B5A5F5A5EF30F /* HeadroomWidgetStylePrimitives.swift */; };
 		36608F62A9E13ABAD0F755B8 /* HeadroomIOSWidgetEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D8078325519503A5D0F657 /* HeadroomIOSWidgetEntry.swift */; };
@@ -104,6 +110,7 @@
 		461264D34984B04423E2C1F1 /* ProviderAccountConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFD57C46D795C9775A1357F3 /* ProviderAccountConfiguration.swift */; };
 		46BD02EFDD1709E853B5CA73 /* UsageBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6378187F940FD56B1A363971 /* UsageBarView.swift */; };
 		47C132C34D579CB86A265270 /* ResetClockFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E017709D234A921E25999F2 /* ResetClockFormatter.swift */; };
+		49C9E5BA318F99872BAB6354 /* HeadroomWidgetLockScreenInline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0A2F9F06B26CB4E5FF4A110 /* HeadroomWidgetLockScreenInline.swift */; };
 		4A24CB563FBA33154A7C025E /* MenuBarLabelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */; };
 		4B4C9CAB4F37C267CE7FAF7E /* AccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7339860B2F91C83B1108CED /* AccountStorage.swift */; };
 		4BF249D4C7CEAE5DA58A40ED /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
@@ -136,6 +143,7 @@
 		61E201D44AE0B93B6C1D160B /* GrokAccountEmailReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B371EDE73E7D7D689ADFED6 /* GrokAccountEmailReader.swift */; };
 		63BAF6C50AD544D079ED4CC3 /* BankedResetNotificationBaseline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F20CCF51B5304F622A8D2C4 /* BankedResetNotificationBaseline.swift */; };
 		642756141F309A75FF31D15E /* WidgetVesselGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1403220889349066990732C4 /* WidgetVesselGeometry.swift */; };
+		6429468325F7AAB4903DEA44 /* HeadroomWidgetLockScreenRectangles.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA70EE75EB4B5C408BB398F /* HeadroomWidgetLockScreenRectangles.swift */; };
 		64378D284980B82EAEC72A1B /* MeterStyleTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */; };
 		64900610E17530259BEF76AC /* AccountsSettingsTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = B029B49864BCFD59A2CD48A8 /* AccountsSettingsTile.swift */; };
 		64E76A4A757DC3E9DB0ADE51 /* HeadroomWidgetSharedUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */; };
@@ -170,6 +178,7 @@
 		7FDA5747A23E527CB79C9F92 /* HeadroomWidgetStyledBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCDB3DAE232C200FAA8BB2B /* HeadroomWidgetStyledBody.swift */; };
 		80916D058A17FA99064557F0 /* DemoFixture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65084FF4FFAFB83B11B7601E /* DemoFixture.swift */; };
 		80F20CC2F1292AB610A972D5 /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
+		819F996DB6AFEE2FCB3FE64D /* HeadroomWidgetLockScreenRectangles.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA70EE75EB4B5C408BB398F /* HeadroomWidgetLockScreenRectangles.swift */; };
 		821C21A8706EEAA87D481BEA /* OpticalLeadingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */; };
 		84BF1E0A9D00D681D45F2959 /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
 		85A5F90A427E0FFBBCC82308 /* MeterStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */; };
@@ -187,8 +196,10 @@
 		94B616960A02334A94964B51 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; };
 		9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */; };
 		959AE719260D8E5F925ACCD5 /* HeadroomWidgetContainerBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7ED0585073F5F5D27320A1 /* HeadroomWidgetContainerBackground.swift */; };
+		972FC01C83618784400107C8 /* HeadroomWidgetLockScreenCircles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */; };
 		9743E330418DC4B3CEF0D166 /* WidgetWindowRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D5513C2AB2C61E436AB502 /* WidgetWindowRanking.swift */; };
 		97577F3BA2867600F9A2ACD6 /* HeadroomWidgetFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925D38A1B5F4B62C12EFECF2 /* HeadroomWidgetFooter.swift */; };
+		989DAF72E7D6FC04490EDEF4 /* LockScreenInlineVesselArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79538F403F4CE237DF73606E /* LockScreenInlineVesselArt.swift */; };
 		99A555061BE9F0B37D39BA46 /* HeadroomWidgetVesselHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F70A32BED298DB58AE62BC /* HeadroomWidgetVesselHero.swift */; };
 		9A2E1DD1FDAA631A97E25F20 /* Redaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF324F891EEEAD03BABA4FC /* Redaction.swift */; };
 		9A3FF49A94D30656C5C713C9 /* HeadroomWidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D406B050387CDFAE6C0F966 /* HeadroomWidgetConfigurationIntent.swift */; };
@@ -203,6 +214,7 @@
 		9D7B34EF54A0CB9745FEBA6E /* MeterStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */; };
 		9D992181780CEEF21E07FEF0 /* ProviderStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 271BAABD34D394E2014676BC /* ProviderStyle.swift */; };
 		9E04A2161001D0E7469BE23D /* LockScreenWidgetTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85A49D60127C59506D65410A /* LockScreenWidgetTokens.swift */; };
+		9E69BAA44A8CDBD9FDE3BB1E /* HeadroomWidgetLockScreenCircles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */; };
 		9E9B83428BABF76BD485AF24 /* WidgetStyleRecipes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AD9777C14EEBA0E245CF768 /* WidgetStyleRecipes.swift */; };
 		9EB4193844C02F5D8EDF05F1 /* HeadroomWidgetStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED97996F3D0D748CD51AACC /* HeadroomWidgetStatusViews.swift */; };
 		9EDF0593E6BD9740C87942A0 /* MeterGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = D15A53AE4F679F87EABE633E /* MeterGauge.swift */; };
@@ -220,6 +232,7 @@
 		A6C16B14124470F91F66F7DF /* WidgetLayoutStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA59F148939EB6AC45B4BD65 /* WidgetLayoutStyle.swift */; };
 		A7C4BE377B15415C81E20452 /* UsageSeverityColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */; };
 		AC0331D17112DB32C3311741 /* WidgetSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9D996992FCBD0C9F54F348C /* WidgetSettingsSection.swift */; };
+		AC13EC1084A5AAD9BB62C3BB /* HeadroomWidgetLockScreenRectangles.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA70EE75EB4B5C408BB398F /* HeadroomWidgetLockScreenRectangles.swift */; };
 		AC26BE070D89EEFC16DD38C0 /* WidgetStatusCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82174D6E3D6084D707A51A1 /* WidgetStatusCopy.swift */; };
 		AC30D16374782EE1F93EFB99 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 647B97436A2026E1B0F66065 /* SettingsView.swift */; };
 		ACC540E16ED16A81A4B6D0BD /* NotificationsSettingsPaneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */; };
@@ -257,6 +270,7 @@
 		CBE071C6D70A1D7452F3C52A /* WidgetPreviewStrip.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1473F524586653EE503553 /* WidgetPreviewStrip.swift */; };
 		CD24B67069EE1BA13C0693C3 /* MenuBarPrioritySelectionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */; };
 		CD29C4379A86CAC8A03AF46A /* Countdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87284976C67D36ECE2DD747F /* Countdown.swift */; };
+		CD6CEB6249B5FAE39F5B43BF /* HeadroomWidgetLockScreenBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */; };
 		CE723982BAA7A79F3B71880F /* BrandIcons.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32391FD1576132EBDE6FD4D3 /* BrandIcons.xcassets */; };
 		CE9E932C7B2EF1B14A9E1E41 /* MenuBarPillArranger.swift in Sources */ = {isa = PBXBuildFile; fileRef = E129DC7D060EBB5B56418826 /* MenuBarPillArranger.swift */; };
 		CF1F4D93349410C996B0498B /* AccountsSettingsInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */; };
@@ -272,6 +286,7 @@
 		D68163551E31D133ED32CA8F /* BrandColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */; };
 		D6D5B83162A906AE2930A473 /* WidgetStyleGalleryPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CD1F07D8DEC1CE423DF3CDD /* WidgetStyleGalleryPicker.swift */; };
 		D7CAC892DFB775932331FFBA /* GrokUsageSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CFDB70D92C7145AFEEAF520 /* GrokUsageSource.swift */; };
+		D8BA8083F4FA9BB05EC47FAC /* HeadroomWidgetLockScreenBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */; };
 		DA4C5D33952950E6C048F6B1 /* HeadroomLockScreenWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A065BC230BE7C4312C1EDCCD /* HeadroomLockScreenWidgetView.swift */; };
 		DAF8C9B5E2CCBBEAA4547D02 /* PopoverHeaderStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 181B5D12FEF6BA299F7BA2A0 /* PopoverHeaderStatusTests.swift */; };
 		DAFB4F586505C2785C8CE80A /* WidgetSnapshotProjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */; };
@@ -484,6 +499,7 @@
 		5C15B215ACD18FF444ECDC90 /* OpticalLeadingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpticalLeadingTests.swift; sourceTree = "<group>"; };
 		5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountEmailReader.swift; sourceTree = "<group>"; };
 		60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreAccountLifecycle.swift; sourceTree = "<group>"; };
+		6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenBody.swift; sourceTree = "<group>"; };
 		6378187F940FD56B1A363971 /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
 		647B97436A2026E1B0F66065 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		65084FF4FFAFB83B11B7601E /* DemoFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoFixture.swift; sourceTree = "<group>"; };
@@ -502,6 +518,7 @@
 		77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScreenshotData.swift; sourceTree = "<group>"; };
 		77C0D46544DF7793280C86B5 /* LaneSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaneSchedule.swift; sourceTree = "<group>"; };
 		782638CBD6A15B5240AFCD53 /* NotificationClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationClientTests.swift; sourceTree = "<group>"; };
+		79538F403F4CE237DF73606E /* LockScreenInlineVesselArt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenInlineVesselArt.swift; sourceTree = "<group>"; };
 		79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarLabelGeometry.swift; sourceTree = "<group>"; };
 		7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandColorValues.swift; sourceTree = "<group>"; };
 		7A7866E64E3E88B72A6F4EFC /* LockScreenWidgetChoices.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenWidgetChoices.swift; sourceTree = "<group>"; };
@@ -547,6 +564,7 @@
 		AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseItUpLedger.swift; sourceTree = "<group>"; };
 		ADE095E97E527C8706D4FA61 /* HeadroomAppIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomAppIconView.swift; sourceTree = "<group>"; };
 		AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetTypography.swift; sourceTree = "<group>"; };
+		AEA70EE75EB4B5C408BB398F /* HeadroomWidgetLockScreenRectangles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenRectangles.swift; sourceTree = "<group>"; };
 		B029B49864BCFD59A2CD48A8 /* AccountsSettingsTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsTile.swift; sourceTree = "<group>"; };
 		B0C0028BD003CD015FBDD181 /* UsageProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageProvider.swift; sourceTree = "<group>"; };
 		B1D6A674D86360BC89246A09 /* CursorProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CursorProvider.swift; sourceTree = "<group>"; };
@@ -555,6 +573,7 @@
 		B49C7C65F1B7ABF91BF20A62 /* WidgetRenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetRenderHarness.swift; sourceTree = "<group>"; };
 		B60C38BCE8D085D56EEC5C0A /* UsageHTTPClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageHTTPClient.swift; sourceTree = "<group>"; };
 		B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPaneTests.swift; sourceTree = "<group>"; };
+		BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenCircles.swift; sourceTree = "<group>"; };
 		BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsInteractionTests.swift; sourceTree = "<group>"; };
 		BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetNestedMeter.swift; sourceTree = "<group>"; };
 		BCCDB3DAE232C200FAA8BB2B /* HeadroomWidgetStyledBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetStyledBody.swift; sourceTree = "<group>"; };
@@ -576,6 +595,7 @@
 		CAAC30B235FDF373550D04AD /* MenuBarLabel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarLabel.swift; sourceTree = "<group>"; };
 		CDC9199DC7DC96DF143A8480 /* grok-dark.svg */ = {isa = PBXFileReference; path = "grok-dark.svg"; sourceTree = "<group>"; };
 		CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
+		D0A2F9F06B26CB4E5FF4A110 /* HeadroomWidgetLockScreenInline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenInline.swift; sourceTree = "<group>"; };
 		D15A53AE4F679F87EABE633E /* MeterGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterGauge.swift; sourceTree = "<group>"; };
 		D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotProjector.swift; sourceTree = "<group>"; };
 		D396D8FF6350A769E62CD75C /* WidgetTypeScale.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetTypeScale.swift; sourceTree = "<group>"; };
@@ -835,6 +855,7 @@
 				3C5CD411FF3CB3B7B9B5465F /* APISpendPresentation.swift */,
 				77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */,
 				C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */,
+				79538F403F4CE237DF73606E /* LockScreenInlineVesselArt.swift */,
 				7A7866E64E3E88B72A6F4EFC /* LockScreenWidgetChoices.swift */,
 				CA4E04CF999D308BDD63EE6E /* LockScreenWidgetRecipe.swift */,
 				85A49D60127C59506D65410A /* LockScreenWidgetTokens.swift */,
@@ -942,7 +963,11 @@
 			children = (
 				925D38A1B5F4B62C12EFECF2 /* HeadroomWidgetFooter.swift */,
 				E9E306C9AF9CC0ACC24D30D1 /* HeadroomWidgetLiquidLevel.swift */,
+				6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */,
+				BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */,
+				D0A2F9F06B26CB4E5FF4A110 /* HeadroomWidgetLockScreenInline.swift */,
 				C7EE68EB182952B7A902EDF5 /* HeadroomWidgetLockScreenPrimitives.swift */,
+				AEA70EE75EB4B5C408BB398F /* HeadroomWidgetLockScreenRectangles.swift */,
 				BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */,
 				E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */,
 				9ED97996F3D0D748CD51AACC /* HeadroomWidgetStatusViews.swift */,
@@ -1441,6 +1466,7 @@
 				26A70E96DCC281DF9BDD869A /* IdentityRowResolver.swift in Sources */,
 				5BE00F1CEAE1B3A5BA079543 /* LaneSchedule.swift in Sources */,
 				C7E68A38A0A0E0D2CDC8A213 /* LaunchAtLogin.swift in Sources */,
+				989DAF72E7D6FC04490EDEF4 /* LockScreenInlineVesselArt.swift in Sources */,
 				D19E337A8C41FAA15A37B995 /* LockScreenWidgetChoices.swift in Sources */,
 				6E05C2DFDA35665473ADFA79 /* LockScreenWidgetRecipe.swift in Sources */,
 				38BB618899ED67889B6C4628 /* LockScreenWidgetTokens.swift in Sources */,
@@ -1517,7 +1543,11 @@
 				6EDF8E1CC04BF1DAD791D429 /* HeadroomWidgetContainerBackground.swift in Sources */,
 				DE5D42C8C26940DDC5C45B1C /* HeadroomWidgetFooter.swift in Sources */,
 				9FEEFDC430C889F6A0C9CEA3 /* HeadroomWidgetLiquidLevel.swift in Sources */,
+				155C72D6DE67F9624B839444 /* HeadroomWidgetLockScreenBody.swift in Sources */,
+				972FC01C83618784400107C8 /* HeadroomWidgetLockScreenCircles.swift in Sources */,
+				185BBCF2B26B07104ED955E8 /* HeadroomWidgetLockScreenInline.swift in Sources */,
 				A0A14053A450E0F41AFA6482 /* HeadroomWidgetLockScreenPrimitives.swift in Sources */,
+				6429468325F7AAB4903DEA44 /* HeadroomWidgetLockScreenRectangles.swift in Sources */,
 				3EE47FCC2EB5BA3CA2D2AB9D /* HeadroomWidgetNestedMeter.swift in Sources */,
 				64E76A4A757DC3E9DB0ADE51 /* HeadroomWidgetSharedUI.swift in Sources */,
 				BDDA091083479FC275066C59 /* HeadroomWidgetStatusViews.swift in Sources */,
@@ -1527,6 +1557,7 @@
 				0C2A5419E7361328ED5ED0EE /* HeadroomWidgetTypography.swift in Sources */,
 				9045091CCD720FB840C2E8DE /* HeadroomWidgetVesselHero.swift in Sources */,
 				A60D076A272E45CCFCC05E74 /* IOSWidgetTimelineMapping.swift in Sources */,
+				197352673E0AB788F7C752A1 /* LockScreenInlineVesselArt.swift in Sources */,
 				CB422B2699BBC477835CDB1B /* LockScreenWidgetChoices.swift in Sources */,
 				BC882AC178FA7142BD150C7C /* LockScreenWidgetRecipe.swift in Sources */,
 				733E33980F872795EF06EDCB /* LockScreenWidgetTokens.swift in Sources */,
@@ -1581,7 +1612,11 @@
 				7418A0A724FCE0A54421AC9A /* HeadroomMotion.swift in Sources */,
 				97577F3BA2867600F9A2ACD6 /* HeadroomWidgetFooter.swift in Sources */,
 				ED9F19D03837966B4E83E67D /* HeadroomWidgetLiquidLevel.swift in Sources */,
+				D8BA8083F4FA9BB05EC47FAC /* HeadroomWidgetLockScreenBody.swift in Sources */,
+				06EE14EF72ADFB00F1C5E3CD /* HeadroomWidgetLockScreenCircles.swift in Sources */,
+				077094AD45B0D19F4BA3FBCA /* HeadroomWidgetLockScreenInline.swift in Sources */,
 				24A57AC0B145F32FD13881BC /* HeadroomWidgetLockScreenPrimitives.swift in Sources */,
+				819F996DB6AFEE2FCB3FE64D /* HeadroomWidgetLockScreenRectangles.swift in Sources */,
 				A5FCE548B6D6C0FB61AFF971 /* HeadroomWidgetNestedMeter.swift in Sources */,
 				37CAAD4A4F8C640CFA6B1EAF /* HeadroomWidgetSharedUI.swift in Sources */,
 				9EB4193844C02F5D8EDF05F1 /* HeadroomWidgetStatusViews.swift in Sources */,
@@ -1635,7 +1670,11 @@
 				E51EA57BFB71FB24ABBAD2E0 /* HeadroomWidgetEntry.swift in Sources */,
 				41F0C789578529EC0ED5DEAA /* HeadroomWidgetFooter.swift in Sources */,
 				D5B1C64AE2FB585642E6BDDB /* HeadroomWidgetLiquidLevel.swift in Sources */,
+				CD6CEB6249B5FAE39F5B43BF /* HeadroomWidgetLockScreenBody.swift in Sources */,
+				9E69BAA44A8CDBD9FDE3BB1E /* HeadroomWidgetLockScreenCircles.swift in Sources */,
+				49C9E5BA318F99872BAB6354 /* HeadroomWidgetLockScreenInline.swift in Sources */,
 				7BC8A3E2F426B1EA2DAA5689 /* HeadroomWidgetLockScreenPrimitives.swift in Sources */,
+				AC13EC1084A5AAD9BB62C3BB /* HeadroomWidgetLockScreenRectangles.swift in Sources */,
 				3163D95401CD41992ED55FC0 /* HeadroomWidgetNestedMeter.swift in Sources */,
 				18FDEF22E0619E554966F64D /* HeadroomWidgetPreviews.swift in Sources */,
 				5688973702693C0623291B4C /* HeadroomWidgetSharedUI.swift in Sources */,
@@ -1669,6 +1708,7 @@
 				33D97E578C67DD091A65D977 /* HeadroomTheme.swift in Sources */,
 				0F6E53CFBD9ABC36DD6E4A82 /* IOSCompanionView.swift in Sources */,
 				C89159D02864CC6512B83D8C /* IOSWidgetTimelineMapping.swift in Sources */,
+				3488C0B1ABFA3C37C787A233 /* LockScreenInlineVesselArt.swift in Sources */,
 				3E2564A92F913437CD8E1D7F /* LockScreenWidgetChoices.swift in Sources */,
 				20BBC40FA3D8192765A924AE /* LockScreenWidgetRecipe.swift in Sources */,
 				9E04A2161001D0E7469BE23D /* LockScreenWidgetTokens.swift in Sources */,

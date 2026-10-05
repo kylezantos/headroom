@@ -755,10 +755,12 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   Tahoe desktop behind windows, or StandBy.
 - **Old data is not dimmed.** When the Mac sleeps, the envelope stays "live" and an iPhone widget
   can show hours-old numbers in full color, with no footer on small and medium (R14). Needs a
-  threshold on `generatedAt` that applies to every style.
+  threshold on `generatedAt` that applies to every style. Since 2026-10-05 this also covers the
+  Lock Screen widget, which draws the same envelope.
 - **Per-widget provider choice.** Small Vessel Hero and small Liquid Level show the first widget
   provider (or the second when the first has no value yet). Choosing which provider a widget
-  shows would be a third Edit Widget parameter.
+  shows would be a third Edit Widget parameter. The Lock Screen widget has this Provider choice
+  (2026-10-04 Lock Screen plan); adding it to the home widgets is a separate parity call.
 - **The Settings gallery previews Always colored only.** Color mode is not previewed.
 - **The status card's vessel keeps its old drawing.** `HeadroomVesselMark` fills by outer height
   and frames at 12×20, unlike `WidgetVesselGeometry` (11:18, inner-height liquid).
@@ -766,6 +768,36 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   Codex's "3d 2h" sits on the bright edge line when its level lands at that row's height.
 - **AppEnum options mirror Core by hand.** `HeadroomWidgetStyleOption`/`ColorOption` raw values
   must equal `WidgetLayoutStyle`/`WidgetColorMode`; the intent compiles only into the extensions,
-  so no test catches a missing case (it renders the default style).
+  so no test catches a missing case (it renders the default style). The Lock Screen intent
+  (`HeadroomLockScreenStyleOption`/`ProviderOption`) maps through exhaustive `switch`es, so a new
+  AppEnum case fails the iOS build — but a new Core case with no AppEnum case simply never
+  appears in Edit Widget, and nothing catches that.
 - **The render harness does not pose the iPhone DEMO 14pt top inset**, so App Store screenshot
   mode could overflow small tiles while the sweep stays green.
+
+### Lock Screen widgets (2026-10-04)
+
+Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
+`docs/qa/2026-10-04-lock-screen-spike.md`.
+
+- **Two device answers are still owed (U2).** What the widget shows after a reboot before the
+  first unlock (KTD13: add an "Unlock to update" status only if the cache read fails there), and
+  whether system privacy redaction also blanks drawn shapes or only text. The bodies already draw
+  every fill, arc, bar and vessel empty under `.privacy` and `.placeholder` redaction (R16), so
+  either answer leaves the layouts unchanged.
+- **One-ink grays are chosen from the mock, not measured (KTD5).** `LockScreenWidgetTokens` ink
+  levels and the harness's plus-lighter backdrop stand in for vibrant rendering; Kyle's device look
+  on dark, light and photo wallpapers, normal and Always On, is the judge.
+- **The inline vessel SVGs use `clipPath`.** If CoreSVG drops it on a device, the liquid would
+  draw square-cornered; regenerate with `swift run Headroom --generate-lock-screen-vessels`.
+- **No Lock Screen previews in Settings → Widgets & iPhone.**
+- **A lone Cursor pool on the home widgets reads "monthly left"** (`WidgetStyleCopy.leftCaption`),
+  which reads as Cursor's whole allowance. The Lock Screen names the pool (R11); the home copy
+  does not yet.
+- **Nested Rows' two-provider rectangle prints no window names.** It follows the approved design
+  05 (mark, nested bars, number); a Cursor row is identified by its mark and equal sibling bars,
+  not by its pool name.
+- **iPhone 17 and iPad accessory sizes are unpublished.** The harness bounds 68–76 pt circles,
+  153–172 pt rectangles and 225–257 pt inline lines (KTD12); layouts flex, but nobody has seen
+  them on those devices.
+

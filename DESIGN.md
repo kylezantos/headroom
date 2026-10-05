@@ -50,6 +50,7 @@ All paths are under `Sources/`.
 | Settings copy | `SettingsCopy` | Any string two panes print. |
 | Optical alignment | `HeadroomApp/UI/OpticalLeading.swift` | `.opticalLeading(_:size:weight:)` for text starting a card line; `.capHeightCentered(size:weight:)` for mixed-size rows. Not for chip labels. |
 | Widgets / iOS | `HeadroomCore/Widgets/WidgetMetrics.swift`, `WidgetTypeScale.swift`, `WidgetStyleTokens.swift` (`WidgetStyleType` hero numerals, `WidgetStyleMetrics` bars, rails, wash), `WidgetVesselGeometry.swift`, `HeadroomWidgetSharedUI/` | Widget-only type ladders and optics (CoreText, since AppKit isn't available there). Hero numerals are fixed size; labels keep Dynamic Type. The widget vessel keeps the menu-bar 11:18 proportion and is sized to the numeral's digit ink (`HeadroomWidgetFontMetrics.digitInk`). Color comes from `WidgetStyleColors.fill(for:colorMode:)`. Contracts: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md` (WC anchors still in force) and `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`. |
+| Lock Screen widget | `HeadroomCore/Widgets/LockScreenWidgetTokens.swift` (ink levels, numeral and mark sizes, arc, bars, Always On wash, label Dynamic Type cap), `LockScreenInlineVesselArt.swift` | One ink of opaque grays (`Color(white:)`), never white with opacity. Numerals and marks are fixed size; labels scale up to the `xLarge` cap. Contract: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md` (KTD5). |
 | iOS companion app | `HeadroomIOS/DesignSystem/` | `HeadroomTheme` (tile radius 17, its own entrance/value animations, provider colours) and `.headroomTile` (`Elevation.swift`, ring-glow elevation from `design/ios-companion.html`). Colours come from the same Core values. |
 | Meter rendering | `HeadroomCore/Models/MeterStyle.swift` (`MeterRecipe`) → `MeterGauge` | The pure format × shape × fill contract. `MeterGauge` is the popover's only meter renderer. |
 
@@ -78,6 +79,7 @@ All paths are under `Sources/`.
 | Plan / period / stale capsule | `.identityCapsule`, `PlanCapsule` | Padding-sized capsules (they drift in height) |
 | Usage meter | `UsageBarView` / `MeterGauge` via `MeterRecipe` | New bar drawing |
 | Widget style body | `HeadroomWidgetStyledBody` + `HeadroomWidgetStyledBackground` over a `WidgetStyleRecipe`; pieces `HeadroomWidgetStyleBar`, `HeadroomWidgetVessel`/`HeadroomWidgetVesselNumeral`, `HeadroomWidgetNumeral`, `HeadroomWidgetIdentityRow`, `HeadroomWidgetFittingCaption` | Per-host widget layouts; deciding windows or fills in a view |
+| Lock Screen body | `HeadroomWidgetLockScreenBody` over a `LockScreenWidgetRecipe`, with injected `HeadroomWidgetLockScreenArt`; pieces `HeadroomWidgetLockScreenNumeral` (knockout), `…Caption`, `…Arc`, `…NestedBars`, `…Wash`, `…Vessel`, `…BrandMark` | Circle, rectangle and inline Lock Screen layouts; drawing with home widget inks or rendering modes |
 | Loading placeholder | `SkeletonMeter` | Spinners, pulses |
 | Provider mark | `ProviderLogoView` (macOS and iOS each have one) | Loading SVGs directly |
 | Revealing a Settings sub-option | `.transition(.settingsReveal)` | Ad-hoc slide/scale |

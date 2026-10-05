@@ -42,6 +42,13 @@ enum Entry {
             MainActor.assumeIsolated { WidgetRenderHarness.run(outputDirectory: outDir) }
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--generate-lock-screen-vessels") {
+            // KTD9 (2026-10-04 Lock Screen plan): regenerate the inline vessel template images.
+            let catalog = CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : "Sources/HeadroomIOSWidgets/LockScreenAssets.xcassets"
+            LockScreenVesselAssetGenerator.run(assetCatalog: catalog)
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-popover") {
             let outDir = CommandLine.arguments.indices.contains(index + 1)
                 ? CommandLine.arguments[index + 1] : "popover-shots"

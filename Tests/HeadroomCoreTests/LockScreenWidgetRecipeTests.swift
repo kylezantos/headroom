@@ -96,9 +96,10 @@ struct LockScreenWidgetRecipeTests {
         let window = F.window(.fiveHour, label: "5h", percent: 8, resetIn: 3 * 3600 + 15 * 60)
         let r = recipe(.tightestFirst, .inline, [F.provider("claude", "Claude", [window])])
         #expect(r.inlineTextCandidates.first == "Claude 5-hour 8% · refills in 3h 15m")
-        #expect(r.inlineTextCandidates.last == "8% · refills in 3h")
+        #expect(r.inlineTextCandidates.contains("5-hour 8% · 3h"))
+        #expect(r.inlineTextCandidates.last == "8% · 3h")
         let cursor = recipe(.tightestFirst, .inline, [F.cursor(otherModels: 8)])
-        #expect(cursor.inlineTextCandidates.last == "Cursor Other 8% · refills in 2d")
+        #expect(cursor.inlineTextCandidates.last == "Cursor Other 8% · 2d")
         let pending = F.provider("claude", "Claude", freshness: .pending, [])
         #expect(recipe(.liquidLevel, .inline, [pending, F.grok()]).inlineTextCandidates.last == "Claude · Waiting · 56%")
     }
@@ -306,5 +307,57 @@ struct LockScreenWidgetRecipeTests {
         #expect(!third.widgetProviders.contains { $0.id == "cursor" })
         #expect(LockScreenWidgetRecipe(style: .tightestFirst, family: .circle, providerChoice: .automatic, state: .content(third), now: F.now).slots.first?.providerID == "cursor")
         #expect(DemoScreenshotData.lockScreenFixture("signedOut", now: F.now) == DemoScreenshotData.styleFixture("signedOut", now: F.now))
+    }
+
+    @Test func demoNamesFollowTheRectangleLayout() {
+        let pair = recipe(.vesselHero, .rectangle, [F.claude(), F.codex()], demo: true)
+        #expect(pair.slots.count == 2)
+        #expect(pair.displayName(forSlotAt: 0) == "Demo")
+        #expect(pair.displayName(forSlotAt: 1) == "Codex")
+        #expect(pair.slots.allSatisfy { $0.primary.caption != "Demo" })
+        let single = recipe(.nestedMeter, .rectangle, [F.claude()], choice: .claude, demo: true)
+        #expect(single.displayName(forSlotAt: 0) == "Demo · Claude")
+        let gauges = recipe(.tightestFirst, .rectangle, [F.claude(), F.codex()], demo: true)
+        #expect(gauges.slots.allSatisfy { $0.primary.caption == "Demo" })
+        let live = recipe(.vesselHero, .rectangle, [F.claude(), F.codex()])
+        #expect(live.displayName(forSlotAt: 0) == "Claude")
+        #expect(live.displayName(forSlotAt: 5) == "")
+    }
+
+    @Test func cursorTitleNamesThePoolWhereNoCaptionDoes() {
+        let cursor = recipe(.nestedMeter, .rectangle, [F.cursor()], choice: .cursor)
+        #expect(["Cursor Models", "Other Models"].contains(cursor.title(forSlotAt: 0)))
+        #expect(recipe(.nestedMeter, .rectangle, [F.cursor()], choice: .cursor, demo: true).title(forSlotAt: 0).hasPrefix("Demo · "))
+        #expect(recipe(.nestedMeter, .rectangle, [F.claude()], choice: .claude).title(forSlotAt: 0) == "Claude")
+        #expect(recipe(.nestedMeter, .rectangle, [F.claude()], choice: .cursor).title(forSlotAt: 0) == "Cursor")
+    }
+
+    @Test func countdownTextIsTheBareSharedCountdown() throws {
+        let main = try #require(recipe(.nestedMeter, .rectangle, [F.claude()], choice: .claude).slots.first?.primary)
+        let countdown = try #require(main.countdownText)
+        #expect(main.refillText == "Refills in \(countdown)")
+        let unavailable = F.provider("claude", "Claude", [
+            F.window(.weekly, label: "Weekly", percent: 9, freshness: .unavailable(since: F.now)),
+        ])
+        #expect(recipe(.nestedMeter, .rectangle, [unavailable], choice: .claude).slots.first?.primary.countdownText == nil)
+    }
+}
+
+struct LockScreenInlineVesselArtTests {
+    @Test func elevenTemplateLevelsKeepTheWidgetVesselProportion() {
+        let g = LockScreenInlineVesselArt.geometry
+        #expect(LockScreenInlineVesselArt.levels.count == 11)
+        #expect(abs(g.width / g.height - WidgetVesselGeometry.aspect) < 0.03)
+        #expect(g.stroke >= WidgetVesselGeometry.heroStrokeRange.lowerBound)
+        let names = Set(LockScreenInlineVesselArt.levels.map(LockScreenInlineVesselArt.assetName(level:)))
+        #expect(names.count == 11)
+        #expect(LockScreenInlineVesselArt.assetName(level: 42) == "LockScreenInlineVessel10")
+    }
+
+    @Test func onlyLevelZeroIsAnEmptyOutline() {
+        #expect(!LockScreenInlineVesselArt.svg(level: 0).contains("clip-path"))
+        for level in 1...10 { #expect(LockScreenInlineVesselArt.svg(level: level).contains("clip-path")) }
+        #expect(LockScreenInlineVesselArt.svg(level: 3) != LockScreenInlineVesselArt.svg(level: 4))
+        #expect(LockScreenInlineVesselArt.imagesetContents.contains("\"template\""))
     }
 }

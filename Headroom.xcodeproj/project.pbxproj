@@ -10,6 +10,7 @@
 		003475AF90FE48BDC8A0142D /* HeadroomWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */; };
 		008E5A956B0AF7D1DA3E1082 /* UsageDisplayValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */; };
 		019741076E359239D592FBAA /* WidgetMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC42D808487CA15143AB4C5 /* WidgetMetrics.swift */; };
+		01E3694FCC7CC9903A4349EA /* CompanionLoaderAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86538C1817F9C23E3B6FDA15 /* CompanionLoaderAdoption.swift */; };
 		01F5298BBF7958F27A848A8A /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E052D0EBE1013A87240C92E /* Account.swift */; };
 		02764C9BA6011A766AAA4C0B /* UsageStoreAccountLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */; };
 		032216F6B5B8BCFA1E29DA2E /* PlanLabelPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */; };
@@ -41,6 +42,7 @@
 		0E2138255AC8C4AFA83B1EFC /* ResetClockFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E017709D234A921E25999F2 /* ResetClockFormatter.swift */; };
 		0E7041AB495BFA54B90108C6 /* SkeletonMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D0BF529D940EBAFE539D47 /* SkeletonMeter.swift */; };
 		0E87B3A709B4AB3E868183BE /* HeadroomWidgetTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE87C414098703DDB95E3BC2 /* HeadroomWidgetTypography.swift */; };
+		0EF02CD19E3B2AFABC06656A /* CompanionLoaderAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86538C1817F9C23E3B6FDA15 /* CompanionLoaderAdoption.swift */; };
 		0F6BA46198A3FB03E9B81209 /* FlowingColumnsLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7416D2062FED49D89B4B07A1 /* FlowingColumnsLayout.swift */; };
 		0F6E53CFBD9ABC36DD6E4A82 /* IOSCompanionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F79F757570AB27C93700E341 /* IOSCompanionView.swift */; };
 		1074D15D9B9440389D8112AE /* WidgetStatusCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = E82174D6E3D6084D707A51A1 /* WidgetStatusCopy.swift */; };
@@ -220,6 +222,7 @@
 		6B0099CBE13F0228E0439F5F /* HeadroomWidgetNestedMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */; };
 		6B344BCC0AF722731067E9B1 /* AppearanceSpecimen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38D1ABBFC7400DB7B365ADAF /* AppearanceSpecimen.swift */; };
 		6B973081D0827D6B75293F95 /* GrokProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 517F99ED6491D1BC1A6858EF /* GrokProvider.swift */; };
+		6C1E0970DDD1F7A347486777 /* CompanionLoaderAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86538C1817F9C23E3B6FDA15 /* CompanionLoaderAdoption.swift */; };
 		6D27A2D869CF13D26440E059 /* HeadroomWidgetStylePrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5520BF4DF5B5A5F5A5EF30F /* HeadroomWidgetStylePrimitives.swift */; };
 		6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87284976C67D36ECE2DD747F /* Countdown.swift */; };
 		6E9182E879B4033D2F77D401 /* CompanionPayloadBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9939940F4B8449F613A466EE /* CompanionPayloadBudget.swift */; };
@@ -691,6 +694,7 @@
 		84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSyncCodec.swift; sourceTree = "<group>"; };
 		864A7A76DC0EC0C8CF12DF51 /* MenuBarPaneSizingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPaneSizingTests.swift; sourceTree = "<group>"; };
 		864FC2FB47A9E7D44E659809 /* PopoverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverView.swift; sourceTree = "<group>"; };
+		86538C1817F9C23E3B6FDA15 /* CompanionLoaderAdoption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionLoaderAdoption.swift; sourceTree = "<group>"; };
 		86D2C4B7BA8C794A93EDC3E8 /* HeadroomWidgetPreviews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetPreviews.swift; sourceTree = "<group>"; };
 		87284976C67D36ECE2DD747F /* Countdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Countdown.swift; sourceTree = "<group>"; };
 		87CC53FEEE716121A11701F1 /* CodexConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexConnection.swift; sourceTree = "<group>"; };
@@ -975,6 +979,7 @@
 				EF78975454C1C4864B6B46AE /* CompanionCacheCoordination.swift */,
 				97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */,
 				B6019B00EF172D09CACA2F6B /* CompanionIdentityProbe.swift */,
+				86538C1817F9C23E3B6FDA15 /* CompanionLoaderAdoption.swift */,
 				9939940F4B8449F613A466EE /* CompanionPayloadBudget.swift */,
 				5565222E4F4595DE7AD1176A /* CompanionSnapshotCache.swift */,
 				90D68FAC629286A03E243760 /* CompanionSnapshotLoader.swift */,
@@ -1689,6 +1694,7 @@
 				AF8D92D2E50538EC7D2B00B2 /* CompanionDemoModeStore.swift in Sources */,
 				36B3D7BE712A025BC3441FBB /* CompanionFreshnessRule.swift in Sources */,
 				7FCEE91A8EFC7A47D19698CE /* CompanionIdentityProbe.swift in Sources */,
+				6C1E0970DDD1F7A347486777 /* CompanionLoaderAdoption.swift in Sources */,
 				6E9182E879B4033D2F77D401 /* CompanionPayloadBudget.swift in Sources */,
 				26B3F1C7E04653AB84F7F2BF /* CompanionSnapshotCache.swift in Sources */,
 				E7B2EEBC78D94A41560726A6 /* CompanionSnapshotLoader.swift in Sources */,
@@ -1795,6 +1801,7 @@
 				DC1870CA40E1A553BF305430 /* CompanionDemoModeStore.swift in Sources */,
 				B742DA1FF9639308DF6D03D7 /* CompanionFreshnessRule.swift in Sources */,
 				8EB4B80CB33393EF22DAEFB2 /* CompanionIdentityProbe.swift in Sources */,
+				01E3694FCC7CC9903A4349EA /* CompanionLoaderAdoption.swift in Sources */,
 				2192E7BD530AC58FA5EFE6C0 /* CompanionPayloadBudget.swift in Sources */,
 				2EDE3A2A2064E46E975CF322 /* CompanionSnapshotCache.swift in Sources */,
 				0C9CB08DAD50F65F9B0765C4 /* CompanionSnapshotLoader.swift in Sources */,
@@ -2024,6 +2031,7 @@
 				5620F4F237849FCB69F90A1C /* CompanionDemoModeStore.swift in Sources */,
 				A5E5A3E6EB142E7016431936 /* CompanionFreshnessRule.swift in Sources */,
 				E96E8DC7DD25A474AB975BF9 /* CompanionIdentityProbe.swift in Sources */,
+				0EF02CD19E3B2AFABC06656A /* CompanionLoaderAdoption.swift in Sources */,
 				C4013BA23D1F5210189F56FA /* CompanionPayloadBudget.swift in Sources */,
 				B2C10E922C19A9F4D624BE54 /* CompanionPreviewSeed.swift in Sources */,
 				3D3EDF4C3FBE0FD1FD3E8589 /* CompanionSnapshotCache.swift in Sources */,

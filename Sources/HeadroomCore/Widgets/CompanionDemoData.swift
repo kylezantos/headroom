@@ -33,6 +33,14 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
     /// Above the envelope: the drop ladder caps extra accounts with "N more on your Mac"
     /// (KTD7 level 2).
     case aboveEnvelope
+    /// U8 (V12, V13): account states the stacked card has to carry. Claude's never-signed-in
+    /// "Account 2" under a live main; Codex's two accounts sharing a long name ("Northwind
+    /// Research Workspace" and its " · 2" twin, the second retrying), banked resets on the
+    /// main, and a widget selection of Codex alone.
+    case accountStates
+    /// The multi-account moment with both API spend rows retained from a read three hours
+    /// ago that the Mac will retry (the v4 form of build 33's `--demo-stale-api-spend`).
+    case staleSpend
 
     public static let `default`: Self = .multiAccount
 
@@ -72,6 +80,8 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
         case .waiting: "Waiting for Mac"
         case .multi20: "20 accounts each"
         case .aboveEnvelope: "More than 20 accounts"
+        case .accountStates: "Account states"
+        case .staleSpend: "Stale API spend"
         }
     }
 
@@ -258,6 +268,8 @@ public enum CompanionDemoData {
         var display = CompanionDisplayBlock()
         var reminder = CompanionReminderSummary()
         var generatedAgo: TimeInterval = 60
+        /// The Mac's widget provider selection; nil is "the first two providers".
+        var widgetSelection: [String]? = nil
     }
 
     static func macState(_ variant: CompanionDemoVariant, clock: DemoClock, generation: Int64) throws -> MacState {
@@ -312,9 +324,50 @@ public enum CompanionDemoData {
             return try envelopeState(clock: clock, generation: g, count: CompanionSyncBudget.accountEnvelope)
         case .aboveEnvelope:
             return try envelopeState(clock: clock, generation: g, count: aboveEnvelopeCount)
+        case .accountStates:
+            return try accountStatesState(clock: clock, generation: g)
+        case .staleSpend:
+            var state = try multiAccountState(clock: clock, generation: g)
+            let retained = DemoClock(now: clock.now, captureAge: 3 * hour, anchor: clock.anchor)
+            state.providers[0] = try payload(
+                "claude", g, main: claudePersonal(clock), extras: claudeExtras(clock),
+                spend: anthropicSpend(retained, stale: true))
+            state.providers[1] = try payload(
+                "codex", g,
+                main: codexAccount(clock, id: "primary", title: "Personal", plan: "Pro Lite", fiveHour: 9, weekly: 36),
+                extras: [codexAccount(clock, id: "codex-work", title: "Work", plan: "Pro", fiveHour: 54, weekly: 79)],
+                spend: openAISpend(retained, stale: true))
+            return state
         case .oldMac, .paused, .waiting:
             throw CompanionSyncValidationError.state
         }
+    }
+
+    /// U8: see `CompanionDemoVariant.accountStates`. Numbers reuse the multi-account moment.
+    static func accountStatesState(clock: DemoClock, generation g: Int64) throws -> MacState {
+        let northwind = "Northwind Research Workspace"
+        // V12: an extra account added on the Mac and never signed in. It has nothing to read,
+        // so it carries no capture time and no rows.
+        let neverSignedIn = try CompanionAccountSummary(
+            id: "claude-account-2", title: "Account 2", freshness: .stale, attention: .neverOnboarded,
+            needsAttention: true, windows: [])
+        let retrying = try CompanionAccountSummary(
+            id: "codex-northwind-2", title: "\(northwind) · 2", planName: "Pro", freshness: .stale,
+            capturedAt: clock.captured, attention: .retrying, needsAttention: false,
+            windows: [
+                window(.fiveHour, utilization: 54, resetIn: 3.2 * hour, clock),
+                window(.weekly, utilization: 79, resetIn: 4 * day, clock),
+            ])
+        return MacState(
+            providers: [
+                try payload("claude", g, main: claudePersonal(clock), extras: [neverSignedIn]),
+                try payload(
+                    "codex", g,
+                    main: codexAccount(clock, id: "primary", title: northwind, plan: "Plus",
+                                       fiveHour: 9, weekly: 36, banked: 2),
+                    extras: [retrying]),
+            ],
+            widgetSelection: ["codex"])
     }
 
     /// Accounts per multi-account provider in `aboveEnvelope`: enough that the real budget
@@ -459,16 +512,18 @@ public enum CompanionDemoData {
             ])
     }
 
-    static func anthropicSpend(_ clock: DemoClock) throws -> CompanionSpendSummary {
+    static func anthropicSpend(_ clock: DemoClock, stale: Bool = false) throws -> CompanionSpendSummary {
         try CompanionSpendSummary(
             id: "claude", displayName: "Anthropic API", amount: 142.67, currency: "usd",
-            periodLabel: "Current month", capturedAt: clock.captured)
+            periodLabel: "Current month", capturedAt: clock.captured,
+            freshness: stale ? .stale : .live, needsAttention: stale ? false : nil)
     }
 
-    static func openAISpend(_ clock: DemoClock) throws -> CompanionSpendSummary {
+    static func openAISpend(_ clock: DemoClock, stale: Bool = false) throws -> CompanionSpendSummary {
         try CompanionSpendSummary(
             id: "codex", displayName: "OpenAI API", amount: 58.90, currency: "usd",
-            periodLabel: "Current month", capturedAt: clock.captured)
+            periodLabel: "Current month", capturedAt: clock.captured,
+            freshness: stale ? .stale : .live, needsAttention: stale ? false : nil)
     }
 
     // MARK: Encoding
@@ -504,7 +559,8 @@ public enum CompanionDemoData {
                         sourceID: sourceID, generation: generation, generatedAt: generatedAt,
                         macAppVersion: "1.5", providerOrder: order, providers: entries,
                         spendOrder: state.spendOrder, chosenIntervalSeconds: chosenIntervalSeconds,
-                        display: state.display, reminderSummary: state.reminder,
+                        display: state.display, widgetProviderSelection: state.widgetSelection,
+                        reminderSummary: state.reminder,
                         answeredRequests: answered, dropLadderLevel: level)))
         }
         return CompanionDemoPublication(

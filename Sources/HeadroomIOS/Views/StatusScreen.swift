@@ -26,7 +26,7 @@ struct StatusScreen: View {
                     .multilineTextAlignment(.center)
                 Text(message)
                     .font(.subheadline)
-                    .foregroundStyle(HeadroomTheme.secondaryText(scheme))
+                    .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -73,7 +73,8 @@ private struct StatusRefreshButton: View {
                     Label("Refresh", systemImage: "arrow.clockwise")
                 }
             }
-            .buttonStyle(.borderedProminent)
+            // U8 (G6): the neutral filled button, never system blue.
+            .headroomProminentButton()
             .controlSize(.regular)
             .disabled(frame.isWorking)
         }

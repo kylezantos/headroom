@@ -80,28 +80,33 @@ public struct StatusSentence: View {
     /// the 15pt mark slot, and the single-account setup notice sits above a guided card
     /// that starts at the card's own 13pt edge.
     public var indented: Bool = true
+    /// U8 (KTD3): the phone's one type unit, through size, leading and the content axis.
+    public var scale: CGFloat = 1
 
-    public init(text: String, severity: StatusSentenceSeverity, indented: Bool = true) {
+    public init(text: String, severity: StatusSentenceSeverity, indented: Bool = true, scale: CGFloat = 1) {
         self.text = text
         self.severity = severity
         self.indented = indented
+        self.scale = scale
     }
 
     @Environment(\.colorScheme) private var scheme
 
+    public static let size: CGFloat = 11.5
+
     public var body: some View {
         Text(text)
-            .font(.system(size: 11.5, weight: .medium))
+            .font(.system(size: Self.size * scale, weight: .medium))
             .foregroundStyle(severity.ink(scheme: scheme))
             // PB11: this sentence routinely runs to three lines in a 299pt card, and at
             // SF's default it was setting at ~1.22 leading while Settings' help text gets
             // 1.4. Two points brings the popover's wrapping prose into the same band.
-            .lineSpacing(2)
+            .lineSpacing(2 * scale)
             .fixedSize(horizontal: false, vertical: true)
             // OA1: the sentence starts a line on the same content axis as the titles and
             // meter labels above it, so it hangs on the same optical edge they do.
-            .widgetOpticalLeading(text, size: 11.5, weight: .medium)
-            .padding(.leading, indented ? IdentityRowMetrics.meterContentInset : 0)
+            .widgetOpticalLeading(text, size: Self.size * scale, weight: .medium)
+            .padding(.leading, indented ? IdentityRowMetrics.meterContentInset * scale : 0)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

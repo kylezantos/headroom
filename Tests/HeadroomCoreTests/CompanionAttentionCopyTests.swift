@@ -78,6 +78,21 @@ struct CompanionAttentionCopyTests {
         #expect(!String(decoding: try JSONEncoder().encode(spend), as: UTF8.self).contains("SENTINEL"))
     }
 
+    /// U8/V12: the phone card names the account in the sign-in family only; every other
+    /// category keeps its canonical sentence, and no title keeps the untitled form.
+    @Test func titledCopyNamesTheAccountOnlyForSignIn() {
+        #expect(CompanionAttentionCopy.account(.neverOnboarded, title: "Account 2") == "Sign in to Account 2 on your Mac")
+        #expect(CompanionAttentionCopy.account(.signInRequired, title: "Work · 2") == "Sign in to Work · 2 on your Mac")
+        #expect(CompanionAttentionCopy.account(.signInAgain, title: "Work") == "Sign in to Work again on your Mac")
+        #expect(CompanionAttentionCopy.account(.signInRequired, title: nil) == "Sign in on your Mac")
+        #expect(CompanionAttentionCopy.account(.signInRequired, title: "") == "Sign in on your Mac")
+        for (attention, expected) in Self.accounts
+        where ![.signInRequired, .signInAgain, .neverOnboarded].contains(attention) {
+            #expect(CompanionAttentionCopy.account(attention, title: "Work") == expected)
+        }
+        #expect(CompanionAttentionCopy.account(nil, title: "Work") == "Needs attention on your Mac")
+    }
+
     @Test(arguments: ["123", "1.5", "false", "null", "[]", "{}"])
     func wrongPrimitivesAreNotUnknownStringFallbacks(json: String) {
         let data = Data(json.utf8)

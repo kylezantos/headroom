@@ -616,10 +616,18 @@ public struct UsageBarView: View {
         return resetLine?.tooltip ?? "\(spokenLabel) usage"
     }
 
+    /// The word VoiceOver adds to a live Critical row's value.
+    public static let criticalSpokenState = "critical"
+
     private var accessibilityValue: String {
         var parts: [String] = []
         if let pct {
             parts.append("\(pct) percent \(percentageMode.term)")
+        }
+        // U8 (R3, AP1): the red numeral is critical's whole visible signal now the "Low" chip
+        // is gone, so VoiceOver says it in words. Same gate as the ink: live, not dimmed.
+        if reading.usesCriticalInk(dimmed: dimmed) {
+            parts.append(Self.criticalSpokenState)
         }
         if let stateText {
             parts.append(stateText)

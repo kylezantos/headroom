@@ -253,7 +253,8 @@ struct DemoScreenshotDataVariantsTests {
         let content = CompanionDemoData.snapshot(variant, now: now).content
         for account in content?.providers.flatMap(\.accounts) ?? [] {
             let plan = account.planName
-            #expect(plan != nil)
+            // U8's never-signed-in account has no plan to report; every other account does.
+            if account.attention != .neverOnboarded { #expect(plan != nil) }
             #expect(PlanLabelPresentation.displayName(plan) == plan)
         }
     }
@@ -287,6 +288,37 @@ struct DemoScreenshotDataVariantsTests {
         let cursor = try #require(try provider("cursor", in: content).mainAccount)
         #expect(cursor.windows.map(\.summary.label) == ["Cursor Models", "Other Models"])
         #expect(cursor.windows.map(\.summary.roundedPercentRemaining) == [69, 37])
+    }
+
+    /// U8 (V12, V13): a never-signed-in extra, a shared long name with its " · 2" twin,
+    /// banked resets on the main, and widgets that follow Codex only.
+    @Test func accountStatesPosesTheStackedCardStates() throws {
+        let content = try content(.accountStates)
+        let claude = try provider("claude", in: content)
+        #expect(claude.accounts.map(\.title) == ["Personal", "Account 2"])
+        let signedOut = try #require(claude.extraAccounts.first)
+        #expect(signedOut.attention == .neverOnboarded)
+        #expect(signedOut.windows.isEmpty)
+        #expect(signedOut.freshness == .stale(message: "Sign in to this account on your Mac", needsAttention: true))
+        let codex = try provider("codex", in: content)
+        #expect(codex.accounts.map(\.title)
+            == ["Northwind Research Workspace", "Northwind Research Workspace · 2"])
+        #expect(codex.mainAccount?.bankedResets == 2)
+        #expect(codex.extraAccounts.first?.attention == .retrying)
+        #expect(content.widgetProviderSelection == ["codex"])
+    }
+
+    @Test func staleSpendRetainsBothSpendRowsAsRetryableStale() throws {
+        let content = try content(.staleSpend)
+        #expect(content.apiSpend.map(\.displayName) == ["Anthropic API", "OpenAI API"])
+        #expect(content.apiSpend.map(\.amount) == [142.67, 58.90])
+        for spend in content.apiSpend {
+            guard case .stale(_, let needsAttention) = spend.freshness else {
+                Issue.record("\(spend.id) should be stale"); continue
+            }
+            #expect(needsAttention == false)
+        }
+        #expect(content.providers.map { $0.accounts.count } == [3, 2])
     }
 
     @Test func bankedResetsPosesTwoOneAndAReportedZero() throws {

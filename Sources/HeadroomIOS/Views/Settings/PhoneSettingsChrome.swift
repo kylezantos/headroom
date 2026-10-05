@@ -28,7 +28,8 @@ enum PhoneSettingsStyle {
     /// The selected ring, from the mock's `--neutral-tint` (≈0.9 label ink in both schemes).
     static func selectionInk() -> Color { Color.primary.opacity(0.9) }
     /// The mock's `--toggle-neutral`: a switch's on-state is grey label ink, not blue (U9-A).
-    static func switchTint() -> Color { Color.primary.opacity(0.62) }
+    /// U8: the named, contrast-tested Core value (`HeadroomControlColorValues.switchOn`).
+    static func switchTint() -> Color { PhoneControlStyle.switchOn }
     /// Controls that Match my Mac governs read as present but not choosable while it is on.
     static let governedOpacity: Double = 0.38
 }

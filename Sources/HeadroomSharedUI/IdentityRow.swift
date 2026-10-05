@@ -36,6 +36,16 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// neutral text button that hands the full resolved title to its native disclosure. The
     /// plan capsule and any accessory keep their own taps.
     public var onTruncatedTitle: ((String) -> Void)? = nil
+    /// U8 (R5): where the plan capsule is a control. The phone has no hover, so a tap toggles
+    /// the banked-reset detail; the Mac passes nil and keeps hover. Only the capsule takes
+    /// the tap — the title's disclosure and the accessory keep their own.
+    public var onPlanCapsuleTap: (() -> Void)? = nil
+    /// U8 (U3-A): where the accessory sits. The Mac's loading pill trails the row; the phone's
+    /// widget glyph reads as one more chip after the plan capsule.
+    public var accessoryPlacement: IdentityRowAccessoryPlacement = .trailing
+    /// U8: a stable accessibility identifier stem for the row's own controls (".title",
+    /// ".plan"), so UI tests can reach them. Nil adds none.
+    public var accessibilityIdentifierPrefix: String? = nil
     private let mark: (CGFloat) -> Mark
     private let accessory: () -> Accessory
 
@@ -55,6 +65,9 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         isRevealing: Bool = false,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
+        onPlanCapsuleTap: (() -> Void)? = nil,
+        accessoryPlacement: IdentityRowAccessoryPlacement = .trailing,
+        accessibilityIdentifierPrefix: String? = nil,
         @ViewBuilder mark: @escaping (CGFloat) -> Mark,
         @ViewBuilder accessory: @escaping () -> Accessory
     ) {
@@ -72,6 +85,9 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         self.isRevealing = isRevealing
         self.scale = scale
         self.onTruncatedTitle = onTruncatedTitle
+        self.onPlanCapsuleTap = onPlanCapsuleTap
+        self.accessoryPlacement = accessoryPlacement
+        self.accessibilityIdentifierPrefix = accessibilityIdentifierPrefix
         self.mark = mark
         self.accessory = accessory
     }
@@ -103,13 +119,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             }
             titleView
             if planDisplayName != nil || (bankedResets ?? 0) > 0 {
-                PlanCapsule(
-                    planDisplayName: planDisplayName,
-                    bankedResets: bankedResets,
-                    isCritical: isCritical,
-                    isRevealing: isRevealing,
-                    scale: scale
-                )
+                planCapsule
             }
             // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
             // rather than pushed to the row's trailing edge — one chip run reading
@@ -119,6 +129,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
                     // RM1: the freshness scope around it is `.movement`, so the tag keeps
                     // its fade under Reduce Motion on its own.
                     .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+                    // U8: in a containing row the title already says "Stale".
+                    .accessibilityHidden(containsControls)
             }
             if showsConnectedChip {
                 ConnectedChip(scale: scale)
@@ -132,19 +144,64 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
                     .truncationMode(.middle)
                     .layoutPriority(1)
             }
+            if accessoryPlacement == .afterChips {
+                accessory()
+            }
             Spacer(minLength: 6 * scale)
-            accessory()
+            if accessoryPlacement == .trailing {
+                accessory()
+            }
         }
         // L4B: trailing controls stop level with the meter rows below them.
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset * scale)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityIdentity(email: email))
-        // U3: VoiceOver reaches the full name through the same host disclosure.
-        .accessibilityActions {
-            if let onTruncatedTitle, titleIsTruncated {
-                Button("Show Full Name") { onTruncatedTitle(title) }
-            }
+        .modifier(IdentityRowAccessibility(
+            containsControls: containsControls,
+            label: accessibilityIdentity(email: email),
+            fullTitleAction: titleIsTruncated ? onTruncatedTitle.map { action in { action(title) } } : nil
+        ))
+    }
+
+    /// U8: a row whose title or capsule is a control (the phone) keeps those controls as their
+    /// own accessibility elements, so each one is reachable and does only its own job; the
+    /// title carries the row's identity phrase. A display-only row (the Mac) stays one
+    /// combined element, exactly as before.
+    private var containsControls: Bool {
+        onPlanCapsuleTap != nil || onTruncatedTitle != nil
+    }
+
+    @ViewBuilder private var planCapsule: some View {
+        let capsule = PlanCapsule(
+            planDisplayName: planDisplayName,
+            bankedResets: bankedResets,
+            isCritical: isCritical,
+            isRevealing: isRevealing,
+            scale: scale
+        )
+        if let onPlanCapsuleTap {
+            Button(action: onPlanCapsuleTap) { capsule }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Plan")
+                .accessibilityValue(planCapsuleSpokenValue)
+                .accessibilityIdentifier(controlIdentifier("plan"))
+        } else {
+            capsule
+                .accessibilityHidden(containsControls)
         }
+    }
+
+    /// What the capsule shows right now: "Plus", or "Plus · 2 resets" while it is open.
+    private var planCapsuleSpokenValue: String {
+        PlanCapsulePresentation.resolve(
+            planDisplayName: planDisplayName,
+            bankedResets: bankedResets,
+            isHovering: false,
+            isCritical: isCritical,
+            isRevealing: isRevealing
+        ).visibleLabel
+    }
+
+    private func controlIdentifier(_ suffix: String) -> String {
+        accessibilityIdentifierPrefix.map { "\($0).\(suffix)" } ?? ""
     }
 
     private var markSlot: CGFloat { IdentityRowMetrics.markSlotWidth * scale }
@@ -175,10 +232,16 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             if let onTruncatedTitle, titleIsTruncated {
                 Button { onTruncatedTitle(title) } label: { titleText }
                     .buttonStyle(.plain)
+                    .accessibilityHint("Shows the full name")
             } else {
                 titleText
             }
         }
+        // U8: in a containing row the title is the row's element — its name as the label and
+        // the rest of the identity phrase (plan, Stale, banked resets) as its value.
+        .accessibilityLabel(title)
+        .accessibilityValue(containsControls ? accessibilityDetail(email: normalizedEmail) : "")
+        .accessibilityIdentifier(controlIdentifier("title"))
         // OA1: "Personal" and "Work" carry side bearings 0.66pt apart at this size, so
         // without this the title column visibly jitters account to account.
         .widgetOpticalLeading(title, size: IdentityRowMetrics.titleSize * scale, weight: .semibold)
@@ -237,6 +300,17 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             )
     }
 
+    private func accessibilityDetail(email: String?) -> String {
+        IdentityRowText.accessibilityDetail(
+            planDisplayName: planDisplayName,
+            isMenuBarAccount: isMenuBarAccount,
+            isStale: isStale,
+            email: email,
+            showsConnectedChip: showsConnectedChip,
+            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
+        )
+    }
+
     private func accessibilityIdentity(email: String?) -> String {
         IdentityRowText.accessibilityParts(
             title: title,
@@ -247,6 +321,37 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             showsConnectedChip: showsConnectedChip,
             bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
         )
+    }
+}
+
+/// U8: where `IdentityRow` places its accessory.
+public enum IdentityRowAccessoryPlacement: Sendable {
+    /// The Mac's loading pill, after the spacer on the trailing edge.
+    case trailing
+    /// The phone's widget glyph, leading-aligned after the plan and state chips.
+    case afterChips
+}
+
+/// One combined element (display-only rows) or a container of controls (U8).
+private struct IdentityRowAccessibility: ViewModifier {
+    let containsControls: Bool
+    let label: String
+    let fullTitleAction: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if containsControls {
+            content.accessibilityElement(children: .contain)
+        } else {
+            content
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(label)
+                // U3: VoiceOver reaches the full name through the same host disclosure.
+                .accessibilityActions {
+                    if let fullTitleAction {
+                        Button("Show Full Name", action: fullTitleAction)
+                    }
+                }
+        }
     }
 }
 
@@ -267,6 +372,8 @@ public extension IdentityRow where Accessory == EmptyView {
         isRevealing: Bool = false,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
+        onPlanCapsuleTap: (() -> Void)? = nil,
+        accessibilityIdentifierPrefix: String? = nil,
         @ViewBuilder mark: @escaping (CGFloat) -> Mark
     ) {
         self.init(
@@ -275,6 +382,7 @@ public extension IdentityRow where Accessory == EmptyView {
             showsPersistentEmail: showsPersistentEmail, showsConnectedChip: showsConnectedChip,
             showsMark: showsMark, bankedResets: bankedResets, isCritical: isCritical,
             isRevealing: isRevealing, scale: scale, onTruncatedTitle: onTruncatedTitle,
+            onPlanCapsuleTap: onPlanCapsuleTap, accessibilityIdentifierPrefix: accessibilityIdentifierPrefix,
             mark: mark, accessory: { EmptyView() }
         )
     }
@@ -332,7 +440,22 @@ public enum IdentityRowText {
         showsConnectedChip: Bool,
         bankedPhrase: String?
     ) -> String {
-        var parts = [title]
+        let detail = accessibilityDetail(
+            planDisplayName: planDisplayName, isMenuBarAccount: isMenuBarAccount, isStale: isStale,
+            email: email, showsConnectedChip: showsConnectedChip, bankedPhrase: bankedPhrase)
+        return detail.isEmpty ? title : "\(title), \(detail)"
+    }
+
+    /// Everything the identity phrase says after the title, in the same order.
+    public static func accessibilityDetail(
+        planDisplayName: String?,
+        isMenuBarAccount: Bool,
+        isStale: Bool,
+        email: String?,
+        showsConnectedChip: Bool,
+        bankedPhrase: String?
+    ) -> String {
+        var parts: [String] = []
         if let planDisplayName { parts.append("\(planDisplayName) plan") }
         if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
         if isStale { parts.append("Stale") }

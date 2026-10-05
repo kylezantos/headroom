@@ -204,18 +204,13 @@ enum CompanionBuild33Loading {
         return CompanionResolvedSnapshot(state: .content(content.withoutNotice()), diagnostics: resolved.diagnostics)
     }
 
-    /// A schema 1–2 envelope decodes into today's provider shape but re-encodes that shape
-    /// under its old version number, which would no longer decode. Stamp the current version
-    /// so the lift's round trip through the resolver is lossless.
+    /// Stamps the inner envelope's current schema so the lift's round trip through the
+    /// resolver is lossless (see `WidgetSnapshotEnvelope.atCurrentSchema`).
     private static func currentSchema(_ envelope: SyncedWidgetSnapshotEnvelope) -> SyncedWidgetSnapshotEnvelope {
-        let inner = envelope.snapshot
-        return SyncedWidgetSnapshotEnvelope(
+        SyncedWidgetSnapshotEnvelope(
             schemaVersion: envelope.schemaVersion, publishedAt: envelope.publishedAt,
             sourceID: envelope.sourceID, sourcePlatform: envelope.sourcePlatform,
-            snapshot: WidgetSnapshotEnvelope(
-                generatedAt: inner.generatedAt, status: inner.status, providers: inner.providers,
-                apiSpendProviders: inner.apiSpendProviders,
-                widgetProviderSelection: inner.widgetProviderSelection),
+            snapshot: envelope.snapshot.atCurrentSchema,
             companionSourceID: envelope.companionSourceID,
             companionGeneration: envelope.companionGeneration)
     }

@@ -265,3 +265,17 @@ final class ChangeRecorder: @unchecked Sendable {
     var values: [iCloudKeyValueChange] { lock.withLock { recorded } }
     func append(_ change: iCloudKeyValueChange) { lock.withLock { recorded.append(change) } }
 }
+
+@Suite struct WidgetSnapshotEnvelopeSchemaStampTests {
+    /// The cache writes the compatibility file from a decoded envelope; an older inner schema
+    /// must come back out readable, not re-encoded under its old number in the new shape.
+    @Test func anOlderSchemaEnvelopeReencodesReadably() throws {
+        let old = WidgetSnapshotEnvelope(
+            schemaVersion: 2, generatedAt: Date(timeIntervalSince1970: 1_800_000_000),
+            status: .enabled, providers: [])
+        let bytes = try CompanionSyncCodec.encode(old.atCurrentSchema)
+        let decoded = try JSONDecoder().decode(WidgetSnapshotEnvelope.self, from: bytes)
+        #expect(decoded.schemaVersion == WidgetSnapshotEnvelope.schemaVersion)
+        #expect(decoded.generatedAt == old.generatedAt)
+    }
+}

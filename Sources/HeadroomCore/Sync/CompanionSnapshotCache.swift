@@ -296,7 +296,8 @@ public struct CompanionSnapshotCache: Sendable {
             // deterministic); v4 writes never touch it.
             if rewriteAll || updated.v3 != previous.v3 {
                 if let v3 = updated.v3 {
-                    try storage.write(CompanionSyncCodec.encode(v3.envelope.snapshot), to: .v3Compatibility)
+                    try storage.write(
+                        CompanionSyncCodec.encode(v3.envelope.snapshot.atCurrentSchema), to: .v3Compatibility)
                 } else {
                     try storage.remove(.v3Compatibility)
                 }
@@ -315,5 +316,16 @@ public struct CompanionSnapshotCache: Sendable {
     private func encode<T: Encodable>(_ value: T) -> Data {
         // Encoding these local Codable values cannot fail; an empty file reads as missing.
         (try? CompanionSyncCodec.encode(value)) ?? Data()
+    }
+}
+
+extension WidgetSnapshotEnvelope {
+    /// A schema 1–2 envelope decodes into today's provider shape but would re-encode that
+    /// shape under its old version number, which no longer decodes. Stamp the current version
+    /// before writing it anywhere.
+    var atCurrentSchema: WidgetSnapshotEnvelope {
+        WidgetSnapshotEnvelope(
+            generatedAt: generatedAt, status: status, providers: providers,
+            apiSpendProviders: apiSpendProviders, widgetProviderSelection: widgetProviderSelection)
     }
 }

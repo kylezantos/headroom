@@ -13,21 +13,24 @@ struct HeadroomIOSTimelineProvider: AppIntentTimelineProvider {
         if context.isPreview {
             return entry(date: .now, state: .demo(DemoScreenshotData.envelope), configuration: configuration)
         }
-        return entry(date: .now, state: resolvedState(), configuration: configuration)
+        return entry(date: .now, load: load(), configuration: configuration)
     }
 
     func timeline(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> Timeline<HeadroomIOSWidgetEntry> {
         let now = Date.now
-        let state = resolvedState()
+        let load = load()
         let envelope: WidgetSnapshotEnvelope?
-        switch state {
+        switch load.state {
         case .demo(let content), .content(let content): envelope = content
         default: envelope = nil
         }
-        let entries = WidgetTimelineSchedule.entryDates(for: envelope, now: now).map { date in
-            entry(date: date, state: state, configuration: configuration)
+        // U13: entries also land at the dim moment (the 60-minute widget floor) and ten minutes
+        // after each reset, and the reload comes no later than the dim moment (KTD15).
+        let timeline = CompanionTimelineSchedule.timeline(for: envelope, freshness: load.freshness, now: now)
+        let entries = timeline.entryDates.map { date in
+            entry(date: date, load: load, configuration: configuration)
         }
-        return Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now)))
+        return Timeline(entries: entries, policy: .after(timeline.reloadDate))
     }
 
     private func entry(
@@ -43,26 +46,27 @@ struct HeadroomIOSTimelineProvider: AppIntentTimelineProvider {
         )
     }
 
-    private func resolvedState() -> IOSWidgetSnapshotState {
-        if CompanionDemoModeStore.appGroup().isEnabled {
-            return .demo(DemoScreenshotData.envelope)
-        }
-        let cache = WidgetSnapshotCache.appGroup()
-        let sync = iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore())
-        let syncRead = sync.read()
-        let cacheRead = cache.read()
-        // Adopt the remote snapshot only when it's newer than (or absent from) the cache, so
-        // an older iCloud payload never overwrites fresher cached content. Resolution below is
-        // newest-wins regardless, but this keeps the on-disk cache honest for the next read.
-        if case .snapshot(let envelope) = syncRead,
-           adoptable(remote: envelope.snapshot, into: cacheRead) {
-            try? cache.write(envelope.snapshot)
-        }
-        return .from(cacheRead: cacheRead, syncRead: syncRead)
+    private func entry(date: Date, load: Load, configuration: HeadroomWidgetConfigurationIntent) -> HeadroomIOSWidgetEntry {
+        var entry = entry(date: date, state: load.state, configuration: configuration)
+        entry.freshness = load.freshness
+        entry.showsDemoBadge = load.showsDemoBadge
+        return entry
     }
 
-    private func adoptable(remote: WidgetSnapshotEnvelope, into cacheRead: WidgetSnapshotCacheRead) -> Bool {
-        guard let cached = cacheRead.envelope else { return true }
-        return remote.generatedAt > cached.generatedAt
+    private struct Load {
+        let state: IOSWidgetSnapshotState
+        let freshness: CompanionFreshnessInputs?
+        let showsDemoBadge: Bool
+    }
+
+    /// U13 (KTD13): the widget loads through the shared phone source — never its own iCloud
+    /// or cache reads — and shows the resolver's primary-only projection. Demo is decided
+    /// once, before iCloud is touched, and its bundled snapshot short-circuits the source (KTD21).
+    private func load() -> Load {
+        let demoStore = CompanionDemoModeStore.appGroup()
+        let demoSnapshot = demoStore.loaderSeam(launch: .current)()
+        let snapshot = CompanionPhoneSnapshotSource.production(demo: { demoSnapshot }).load()
+        let load = CompanionWidgetLoad.from(snapshot, isDemo: demoSnapshot != nil)
+        return Load(state: load.state, freshness: load.freshness, showsDemoBadge: !demoStore.isScreenshotPresentation)
     }
 }

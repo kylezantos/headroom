@@ -79,6 +79,7 @@
 		1CC6767039DF2A0E63E12719 /* HeadroomIOSWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		211DB3381BE287F0EB48EEE6 /* CompanionKVSScopeMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE0FD76474F6609DF9AC64B /* CompanionKVSScopeMarker.swift */; };
 		2192E7BD530AC58FA5EFE6C0 /* CompanionPayloadBudget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9939940F4B8449F613A466EE /* CompanionPayloadBudget.swift */; };
+		2196DC2A45253FFD1CC98E41 /* CompanionWidgetLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DE3601DEE49AF47B2D0B71 /* CompanionWidgetLoad.swift */; };
 		2297981DC8A61B98CBA7DBF3 /* UsageModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B25D0ABB800B858F720C7128 /* UsageModels.swift */; };
 		229CBA2E2681EC12866FC097 /* ReminderRuleRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC385A1D908D767EB78C9DD1 /* ReminderRuleRow.swift */; };
 		2310A2B62ACA0CAA20FDA2CE /* ClaudeAccountEmailReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */; };
@@ -180,6 +181,7 @@
 		4E2F3E46F7D9F7BDAFD93A5A /* WidgetStyleTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CE67ED9AC9F588F9A8541D7 /* WidgetStyleTokens.swift */; };
 		4E66A2A0F6A6BE205D416AAA /* BankedResetNotificationBaseline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F20CCF51B5304F622A8D2C4 /* BankedResetNotificationBaseline.swift */; };
 		4E99CF9F7B35D878D0418E5F /* CompanionAttentionCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7E9C365CC8B08666DEB89F /* CompanionAttentionCopy.swift */; };
+		4EA643F0090BA9B81C91B86F /* CompanionWidgetLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DE3601DEE49AF47B2D0B71 /* CompanionWidgetLoad.swift */; };
 		4EA657309B9F48B811B1C9D5 /* HeadroomTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */; };
 		4F3B1C3ACE44A02FD15906E6 /* PlanCapsulePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D5D1B66560A107D0339933 /* PlanCapsulePresentation.swift */; };
 		4F4BE64BFDC85F0178EB29B1 /* SetupWaitingPhase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 421EBD8CA908233D4F707159 /* SetupWaitingPhase.swift */; };
@@ -308,6 +310,7 @@
 		93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */; };
 		94B616960A02334A94964B51 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; };
 		9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */; };
+		953E0E5F573391DC79FD06A0 /* CompanionWidgetLoad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76DE3601DEE49AF47B2D0B71 /* CompanionWidgetLoad.swift */; };
 		959AE719260D8E5F925ACCD5 /* HeadroomWidgetContainerBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D7ED0585073F5F5D27320A1 /* HeadroomWidgetContainerBackground.swift */; };
 		9640056C4B3B4D51ED558071 /* MeterGauge.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3FA110A99259E1A7135EC69 /* MeterGauge.swift */; };
 		965B242E1A65C3A896067132 /* CompanionSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF0EAE65138B3BD555EEACD /* CompanionSyncModels.swift */; };
@@ -714,6 +717,7 @@
 		744C00250970DA4405528A9E /* SettingsRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRows.swift; sourceTree = "<group>"; };
 		755B8D595E2B9656B94B4154 /* PopoverLoadingRenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverLoadingRenderHarness.swift; sourceTree = "<group>"; };
 		763735EF16F2593857131203 /* MiniPillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPillTests.swift; sourceTree = "<group>"; };
+		76DE3601DEE49AF47B2D0B71 /* CompanionWidgetLoad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionWidgetLoad.swift; sourceTree = "<group>"; };
 		77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoScreenshotData.swift; sourceTree = "<group>"; };
 		77C0D46544DF7793280C86B5 /* LaneSchedule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaneSchedule.swift; sourceTree = "<group>"; };
 		782638CBD6A15B5240AFCD53 /* NotificationClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationClientTests.swift; sourceTree = "<group>"; };
@@ -1106,6 +1110,7 @@
 				F7E66E67262C892788840900 /* CompanionDemoData.swift */,
 				194C63E8131AF50BE4E59CB2 /* CompanionFreshnessRule.swift */,
 				161D52D76A1311ECFB01ABA7 /* CompanionTimelineSchedule.swift */,
+				76DE3601DEE49AF47B2D0B71 /* CompanionWidgetLoad.swift */,
 				77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */,
 				A6F385F42931DC3265D13EE4 /* HalftoneGeometry.swift */,
 				C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */,
@@ -1768,6 +1773,7 @@
 				B6099A17FC050E89A37ED1B2 /* CompanionSyncCodec.swift in Sources */,
 				965B242E1A65C3A896067132 /* CompanionSyncModels.swift in Sources */,
 				53B8344B4676C85D48CFC6EF /* CompanionTimelineSchedule.swift in Sources */,
+				953E0E5F573391DC79FD06A0 /* CompanionWidgetLoad.swift in Sources */,
 				32024093974A4B48D8AF6528 /* CompanionWireDate.swift in Sources */,
 				6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */,
 				8B60C92EF3B9A4F66886E2F7 /* CredentialModels.swift in Sources */,
@@ -1882,6 +1888,7 @@
 				FF51120F85727DA6AAD172A5 /* CompanionSyncCodec.swift in Sources */,
 				917A6C1AAA68C10FBFA81FE0 /* CompanionSyncModels.swift in Sources */,
 				3F27182FE931A2402BC1CEB4 /* CompanionTimelineSchedule.swift in Sources */,
+				4EA643F0090BA9B81C91B86F /* CompanionWidgetLoad.swift in Sources */,
 				580AB8BAD476B2611A8DF611 /* CompanionWireDate.swift in Sources */,
 				4050D3B78E0AD7AC09CF5314 /* Countdown.swift in Sources */,
 				5AEA213A9A00A042EED6986D /* DemoScreenshotData.swift in Sources */,
@@ -2123,6 +2130,7 @@
 				0B63C0DE1712F05B12FA7F40 /* CompanionSyncCodec.swift in Sources */,
 				4F53646C65B38D4BC258D0F7 /* CompanionSyncModels.swift in Sources */,
 				58580515356612177BE67936 /* CompanionTimelineSchedule.swift in Sources */,
+				2196DC2A45253FFD1CC98E41 /* CompanionWidgetLoad.swift in Sources */,
 				3CBA1C8ED82070A932C51E3B /* CompanionWireDate.swift in Sources */,
 				CD29C4379A86CAC8A03AF46A /* Countdown.swift in Sources */,
 				258D60A36D7318D7FCEE3D37 /* DemoScreenshotData.swift in Sources */,

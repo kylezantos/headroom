@@ -1326,17 +1326,22 @@ struct UsageStoreTests {
     @Test func widgetSelectionCanChangeIndependentlyAndExportsImmediately() {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .both
+        preferences.syncToIPhoneEnabled = true
         let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyWidgetExporter()
         let store = UsageStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
             StubProvider(id: .codex, displayName: "Codex", snapshot: .pending(for: .codex)),
-        ], preferences: preferences, widgetExporter: exporter)
+        ], preferences: preferences, widgetExporter: exporter, phoneSyncExporter: phoneExporter)
         store.setWidgetPrioritySource(.codex)
         #expect(exporter.exports.last?.widgetProviderSelection == ["codex"])
+        // iPhone widgets read the same selection from the phone envelope (R36).
+        #expect(phoneExporter.exports.last?.widgetProviderSelection == ["codex"])
         #expect(store.menuBarFillSource == .both)
         store.setWidgetPrioritySource(.auto)
         #expect(preferences.widgetPriorityProviders == [])
         #expect(exporter.exports.last?.widgetProviderSelection == ["claude", "codex"])
+        #expect(phoneExporter.exports.last?.widgetProviderSelection == ["claude", "codex"])
     }
 
     @Test func menuBarRestoresIndependentOrderForAllFourProviders() async {

@@ -898,8 +898,10 @@ enum AppComposition {
 
     /// Screenshot demo mode (`--demo`): fixed sample data wired into the real UI across
     /// every surface. Preferences live in a private UserDefaults suite so demo runs never
-    /// touch the user's real settings. Keeps the real widget + iCloud exporters, so the
-    /// macOS widgets and the iPhone mirror pick up the same fixed numbers.
+    /// touch the user's real settings. Keeps the real widget exporter so the macOS widgets
+    /// show the same fixed numbers, but never the iCloud one: a signed demo run would
+    /// overwrite the user's real phone snapshot (R37, 2026-10-04 iPhone parity plan). The
+    /// iPhone's own Explore Demo covers phone captures.
     @MainActor
     private static func demoStore() -> UsageStore {
         let prefs = launchPreferences
@@ -924,8 +926,7 @@ enum AppComposition {
                 DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
             ],
             preferences: prefs,
-            widgetExporter: widgetExporter(),
-            phoneSyncExporter: phoneSyncExporter()
+            widgetExporter: widgetExporter()
         )
     }
 

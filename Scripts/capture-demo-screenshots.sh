@@ -110,7 +110,19 @@ fi
 echo "▸ macOS: building Headroom.app (widget-discoverable bundle)…"
 Scripts/build-app.sh
 echo "▸ macOS: launching Headroom.app --demo…"
-killall Headroom 2>/dev/null || true   # ensure a fresh instance picks up --demo
+# Only this worktree's earlier demo copy is ours to stop. Never quit the installed app
+# (release-operations: no broad process termination); the single-instance guard makes a
+# second bundled copy exit, so ask the user to quit it instead.
+WORKTREE_BINARY="$PWD/Headroom.app/Contents/MacOS/Headroom"
+for pid in $(pgrep -f "^${WORKTREE_BINARY}" || true); do
+  kill "$pid" 2>/dev/null || true
+done
+sleep 1
+if pgrep -x Headroom >/dev/null; then
+  echo "✗ Another Headroom is running. Quit it from its menu, then rerun this script." >&2
+  echo "  (Or set HEADROOM_IOS_ONLY=1 to capture only the iPhone set.)" >&2
+  exit 1
+fi
 open ./Headroom.app --args --demo
 sleep 2
 

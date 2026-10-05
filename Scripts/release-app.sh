@@ -4,6 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 source Scripts/macos-compatibility.sh
 source Scripts/sparkle-release-notes.sh
+source Scripts/codesign-identity.sh
 
 APP="Headroom.app"
 WIDGET_APPEX="${APP}/Contents/PlugIns/HeadroomWidgets.appex"
@@ -51,7 +52,8 @@ Required:
       HEADROOM_APP_SPECIFIC_PASSWORD=<app-specific-password>
 
 Optional:
-  HEADROOM_DEVELOPER_ID_APPLICATION="Developer ID Application: Name (TEAMID)"
+  HEADROOM_DEVELOPER_ID_APPLICATION=<SHA-1 or "Developer ID Application: Name (TEAMID)">
+    (default: the Developer ID Application identity that expires last)
   HEADROOM_APP_GROUP_IDENTIFIER="group.com.kylezantos.headroom"
   HEADROOM_SPARKLE_UPDATES_DIR="dist/headroom.zantos.co"
   HEADROOM_SPARKLE_DOWNLOAD_URL_PREFIX="https://headroom.zantos.co/"
@@ -266,14 +268,14 @@ resign_exported_info_mutations() {
   echo "→ re-signing exported app after Info.plist stamping"
   codesign \
     --force \
-    --sign "${DEVELOPER_ID_APPLICATION}" \
+    --sign "${DEVELOPER_ID_SIGNING_SHA}" \
     --timestamp \
     --options runtime \
     --preserve-metadata=identifier,entitlements,flags \
     "${WIDGET_APPEX}"
   codesign \
     --force \
-    --sign "${DEVELOPER_ID_APPLICATION}" \
+    --sign "${DEVELOPER_ID_SIGNING_SHA}" \
     --timestamp \
     --options runtime \
     --preserve-metadata=identifier,entitlements,flags \
@@ -453,15 +455,14 @@ archive_and_export_developer_id_app() {
   resign_exported_info_mutations
 }
 
-select_developer_id_application() {
-  if [[ -n "${HEADROOM_DEVELOPER_ID_APPLICATION}" ]]; then
-    printf '%s\n' "${HEADROOM_DEVELOPER_ID_APPLICATION}"
+# Prints the SHA-1 to sign with. A display name is ambiguous once a renewed certificate
+# shares it, so a name override resolves to the newest identity carrying that name.
+select_developer_id_signing_sha() {
+  if [[ "${HEADROOM_DEVELOPER_ID_APPLICATION}" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+    printf '%s\n' "${HEADROOM_DEVELOPER_ID_APPLICATION}" | tr '[:lower:]' '[:upper:]'
     return
   fi
-
-  security find-identity -v -p codesigning 2>/dev/null \
-    | sed -n 's/^.*"\(Developer ID Application:[^"]*\)".*$/\1/p' \
-    | head -n 1
+  headroom_newest_identity_sha "${HEADROOM_DEVELOPER_ID_APPLICATION:-Developer ID Application:}"
 }
 
 for tool in security codesign curl ditto hdiutil xcrun plutil tiffutil; do
@@ -469,7 +470,11 @@ for tool in security codesign curl ditto hdiutil xcrun plutil tiffutil; do
 done
 require_tool xcodegen
 
-DEVELOPER_ID_APPLICATION="$(select_developer_id_application)"
+DEVELOPER_ID_SIGNING_SHA="$(select_developer_id_signing_sha)"
+DEVELOPER_ID_APPLICATION=""
+if [[ -n "${DEVELOPER_ID_SIGNING_SHA}" ]]; then
+  DEVELOPER_ID_APPLICATION="$(headroom_identity_name_for_sha "${DEVELOPER_ID_SIGNING_SHA}")"
+fi
 if [[ -z "${DEVELOPER_ID_APPLICATION}" ]]; then
   echo "No Developer ID Application identity found in Keychain." >&2
   echo "Install one from your Apple Developer account, then rerun this script." >&2
@@ -567,7 +572,7 @@ ln -s /Applications "${STAGING_DIR}/Applications"
 create_drag_install_dmg
 
 echo "→ signing DMG"
-codesign --force --timestamp --sign "${DEVELOPER_ID_APPLICATION}" "${DMG_PATH}"
+codesign --force --timestamp --sign "${DEVELOPER_ID_SIGNING_SHA}" "${DMG_PATH}"
 codesign --verify --verbose=2 "${DMG_PATH}"
 
 echo "→ notarizing DMG"

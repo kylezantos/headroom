@@ -521,6 +521,7 @@ public final class UsageStore {
         preferences.widgetPriorityProviders = filtered.providerIDs?.sorted { $0.raw < $1.raw } ?? []
         widgetPrioritySource = filtered
         exportWidgetSnapshot()
+        exportPhoneSyncSnapshot()
     }
 
     public var menuBarProviderOrder: [ProviderID] {

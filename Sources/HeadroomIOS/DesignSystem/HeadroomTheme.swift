@@ -1,35 +1,10 @@
 import SwiftUI
 
+/// KTD1 (iOS parity): the phone keeps only its own layout here — the screen background and the
+/// opaque tile. Colour comes from `ProviderStyle` and the Core values, motion from the shared
+/// `HeadroomMotion` (plus the phone's entrance in `HeadroomMotion+Phone.swift`).
 enum HeadroomTheme {
     static let tileRadius: CGFloat = 17
-    static let entranceAnimation = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.34)
-    /// M1A (mirrors `HeadroomMotion.valueSpring` on macOS): a bar that represents a value
-    /// must never overshoot it, so the spring is critically damped.
-    static let valueSpring = Animation.spring(response: 0.3, dampingFraction: 1.0)
-
-    static func providerTextAccent(for id: String, scheme: ColorScheme) -> Color {
-        guard let rgb = HeadroomWidgetColorValues.textAccent(for: id, dark: scheme == .dark) else { return .secondary }
-        return Color(rgb)
-    }
-
-    static func severityColor(for severity: WidgetUsageSeverity, scheme: ColorScheme) -> Color {
-        Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
-    }
-
-    /// Bar-fill tier, mirroring the Mac popover and the widgets: vivid in the default light
-    /// appearance (the percent numeral beside the bar carries the value at text contrast),
-    /// falling back to the 3:1 text-safe tokens under Increase Contrast.
-    static func severityFill(
-        for severity: WidgetUsageSeverity,
-        scheme: ColorScheme,
-        increasedContrast: Bool
-    ) -> Color {
-        Color(HeadroomSeverityColorValues.fill(
-            for: severity,
-            dark: scheme == .dark,
-            increasedContrast: increasedContrast
-        ))
-    }
 
     /// The screen background — a lifted vertical gradient (gray at top → near-black at
     /// bottom) with a faint cool glow bleeding from the top, ported from the approved
@@ -67,23 +42,10 @@ enum HeadroomTheme {
         return LinearGradient(colors: stops, startPoint: .top, endPoint: .bottom)
     }
 
+    /// Transitional: the Settings sheet (U12, stream D) still reads its secondary ink here.
+    /// Retire it once that sheet moves to `ProviderStyle.secondaryText(scheme:)`.
     static func secondaryText(_ scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark))
-    }
-
-    static func tertiaryText(_ scheme: ColorScheme) -> Color {
-        // Both schemes tuned so the small caption text (reset labels, "left") clears
-        // WCAG AA (≥4.5:1) on the tile fill — dark at 0.56, light at 0.74 opacity; the
-        // rationale lives with the values in HeadroomWidgetColorValues.
-        Color(HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark))
-    }
-
-    static func barTrack(_ scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.barTrack(dark: scheme == .dark))
-    }
-
-    static func hairline(_ scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.hairline(dark: scheme == .dark))
+        ProviderStyle.secondaryText(scheme: scheme)
     }
 }
 

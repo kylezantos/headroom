@@ -29,7 +29,9 @@ struct VesselMark: View {
                     .padding(.leading, 15)
             }
         }
-        .shadow(color: Color.accentColor.opacity(scheme == .dark ? 0.20 : 0.12), radius: 18, y: 8)
+        // U8 (G6): no system blue anywhere — the glow and liquid take the neutral control
+        // ink until U10 redraws this vessel on `WidgetVesselGeometry`.
+        .shadow(color: PhoneControlStyle.tint.opacity(scheme == .dark ? 0.16 : 0.10), radius: 18, y: 8)
         .accessibilityHidden(true)
     }
 
@@ -39,7 +41,7 @@ struct VesselMark: View {
 
     private var outlineStyle: AnyShapeStyle {
         if isEmpty {
-            AnyShapeStyle(HeadroomTheme.hairline(scheme))
+            AnyShapeStyle(Color(styleTint: HeadroomWidgetColorValues.hairline(dark: scheme == .dark)))
         } else {
             AnyShapeStyle(LinearGradient(
                 colors: [
@@ -54,10 +56,10 @@ struct VesselMark: View {
 
     private var liquidStyle: AnyShapeStyle {
         if isEmpty {
-            AnyShapeStyle(HeadroomTheme.barTrack(scheme))
+            AnyShapeStyle(ProviderStyle.barTrack(scheme: scheme))
         } else {
             AnyShapeStyle(LinearGradient(
-                colors: [Color.accentColor.opacity(0.72), Color.accentColor],
+                colors: [PhoneControlStyle.tint.opacity(0.62), PhoneControlStyle.tint.opacity(0.86)],
                 startPoint: .top,
                 endPoint: .bottom
             ))

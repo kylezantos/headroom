@@ -91,17 +91,13 @@ struct UsageLeftEntity: TransientAppEntity {
     }
 }
 
-/// Explore Demo (or a `--demo` launch) answers from the bundled demo fixture lifted through
-/// the resolver in memory; the lift's cache output is discarded, so nothing persists (KTD21).
+/// Explore Demo (or a `--demo` launch) answers from U7's bundled v4 demo — the variant the
+/// app shows, multi-account by default — resolved through the real codec and resolver in
+/// memory at the answer's own clock. Nothing persists (KTD21, R30).
 enum UsageLeftDemo {
     static func snapshot(now: Date) -> CompanionResolvedSnapshot? {
-        guard DemoScreenshotData.isEnabled || CompanionDemoModeStore.appGroup().isEnabled else { return nil }
-        let envelope = SyncedWidgetSnapshotEnvelope(
-            publishedAt: now, sourceID: "Demo", sourcePlatform: .macOS,
-            snapshot: DemoScreenshotData.envelope)
-        guard let bytes = try? SyncedWidgetSnapshotCodec.encode(envelope) else { return nil }
-        return CompanionSnapshotResolver.resolve(
-            CompanionResolverInput(manifest: nil, v3: bytes, cache: .empty, now: now)
-        ).snapshot
+        let store = CompanionDemoModeStore(
+            defaults: UserDefaults(suiteName: WidgetSnapshotCache.appGroupSuiteName), now: { now })
+        return store.loaderSeam(launch: .current)()
     }
 }

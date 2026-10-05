@@ -4,7 +4,8 @@ import XCTest
 final class ResponsiveLayoutUITests: XCTestCase {
     func testCompactAPISpendRowsUseInlineLedgerAlignment() {
         let app = XCUIApplication()
-        app.launchArguments = ["--demo"]
+        // U8: one account per provider, so the Claude card is titled "Claude" (KTD9's flip).
+        app.launchArguments = ["--demo", "--demo-variant", "fourProviders"]
         app.launch()
 
         let window = app.windows.firstMatch
@@ -53,7 +54,8 @@ final class ResponsiveLayoutUITests: XCTestCase {
 
     func testCompactAPISpendKeepsStaleStatusBelowAmountBaseline() {
         let app = XCUIApplication()
-        app.launchArguments = ["--demo", "--demo-stale-api-spend"]
+        // U8: the v4 form of build 33's `--demo-stale-api-spend`.
+        app.launchArguments = ["--demo", "--demo-variant", "staleSpend"]
         app.launch()
 
         let window = app.windows.firstMatch

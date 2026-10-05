@@ -31,6 +31,16 @@ instead of using this token to determine account login.
   Kyle opens the app and runs the manual baseline. No physical identity pass or
   account switch is claimed. Allowlisted installation receipts are in
   `.context/ios-parity-work/u4-physical-*-summary.json`.
+- Subsequent device check after Kyle reported no probe: the same bundle identifier
+  actually reported developer build **1.0 (33)**. The earlier 1.5 installation
+  receipt did not establish the build Kyle was now opening; the cause of this
+  change is unproven. Reinstalled the signed harness, then independently queried
+  the phone again: install exit 0, one matching **1.5 (33)** developer app, query
+  exit 0. Both actual Debug payload dylibs contain the probe (the main executable
+  is a launcher stub). Receipt: `u4-physical-reinstall-summary.json` in the same
+  local evidence directory. Kyle then confirmed that fully reopened Settings shows
+  **1.5 (33)** and **Identity Candidate Probe · DEBUG**. Subsequent physical results
+  are recorded below; no identity verdict is inferred from installation/UI alone.
 
 Build using cached signing assets only (no portal provisioning updates):
 
@@ -49,6 +59,38 @@ verify the installed build/configuration and iOS version before collecting rows.
 Do not substitute a simulator build or add capabilities to make the candidate pass.
 
 ## First physical pass — stop on candidate failure
+
+Recorded physical results (Kyle's reports, signed Debug 1.5 (33)):
+
+- Reopened Settings: version 1.5 (33), probe section visible.
+- App `baseline`, usual Apple ID / Drive on / online, after Reset then Arm:
+  **available / equal / written / coordinated**. App baseline passed.
+- Placed widget screenshot: **Widget #3 · baseline**, **3:23:40 PM** on
+  2026-10-04 (displayed local time), **available · different** and
+  **readable · coordinated**. This is an actual provider sample, not a gallery
+  placeholder. The archived app baseline and widget token did not compare equal.
+- **Candidate gate failed at the same-account app/widget baseline.** Cache-loader
+  adoption is stopped. Relaunch, Drive off, offline and empty-account exercises
+  were not performed and must not proceed on this failed candidate. Cause remains
+  unproven; this result does not establish a real Apple ID change or cache leak.
+- Diagnosis read-through confirms the probe compares a restored NSCoding object
+  using `current.isEqual(restored)` in both roles; the first app Arm also checks
+  its immediate archive round trip. Neither token descriptions nor archive bytes
+  determine equality. Apple documents that comparison method, but the observed
+  mismatch is unresolved. Preserve the current baseline and do not reset it
+  during diagnosis.
+- Received enum-only report from
+  `.context/attachments/UGJnKG/text-429B979FC14F-1.txt`: reset #1 at
+  `2026-10-04T22:21:27Z`; app baseline #2 at `2026-10-04T22:21:31Z`
+  (available/equal/written/coordinated); widget baseline #3 at
+  `2026-10-04T22:23:40Z` (available/different/readable/coordinated).
+  The widget read and compared the stored baseline 129 seconds after Arm, with
+  no intervening reset in the report. The cause of inequality remains unproven.
+- Kyle reports Mac Headroom is not running. The probe uses the iPhone app and
+  iPhone extension's local App Group state and identity reads; it does not require
+  the Mac publisher. A further app sample against the preserved baseline can
+  distinguish an app-side reread mismatch from a widget-only mismatch; this is
+  diagnosis, not continuation or passage of the adoption gate.
 
 1. With the original Apple ID online and Drive on, open Headroom → Settings →
    **Identity Candidate Probe · DEBUG**. Exit Demo. Select `baseline`, choose

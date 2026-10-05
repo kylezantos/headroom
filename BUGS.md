@@ -397,6 +397,31 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   byte-identical). The names promise scenarios the harness never draws; anything touching the
   Grok/Cursor cards or the spend rows has no headless visual evidence. Wire the fixture's spend
   providers and enable the Grok/Cursor surfaces in the multi path.
+- **The harness's `connected` capture can show a Claude "Waiting for sign-in…" card.** Seen
+  2026-10-03 on Kyle's machine: `popover-connected-{light,dark}.png` drew the Claude setup-waiting
+  card above Codex instead of the connected Claude card. Suspected cause (unverified): the harness
+  resets `openedSetupAt` but still restores the real durable handoff markers under
+  `~/Library/Application Support/Headroom/Setup`, so a live machine's pending handoff leaks into a
+  fixture. Isolate the harness from the real setup-marker directory.
+- **`Scripts/capture-demo-screenshots.sh` quits the installed Headroom.** Its macOS half runs
+  `killall Headroom` (line 113) before launching the `--demo` build, which also kills the user's
+  live menu bar app — against the release-ops rule on broad process termination. Terminate only
+  the worktree build's PID, or keep using `HEADROOM_IOS_ONLY=1` until it's fixed.
+- **Changing widget providers on the Mac doesn't reach iPhone widgets.** `setWidgetPrioritySource`
+  (`UsageStore.swift:485-490`) calls `exportWidgetSnapshot()` but not `exportPhoneSyncSnapshot()`,
+  so the iPhone envelope's `widgetProviderSelection` stays stale until the next primary merge.
+  Slated for the 2026-10 iPhone parity round.
+- **The public iPhone app (1.0, build 24) can't read any current Mac's snapshot.** Built from
+  `1f4acb53`, it requires sync schema 1 exactly and a `resetsAt` on every window. Mac 1.1.2
+  (Jul 28) moved to schema 2 and today's Mac publishes schema 3 without `resetsAt`, so App Store
+  phones paired with an updated Mac show "Snapshot Unreadable" / "Update Needed" — and the
+  unreadable copy tells users to "publish a fresh snapshot", which can never help. Fix is shipping
+  a current iPhone build (1.5); found 2026-10-04 (see
+  `docs/plans/2026-10-04-ios-parity-research/repo-patterns.md`). Kyle accepted waiting for 1.5 over a
+  Mac-side schema-1 stopgap because the iPhone app has few users.
+- **A bare `--demo` Mac run publishes demo data to the real iCloud store.** `HeadroomApp.swift`
+  (~861-890) wires the phone-sync exporter in demo mode, so a properly signed demo build (e.g. a
+  screenshot run) overwrites the user's real phone snapshot. Demo must never write KVS (demo plan R3).
 
 ## iPhone sync — Mac needs the iCloud-KVS entitlement (provisioning-gated)
 
@@ -762,3 +787,13 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   so no test catches a missing case (it renders the default style).
 - **The render harness does not pose the iPhone DEMO 14pt top inset**, so App Store screenshot
   mode could overflow small tiles while the sweep stays green.
+
+### Xcode 27 test compiler warnings (iOS parity U1, 2026-10-04)
+
+- `NotificationCoordinatorTests.swift:278–279` ignores the result of `schedulerMerge`.
+  `ProviderCardIdentityRowTests.swift:378–458` emits actor-isolation warnings. The U1
+  Core and Mac suites pass (1,207 and 250 tests); keep these visible for the U20
+  integration pass rather than weakening concurrency checking or assertions.
+- The iOS UI-test runner emits “Metadata extraction skipped, no AppIntents.framework
+  dependency found”; the app and extension build without warnings. Re-check the runner
+  configuration when U14 adds real App Intents.

@@ -46,7 +46,8 @@ final class DemoModeUITests: XCTestCase {
         XCTAssertTrue(element("headroom.demo.banner").waitForExistence(timeout: 5))
         XCTAssertTrue(element("headroom.provider.claude").exists)
         XCTAssertTrue(element("headroom.provider.codex").exists)
-        XCTAssertTrue(app.staticTexts["Weekly (Fable)"].exists)
+        // The model row prints "Fable" and is one accessibility element ("Fable weekly usage").
+        XCTAssertTrue(element("Fable weekly usage").exists)
 
         if !element("headroom.api-spend").exists {
             app.swipeUp()

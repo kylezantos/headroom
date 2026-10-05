@@ -88,6 +88,35 @@ public enum HeadroomWidgetFontMetrics {
         }
     }
 
+    /// U3/KTD2: the advance width one line of `text` takes in this face, kerning included —
+    /// the number `NSString.size(withAttributes:)` reports for the same `NSFont` and `.kern`
+    /// on the Mac, measured with CoreText so the shared popover rows can reserve their
+    /// numeral and amount columns and detect a truncated title on iOS too. `kerning` is
+    /// applied after every glyph, as SwiftUI's `.kerning(_:)` and TextKit's `.kern` both do;
+    /// leaving it out would under-measure a kerned title by its glyph count × the kern.
+    public static func textWidth(
+        _ text: String,
+        size: CGFloat,
+        weight: Font.Weight,
+        mono: Bool = false,
+        kerning: CGFloat = 0
+    ) -> CGFloat {
+        guard !text.isEmpty else { return 0 }
+        let key = WidthKey(text: text, size: size, weight: weightValue(weight), mono: mono, kerning: kerning)
+        return widthCache.value(for: key) {
+            var attributes: [NSAttributedString.Key: Any] = [
+                NSAttributedString.Key(kCTFontAttributeName as String): ctFont(size: size, weight: weight, mono: mono),
+            ]
+            if kerning != 0 {
+                attributes[NSAttributedString.Key(kCTKernAttributeName as String)] = kerning
+            }
+            let line = CTLineCreateWithAttributedString(
+                NSAttributedString(string: text, attributes: attributes) as CFAttributedString
+            )
+            return CGFloat(CTLineGetTypographicBounds(line, nil, nil, nil))
+        }
+    }
+
     // MARK: - CoreText
 
     private static let quantum: CGFloat = 0.25
@@ -186,16 +215,24 @@ public enum HeadroomWidgetFontMetrics {
         let character: Character?
     }
 
+    private struct WidthKey: Hashable {
+        let text: String
+        let size: CGFloat
+        let weight: CGFloat
+        let mono: Bool
+        let kerning: CGFloat
+    }
+
     /// WCL6: a lock-guarded dictionary rather than `@MainActor` state. WidgetKit evaluates
     /// these bodies off the main actor while it renders a timeline entry, so main-actor
     /// isolation would force every call site to hop (or, worse, tempt an `assumeIsolated`);
     /// and the process is short-lived, so the cap exists only to bound a pathological key
     /// space, not to manage memory over time.
-    private final class Cache: @unchecked Sendable {
+    private final class Cache<Key: Hashable>: @unchecked Sendable {
         private let lock = NSLock()
-        private var storage: [MetricKey: CGFloat] = [:]
+        private var storage: [Key: CGFloat] = [:]
 
-        func value(for key: MetricKey, compute: () -> CGFloat) -> CGFloat {
+        func value(for key: Key, compute: () -> CGFloat) -> CGFloat {
             lock.lock()
             defer { lock.unlock() }
             if let hit = storage[key] { return hit }
@@ -206,10 +243,11 @@ public enum HeadroomWidgetFontMetrics {
         }
     }
 
-    private static let capCache = Cache()
-    private static let digitAscentCache = Cache()
-    private static let digitDescentCache = Cache()
-    private static let bearingCache = Cache()
+    private static let capCache = Cache<MetricKey>()
+    private static let digitAscentCache = Cache<MetricKey>()
+    private static let digitDescentCache = Cache<MetricKey>()
+    private static let bearingCache = Cache<MetricKey>()
+    private static let widthCache = Cache<WidthKey>()
 }
 
 public extension View {

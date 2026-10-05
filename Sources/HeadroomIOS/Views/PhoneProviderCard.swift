@@ -22,6 +22,10 @@ enum PhoneCardMetrics {
     /// The phone's status glyph: the sentence's size plus its cap-height pad (mock `sent + 2.5`).
     static let statusGlyphSize: CGFloat = 13
     static let statusGlyphGap: CGFloat = 7
+    /// R11: the past-reset line takes the countdown's size (`UsageBarView` 11pt) and sits a
+    /// label-to-gauge step (Full's 7, minus the line box) under the row it explains.
+    static let pastResetSize: CGFloat = 11
+    static let pastResetGap: CGFloat = 4
 }
 
 /// What every card on one screen shares.
@@ -261,10 +265,13 @@ struct PhoneAccountSection: View {
 
     private func meterRows(dimmed: Bool) -> some View {
         PhoneMeterRows(
-            windows: CompanionCardPresentation.rows(context.display.appWindows(account.windows)),
+            rows: CompanionCardPresentation.meterRows(context.display.appWindows(account.windows), now: context.now),
             display: context.display,
             now: context.now,
-            dimmed: dimmed,
+            // KTD15: the surface's dimming and the account's own stale treatment are one
+            // demotion; a stale row under a dimmed surface adds only its "Last known" state.
+            dimmed: CompanionCardPresentation.rowsDimmed(accountDimmed: dimmed, surfaceDimmed: context.surfaceDimmed),
+            identifierPrefix: identifier,
             arrivalKey: AccountKey(
                 providerID: ProviderID(provider.id),
                 accountID: AccountID(account.accountID ?? AccountID.primary.raw)),
@@ -275,18 +282,20 @@ struct PhoneAccountSection: View {
 
 /// The popover's meter stack at phone scale (`UsageBarsStack`).
 struct PhoneMeterRows: View {
-    let windows: [WidgetWindowSummary]
+    let rows: [CompanionMeterRow]
     let display: ResolvedPhoneDisplay
     let now: Date
     let dimmed: Bool
+    let identifierPrefix: String
     let arrivalKey: AccountKey
     let scale: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var scheme
 
     var body: some View {
         Group {
-            if windows.isEmpty {
+            if rows.isEmpty {
                 Text(CompanionCardCopy.noUsageData)
                     .font(.system(size: StatusSentence.size * scale, weight: .medium))
                     .foregroundStyle(.secondary)
@@ -294,22 +303,28 @@ struct PhoneMeterRows: View {
                 VStack(spacing: rowGap * scale) {
                     // RI1: rows keyed by kind (and occurrence), so a row that arrives or
                     // leaves fades instead of handing its neighbour another window's value.
-                    ForEach(Self.keyed(windows), id: \.key) { row in
-                        UsageBarView(
-                            reading: UsageMeterReading(widgetSummary: row.window),
-                            percentageMode: display.percentageMode,
-                            now: now,
-                            meterStyle: display.meterStyle,
-                            dimmed: dimmed,
-                            arrivalKey: arrivalKey,
-                            scale: scale
-                        )
+                    ForEach(Self.keyed(rows.map(\.window)), id: \.key) { keyed in
+                        let pastResetAt = rows.first { $0.window.id == keyed.window.id }?.pastResetAt
+                        VStack(alignment: .leading, spacing: PhoneCardMetrics.pastResetGap * scale) {
+                            UsageBarView(
+                                reading: UsageMeterReading(widgetSummary: keyed.window),
+                                percentageMode: display.percentageMode,
+                                now: now,
+                                meterStyle: display.meterStyle,
+                                dimmed: dimmed,
+                                arrivalKey: arrivalKey,
+                                scale: scale
+                            )
+                            if let pastResetAt {
+                                pastResetLine(pastResetAt, key: keyed.key)
+                            }
+                        }
                         .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
                     }
                 }
                 .animation(
                     HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
-                    value: windows.map(\.kind)
+                    value: rows.map(\.window.kind)
                 )
             }
         }
@@ -319,6 +334,15 @@ struct PhoneMeterRows: View {
 
     private var rowGap: CGFloat {
         display.meterStyle.format == .micro ? PhoneCardMetrics.microRowGap : PhoneCardMetrics.fullRowGap
+    }
+
+    /// R11/AE6: the row already reads "—"; this says why, in the countdown's place and ink.
+    private func pastResetLine(_ resetAt: Date, key: String) -> some View {
+        Text(CompanionCardPresentation.pastResetLine(resetAt, now: now))
+            .font(.system(size: PhoneCardMetrics.pastResetSize * scale).monospacedDigit())
+            .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("\(identifierPrefix).past-reset.\(key)")
     }
 
     static func keyed(_ windows: [WidgetWindowSummary]) -> [(key: String, window: WidgetWindowSummary)] {

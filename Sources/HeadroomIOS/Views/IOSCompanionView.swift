@@ -27,6 +27,10 @@ struct IOSCompanionView: View {
     /// What the Home Screen widgets would show from the last non-demo load. A change reloads
     /// their timelines (replaces build 33's adopt-then-reload).
     @State private var lastWidgetReloadKey: WidgetReloadKey?
+    /// U9: pull to check now, its status line and Settings' last round trip.
+    @State private var checkNow = PhoneCheckNow()
+    /// Review #10: only the latest-started load may publish (`CompanionLatestLoad`).
+    @State private var loads = CompanionLatestLoad<Refreshed>()
     @Environment(\.scenePhase) private var scenePhase
 
     private var launch: CompanionDemoLaunchOptions { PhoneSnapshotLoading.launch }
@@ -60,10 +64,12 @@ struct IOSCompanionView: View {
                         onExitDemo: exitDemo,
                         forcesLargeDetent: opensSettingsForCapture,
                         snapshot: snapshot,
-                        // U9 fills the last check-now round trip.
-                        lastCheckNow: nil,
+                        lastCheckNow: checkNow.lastRoundTrip,
                         // U12: Settings › Demo switched the variant; re-read the demo data.
-                        onDemoVariantChange: { Task { await refresh() } }
+                        onDemoVariantChange: {
+                            checkNow.reset()
+                            Task { await refresh() }
+                        }
                     )
                 }
         }
@@ -106,8 +112,9 @@ struct IOSCompanionView: View {
                 showsDemoBanner: isDemoMode && !launch.isDemoLaunch,
                 canExitDemo: canExitDemo,
                 demoWidgetUnavailable: demoWidgetUnavailable,
+                checkNow: checkNow,
                 onExitDemo: exitDemo,
-                onRefresh: refresh
+                onCheckNow: pullToCheckNow
             )
         case .paused:
             StatusScreen(
@@ -175,12 +182,49 @@ struct IOSCompanionView: View {
             try? await Task.sleep(for: .milliseconds(550))
         }
         applyLaunchSetupOnce()
-        let resolved = await load()
-        snapshot = resolved.snapshot
-        isDemoMode = resolved.isDemo
-        if !resolved.isDemo { reloadWidgetsIfChanged(resolved.snapshot) }
-        diagnostics = await Self.diagnostics(for: resolved)
+        // Review #10: launch, foreground, URL opens, every KVS change and pulls each start a
+        // load. One that finishes after a newer one started publishes nothing, so stale data
+        // never replaces newer numbers or reloads widgets back to them.
+        if let refreshed = await loads.run({
+            let loaded = await load()
+            return Refreshed(loaded: loaded, diagnostics: await Self.diagnostics(for: loaded))
+        }) {
+            let resolved = refreshed.loaded
+            snapshot = resolved.snapshot
+            isDemoMode = resolved.isDemo
+            if !resolved.isDemo {
+                reloadWidgetsIfChanged(resolved.snapshot)
+                // KTD14.7: every reload folds the receipt and the snapshot into the request.
+                checkNow.update(snapshot: resolved.snapshot)
+            }
+            diagnostics = refreshed.diagnostics
+        }
         await floor.value
+    }
+
+    /// U9 (R18, KTD14): pull to refresh and ⌘R. A v4 Mac gets a request and the call returns
+    /// at once; Explore Demo replays the bundled receipt and writes nothing (AE8); an older
+    /// Mac, a paused or waiting state, or a phone without its App Group re-reads (AE1).
+    private func pullToCheckNow() async {
+        guard let current = snapshot else { return await refresh() }
+        let started = isDemoMode
+            ? checkNow.pullDemo(
+                snapshot: current, store: demoModeStore,
+                variant: demoModeStore.variant(launch: launch),
+                adopt: adoptCheckedSnapshot)
+            : checkNow.pull(snapshot: current)
+        if !started { await refresh() }
+    }
+
+    /// KTD14.7: a demo check's finished snapshot is newer than any load still in flight.
+    private func adoptCheckedSnapshot(_ checked: CompanionResolvedSnapshot) {
+        loads.supersede()
+        snapshot = checked
+    }
+
+    private struct Refreshed {
+        let loaded: Loaded
+        let diagnostics: IOSSyncDiagnostics?
     }
 
     /// Launch-time switches, applied before the first load reads anything.
@@ -243,6 +287,7 @@ struct IOSCompanionView: View {
     }
 
     private func enterDemo() {
+        checkNow.reset()
         let result = demoModeStore.setEnabled(true)
         sessionDemoEnabled = result == .unavailable
         demoWidgetUnavailable = result == .unavailable
@@ -253,6 +298,7 @@ struct IOSCompanionView: View {
     }
 
     private func exitDemo() {
+        checkNow.reset()
         sessionDemoEnabled = false
         demoWidgetUnavailable = false
         let result = demoModeStore.setEnabled(false)

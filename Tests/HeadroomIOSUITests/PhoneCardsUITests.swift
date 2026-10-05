@@ -19,9 +19,18 @@ final class PhoneCardsUITests: XCTestCase {
         XCTAssertTrue(claude[0].waitForExistence(timeout: 5))
         XCTAssertEqual(claude.map(\.label), ["Personal", "Work", "Studio"])
         XCTAssertEqual(codex.map(\.label), ["Personal", "Work"])
-        let tops = (claude + codex).map(\.frame.minY)
-        XCTAssertEqual(tops, tops.sorted(), "accounts render in the Mac's order")
-        XCTAssertGreaterThan(element("headroom.provider.codex").frame.minY, element("headroom.provider.claude").frame.minY)
+        for stack in [claude, codex] {
+            let tops = stack.map(\.frame.minY)
+            XCTAssertEqual(tops, tops.sorted(), "accounts render in the Mac's order")
+        }
+        // U11: a wide window flows Codex into the next column; a phone stacks it below.
+        let claudeCard = element("headroom.provider.claude").frame
+        let codexCard = element("headroom.provider.codex").frame
+        if app.windows.firstMatch.frame.width >= 700 {
+            XCTAssertGreaterThan(codexCard.minX, claudeCard.maxX)
+        } else {
+            XCTAssertGreaterThan(codexCard.minY, claudeCard.minY)
+        }
 
         // The model row prints "Fable" and is one element ("Fable weekly usage").
         XCTAssertTrue(element("Fable weekly usage").exists)

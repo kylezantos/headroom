@@ -913,3 +913,452 @@ public struct CompanionReceipt: Codable, Equatable, Sendable {
         try c.encodeIfPresent(finishedGeneration, forKey: .finishedGeneration)
     }
 }
+
+// MARK: - Keys, budgets and provider identity (KTD5, KTD6.1, KTD7)
+
+/// The exact v4 key namespace. Every emitted key is at most 64 UTF-8 bytes (KTD6.1).
+public enum CompanionSyncKeys {
+    public static let namespace = "headroom.sync.v4."
+    public static let manifest = "headroom.sync.v4.manifest"
+    public static let receipt = "headroom.sync.v4.receipt"
+    public static let providerPrefix = "headroom.sync.v4.provider."
+    public static let requestPrefix = "headroom.sync.v4.request."
+    public static let maximumKeyBytes = 64
+    /// Contract: known providers; unknown IDs may sit in ordering metadata but are skipped.
+    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor"]
+
+    public static func isKnownProvider(_ id: String) -> Bool { knownProviderIDs.contains(id) }
+
+    /// Nil for an empty or over-long identifier rather than a truncated, colliding key.
+    public static func provider(_ providerID: String) -> String? {
+        guard !providerID.isEmpty else { return nil }
+        return bounded(providerPrefix + providerID)
+    }
+
+    /// The suffix is the per-install random device UUID, never a device name (KTD14.1).
+    public static func request(deviceUUID: String) -> String? {
+        guard let uuid = try? CompanionTransportValidation.uuid(deviceUUID) else { return nil }
+        return bounded(requestPrefix + uuid)
+    }
+
+    public static func providerID(fromKey key: String) -> String? {
+        guard key.hasPrefix(providerPrefix) else { return nil }
+        let id = String(key.dropFirst(providerPrefix.count))
+        return id.isEmpty ? nil : id
+    }
+
+    /// Unknown request suffixes are rejected, so a malformed key never names a device.
+    public static func deviceUUID(fromRequestKey key: String) -> String? {
+        guard key.hasPrefix(requestPrefix) else { return nil }
+        let suffix = String(key.dropFirst(requestPrefix.count))
+        guard let uuid = try? CompanionTransportValidation.uuid(suffix), uuid == suffix else {
+            return nil
+        }
+        return uuid
+    }
+
+    private static func bounded(_ key: String) -> String? {
+        key.utf8.count <= maximumKeyBytes ? key : nil
+    }
+}
+
+/// KTD7 / contract Decision 3: exact byte limits, conservative under both KB readings.
+public enum CompanionSyncBudget {
+    public static let providerKeyBytes = 15_000
+    public static let namespaceBytes = 64_000
+    /// R2: at or below this many accounts per provider every account must reach the phone.
+    public static let accountEnvelope = 20
+}
+
+// MARK: - Manifest (KTD6.1, contract Decision 1)
+
+/// Integrity metadata for one provider key. The digest is the only digest in v4 and is
+/// computed over the exact stored bytes, never a re-encoding (KTD6.2).
+public struct CompanionManifestProviderEntry: Codable, Equatable, Sendable {
+    public let payloadGeneration: Int64
+    public let digest: String
+    public let effectiveIntervalSeconds: Double
+
+    public init(payloadGeneration: Int64, digest: String, effectiveIntervalSeconds: Double) throws {
+        guard payloadGeneration >= 0 else { throw CompanionSyncValidationError.generation }
+        guard digest.utf8.count == 64,
+            digest.utf8.allSatisfy({ (48...57).contains($0) || (97...102).contains($0) })
+        else { throw CompanionSyncValidationError.identity }
+        // An invalid cadence never becomes a healthy invented interval (KTD15).
+        guard effectiveIntervalSeconds.isFinite, effectiveIntervalSeconds > 0 else {
+            throw CompanionSyncValidationError.count
+        }
+        self.payloadGeneration = payloadGeneration
+        self.digest = digest
+        self.effectiveIntervalSeconds = effectiveIntervalSeconds
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case payloadGeneration = "g"
+        case digest = "h"
+        case effectiveIntervalSeconds = "e"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            payloadGeneration: c.decode(Int64.self, forKey: .payloadGeneration),
+            digest: c.decode(String.self, forKey: .digest),
+            effectiveIntervalSeconds: c.decode(Double.self, forKey: .effectiveIntervalSeconds))
+    }
+}
+
+/// KTD7's drop ladder as the phone reads it. A future level is shown conservatively.
+public enum CompanionDropLadder: Equatable, Sendable {
+    case full
+    case modelRowsDropped
+    case accountCap
+    case unknown
+
+    public init(level: Int) {
+        switch level {
+        case 0: self = .full
+        case 1: self = .modelRowsDropped
+        case 2: self = .accountCap
+        default: self = .unknown
+        }
+    }
+}
+
+/// The enabled manifest. Account-level data never lives here (KTD6.3).
+public struct CompanionActiveManifest: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let minimumReaderVersion: Int
+    public let sourceID: String
+    public let generation: Int64
+    public let generatedAt: CompanionWireDate
+    public let macAppVersion: String?
+    /// Deduplicated in first-occurrence order; unknown IDs are kept as metadata only.
+    public let providerOrder: [String]
+    /// Broken entries are dropped individually so one bad entry cannot hide the manifest.
+    public let providers: [String: CompanionManifestProviderEntry]
+    public let spendOrder: [String]
+    public let chosenIntervalSeconds: Int
+    public let display: CompanionDisplayBlock?
+    public let widgetProviderSelection: [String]?
+    public let widgetSparkEnabled: Bool
+    public let reminderSummary: CompanionReminderSummary?
+    public let answeredRequests: [CompanionAnsweredRequest]
+    public let dropLadderLevel: Int
+
+    public init(
+        schemaVersion: Int = 4,
+        minimumReaderVersion: Int = 1,
+        sourceID: String,
+        generation: Int64,
+        generatedAt: CompanionWireDate,
+        macAppVersion: String? = nil,
+        providerOrder: [String],
+        providers: [String: CompanionManifestProviderEntry],
+        spendOrder: [String] = [],
+        chosenIntervalSeconds: Int,
+        display: CompanionDisplayBlock? = nil,
+        widgetProviderSelection: [String]? = nil,
+        widgetSparkEnabled: Bool = false,
+        reminderSummary: CompanionReminderSummary? = nil,
+        answeredRequests: [CompanionAnsweredRequest] = [],
+        dropLadderLevel: Int = 0
+    ) throws {
+        try CompanionTransportValidation.modelVersions(
+            schema: schemaVersion, minimumReader: minimumReaderVersion)
+        guard generation >= 0 else { throw CompanionSyncValidationError.generation }
+        guard chosenIntervalSeconds > 0, dropLadderLevel >= 0 else {
+            throw CompanionSyncValidationError.count
+        }
+        self.schemaVersion = schemaVersion
+        self.minimumReaderVersion = minimumReaderVersion
+        self.sourceID = try CompanionTransportValidation.uuid(sourceID)
+        self.generation = generation
+        self.generatedAt = generatedAt
+        self.macAppVersion = macAppVersion
+        self.providerOrder = Self.deduplicated(providerOrder)
+        self.providers = providers
+        self.spendOrder = Self.deduplicated(spendOrder)
+        self.chosenIntervalSeconds = chosenIntervalSeconds
+        self.display = display
+        // nil and [] stay distinct: both mean "first two" visibly, but only [] was chosen.
+        self.widgetProviderSelection = widgetProviderSelection.map(Self.deduplicated)
+        self.widgetSparkEnabled = widgetSparkEnabled
+        self.reminderSummary = reminderSummary
+        self.answeredRequests = CompanionAnsweredRequest.terminalHistory(answeredRequests)
+        self.dropLadderLevel = dropLadderLevel
+    }
+
+    public var ladder: CompanionDropLadder { CompanionDropLadder(level: dropLadderLevel) }
+    public var knownProviderOrder: [String] { providerOrder.filter(CompanionSyncKeys.isKnownProvider) }
+    public var knownSpendOrder: [String] { spendOrder.filter(CompanionSyncKeys.isKnownProvider) }
+
+    private static func deduplicated(_ ids: [String]) -> [String] {
+        var seen: Set<String> = []
+        return ids.filter { seen.insert($0).inserted }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion = "v"
+        case minimumReaderVersion = "r"
+        case sourceID = "i"
+        case generation = "g"
+        case generatedAt = "t"
+        case macAppVersion = "a"
+        case status = "s"
+        case providerOrder = "o"
+        case providers = "p"
+        case spendOrder = "j"
+        case chosenIntervalSeconds = "c"
+        case display = "d"
+        case widgetProviderSelection = "w"
+        case widgetSparkEnabled = "k"
+        case reminderSummary = "n"
+        case answeredRequests = "q"
+        case dropLadderLevel = "l"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        guard try c.decode(String.self, forKey: .status) == CompanionManifestStatus.enabled.rawValue
+        else { throw CompanionSyncValidationError.state }
+        let entries = try c.decode(
+            [String: CompanionLossyLeaf<CompanionManifestProviderEntry>].self, forKey: .providers)
+        try self.init(
+            schemaVersion: c.decode(Int.self, forKey: .schemaVersion),
+            minimumReaderVersion: c.decode(Int.self, forKey: .minimumReaderVersion),
+            sourceID: c.decode(String.self, forKey: .sourceID),
+            generation: c.decode(Int64.self, forKey: .generation),
+            generatedAt: c.decode(CompanionWireDate.self, forKey: .generatedAt),
+            macAppVersion: c.decodeIfPresent(String.self, forKey: .macAppVersion),
+            providerOrder: c.decode([String].self, forKey: .providerOrder),
+            providers: entries.compactMapValues(\.value),
+            spendOrder: c.companionDecodeIfAbsent([String].self, forKey: .spendOrder) ?? [],
+            chosenIntervalSeconds: c.decode(Int.self, forKey: .chosenIntervalSeconds),
+            display: c.decodeIfPresent(CompanionDisplayBlock.self, forKey: .display),
+            widgetProviderSelection: c.decodeIfPresent([String].self, forKey: .widgetProviderSelection),
+            widgetSparkEnabled: c.companionDecodeIfAbsent(Bool.self, forKey: .widgetSparkEnabled)
+                ?? false,
+            reminderSummary: c.decodeIfPresent(CompanionReminderSummary.self, forKey: .reminderSummary),
+            answeredRequests: c.companionDecodeIfAbsent(
+                [CompanionLossyLeaf<CompanionAnsweredRequest>].self, forKey: .answeredRequests
+            )?.compactMap(\.value) ?? [],
+            dropLadderLevel: c.decode(Int.self, forKey: .dropLadderLevel))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(minimumReaderVersion, forKey: .minimumReaderVersion)
+        try c.encode(sourceID, forKey: .sourceID)
+        try c.encode(generation, forKey: .generation)
+        try c.encode(generatedAt, forKey: .generatedAt)
+        try c.encodeIfPresent(macAppVersion, forKey: .macAppVersion)
+        try c.encode(CompanionManifestStatus.enabled.rawValue, forKey: .status)
+        try c.encode(providerOrder, forKey: .providerOrder)
+        try c.encode(providers, forKey: .providers)
+        if !spendOrder.isEmpty { try c.encode(spendOrder, forKey: .spendOrder) }
+        try c.encode(chosenIntervalSeconds, forKey: .chosenIntervalSeconds)
+        try c.encodeIfPresent(display, forKey: .display)
+        try c.encodeIfPresent(widgetProviderSelection, forKey: .widgetProviderSelection)
+        if widgetSparkEnabled { try c.encode(true, forKey: .widgetSparkEnabled) }
+        try c.encodeIfPresent(reminderSummary, forKey: .reminderSummary)
+        if !answeredRequests.isEmpty { try c.encode(answeredRequests, forKey: .answeredRequests) }
+        try c.encode(dropLadderLevel, forKey: .dropLadderLevel)
+    }
+}
+
+public enum CompanionManifestStatus: String, Sendable {
+    case enabled, disabled
+}
+
+/// Decision 1: disabled is a deliberate alternate case carrying only its source.
+public enum CompanionManifest: Encodable, Equatable, Sendable {
+    case disabled(sourceID: String)
+    case active(CompanionActiveManifest)
+
+    public static func disabledTombstone(sourceID: String) throws -> Self {
+        .disabled(sourceID: try CompanionTransportValidation.uuid(sourceID))
+    }
+
+    public var sourceID: String {
+        switch self {
+        case .disabled(let sourceID): sourceID
+        case .active(let manifest): manifest.sourceID
+        }
+    }
+
+    public var active: CompanionActiveManifest? {
+        if case .active(let manifest) = self { manifest } else { nil }
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case sourceID = "i"
+        case status = "s"
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        switch self {
+        case .disabled(let sourceID):
+            var c = encoder.container(keyedBy: CodingKeys.self)
+            try c.encode(sourceID, forKey: .sourceID)
+            try c.encode(CompanionManifestStatus.disabled.rawValue, forKey: .status)
+        case .active(let manifest):
+            try manifest.encode(to: encoder)
+        }
+    }
+}
+
+// MARK: - Provider payload (KTD6.1, KTD6.3)
+
+public enum CompanionPayloadMode: String, Codable, Equatable, Sendable {
+    case subscription, spendOnly, unknown
+
+    public init(from decoder: any Decoder) throws {
+        self = try companionFallback(Self.self, from: decoder, fallback: .unknown)
+    }
+}
+
+/// One self-describing provider key. All account-level data lives only here, so a
+/// provider is always internally consistent (KTD6.3); the digest lives in the manifest.
+public struct CompanionProviderPayload: Codable, Equatable, Sendable {
+    public let schemaVersion: Int
+    public let minimumReaderVersion: Int
+    public let sourceID: String
+    public let providerID: String
+    public let payloadGeneration: Int64
+    public let mode: CompanionPayloadMode
+    public let capabilityAttention: CompanionAttention?
+    public let mainAccount: CompanionAccountSummary?
+    /// Extra accounts in main-first registry order, main removed.
+    public let accounts: [CompanionAccountSummary]
+    public let omittedAccountCount: Int
+    public let apiSpend: CompanionSpendSummary?
+
+    public init(
+        schemaVersion: Int = 4,
+        minimumReaderVersion: Int = 1,
+        sourceID: String,
+        providerID: String,
+        payloadGeneration: Int64,
+        mode: CompanionPayloadMode,
+        capabilityAttention: CompanionAttention? = nil,
+        mainAccount: CompanionAccountSummary?,
+        accounts: [CompanionAccountSummary] = [],
+        omittedAccountCount: Int = 0,
+        apiSpend: CompanionSpendSummary? = nil
+    ) throws {
+        try CompanionTransportValidation.modelVersions(
+            schema: schemaVersion, minimumReader: minimumReaderVersion)
+        guard !providerID.isEmpty, CompanionSyncKeys.provider(providerID) != nil else {
+            throw CompanionSyncValidationError.identity
+        }
+        guard payloadGeneration >= 0 else { throw CompanionSyncValidationError.generation }
+        guard omittedAccountCount >= 0 else { throw CompanionSyncValidationError.count }
+        switch mode {
+        case .subscription:
+            guard mainAccount != nil else { throw CompanionSyncValidationError.state }
+        case .spendOnly:
+            guard mainAccount == nil, accounts.isEmpty, omittedAccountCount == 0 else {
+                throw CompanionSyncValidationError.state
+            }
+        case .unknown:
+            throw CompanionSyncValidationError.state
+        }
+        // Duplicate IDs or a repeated main leave no unambiguous order: reject the provider.
+        let ids = (mainAccount.map { [$0.id] } ?? []) + accounts.map(\.id)
+        guard Set(ids).count == ids.count else { throw CompanionSyncValidationError.identity }
+        self.schemaVersion = schemaVersion
+        self.minimumReaderVersion = minimumReaderVersion
+        self.sourceID = try CompanionTransportValidation.uuid(sourceID)
+        self.providerID = providerID
+        self.payloadGeneration = payloadGeneration
+        self.mode = mode
+        self.capabilityAttention = capabilityAttention
+        self.mainAccount = mainAccount
+        self.accounts = accounts
+        self.omittedAccountCount = omittedAccountCount
+        self.apiSpend = apiSpend
+    }
+
+    /// Main first, then extras in their encoded order.
+    public var allAccounts: [CompanionAccountSummary] {
+        (mainAccount.map { [$0] } ?? []) + accounts
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion = "v"
+        case minimumReaderVersion = "r"
+        case sourceID = "i"
+        case providerID = "p"
+        case payloadGeneration = "g"
+        case mode = "m"
+        case capabilityAttention = "c"
+        case mainAccount = "a"
+        case accounts = "x"
+        case omittedAccountCount = "o"
+        case apiSpend = "s"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        try self.init(
+            schemaVersion: c.decode(Int.self, forKey: .schemaVersion),
+            minimumReaderVersion: c.decode(Int.self, forKey: .minimumReaderVersion),
+            sourceID: c.decode(String.self, forKey: .sourceID),
+            providerID: c.decode(String.self, forKey: .providerID),
+            payloadGeneration: c.decode(Int64.self, forKey: .payloadGeneration),
+            mode: c.decode(CompanionPayloadMode.self, forKey: .mode),
+            capabilityAttention: c.decodeIfPresent(CompanionAttention.self, forKey: .capabilityAttention),
+            mainAccount: c.decodeIfPresent(CompanionAccountSummary.self, forKey: .mainAccount),
+            accounts: c.companionDecodeIfAbsent([CompanionAccountSummary].self, forKey: .accounts) ?? [],
+            omittedAccountCount: c.companionDecodeIfAbsent(Int.self, forKey: .omittedAccountCount) ?? 0,
+            apiSpend: c.decodeIfPresent(CompanionSpendSummary.self, forKey: .apiSpend))
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(schemaVersion, forKey: .schemaVersion)
+        try c.encode(minimumReaderVersion, forKey: .minimumReaderVersion)
+        try c.encode(sourceID, forKey: .sourceID)
+        try c.encode(providerID, forKey: .providerID)
+        try c.encode(payloadGeneration, forKey: .payloadGeneration)
+        try c.encode(mode, forKey: .mode)
+        try c.encodeIfPresent(capabilityAttention, forKey: .capabilityAttention)
+        try c.encodeIfPresent(mainAccount, forKey: .mainAccount)
+        if !accounts.isEmpty { try c.encode(accounts, forKey: .accounts) }
+        if omittedAccountCount > 0 { try c.encode(omittedAccountCount, forKey: .omittedAccountCount) }
+        try c.encodeIfPresent(apiSpend, forKey: .apiSpend)
+    }
+
+    /// KTD7 ladder step 1: extra accounts lose their model rows (`.other` windows, which
+    /// include Spark). The main account keeps its complete window set.
+    public func droppingExtraAccountModelRows() throws -> Self {
+        try Self(
+            schemaVersion: schemaVersion, minimumReaderVersion: minimumReaderVersion,
+            sourceID: sourceID, providerID: providerID, payloadGeneration: payloadGeneration,
+            mode: mode, capabilityAttention: capabilityAttention, mainAccount: mainAccount,
+            accounts: try accounts.map { try $0.droppingModelRows() },
+            omittedAccountCount: omittedAccountCount, apiSpend: apiSpend)
+    }
+
+    /// KTD7 ladder step 2, only ever applied above the 20-account envelope by the caller.
+    public func cappingExtraAccounts(to count: Int) throws -> Self {
+        let kept = Array(accounts.prefix(max(0, count)))
+        return try Self(
+            schemaVersion: schemaVersion, minimumReaderVersion: minimumReaderVersion,
+            sourceID: sourceID, providerID: providerID, payloadGeneration: payloadGeneration,
+            mode: mode, capabilityAttention: capabilityAttention, mainAccount: mainAccount,
+            accounts: kept, omittedAccountCount: omittedAccountCount + accounts.count - kept.count,
+            apiSpend: apiSpend)
+    }
+}
+
+extension CompanionAccountSummary {
+    func droppingModelRows() throws -> Self {
+        try Self(
+            id: id, title: title, planName: planName, freshness: freshness, capturedAt: capturedAt,
+            attention: attention, needsAttention: needsAttention, bankedResets: bankedResets,
+            windows: windows.filter { $0.kind != .other })
+    }
+}

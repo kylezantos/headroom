@@ -271,6 +271,17 @@ struct SharedRowMetricsParityTests {
         #expect(shared == mac)
     }
 
+    /// The shared spend row's column helper reserves exactly what the Mac section did.
+    @Test func theSpendRowsColumnHelperMatchesTheMacReservation() {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 18, weight: .semibold)
+        for amounts in [[], ["$58.90"], ["$142.67", "$58.90"], ["$12,345.67", "$0.00"]] {
+            let mac = (amounts + ["$0.00"]).map { ceil(Self.appKitWidth($0, font: font)) }.max() ?? 0
+            #expect(APISpendRowMetrics.amountColumnWidth(for: amounts) == mac)
+        }
+        #expect(APISpendRowMetrics.amountColumnWidth(for: ["$58.90"], scale: 1.15)
+            > APISpendRowMetrics.amountColumnWidth(for: ["$58.90"]))
+    }
+
     /// Every leading correction the shared rows apply equals the Mac's at the same role:
     /// meter label 13 medium, title 15 semibold.
     @Test(arguments: ["Weekly", "5-hour", "Fable", "Auto", "Personal", "Work", "OpenAI", "anthropic", "", "🙂 hello"])

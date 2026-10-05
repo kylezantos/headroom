@@ -61,20 +61,25 @@ public extension View {
     /// None do: the six recipes were stripped when this took the type over.
     ///
     /// R2C17 added `border`, defaulted off: only a state chip is outlined.
+    ///
+    /// KTD3 (iOS parity): `scale` multiplies the label, the fixed height and the padding, so
+    /// the phone's capsule reserves its larger box in layout. The hairline stays 1pt. The Mac
+    /// passes 1.
     func identityCapsule<Fill: ShapeStyle>(
         fill: Fill,
         horizontalPadding: CGFloat,
-        border: Color? = nil
+        border: Color? = nil,
+        scale: CGFloat = 1
     ) -> some View {
         font(.system(
-            size: IdentityRowMetrics.capsuleLabelSize,
+            size: IdentityRowMetrics.capsuleLabelSize * scale,
             weight: IdentityRowMetrics.capsuleLabelWeight
         ))
         // PA7: kerning is applied on each capsule Text at the call site, not here — as a
         // View modifier it leaked into the sibling layout and truncated the spend title.
         .fixedSize()
-        .frame(height: IdentityRowMetrics.capsuleHeight)
-        .padding(.horizontal, horizontalPadding)
+        .frame(height: IdentityRowMetrics.capsuleHeight * scale)
+        .padding(.horizontal, horizontalPadding * scale)
         .background(fill, in: Capsule())
         .overlay {
             if let border {
@@ -89,7 +94,7 @@ public extension View {
     /// so that only *state* chips carried a fill; Kyle wants the plan and period "in their
     /// own dip like they used to be", just styled apart from Stale — so this is a quiet fill
     /// with no ring, and the state chips keep the fill-plus-hairline recipe.
-    func identityMetadataLabel() -> some View {
-        identityCapsule(fill: IdentityCapsuleStyle.metadataFill, horizontalPadding: 5)
+    func identityMetadataLabel(scale: CGFloat = 1) -> some View {
+        identityCapsule(fill: IdentityCapsuleStyle.metadataFill, horizontalPadding: 5, scale: scale)
     }
 }

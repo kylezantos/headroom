@@ -43,274 +43,55 @@ func neverSignedInOutcome(for providerID: ProviderID) -> ProviderSetupOutcome? {
     }
 }
 
-/// The one identity treatment used for provider-name and account-name rows (KTD9).
-/// The mark owns the only brand color; account metadata and state remain neutral.
-struct IdentityRow: View {
-    let providerID: ProviderID
-    let title: String
-    let planLabel: String?
-    let isMenuBarAccount: Bool
-    let isStale: Bool
-    let email: String?
-    let showsPersistentEmail: Bool
-    let showsConnectedChip: Bool
-    /// R2C22: the capability card stamps the provider mark on its own header row *and* on
-    /// every account row beneath it, so "✳ Claude" sat 7pt above "✳ Personal". A nested
-    /// account row hides its mark and keeps the slot, so the title column never shifts.
-    var showsMark: Bool = true
-    var bankedResets: Int? = nil
-    var isCritical: Bool = false
-    var isRevealing: Bool = false
-    var loadingAccessory: (() -> AccountLoadingState)? = nil
+/// U3: the Mac's identity row is the shared `IdentityRow` with the Mac's own logo view and
+/// its per-account loading pill. The alias names the specialization for tests and hosts.
+typealias MacIdentityRow = IdentityRow<ProviderLogoView, IdentityLoadingAccessory>
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// PB11: whether the tail truncation actually bit. Measured, not guessed — SwiftUI has
-    /// no "did this Text truncate" signal, so the rendered width is compared against the
-    /// string's intrinsic width in the same font.
-    @State private var titleIsTruncated = false
+/// R6/R10: the account row's trailing loading pill, present only where the card supplies a
+/// loading read. Its own body stays the small boundary that observes fast work signals.
+struct IdentityLoadingAccessory: View {
+    let readLoading: (() -> AccountLoadingState)?
 
-    @ViewBuilder var body: some View {
-        let email = normalizedEmail
-        if let tooltip = rowHelp(email: email) {
-            row(email: email)
-                .help(tooltip)
-        } else {
-            row(email: email)
+    var body: some View {
+        if let readLoading {
+            AccountActionPill(readLoading: readLoading)
         }
     }
+}
 
-    private func row(email: String?) -> some View {
-        HStack(spacing: IdentityRowMetrics.spacing) {
-            if showsMark {
-                ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
-            } else {
-                // R2C22: the slot stays reserved, so a nested row's title lands on the same
-                // axis as the header row's above it.
-                Color.clear.frame(
-                    width: IdentityRowMetrics.markSlotWidth,
-                    height: IdentityRowMetrics.markSlotWidth
-                )
-            }
-            titleText
-            if planDisplayName != nil || (bankedResets ?? 0) > 0 {
-                PlanCapsule(
-                    planDisplayName: planDisplayName,
-                    bankedResets: bankedResets,
-                    isCritical: isCritical,
-                    isRevealing: isRevealing
-                )
-            }
-            // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
-            // rather than pushed to the row's trailing edge — one chip run reading
-            // "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
-            if isStale {
-                staleTag
-                    // RM1: the freshness scope around it is `.movement`, so the tag keeps
-                    // its fade under Reduce Motion on its own.
-                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
-            }
-            if showsConnectedChip {
-                ConnectedChip()
-                    .transition(.connectedChip(reduceMotion: reduceMotion))
-            }
-            if showsPersistentEmail, let email {
-                Text(email)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .layoutPriority(1)
-            }
-            Spacer(minLength: 6)
-            if let loadingAccessory {
-                AccountActionPill(readLoading: loadingAccessory)
-            }
-        }
-        // L4B: trailing controls stop level with the meter rows below them.
-        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityIdentity(email: email))
-    }
-
-    /// T1A sized this off Kyle's Paper mock at 15pt on the `accountTitle` ink so the name
-    /// labels its meters instead of competing with the popover's own 20pt bold header. G1
-    /// restored `.semibold` — `.medium` on a recessive grey lost the row's anchor — and the
-    /// ink is now the user's `AccountTitleInk` choice (neutral grey or the provider's brand
-    /// tint). Kerning is unchanged throughout.
-    private var titleText: some View {
-        Text(title)
-            .font(.system(size: Self.titleSize, weight: .semibold))
-            .kerning(Self.titleKerning)
-            .accountTitleInk(for: providerID)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            // PB11: measured on the Text itself, before the optical pull-back, so the
-            // comparison is against the width the string was actually given.
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-                titleIsTruncated = Self.titleIsTruncated(title, renderedWidth: width)
-            }
-            // OA1: "Personal" and "Work" carry side bearings 0.66pt apart at this size, so
-            // without this the title column visibly jitters account to account.
-            .opticalLeading(title, size: Self.titleSize, weight: .semibold)
-            // PB11: the account name identifies the row; the email is a detail the tooltip
-            // has always carried anyway. Outranking the email's `layoutPriority(1)` stops a
-            // long address eating the name it belongs to.
-            .layoutPriority(2)
-    }
-
-    private static let titleSize = IdentityRowMetrics.titleSize
-    private static let titleKerning = IdentityRowMetrics.titleKerning
-
-    /// PB11: the width the title wants, from the same real font metrics `OpticalLeading`
-    /// reads. Kept separate from the comparison below so the predicate is testable without
-    /// a render.
-    static func titleIntrinsicWidth(_ title: String) -> CGFloat {
-        (title as NSString).size(withAttributes: [
-            .font: NSFont.systemFont(ofSize: titleSize, weight: .semibold),
-            .kern: titleKerning,
-        ]).width
-    }
-
-    /// True once the row is narrower than the string needs. The half-point slack keeps
-    /// sub-pixel layout rounding from claiming a truncation that never happened; a zero
-    /// width is the pre-layout pass, not a truncation.
-    static func titleIsTruncated(_ title: String, renderedWidth: CGFloat) -> Bool {
-        guard renderedWidth > 0 else { return false }
-        return renderedWidth + 0.5 < titleIntrinsicWidth(title)
-    }
-
-    /// L5D: the main account carries no visible marker. Order already says it — main is
-    /// always its provider's first row — and a second capsule beside the plan badge made a
-    /// busy title cluster busier, so the fact moves to this row's tooltip and to VoiceOver.
-    /// One `.help` per row: nested help modifiers let the innermost win on macOS, so a
-    /// separate tooltip on the title would swallow the email the row has always shown.
-    ///
-    /// PB11: a truncated title joins it. The tail ellipsis is the only place the row loses
-    /// information the user cannot recover any other way, and the row already owns the one
-    /// tooltip on this line.
-    private func rowHelp(email: String?) -> String? {
-        Self.helpLines(
-            title: title,
-            titleIsTruncated: titleIsTruncated,
-            email: email,
-            isMenuBarAccount: isMenuBarAccount,
-            bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
-        )
-    }
-
-    /// One tooltip, in a fixed order: truncated title, email, main-account note, banked resets.
-    static func helpLines(
+extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadingAccessory {
+    /// The Mac's call shape, unchanged by the extraction: the logo fills the scaled slot,
+    /// tooltips stay the title disclosure (no host action), and scale is the popover's 1.
+    init(
+        providerID: ProviderID,
         title: String,
-        titleIsTruncated: Bool,
-        email: String?,
-        isMenuBarAccount: Bool,
-        bankedHelp: String?
-    ) -> String? {
-        var lines: [String] = []
-        if titleIsTruncated { lines.append(title) }
-        if let email { lines.append(email) }
-        if isMenuBarAccount { lines.append(mainAccountHelp) }
-        if let bankedHelp { lines.append(bankedHelp) }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
-    }
-
-    private var normalizedEmail: String? {
-        guard let email, !email.isEmpty else { return nil }
-        return email
-    }
-
-    /// Raw ids (`prolite`, `SuperGrok`) never reach the badge — Core owns the humanizing
-    /// so the lenient provider models keep their verbatim value (#709).
-    private var planDisplayName: String? {
-        PlanLabelPresentation.displayName(planLabel)
-    }
-
-    /// S2B removed the status glyphs and left severity to the sentence's ink — but a
-    /// transient-stale row renders no sentence at all (`stateContent` keeps its dimmed
-    /// meters), so this tag survives as that state's only visible signal. C6A gives it the
-    /// same 18pt as the plan pill beside it.
-    private var staleTag: some View {
-        Text("Stale")
-            .kerning(IdentityRowMetrics.capsuleLabelKerning)
-            // PA7: type comes from `identityCapsule` now.
-            .foregroundStyle(.secondary)
-            // R2C17: a state chip, so it keeps its fill and takes the hairline that tells it
-            // apart from the flat plan label now sitting beside it.
-            .identityCapsule(
-                fill: IdentityCapsuleStyle.staleFill,
-                horizontalPadding: 5,
-                border: IdentityCapsuleStyle.stateBorder
-            )
-    }
-
-    /// L5D: with the badge gone, the row tooltip and this VoiceOver phrase are the only
-    /// places the fact is stated — keep them in step.
-    static let mainAccountHelp = "Main account — shown in the menu bar and widgets"
-
-    private func accessibilityIdentity(email: String?) -> String {
-        Self.accessibilityParts(
-            title: title,
-            planDisplayName: planDisplayName,
-            isMenuBarAccount: isMenuBarAccount,
-            isStale: isStale,
-            email: email,
-            showsConnectedChip: showsConnectedChip,
-            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
-        )
-    }
-
-    static func accessibilityParts(
-        title: String,
-        planDisplayName: String?,
+        planLabel: String?,
         isMenuBarAccount: Bool,
         isStale: Bool,
         email: String?,
+        showsPersistentEmail: Bool,
         showsConnectedChip: Bool,
-        bankedPhrase: String?
-    ) -> String {
-        var parts = [title]
-        if let planDisplayName { parts.append("\(planDisplayName) plan") }
-        if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
-        if isStale { parts.append("Stale") }
-        if let email { parts.append("signed in as \(email)") }
-        if showsConnectedChip { parts.append("Connected") }
-        if let bankedPhrase { parts.append(bankedPhrase) }
-        return parts.joined(separator: ", ")
-    }
-}
-
-private extension AnyTransition {
-    /// M8A: a sign-in payoff earns a little arrival, so the chip enters on opacity plus a
-    /// 0.96 scale; it leaves on opacity alone, because an exit that announces itself twice
-    /// reads as an error. S2A drops the scale under Reduce Motion and keeps the fade.
-    static func connectedChip(reduceMotion: Bool) -> AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.96)),
-            removal: .opacity
-        )
-    }
-}
-
-private struct ConnectedChip: View {
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark")
-                // R2B3: 9pt bold beside a 10.5 medium label was the heavier of the two at the
-                // smaller size; semibold puts the glyph's stroke back in step with its word.
-                .font(.system(size: 9, weight: .semibold))
-            // PA7: the tallest label of the six took the shared role too; only the
-            // checkmark keeps a font of its own, because it is a glyph, not a label.
-            Text("Connected")
-                .kerning(IdentityRowMetrics.capsuleLabelKerning)
-        }
-        .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
-        // C6A: was the tallest of the three capsules at ~19–20pt; now the same 18 as the rest.
-        .identityCapsule(
-            fill: ClaudeSetupStyle.connectedBackground(dark: scheme == .dark),
-            horizontalPadding: 8
+        showsMark: Bool = true,
+        bankedResets: Int? = nil,
+        isCritical: Bool = false,
+        isRevealing: Bool = false,
+        loadingAccessory: (() -> AccountLoadingState)? = nil
+    ) {
+        self.init(
+            providerID: providerID,
+            title: title,
+            planLabel: planLabel,
+            isMenuBarAccount: isMenuBarAccount,
+            isStale: isStale,
+            email: email,
+            showsPersistentEmail: showsPersistentEmail,
+            showsConnectedChip: showsConnectedChip,
+            showsMark: showsMark,
+            bankedResets: bankedResets,
+            isCritical: isCritical,
+            isRevealing: isRevealing,
+            mark: { ProviderLogoView(providerID: providerID, size: $0) },
+            accessory: { IdentityLoadingAccessory(readLoading: loadingAccessory) }
         )
     }
 }

@@ -198,6 +198,12 @@ public enum ProviderStyle {
         Color(HeadroomBrandRamp.connectedInk(dark: dark))
     }
 
+    /// The "Connected" chip's fill: the healthy severity token at 0.12, the tint its ink is
+    /// offset from (R2C18). Shared so the identity row's chip needs no setup-view import.
+    public static func connectedBackground(dark: Bool) -> Color {
+        Color(HeadroomSeverityColorValues.healthy(dark: dark)).opacity(0.12)
+    }
+
     /// PB13: the quarter-mark hairline, same split as `meterStaleFill`.
     public static func meterQuarterMark(scheme: ColorScheme) -> Color {
         Color.primary.opacity(HeadroomMeterColorValues.quarterMarkOpacity(dark: scheme == .dark))

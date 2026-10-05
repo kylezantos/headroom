@@ -119,10 +119,17 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
 
 /// A provider slot in visual order. Gauge Pair emits two slots, possibly for the same provider.
 public struct LockScreenProviderSlot: Sendable, Equatable, Identifiable {
+    /// Nested Badge in demo (R10) keeps the main window's bar and gives the rails' room to "Demo".
+    public static func parentOnly(_ slot: LockScreenProviderSlot) -> LockScreenProviderSlot {
+        var copy = slot
+        copy.secondary = []
+        return copy
+    }
+
     public let providerID: String
     public let providerName: String
     public let primary: LockScreenWindowRecipe
-    public let secondary: [LockScreenWindowRecipe]
+    public private(set) var secondary: [LockScreenWindowRecipe]
     public let hasSiblingPools: Bool
     public let accessibilityText: String
     public var id: String { "\(providerID)|\(primary.window?.id ?? "missing")" }

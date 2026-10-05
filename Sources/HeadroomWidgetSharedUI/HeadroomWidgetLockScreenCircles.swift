@@ -30,32 +30,38 @@ struct HeadroomWidgetLockScreenCircle: View {
     }
 }
 
-/// 11A: mark, number and the nested bars. The design has no caption line; a slot with no
-/// reading (R7/R8 off, waiting, sign in) or demo data (R10) prints its word under the bars
-/// with tighter gaps, because the bars alone cannot say it.
+/// 11A: mark, number and the nested bars. The design has no caption line. A slot with no
+/// reading (R7/R8 off, waiting, sign in) prints its word in place of the empty bars; demo data
+/// (R10) keeps only the parent bar and prints "Demo" under it. iOS draws Lock Screen text about
+/// a fifth larger than the macOS harness, so the stack never grows past the approved height.
 struct HeadroomWidgetLockScreenNestedBadge: View {
     let slot: LockScreenProviderSlot
     let isDemo: Bool
     let art: HeadroomWidgetLockScreenArt
 
-    private var showsCaption: Bool {
-        isDemo || [.off, .pending, .signIn].contains(slot.primary.state)
-    }
+    private var hasNoReading: Bool { [.off, .pending, .signIn].contains(slot.primary.state) }
 
     var body: some View {
         ZStack {
             art.accessoryBackground()
             VStack(spacing: 0) {
                 HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.badgeMark, art: art)
-                Spacer().frame(height: showsCaption ? 1 : 3)
+                Spacer().frame(height: 2)
                 HeadroomWidgetLockScreenNumeral(slot.primary, size: LockScreenWidgetTokens.nestedNumeral)
-                Spacer().frame(height: showsCaption ? 3 : 6)
-                HeadroomWidgetLockScreenNestedBars(slot)
-                if showsCaption {
+                if hasNoReading {
+                    HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
+                        .padding(.top, 3)
+                } else if isDemo {
+                    Spacer().frame(height: 4)
+                    HeadroomWidgetLockScreenNestedBars(LockScreenProviderSlot.parentOnly(slot))
                     HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
                         .padding(.top, 2)
+                } else {
+                    Spacer().frame(height: 6)
+                    HeadroomWidgetLockScreenNestedBars(slot)
                 }
             }
+            .padding(.vertical, 4)
         }
     }
 }
@@ -95,10 +101,12 @@ struct HeadroomWidgetLockScreenTightestGauge: View {
                     .frame(maxWidth: 40)
                 HeadroomWidgetLockScreenNumeral(slot.primary, size: LockScreenWidgetTokens.tightestNumeral)
             }
-            .padding(.bottom, 3)
+            // R3: the mark sits in the arc's gap and clears the number at iOS text metrics,
+            // which run about a fifth larger than the macOS harness.
+            .padding(.bottom, 9)
             HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.tightestMark, art: art)
                 .frame(maxHeight: .infinity, alignment: .bottom)
-                .padding(.bottom, 5)
+                .padding(.bottom, 3)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

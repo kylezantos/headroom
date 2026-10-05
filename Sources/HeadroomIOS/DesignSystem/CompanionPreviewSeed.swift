@@ -38,6 +38,13 @@ enum CompanionPreviewSeed {
         ProcessInfo.processInfo.environment["HEADROOM_UI_TEST_STATE"].flatMap(UITestState.init(rawValue:))
     }
 
+    /// U10: poses a status screen no fixture reaches (iCloud unavailable, unreadable, either
+    /// update screen) over a non-content state, for captures and UI tests. Raw values are
+    /// `CompanionStatusScreen`'s.
+    static var uiTestStatus: CompanionStatusScreen? {
+        ProcessInfo.processInfo.environment["HEADROOM_UI_TEST_STATUS"].flatMap(CompanionStatusScreen.init(rawValue:))
+    }
+
     static var shouldResetDemoForUITest: Bool {
         ProcessInfo.processInfo.environment["HEADROOM_UI_TEST_RESET_DEMO"] == "1"
     }

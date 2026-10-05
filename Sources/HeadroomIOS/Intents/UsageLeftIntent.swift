@@ -9,7 +9,7 @@ import UIKit
 struct UsageLeftIntent: AppIntent {
     static let title: LocalizedStringResource = "Usage Left"
     static let description = IntentDescription(
-        "Says how much of a provider’s usage is left, as of your Mac’s last sync.")
+        "Says how much of a provider’s usage is left, as of the last sync.")
     /// iOS 26 replaces `openAppWhenRun = false` with this: answer in place, never foreground.
     static let supportedModes: IntentModes = .background
 

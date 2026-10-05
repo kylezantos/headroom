@@ -152,6 +152,16 @@ verify_archive() {
   require_file "$app/PrivacyInfo.xcprivacy" "archived companion privacy manifest"
   require_file "$extension/PrivacyInfo.xcprivacy" "archived widget privacy manifest"
 
+  # ASC 90626 rejected build 36: Siri intent descriptions cannot name Mac.
+  local intent_metadata intent_description
+  intent_metadata="$app/Metadata.appintents/extract.actionsdata"
+  require_file "$intent_metadata" "compiled App Intents metadata"
+  intent_description="$(plist_value "$intent_metadata" actions.UsageLeftIntent.descriptionMetadata.descriptionText.key)" \
+    || fail "cannot read compiled Usage Left intent description"
+  if printf '%s\n' "$intent_description" | grep -Eiq '\bmac\b'; then
+    fail "Usage Left intent description contains Mac (App Store Connect error 90626)"
+  fi
+
   local app_entitlements extension_entitlements
   app_entitlements="$(codesign -d --entitlements :- "$app" 2>/dev/null)" \
     || fail "cannot read archived companion entitlements"

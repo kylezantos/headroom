@@ -84,10 +84,11 @@ At Kyle's direction, U5/U6 proceeded before the two physical answers above. Neit
 
 - The scaffold views and `LockScreenInlineSpike` image are gone. The host draws `HeadroomWidgetLockScreenBody` from `LockScreenWidgetRecipe` for all three sizes, with template brand marks and `AccessoryWidgetBackground` injected.
 - The inline image is eleven `LockScreenInlineVessel0…10` template SVGs generated from `WidgetVesselGeometry` by `swift run Headroom --generate-lock-screen-vessels`.
-- `swift test`: **1,238 tests in 90 suites passed** (`.context/u6-core-tests.log`).
-- `swift run Headroom --render-widgets .context/lock-full --widget-family lock`: **7,200 Lock Screen tiles, no overflow** — 4 styles × 3 sizes × 5 provider choices × 17 fixtures plus demo and 5 status forms × 3 phone geometries × normal and Always On, plus privacy on two sources.
-- Home sweep (`--widget-family home`): all **864 home PNGs byte-identical** to `.context/lock-screen-home-before`.
-- `HeadroomIOS` and `HeadroomIOSWidgets` Simulator builds and the generic iOS device build exited 0 (`.context/u6-*.log`).
+- Merged with main after the iPhone parity round (#161). The Lock Screen widget now loads through the shared phone source and takes the home widgets' `WidgetFreshnessTreatment`: dimmed data draws in the stale state and a window ten minutes past its reset reads "—".
+- `swift test` on the merged tree: **1,828 tests in 134 suites passed** (`.context/m-core-tests.log`).
+- `swift run Headroom --render-widgets .context/lock-full --widget-family lock`: **8,640 Lock Screen tiles, no overflow**. The tiles cover 4 styles × 3 sizes × 5 provider choices × every Lock Screen fixture, plus demo and 5 status forms, at 3 phone geometries in normal and Always On. Privacy runs on two of those sources.
+- Home sweep: all **2,400 home PNGs and the shrunk-pass report are byte-identical** to a render of `origin/main`.
+- `HeadroomIOS` and `HeadroomIOSWidgets` Simulator builds exited 0 on the merged tree (`.context/m-*-sim.log`).
 - macOS `HeadroomAppTests` could not run: another workspace's Headroom.app was open, so the test host exited early (the BUGS.md single-instance item). Last green run: post-U4, 250 tests in 36 suites.
 
 ## U9 device acceptance — pending (Kyle)

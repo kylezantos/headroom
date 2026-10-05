@@ -150,8 +150,8 @@ prepare_device() {   # $1 udid — boot, install, status bar; once per run
   fi
   xcrun simctl bootstatus "$udid" -b >>"$LOG" 2>&1
   xcrun simctl install "$udid" "$APP_PATH"
-  # Full battery reported as discharging: the simulator draws a charging bolt for
-  # `charging`/`charged` states (seen on the published iPad set).
+  # Full battery reported as discharging: the published iPad set, captured with `charged`,
+  # shows a charging bolt; `discharging` at 100 drew none in the 2026-10-04 dry run.
   xcrun simctl status_bar "$udid" override \
     --time "$STATUS_TIME" --dataNetwork wifi --wifiMode active --wifiBars 3 \
     --cellularMode active --cellularBars 4 --operatorName '' \

@@ -1,0 +1,72 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "${applicationName} ${provider} usage": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "${applicationName} ${provider} usage"
+          }
+        }
+      }
+    },
+    "Check ${provider} in ${applicationName}": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check ${provider} in ${applicationName}"
+          }
+        }
+      }
+    },
+    "How much ${provider} do I have left in ${applicationName}": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much ${provider} do I have left in ${applicationName}"
+          }
+        }
+      }
+    },
+    "How much ${provider} is left in ${applicationName}": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much ${provider} is left in ${applicationName}"
+          }
+        }
+      }
+    },
+    "How much is left in ${applicationName}": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "How much is left in ${applicationName}"
+          }
+        }
+      }
+    },
+    "Usage Left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Usage Left"
+          }
+        }
+      }
+    }
+  },
+  "version": "1.0"
+}

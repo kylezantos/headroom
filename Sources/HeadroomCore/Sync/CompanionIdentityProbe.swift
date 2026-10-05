@@ -7,6 +7,16 @@ public enum CompanionIdentityProbeRole: String, Codable, Sendable {
     case app, widget
 }
 
+/// Which scope candidate the probe samples. Each keeps its own baseline and rows, so switching
+/// never compares one candidate's archive against the other.
+public enum CompanionIdentityProbeCandidate: String, Codable, CaseIterable, Identifiable, Sendable {
+    /// `FileManager.ubiquityIdentityToken`, NSCoding archive, `isEqual` (failed P5).
+    case token
+    /// The KVS scope marker (`CompanionKVSScopeMarker`), byte equality of the stored value.
+    case kvsMarker
+    public var id: String { rawValue }
+}
+
 public enum CompanionIdentityProbeStep: String, Codable, CaseIterable, Identifiable, Sendable {
     case baseline, driveOff, relaunch, offline, accountChanged, emptyAccount, returnAccount, transition, reset
     public var id: String { rawValue }
@@ -43,17 +53,23 @@ public struct CompanionIdentityProbeRecord: Codable, Equatable, Sendable {
 public struct CompanionIdentityProbeReport: Encodable, Sendable {
     public let records: [CompanionIdentityProbeRecord]
     public let coordination: CompanionIdentityProbeCoordination
+    /// Present only for the marker candidate, so the token report keeps its exact allowlist.
+    public let candidate: CompanionIdentityProbeCandidate?
 
-    public init(records: [CompanionIdentityProbeRecord], coordination: CompanionIdentityProbeCoordination) {
+    public init(
+        records: [CompanionIdentityProbeRecord], coordination: CompanionIdentityProbeCoordination,
+        candidate: CompanionIdentityProbeCandidate? = nil
+    ) {
         self.records = Array(records.suffix(CompanionIdentityProbe.recordLimit))
         self.coordination = coordination
+        self.candidate = candidate == .token ? nil : candidate
     }
 
     /// Preserve a failed app action across rereads, including independent widget commits.
     /// The caller clears it only after a subsequent app action commits or Reset succeeds.
     public func retainingFailedAction(_ latest: CompanionIdentityProbeRecord?) -> Self {
         guard let latest, latest.ordinal == 0 else { return self }
-        return Self(records: records.filter { $0 != latest } + [latest], coordination: coordination)
+        return Self(records: records.filter { $0 != latest } + [latest], coordination: coordination, candidate: candidate)
     }
 
     public var exportText: String {
@@ -155,13 +171,16 @@ public struct CompanionIdentityProbe: Sendable {
     public static let widgetKind = "HeadroomIdentityProbe"
     public static let recordLimit = 32
 
-    private let token: @Sendable () -> Token?
+    public let candidate: CompanionIdentityProbeCandidate
+    private let reader: Reader
     private let now: @Sendable () -> Date
     private let container: @Sendable () -> URL?
     private let coordinator: any CompanionIdentityProbeCoordinating
     private let storage: any CompanionIdentityProbeStoring
     private static let directoryName = "companion-identity-probe"
     private static let stateName = "probe-state.json"
+    private static let markerStateName = "probe-marker-state.json"
+    private static let candidateName = "probe-candidate.json"
     private static let anchorName = "transaction.anchor"
     // The candidate is a tiny opaque token; refuse unexpectedly large local archives.
     private static let archiveLimit = 64 * 1024
@@ -174,22 +193,84 @@ public struct CompanionIdentityProbe: Sendable {
         coordinator: any CompanionIdentityProbeCoordinating = CompanionIdentityProbeFileCoordinator(),
         storage: any CompanionIdentityProbeStoring = CompanionIdentityProbeFileStorage()
     ) {
-        self.token = token
+        self.init(reader: .token(token), now: now, container: container, coordinator: coordinator, storage: storage)
+    }
+
+    /// Marker candidate: `marker` returns the live local marker bytes (after a synchronize), or
+    /// nil when absent. The bytes are the archive and stay in the private state file only.
+    public init(
+        marker: @escaping @Sendable () -> Data?,
+        now: @escaping @Sendable () -> Date = Date.init,
+        container: @escaping @Sendable () -> URL?,
+        coordinator: any CompanionIdentityProbeCoordinating = CompanionIdentityProbeFileCoordinator(),
+        storage: any CompanionIdentityProbeStoring = CompanionIdentityProbeFileStorage()
+    ) {
+        self.init(reader: .marker(marker), now: now, container: container, coordinator: coordinator, storage: storage)
+    }
+
+    private init(
+        reader: Reader, now: @escaping @Sendable () -> Date, container: @escaping @Sendable () -> URL?,
+        coordinator: any CompanionIdentityProbeCoordinating, storage: any CompanionIdentityProbeStoring
+    ) {
+        self.reader = reader
+        switch reader {
+        case .token: candidate = .token
+        case .marker: candidate = .kvsMarker
+        }
         self.now = now
         self.container = container
         self.coordinator = coordinator
         self.storage = storage
     }
 
-    public static func appGroup() -> Self {
-        Self(
-            token: { FileManager.default.ubiquityIdentityToken },
-            container: {
-                FileManager.default.containerURL(
-                    forSecurityApplicationGroupIdentifier: WidgetSnapshotCache.appGroupSuiteName
-                )
+    public static func appGroup(candidate: CompanionIdentityProbeCandidate = .token) -> Self {
+        let container: @Sendable () -> URL? = {
+            FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: WidgetSnapshotCache.appGroupSuiteName
+            )
+        }
+        switch candidate {
+        case .token:
+            return Self(token: { FileManager.default.ubiquityIdentityToken }, container: container)
+        case .kvsMarker:
+            // Each process reads its own local store, exactly as a production loader would.
+            return Self(
+                marker: {
+                    let store = UbiquitousKeyValueSyncStore()
+                    _ = store.synchronize()
+                    return CompanionKVSScopeMarker.liveMarker(in: store)
+                },
+                container: container)
+        }
+    }
+
+    /// The candidate the app selected for both roles; token when unset or unreadable. Creates
+    /// nothing, so opening Settings still writes no probe state.
+    public func storedCandidate() -> CompanionIdentityProbeCandidate {
+        guard let container = container() else { return .token }
+        let directory = container.appendingPathComponent(Self.directoryName, isDirectory: true)
+        guard FileManager.default.fileExists(atPath: directory.appendingPathComponent(Self.anchorName).path)
+        else { return .token }
+        var candidate = CompanionIdentityProbeCandidate.token
+        _ = coordinator.coordinate(anchor: directory.appendingPathComponent(Self.anchorName)) {
+            if let data = try? storage.read(from: directory.appendingPathComponent(Self.candidateName), maximumBytes: 64),
+               let value = try? JSONDecoder().decode(CompanionIdentityProbeCandidate.self, from: data) {
+                candidate = value
             }
-        )
+        }
+        return candidate
+    }
+
+    /// App-only: selects the candidate the widget samples next. Never touches either baseline.
+    @discardableResult
+    public func storeCandidate(_ candidate: CompanionIdentityProbeCandidate) -> CompanionIdentityProbeCoordination {
+        guard let directory = preparedDirectory() else { return .unavailable }
+        var written = false
+        let verdict = coordinator.coordinate(anchor: directory.appendingPathComponent(Self.anchorName)) {
+            guard let data = try? JSONEncoder().encode(candidate) else { return }
+            written = (try? storage.write(data, to: directory.appendingPathComponent(Self.candidateName))) != nil
+        }
+        return verdict == .coordinated && !written ? .failed : verdict
     }
 
     public func arm(role: CompanionIdentityProbeRole, step: CompanionIdentityProbeStep = .baseline) -> CompanionIdentityProbeRecord {
@@ -206,7 +287,7 @@ public struct CompanionIdentityProbe: Sendable {
 
     public func report() -> CompanionIdentityProbeReport {
         guard let directory = preparedDirectory() else {
-            return CompanionIdentityProbeReport(records: [], coordination: .unavailable)
+            return CompanionIdentityProbeReport(records: [], coordination: .unavailable, candidate: candidate)
         }
         var records: [CompanionIdentityProbeRecord] = []
         var readable = false
@@ -217,12 +298,17 @@ public struct CompanionIdentityProbe: Sendable {
             }
         }
         guard verdict == .coordinated, readable else {
-            return CompanionIdentityProbeReport(records: [], coordination: verdict == .coordinated ? .failed : verdict)
+            return CompanionIdentityProbeReport(
+                records: [], coordination: verdict == .coordinated ? .failed : verdict, candidate: candidate)
         }
-        return CompanionIdentityProbeReport(records: records, coordination: .coordinated)
+        return CompanionIdentityProbeReport(records: records, coordination: .coordinated, candidate: candidate)
     }
 
     private enum Action { case arm, sample, reset }
+    private enum Reader: Sendable {
+        case token(@Sendable () -> Token?)
+        case marker(@Sendable () -> Data?)
+    }
     private struct State: Codable {
         var version = 2
         var baselineArchive: Data?
@@ -253,36 +339,8 @@ public struct CompanionIdentityProbe: Sendable {
                     availability = .notSampled
                     equality = .notCompared
                     archive = .missing
-                } else if let current = token() {
-                    availability = .available
-                    if let data = state.baselineArchive {
-                        do {
-                            if let restored = try unarchive(data) {
-                                equality = current.isEqual(restored) ? .equal : .different
-                                archive = .readable
-                            } else {
-                                equality = .notCompared
-                                archive = .corrupt
-                            }
-                        } catch {
-                            equality = .notCompared
-                            archive = .corrupt
-                        }
-                    } else if action == .arm {
-                        let data = try NSKeyedArchiver.archivedData(withRootObject: current, requiringSecureCoding: false)
-                        guard data.count <= Self.archiveLimit, let restored = try unarchive(data) else { throw ProbeFailure.invalid }
-                        equality = current.isEqual(restored) ? .equal : .different
-                        archive = .written
-                        state.baselineArchive = data
-                    } else {
-                        equality = .noBaseline
-                        archive = .missing
-                    }
                 } else {
-                    // A prior baseline never turns a currently nil candidate into availability.
-                    availability = .unavailable
-                    equality = .notCompared
-                    archive = .notChecked
+                    (availability, equality, archive) = try sampleIdentity(&state, action: action)
                 }
                 let record = makeRecord(role: role, step: state.step, ordinal: state.ordinal, time: time,
                                         availability: availability, equality: equality, archive: archive, coordination: .coordinated)
@@ -290,7 +348,7 @@ public struct CompanionIdentityProbe: Sendable {
                 state.records = Array(state.records.suffix(Self.recordLimit))
                 let data = try JSONEncoder().encode(state)
                 guard data.count <= Self.stateLimit else { throw ProbeFailure.invalid }
-                try storage.write(data, to: directory.appendingPathComponent(Self.stateName))
+                try storage.write(data, to: directory.appendingPathComponent(stateName))
                 result = record
             } catch ProbeFailure.corrupt {
                 result = failure(.coordinated, archive: .corrupt)
@@ -301,8 +359,44 @@ public struct CompanionIdentityProbe: Sendable {
         return verdict == .coordinated ? result : failure(verdict)
     }
 
+    private typealias Verdict = (CompanionIdentityProbeAvailability, CompanionIdentityProbeEquality, CompanionIdentityProbeArchive)
+
+    private func sampleIdentity(_ state: inout State, action: Action) throws -> Verdict {
+        switch reader {
+        case .token(let token):
+            // A prior baseline never turns a currently nil candidate into availability.
+            guard let current = token() else { return (.unavailable, .notCompared, .notChecked) }
+            return try compare(
+                &state, action: action,
+                archive: { try NSKeyedArchiver.archivedData(withRootObject: current, requiringSecureCoding: false) },
+                matches: { data in try unarchive(data).map { current.isEqual($0) } })
+        case .marker(let marker):
+            guard let current = marker() else { return (.unavailable, .notCompared, .notChecked) }
+            return try compare(&state, action: action, archive: { current }, matches: { $0 == current })
+        }
+    }
+
+    /// `matches` returns nil when the stored archive cannot be restored (corrupt).
+    private func compare(
+        _ state: inout State, action: Action, archive: () throws -> Data, matches: (Data) throws -> Bool?
+    ) throws -> Verdict {
+        if let data = state.baselineArchive {
+            guard let equal = try? matches(data) else { return (.available, .notCompared, .corrupt) }
+            return (.available, equal ? .equal : .different, .readable)
+        }
+        guard action == .arm else { return (.available, .noBaseline, .missing) }
+        let data = try archive()
+        guard data.count <= Self.archiveLimit, let equal = try matches(data) else { throw ProbeFailure.invalid }
+        state.baselineArchive = data
+        return (.available, equal ? .equal : .different, .written)
+    }
+
+    private var stateName: String {
+        candidate == .token ? Self.stateName : Self.markerStateName
+    }
+
     private func readState(_ directory: URL) throws -> State {
-        let file = directory.appendingPathComponent(Self.stateName)
+        let file = directory.appendingPathComponent(stateName)
         // Read/protection/I/O errors stay failures; only successfully read undecodable
         // bytes are classified as corruption.
         guard let data = try storage.read(from: file, maximumBytes: Self.stateLimit) else { return State() }

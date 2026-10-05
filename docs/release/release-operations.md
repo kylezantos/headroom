@@ -179,12 +179,11 @@ a Production phone never sees, and the subscription silently stays quiet. Deploy
 schema changes cannot be removed. The spike runbook on `spike/u15-cloudkit-reminders`
 (`docs/qa/2026-10-cloudkit-reminders-spike.md`) carries the exact steps.
 
-**Build numbers: decision for Kyle.** Mac 1.4.1 is build 33, and iOS TestFlight already holds
-1.5 (33). PR #160's `docs/release/1.5-release-checklist.md` assigns 1.5 / **34** to every target.
-The U15 spike runbook also uploads an iOS **34** to TestFlight, so if the spike uploads first,
-the release can no longer use 34 on iOS. Choose one before either upload: keep 34 for the release
-and give the spike a different number, or let the spike take 34 and move every 1.5 target
-(Mac included, so the paired builds stay equal) to 35.
+**Build numbers (decided 2026-10-05).** Mac 1.4.1 is build 33, and iOS TestFlight already holds
+1.5 (33). The U15 CloudKit spike's TestFlight upload takes iOS **34**. The 1.5 release is build **35**
+for every target, Mac included, so the paired builds stay equal. The release-candidate step stamps 35
+once, on `main`; feature branches never stamp it. PR #160's `docs/release/1.5-release-checklist.md`
+records this.
 
 ## Phase 4 — closeout
 

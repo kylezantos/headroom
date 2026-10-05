@@ -1,9 +1,9 @@
 # iOS App Review and TestFlight Runbook
 
 Release candidate: iOS **1.5** (`com.kylezantos.headroom.ios`) with its widget extension
-(`com.kylezantos.headroom.ios.widgets`), shipped together with Mac 1.5 (KTD23). The build number
-is **not decided yet**: TestFlight already holds 1.5 (33), and two documents each claim 34 (see
-"Build numbers" in `release-operations.md`). Use the highest build App Store Connect actually
+(`com.kylezantos.headroom.ios.widgets`), shipped together with Mac 1.5 (KTD23). The release build
+is **35** for every target (the U15 spike takes iOS 34; see "Build numbers" in
+`release-operations.md`). Still confirm the highest build App Store Connect actually
 shows as `HEADROOM_IOS_LAST_UPLOADED_BUILD`, never a number from this file.
 
 Marks used below: **[adoption]** needs `CompanionLoaderAdoption.isEnabled` on, which waits for

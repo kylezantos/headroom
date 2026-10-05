@@ -198,6 +198,11 @@ on run argv
   tell application "Finder"
     -- Re-assert the frame after the chrome collapse so the saved content area is 680x440.
     set bounds of dmgWindow to {180, 120, 860, 588}
+    -- Hiding the tab/path/status bars shifts saved icon positions down by the bars' height
+    -- (1.5 build 35 saved y=221, putting the icons 45pt below the background's arrow), so
+    -- place the icons again on the final frame.
+    set position of item "Headroom.app" of dmgFolder to {196, 176}
+    set position of item "Applications" of dmgFolder to {484, 176}
     update dmgFolder without registering applications
     delay 1
     close dmgWindow
@@ -595,12 +600,14 @@ if [[ -n "${HEADROOM_SPARKLE_UPDATES_DIR}" ]]; then
   rm -f "${LATEST_DMG_PATH}"
   ditto "${DMG_PATH}" "${HEADROOM_SPARKLE_UPDATES_DIR}/${DMG_NAME}"
   generate_appcast_status=0
+  # 1.5 needed 104s to build deltas against 81 archived binaries; 120s fell back to the
+  # history-less minimal feed. Leave room for the archive to keep growing.
   headroom_generate_appcast_with_timeout \
     "${SPARKLE_GENERATE_APPCAST}" \
     "${HEADROOM_SPARKLE_DOWNLOAD_URL_PREFIX}" \
     "${HEADROOM_SPARKLE_DOWNLOAD_URL_PREFIX}" \
     "${HEADROOM_SPARKLE_UPDATES_DIR}" \
-    "120" || generate_appcast_status="$?"
+    "600" || generate_appcast_status="$?"
   if (( generate_appcast_status == 124 )); then
     echo "→ Sparkle generate_appcast timed out; writing minimal signed appcast"
     write_minimal_appcast

@@ -42,8 +42,11 @@ COMPOSITOR="$ROOT/design/appstore/compositor.html"
 IOS_BUNDLE="com.kylezantos.headroom.ios"
 DERIVED="$ROOT/.build/appstore-ios"
 SRGB_PROFILE="/System/Library/ColorSync/Profiles/sRGB Profile.icc"
-# A fixed ISO time also fixes the date the iPad status bar shows (research appstore.md §1).
-STATUS_TIME="${HEADROOM_APPSTORE_STATUS_TIME:-2026-01-13T09:41:00}"
+# 9:41 on a fixed date: an ISO instant also fixes the date the iPad status bar shows (research
+# appstore.md §1). simctl accepts only a UTC instant with fractional seconds and draws it in
+# the host's time zone, so 9:41 local on STATUS_DATE is converted to UTC here.
+STATUS_DATE="${HEADROOM_APPSTORE_STATUS_DATE:-2026-01-13}"
+STATUS_TIME="$(python3 -c "import datetime as d,sys; t=d.datetime.strptime(sys.argv[1]+' 09:41','%Y-%m-%d %H:%M').astimezone(d.timezone.utc); print(t.strftime('%Y-%m-%dT%H:%M:%S.000Z'))" "$STATUS_DATE")"
 SETTLE_MIN_SECONDS="${HEADROOM_APPSTORE_SETTLE_MIN:-4}"
 SETTLE_MAX_SECONDS="${HEADROOM_APPSTORE_SETTLE_MAX:-25}"
 BROWSER_PAGE="headroom-appstore-u18"
@@ -151,7 +154,8 @@ prepare_device() {   # $1 udid — boot, install, status bar; once per run
   # `charging`/`charged` states (seen on the published iPad set).
   xcrun simctl status_bar "$udid" override \
     --time "$STATUS_TIME" --dataNetwork wifi --wifiMode active --wifiBars 3 \
-    --cellularMode active --cellularBars 4 --batteryState discharging --batteryLevel 100
+    --cellularMode active --cellularBars 4 --operatorName '' \
+    --batteryState discharging --batteryLevel 100
   PREPARED="$PREPARED$udid "
 }
 
@@ -167,15 +171,30 @@ APP_PATH="$DERIVED/Build/Products/Debug-iphonesimulator/HeadroomIOS.app"
 [ -d "$APP_PATH" ] || { echo "✗ $APP_PATH missing (drop --skip-build)." >&2; exit 1; }
 
 # ── Capture ─────────────────────────────────────────────────────────────────────────────
-settle_capture() {   # $1 udid, $2 output — screenshot until two consecutive frames match
-  local udid="$1" output="$2" previous="$2.prev.png" waited
-  sleep "$SETTLE_MIN_SECONDS"
+# A frame whose content area (below the status bar) is one flat color is the launch frame,
+# not the app: a slow relaunch once "settled" on two identical black frames.
+is_flat() {   # $1 png
+  local stats ymin ymax
+  stats="$(ffmpeg -nostdin -i "$1" -vf "crop=iw:ih*0.85:0:ih*0.15,signalstats,metadata=print" -f null - 2>&1)"
+  ymin="$(grep -oE 'signalstats.YMIN=[0-9]+' <<< "$stats" | head -1 | cut -d= -f2)"
+  ymax="$(grep -oE 'signalstats.YMAX=[0-9]+' <<< "$stats" | head -1 | cut -d= -f2)"
+  [ -n "$ymin" ] && [ -n "$ymax" ] && [ $((ymax - ymin)) -lt 8 ]
+}
+app_running() {   # $1 udid
+  xcrun simctl spawn "$1" launchctl list 2>/dev/null | grep -q "UIKitApplication:$IOS_BUNDLE"
+}
+settle_capture() {   # $1 udid, $2 output — app up, then two identical, non-flat screenshots
+  local udid="$1" output="$2" previous="$2.prev.png" waited=0
+  until app_running "$udid"; do
+    sleep 1; waited=$((waited + 1))
+    [ "$waited" -ge "$SETTLE_MAX_SECONDS" ] && return 1
+  done
+  sleep "$SETTLE_MIN_SECONDS"; waited=$((waited + SETTLE_MIN_SECONDS))
   xcrun simctl io "$udid" screenshot --type=png "$previous" >>"$LOG" 2>&1
-  waited="$SETTLE_MIN_SECONDS"
   while :; do
     sleep 1; waited=$((waited + 1))
     xcrun simctl io "$udid" screenshot --type=png "$output" >>"$LOG" 2>&1
-    if cmp -s "$previous" "$output"; then rm -f "$previous"; return 0; fi
+    if cmp -s "$previous" "$output" && ! is_flat "$output"; then rm -f "$previous"; return 0; fi
     if [ "$waited" -ge "$SETTLE_MAX_SECONDS" ]; then rm -f "$previous"; return 1; fi
     mv "$output" "$previous"
   done
@@ -205,7 +224,8 @@ while IFS=$'\t' read -r -u 3 id device kind appearance variant screen wall outpu
     echo "  ! $id did not settle within ${SETTLE_MAX_SECONDS}s; kept the last capture" >&2
   fi
   xcrun simctl terminate "$udid" "$IOS_BUNDLE" >>"$LOG" 2>&1 || true
-  [ "$mac" = "-" ] && mac_path="" || mac_path="$ROOT/$mac"
+  # Tabs are IFS whitespace, so an empty field would collapse: "-" stands for "no Mac image".
+  [ "$mac" = "-" ] && mac_path="-" || mac_path="$ROOT/$mac"
   printf '%s\t%s\t%s\t%s\n' "$id" "$raw" "$mac_path" "$OUT/$device/$output" >> "$COMPOSE_JOBS"
 done 3<<< "$JOBS"
 
@@ -229,7 +249,7 @@ for line in open(jobs_path):
     w, h = table["devices"][frame["device"]]["width"], table["devices"][frame["device"]]["height"]
     jobs.append({
         "frame": frame,
-        "assets": {"capture": pathlib.Path(raw).as_uri(), "mac": pathlib.Path(mac).as_uri() if mac else None},
+        "assets": {"capture": pathlib.Path(raw).as_uri(), "mac": pathlib.Path(mac).as_uri() if mac != "-" else None},
         "size": [w, h],
         "name": f"{tag}-{pathlib.Path(out).name}",
     })
@@ -274,9 +294,9 @@ while IFS=$'\t' read -r -u 3 id raw mac out; do
   alpha="$(awk '/hasAlpha/ {print $2}' <<< "$report")"
   profile="$(sed -n 's/^ *profile: //p' <<< "$report")"
   if [ "$width $height" != "$expected" ] || [ "$alpha" != "no" ] || [[ "$profile" != sRGB* ]]; then
-    FAILED+=("$id ($width×$height, hasAlpha $alpha, profile $profile)")
+    FAILED+=("$id (${width}×${height}, hasAlpha $alpha, profile $profile)")
   else
-    echo "  ✓ $id → ${out#$ROOT/} ($width×$height, hasAlpha no, $profile)"
+    echo "  ✓ $id → ${out#$ROOT/} (${width}×${height}, hasAlpha no, $profile)"
   fi
 done 3< "$COMPOSE_JOBS"
 

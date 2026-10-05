@@ -41,6 +41,35 @@ struct PhoneUsageScreenTests {
         #expect(anchors.oldestLive == now.addingTimeInterval(-CompanionDemoData.captureAge))
     }
 
+    /// Review 2 testing gap: the past-reset guard on its own. The Claude main account is live;
+    /// add a live 5-hour reading observed two hours ago. Before its reset it is the oldest live
+    /// reading and anchors "Updated"; once its reset has passed it is hidden, so it does not.
+    @Test func aLiveAccountsPastResetRowDoesNotDragTheStampBack() throws {
+        let content = try content(.multiAccount)
+        let main = try #require(content.providers.first { $0.id == "claude" }?.mainAccount)
+        #expect(main.freshness == .live)
+        let observed = now.addingTimeInterval(-2 * 3_600)
+        func window(resetsAt: Date) -> WidgetWindowSummary {
+            WidgetWindowSummary(
+                kind: .fiveHour, label: "5-hour", percentRemaining: 40, resetSchedule: .scheduled(resetsAt),
+                resetLabel: nil, observedAt: observed, severity: .healthy, freshness: .live)
+        }
+        func anchors(_ added: WidgetWindowSummary) -> FreshnessStamp.Anchors {
+            MirrorPresentation.stampAnchors(content, shownWindows: { account in
+                account == main ? account.widgetWindows + [added] : account.widgetWindows
+            }, now: now)
+        }
+        let beforeReset = window(resetsAt: now.addingTimeInterval(3_600))
+        #expect(CompanionFreshnessRule.pastResetTime(beforeReset, at: now) == nil)
+        #expect(anchors(beforeReset).oldestLive == observed, "a live reading before its reset anchors the stamp")
+
+        let pastReset = window(resetsAt: now.addingTimeInterval(-25 * 60))
+        #expect(CompanionFreshnessRule.pastResetTime(pastReset, at: now) != nil)
+        let anchored = anchors(pastReset)
+        #expect(anchored.oldestLive == now.addingTimeInterval(-CompanionDemoData.captureAge))
+        #expect(anchored.newestCheck != nil)
+    }
+
     // MARK: R10: dimming
 
     @Test func aQuietMacDimsTheSurfaceWithTheNoUpdateSentence() throws {
@@ -114,6 +143,36 @@ struct PhoneUsageScreenTests {
         #expect(rows.allSatisfy { $0.snapshot.freshness != .live && $0.snapshot.freshness != .pending })
         #expect(rows.allSatisfy { $0.status.shortBadge == "Stale" })
         #expect(rows.allSatisfy { $0.amount != nil }, "a retained figure stays visible")
+    }
+
+    /// X5: a balance row's "Remaining balance" outranks the name's qualifier.
+    @Test func aBalanceRowKeepsRemainingBalanceOverTheQualifier() {
+        let summary = WidgetAPISpendSummary(
+            id: "grok", displayName: "xAI prepaid", amount: 12, currency: "usd", periodLabel: "October",
+            kind: .balance, capturedAt: now, freshness: .live)
+        let row = CompanionSpendRowModel(summary)
+        #expect(row.title == "xAI")
+        #expect(row.contextLabel == "Remaining balance")
+        #expect(APISpendPresentation.popoverIdentity(displayName: "xAI prepaid").chipOverride != nil,
+                "the name does carry a qualifier the balance label outranks")
+    }
+
+    /// A stale summary that needs attention maps to the re-auth failure, not a transient one,
+    /// and its status is the attention status (no typed attention on the wire: setup required).
+    @Test func aStaleSummaryThatNeedsAttentionMapsToReauth() {
+        let summary = WidgetAPISpendSummary(
+            id: "claude", displayName: "Anthropic API", amount: 142.67, currency: "usd", periodLabel: "Current month",
+            capturedAt: now, freshness: .stale(message: "Key revoked", needsAttention: true))
+        let row = CompanionSpendRowModel(summary)
+        #expect(row.snapshot.freshness == .stale(.needsReauth("Key revoked")))
+        #expect(row.status == APISpendPresentation.rowStatus(
+            freshness: .stale(message: "Key revoked", needsAttention: true), attention: .setupRequired,
+            providerID: .claude, displayName: "Anthropic API"))
+        let transient = CompanionSpendRowModel(WidgetAPISpendSummary(
+            id: "claude", displayName: "Anthropic API", amount: 142.67, currency: "usd", periodLabel: "Current month",
+            capturedAt: now, freshness: .stale(message: "Timed out", needsAttention: false)))
+        #expect(transient.snapshot.freshness == .stale(.transient("Timed out")))
+        #expect(transient.status != row.status)
     }
 
     @Test func aQualifiedNameMovesItsQualifierIntoTheChip() {

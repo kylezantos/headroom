@@ -257,7 +257,8 @@ private struct DemoModeBanner: View {
 #if DEBUG
 /// KTD16 UI-test marker: how many times the card entrance has started this launch. Invisible,
 /// DEBUG-only; the test reads it to prove a data refresh never replays the entrance.
-/// AE8: a second marker counts the check-now request keys this launch wrote.
+/// AE8: a second marker counts the check-now request keys this launch wrote, and AE1's third
+/// the pulls that re-read instead.
 private struct PhoneEntranceMarker: View {
     let checkNow: PhoneCheckNow
 
@@ -275,6 +276,12 @@ private struct PhoneEntranceMarker: View {
                 .accessibilityLabel("Check-now requests written")
                 .accessibilityValue("\(checkNow.requestsWritten)")
                 .accessibilityIdentifier("headroom.checknow.writes")
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Check-now re-read pulls")
+                .accessibilityValue("\(checkNow.rereadPulls)")
+                .accessibilityIdentifier("headroom.checknow.rereads")
         }
     }
 }

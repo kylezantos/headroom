@@ -38,7 +38,7 @@ public struct CompanionPhoneSnapshotSource: Sendable {
         guard CompanionLoaderAdoption.isEnabled else {
             return build33(
                 store: store, compatibilityCache: compatibilityCache(appGroupIdentifier: appGroupIdentifier),
-                demo: demo)
+                coordinator: CompanionFileCacheCoordinator(appGroupIdentifier: appGroupIdentifier), demo: demo)
         }
         return adopted(
             store: store, cache: appGroupCache(appGroupIdentifier: appGroupIdentifier, store: store),
@@ -60,15 +60,19 @@ public struct CompanionPhoneSnapshotSource: Sendable {
 
     /// Adoption off: build 33's path, lifted. `now` only stamps first-seen, which an empty v4
     /// cache cannot persist, so the freshness rule's `generatedAt + allowance` bound governs.
+    /// `coordinator` serializes the compatibility-file write across the app, widget and intents
+    /// processes (KTD6.8's anchor); nil without an App Group container.
     static func build33(
         store: (any iCloudKeyValueSyncing)?, compatibilityCache: WidgetSnapshotCache,
+        coordinator: (any CompanionCacheCoordinating)? = nil,
         now: @escaping @Sendable () -> Date = Date.init,
         demo: (@Sendable () -> CompanionResolvedSnapshot?)?
     ) -> CompanionPhoneSnapshotSource {
         CompanionPhoneSnapshotSource(load: {
             if let demo, let snapshot = demo() { return snapshot }
             let outcome = CompanionBuild33Loading.load(
-                sync: iCloudSnapshotSync(store: store), cache: compatibilityCache, rule: .appRefresh)
+                sync: iCloudSnapshotSync(store: store), cache: compatibilityCache, rule: .appRefresh,
+                coordinator: coordinator)
             return CompanionBuild33Loading.lift(outcome, now: now())
         })
     }
@@ -144,8 +148,9 @@ enum CompanionBuild33Loading {
         /// The cache read the resolution used (post-write re-read under `.appRefresh`).
         let cacheRead: WidgetSnapshotCacheRead
         let resolution: IOSWidgetResolution
-        /// The remote was adoptable, so a write was attempted. The app reloads widget
-        /// timelines on this, whether or not the write succeeded.
+        /// The remote was adoptable against the first read, so a write was attempted. The app
+        /// reloads widget timelines on this, whether or not the write succeeded or the write's
+        /// own re-check found a newer cache.
         let adoptedRemote: Bool
     }
 
@@ -157,7 +162,10 @@ enum CompanionBuild33Loading {
         return rule == .appRefresh && remote.generatedAt == cached.generatedAt && remote != cached
     }
 
-    static func load(sync: iCloudSnapshotSync, cache: WidgetSnapshotCache, rule: AdoptionRule) -> Outcome {
+    static func load(
+        sync: iCloudSnapshotSync, cache: WidgetSnapshotCache, rule: AdoptionRule,
+        coordinator: (any CompanionCacheCoordinating)? = nil
+    ) -> Outcome {
         let syncRead = sync.read()
         let cacheRead = cache.read()
         var resolvedCacheRead = cacheRead
@@ -166,8 +174,20 @@ enum CompanionBuild33Loading {
             adoptable(remote: envelope.snapshot, into: cacheRead, rule: rule)
         {
             adopted = true
-            try? cache.write(envelope.snapshot)
-            if rule == .appRefresh { resolvedCacheRead = cache.read() }
+            // Review 2 #3: loads overlap (the app runs each detached; the widget and intents
+            // load in their own processes), so the read above may be stale by now. The write
+            // re-reads the file it replaces and keeps a newer envelope another load already
+            // wrote. Coordinated, the re-check and the replacement are one transaction; if
+            // coordination fails nothing is written uncoordinated (KTD6.8).
+            let commit = { () -> WidgetSnapshotCacheRead in
+                if adoptable(remote: envelope.snapshot, into: cache.read(), rule: rule) {
+                    try? cache.write(envelope.snapshot)
+                }
+                return cache.read()
+            }
+            let committed: WidgetSnapshotCacheRead?
+            if let coordinator { committed = coordinator.coordinate(commit) } else { committed = commit() }
+            if rule == .appRefresh { resolvedCacheRead = committed ?? cache.read() }
         }
         return Outcome(
             syncRead: syncRead, cacheRead: resolvedCacheRead,

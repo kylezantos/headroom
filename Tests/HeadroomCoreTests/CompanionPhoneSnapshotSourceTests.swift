@@ -82,6 +82,58 @@ struct CompanionPhoneSnapshotSourceTests {
         }
     }
 
+    /// Review 2 #3: the phone's loads overlap (the app runs each one detached), and the widget
+    /// and intents processes load too. A load that read an older key and the old cache, then
+    /// reaches its write after a newer load has already written, must leave the newer
+    /// envelope in place. The older load parks between its reads and its write.
+    @Test(arguments: [CompanionBuild33Loading.AdoptionRule.appRefresh, .widgetTimeline])
+    func anOlderLoadFinishingLastNeverOverwritesTheNewerCache(rule: CompanionBuild33Loading.AdoptionRule) throws {
+        defer { cleanup() }
+        try cache.write(F.v3(generatedAt: 0).snapshot)
+        let older = F.v3(generatedAt: 60, lineage: (F.macA, 4))
+        let newer = F.v3(generatedAt: 120, lineage: (F.macA, 5))
+        let anchor = SharedAnchor()
+        let parked = BarrierCoordinator(anchor: anchor, gatedEntry: 1)
+        let olderStore = store(older)
+        let cache = self.cache
+        let olderLoad = ThreadResult {
+            CompanionBuild33Loading.load(
+                sync: iCloudSnapshotSync(store: olderStore), cache: cache, rule: rule, coordinator: parked)
+        }
+        parked.arrived.wait()
+
+        let newerLoad = CompanionBuild33Loading.load(
+            sync: iCloudSnapshotSync(store: store(newer)), cache: cache, rule: rule,
+            coordinator: BarrierCoordinator(anchor: anchor))
+        #expect(newerLoad.adoptedRemote)
+        #expect(cached() == newer.snapshot)
+
+        parked.gate.signal()
+        let late = olderLoad.wait()
+        #expect(cached() == newer.snapshot, "the older key never replaces the newer cache")
+        if rule == .appRefresh {
+            // The app's rule re-reads what the transaction left, so it serves the newer cache.
+            #expect(late.resolution == IOSWidgetResolution(state: .content(newer.snapshot), origin: .cache))
+        }
+        // Build 33's bytes are unchanged: the file is the newer key's inner envelope.
+        #expect(try JSONDecoder().decode(WidgetSnapshotEnvelope.self, from: Data(contentsOf: cacheURL)) == newer.snapshot)
+    }
+
+    /// A failed coordination writes nothing rather than replace the file uncoordinated; the
+    /// load still resolves the newer key over the cache it read.
+    @Test func aFailedCoordinationWritesNothing() throws {
+        defer { cleanup() }
+        let old = F.v3(generatedAt: 0).snapshot
+        try cache.write(old)
+        let failing = BarrierCoordinator(anchor: SharedAnchor())
+        failing.fails = true
+        let remote = F.v3(generatedAt: 60)
+        let outcome = CompanionBuild33Loading.load(
+            sync: iCloudSnapshotSync(store: store(remote)), cache: cache, rule: .appRefresh, coordinator: failing)
+        #expect(cached() == old)
+        #expect(outcome.resolution == IOSWidgetResolution(state: .content(remote.snapshot), origin: .sync))
+    }
+
     @Test func missingOrCorruptKeyFallsBackToTheCache() throws {
         defer { cleanup() }
         let content = F.v3(generatedAt: 0).snapshot

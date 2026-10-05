@@ -197,7 +197,11 @@ struct IOSCompanionView: View {
                 variant: demoModeStore.variant(launch: launch),
                 adopt: adoptCheckedSnapshot)
             : checkNow.pull(snapshot: current)
-        if !started { await refresh() }
+        guard !started else { return }
+        await refresh()
+        #if DEBUG
+        checkNow.recordRereadPull()
+        #endif
     }
 
     /// KTD14.7: a demo check's finished snapshot is newer than any load still in flight.

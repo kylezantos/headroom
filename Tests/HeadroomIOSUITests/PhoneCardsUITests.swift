@@ -23,10 +23,11 @@ final class PhoneCardsUITests: XCTestCase {
             let tops = stack.map(\.frame.minY)
             XCTAssertEqual(tops, tops.sorted(), "accounts render in the Mac's order")
         }
-        // U11: a wide window flows Codex into the next column; a phone stacks it below.
+        // U11: a window wide enough for two columns (876pt) flows Codex into the next one;
+        // a phone or a narrower iPad stacks it below.
         let claudeCard = element("headroom.provider.claude").frame
         let codexCard = element("headroom.provider.codex").frame
-        if app.windows.firstMatch.frame.width >= 700 {
+        if FlowingColumnsExpectation.columns(width: app.windows.firstMatch.frame.width) >= 2 {
             XCTAssertGreaterThan(codexCard.minX, claudeCard.maxX)
         } else {
             XCTAssertGreaterThan(codexCard.minY, claudeCard.minY)
@@ -92,10 +93,18 @@ final class PhoneCardsUITests: XCTestCase {
         XCTAssertFalse(element("headroom.title-disclosure.title").exists, "the glyph tap only explains")
     }
 
-    /// U3 step 6: shared long prefixes stay distinguishable through the full-name sheet.
+    /// U3 step 6: shared long prefixes stay distinguishable through the full-name sheet. A
+    /// regular-width card (at least KTD17's 400pt) fits these titles at the default size, and
+    /// a title that never truncates stays plain text with no sheet (review 2 #7).
     func testTruncatedTitlesDiscloseTheFullNameAtDefaultSize() {
         launch("accountStates")
-        assertTitleDisclosure()
+        let twin = element("headroom.account.codex.codex-northwind-2.title")
+        XCTAssertTrue(twin.waitForExistence(timeout: 5))
+        if FlowingColumnsExpectation.isRegularWidth(app.windows.firstMatch.frame.width) {
+            assertTitlesStayPlainText()
+        } else {
+            assertTitleDisclosure()
+        }
     }
 
     func testTruncatedTitlesDiscloseTheFullNameAtXXLarge() {
@@ -154,6 +163,24 @@ final class PhoneCardsUITests: XCTestCase {
         XCTAssertEqual(full.label, "Northwind Research Workspace")
         app.buttons["headroom.title-disclosure.done"].tap()
         XCTAssertTrue(waitForDisappearance(full))
+    }
+
+    /// Nontruncated titles stay plain text: not buttons, whole, and a tap opens nothing.
+    private func assertTitlesStayPlainText() {
+        let titles = [
+            ("headroom.account.codex.codex-northwind-2.title", "Northwind Research Workspace · 2"),
+            ("headroom.account.codex.primary.title", "Northwind Research Workspace"),
+        ]
+        for (identifier, label) in titles {
+            let title = element(identifier)
+            XCTAssertTrue(title.waitForExistence(timeout: 5))
+            XCTAssertEqual(title.label, label)
+            XCTAssertNotEqual(title.elementType, .button, "\(label) fits, so it is not a button")
+            XCTAssertFalse(app.buttons.matching(identifier: identifier).firstMatch.exists)
+        }
+        element(titles[0].0).tap()
+        XCTAssertFalse(element("headroom.title-disclosure.title").waitForExistence(timeout: 1.5),
+                       "a title that fits opens no sheet")
     }
 
     private func launch(_ variant: String, extra: [String] = []) {

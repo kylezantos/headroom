@@ -59,7 +59,7 @@ final class ResponsiveLayoutUITests: XCTestCase {
         let app = launch(["--demo"])
 
         let window = app.windows.firstMatch
-        let isTablet = window.frame.width >= 700
+        let isTablet = FlowingColumnsExpectation.isRegularWidth(window.frame.width)
         defer { XCUIDevice.shared.orientation = .portrait }
         let claude = app.descendants(matching: .any)["headroom.provider.claude"]
         let codex = app.descendants(matching: .any)["headroom.provider.codex"]
@@ -68,7 +68,8 @@ final class ResponsiveLayoutUITests: XCTestCase {
         XCTAssertTrue(window.frame.contains(claude.frame))
         XCTAssertTrue(window.frame.contains(codex.frame))
 
-        if isTablet {
+        // Review 2 #8: two columns need 876pt, not just an iPad; a 744pt or 834pt iPad stacks.
+        if FlowingColumnsExpectation.columns(width: window.frame.width) >= 2 {
             XCTAssertLessThan(abs(claude.frame.minY - codex.frame.minY), 1, "two columns share a top edge")
             XCTAssertGreaterThan(codex.frame.minX, claude.frame.maxX)
         } else {
@@ -81,7 +82,9 @@ final class ResponsiveLayoutUITests: XCTestCase {
             rotate(app, to: .landscapeLeft)
             XCTAssertTrue(window.frame.contains(claude.frame))
             XCTAssertTrue(window.frame.contains(codex.frame))
-            XCTAssertLessThan(abs(claude.frame.minY - codex.frame.minY), 1)
+            if FlowingColumnsExpectation.columns(width: window.frame.width) >= 2 {
+                XCTAssertLessThan(abs(claude.frame.minY - codex.frame.minY), 1)
+            }
             XCTAssertTrue(app.buttons["headroom.settings"].isHittable)
         }
     }
@@ -96,7 +99,7 @@ final class ResponsiveLayoutUITests: XCTestCase {
         let width = window.frame.width
         XCTAssertEqual(columnCount(app), Self.expectedColumns(width: width), "at \(width)pt")
 
-        guard width >= 700 else { return }
+        guard FlowingColumnsExpectation.isRegularWidth(width) else { return }
         rotate(app, to: .landscapeLeft)
         XCTAssertEqual(columnCount(app), Self.expectedColumns(width: window.frame.width), "at \(window.frame.width)pt")
         let cards = Self.cardIDs.map { card(app, $0) }
@@ -151,12 +154,9 @@ final class ResponsiveLayoutUITests: XCTestCase {
         "headroom.provider.cursor", "headroom.api-spend",
     ]
 
-    /// KTD17's arithmetic at the default text size: 28pt margins (20 on a compact phone),
-    /// 20pt gaps, 400pt minimum cards, never more columns than the five cards.
+    /// Never more columns than the five cards.
     private static func expectedColumns(width: CGFloat) -> Int {
-        let margin: CGFloat = width >= 700 ? 28 : 20
-        let fitting = Int(((width - 2 * margin + 20) / 420).rounded(.down))
-        return min(max(fitting, 1), cardIDs.count)
+        FlowingColumnsExpectation.columns(width: width, cardCount: cardIDs.count)
     }
 
     private func columnCount(_ app: XCUIApplication) -> Int {

@@ -42,6 +42,17 @@ public enum CheckNowLinePolicy {
         return completedAt.addingTimeInterval(completionHold)
     }
 
+    /// When the host should next re-evaluate on its own: the earlier of the request's own
+    /// timeout and the completion hold's end, counting only dates after `now`. Nil once nothing
+    /// future remains. Review 2 #1: the hold's end stays fixed after it passes, so a host that
+    /// re-armed on it would wake with no delay forever on the main actor.
+    public static func nextWake(status: CheckNowStatus?, completedAt: Date?, now: Date) -> Date? {
+        [status?.nextDeadline, revertsAt(status: status, completedAt: completedAt)]
+            .compactMap { $0 }
+            .filter { $0 > now }
+            .min()
+    }
+
     /// A launch (or the first update of a session) adopts a stored request only while it is
     /// still open, so yesterday's "Just now" or timeout never greets a fresh launch.
     public static func resumesAtLaunch(_ status: CheckNowStatus) -> Bool {

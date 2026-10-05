@@ -312,6 +312,36 @@ struct CheckNowProtocolTests {
 
     // MARK: Client (App Group state, KVS reads)
 
+    /// Review 2 #1, the real path: `PhoneCheckNow.deadlinePassed` re-reads through the client
+    /// at every wake. After "Just now" the host wakes once, at the hold's end, and stops; it
+    /// never keeps re-reading and re-saving the App Group state on the main actor.
+    @Test func aFinishedRealCheckWakesOnceAtTheHoldsEndThenStops() throws {
+        let store = CheckNowKeyValueStore()
+        let clock = ManualClock(t0)
+        let phone = client(store, clock: clock)
+        guard case .requested(let asked) = phone.pull(snapshot: v4(generation: 7)) else { Issue.record("no request"); return }
+        var host = CheckNowWakeHost()
+        host.apply(asked, at: clock.now)
+
+        let id = asked.requestID
+        store.seed(CompanionSyncKeys.receipt, F.bytes(receipt(.finished, ids: [id], answered: [answered(id)], total: 2, completed: 2, finishedGeneration: 8)))
+        clock.advance(4)
+        let finished = try #require(phone.update(snapshot: v4(generation: 8)))
+        #expect(finished.line == .message("Just now"))
+        host.apply(finished, at: clock.now)
+        let completedAt = clock.now
+
+        var reads = 0
+        let wakes = host.run(from: clock.now) { at in
+            reads += 1
+            clock.advance(at.timeIntervalSince(clock.now))
+            return phone.update(snapshot: v4(generation: 8))
+        }
+        #expect(wakes == [completedAt.addingTimeInterval(CheckNowLinePolicy.completionHold)])
+        #expect(reads == 1)
+        #expect(CheckNowLinePolicy.slot(status: host.status, completedAt: host.completedAt, now: clock.now) == .freshness)
+    }
+
     @Test func clientFoldsTheReceiptKeyAndSnapshotIntoTheSharedState() throws {
         let store = CheckNowKeyValueStore()
         let state = MemoryCheckNowStateStore()

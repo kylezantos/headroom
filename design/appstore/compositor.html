@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headroom App Store compositor · Graphite</title>
+<!--
+  U18 (iOS parity plan, R31): composes one App Store frame from a raw simulator capture and a
+  shots.json entry. Geometry, gradient, waterline and caption type are reproduced from the
+  approved storyboard (perth-v1 design/appstore/1.5-graphite-storyboard.html). One deliberate
+  difference: the storyboard's device boxes were placeholder heights, so here the device takes
+  the capture's real aspect and its bottom runs off the frame (research appstore.md §4 A).
+
+  Two modes:
+  - Pipeline: Scripts/capture-appstore-shots.sh opens `compositor.html?pipeline=1`, calls
+    `window.composeShot(frame, {capture, mac})`, and screenshots `#canvas` at 1:1.
+  - Review: open the file in a browser, load shots.json and drop captures to preview a frame.
+  Self-contained: no network, no fonts to download (system SF, as the storyboard uses).
+-->
+<style>
+:root { color-scheme: dark; --mint: #4bdd97; --ink: #f3f6f8; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #11161d; color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif; }
+
+/* ---- The frame (pixel geometry; never scaled in pipeline mode) ---- */
+.canvas { position: relative; width: 1320px; height: 2868px; overflow: hidden;
+  background: linear-gradient(160deg, #33404f 0%, #1a2330 50%, #0b111a 100%); }
+.canvas.ipad13 { width: 2064px; height: 2752px; }
+.waterline { position: absolute; inset: 64% 0 0; background: linear-gradient(180deg, #1fac701f, transparent 70%); border-top: 2px solid #4bdd97; z-index: 1; }
+.caption { position: absolute; top: 190px; left: 120px; width: 1080px; z-index: 3; }
+.ipad13 .caption { top: 200px; left: 180px; width: 1704px; }
+.readout { font: 500 38px/1.2 ui-monospace, "SFMono-Regular", Menlo, monospace; color: var(--mint); letter-spacing: .2px; margin-bottom: 26px; white-space: nowrap; }
+.ipad13 .readout { font-size: 46px; margin-bottom: 30px; }
+.headline { color: #f3f6f8; font-size: 108px; font-weight: 600; line-height: 1.06; letter-spacing: -2.4px; text-wrap: balance; }
+.ipad13 .headline { font-size: 132px; letter-spacing: -3px; }
+.device { position: absolute; top: 860px; left: 170px; width: 980px; border-radius: 100px; padding: 22px; background: #0a0d12; box-shadow: 0 20px 100px #0005; border: 4px solid #52606e; z-index: 2; }
+.ipad13 .device { top: 820px; left: 150px; width: 1764px; border-radius: 74px; }
+.mac .device { left: 90px; top: 1120px; width: 900px; }
+.ipad13.mac .device { top: 1080px; left: 120px; width: 1440px; }
+.screen { display: block; width: 100%; border-radius: 78px; }
+.ipad13 .screen { border-radius: 50px; }
+.screen.missing { aspect-ratio: 1320 / 2868; background: repeating-linear-gradient(135deg, #1c2632 0 24px, #1e2937 24px 48px); border: 3px dashed #637080; }
+.ipad13 .screen.missing { aspect-ratio: 2064 / 2752; }
+.macbox { position: absolute; top: 745px; left: 720px; width: 500px; height: 650px; border-radius: 24px; z-index: 1; overflow: hidden; }
+.ipad13.mac .macbox { top: 820px; left: 1470px; width: 460px; height: 590px; }
+.macbox img { width: 100%; height: 100%; object-fit: cover; object-position: top center; display: block; }
+.macbox.missing { border: 3px dashed #83919c; background: #18222ed9; padding: 36px; color: #bac6d1; font: 400 32px/1.3 ui-monospace, "SFMono-Regular", Menlo, monospace; }
+.foot { position: absolute; top: 660px; left: 120px; font-size: 38px; line-height: 1.3; color: #cad5df; z-index: 4; }
+.ipad13 .foot { left: 180px; }
+
+/* ---- Pipeline mode: the canvas alone at the page origin ---- */
+body.pipeline .review { display: none; }
+body.pipeline #stage { padding: 0; }
+body.pipeline #stage .scaler { transform: none; }
+
+/* ---- Review chrome ---- */
+.review { padding: 28px 32px 0; max-width: 1200px; }
+.review h1 { font-size: 24px; font-weight: 600; margin: 0 0 6px; letter-spacing: -.4px; }
+.review p { color: #adb7c3; font-size: 13px; margin: 0 0 14px; max-width: 760px; line-height: 1.5; }
+.controls { display: flex; flex-wrap: wrap; gap: 18px; align-items: end; padding: 14px 0 18px; border-bottom: 1px solid #303842; }
+.controls label { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: #adb7c3; }
+.controls select, .controls input { font: inherit; font-size: 13px; color: var(--ink); background: #222b36; border: 1px solid #43505e; border-radius: 7px; padding: 7px 10px; }
+.controls :focus-visible { outline: 2px solid var(--mint); outline-offset: 3px; }
+#status { font: 12px ui-monospace, Menlo, monospace; color: #adb7c3; min-height: 18px; padding-top: 10px; white-space: pre-wrap; }
+#stage { padding: 20px 32px 48px; }
+#stage .scaler { transform-origin: 0 0; }
+</style>
+</head>
+<body>
+<section class="review" aria-label="Compositor controls">
+  <h1>App Store compositor · Graphite</h1>
+  <p>Load <code>design/appstore/shots.json</code>, pick a frame, then choose its raw simulator capture (and, for the Mac frame, an approved Mac image). The pipeline renders the same page headlessly at exact pixel size. Frames stay drafts until Kyle signs off the frame table.</p>
+  <div class="controls">
+    <label>Frame table <input id="shotsFile" type="file" accept="application/json,.json"></label>
+    <label>Frame <select id="frameSelect" disabled><option>Load shots.json first</option></select></label>
+    <label>Capture <input id="captureFile" type="file" accept="image/png,image/jpeg"></label>
+    <label>Mac image <input id="macFile" type="file" accept="image/png,image/jpeg"></label>
+    <label>Preview scale <select id="scale"><option value="0.3">30% caption check</option><option value="0.18" selected>Product page</option><option value="0.0894">Search result (118 px)</option><option value="1">100%</option></select></label>
+  </div>
+  <div id="status" role="status"></div>
+</section>
+<div id="stage"><div class="scaler"><div id="canvas" class="canvas iphone69"></div></div></div>
+
+<script>
+'use strict';
+const SIZES = { iphone69: [1320, 2868], ipad13: [2064, 2752] };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('could not load ' + src));
+    img.src = src;
+  });
+}
+
+/// Draws one frame into #canvas. Resolves with the frame's pixel size and the capture's
+/// natural size once every image has decoded, so a headless screenshot never races a load.
+async function composeShot(frame, assets = {}) {
+  const size = SIZES[frame.device];
+  if (!size) throw new Error('unknown device ' + frame.device);
+  const canvas = document.getElementById('canvas');
+  const mac = frame.kind === 'mac';
+  canvas.className = ['canvas', frame.device, mac ? 'mac' : ''].join(' ').trim();
+  const eyebrow = frame.eyebrow ? `<div class="readout">${esc(frame.eyebrow)}</div>` : '';
+  const foot = mac && frame.foot ? `<div class="foot">${esc(frame.foot)}</div>` : '';
+  const macBox = !mac ? '' : assets.mac
+    ? `<div class="macbox"><img id="macImage" alt="" src="${esc(assets.mac)}"></div>`
+    : '<div class="macbox missing">Mac capture<br>pending<br><br>BUGS.md: render-popover<br>multi-4 gap</div>';
+  const screen = assets.capture
+    ? `<img id="captureImage" class="screen" alt="" src="${esc(assets.capture)}">`
+    : '<div class="screen missing"></div>';
+  canvas.innerHTML = `<div class="waterline"></div><div class="caption">${eyebrow}<div class="headline">${esc(frame.headline)}</div></div>${foot}${macBox}<div class="device">${screen}</div>`;
+
+  const waits = [document.fonts.ready];
+  let capture = null;
+  if (assets.capture) waits.push(loadImage(assets.capture).then(img => { capture = img; }));
+  if (mac && assets.mac) waits.push(loadImage(assets.mac));
+  await Promise.all(waits);
+  for (const img of canvas.querySelectorAll('img')) { if (img.decode) await img.decode(); }
+  return {
+    width: canvas.offsetWidth, height: canvas.offsetHeight, expected: size,
+    capture: capture ? [capture.naturalWidth, capture.naturalHeight] : null,
+    headlineLines: Math.round(canvas.querySelector('.headline').offsetHeight / (parseFloat(getComputedStyle(canvas.querySelector('.headline')).lineHeight) || 1)),
+  };
+}
+window.composeShot = composeShot;
+
+// ---- Review mode ----
+const params = new URLSearchParams(location.search);
+if (params.get('pipeline') === '1') document.body.classList.add('pipeline');
+
+let table = null;
+const urls = { capture: null, mac: null };
+const status = msg => { document.getElementById('status').textContent = msg; };
+const frames = () => table ? [...(table.frames || []), ...(table.reserve || [])] : [];
+
+function applyScale() {
+  if (document.body.classList.contains('pipeline')) return;
+  const scale = Number(document.getElementById('scale').value);
+  const scaler = document.querySelector('#stage .scaler');
+  const canvas = document.getElementById('canvas');
+  scaler.style.transform = `scale(${scale})`;
+  scaler.style.width = canvas.offsetWidth * scale + 'px';
+  scaler.style.height = canvas.offsetHeight * scale + 'px';
+}
+
+async function renderSelected() {
+  const frame = frames().find(f => f.id === document.getElementById('frameSelect').value);
+  if (!frame) return;
+  try {
+    const r = await composeShot(frame, { capture: urls.capture, mac: urls.mac });
+    const [w, h] = r.expected;
+    const notes = [`${frame.id} · ${frame.device} · ${r.width}×${r.height} (expected ${w}×${h})`,
+      `variant ${frame.variant} · screen ${frame.screen}${frame.widgetWall ? ' · wall ' + frame.widgetWall : ''} · ${frame.captionStatus}`];
+    if (r.capture && (r.capture[0] !== w || r.capture[1] !== h)) notes.push(`capture is ${r.capture[0]}×${r.capture[1]}, not the device's native ${w}×${h}`);
+    status(notes.join('\n'));
+  } catch (e) { status(String(e)); }
+  applyScale();
+}
+
+function readFile(input, cb) {
+  const file = input.files && input.files[0];
+  if (file) cb(file);
+}
+document.getElementById('shotsFile').addEventListener('change', e => readFile(e.target, async file => {
+  try {
+    table = JSON.parse(await file.text());
+    const select = document.getElementById('frameSelect');
+    select.innerHTML = frames().map(f => `<option value="${esc(f.id)}">${esc(f.id)} · ${esc(f.headline)}</option>`).join('');
+    select.disabled = false;
+    renderSelected();
+  } catch (err) { status('shots.json did not parse: ' + err.message); }
+}));
+for (const [id, key] of [['captureFile', 'capture'], ['macFile', 'mac']]) {
+  document.getElementById(id).addEventListener('change', e => readFile(e.target, file => {
+    if (urls[key]) URL.revokeObjectURL(urls[key]);
+    urls[key] = URL.createObjectURL(file);
+    renderSelected();
+  }));
+}
+document.getElementById('frameSelect').addEventListener('change', renderSelected);
+document.getElementById('scale').addEventListener('change', applyScale);
+
+// Served over http (for example `python3 -m http.server` from the repo root), the page loads
+// the neighbouring shots.json itself; file:// blocks that, so the file picker stays.
+if (location.protocol.startsWith('http') && params.get('pipeline') !== '1') {
+  fetch('shots.json').then(r => r.ok ? r.json() : null).then(json => {
+    if (!json) return;
+    table = json;
+    const select = document.getElementById('frameSelect');
+    select.innerHTML = frames().map(f => `<option value="${esc(f.id)}">${esc(f.id)} · ${esc(f.headline)}</option>`).join('');
+    select.disabled = false;
+    renderSelected();
+  }).catch(() => {});
+}
+applyScale();
+</script>
+</body>
+</html>

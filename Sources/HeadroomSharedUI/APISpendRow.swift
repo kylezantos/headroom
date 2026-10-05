@@ -51,6 +51,10 @@ public enum APISpendRowMetrics {
 /// ~344pt against ~323pt, so there the chip drops to a subline before the title truncates.
 public enum APISpendChipFit: Sendable {
     case inline
+    /// U21 (KTD3): chip inline, then chip in the subline, then — once even the bare title and
+    /// the amount cannot share a line (xxLarge on a 390pt phone) — the chip and the amount
+    /// share the subline under a full-width title, and last the title wraps between words.
+    /// The title never truncates mid-word.
     case sublineWhenTight
 }
 
@@ -66,6 +70,9 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
     public let amountColumnWidth: CGFloat
     public var scale: CGFloat = 1
     public var chipFit: APISpendChipFit = .inline
+    /// U21 (KTD15): the phone's whole-surface dimming. The amount takes the same secondary
+    /// ink a stale row's does — one demotion, never an opacity multiplier.
+    public var dimmed = false
     private let mark: (CGFloat) -> Mark
     private let waitingLine: (String) -> Waiting
     private let amountDecoration: AmountDecoration
@@ -81,6 +88,7 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
         amountColumnWidth: CGFloat,
         scale: CGFloat = 1,
         chipFit: APISpendChipFit = .inline,
+        dimmed: Bool = false,
         amountDecoration: AmountDecoration,
         @ViewBuilder mark: @escaping (CGFloat) -> Mark,
         @ViewBuilder waitingLine: @escaping (String) -> Waiting
@@ -93,6 +101,7 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
         self.amountColumnWidth = amountColumnWidth
         self.scale = scale
         self.chipFit = chipFit
+        self.dimmed = dimmed
         self.amountDecoration = amountDecoration
         self.mark = mark
         self.waitingLine = waitingLine
@@ -139,7 +148,7 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
                     if snapshot.freshness == .pending {
                         waitingLine(message)
                     } else {
-                        StatusSentence(text: message, severity: StatusSentenceSeverity.forSpendTone(status.tone))
+                        StatusSentence(text: message, severity: StatusSentenceSeverity.forSpendTone(status.tone), scale: scale)
                     }
                 }
                     .accessibilityHidden(true)
@@ -172,15 +181,51 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
                 // CMM4: the chip hangs under its title on the content axis, at the gap an
                 // identity row keeps to the meters it heads.
                 VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
-                    identityLine(chip: .none, titleKeepsIdealWidth: false)
+                    identityLine(chip: .none, titleKeepsIdealWidth: true)
                     chip
                         .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
                 }
+                stackedIdentity(titleWraps: false)
+                stackedIdentity(titleWraps: true)
             }
         }
     }
 
     private enum ChipPlacement { case inline, none }
+
+    /// U21 (KTD3): the phone's last two rungs. The title takes the whole line, and the chip
+    /// and the amount share the subline — the amount still in its reserved column on the
+    /// card's one right edge. The last rung lets the title wrap between words instead of
+    /// truncating inside one.
+    private func stackedIdentity(titleWraps: Bool) -> some View {
+        VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
+            HStack(spacing: IdentityRowMetrics.spacing * scale) {
+                mark(IdentityRowMetrics.markSlotWidth * scale)
+                titleText(wraps: titleWraps)
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: IdentityRowMetrics.spacing * scale) {
+                chip
+                Spacer(minLength: 0)
+                if amount != nil {
+                    amountColumn
+                        .layoutPriority(2)
+                        .frame(height: IdentityRowMetrics.capsuleHeight * scale)
+                }
+            }
+            .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
+        }
+    }
+
+    private func titleText(wraps: Bool) -> some View {
+        Text(title)
+            .font(.system(size: IdentityRowMetrics.titleSize * scale, weight: .semibold))
+            .kerning(IdentityRowMetrics.titleKerning * scale)
+            .accountTitleInk(for: snapshot.providerID)
+            .lineLimit(wraps ? 2 : 1)
+            .fixedSize(horizontal: !wraps, vertical: wraps)
+            .widgetOpticalLeading(title, size: IdentityRowMetrics.titleSize * scale, weight: .semibold)
+    }
 
     private func identityLine(chip placement: ChipPlacement, titleKeepsIdealWidth: Bool) -> some View {
         HStack(spacing: IdentityRowMetrics.spacing * scale) {
@@ -265,7 +310,7 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
         HStack(spacing: MeterSuffixColumn.gap * scale) {
             Text(amount ?? "")
                 .font(.system(size: APISpendRowMetrics.amountSize * scale, weight: .semibold).monospacedDigit())
-                .foregroundStyle(snapshot.freshness == .live ? .primary : .secondary)
+                .foregroundStyle(snapshot.freshness == .live && !dimmed ? .primary : .secondary)
                 .lineLimit(1)
                 // M1A: the total rolls to its new value on the same spring the meters use.
                 .contentTransition(
@@ -333,13 +378,14 @@ public extension APISpendRow where AmountDecoration == EmptyModifier {
         amountColumnWidth: CGFloat,
         scale: CGFloat = 1,
         chipFit: APISpendChipFit = .inline,
+        dimmed: Bool = false,
         @ViewBuilder mark: @escaping (CGFloat) -> Mark,
         @ViewBuilder waitingLine: @escaping (String) -> Waiting
     ) {
         self.init(
             snapshot: snapshot, status: status, title: title, contextLabel: contextLabel,
             amount: amount, amountColumnWidth: amountColumnWidth, scale: scale, chipFit: chipFit,
-            amountDecoration: EmptyModifier(), mark: mark, waitingLine: waitingLine
+            dimmed: dimmed, amountDecoration: EmptyModifier(), mark: mark, waitingLine: waitingLine
         )
     }
 }

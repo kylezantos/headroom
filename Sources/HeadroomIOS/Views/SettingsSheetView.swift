@@ -1,6 +1,13 @@
 import SwiftUI
+import WidgetKit
 
+/// R20 / S1-A (approved): one Settings sheet on a native list — Appearance, Widgets, iPhone
+/// sync, Reminders, Demo and About. Every section reads the one resolved snapshot the app shows
+/// (KTD6); in Explore Demo that is the chosen demo variant, so every row reads the fixture
+/// (R30).
 struct SettingsSheetView: View {
+    /// Build 33's inputs, kept so the Usage screen's existing call compiles. The sheet reads
+    /// `snapshot` instead; U8 passes it once the app loads through the shared phone source.
     let envelope: WidgetSnapshotEnvelope?
     let syncInfo: IOSCompanionSyncInfo?
     var diagnostics: IOSSyncDiagnostics? = nil
@@ -13,75 +20,46 @@ struct SettingsSheetView: View {
     /// Capture harness only: pins the sheet to `.large` so a screenshot shows the settled,
     /// opaque sheet instead of the half-height detent over a dimmed Usage screen.
     var forcesLargeDetent: Bool = false
+    /// The resolved snapshot the Usage screen shows. Nil until the host passes it; the sheet
+    /// then loads its own through the shared phone source (KTD6).
+    var snapshot: CompanionResolvedSnapshot? = nil
+    /// U9: the last finished check-now round trip. Nil hides the row; it is never faked.
+    var lastCheckNow: PhoneCheckNowRoundTrip? = nil
+    /// Called after Settings › Demo switches the variant, so the host re-reads demo data.
+    var onDemoVariantChange: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.colorScheme) private var scheme
+    @State private var loadedSnapshot: CompanionResolvedSnapshot?
+    @State private var demoVariant: CompanionDemoVariant = .default
+
+    private let demoStore = CompanionDemoModeStore.appGroup()
+    private let launch = CompanionDemoLaunchOptions.current
 
     var body: some View {
         NavigationStack {
             TimelineView(.periodic(from: .now, by: 60)) { context in
+                let shown = shownSnapshot(now: context.date)
+                let manifestRows = PhoneSettingsManifestRows(snapshot: shown)
                 List {
-                    Section {
-                        appHeader
-                            .listRowInsets(EdgeInsets(top: 18, leading: 18, bottom: 18, trailing: 18))
-                    }
-
-                    Section("Demo") {
-                        if isDemoMode {
-                            Label(
-                                demoWidgetUnavailable
-                                    ? "You are viewing sample data in the app. Widgets could not join Demo Mode on this install. Your synced snapshot is unchanged."
-                                    : "You are viewing sample data. Your synced snapshot is unchanged.",
-                                systemImage: "sparkles"
-                            )
-                                .font(.footnote)
-                            if canExitDemo {
-                                Button("Exit Demo", role: .destructive) {
-                                    dismiss()
-                                    onExitDemo()
-                                }
-                                .accessibilityIdentifier("headroom.demo.exit")
-                            }
-                        } else {
-                            Button("Explore Demo") {
-                                dismiss()
-                                onEnterDemo()
-                            }
-                            .accessibilityIdentifier("headroom.demo.enter.settings")
-                        }
-                    }
-
-                    Section("Appearance") {
-                        Picker("Appearance", selection: $appearance) {
-                            ForEach(AppearanceSetting.allCases) { setting in
-                                Text(setting.title).tag(setting)
-                            }
-                        }
-                        .pickerStyle(.segmented)
-                        .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
-                    }
-
-                    Section("Sync") {
-                        row("Status", value: isDemoMode ? "Demo data" : syncStatus(now: context.date))
-                        row("Source", value: isDemoMode ? "Built-in sample" : (syncInfo?.sourceDescription ?? "Mac snapshot"))
-                        row(
-                            "Widgets",
-                            value: isDemoMode
-                                ? (demoWidgetUnavailable ? "Unavailable" : "Demo data")
-                                : (envelope?.status == .enabled ? "Enabled" : "Paused")
-                        )
-                    }
-
-                    Section("Managed on Mac") {
-                        Label("Refresh interval, API keys, API spend period, provider selection, and renewal dates stay in Headroom on your Mac.", systemImage: "macbook")
-                            .font(.footnote)
-                            .foregroundStyle(HeadroomTheme.secondaryText(scheme))
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-
-                    Section("App") {
-                        row("Version", value: versionText)
-                    }
+                    AppearanceSection(appearance: $appearance, macDisplay: shown?.content?.display)
+                    WidgetsGallerySection(manifestRows: manifestRows)
+                    SyncSection(
+                        snapshot: shown, isDemoMode: isDemoMode, lastCheckNow: lastCheckNow,
+                        now: context.date)
+                    RemindersSection(manifestRows: manifestRows)
+                    DemoSection(
+                        isDemoMode: isDemoMode, canExitDemo: canExitDemo,
+                        demoWidgetUnavailable: demoWidgetUnavailable,
+                        variant: Binding(get: { demoVariant }, set: selectDemoVariant),
+                        onEnterDemo: {
+                            dismiss()
+                            onEnterDemo()
+                        },
+                        onExitDemo: {
+                            dismiss()
+                            onExitDemo()
+                        })
+                    AboutSection()
 
                     #if DEBUG
                     diagnosticsSection(now: context.date)
@@ -97,7 +75,43 @@ struct SettingsSheetView: View {
                 }
             }
         }
+        // U9-A: neutral like the popover; nothing in the sheet draws in system blue.
+        .tint(.primary)
         .presentationDetents(forcesLargeDetent ? [.large] : [.medium, .large])
+        .onAppear {
+            demoVariant = demoStore.variant(launch: launch)
+        }
+        .task(id: isDemoMode) {
+            guard snapshot == nil, !isDemoMode else { return }
+            loadedSnapshot = Self.loadSnapshot()
+        }
+    }
+
+    /// Demo reads the chosen variant's bundled snapshot; otherwise the host's snapshot, or the
+    /// one this sheet loaded through the shared phone source.
+    private func shownSnapshot(now: Date) -> CompanionResolvedSnapshot? {
+        if isDemoMode { return CompanionDemoData.snapshot(demoVariant, now: now) }
+        return snapshot ?? loadedSnapshot
+    }
+
+    private func selectDemoVariant(_ variant: CompanionDemoVariant) {
+        demoVariant = variant
+        // KTD21: the App Group variant only; widgets re-read it on their next timeline.
+        if demoStore.setVariant(variant) == .changed {
+            WidgetCenter.shared.reloadTimelines(ofKind: HeadroomIOSWidgetConfiguration.kind)
+        }
+        onDemoVariantChange()
+    }
+
+    private static func loadSnapshot() -> CompanionResolvedSnapshot {
+        #if DEBUG
+        if CompanionPreviewSeed.isEnabled { return CompanionPreviewSeed.snapshot() }
+        if let state = CompanionPreviewSeed.uiTestState {
+            return state == .waiting
+                ? CompanionResolvedSnapshot(state: .waiting(nil)) : CompanionPreviewSeed.snapshot()
+        }
+        #endif
+        return CompanionPhoneSnapshotSource.production().load()
     }
 
     #if DEBUG
@@ -113,27 +127,15 @@ struct SettingsSheetView: View {
             row("iCloud state", value: diagnostics?.syncStateText ?? "—")
             row("iCloud published", value: relative(diagnostics?.syncPublishedAt, now: now))
             row("iCloud source", value: diagnostics?.syncSourceText ?? "—")
+            // KTD22: deletion is verified from the phone by counting v4 key names present in
+            // its KVS copy — names only, never payloads.
+            row("v4 keys", value: "\(UbiquitousKeyValueSyncStore().keys(withPrefix: CompanionSyncKeys.namespace).count)")
         }
     }
 
     private func relative(_ date: Date?, now: Date) -> String {
         guard let date else { return "—" }
         return Countdown.updatedLabel(capturedAt: date, now: now) ?? "just now"
-    }
-    #endif
-
-    private var appHeader: some View {
-        HStack(spacing: 14) {
-            HeadroomAppIconView(size: 48)
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Headroom")
-                    .font(.title3.weight(.semibold))
-                Text("iPhone & iPad companion")
-                    .font(.subheadline)
-                    .foregroundStyle(HeadroomTheme.secondaryText(scheme))
-            }
-        }
-        .accessibilityElement(children: .combine)
     }
 
     private func row(_ title: String, value: String) -> some View {
@@ -145,22 +147,7 @@ struct SettingsSheetView: View {
                 .multilineTextAlignment(.trailing)
         }
     }
-
-    private func syncStatus(now: Date) -> String {
-        if let publishedAt = syncInfo?.publishedAt {
-            return "Synced \(Countdown.updatedLabel(capturedAt: publishedAt, now: now) ?? "just now")"
-        }
-        if let generatedAt = envelope?.generatedAt {
-            return "Updated \(Countdown.updatedLabel(capturedAt: generatedAt, now: now) ?? "just now")"
-        }
-        return "Waiting for Mac"
-    }
-
-    private var versionText: String {
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
-        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "2"
-        return "\(version) (\(build))"
-    }
+    #endif
 }
 
 struct IOSCompanionSyncInfo: Equatable {

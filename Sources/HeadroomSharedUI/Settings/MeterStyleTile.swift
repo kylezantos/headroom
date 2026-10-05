@@ -1,11 +1,84 @@
-#if SWIFT_PACKAGE
-import HeadroomSharedUI
-#endif
 import SwiftUI
+#if SWIFT_PACKAGE
 import HeadroomCore
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 
-/// Global popover meter controls. Every choice is deliberately rendered by `MeterGauge`
+/// The geometry a host gives `MeterStyleTile`. The Mac's values are the ones the tile has
+/// always drawn (L12B); the phone sets its own to fit a native list row (U12).
+public struct MeterStyleTileMetrics: Sendable {
+    /// Between the Format, Shape and Fill rows.
+    public var rowSpacing: CGFloat
+    /// A row's caption to its swatch grid.
+    public var captionSpacing: CGFloat
+    public var swatchWidth: CGFloat
+    public var swatchSpacing: CGFloat
+    /// The swatch's own inset around its well and label.
+    public var swatchPadding: CGFloat
+    public var wellHeight: CGFloat
+    public var wellCornerRadius: CGFloat
+    /// The well to the swatch label.
+    public var labelSpacing: CGFloat
+    public var labelFont: Font
+    /// The reserved height of a two-line swatch label (the Fill row).
+    public var twoLineLabelHeight: CGFloat
+    public var labelMinimumScaleFactor: CGFloat
+    /// The width of the mini card fragment inside a Format swatch (the Mac's 60; AP2 reads it
+    /// too, so the swatch's segment pitch follows the same number).
+    public var fragmentWidth: CGFloat
+
+    public init(
+        rowSpacing: CGFloat, captionSpacing: CGFloat, swatchWidth: CGFloat, swatchSpacing: CGFloat,
+        swatchPadding: CGFloat, wellHeight: CGFloat, wellCornerRadius: CGFloat, labelSpacing: CGFloat,
+        labelFont: Font, twoLineLabelHeight: CGFloat, labelMinimumScaleFactor: CGFloat,
+        fragmentWidth: CGFloat
+    ) {
+        self.rowSpacing = rowSpacing
+        self.captionSpacing = captionSpacing
+        self.swatchWidth = swatchWidth
+        self.swatchSpacing = swatchSpacing
+        self.swatchPadding = swatchPadding
+        self.wellHeight = wellHeight
+        self.wellCornerRadius = wellCornerRadius
+        self.labelSpacing = labelSpacing
+        self.labelFont = labelFont
+        self.twoLineLabelHeight = twoLineLabelHeight
+        self.labelMinimumScaleFactor = labelMinimumScaleFactor
+        self.fragmentWidth = fragmentWidth
+    }
+}
+
+/// The host's Settings vocabulary: its captions, help lines, swatch press style and selection
+/// chrome. The Mac passes its `SettingsTile` family (PB13, SM1, R2M6); the phone passes a
+/// neutral list chrome. The tile itself owns only the swatches and what they draw.
+@MainActor public protocol MeterStyleTileChrome {
+    associatedtype Caption: View
+    associatedtype Help: View
+    associatedtype Selection: ViewModifier
+    associatedtype SelectionGroup: ViewModifier
+    associatedtype SwatchStyle: ButtonStyle
+    associatedtype Container: ViewModifier
+
+    var metrics: MeterStyleTileMetrics { get }
+    @ViewBuilder func caption(_ text: String) -> Caption
+    @ViewBuilder func help(_ text: String) -> Help
+    /// A swatch's selected/unselected chrome.
+    func selection(isSelected: Bool) -> Selection
+    /// One row of swatches, so a selection plate can travel within it (SM1).
+    func selectionGroup(value: AnyHashable) -> SelectionGroup
+    var swatchStyle: SwatchStyle { get }
+    /// What the three rows sit in: the Mac's titled `SettingsTile`, or nothing on the phone,
+    /// whose list section is the container.
+    func container() -> Container
+}
+
+/// Global meter controls. Every choice is deliberately rendered by `MeterGauge`
 /// itself, so the controls stay truthful as the renderer evolves.
+///
+/// U12 (iOS parity): moved here from the Mac app so the phone's Appearance section draws the
+/// same swatches. The host's chrome comes in through `MeterStyleTileChrome`; the Mac's chrome
+/// still wraps the rows in its `SettingsTile`, exactly as before.
 ///
 /// L12B: three homogeneous swatch rows. Format lost its segmented control — Full and Micro
 /// are swatches showing a mini card fragment each — and the row names became captions above
@@ -22,40 +95,36 @@ import HeadroomCore
 /// preview axis: a 66 × 26pt well cannot show a Full-format bar at anything near its real
 /// cell pitch (Full segmented is 20 cells, which would comb down to ~3pt each), and Format is
 /// previewed by the row that owns it.
-struct MeterStyleTile: View {
-    let meterStyle: MeterStyle
-    let onChange: (MeterStyle) -> Void
+public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
+    public let meterStyle: MeterStyle
+    public let chrome: Chrome
+    public let onChange: (MeterStyle) -> Void
 
-    init(
+    public init(
         meterStyle: MeterStyle,
+        chrome: Chrome,
         onChange: @escaping (MeterStyle) -> Void
     ) {
         self.meterStyle = meterStyle
+        self.chrome = chrome
         self.onChange = onChange
     }
 
     @Environment(\.colorScheme) private var colorScheme
 
-    /// L12B: one fixed column rhythm across all three rows. Five 76pt columns on 8pt gaps
-    /// need 412pt; at the 720pt minimum window the detail column is 504pt, so the tile is
-    /// 464pt wide and its 438pt interior clears that without wrapping or shrinking.
-    private let swatchWidth: CGFloat = 76
-    private let swatchSpacing: CGFloat = 8
-    private let captionSpacing: CGFloat = SettingsMetrics.labelToStackedControl
+    /// L12B: one fixed column rhythm across all three rows. On the Mac, five 76pt columns on
+    /// 8pt gaps need 412pt; at the 720pt minimum window the detail column is 504pt, so the tile
+    /// is 464pt wide and its 438pt interior clears that without wrapping or shrinking.
     private let columnCount = 5
-    /// The width of the mini card fragment inside a Format swatch. AP2 reads it too, so the
-    /// swatch's segment pitch is derived from the same number that sizes the fragment.
-    private let fragmentWidth: CGFloat = 60
+    private var metrics: MeterStyleTileMetrics { chrome.metrics }
 
-    /// R2C19/R2B1: the tile's container is `SettingsTile` now, not a third hand-maintained
-    /// copy of the same padding, radius, title font, and spacing — so its title case ("Meter
-    /// Style", one policy) and its group rhythm come from the one place that owns them.
-    var body: some View {
-        SettingsTile("Meter Style") {
+    public var body: some View {
+        VStack(alignment: .leading, spacing: metrics.rowSpacing) {
             formatRow
             shapeRow
             fillRow
         }
+        .modifier(chrome.container())
     }
 
     private var formatRow: some View {
@@ -73,7 +142,7 @@ struct MeterStyleTile: View {
             }
         } footer: {
             if meterStyle.format == .full {
-                SettingsHelpText(text: "Tube is available only with Micro format.")
+                chrome.help("Tube is available only with Micro format.")
             }
         }
     }
@@ -89,8 +158,8 @@ struct MeterStyleTile: View {
             // can't carry themselves — the swatch labels say the rest — and settles the
             // spelling: "coloured" and "Color" appeared in one pair of sentences, in an app
             // that is American everywhere else.
-            SettingsHelpText(
-                text: "Only when low keeps meters neutral until usage runs low. "
+            chrome.help(
+                "Only when low keeps meters neutral until usage runs low. "
                     + "Glass and Ghost add a bright\u{00A0}end\u{00A0}cap."
             )
         }
@@ -100,25 +169,25 @@ struct MeterStyleTile: View {
     /// Fill (5) all sit on the same column centers.
     private var columns: [GridItem] {
         Array(
-            repeating: GridItem(.fixed(swatchWidth), spacing: swatchSpacing, alignment: .leading),
+            repeating: GridItem(.fixed(metrics.swatchWidth), spacing: metrics.swatchSpacing, alignment: .leading),
             count: columnCount
         )
     }
 
-    private func swatchRow<Selection: Equatable, Swatches: View, Footer: View>(
+    private func swatchRow<Selection: Hashable, Swatches: View, Footer: View>(
         _ caption: String,
         selection: Selection,
         @ViewBuilder swatches: () -> Swatches,
         @ViewBuilder footer: () -> Footer = { EmptyView() }
     ) -> some View {
-        VStack(alignment: .leading, spacing: captionSpacing) {
-            SettingsGroupLabel(caption)
+        VStack(alignment: .leading, spacing: metrics.captionSpacing) {
+            chrome.caption(caption)
 
-            LazyVGrid(columns: columns, alignment: .leading, spacing: swatchSpacing) {
+            LazyVGrid(columns: columns, alignment: .leading, spacing: metrics.swatchSpacing) {
                 swatches()
             }
             // SM1: the row's selection plate slides between its swatches.
-            .settingsSelectionGroup(value: selection)
+            .modifier(chrome.selectionGroup(value: AnyHashable(selection)))
 
             footer()
         }
@@ -150,11 +219,11 @@ struct MeterStyleTile: View {
                         }
                     }
                 }
-                .frame(width: fragmentWidth, alignment: .leading)
+                .frame(width: metrics.fragmentWidth, alignment: .leading)
             }
-            .selectionChrome(isSelected: isSelected)
+            .modifier(chrome.selection(isSelected: isSelected))
         }
-        .buttonStyle(SettingsSwatchButtonStyle())
+        .buttonStyle(chrome.swatchStyle)
         .help(format.label)
         .accessibilityLabel("\(format.label) format")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
@@ -192,7 +261,7 @@ struct MeterStyleTile: View {
             // as the fragment fits, so the swatch is the shipped row in small.
             miniatureSegmentCount: format == .full
                 ? MeterGeometry.segmentCount(
-                    fittingWidth: Double(fragmentWidth),
+                    fittingWidth: Double(metrics.fragmentWidth),
                     cellWidth: MeterGeometry.miniatureCell(for: .full).width,
                     gap: MeterGeometry.miniatureCell(for: .full).gap
                 )
@@ -218,9 +287,9 @@ struct MeterStyleTile: View {
                 )
             }
             .opacity(isAvailable ? 1 : 0.45)
-            .selectionChrome(isSelected: isSelected)
+            .modifier(chrome.selection(isSelected: isSelected))
         }
-        .buttonStyle(SettingsSwatchButtonStyle())
+        .buttonStyle(chrome.swatchStyle)
         .disabled(!isAvailable)
         .help(isAvailable ? shape.label : "Tube is available only with Micro format.")
         .accessibilityLabel("\(shape.label) shape")
@@ -243,39 +312,39 @@ struct MeterStyleTile: View {
                     referenceGauge(fill: fill, fraction: 0.38, severity: .low)
                 }
             }
-            .selectionChrome(isSelected: isSelected)
+            .modifier(chrome.selection(isSelected: isSelected))
         }
-        .buttonStyle(SettingsSwatchButtonStyle())
+        .buttonStyle(chrome.swatchStyle)
         .help(fill.label)
         .accessibilityLabel("\(fill.label) fill")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 
-    /// The one swatch shell every row shares: a 26pt well over an 11pt swatch label, 5pt apart,
-    /// inside 5pt of padding.
+    /// The one swatch shell every row shares: a well over a swatch label (on the Mac a 26pt
+    /// well over an 11pt label, 5pt apart, inside 5pt of padding).
     private func swatchBody<Content: View>(
         label: String,
         labelLines: Int = 1,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        VStack(spacing: 5) {
+        VStack(spacing: metrics.labelSpacing) {
             content()
                 .frame(maxWidth: .infinity)
-                .frame(height: 26)
+                .frame(height: metrics.wellHeight)
                 .background(
                     ProviderStyle.recessedWell(dark: colorScheme == .dark),
-                    in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    in: RoundedRectangle(cornerRadius: metrics.wellCornerRadius, style: .continuous)
                 )
 
             Text(label)
-                .font(SettingsType.swatchLabel)
+                .font(metrics.labelFont)
                 .multilineTextAlignment(.center)
                 .lineLimit(labelLines, reservesSpace: labelLines > 1)
-                .minimumScaleFactor(0.8)
+                .minimumScaleFactor(metrics.labelMinimumScaleFactor)
                 .fixedSize(horizontal: false, vertical: true)
-                .frame(height: labelLines > 1 ? 28 : nil, alignment: .top)
+                .frame(height: labelLines > 1 ? metrics.twoLineLabelHeight : nil, alignment: .top)
         }
-        .padding(5)
+        .padding(metrics.swatchPadding)
     }
 
     /// The shape the user's meters are *drawing*, which is what the Fill row previews on:

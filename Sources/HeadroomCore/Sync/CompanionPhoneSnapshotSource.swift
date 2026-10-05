@@ -190,7 +190,8 @@ enum CompanionBuild33Loading {
         case .waitingForMac, .corrupt, .demo:
             return CompanionResolvedSnapshot(state: .waiting(nil))
         }
-        guard let winner = winner(outcome), let bytes = try? SyncedWidgetSnapshotCodec.encode(winner.envelope)
+        guard let winner = winner(outcome),
+            let bytes = try? SyncedWidgetSnapshotCodec.encode(currentSchema(winner.envelope))
         else { return CompanionResolvedSnapshot(state: .waiting(nil)) }
         let resolved = CompanionSnapshotResolver.resolve(
             CompanionResolverInput(manifest: nil, v3: bytes, cache: .empty, now: now)
@@ -201,6 +202,22 @@ enum CompanionBuild33Loading {
         // The compatibility file carries no lineage, so a cache-only winner is no evidence of
         // an old Mac (R14): never claim "Update Headroom on your Mac" from it.
         return CompanionResolvedSnapshot(state: .content(content.withoutNotice()), diagnostics: resolved.diagnostics)
+    }
+
+    /// A schema 1–2 envelope decodes into today's provider shape but re-encodes that shape
+    /// under its old version number, which would no longer decode. Stamp the current version
+    /// so the lift's round trip through the resolver is lossless.
+    private static func currentSchema(_ envelope: SyncedWidgetSnapshotEnvelope) -> SyncedWidgetSnapshotEnvelope {
+        let inner = envelope.snapshot
+        return SyncedWidgetSnapshotEnvelope(
+            schemaVersion: envelope.schemaVersion, publishedAt: envelope.publishedAt,
+            sourceID: envelope.sourceID, sourcePlatform: envelope.sourcePlatform,
+            snapshot: WidgetSnapshotEnvelope(
+                generatedAt: inner.generatedAt, status: inner.status, providers: inner.providers,
+                apiSpendProviders: inner.apiSpendProviders,
+                widgetProviderSelection: inner.widgetProviderSelection),
+            companionSourceID: envelope.companionSourceID,
+            companionGeneration: envelope.companionGeneration)
     }
 
     private struct Winner {

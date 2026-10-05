@@ -150,6 +150,10 @@ public enum CompanionResolvedState: Equatable, Sendable {
     case paused
     /// Nothing readable yet; the notice says when a newer reader is needed.
     case waiting(CompanionCompatibilityNotice?)
+    /// U10 "Snapshot Unreadable": the Mac's v3 key is present but corrupt, and no readable
+    /// v4, cached v4 or cached v3 can stand in. Readable content always wins over a corrupt
+    /// key (field contract, Decision 4).
+    case unreadable
     case content(CompanionResolvedContent)
 }
 
@@ -278,6 +282,9 @@ extension CompanionSnapshotResolver {
         var usedFirstSeen: Set<String> = []
         /// The v3 content this run reconciled; the source of the "that Mac's v3 main" fallback.
         var reconciledV3: SyncedWidgetSnapshotEnvelope?
+        /// The v3 key is present but undecodable (not missing, not a newer schema): with
+        /// nothing else usable, U10's "Snapshot Unreadable".
+        var v3KeyIsCorrupt = false
 
         init(input: CompanionResolverInput) {
             self.input = input
@@ -327,7 +334,7 @@ extension CompanionSnapshotResolver {
             guard let manifestCandidate = effective else {
                 cache.manifest = nil
                 cache.providers = [:]
-                guard let v3 else { return finish(.waiting(nil)) }
+                guard let v3 else { return finish(v3KeyIsCorrupt ? .unreadable : .waiting(nil)) }
                 // A mirror alone (manifest not yet arrived) shows main accounts without the
                 // update line; a lineage-less v3 is an older Mac (R14).
                 return finish(.content(lift(v3, notice: v3.companionLineage == nil ? .updateMac : nil)))
@@ -376,7 +383,10 @@ extension CompanionSnapshotResolver {
             case .incompatibleSchema:
                 // An incompatible v3 never hides a readable v4, and is never shown.
                 return nil
-            case .missing, .corrupt:
+            case .corrupt:
+                v3KeyIsCorrupt = true
+                return cache.v3?.envelope
+            case .missing:
                 return cache.v3?.envelope
             }
         }

@@ -20,7 +20,14 @@ final class SettingsSheetUITests: XCTestCase {
 
         let mac = app.buttons["headroom.about.mac"]
         let website = app.buttons["Website"]
-        scrollTo(website)
+        // On the taller iPad sheet a full swipe that brings "Website" in can leave the Mac row
+        // above the lazily rendered rows. Scroll to the Mac row itself, then nudge in short
+        // drags until the row below it is on screen too, so both rows are rendered together.
+        scrollTo(mac)
+        XCTAssertTrue(waitForHittable(mac), "the Mac row never came on screen")
+        nudge(until: website)
+        XCTAssertTrue(waitForHittable(website), "the Website row never came on screen")
+        XCTAssertTrue(waitForHittable(mac), "the Mac row left the screen")
         XCTAssertTrue(mac.exists)
         XCTAssertEqual(mac.label, "Get Headroom for Mac")
         XCTAssertEqual(mac.frame.height, website.frame.height, accuracy: 1)
@@ -145,6 +152,23 @@ final class SettingsSheetUITests: XCTestCase {
             for _ in 0..<14 where !(target.exists && target.isHittable) {
                 if pass { app.swipeDown() } else { app.swipeUp() }
             }
+        }
+    }
+
+    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let shown = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == true AND hittable == true"), object: element)
+        return XCTWaiter.wait(for: [shown], timeout: timeout) == .completed
+    }
+
+    /// Scrolls the sheet up in short drags (a fraction of a swipe) until `target` is on
+    /// screen, so a row already showing stays in view.
+    private func nudge(until target: XCUIElement) {
+        let list = app.collectionViews.firstMatch
+        let surface: XCUIElement = list.exists ? list : app
+        for _ in 0..<8 where !(target.exists && target.isHittable) {
+            let start = surface.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+            start.press(forDuration: 0.05, thenDragTo: start.withOffset(CGVector(dx: 0, dy: -120)))
         }
     }
 

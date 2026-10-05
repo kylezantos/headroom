@@ -38,6 +38,8 @@ public enum UsageAnswerKind: String, Sendable, Equatable, CaseIterable {
     case paused
     case waiting
     case updatePhone
+    /// U10: the Mac's last update couldn't be read and nothing else is usable.
+    case unreadable
     case accountScopeUnavailable
 }
 
@@ -105,6 +107,8 @@ private struct Composer {
             finish(.updatePhone, UsageAnswerCopy.updatePhone)
         case .waiting:
             finish(.waiting, UsageAnswerCopy.waiting)
+        case .unreadable:
+            finish(.unreadable, UsageAnswerCopy.unreadable)
         case .content(let content):
             compose(content)
         }
@@ -320,6 +324,8 @@ public enum UsageAnswerCopy {
         "Companion Sync is paused. Turn on Sync usage to iPhone in Headroom on your Mac."
     public static let waiting = "Waiting for your Mac. Open Headroom on your Mac to send a reading."
     public static let updatePhone = "Update Headroom on this iPhone to read your Mac’s usage."
+    public static let unreadable =
+        "Headroom couldn’t read your Mac’s last update. Open Headroom on your Mac to send a new one."
 
     public static func untracked(_ provider: String) -> String {
         "Your Mac isn’t tracking \(provider)."

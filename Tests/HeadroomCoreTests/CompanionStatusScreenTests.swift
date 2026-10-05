@@ -13,6 +13,7 @@ struct CompanionStatusScreenTests {
         #expect(CompanionStatusScreen(.accountScopeUnavailable) == .iCloudUnavailable)
         #expect(CompanionStatusScreen(.paused) == .paused)
         #expect(CompanionStatusScreen(.waiting(nil)) == .waiting)
+        #expect(CompanionStatusScreen(.unreadable) == .unreadable)
         #expect(CompanionStatusScreen(.waiting(.updatePhone)) == .updatePhone)
         #expect(CompanionStatusScreen(.waiting(.updateMac)) == .updateMac)
     }

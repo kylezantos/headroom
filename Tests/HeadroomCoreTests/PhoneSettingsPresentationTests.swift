@@ -50,6 +50,7 @@ struct PhoneSettingsPresentationTests {
         #expect(PhoneSettingsManifestRows(snapshot: CompanionDemoData.snapshot(.paused, now: now)) == .hidden)
         #expect(PhoneSettingsManifestRows(snapshot: CompanionDemoData.snapshot(.waiting, now: now)) == .hidden)
         #expect(PhoneSettingsManifestRows(snapshot: CompanionResolvedSnapshot(state: .accountScopeUnavailable)) == .hidden)
+        #expect(PhoneSettingsManifestRows(snapshot: CompanionResolvedSnapshot(state: .unreadable)) == .hidden)
         #expect(PhoneSettingsManifestRows(snapshot: nil) == .hidden)
     }
 
@@ -79,6 +80,8 @@ struct PhoneSettingsPresentationTests {
             == "Waiting for your Mac")
         #expect(PhoneSyncStatus(snapshot: CompanionResolvedSnapshot(state: .accountScopeUnavailable), now: now).state
             == "iCloud not available")
+        #expect(PhoneSyncStatus(snapshot: CompanionResolvedSnapshot(state: .unreadable), now: now).state
+            == "Couldn’t read your Mac’s last update")
         #expect(PhoneSyncStatus(snapshot: nil, now: now).state == "Checking…")
         #expect(PhoneSyncStatus(snapshot: CompanionDemoData.snapshot(.paused, now: now), now: now).lastUpdate == nil)
     }

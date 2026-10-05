@@ -2,9 +2,10 @@ import UIKit
 import XCTest
 
 /// U10 (R4, R23; G5–G9): every status screen leads somewhere, in neutral ink, and nothing on
-/// it moves unless a refresh is running. Waiting and paused come from real routes (the
-/// build-33 waiting fixture and U7's `paused` demo variant); the screens no fixture reaches
-/// are posed through the DEBUG `HEADROOM_UI_TEST_STATUS` hook.
+/// it moves unless a refresh is running. Waiting, paused and unreadable come from real routes
+/// (the build-33 waiting fixture, U7's `paused` demo variant, and a corrupt v3 key run through
+/// the resolver); the screens no fixture reaches are posed through the DEBUG
+/// `HEADROOM_UI_TEST_STATUS` hook.
 @MainActor
 final class StatusScreenUITests: XCTestCase {
     private var app: XCUIApplication!
@@ -47,6 +48,30 @@ final class StatusScreenUITests: XCTestCase {
             XCTAssertTrue(element("headroom.status.getMac").exists)
             assertNoIdleSpinner()
             assertNoSystemTint(appearance)
+            app.terminate()
+        }
+    }
+
+    /// U10: a corrupt key with nothing cached resolves to Snapshot Unreadable, which points at
+    /// the Mac and never asks anyone to "publish a fresh snapshot".
+    func testUnreadableComesFromACorruptKey() {
+        for appearance in ["light", "dark"] {
+            app = makeApp(appearance: appearance)
+            app.launchEnvironment["HEADROOM_UI_TEST_STATE"] = "unreadable"
+            app.launch()
+
+            XCTAssertTrue(app.staticTexts["Snapshot Unreadable"].waitForExistence(timeout: 5))
+            let pointsAtMac = app.staticTexts.containing(
+                NSPredicate(format: "label CONTAINS %@", "Open Headroom on your Mac"))
+            XCTAssertGreaterThan(pointsAtMac.count, 0, "the unreadable screen must point at the Mac")
+            XCTAssertEqual(
+                app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "publish")).count, 0)
+            XCTAssertFalse(app.staticTexts["Waiting for Mac"].exists)
+            assertPrimary("Refresh")
+            assertExploreDemo()
+            XCTAssertFalse(element("headroom.status.getMac").exists)
+            assertNoIdleSpinner()
+            assertNoSystemTint("\(appearance) · unreadable")
             app.terminate()
         }
     }

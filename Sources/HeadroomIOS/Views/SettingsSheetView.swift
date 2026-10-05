@@ -116,9 +116,11 @@ struct SettingsSheetView: View {
     private static func loadSnapshot() -> CompanionResolvedSnapshot {
         #if DEBUG
         if CompanionPreviewSeed.isEnabled { return CompanionPreviewSeed.snapshot() }
-        if let state = CompanionPreviewSeed.uiTestState {
-            return state == .waiting
-                ? CompanionResolvedSnapshot(state: .waiting(nil)) : CompanionPreviewSeed.snapshot()
+        switch CompanionPreviewSeed.uiTestState {
+        case .waiting: return CompanionResolvedSnapshot(state: .waiting(nil))
+        case .unreadable: return CompanionPreviewSeed.unreadableSnapshot()
+        case .content, .stale: return CompanionPreviewSeed.snapshot()
+        case nil: break
         }
         #endif
         return CompanionPhoneSnapshotSource.production().load()

@@ -198,7 +198,8 @@ enum CompanionBuild33Loading {
     /// Lifts build 33's winner into the resolved model through the resolver's v3-only rules
     /// (KTD6.5, KTD6.7) with an empty v4 cache. Non-content states map to their closest
     /// resolved state: "iCloud Not Available" is the scope-unavailable state, a schema mismatch
-    /// asks for a newer iPhone build, and unreadable or missing content waits for the Mac.
+    /// asks for a newer iPhone build, a corrupt key with nothing cached is U10's "Snapshot
+    /// Unreadable", and missing content (or only a corrupt local file) waits for the Mac.
     static func lift(_ outcome: Outcome, now: Date) -> CompanionResolvedSnapshot {
         switch outcome.resolution.state {
         case .content, .disabled:
@@ -207,6 +208,9 @@ enum CompanionBuild33Loading {
             return CompanionResolvedSnapshot(state: .accountScopeUnavailable)
         case .incompatibleSchema:
             return CompanionResolvedSnapshot(state: .waiting(.updatePhone))
+        case .corrupt where outcome.syncRead == .corrupt:
+            // Build 33 resolves cached content first, so nothing usable stands in for the key.
+            return CompanionResolvedSnapshot(state: .unreadable)
         case .waitingForMac, .corrupt, .demo:
             return CompanionResolvedSnapshot(state: .waiting(nil))
         }

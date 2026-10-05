@@ -231,7 +231,8 @@ struct CompanionPhoneSnapshotSourceTests {
         #expect(lift(load(store(nil))).state == .waiting(nil))
         let corrupt = SpyKeyValueStore()
         corrupt.seed(iCloudSnapshotSync.snapshotKey, Data("{".utf8))
-        #expect(lift(load(corrupt)).state == .waiting(nil))
+        // U10: a corrupt key with no cached content is the Snapshot Unreadable screen.
+        #expect(lift(load(corrupt)).state == .unreadable)
         let noContainer = WidgetSnapshotCache(defaults: nil, fileURL: nil)
         #expect(lift(load(store(nil), cache: noContainer)).state == .accountScopeUnavailable)
         // A disabled key is adopted into the cache, as build 33 does; it reads as paused.
@@ -240,6 +241,27 @@ struct CompanionPhoneSnapshotSourceTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data(#"{"schemaVersion":99,"generatedAt":0,"status":"enabled","providers":[]}"#.utf8).write(to: cacheURL)
         #expect(lift(load(store(F.v3()))).state == .waiting(.updatePhone))
+    }
+
+    /// U10: "Snapshot Unreadable" means the Mac's key itself couldn't be read. Cached content
+    /// still wins over a corrupt key (field contract), and a corrupt local file with no key
+    /// is this device's problem, not the Mac's last update, so it keeps waiting.
+    @Test func onlyACorruptKeyWithNothingCachedIsUnreadable() throws {
+        defer { cleanup() }
+        let corrupt = SpyKeyValueStore()
+        corrupt.seed(iCloudSnapshotSync.snapshotKey, Data("{".utf8))
+        try cache.write(F.v3(generatedAt: 0).snapshot)
+        let content = try #require(lift(load(corrupt)).content)
+        #expect(content.origin == .v3 && content.providers.map(\.id) == ["claude"])
+
+        try Data("{".utf8).write(to: cacheURL)
+        #expect(lift(load(store(nil))).state == .waiting(nil))
+        #expect(lift(load(corrupt)).state == .unreadable)
+
+        let source = CompanionPhoneSnapshotSource.build33(
+            store: corrupt, compatibilityCache: WidgetSnapshotCache(defaults: nil, fileURL: directory.appendingPathComponent("absent.json")),
+            now: { F.date(90).date }, demo: nil)
+        #expect(source.load().state == .unreadable)
     }
 
     /// An older-schema envelope decodes into today's provider shape; the lift must not

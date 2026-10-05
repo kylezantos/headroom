@@ -195,6 +195,21 @@ struct UsageWindowWidgetSummaryTests {
         }
     }
 
+    /// KTD6.2 consequence, pinned on purpose: the printed integer rounds the normalized
+    /// tenth, because that tenth is all the phone receives. 84.54% used is 15.46% left, which
+    /// normalizes to 15.5 and prints 16% left on both platforms (the raw value printed 15%).
+    @Test func theIntegerRoundsTheNormalizedTenthOnBothPlatforms() {
+        let source = UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset)
+        #expect(UsagePercentageMode.remaining.roundedPercentage(for: source) == 15)
+        let mac = UsageMeterReading(window: source)
+        let phone = UsageMeterReading(widgetSummary: resolvedPhoneSummary(for: source, freshness: .live))
+        #expect(mac.display?.percentRemaining == 15.5)
+        for reading in [mac, phone] {
+            #expect(reading.roundedPercentage(for: .remaining) == 16)
+            #expect(reading.roundedPercentage(for: .used) == 85)
+        }
+    }
+
     @Test func anUnavailableRowHidesItsValueButKeepsItsSeverityMetadata() throws {
         let reading = UsageMeterReading(widgetSummary: summary(
             remaining: 12, utilization: 88, freshness: .unavailable(since: observed)

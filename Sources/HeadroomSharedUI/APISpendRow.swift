@@ -169,7 +169,9 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
             // `minimumScaleFactor`.
             ViewThatFits(in: .horizontal) {
                 identityLine(chip: .inline, titleKeepsIdealWidth: true)
-                VStack(alignment: .leading, spacing: 4 * scale) {
+                // CMM4: the chip hangs under its title on the content axis, at the gap an
+                // identity row keeps to the meters it heads.
+                VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
                     identityLine(chip: .none, titleKeepsIdealWidth: false)
                     chip
                         .padding(.leading, IdentityRowMetrics.meterContentInset * scale)

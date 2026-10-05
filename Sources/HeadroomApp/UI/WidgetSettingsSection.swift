@@ -14,6 +14,13 @@ struct WidgetSettingsSection: View {
     /// switch that governs them.
     private static let subOptionIndent: CGFloat = 20
 
+    /// "at 2:41 PM" today, "on Oct 3 at 2:41 PM" otherwise.
+    private static func publishTime(_ date: Date) -> String {
+        let time = date.formatted(date: .omitted, time: .shortened)
+        guard !Calendar.current.isDateInToday(date) else { return "at \(time)" }
+        return "on \(date.formatted(.dateTime.month(.abbreviated).day())) at \(time)"
+    }
+
     var body: some View {
         // PB4: two groups, not three peers. The Spark-counter checkbox is a sub-option of
         // widget export, so it nests inside that group; floating between the two switches at
@@ -73,7 +80,18 @@ struct WidgetSettingsSection: View {
                 // PB9: "usage", not "snapshot" — the user has no snapshot in their vocabulary,
                 // and the next line already says what travels.
                 SettingsSwitchRow(title: "Sync usage to iPhone", isOn: $syncToIPhoneEnabled)
-                SettingsHelpText(text: "Sends only your usage numbers through iCloud. Sign-ins are never synced.")
+                // KTD22 / R35: the exact what-syncs list, shared with the phone's Settings.
+                SettingsHelpText(text: CompanionPrivacyCopy.whatSyncs)
+                if syncToIPhoneEnabled, let status = store.phoneSyncStatus {
+                    SettingsHelpText(text: CompanionPrivacyCopy.macStatus(
+                        lastPublishAt: status.lastPublishAt,
+                        formattedTime: status.lastPublishAt.map(Self.publishTime),
+                        ladderLevel: status.ladderLevel,
+                        lastFailure: status.lastFailure))
+                }
+                // G9: the Mac had no way to reach the iPhone app.
+                Link(AboutLinks.iPhoneApp.title, destination: AboutLinks.iPhoneApp.url)
+                    .font(SettingsType.help)
             }
         }
     }

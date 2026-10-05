@@ -40,3 +40,12 @@ extension AboutLinksTests {
         #expect(AboutLinks.tipJarNote == "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe.")
     }
 }
+
+extension AboutLinksTests {
+    /// G9: the Mac's Widgets & iPhone pane links to the live listing by its stable ID.
+    @Test func iPhoneAppLinkOpensTheAppStoreListingByID() {
+        #expect(AboutLinks.iPhoneApp.url.absoluteString == "https://apps.apple.com/app/id6787519784")
+        #expect(AboutLinks.iPhoneApp.url.scheme == "https")
+        #expect(AboutLinks.iPhoneApp.title == "Get Headroom for iPhone")
+    }
+}

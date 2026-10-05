@@ -595,3 +595,32 @@ struct CompanionPublisherTests {
     }
 }
 
+/// KTD22 / R35: the what-syncs footnote and the Mac status line.
+@Suite
+struct CompanionPrivacyCopyTests {
+    @Test func whatSyncsNamesEveryWireCategoryAndClaimsNoEncryption() {
+        let copy = CompanionPrivacyCopy.whatSyncs
+        for phrase in [
+            "account names you chose", "plan names", "usage", "reset times", "API spend",
+            "display choices", "check-now requests", "random ID for this Mac",
+            "each iPhone or iPad", "Sign-ins, emails and API keys never sync",
+            "isn’t end-to-end encrypted",
+        ] {
+            #expect(copy.contains(phrase), "\(phrase)")
+        }
+        // R2C6: curly apostrophes only, no "connect".
+        #expect(!copy.contains("'") && !copy.localizedCaseInsensitiveContains("connect"))
+    }
+
+    @Test func statusLineReportsThePublishAndTheLadderPlainly() {
+        let at = Date(timeIntervalSince1970: 1_790_000_000)
+        #expect(CompanionPrivacyCopy.macStatus(lastPublishAt: nil, formattedTime: nil, ladderLevel: 0, lastFailure: nil)
+            == "Nothing sent to iCloud yet.")
+        #expect(CompanionPrivacyCopy.macStatus(lastPublishAt: at, formattedTime: "at 2:41 PM", ladderLevel: 0, lastFailure: nil)
+            == "Last sent to iCloud at 2:41 PM.")
+        #expect(CompanionPrivacyCopy.macStatus(lastPublishAt: at, formattedTime: "at 2:41 PM", ladderLevel: 1, lastFailure: nil)
+            == "Last sent to iCloud at 2:41 PM. Model rows for extra accounts stay on this Mac so everything fits in iCloud.")
+        #expect(CompanionPrivacyCopy.macStatus(lastPublishAt: at, formattedTime: "at 2:41 PM", ladderLevel: 0, lastFailure: "overBudget")
+            .hasSuffix("The latest update didn’t fit in iCloud, so your iPhone keeps the one before."))
+    }
+}

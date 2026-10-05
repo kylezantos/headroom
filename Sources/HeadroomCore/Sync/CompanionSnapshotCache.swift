@@ -178,7 +178,8 @@ public struct CompanionSnapshotCache: Sendable {
                 invalidateLocked(archive: nil, previous: sidecar)
                 return nil
             case .changed(let archive):
-                return CompanionScopeCapture(epoch: invalidateLocked(archive: archive, previous: sidecar).epoch)
+                guard let fresh = invalidateLocked(archive: archive, previous: sidecar) else { return nil }
+                return CompanionScopeCapture(epoch: fresh.epoch)
             case .unchanged:
                 guard let sidecar else { return nil }
                 return CompanionScopeCapture(epoch: sidecar.epoch)
@@ -239,16 +240,22 @@ public struct CompanionSnapshotCache: Sendable {
         return sidecar
     }
 
+    /// Returns the committed new sidecar, or nil when any step failed. A failure leaves the
+    /// sidecar dirty (or the old scope in place), so every load serves nothing until a later
+    /// commit rewrites every file under the new scope: the old account's files are never
+    /// served under the new identity.
     @discardableResult
-    private func invalidateLocked(archive: Data?, previous: CompanionScopeSidecar?) -> CompanionScopeSidecar {
+    private func invalidateLocked(archive: Data?, previous: CompanionScopeSidecar?) -> CompanionScopeSidecar? {
         // Dirty marker first, so an interruption anywhere below serves nothing.
         let revision = (previous?.revision ?? 0) + 1
         var sidecar = CompanionScopeSidecar(scopeArchive: archive, revision: revision, committed: false)
-        try? storage.write(encode(sidecar), to: .sidecar)
-        try? storage.remove(.v4)
-        try? storage.remove(.v3Compatibility)
+        guard (try? storage.write(encode(sidecar), to: .sidecar)) != nil else { return nil }
+        // Attempt both removals even if the first fails; storage treats a missing file as removed.
+        let removedV4 = (try? storage.remove(.v4)) != nil
+        let removedV3 = (try? storage.remove(.v3Compatibility)) != nil
+        guard removedV4, removedV3 else { return nil }
         sidecar.committed = true
-        try? storage.write(encode(sidecar), to: .sidecar)
+        guard (try? storage.write(encode(sidecar), to: .sidecar)) != nil else { return nil }
         return sidecar
     }
 

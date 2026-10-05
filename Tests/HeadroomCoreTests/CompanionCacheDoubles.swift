@@ -35,6 +35,15 @@ final class MemoryCacheStorage: CompanionCacheStoring, @unchecked Sendable {
     private var files: [CompanionCacheFile: Data] = [:]
     private(set) var writes: [CompanionCacheFile] = []
     private(set) var removals: [CompanionCacheFile] = []
+    private var failing: Set<CompanionCacheFile> = []
+
+    struct RemovalFailed: Error {}
+
+    /// Files whose removal throws without deleting anything (e.g. a locked App Group file).
+    var failingRemovals: Set<CompanionCacheFile> {
+        get { lock.withLock { failing } }
+        set { lock.withLock { failing = newValue } }
+    }
 
     func read(_ file: CompanionCacheFile) throws -> Data? { lock.withLock { files[file] } }
 
@@ -46,7 +55,8 @@ final class MemoryCacheStorage: CompanionCacheStoring, @unchecked Sendable {
     }
 
     func remove(_ file: CompanionCacheFile) throws {
-        lock.withLock {
+        try lock.withLock {
+            guard !failing.contains(file) else { throw RemovalFailed() }
             files[file] = nil
             removals.append(file)
         }

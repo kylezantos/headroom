@@ -44,7 +44,6 @@ public struct MenuBarSummary: Sendable, Equatable {
     }
 }
 
-
 /// One compact status unit for the menu bar. Automatic mode renders one summary;
 /// an explicit provider selection renders one meter per provider.
 public struct MenuBarMeter: Sendable, Equatable {

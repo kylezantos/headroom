@@ -416,6 +416,16 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   per-account receipt during a user refresh (`refreshProgress`, Core `RefreshReceiptPresentation`, shared with the phone's check-now line). Both come
   from the scheduler's probe and user-progress callbacks; see
   `design/refresh-stamp-merge-round3.html` (S2) and `…-round4.html` (W4).
+- **Check-now (Oct 2026, iPhone parity U6) joins one full refresh.** `refreshAll()` keeps one
+  in-flight full-refresh task (`fullRefreshStartedAt`); every other caller — popover, launch, a
+  phone request — awaits it, and `lastFullRefreshCompletedAt` starts a 60 s cooldown. A phone
+  request (`headroom.sync.v4.request.<deviceUUID>`) reaches `CheckNowCoordinator` through the
+  iCloud observer and one launch scan, never under `--demo` or a test host. Finish is a forced
+  publish whose manifest echoes the stamped answer, then the finished receipt (KTD14.5); never
+  write the receipt first. The phone matches its own request ID only and shows "Just now" only
+  after assembling `finishedGeneration` (`Sync/CheckNowProtocol.swift`). Single-account checks,
+  setup checks and spend-only refreshes never answer a request. Timing constants are
+  provisional until `docs/qa/2026-10-check-now-latency-spike.md` runs.
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

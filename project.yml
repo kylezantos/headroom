@@ -94,7 +94,8 @@ targets:
     type: application
     platform: iOS
     sources:
-      # Loading-language KTD7: phone placeholders use the same vessel renderer as widgets.
+      # Loading-language KTD7: phone placeholders use the same vessel renderer as widgets;
+      # U12's read-only gallery previews the real widget styles.
       - path: Sources/HeadroomWidgetSharedUI
       - path: Sources/HeadroomIOS
         excludes:
@@ -113,8 +114,6 @@ targets:
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift
-      # U12 previews the real widget styles in the phone's read-only gallery.
-      - path: Sources/HeadroomWidgetSharedUI
       # KTD1 (iOS parity): one shared stateless component folder on every host.
       - path: Sources/HeadroomSharedUI
     dependencies:

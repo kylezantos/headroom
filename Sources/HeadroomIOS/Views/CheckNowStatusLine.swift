@@ -140,11 +140,11 @@ final class PhoneCheckNow {
         scheduleWake()
     }
 
-    /// One wake at the earlier of the request's own timeout and the completion hold's end.
+    /// One wake at the earlier of the request's own timeout and the completion hold's end;
+    /// none once both have passed (review 2 #1).
     private func scheduleWake() {
         wake?.cancel()
-        let dates = [status?.nextDeadline, CheckNowLinePolicy.revertsAt(status: status, completedAt: completedAt)]
-        guard let at = dates.compactMap({ $0 }).min() else { return }
+        guard let at = CheckNowLinePolicy.nextWake(status: status, completedAt: completedAt, now: Date()) else { return }
         wake = Task { [weak self] in
             let delay = max(0, at.timeIntervalSinceNow)
             do { try await Task.sleep(for: .seconds(delay)) } catch { return }

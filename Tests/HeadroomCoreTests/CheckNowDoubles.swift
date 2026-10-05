@@ -163,3 +163,35 @@ final class GatedSpendProvider: APISpendProvider, @unchecked Sendable {
         return .stale(providerID: id, displayName: displayName, periodLabel: period.label, reason: .transient("offline"))
     }
 }
+
+/// Review 2 #1: `PhoneCheckNow`'s wake loop with the clock in the test's hands. `apply` keeps
+/// the host's completion-hold bookkeeping; `run` arms one wake from `CheckNowLinePolicy.nextWake`,
+/// lets the clock reach it exactly as `Task.sleep` would, re-evaluates, and re-arms, as
+/// `deadlinePassed` does. A wake that re-arms at a date not after the clock is the main-actor
+/// spin, so `run` stops after `limit` wakes and the caller asserts on the count.
+struct CheckNowWakeHost {
+    private(set) var status: CheckNowStatus?
+    private(set) var completedAt: Date?
+
+    mutating func apply(_ next: CheckNowStatus, at now: Date) {
+        if next.requestID != status?.requestID || !CheckNowLinePolicy.isCompletion(next.phase) {
+            completedAt = nil
+        }
+        if CheckNowLinePolicy.isCompletion(next.phase), completedAt == nil { completedAt = now }
+        status = next
+    }
+
+    /// Returns every wake time, in order. `reevaluate` is the host's re-read at that time.
+    mutating func run(
+        from start: Date, limit: Int = 20, reevaluate: (Date) -> CheckNowStatus?
+    ) -> [Date] {
+        var now = start
+        var wakes: [Date] = []
+        while wakes.count < limit, let at = CheckNowLinePolicy.nextWake(status: status, completedAt: completedAt, now: now) {
+            now = max(now, at)
+            wakes.append(now)
+            if let next = reevaluate(now), next.requestID == status?.requestID { apply(next, at: now) }
+        }
+        return wakes
+    }
+}

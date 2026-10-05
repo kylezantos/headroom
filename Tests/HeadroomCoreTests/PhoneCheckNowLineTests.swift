@@ -13,6 +13,12 @@ struct PhoneCheckNowLineTests {
     // MARK: U9: the check-now slot
 
     private func demoStatus(steps: Int?, at clock: Date) async throws -> CheckNowStatus {
+        let (state, latest) = try await demoState(steps: steps, at: clock)
+        return CheckNowStatus.make(state: state, snapshot: latest, now: clock)
+    }
+
+    /// The demo's request state after `steps` replay steps, and the snapshot it last adopted.
+    private func demoState(steps: Int?, at clock: Date) async throws -> (CheckNowRequestState, CompanionResolvedSnapshot) {
         let demo = CompanionDemoModeStore(defaults: nil, now: { clock }, sleep: { _ in })
         let snapshot = demo.snapshot(.multiAccount)
         guard case .requested(var state, _) = CheckNowMachine.begin(
@@ -28,7 +34,7 @@ struct PhoneCheckNowLineTests {
                 state = CheckNowMachine.receive(adopted, into: state, now: clock)
             }
         }
-        return CheckNowStatus.make(state: state, snapshot: latest, now: clock)
+        return (state, latest)
     }
 
     private enum CheckNowTestError: Error { case notRequested }
@@ -73,6 +79,50 @@ struct PhoneCheckNowLineTests {
             state: state, snapshot: nil, now: now.addingTimeInterval(CheckNowTiming.requestAgeLimit))
         #expect(!CheckNowLinePolicy.resumesAtLaunch(expired))
         #expect(CheckNowLinePolicy.slot(status: nil, completedAt: nil, now: now) == .freshness)
+    }
+
+    // MARK: Review 2 #1: the wake never re-arms at a past date
+
+    /// Explore Demo re-makes its status from the replay's state at every wake
+    /// (`PhoneCheckNow.deadlinePassed`'s demo branch). A finished check wakes once, at the end
+    /// of the three-second hold, and then nothing future remains.
+    @Test func aFinishedDemoCheckWakesOnceAtTheHoldsEndThenStops() async throws {
+        let (state, latest) = try await demoState(steps: nil, at: now)
+        var host = CheckNowWakeHost()
+        host.apply(CheckNowStatus.make(state: state, snapshot: latest, now: now), at: now)
+        let wakes = host.run(from: now) { CheckNowStatus.make(state: state, snapshot: latest, now: $0) }
+        #expect(wakes == [now.addingTimeInterval(CheckNowLinePolicy.completionHold)])
+        #expect(CheckNowLinePolicy.slot(status: host.status, completedAt: host.completedAt, now: wakes[0]) == .freshness)
+        #expect(CheckNowLinePolicy.nextWake(status: host.status, completedAt: host.completedAt, now: wakes[0]) == nil)
+    }
+
+    /// A demo request that is never answered wakes at the acknowledgement timeout ("Your Mac
+    /// hasn’t answered"), again at the age limit, and then stops.
+    @Test func anUnansweredDemoRequestWakesAtEachTimeoutThenStops() async throws {
+        let (state, latest) = try await demoState(steps: 0, at: now)
+        var host = CheckNowWakeHost()
+        host.apply(CheckNowStatus.make(state: state, snapshot: latest, now: now), at: now)
+        let wakes = host.run(from: now) { CheckNowStatus.make(state: state, snapshot: latest, now: $0) }
+        #expect(wakes == [
+            now.addingTimeInterval(CheckNowTiming.acknowledgementTimeout),
+            now.addingTimeInterval(CheckNowTiming.requestAgeLimit),
+        ])
+    }
+
+    /// The decision itself: only dates after `now` are wakes, so a hold that has already
+    /// ended (or a deadline the status was made before) schedules nothing.
+    @Test func nextWakeOnlyReturnsFutureDates() async throws {
+        let finished = try await demoStatus(steps: nil, at: now)
+        let hold = now.addingTimeInterval(CheckNowLinePolicy.completionHold)
+        #expect(CheckNowLinePolicy.nextWake(status: finished, completedAt: now, now: now) == hold)
+        #expect(CheckNowLinePolicy.nextWake(status: finished, completedAt: now, now: hold) == nil)
+        #expect(CheckNowLinePolicy.nextWake(status: finished, completedAt: now, now: hold.addingTimeInterval(60)) == nil)
+        let asking = try await demoStatus(steps: 0, at: now)
+        let timeout = now.addingTimeInterval(CheckNowTiming.acknowledgementTimeout)
+        #expect(CheckNowLinePolicy.nextWake(status: asking, completedAt: nil, now: now) == timeout)
+        #expect(CheckNowLinePolicy.nextWake(status: asking, completedAt: nil, now: timeout) == nil,
+                "a status made before its deadline never asks for a wake at or after it")
+        #expect(CheckNowLinePolicy.nextWake(status: nil, completedAt: nil, now: now) == nil)
     }
 
     /// AE1 / KTD14.1: an older Mac's content never starts a request, so the phone re-reads

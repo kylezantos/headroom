@@ -26,7 +26,10 @@ lives, which component does which job, and the rules for extending them.
 6. **Motion only from `HeadroomMotion`** (shared vocabulary; the phone currently uses
    `HeadroomTheme` until its adoption in the iOS parity round). Never declare
    your own curve, duration, or spring in a view. No pulsing, breathing, or looping
-   attention animations, ever.
+   attention animations, ever. The loading drip is the approved exception: one falling
+   drop per 1.8s while waiting on the user, with a 0.45s fall and 0.6s ripple; no scale or
+   opacity pulse. Slosh, print, ghost wipe, end hold and drain durations live in
+   `HeadroomCore/Widgets/LoadingMotion.swift` (loading-language KTD21).
 7. **Provider parity** (AGENTS.md): styling reaches Claude, Codex, Grok, and Cursor alike.
    Per-provider values go through `ProviderStyle`. Never special-case one provider's look inline.
 8. **Chrome is restrained and layered.** Low-alpha fill + faint ring + 1pt inset lip + 1pt
@@ -88,7 +91,8 @@ its Mac metrics are characterized against `OpticalLeading` in the app tests.
 | Plan / period / stale capsule | `.identityCapsule`, `PlanCapsule` | Padding-sized capsules (they drift in height) |
 | Usage meter | `UsageBarView` / `MeterGauge` via `MeterRecipe` | New bar drawing |
 | Widget style body | `HeadroomWidgetStyledBody` + `HeadroomWidgetStyledBackground` over a `WidgetStyleRecipe`; pieces `HeadroomWidgetStyleBar`, `HeadroomWidgetVessel`/`HeadroomWidgetVesselNumeral`, `HeadroomWidgetNumeral`, `HeadroomWidgetIdentityRow`, `HeadroomWidgetFittingCaption` | Per-host widget layouts; deciding windows or fills in a view |
-| Loading placeholder | `SkeletonMeter` | Spinners, pulses |
+| Pending numeric-meter layout | Static `SkeletonMeter` beside the account's loading vessel | Animated skeletons, pulses |
+| Loading and waiting vessel | `HalftoneVesselView` / `HalftonePillRow` (shared), `MiniPill` (macOS rows) | Slosh while working, drip while waiting on the user, ghost → print when a fresh reading lands; `SetupMotion` and `ReprintRecipe` decide states. |
 | Provider mark | `ProviderLogoView` (macOS and iOS each have one) | Loading SVGs directly |
 | Revealing a Settings sub-option | `.transition(.settingsReveal)` | Ad-hoc slide/scale |
 
@@ -98,6 +102,9 @@ its Mac metrics are characterized against `OpticalLeading` in the app tests.
   is a sanity check only, not final evidence (see `BUGS.md`).
 - Final check: `swift run Headroom --demo <scenario>` in the live popover, both light and
   dark appearances. Ask before driving the screen.
+- Motion and performance: a still proves layout, not what moved or what it cost. Check frames
+  and body counts offscreen, before and after, per
+  `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
 - Check both appearances, and Increase Contrast/Reduce Transparency (tiles fall back to
   solid + separator).
 - Design explorations and decisions: `design/*.html` (options docs) and `docs/plans/`

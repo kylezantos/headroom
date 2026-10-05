@@ -19,10 +19,10 @@ public enum HeadroomWidgetStyle {
 
     public static func accent(for id: String) -> Color {
         switch id {
-        case ProviderID.claude.raw: return Color(HeadroomBrandColorValues.claude)
-        case ProviderID.codex.raw: return Color(HeadroomBrandColorValues.codex)
-        case ProviderID.grok.raw: return Color(HeadroomBrandColorValues.grok)
-        case ProviderID.cursor.raw: return Color(HeadroomBrandColorValues.cursor)
+        case ProviderID.claude.raw: return Color(widgetInk: HeadroomBrandColorValues.claude)
+        case ProviderID.codex.raw: return Color(widgetInk: HeadroomBrandColorValues.codex)
+        case ProviderID.grok.raw: return Color(widgetInk: HeadroomBrandColorValues.grok)
+        case ProviderID.cursor.raw: return Color(widgetInk: HeadroomBrandColorValues.cursor)
         default: return .secondary
         }
     }
@@ -30,7 +30,7 @@ public enum HeadroomWidgetStyle {
     // R2: wraps the shared HeadroomWidgetColorValues so macOS and iOS cannot drift.
     public static func textAccent(for id: String, scheme: ColorScheme) -> Color {
         guard let rgb = HeadroomWidgetColorValues.textAccent(for: id, dark: scheme == .dark) else { return .secondary }
-        return Color(rgb)
+        return Color(widgetInk: rgb)
     }
 
     public static func symbol(for id: String) -> String {
@@ -44,48 +44,48 @@ public enum HeadroomWidgetStyle {
     }
 
     public static func severityColor(for severity: WidgetUsageSeverity, scheme: ColorScheme) -> Color {
-        Color(HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
+        Color(widgetInk: HeadroomSeverityColorValues.color(for: severity, dark: scheme == .dark))
     }
 
     public static func criticalText(scheme: ColorScheme) -> Color {
-        Color(HeadroomSeverityColorValues.criticalText(dark: scheme == .dark))
+        Color(widgetInk: HeadroomSeverityColorValues.criticalText(dark: scheme == .dark))
     }
 
     /// WCM2: at critical the track takes the critical hue at constant lightness, so the
     /// alarm survives the few points of fill left at 3%.
     public static func criticalBarTrack(scheme: ColorScheme) -> Color {
-        Color(HeadroomMeterColorValues.criticalBarTrack(dark: scheme == .dark))
+        Color(widgetInk: HeadroomMeterColorValues.criticalBarTrack(dark: scheme == .dark))
     }
 
     public static func secondaryText(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark))
+        Color(widgetInk: HeadroomWidgetColorValues.secondaryText(dark: scheme == .dark))
     }
 
     public static func tertiaryText(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark))
+        Color(widgetInk: HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark))
     }
 
     /// WCD1: provider and account names are neutral on widgets. Colour lives in the brand
     /// mark and in severity events; Claude's dark text accent and the low amber are
     /// near-neighbours in hue at glance distance, and the mark already separates providers.
     public static func accountTitle(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.accountTitle(dark: scheme == .dark))
+        Color(widgetInk: HeadroomWidgetColorValues.accountTitle(dark: scheme == .dark))
     }
 
     /// WCW9: the large family's plan pill ink.
     public static func planLabel(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.planLabel(dark: scheme == .dark))
+        Color(widgetInk: HeadroomWidgetColorValues.planLabel(dark: scheme == .dark))
     }
 
     public static func barTrack(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.barTrack(dark: scheme == .dark))
+        Color(widgetInk: HeadroomWidgetColorValues.barTrack(dark: scheme == .dark))
     }
 
     /// WCL4: the lifted widget-only rule ink. The shared `hairline` token was tuned for the
     /// popover's card fills and measures 1.28:1 on the widget container; a rule that is a
     /// true device pixel has to be a little stronger to read at all.
     public static func widgetHairline(scheme: ColorScheme) -> Color {
-        Color(HeadroomWidgetColorValues.widgetHairline(dark: scheme == .dark))
+        Color(widgetInk: HeadroomWidgetColorValues.widgetHairline(dark: scheme == .dark))
     }
 
     /// WCL4: one device pixel, not one point. Every rule in the widgets is drawn at this
@@ -348,11 +348,11 @@ public struct HeadroomWidgetAPISpendStrip: View {
 }
 
 private extension Color {
-    init(_ rgb: HeadroomRGBColor) {
+    init(widgetInk rgb: HeadroomRGBColor) {
         self.init(red: rgb.red, green: rgb.green, blue: rgb.blue)
     }
 
-    init(_ tint: HeadroomTint) {
-        self = Color(tint.color).opacity(tint.opacity)
+    init(widgetInk tint: HeadroomTint) {
+        self = Color(widgetInk: tint.color).opacity(tint.opacity)
     }
 }

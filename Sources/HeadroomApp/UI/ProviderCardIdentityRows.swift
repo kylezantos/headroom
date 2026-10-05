@@ -61,6 +61,7 @@ struct IdentityRow: View {
     var bankedResets: Int? = nil
     var isCritical: Bool = false
     var isRevealing: Bool = false
+    var loadingAccessory: (() -> AccountLoadingState)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// PB11: whether the tail truncation actually bit. Measured, not guessed — SwiftUI has
@@ -121,6 +122,9 @@ struct IdentityRow: View {
                     .layoutPriority(1)
             }
             Spacer(minLength: 6)
+            if let loadingAccessory {
+                AccountActionPill(readLoading: loadingAccessory)
+            }
         }
         // L4B: trailing controls stop level with the meter rows below them.
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
@@ -332,6 +336,7 @@ struct AccountSectionView: View {
     /// R2C22: false for the account rows nested under a capability card's own provider row.
     var showsMark: Bool = true
     var claimBankedResetReveal: ((AccountKey, Int?) -> Bool)? = nil
+    var readLoading: () -> AccountLoadingState = { .init() }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -343,6 +348,7 @@ struct AccountSectionView: View {
     private var account: ProviderAccount { entry.account }
 
     var body: some View {
+        let _ = BenchCounters.hit("AccountSectionView")
         // The session is read once per render and handed down. Every scope below wants the
         // same value, and the read stays here inside `body` so the `@Observable` coordinator
         // dependency is still registered.
@@ -444,7 +450,8 @@ struct AccountSectionView: View {
             showsMark: showsMark,
             bankedResets: snapshot.bankedResets,
             isCritical: snapshot.hasLiveCriticalResettableWindow,
-            isRevealing: isRevealingBankedResets
+            isRevealing: isRevealingBankedResets,
+            loadingAccessory: readLoading
         )
     }
 
@@ -744,8 +751,11 @@ struct AccountSectionView: View {
     }
 
     private var accountSkeleton: some View {
-        SkeletonMeter(labelWidth: 72, valueWidth: 38, format: meterStyle.format)
-            .padding(.leading, IdentityRowMetrics.meterContentInset)
-            .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
+        VStack(alignment: .leading, spacing: 9) {
+            SkeletonMeter(labelWidth: 72, valueWidth: 38, format: meterStyle.format)
+            FetchingUsageLine(readLoading: readLoading)
+        }
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
+        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 }

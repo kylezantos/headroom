@@ -53,6 +53,7 @@ struct AppearanceSpecimen: View {
     /// layout. A plain `ZStack` would hold the taller card's height for the whole fade and
     /// then snap the pane below it.
     var body: some View {
+        let _ = BenchCounters.hit("AppearanceSpecimen")
         // CMM13 (Kyle, 2026-09-10): the card sits left-aligned on the pane's own axis —
         // centred it "looked goofy" against the left-aligned tiles below. CMM14: the
         // menu-bar pill is gone from this well; nothing below it changes the menu bar, only
@@ -127,7 +128,8 @@ struct AppearanceSpecimen: View {
                 now: Date(),
                 onRetrySetup: {},
                 onRetryAccount: { _ in },
-                announcesAccessibilityEvents: false
+                announcesAccessibilityEvents: false,
+                loadingForAccount: { _ in .init() }
             )
             // G1A: the specimen is the popover's card, so it reads the ink from the
             // environment the same way — set here because Settings is not the popover.

@@ -57,11 +57,8 @@ public enum WidgetStatusState: Sendable, Equatable, CaseIterable {
         }
     }
 
-    /// WCW4: how full the vessel mark beside the card draws, 0…1.
-    ///
-    /// The mark is the only picture on a status card, so it must not imply a reading. The two
-    /// "no reading has ever arrived" states draw an empty vessel; every other state draws the
-    /// same neutral half-full mark, which says "this is a meter" without saying a number.
+    /// WCW4: the fallback vessel mark, 0…1. KTD15's waiting states use `loadingPlaceholder`
+    /// instead; other states keep the neutral mark without implying a usage value.
     public var vesselFill: Double {
         switch self {
         case .macPending, .iosWaitingForMac: 0

@@ -4,14 +4,28 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
-## App-target tests can't run while any Headroom.app is open
+## App-target test host isolation (resolved 2026-10-04)
 
 - The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in
   `HeadroomApp.swift`) also runs inside the XCTest host. With another Headroom.app running —
   e.g. a different Conductor workspace's build — the `HeadroomAppTests` host prints "already
   running" and exits 0, and xcodebuild reports "Early unexpected exit … before establishing
-  connection" (2026-10-02). Exempt the test host (`XCTestConfigurationFilePath` in the
-  environment) the way `--demo` is exempt.
+  connection" (2026-10-02). The shared `HeadroomAppTests` scheme now launches with `--demo`,
+  using the existing isolated host and single-instance exemption. The production guard is
+  unchanged. Verified with another workspace's app running: 263 App tests in 38 suites passed.
+
+## Loading language follow-ups (2026-10-04)
+
+- **Signed-out and all-unavailable menu pills still use the decorative level.** The ghost
+  flag deliberately covers only a main account awaiting its first reading. Extend the neutral
+  treatment separately; `fill == nil` must not become a pending-data signal.
+- **An automatic neutral pill has no summary provider to slosh.** First-reading ghost and print
+  work through its fixed identity, but neutral automatic work still needs an explicit motion
+  source when no main has a usable reading. Deferred by the loading-language plan.
+- **The loading-language CPU budget is unverified.** Kyle approved the native loading demo
+  and requested merge. The back-to-back `--demo multi-20` main-thread CPU comparison and
+  idle popover/Settings measurements have not run; the diagnostic builds alone prove no
+  performance result. Do not claim the plan's two-percentage-point budget passed.
 
 ## Focused render acceptance needs Screen Recording for the launching shell
 
@@ -28,6 +42,9 @@ official `claude` CLI's `/usage` panel instead.
   decides which state lands in the image. AR1 (2026-09-25) lengthened the meter arrival and the
   snapshot wait with it; `connected-used-light` then captured Connected mid-roll where it had
   captured Waiting before. Drive those states from an injected clock instead of sleeping.
+- The new `--loading-only` path uses a pinned clock and held real requests, including Opening,
+  Waiting and Confirming. Two 2026-10-04 runs matched all 26 decoded images. The legacy
+  `connected-*` and `dualWaiting-*` path above remains outside that deterministic capture flow.
 
 ## Unbundled `swift run` popover still shows a faint second rim
 
@@ -752,8 +769,9 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
   heights, `.accented`/StandBy as WidgetKit actually draws them, and **Dynamic Type at
   `xxLarge`** still need a device — macOS `ImageRenderer` ignores `.dynamicTypeSize`, so the
   harness's `shrunk` pass (85% tiles) stands in, and its findings are warnings, not failures.
-  As of 2026-10-03 the shrunk pass shows Nested Meter and Tightest First small/medium crowding
-  the margin by a few points (rails drop and labels truncate first; nothing overlaps).
+  The 2026-10-04 loading sweep rendered 2,004 tiles with no real-geometry overflow. Its shrunk
+  surrogate produced 89 warnings, including mixed-pending Tightest First medium tiles; these
+  warnings do not establish actual device Dynamic Type fit.
 - **`HeadroomWidgetSharedUI` view code is verified by renders, not tests.** The style decisions
   (ranking, shown providers, shedding ladders, wash segments, color resolver, vessel geometry)
   are Core recipes under `swift test`; the views that lay them out are checked by the
@@ -797,3 +815,40 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
 - The iOS UI-test runner emits “Metadata extraction skipped, no AppIntents.framework
   dependency found”; the app and extension build without warnings. Re-check the runner
   configuration when U14 adds real App Intents.
+
+## Settings sidebar app icon drops its `<feMerge>` filter (2026-10-03)
+
+- `Sources/HeadroomApp/Resources/AppIcon/vessel-app-icon.svg` uses `<feMerge>`, which CoreSVG
+  does not support ("Filter primitive: <feMerge> is currently not supported", logged during the
+  popover/Settings perf bench). `AppIconGlyph` loads that SVG through `NSImage`, so the Settings
+  sidebar's identity mark renders without whatever that filter adds. Flatten the filter into the
+  paths or ship a pre-rendered PDF/PNG for the sidebar.
+
+## Popover & Settings snappiness residuals (2026-10-03 perf audit)
+
+The audit's fixes 1–6 land in #157 (feather animation scope, scroll chrome out of `PopoverView`'s
+body, `MenuBarStatusLabel`, Settings opening on its stored pane, batched Settings-open writes,
+the spend month label). Measured offscreen; numbers in the PR. How to measure, and the hot-spot
+checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
+
+- **Pane switches build in the click's frame, then blur in.** Into Appearance, Widgets,
+  Notifications or Accounts takes ~60–70ms (multi-5) before anything moves, ~259ms into Accounts
+  at 20 accounts; then `settingsPane`'s 200ms fade from a 3pt blur plays. Candidates: instant or
+  ≤120ms opacity-only for clicks (keyboard is already instant, KB1); a `LazyVStack` for the
+  account rows; the Appearance specimen builds its card twice (hidden twin) and passes
+  `now: Date()`, so it is never equal.
+- **Every card re-renders on any store change.** `ProviderCardView` gets fresh closures and `now`
+  each pass, so one account refresh re-runs all cards (after #157, ~240ms CPU per refresh at 20 accounts, ~140ms at 5;
+  ~360ms / ~150ms before it).
+  `PopoverView` also calls `appDisplaySnapshot` ~3× per account and builds `statusInput` twice.
+- **First open per launch (M9A arrival) pegs the main thread** ~740ms at 20 accounts after #157 (~890ms before; ~135ms at 5): each meter row makes three state writes in its `.task`.
+- **The duplicate-login scan reruns on every Claude capture** while Settings is open (its
+  fingerprint carries `capturedAt`), reads every `.claude.json` even with one Claude account, and
+  `Task.detached` ignores cancellation, so a 20-account refresh stacks ~20 overlapping scans.
+- **The saved-key presence check reads the secret.** `refreshSavedKeyPresence` calls
+  `CredentialStore.apiKey(for:)`, which returns key data; an attributes-only existence query
+  would do.
+- **`--render-popover`'s multi-account path never draws the spend card.** `renderMulti` builds its
+  store with `apiSpendProviders: []`, so `spend-states` / `spend-retained` captures show only the
+  provider cards, and the spend card (where the month-label formatter hot spot lived) is never
+  rendered or measured there.

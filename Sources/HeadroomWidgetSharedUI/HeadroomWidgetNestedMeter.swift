@@ -51,7 +51,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                 }
             }
             if provider.isWaiting {
-                HeadroomWidgetWaitingLine(size: WidgetStyleType.compactCaption).padding(.top, 6)
+                HeadroomWidgetWaitingLine(provider: provider, size: WidgetStyleType.compactCaption).padding(.top, 6)
             } else {
                 HeadroomWidgetNestedBars(provider: provider, rails: rails, colorMode: context.colorMode, family: .small, live: live)
                     .padding(.top, 6)
@@ -79,7 +79,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
             HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale,
                                       showsPlan: context.recipe.providers.count == 1, mark: mark)
             if provider.isWaiting {
-                HeadroomWidgetWaitingLine(size: 11).padding(.top, 14)
+                HeadroomWidgetWaitingLine(provider: provider, size: 11).padding(.top, 14)
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 5) {
                     HeadroomWidgetNumeral(provider.primary, size: context.hero(), providerIsLive: live, now: context.now)
@@ -147,7 +147,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
             HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true,
                                       showsStaleReason: true, mark: mark)
             if provider.isWaiting {
-                HeadroomWidgetWaitingLine(size: 11).padding(.top, 10)
+                HeadroomWidgetWaitingLine(provider: provider, size: 11).padding(.top, 10)
             } else {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
                     HeadroomWidgetNumeral(provider.primary, size: context.hero(), providerIsLive: live, now: context.now)

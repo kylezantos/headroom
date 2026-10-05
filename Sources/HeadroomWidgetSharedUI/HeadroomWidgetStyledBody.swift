@@ -192,8 +192,16 @@ struct HeadroomWidgetStyleTail<Mark: View>: View {
 
 /// R11: the line a provider shows before Headroom has read it.
 struct HeadroomWidgetWaitingLine: View {
+    let provider: WidgetStyleProviderRecipe
     let size: Double
     var body: some View {
-        HeadroomWidgetCaption(WidgetStyleCopy.waiting, size: size, ink: .secondary)
+        HStack(spacing: 5) {
+            if let pill = provider.waitingPill {
+                // KTD15: the caption's small mark has one 3×6 ghost; the line keeps its type size.
+                HalftoneVesselView(state: pill, width: 8, height: 13, columns: 3, rows: 6)
+            }
+            HeadroomWidgetCaption(WidgetStyleCopy.waiting, size: size, ink: .secondary)
+        }
+        .headroomWidgetProbe()
     }
 }

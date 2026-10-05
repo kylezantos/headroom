@@ -50,9 +50,10 @@ enum WidgetRenderHarness {
         var colorMode: WidgetColorMode = .solid
         var rendering: HeadroomWidgetRenderingContext = .fullColor
         var shrink: CGFloat = 1
+        var status: WidgetStatusState?
 
         var fileName: String {
-            var parts = [style.rawValue, fixture, "\(family)", geometry.name, dark ? "dark" : "light"]
+            var parts = [status == nil ? style.rawValue : "status", fixture, "\(family)", geometry.name, dark ? "dark" : "light"]
             if colorMode != .solid { parts.append(colorMode.rawValue) }
             if rendering != .fullColor { parts.append("\(rendering)") }
             if shrink != 1 { parts.append("shrunk") }
@@ -116,11 +117,13 @@ enum WidgetRenderHarness {
             exit(2)
         }
         let styles = argument("--widget-style").flatMap { WidgetLayoutStyle(rawValue: $0) }.map { [$0] } ?? WidgetLayoutStyle.allCases
-        if let requested = argument("--widget-fixture"), !DemoScreenshotData.styleFixtureNames.contains(requested) {
-            print("Unknown fixture \(requested). Fixtures: \(DemoScreenshotData.styleFixtureNames.joined(separator: ", "))")
+        let statusFixtures = Dictionary(uniqueKeysWithValues: WidgetStatusState.allCases.map { ("status-\($0)", $0) })
+        if let requested = argument("--widget-fixture"), !DemoScreenshotData.styleFixtureNames.contains(requested), statusFixtures[requested] == nil {
+            print("Unknown fixture \(requested). Fixtures: \((DemoScreenshotData.styleFixtureNames + statusFixtures.keys.sorted()).joined(separator: ", "))")
             exit(2)
         }
-        let fixtures = argument("--widget-fixture").map { [$0] } ?? (quick ? ["claudeCodex"] : DemoScreenshotData.styleFixtureNames)
+        let fixtures = argument("--widget-fixture").map { DemoScreenshotData.styleFixtureNames.contains($0) ? [$0] : [] }
+            ?? (quick ? ["claudeCodex"] : DemoScreenshotData.styleFixtureNames)
         let geometryNames = argument("--widget-geometry").map { [$0] } ?? ["mac", "ios61"]
         let chosen = geometries.filter { geometryNames.contains($0.name) }
         if chosen.isEmpty {
@@ -151,9 +154,37 @@ enum WidgetRenderHarness {
                     jobs.append(Job(style: style, fixture: fixture, family: family, dark: true, geometry: mac, rendering: .stripped))
                 }
             }
+            // U9/KTD15: pose the pending paths in both geometries and rendering modes.
+            for fixture in ["pending", "firstPending", "pendingAll", "pendingPools", "pendingCodex", "pendingCursor"] where fixtures.contains(fixture) {
+                for geometry in chosen {
+                    for family in WidgetFamily.allCases {
+                        for dark in [true, false] {
+                            for rendering in [HeadroomWidgetRenderingContext.monochrome, .stripped] {
+                                jobs.append(Job(style: style, fixture: fixture, family: family, dark: dark,
+                                                geometry: geometry, rendering: rendering))
+                            }
+                        }
+                    }
+                }
+            }
             for fixture in fixtures {
                 for family in WidgetFamily.allCases {
                     jobs.append(Job(style: style, fixture: fixture, family: family, dark: true, geometry: geometries[1], shrink: 0.85))
+                }
+            }
+        }
+        if !quick {
+            // Render the actual status card, not an enabled envelope with no provider rows.
+            for fixture in statusFixtures.keys.sorted() where argument("--widget-fixture").map({ $0 == fixture }) ?? true {
+                for geometry in chosen {
+                    for family in WidgetFamily.allCases {
+                        for dark in [true, false] {
+                            for rendering in [HeadroomWidgetRenderingContext.fullColor, .monochrome, .stripped] {
+                                jobs.append(Job(style: .nestedMeter, fixture: fixture, family: family, dark: dark,
+                                                geometry: geometry, rendering: rendering, status: statusFixtures[fixture]))
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -168,7 +199,8 @@ enum WidgetRenderHarness {
     }
 
     static func render(_ job: Job) -> (CGImage?, [String]) {
-        guard let envelope = DemoScreenshotData.styleFixture(job.fixture, now: now),
+        let envelope = DemoScreenshotData.styleFixture(job.fixture, now: now)
+        guard job.status != nil || envelope != nil,
               let base = job.geometry.sizes[job.family],
               let margin = job.geometry.margins[job.family]
         else { return (nil, ["missing fixture or geometry"]) }
@@ -180,13 +212,20 @@ enum WidgetRenderHarness {
         return (renderer.cgImage, collector.problems)
     }
 
-    private static func tileView(job: Job, envelope: WidgetSnapshotEnvelope, size: CGSize, margin: CGFloat, collector: ProbeCollector) -> some View {
+    private static func tileView(job: Job, envelope: WidgetSnapshotEnvelope?, size: CGSize, margin: CGFloat, collector: ProbeCollector) -> some View {
         let shape = RoundedRectangle(cornerRadius: job.geometry.radius, style: .continuous)
-        return HeadroomWidgetStyledTile(
-            style: job.style, family: job.family, envelope: envelope, colorMode: job.colorMode,
-            now: now, footerPrefix: job.geometry.footerPrefix, contentMargin: margin
-        ) { id, markSize in
-            ProviderLogoView(providerID: ProviderID(id), size: markSize)
+        return Group {
+            if let status = job.status {
+                HeadroomWidgetStatusCard(state: status, family: job.family, scale: .scale(for: job.family))
+                    .padding(margin + WidgetMetrics.residualMargin)
+            } else if let envelope {
+                HeadroomWidgetStyledTile(
+                    style: job.style, family: job.family, envelope: envelope, colorMode: job.colorMode,
+                    now: now, footerPrefix: job.geometry.footerPrefix, contentMargin: margin
+                ) { id, markSize in
+                    ProviderLogoView(providerID: ProviderID(id), size: markSize)
+                }
+            }
         }
         .background { background(job) }
         .frame(width: size.width, height: size.height)
@@ -206,6 +245,7 @@ enum WidgetRenderHarness {
         .environment(\.colorScheme, job.dark || job.rendering == .monochrome ? .dark : .light)
         .environment(\.headroomWidgetRenderingOverride, job.rendering)
         .environment(\.headroomWidgetProbesEnabled, true)
+        .environment(\.loadingDate, now)
         .padding(12)
         .background(job.dark ? Color(red: 0.07, green: 0.08, blue: 0.12) : Color(red: 0.86, green: 0.89, blue: 0.93))
     }
@@ -241,7 +281,7 @@ enum WidgetRenderHarness {
         <h1>Widget styles — render sweep</h1>
         """
         html += overflows.isEmpty ? "<p>✓ No overflow.</p>" : "<pre class=bad>\(overflows.joined(separator: "\n"))</pre>"
-        let groups = Dictionary(grouping: rendered, by: { "\($0.0.style.displayName) — \($0.0.fixture)" })
+        let groups = Dictionary(grouping: rendered, by: { "\($0.0.status == nil ? $0.0.style.displayName : "Status card") — \($0.0.fixture)" })
         for key in groups.keys.sorted() {
             html += "<h2>\(key)</h2>"
             let byVariant = Dictionary(grouping: groups[key]!, by: { job, _ in

@@ -37,7 +37,12 @@ struct SettingsView: View {
     let notificationClient: any NotificationAuthorizing
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sidebarSelection: SettingsPane? = .general
+    /// LP1 (2026-10-03 perf bench): nil until `loadPreferences` picks the room. Seeded with
+    /// `.general`, every open built General — twice — before switching to the stored pane,
+    /// and that switch played the pane transition inside the window's own fade-in. Not seeded
+    /// in `init` either: the `Window` content is built in `App.body`, which rarely re-runs, so
+    /// an init-time seed could reopen on a stale pane (see the App.body solution doc).
+    @State private var sidebarSelection: SettingsPane?
     /// KB1: whether the latest pane switch came from the keyboard.
     @State private var paneSwitchIsInstant = false
     @State private var hasVisitedAccounts = false
@@ -115,6 +120,7 @@ struct SettingsView: View {
     var frameHeightOverride: CGFloat? = nil
 
     var body: some View {
+        let _ = BenchCounters.hit("SettingsView")
         NavigationSplitView {
             SettingsSidebar(selection: sidebarBinding)
                 // KTD1: the removal must sit on the sidebar column's content — applied to
@@ -156,6 +162,16 @@ struct SettingsView: View {
             idealHeight: frameHeightOverride ?? Self.windowHeight
         )
         .onAppear { loadPreferences() }
+        #if HEADROOM_BENCH
+        // `--bench-ui`'s pane seam: the same two writes a sidebar click makes, in one update
+        // (KB1). Compiled only into bench builds; LP1's first selection still comes from
+        // `loadPreferences`.
+        .onReceive(NotificationCenter.default.publisher(for: BenchSettingsSeam.selectPane)) { note in
+            guard let request = note.object as? BenchSettingsSeam.Request else { return }
+            paneSwitchIsInstant = request.instant
+            sidebarSelection = request.pane
+        }
+        #endif
         // R18: re-check permission every time Settings opens, and again whenever Headroom
         // comes back to the front — the way back from "Open System Settings…".
         .task { await refreshNotificationAuthorization() }
@@ -163,23 +179,17 @@ struct SettingsView: View {
             Task { await refreshNotificationAuthorization() }
         }
         .task { await refreshSavedKeyPresence() }
-        // KTD3: the scan lives on the root so revisiting Accounts keeps its badges, but it
-        // only starts once Accounts has been shown — a visit to General should not read
-        // every Claude account's `.claude.json`.
-        .task(id: hasVisitedAccounts ? claudeDuplicateFingerprint : nil) {
-            guard hasVisitedAccounts else { return }
-            // Off-main: `.claude.json` can be large (the CLI writes project history
-            // into it), so the identity reads never block the settings surface.
-            let detector = duplicateDetector
-            let accounts = store.accounts(for: .claude)
-            let labels = await Task.detached {
-                detector.duplicateLabels(for: accounts)
-            }.value
-            // The detached scan outlives this .task's cancellation, so a slow stale
-            // scan can finish after a newer one — never let it overwrite the fresh
-            // badge state (code-review finding).
-            guard !Task.isCancelled else { return }
-            duplicateLoginLabels = labels
+        // KTD3: the scan's result lives on the root so revisiting Accounts keeps its badges,
+        // but it only starts once Accounts has been shown — a visit to General should not
+        // read every Claude account's `.claude.json`.
+        .background {
+            if hasVisitedAccounts {
+                ClaudeDuplicateLoginScan(
+                    store: store,
+                    detector: duplicateDetector,
+                    labels: $duplicateLoginLabels
+                )
+            }
         }
         .onChange(of: selectedPane) { _, newValue in
             preferences.settingsPane = newValue
@@ -200,8 +210,9 @@ struct SettingsView: View {
         }
     }
 
-    /// The pane on screen. `sidebarSelection` is optional only because `List(selection:)`
-    /// demands it; the binding below never stores nil, so the fallback is unreachable.
+    /// The pane on screen. `sidebarSelection` is optional because `List(selection:)` demands
+    /// it, and it is nil only before `loadPreferences` runs (LP1); the binding below never
+    /// stores nil after that.
     private var selectedPane: SettingsPane { sidebarSelection ?? .general }
 
     /// macOS can hand a sidebar `List` a nil selection (⌘-click deselect, or a rebuild
@@ -233,11 +244,16 @@ struct SettingsView: View {
     /// sees one pane resolve instead of two crossing. Still nothing travels (M6B).
     private var detailColumn: some View {
         ZStack(alignment: .topLeading) {
-            detail
-                .id(selectedPane)
-                // KB1: `.identity`, not a nil-animation transaction — measured, a transition's
-                // attached animation plays even inside `disablesAnimations`.
-                .transition(paneSwitchIsInstant ? .identity : .settingsPane(reduceMotion: reduceMotion))
+            // LP1: no pane until the stored one is known, so the first one built is the one
+            // shown. `loadPreferences` runs in the first layout pass, before the window is
+            // revealed, so this empty column never reaches the screen.
+            if sidebarSelection != nil {
+                detail
+                    .id(selectedPane)
+                    // KB1: `.identity`, not a nil-animation transaction — measured, a transition's
+                    // attached animation plays even inside `disablesAnimations`.
+                    .transition(paneSwitchIsInstant ? .identity : .settingsPane(reduceMotion: reduceMotion))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(
@@ -345,21 +361,6 @@ struct SettingsView: View {
         }
     }
 
-    /// Recompute duplicate badges when the Claude account list changes, a row is
-    /// renamed (badges quote account labels), a row's signed-in identity changes, or
-    /// a fresh capture lands (a re-login to a different accountUuid under the same
-    /// email only surfaces as a new `capturedAt` — the scan is cheap off-main and
-    /// only runs while the settings window is open).
-    private var claudeDuplicateFingerprint: String {
-        store.accounts(for: .claude)
-            .map { account in
-                let snapshot = store.snapshot(for: account.key)
-                let captured = snapshot.capturedAt?.timeIntervalSinceReferenceDate ?? 0
-                return "\(account.id.raw):\(account.label):\(snapshot.accountEmail ?? ""):\(captured)"
-            }
-            .joined(separator: "|")
-    }
-
     /// KTD12: read from the store's observable cadences so the sentence updates as lanes drain.
     private var cadenceSentence: String? {
         PollCadencePresentation.sentence(for: store.registeredProviderOrder.compactMap { providerID in
@@ -459,6 +460,8 @@ struct SettingsView: View {
         // decodes to General in `Preferences`. R2B1: on the *first* open — nothing stored —
         // a Mac with no account signed in opens on Accounts instead, where all of its work is.
         let storedPane = preferences.initialSettingsPane(hasSignedInAccount: hasSignedInAccount)
+        // LP1: the opening pane arrives with the window, not as a pane switch.
+        paneSwitchIsInstant = true
         sidebarSelection = storedPane
         if storedPane == .accounts { hasVisitedAccounts = true }
         appearancePreference = preferences.appearancePreference
@@ -477,14 +480,16 @@ struct SettingsView: View {
 
     /// Presence only (never the key material): selects the configured summary or the
     /// first-save editor, so the UI can show whether a credential exists at rest.
+    /// One write for the whole sweep (2026-10-03 perf bench): each per-key insert landed after
+    /// its own Keychain hop and re-rendered the root and the open pane during the fade-in.
     private func refreshSavedKeyPresence() async {
+        var present: Set<APIKeyProvider> = []
         for provider in APIKeyProvider.allCases {
             if case .success = await credentialStore.apiKey(for: provider) {
-                savedKeyProviders.insert(provider)
-            } else {
-                savedKeyProviders.remove(provider)
+                present.insert(provider)
             }
         }
+        if savedKeyProviders != present { savedKeyProviders = present }
     }
 
     private func saveKey(_ key: String, for provider: APIKeyProvider) {
@@ -536,6 +541,52 @@ struct SettingsView: View {
             guard !Task.isCancelled else { return }
             credentialMessages[provider] = nil
         }
+    }
+}
+
+/// KTD3's duplicate-login scan, in a view of its own (DL1, 2026-10-03 perf bench). Its
+/// fingerprint reads every Claude snapshot; computed in `SettingsView.body`, it made each
+/// Claude refresh re-render the whole window and its open pane once Accounts had been
+/// visited. Here a refresh re-runs only this empty view, and the root re-renders only when
+/// the badges themselves change.
+private struct ClaudeDuplicateLoginScan: View {
+    let store: UsageStore
+    let detector: ClaudeDuplicateLoginDetector
+    @Binding var labels: [AccountKey: String]
+
+    var body: some View {
+        let _ = BenchCounters.hit("ClaudeDuplicateLoginScan")
+        Color.clear
+            .accessibilityHidden(true)
+            .task(id: fingerprint) {
+                // Off-main: `.claude.json` can be large (the CLI writes project history
+                // into it), so the identity reads never block the settings surface.
+                let detector = detector
+                let accounts = store.accounts(for: .claude)
+                let scanned = await Task.detached {
+                    detector.duplicateLabels(for: accounts)
+                }.value
+                // The detached scan outlives this .task's cancellation, so a slow stale
+                // scan can finish after a newer one — never let it overwrite the fresh
+                // badge state (code-review finding).
+                guard !Task.isCancelled else { return }
+                if labels != scanned { labels = scanned }
+            }
+    }
+
+    /// Recompute duplicate badges when the Claude account list changes, a row is
+    /// renamed (badges quote account labels), a row's signed-in identity changes, or
+    /// a fresh capture lands (a re-login to a different accountUuid under the same
+    /// email only surfaces as a new `capturedAt` — the scan is cheap off-main and
+    /// only runs while the settings window is open).
+    private var fingerprint: String {
+        store.accounts(for: .claude)
+            .map { account in
+                let snapshot = store.snapshot(for: account.key)
+                let captured = snapshot.capturedAt?.timeIntervalSinceReferenceDate ?? 0
+                return "\(account.id.raw):\(account.label):\(snapshot.accountEmail ?? ""):\(captured)"
+            }
+            .joined(separator: "|")
     }
 }
 

@@ -20,6 +20,15 @@ enum PopoverRenderHarness {
 
         Task { @MainActor in
             var failedPaths: [String] = []
+            if CommandLine.arguments.contains("--loading-only") {
+                do {
+                    try await PopoverLoadingRenderHarness.run(to: outDir)
+                    exit(0)
+                } catch {
+                    print("✗ Loading capture checkpoint failed: \(error)")
+                    exit(1)
+                }
+            }
             // Focused, offscreen acceptance for the arranger at the normal and minimum
             // window sizes, including both width treatments and the automatic entry state.
             if CommandLine.arguments.contains("--menu-bar-only") {

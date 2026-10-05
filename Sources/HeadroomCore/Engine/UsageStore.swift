@@ -65,10 +65,21 @@ public struct MenuBarMeter: Sendable, Equatable {
     public let summary: MenuBarSummary
     /// 0...1 fill for the vessel, or nil for the static decorative level.
     public let fill: Double?
+    /// KTD13: nil fill also means signed out or decorative; only pending means ghost.
+    public let awaitingFirstReading: Bool
+    /// U8 distinguishes a fresh first result from a stale result carrying retained windows.
+    public let isLiveReading: Bool
+    /// Explicit provider pills use this to avoid a first-reading print on Make Main.
+    /// Automatic mode has one stable rendering identity and no single source account.
+    public let sourceAccountKey: AccountKey?
 
-    public init(summary: MenuBarSummary, fill: Double?) {
+    public init(summary: MenuBarSummary, fill: Double?, awaitingFirstReading: Bool = false,
+                isLiveReading: Bool = false, sourceAccountKey: AccountKey? = nil) {
         self.summary = summary
         self.fill = fill
+        self.awaitingFirstReading = awaitingFirstReading
+        self.isLiveReading = isLiveReading
+        self.sourceAccountKey = sourceAccountKey
     }
 }
 
@@ -138,9 +149,32 @@ public final class UsageStore {
     /// unmerged work. Timer-driven lane passes never set it, so the Refresh button does not
     /// disappear for half of every interval at the account envelope.
     public private(set) var isRefreshing = false
+    /// Scheduler-wide clear time for run retention; visible work has its own hold clock.
+    public private(set) var refreshingClearedAt: Date?
+    public private(set) var visibleRefreshWork = VisibleRefreshWork()
+    @ObservationIgnored private var visibleRefreshOperationDepth = 0
+    /// A 0.5s visible hold plus 0.2s bookkeeping grace, distinct from ghost-wipe timing.
+    private static let refreshRunRetentionDuration: TimeInterval = 0.7
     /// W4: the user-requested work behind `isRefreshing`, account by account. Nil once that
     /// work drains, even while a spend fetch keeps `isRefreshing` up.
     public private(set) var refreshProgress: RefreshProgress?
+    /// Loading-language KTD1: retained through the entire spend tail and end hold.
+    public private(set) var userRefreshRun: UserRefreshRun?
+    public private(set) var fullRefreshInFlight = false
+    @ObservationIgnored private var fullRefreshOperationDepth = 0
+    public private(set) var lastProbeEndTimes: [AccountKey: Date] = [:]
+    public private(set) var apiSpendInFlightProviders: Set<ProviderID> = []
+    @ObservationIgnored private var spendFetchDepths: [ProviderID: Int] = [:]
+    @ObservationIgnored private var refreshRunRetentionTask: Task<Void, Never>?
+
+    public var accountActionCheckingKeys: Set<AccountKey> {
+        guard !fullRefreshInFlight, let run = userRefreshRun,
+              !run.entries.values.contains(where: { $0.origin == .fullRefresh && $0.outcome == nil })
+        else { return [] }
+        return Set(run.entries.compactMap { key, entry in
+            entry.origin == .accountAction && entry.outcome == nil ? key : nil
+        })
+    }
     /// Accounts whose probe is running right now, timer passes included (round-3 S2).
     public private(set) var probingAccounts: Set<AccountKey> = []
     @ObservationIgnored private var userWorkPending = false
@@ -391,8 +425,8 @@ public final class UsageStore {
     /// Immediate off-cadence refresh — the Refresh button and other explicit user actions
     /// (KTD9). Popover open deliberately does *not* land here: it goes through
     /// `refreshOnPopoverOpen()`, which gates on capture age (R2M2).
-    public func refreshNow() {
-        Task { await refreshAll() }
+    public func refreshNow(origin: UserRefreshOrigin = .fullRefresh) {
+        Task { await refreshAll(origin: origin) }
     }
 
     /// R2M2: freshen on popover open, but only when the timer was about to fire anyway.
@@ -698,7 +732,12 @@ public final class UsageStore {
     /// own vessel/percentage pair; automatic mode keeps the existing compact summary.
     public var menuBarMeters: [MenuBarMeter] {
         guard menuBarFillSource.providerIDs != nil else {
-            return [MenuBarMeter(summary: menuBarSummary, fill: menuBarFill)]
+            let summary = menuBarSummary
+            return [MenuBarMeter(
+                summary: summary, fill: menuBarFill,
+                awaitingFirstReading: summary.isNeutral && providerOrder.contains { snapshot(for: $0).freshness == .pending },
+                isLiveReading: summary.providerID.map { snapshot(for: $0).freshness == .live } ?? false
+            )]
         }
 
         let meters = selectedMenuBarProviders.map { providerMenuBarMeter(for: $0) }
@@ -769,13 +808,24 @@ public final class UsageStore {
     /// KTD2: a user asked for everything. Every enabled account is due now, bypasses the
     /// duty-cycle gate, and the call returns once the lanes it started have drained — the
     /// contract the store tests and the launch refresh rely on.
-    public func refreshAll() async {
+    public func refreshAll(origin: UserRefreshOrigin = .fullRefresh) async {
+        if origin != .setupCheck { visibleRefreshOperationDepth += 1 }
+        defer {
+            if origin != .setupCheck {
+                visibleRefreshOperationDepth -= 1
+                recomputeVisibleRefreshWork()
+            }
+        }
+        if origin == .fullRefresh {
+            fullRefreshOperationDepth += 1
+            fullRefreshInFlight = true
+        }
         fullRefreshDepth += 1
         // Raised before the subscription work so the flag does not blink off between the
         // last merge and the spend fetch.
         apiSpendUserRefreshDepth += 1
         recomputeRefreshing()
-        scheduler.markAllDue()
+        scheduler.markAllDue(origin: origin)
         scheduler.dispatchDue()
         await scheduler.waitUntilUserWorkDrains()
         // Timer candidates a lane keeps serving after the user's work merged export on their
@@ -783,6 +833,10 @@ public final class UsageStore {
         fullRefreshDepth -= 1
         await scheduler.waitUntilLanesIdle()
         await refreshAPISpend(exportAfter: false)
+        if origin == .fullRefresh {
+            fullRefreshOperationDepth -= 1
+            fullRefreshInFlight = fullRefreshOperationDepth > 0
+        }
         apiSpendUserRefreshDepth -= 1
         recomputeRefreshing()
         refreshPollCadences()
@@ -793,13 +847,19 @@ public final class UsageStore {
     /// Refresh a single account — Check Now, Check Again, Try Again, Make Main, and the
     /// setup coordinator's checks (R4, KTD7). A front-of-queue request, so watching one
     /// sign-in never fans out into a full fleet poll.
-    public func refreshAccountNow(_ key: AccountKey) {
-        scheduler.requestPriority(key)
+    public func refreshAccountNow(_ key: AccountKey, origin: UserRefreshOrigin = .accountAction) {
+        scheduler.requestPriority(key, origin: origin)
     }
 
-    func refreshAccount(_ key: AccountKey) async {
-        scheduler.requestPriority(key)
+    func refreshAccount(_ key: AccountKey, origin: UserRefreshOrigin = .accountAction) async {
+        scheduler.requestPriority(key, origin: origin)
         await scheduler.waitForCompletion(of: key)
+    }
+
+    /// R18: provider capability recovery re-checks every attached account, bypassing
+    /// capability-failure backoff without waking any other provider.
+    public func refreshProviderNow(_ providerID: ProviderID) {
+        for account in accounts(for: providerID) { refreshAccountNow(account.key) }
     }
 
     /// Timer tick, popover open, or a Settings surface change: probe whatever is due, one
@@ -828,10 +888,12 @@ public final class UsageStore {
     public func refreshAPISpendOnly() async {
         if apiSpendInFlight { return }
         apiSpendInFlight = true
+        visibleRefreshOperationDepth += 1
         apiSpendUserRefreshDepth += 1
         recomputeRefreshing()
         defer {
             apiSpendInFlight = false
+            visibleRefreshOperationDepth -= 1
             apiSpendUserRefreshDepth -= 1
             recomputeRefreshing()
         }
@@ -847,8 +909,38 @@ public final class UsageStore {
     }
 
     private func recomputeRefreshing() {
+        recomputeVisibleRefreshWork()
         let next = userWorkPending || apiSpendUserRefreshDepth > 0
-        if isRefreshing != next { isRefreshing = next }
+        guard isRefreshing != next else { return }
+        isRefreshing = next
+        refreshingClearedAt = next ? nil : now()
+        if !next, userRefreshRun != nil {
+            let clearedAt = refreshingClearedAt!
+            userRefreshRun?.refreshingClearedAt = clearedAt
+            let runID = userRefreshRun?.id
+            refreshRunRetentionTask?.cancel()
+            refreshRunRetentionTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(Self.refreshRunRetentionDuration))
+                guard !Task.isCancelled, let self, self.userRefreshRun?.id == runID else { return }
+                self.clearExpiredUserRefreshRun(at: self.now())
+            }
+        }
+    }
+
+    private func recomputeVisibleRefreshWork() {
+        let pending = userRefreshRun?.entries.values.contains {
+            $0.origin != .setupCheck && $0.outcome == nil
+        } ?? false
+        let next = pending || visibleRefreshOperationDepth > 0
+        guard visibleRefreshWork.isInFlight != next else { return }
+        visibleRefreshWork = VisibleRefreshWork(isInFlight: next, clearedAt: next ? nil : now())
+    }
+
+    /// A clock seam for testing the 0.5s hold plus 0.2s retention without a real wait.
+    func clearExpiredUserRefreshRun(at date: Date) {
+        guard !isRefreshing, let clearedAt = userRefreshRun?.refreshingClearedAt,
+              date.timeIntervalSince(clearedAt) >= Self.refreshRunRetentionDuration else { return }
+        userRefreshRun = nil
     }
 
     private func refreshAPISpend(exportAfter: Bool = true) async {
@@ -858,10 +950,19 @@ public final class UsageStore {
                 guard let surface = UsageSurface.api(for: provider.id),
                       enabledSurfaces.contains(surface)
                 else { continue }
+                spendFetchDepths[provider.id, default: 0] += 1
+                apiSpendInFlightProviders.insert(provider.id)
                 group.addTask { (provider.id, await provider.fetchSpend(period: spendPeriod)) }
             }
             var acc: [(ProviderID, APISpendSnapshot)] = []
-            for await pair in group { acc.append(pair) }
+            for await pair in group {
+                spendFetchDepths[pair.0, default: 1] -= 1
+                if spendFetchDepths[pair.0] == 0 {
+                    spendFetchDepths.removeValue(forKey: pair.0)
+                    apiSpendInFlightProviders.remove(pair.0)
+                }
+                acc.append(pair)
+            }
             return acc
         }
         for (id, fresh) in spendResults { mergeSpend(id: id, fresh: fresh) }
@@ -1174,7 +1275,10 @@ public final class UsageStore {
                     isNeutral: true,
                     needsAttention: needsAttention
                 ),
-                fill: nil
+                fill: nil,
+                awaitingFirstReading: snapshot(for: id).freshness == .pending,
+                isLiveReading: snapshot(for: id).freshness == .live,
+                sourceAccountKey: primaryKey(for: id)
             )
         }
 
@@ -1190,7 +1294,10 @@ public final class UsageStore {
                 severity: resolved.window.severity,
                 needsAttention: needsAttention
             ),
-            fill: usagePercentageMode.fraction(for: resolved.window)
+            fill: usagePercentageMode.fraction(for: resolved.window),
+            awaitingFirstReading: snapshot(for: id).freshness == .pending,
+            isLiveReading: snapshot(for: id).freshness == .live,
+            sourceAccountKey: primaryKey(for: id)
         )
     }
 
@@ -1300,6 +1407,18 @@ extension UsageStore: AccountProbeSchedulerHost {
         engine?.rephase()
     }
 
+    func schedulerStartsNewUserRun(origin: UserRefreshOrigin) -> Bool {
+        guard let run = userRefreshRun else { return true }
+        guard let clearedAt = run.refreshingClearedAt else { return false }
+        return origin != .setupCheck || now().timeIntervalSince(clearedAt) >= Self.refreshRunRetentionDuration
+    }
+
+    func schedulerUserRunDidChange(_ run: UserRefreshRun) {
+        refreshRunRetentionTask?.cancel()
+        userRefreshRun = run
+        recomputeVisibleRefreshWork()
+    }
+
     func schedulerUserWorkDidChange(hasPending: Bool) {
         userWorkPending = hasPending
         if !hasPending { refreshProgress = nil }
@@ -1311,6 +1430,7 @@ extension UsageStore: AccountProbeSchedulerHost {
     }
 
     func schedulerProbeDidEnd(_ key: AccountKey) {
+        lastProbeEndTimes[key] = now()
         if probingAccounts.contains(key) { probingAccounts.remove(key) }
     }
 

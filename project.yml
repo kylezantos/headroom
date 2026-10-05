@@ -94,6 +94,8 @@ targets:
     type: application
     platform: iOS
     sources:
+      # Loading-language KTD7: phone placeholders use the same vessel renderer as widgets.
+      - path: Sources/HeadroomWidgetSharedUI
       - path: Sources/HeadroomIOS
         excludes:
           - HeadroomIOS.entitlements
@@ -201,5 +203,8 @@ schemes:
         Headroom: all
         HeadroomAppTests: [test]
     test:
+      # The hosted unit suite uses isolated fixtures while another real copy may run.
+      commandLineArguments:
+        "--demo": true
       targets:
         - HeadroomAppTests

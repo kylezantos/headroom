@@ -906,7 +906,7 @@ struct AccountsSettingsInteractionTests {
         #expect(await shell.count == 1)
     }
 
-    @Test func providerCapabilityRecoveryTargetsAndRefreshesPrimaryOnly() {
+    @Test func providerCapabilityRecoveryTargetsPrimaryAndRefreshesEveryProviderAccount() {
         let fixture = makeFixture()
         defer { fixture.cleanup() }
         let extra = AccountsSettingsInteractions.addAccount(
@@ -932,7 +932,8 @@ struct AccountsSettingsInteractionTests {
         let primary = AccountKey(providerID: .claude, accountID: .primary)
         #expect(routed)
         #expect(performedFor == [primary])
-        #expect(refreshed == [primary])
+        #expect(refreshed == fixture.store.accounts(for: .claude).map(\.key))
+        #expect(refreshed.contains(try! #require(extra?.key)))
         #expect(extra?.key != primary)
     }
 

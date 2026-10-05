@@ -10,7 +10,8 @@ import HeadroomCore
 /// `--probe-grok` / `--probe-cursor` run the real provider capture once and print parsed
 /// windows; `--probe-spend <openai|anthropic|xai> [--key-file <path>]` verifies a key-based
 /// API-spend path; `--dump-phone-sync` decodes the iCloud KVS payload the Mac published for
-/// the iPhone. All run without launching the menu bar UI.
+/// the iPhone; `--bench-ui` measures the popover and Settings offscreen (`UIBenchHarness`).
+/// All run without launching the menu bar UI.
 @main
 enum Entry {
     static func main() {
@@ -38,6 +39,12 @@ enum Entry {
             runPhoneSyncDump()
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-loading-preview") {
+            let outDir = CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : "loading-preview"
+            MainActor.assumeIsolated { MiniPillPreviewHarness.run(outputDirectory: outDir) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-widgets") {
             // KTD12 (widget-styles plan): headless renders of every widget style.
             let outDir = CommandLine.arguments.indices.contains(index + 1)
@@ -49,6 +56,12 @@ enum Entry {
             let outDir = CommandLine.arguments.indices.contains(index + 1)
                 ? CommandLine.arguments[index + 1] : "popover-shots"
             MainActor.assumeIsolated { PopoverRenderHarness.run(outputDirectory: outDir) }
+            return
+        }
+        if CommandLine.arguments.contains("--bench-ui") {
+            // Offscreen perf bench: timings, frame-by-frame probes, and (with -DHEADROOM_BENCH)
+            // view-body counts for the popover and Settings.
+            MainActor.assumeIsolated { UIBenchHarness.run() }
             return
         }
         // `--demo <scenario>` (demo mode, Jul 2026): reject an unrecognized scenario before the
@@ -448,11 +461,15 @@ struct HeadroomApp: App {
     @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let preferences: Preferences
+    private let demoController: LoadingDemoController?
 
     @MainActor
     init() {
         let preferences = AppComposition.launchPreferences
-        let store = AppComposition.store(preferences: preferences)
+        let demoController = DemoFixture.isEnabled
+            ? LoadingDemoController(loading: DemoFixture.scenarioRequest() == .multiAccount(.loading)) : nil
+        let store = AppComposition.store(preferences: preferences, demoController: demoController)
+        demoController?.configure(store: store)
         if !DemoFixture.isEnabled {
             SetupSessions.configure(
                 store: store,
@@ -460,10 +477,26 @@ struct HeadroomApp: App {
             )
         }
         self.preferences = preferences
+        self.demoController = demoController
         _store = State(initialValue: store)
         _appearancePreference = State(initialValue: preferences.appearancePreference)
         _systemIsDark = State(initialValue: SystemAppearance.isDark())
-        AppDelegate.startUsageStore = { Task { await store.start() } }
+        AppDelegate.startUsageStore = {
+            if demoController?.loading == true { demoController?.start() }
+            else { Task { await store.start() } }
+        }
+        #if HEADROOM_BENCH
+        if let reportURL = LoadingNativeBench.reportURL {
+            AppDelegate.startUsageStore = {
+                Task { await LoadingNativeBench.run(store: store, preferences: preferences, reportURL: reportURL) }
+            }
+        }
+        #endif
+        if let demoController {
+            AppDelegate.stopDemo = { await demoController.shutdown() }
+        } else {
+            AppDelegate.stopDemo = nil
+        }
         // SwiftUI's `preferredColorScheme` doesn't reach the `MenuBarExtra(.window)`
         // popover panel or the Settings window's AppKit chrome — both are NSWindows whose
         // appearance follows the process. Drive `NSApp.appearance` so the theme toggle
@@ -487,6 +520,8 @@ struct HeadroomApp: App {
         }
     }
 
+    // ML1: `--bench-ui scene` measures `BenchSceneStandIn` (UIBenchHarness.swift), not this body.
+    // Mirror a change to what this body reads or builds into the stand-in before measuring it.
     var body: some Scene {
         MenuBarExtra {
             PopoverView(store: store) {
@@ -512,39 +547,31 @@ struct HeadroomApp: App {
                     store.refreshOnPopoverOpen()
                 }
         } label: {
-            MenuBarLabel(
-                meters: store.menuBarMeters,
-                showsPercentage: store.showMenuBarPercentage,
-                // L1A: only the real status item follows the live menu bar. The Settings
-                // specimens keep the default pinned-dark palette because they sit on a
-                // fixed dark plate.
-                appearance: .menuBar,
-                updatingProviders: store.menuBarUpdatingProviders
-            )
-            .preferredColorScheme(resolvedScheme)
-            .task { await store.start() }
-            // Attach to the status item's own window once the scene exists (L1A). The menu
-            // bar's appearance is not the process appearance: a light system appearance over
-            // a dark wallpaper still gets a dark menu bar, which is exactly the case the old
-            // dark pin got right by accident and a system-appearance check would get wrong.
-            .task { MenuBarAppearanceMonitor.shared.start() }
-            // Track OS light/dark flips so `.system` content re-resolves live (chrome
-            // follows the OS on its own via `NSApp.appearance == nil`). Attached to the
-            // always-present label, not the on-demand popover, so it never misses a change.
-            .onReceive(DistributedNotificationCenter.default().publisher(
-                for: Notification.Name("AppleInterfaceThemeChangedNotification")
-            )) { _ in
-                systemIsDark = SystemAppearance.isDark()
-                // An OS theme flip repaints the menu bar backplate; re-read it in case the
-                // status window was replaced and the KVO has nothing to fire from (L1A).
-                MenuBarAppearanceMonitor.shared.refresh()
-            }
-            // Re-read the OS truth on any theme switch so a Light→System flip resolves
-            // against the live setting, not a possibly-stale mirror.
-            .onChange(of: appearancePreference) { _, _ in
-                systemIsDark = SystemAppearance.isDark()
-                MenuBarAppearanceMonitor.shared.refresh()
-            }
+            MenuBarStatusLabel(store: store)
+                .preferredColorScheme(resolvedScheme)
+                .task { await store.start() }
+                // Attach to the status item's own window once the scene exists (L1A). The menu
+                // bar's appearance is not the process appearance: a light system appearance over
+                // a dark wallpaper still gets a dark menu bar, which is exactly the case the old
+                // dark pin got right by accident and a system-appearance check would get wrong.
+                .task { MenuBarAppearanceMonitor.shared.start() }
+                // Track OS light/dark flips so `.system` content re-resolves live (chrome
+                // follows the OS on its own via `NSApp.appearance == nil`). Attached to the
+                // always-present label, not the on-demand popover, so it never misses a change.
+                .onReceive(DistributedNotificationCenter.default().publisher(
+                    for: Notification.Name("AppleInterfaceThemeChangedNotification")
+                )) { _ in
+                    systemIsDark = SystemAppearance.isDark()
+                    // An OS theme flip repaints the menu bar backplate; re-read it in case the
+                    // status window was replaced and the KVO has nothing to fire from (L1A).
+                    MenuBarAppearanceMonitor.shared.refresh()
+                }
+                // Re-read the OS truth on any theme switch so a Light→System flip resolves
+                // against the live setting, not a possibly-stale mirror.
+                .onChange(of: appearancePreference) { _, _ in
+                    systemIsDark = SystemAppearance.isDark()
+                    MenuBarAppearanceMonitor.shared.refresh()
+                }
         }
         .menuBarExtraStyle(.window)
 
@@ -554,11 +581,9 @@ struct HeadroomApp: App {
                 appearancePreference: $appearancePreference,
                 softwareUpdates: softwareUpdates,
                 preferences: preferences,
-                // Demo runs stay off the real Keychain: the unsigned debug binary would
-                // otherwise raise one prompt per API-key provider every time Settings opens.
-                credentialStore: DemoFixture.isEnabled
-                    ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
-                    : CredentialStore(),
+                credentialStore: AppComposition.settingsCredentialStore,
+                launchControl: AppComposition.settingsLaunchControl,
+                duplicateDetector: AppComposition.settingsDuplicateDetector,
                 // U6: the one client per launch; inert under `--demo` and unbundled runs (KTD9).
                 notificationClient: AppComposition.notificationClient
             )
@@ -738,6 +763,8 @@ enum SystemAppearance {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var startUsageStore: (() -> Void)?
+    static var stopDemo: (@MainActor () async -> Void)?
+    private var terminationTask: Task<Void, Never>?
     /// Set from `HeadroomApp.init()`; applied here once `NSApp` exists (`.some(nil)` means
     /// "System" — leave `NSApp.appearance` at its default so it tracks the OS).
     static var startupAppearance: NSAppearance??
@@ -754,6 +781,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.appearance = appearance
         }
         Self.startUsageStore?()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let stopDemo = Self.stopDemo else { return .terminateNow }
+        if terminationTask == nil {
+            terminationTask = Task {
+                await stopDemo()
+                Self.stopDemo = nil
+                sender.reply(toApplicationShouldTerminate: true)
+            }
+        }
+        return .terminateLater
     }
 }
 
@@ -830,12 +869,12 @@ enum AppComposition {
     }
 
     @MainActor
-    static func store(preferences: Preferences = launchPreferences) -> UsageStore {
+    static func store(preferences: Preferences = launchPreferences, demoController: LoadingDemoController? = nil) -> UsageStore {
         if DemoFixture.isEnabled {
             // `--demo <scenario>` opts into the isolated multi-account preview; a bare `--demo`
             // keeps the single-account screenshot fixtures the marketing pipeline relies on.
             if case .multiAccount(let scenario) = DemoFixture.scenarioRequest() {
-                return demoMultiAccountStore(scenario: scenario)
+                return demoMultiAccountStore(scenario: scenario, controller: demoController)
             }
             return demoStore()
         }
@@ -905,11 +944,13 @@ enum AppComposition {
     /// return their snapshots instantly (Refresh re-serves them at no cost — no CLI, no
     /// network), and the widget/iCloud exporters are omitted so no App Group or KVS write
     /// happens. The `providerFactory` returns fixtures too, so even "Add account" in Settings
-    /// never spawns the claude/codex CLIs.
+    /// never spawns the claude/codex CLIs when paired with the inert demo coordinator.
     @MainActor
-    private static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario) -> UsageStore {
-        let prefsDefaults = launchDefaults
-        let prefs = launchPreferences
+    static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario,
+                                     controller: LoadingDemoController? = nil,
+                                     defaults: UserDefaults? = nil) -> UsageStore {
+        let prefsDefaults = defaults ?? launchDefaults
+        let prefs = Preferences(defaults: prefsDefaults)
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
@@ -918,7 +959,7 @@ enum AppComposition {
         // API spend surfaces are off by default, so enable exactly the ones this scenario
         // wires — derived from the providers rather than a hardcoded Claude/Codex pair, so
         // `spend-states`' xAI balance row is not silently filtered out of the card.
-        let spendProviders = demoSpendProviders(for: scenario)
+        let spendProviders = scenario == .loading ? (controller?.spendProviders() ?? demoSpendProviders(for: scenario)) : demoSpendProviders(for: scenario)
         for provider in spendProviders {
             if let surface = UsageSurface.api(for: provider.id) {
                 prefs.setSurfaceEnabled(true, for: surface)
@@ -950,8 +991,9 @@ enum AppComposition {
         // `Optional.map` trips a Swift 6.3 type-checker crash — mirror the harness's pattern.
         var factory: (@MainActor (ProviderAccount) -> any UsageProvider)?
         if registry != nil {
-            factory = { account in
-                DemoUsageProvider(
+            factory = { [weak controller] account in
+                if let controller { return controller.provider(for: account, needsSetup: true) }
+                return DemoUsageProvider(
                     id: account.providerID,
                     displayName: account.providerID.displayName,
                     snapshot: .pending(for: account.providerID),
@@ -959,15 +1001,20 @@ enum AppComposition {
                 )
             }
         }
+        let providers: [any UsageProvider]
+        if scenario == .loading, let controller { providers = fixture.accounts.map { controller.provider(for: $0) } }
+        else { providers = fixture.providers }
         return UsageStore(
-            providers: fixture.providers,
+            providers: providers,
             apiSpendProviders: spendProviders,
             preferences: prefs,
             accounts: fixture.accounts,
             accountRegistry: registry,
+            accountStorage: controller?.accountStorage ?? DemoAccountStorage(),
             providerFactory: factory,
             continuityCache: continuityCache,
-            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults)
+            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults),
+            now: { [clock = controller?.clock] in clock?.now() ?? Date() }
         )
     }
 
@@ -1169,6 +1216,11 @@ enum AppComposition {
         environment["XCTestConfigurationFilePath"] != nil
     }
 
+    /// The Settings window's key store, one per launch rather than one per scene-body pass.
+    /// Demo runs stay off the real Keychain: the unsigned debug binary would otherwise raise
+    /// one prompt per API-key provider every time Settings opens.
+    static let settingsCredentialStore = makeSettingsCredentialStore(isDemo: DemoFixture.isEnabled)
+
     /// U5: the one notification client per launch. The store's coordinator posts through
     /// it and `SettingsView` reads and requests permission through it (U6).
     @MainActor static let notificationClient: any NotificationClient = makeNotificationClient()
@@ -1185,6 +1237,8 @@ enum AppComposition {
         arguments.contains("--demo")
             || arguments.contains("--render-popover")
             || arguments.contains("--render-widgets")
+            || arguments.contains("--render-loading-preview")
+            || arguments.contains("--bench-ui")
             || usesNoOpWidgetExporter(environment: environment)
             || !bundle.supportsUserNotifications
     }

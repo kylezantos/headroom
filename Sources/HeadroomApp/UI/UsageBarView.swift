@@ -332,6 +332,7 @@ struct UsageBarView: View {
     }
 
     var body: some View {
+        let _ = BenchCounters.hit("UsageBarView")
         Group {
             switch meterStyle.format {
             case .full:

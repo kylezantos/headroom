@@ -4,6 +4,9 @@ import HeadroomSharedUI
 import AppKit
 import HeadroomCore
 import SwiftUI
+#if canImport(HeadroomWidgetSharedUI)
+import HeadroomWidgetSharedUI
+#endif
 
 /// Session-local state for the official Codex CLI handoff. It is intentionally separate
 /// from Claude setup so either provider can wait or recover without canceling the other.
@@ -271,18 +274,26 @@ struct CodexAccessRecoveryCard: View {
 
 struct CodexWaitingCard: View {
     var mode: SetupHandoffMode = .standard
+    var phase: SetupWaitingPhase? = nil
     let onReopen: () -> Void
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func loadingMotion(reduceMotion: Bool) -> SetupMotion {
+        SetupMotion.resolve(phase: phase ?? .waitingForUser(.signIn), surface: .card, reduceMotion: reduceMotion)
+    }
 
     var body: some View {
         let dark = scheme == .dark
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .codex, size: 20)
-                // Matches the 15pt title, not the 20pt mark, so it doesn't compete with the logo.
-                DotMatrixSpinner(size: 15)
-                Text(mode == .deviceCode ? "Finish device-code sign-in…" : "Finish signing in…")
+                let loading = loadingMotion(reduceMotion: reduceMotion)
+                // R7: the same title-slot vessel as Claude; setup phases own its motion.
+                HalftoneVesselView(state: .init(id: "codex-setup", level: loading.level),
+                                  motion: loading.motion, width: 10, height: 16, columns: 4, rows: 8)
+                Text(phase?.copy.title ?? (mode == .deviceCode ? "Finish device-code sign-in…" : "Finish signing in…"))
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(SetupCardMetrics.titleKerning)
                     .foregroundStyle(ProviderStyle.textAccent(for: .codex, scheme: scheme))

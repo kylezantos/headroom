@@ -16,8 +16,13 @@ extension UsageStore {
         accounts(for: providerID).first
     }
 
-    public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator) {
+    public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator?) {
         setupCoordinator = coordinator
+    }
+
+    /// An isolated demo/capture owner releases its sources before awaiting scheduler teardown.
+    public func waitForAccountProbesToFinish() async {
+        await scheduler.waitUntilLanesIdle()
     }
 
     /// Reject any capture started before this reset boundary and drop retained usage

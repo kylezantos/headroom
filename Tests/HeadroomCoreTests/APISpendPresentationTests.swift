@@ -5,6 +5,29 @@ import Testing
 struct APISpendPresentationTests {
     private let now = Date(timeIntervalSince1970: 2_000)
 
+    /// The current-month tag is the localized three-letter month ("Sep") in the user's zone.
+    /// Pinned against the `setLocalizedDateFormatFromTemplate("MMM")` formatter the label
+    /// used to build per call, so the format-style replacement prints the same string.
+    @Test func currentMonthDisplayLabelMatchesLocalizedAbbreviatedMonth() {
+        let calendar = Calendar(identifier: .gregorian)
+        var zoned = calendar
+        zoned.timeZone = .current
+        let reference = DateFormatter()
+        reference.calendar = zoned
+        reference.locale = .current
+        reference.setLocalizedDateFormatFromTemplate("MMM")
+        let dates = [0, 2_000, 1_700_000_000, 1_790_000_000, 1_767_225_599].map {
+            Date(timeIntervalSince1970: TimeInterval($0))
+        }
+        for date in dates {
+            #expect(APISpendPeriod.currentMonth.displayLabel(now: date, calendar: calendar) == reference.string(from: date))
+        }
+    }
+
+    @Test func rollingDisplayLabelKeepsTheDescriptivePhrase() {
+        #expect(APISpendPeriod.rolling30Days.displayLabel(now: now) == APISpendPeriod.rolling30Days.label)
+    }
+
     @Test func usdAmountFormatsWithTwoDecimals() {
         #expect(APISpendPresentation.amountText(amount: 12.3, currency: "usd") == "$12.30")
     }

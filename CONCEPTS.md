@@ -38,3 +38,18 @@ A reminder fires at most once per limit per reset, only from a fresh reading, an
 
 ### Banked-reset notice
 An opt-in Mac notification that Codex banked a new spare reset for an account. It fires only when a fresh reading shows the count rising above the last count Headroom saw; the first count seen for an account never fires.
+
+## Loading
+
+### Slosh
+The travelling liquid surface a vessel shows while Headroom is fetching for it. It moves only while that work is in flight.
+
+### Drip
+A single drop falling into an empty vessel, shown while Headroom is waiting on the user (finishing sign-in in Terminal or the browser), so a wait on the user never looks like the app is busy.
+
+### Ghost
+A vessel drawn in faint halftone dots: its number is old, or there is no reading yet. It becomes solid when a fresh live reading prints in.
+*Avoid:* stale pill (stale is a freshness state with its own treatment)
+
+### Reprint
+The Refresh button's loading state: a row of pills mirroring the menu bar, where each pill being re-read turns to a ghost and prints back in at its fresh level when its account lands.

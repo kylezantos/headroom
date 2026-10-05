@@ -750,15 +750,14 @@ public enum APISpendPeriod: String, CaseIterable, Sendable, Codable, Equatable {
     public func displayLabel(now: Date, calendar: Calendar = Calendar(identifier: .gregorian)) -> String {
         switch self {
         case .currentMonth:
-            var calendar = calendar
-            calendar.timeZone = .current
-            let formatter = DateFormatter()
-            formatter.calendar = calendar
-            formatter.locale = .current
             // CMM5 (Kyle, 2026-09-10): the three-letter month — "Sep", not "September" —
             // reads as a period tag beside the amount rather than a second title.
-            formatter.setLocalizedDateFormatFromTemplate("MMM")
-            return formatter.string(from: now)
+            // A format style, not a `DateFormatter` built per call: the spend card asks for
+            // this label on every row of every popover pass, and the per-call formatter was
+            // the app's own largest hot spot in the 2026-10-03 perf bench.
+            let style = Date.FormatStyle(date: .omitted, time: .omitted, locale: .current, calendar: calendar, timeZone: .current)
+                .month(.abbreviated)
+            return now.formatted(style)
         case .rolling30Days:
             return label
         }

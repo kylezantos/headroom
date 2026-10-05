@@ -418,7 +418,8 @@ public enum DemoScreenshotData {
     /// stale, unavailable and pending paths are posed against a fixed `now`.
     public static let styleFixtureNames = [
         "claudeCodex", "claudeGrok", "codexCursor", "grokCursor", "tightClaudeCursor",
-        "sparkOn", "staleUnavailable", "pending", "firstPending", "signedOut", "cursorOnly", "spend",
+        "sparkOn", "staleUnavailable", "pending", "firstPending", "pendingAll", "pendingPools", "pendingCodex", "pendingCursor",
+        "signedOut", "cursorOnly", "spend",
     ]
 
     public static func styleFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
@@ -478,6 +479,10 @@ public enum DemoScreenshotData {
         }
         let pending = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
                                             freshness: .pending, windows: [], renewalDate: nil)
+        func waiting(_ id: ProviderID, _ name: String) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: id.raw, displayName: name, planLabel: nil,
+                                  freshness: .pending, windows: [], renewalDate: nil)
+        }
         // WCM5-v: a provider that needs the user, with no retained window — large prints its reason.
         let signedOut = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
                                               freshness: .stale(message: ProviderSetupOutcome.claudeLoginRequired.message, needsAttention: true),
@@ -498,6 +503,10 @@ public enum DemoScreenshotData {
             ])
         case "pending": return envelope([pending, codex(41, 64)])
         case "firstPending": return envelope([pending, grok(56)])
+        case "pendingAll": return envelope([pending, waiting(.codex, "Codex")])
+        case "pendingPools": return envelope([waiting(.grok, "Grok"), waiting(.cursor, "Cursor")])
+        case "pendingCodex": return envelope([waiting(.codex, "Codex")])
+        case "pendingCursor": return envelope([waiting(.cursor, "Cursor")])
         case "signedOut": return envelope([signedOut, codex(41, 64)])
         case "cursorOnly": return envelope([cursor(69, 37)])
         case "spend":

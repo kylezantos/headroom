@@ -1458,6 +1458,64 @@ struct UsageStoreTests {
         #expect(meters[0].fill == nil)      // `.none` uses static vessel level.
     }
 
+    @Test func menuBarGhostTracksPendingMainsRatherThanNilFill() async {
+        let pending = makeStore(source: .both, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .stale(for: .codex, reason: .notLoggedIn("signed out"))),
+        ])
+        #expect(pending.menuBarMeters.allSatisfy { $0.awaitingFirstReading })
+        await pending.refreshAll()
+        #expect(pending.menuBarMeters.map(\.awaitingFirstReading) == [true, false])
+        #expect(pending.menuBarMeters.allSatisfy { $0.fill == nil })
+        #expect(pending.menuBarMeters.map(\.sourceAccountKey) == [
+            AccountKey(providerID: .claude, accountID: .primary), AccountKey(providerID: .codex, accountID: .primary),
+        ])
+
+        let unavailable = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 10, resetsAt: reset, freshness: .unavailable(since: reset)),
+            ])),
+        ])
+        await unavailable.refreshAll()
+        #expect(unavailable.menuBarMeters[0].fill == nil)
+        #expect(!unavailable.menuBarMeters[0].awaitingFirstReading)
+    }
+
+    @Test func automaticGhostNeedsNeutralSummaryAndAtLeastOnePendingMain() async {
+        let mixed = makeStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset),
+            ])),
+        ])
+        #expect(mixed.menuBarMeters[0].awaitingFirstReading)
+        await mixed.refreshAll()
+        #expect(!mixed.menuBarMeters[0].awaitingFirstReading)
+        #expect(mixed.menuBarMeters[0].isLiveReading)
+        #expect(mixed.menuBarMeters[0].fill == nil)
+
+        let signedOut = makeStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .stale(for: .claude, reason: .notLoggedIn("signed out"))),
+        ])
+        await signedOut.refreshAll()
+        #expect(!signedOut.menuBarMeters[0].awaitingFirstReading)
+        #expect(!signedOut.menuBarMeters[0].isLiveReading)
+    }
+
+    @Test func menuBarFirstResultCarriesLiveProvenanceEvenWhenStaleHasANumber() async {
+        let stale = UsageSnapshot(providerID: .claude, windows: [
+            UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset),
+        ], planLabel: nil, capturedAt: Date(), freshness: .stale(.transient("offline")))
+        let store = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: stale),
+        ])
+        #expect(store.menuBarMeters[0].awaitingFirstReading)
+        await store.refreshAll()
+        #expect(!store.menuBarMeters[0].awaitingFirstReading)
+        #expect(store.menuBarMeters[0].fill == 0.8)
+        #expect(!store.menuBarMeters[0].isLiveReading)
+    }
+
     @Test func menuBarMetersCanShowClaudeAndCodexSideBySide() async {
         let store = makeStore(source: .both, providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [

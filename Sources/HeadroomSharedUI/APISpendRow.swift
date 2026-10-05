@@ -53,8 +53,9 @@ public enum APISpendChipFit: Sendable {
     case inline
     /// U21 (KTD3): chip inline, then chip in the subline, then — once even the bare title and
     /// the amount cannot share a line (xxLarge on a 390pt phone) — the chip and the amount
-    /// share the subline under a full-width title, and last the title wraps between words.
-    /// The title never truncates mid-word.
+    /// share the subline under a full-width title, and last the title wraps between words
+    /// beside the amount with the chip under it. Capsules never truncate, so the title is
+    /// the only thing that gives, and it gives a word at a time.
     case sublineWhenTight
 }
 
@@ -185,23 +186,23 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
                     chip
                         .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
                 }
-                stackedIdentity(titleWraps: false)
-                stackedIdentity(titleWraps: true)
+                stackedIdentity
+                wrappingIdentity
+                amountBelowIdentity
             }
         }
     }
 
     private enum ChipPlacement { case inline, none }
 
-    /// U21 (KTD3): the phone's last two rungs. The title takes the whole line, and the chip
-    /// and the amount share the subline — the amount still in its reserved column on the
-    /// card's one right edge. The last rung lets the title wrap between words instead of
-    /// truncating inside one.
-    private func stackedIdentity(titleWraps: Bool) -> some View {
+    /// U21 (KTD3): the phone's third rung. The title takes the whole line, and the chip and
+    /// the amount share the subline — the amount still in its reserved column on the card's
+    /// one right edge.
+    private var stackedIdentity: some View {
         VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
             HStack(spacing: IdentityRowMetrics.spacing * scale) {
                 mark(IdentityRowMetrics.markSlotWidth * scale)
-                titleText(wraps: titleWraps)
+                titleText(wraps: false)
                 Spacer(minLength: 0)
             }
             HStack(spacing: IdentityRowMetrics.spacing * scale) {
@@ -215,6 +216,59 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
             }
             .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
         }
+    }
+
+    /// U21 (KTD3): the fourth rung. The title wraps between words beside the amount, both
+    /// hung from the first line, and the chip keeps its subline. Its ideal width is the
+    /// longest word's, so `ViewThatFits` takes it only while no word has to break.
+    private var wrappingIdentity: some View {
+        VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
+            HStack(alignment: .top, spacing: IdentityRowMetrics.spacing * scale) {
+                mark(IdentityRowMetrics.markSlotWidth * scale)
+                    .frame(height: IdentityRowMetrics.capsuleHeight * scale)
+                titleText(wraps: true)
+                    .frame(idealWidth: longestTitleWordWidth, alignment: .leading)
+                Spacer(minLength: 0)
+                if amount != nil {
+                    amountColumn
+                        .layoutPriority(2)
+                        .frame(height: IdentityRowMetrics.capsuleHeight * scale)
+                }
+            }
+            chip
+                .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
+        }
+    }
+
+    /// U21 (KTD3): the guaranteed fit, for the clamped accessibility sizes. The title takes
+    /// the whole width and wraps, the amount drops to its own line on the card's right edge,
+    /// and the chip closes the row.
+    private var amountBelowIdentity: some View {
+        VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
+            HStack(alignment: .top, spacing: IdentityRowMetrics.spacing * scale) {
+                mark(IdentityRowMetrics.markSlotWidth * scale)
+                    .frame(height: IdentityRowMetrics.capsuleHeight * scale)
+                titleText(wraps: true)
+                Spacer(minLength: 0)
+            }
+            if amount != nil {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    amountColumn
+                        .frame(height: IdentityRowMetrics.capsuleHeight * scale)
+                }
+            }
+            chip
+                .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
+        }
+    }
+
+    /// The widest single word of the title at its rendered size (CoreText, KTD2).
+    private var longestTitleWordWidth: CGFloat {
+        title.split(separator: " ")
+            .map { ceil(HeadroomWidgetFontMetrics.textWidth(String($0), size: IdentityRowMetrics.titleSize * scale, weight: .semibold,
+                kerning: IdentityRowMetrics.titleKerning * scale)) }
+            .max() ?? 0
     }
 
     private func titleText(wraps: Bool) -> some View {

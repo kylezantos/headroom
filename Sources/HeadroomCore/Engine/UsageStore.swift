@@ -743,7 +743,7 @@ public final class UsageStore {
               let id = ids.first,
               let resolved = menuBarWindow(for: id)
         else { return nil }
-        return usagePercentageMode.fraction(for: resolved.window)
+        return UsageMeterReading(window: resolved.window).fraction(for: usagePercentageMode)
     }
 
     /// Render-ready menu bar meters. Explicit selection gives each chosen provider its
@@ -1290,15 +1290,15 @@ public final class UsageStore {
         let needsAttention = providerOrder.contains { providerNeedsAttention($0) }
         let best = menuBarBestWindow()
         guard let best else { return MenuBarSummary.neutral.withAttention(needsAttention) }
-        let pct = usagePercentageMode.roundedPercentage(for: best.window)
+        let reading = UsageMeterReading(window: best.window)
         let name = displayNames[best.id] ?? best.id.raw
         return MenuBarSummary(
-            text: "\(pct)%",
+            text: menuBarText(reading),
             providerID: best.id,
             detail: "\(name) \(best.menuBarTerm)",
             isNeutral: false,
             percentageMode: usagePercentageMode,
-            severity: best.window.severity,
+            severity: reading.severity ?? best.window.severity,
             needsAttention: needsAttention
         )
     }
@@ -1334,23 +1334,30 @@ public final class UsageStore {
             )
         }
 
-        let pct = usagePercentageMode.roundedPercentage(for: resolved.window)
+        let reading = UsageMeterReading(window: resolved.window)
         let name = displayNames[id] ?? id.raw
         return MenuBarMeter(
             summary: MenuBarSummary(
-                text: "\(pct)%",
+                text: menuBarText(reading),
                 providerID: id,
                 detail: "\(name) \(resolved.menuBarTerm)",
                 isNeutral: false,
                 percentageMode: usagePercentageMode,
-                severity: resolved.window.severity,
+                severity: reading.severity ?? resolved.window.severity,
                 needsAttention: needsAttention
             ),
-            fill: usagePercentageMode.fraction(for: resolved.window),
+            fill: reading.fraction(for: usagePercentageMode),
             awaitingFirstReading: snapshot(for: id).freshness == .pending,
             isLiveReading: snapshot(for: id).freshness == .live,
             sourceAccountKey: primaryKey(for: id)
         )
+    }
+
+    /// KTD6.2: the popover row's own reading prints, inks and fills the menu bar, so every
+    /// Mac surface shows one integer and one severity for a window. A non-finite source has
+    /// no figure, as in the row.
+    private func menuBarText(_ reading: UsageMeterReading) -> String {
+        reading.roundedPercentage(for: usagePercentageMode).map { "\($0)%" } ?? "—"
     }
 
     private func providerNeedsAttention(_ id: ProviderID) -> Bool {

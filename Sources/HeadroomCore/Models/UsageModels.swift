@@ -181,6 +181,8 @@ public enum UsagePercentageMode: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// The raw source integer. Display surfaces print `displayedPercentage(for:)` (or a
+    /// `UsageMeterReading`), which rounds the one normalized tenth every surface shares (KTD6.2).
     public func roundedPercentage(for window: UsageWindow) -> Int {
         Int(percentage(for: window).rounded())
     }

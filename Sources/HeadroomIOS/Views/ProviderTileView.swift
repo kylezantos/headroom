@@ -80,7 +80,7 @@ struct ProviderTileView: View {
     private var bars: some View {
         VStack(spacing: 14) {
             ForEach(MirrorPresentation.windows(for: provider)) { window in
-                UsageBarView(window: window, now: now, dimmed: treatment.isDimmed)
+                LegacyUsageBarView(window: window, now: now, dimmed: treatment.isDimmed)
             }
         }
     }

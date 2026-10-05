@@ -30,7 +30,8 @@ struct HeadroomWidgetView: View {
             // sits under the padded content. It reads the rendering mode itself, so it also
             // draws (as a translucent primary wash) in accented and StandBy.
             if case .content(let envelope) = entry.state {
-                HeadroomWidgetStyledBackground(style: entry.style, family: coreFamily, envelope: envelope, colorMode: entry.colorMode)
+                HeadroomWidgetStyledBackground(style: entry.style, family: coreFamily, envelope: envelope, colorMode: entry.colorMode,
+                                               freshness: entry.freshnessTreatment)
             }
             // WCF4: the system content margin on every family, vertical included. The large
             // family used to zero its vertical margins so its equal spacers could own all
@@ -74,7 +75,8 @@ struct HeadroomWidgetView: View {
                 envelope: envelope,
                 colorMode: entry.colorMode,
                 now: entry.date,
-                footerPrefix: HeadroomWidgetCopy.macFooterPrefix
+                footerPrefix: HeadroomWidgetCopy.macFooterPrefix,
+                freshness: entry.freshnessTreatment
             )
         }
     }

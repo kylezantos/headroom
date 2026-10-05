@@ -18,8 +18,11 @@ public struct HeadroomWidgetStyledBody<Mark: View>: View {
     private let colorMode: WidgetColorMode
     private let now: Date
     private let footerPrefix: String
+    private let freshness: WidgetFreshnessTreatment
     private let mark: (String, CGFloat) -> Mark
 
+    /// `freshness`: U13's KTD15 treatment for this entry. Hosts pass the widget treatment;
+    /// other callers get the past-reset rule at `now` and never dim.
     public init(
         style: WidgetLayoutStyle,
         family: WidgetFamily,
@@ -27,6 +30,7 @@ public struct HeadroomWidgetStyledBody<Mark: View>: View {
         colorMode: WidgetColorMode,
         now: Date,
         footerPrefix: String,
+        freshness: WidgetFreshnessTreatment? = nil,
         @ViewBuilder mark: @escaping (String, CGFloat) -> Mark
     ) {
         self.style = style
@@ -35,18 +39,21 @@ public struct HeadroomWidgetStyledBody<Mark: View>: View {
         self.colorMode = colorMode
         self.now = now
         self.footerPrefix = footerPrefix
+        self.freshness = freshness ?? WidgetFreshnessTreatment(now: now)
         self.mark = mark
     }
 
     public var body: some View {
         let context = HeadroomWidgetStyleContext(
-            recipe: WidgetStyleRecipe(style: style, family: family, envelope: envelope),
+            recipe: WidgetStyleRecipe(style: style, family: family, envelope: envelope, freshness: freshness),
             envelope: envelope,
             colorMode: colorMode,
             now: now,
             footerPrefix: footerPrefix
         )
-        Group {
+        // U13: the freshness notes and the dimmed sentence wrap every style the same way.
+        HeadroomWidgetFreshnessFrame(recipe: context.recipe) { notes in
+            let context = context.placing(notes)
             switch style {
             case .nestedMeter: HeadroomWidgetNestedMeter(context: context, mark: mark)
             case .vesselHero: HeadroomWidgetVesselHero(context: context, mark: mark)
@@ -61,8 +68,10 @@ public struct HeadroomWidgetStyledBody<Mark: View>: View {
 }
 
 public extension HeadroomWidgetStyledBody where Mark == HeadroomWidgetProviderIcon {
-    init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode, now: Date, footerPrefix: String) {
-        self.init(style: style, family: family, envelope: envelope, colorMode: colorMode, now: now, footerPrefix: footerPrefix) { id, size in
+    init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode, now: Date, footerPrefix: String,
+         freshness: WidgetFreshnessTreatment? = nil) {
+        self.init(style: style, family: family, envelope: envelope, colorMode: colorMode, now: now, footerPrefix: footerPrefix,
+                  freshness: freshness) { id, size in
             HeadroomWidgetProviderIcon(providerID: id, size: size)
         }
     }
@@ -75,8 +84,11 @@ public struct HeadroomWidgetStyledBackground: View {
     private let recipe: WidgetStyleRecipe?
     private let colorMode: WidgetColorMode
 
-    public init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode) {
-        recipe = style == .liquidLevel ? WidgetStyleRecipe(style: style, family: family, envelope: envelope) : nil
+    /// `freshness`: the same treatment the body draws with, so a past-reset or dimmed primary
+    /// loses or desaturates its wash exactly as its numeral does (U13).
+    public init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode,
+                freshness: WidgetFreshnessTreatment = .none) {
+        recipe = style == .liquidLevel ? WidgetStyleRecipe(style: style, family: family, envelope: envelope, freshness: freshness) : nil
         self.colorMode = colorMode
     }
 
@@ -99,6 +111,7 @@ public struct HeadroomWidgetStyledTile<Mark: View>: View {
     private let now: Date
     private let footerPrefix: String
     private let contentMargin: CGFloat
+    private let freshness: WidgetFreshnessTreatment
     private let mark: (String, CGFloat) -> Mark
 
     public init(
@@ -109,6 +122,7 @@ public struct HeadroomWidgetStyledTile<Mark: View>: View {
         now: Date,
         footerPrefix: String,
         contentMargin: CGFloat,
+        freshness: WidgetFreshnessTreatment? = nil,
         @ViewBuilder mark: @escaping (String, CGFloat) -> Mark
     ) {
         self.style = style
@@ -118,15 +132,16 @@ public struct HeadroomWidgetStyledTile<Mark: View>: View {
         self.now = now
         self.footerPrefix = footerPrefix
         self.contentMargin = contentMargin
+        self.freshness = freshness ?? WidgetFreshnessTreatment(now: now)
         self.mark = mark
     }
 
     public var body: some View {
         ZStack {
-            HeadroomWidgetStyledBackground(style: style, family: family, envelope: envelope, colorMode: colorMode)
+            HeadroomWidgetStyledBackground(style: style, family: family, envelope: envelope, colorMode: colorMode, freshness: freshness)
             HeadroomWidgetStyledBody(
                 style: style, family: family, envelope: envelope, colorMode: colorMode,
-                now: now, footerPrefix: footerPrefix, mark: mark
+                now: now, footerPrefix: footerPrefix, freshness: freshness, mark: mark
             )
             .padding(contentMargin)
         }
@@ -134,8 +149,10 @@ public struct HeadroomWidgetStyledTile<Mark: View>: View {
 }
 
 public extension HeadroomWidgetStyledTile where Mark == HeadroomWidgetProviderIcon {
-    init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode, now: Date, footerPrefix: String, contentMargin: CGFloat) {
-        self.init(style: style, family: family, envelope: envelope, colorMode: colorMode, now: now, footerPrefix: footerPrefix, contentMargin: contentMargin) { id, size in
+    init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope, colorMode: WidgetColorMode, now: Date, footerPrefix: String, contentMargin: CGFloat,
+         freshness: WidgetFreshnessTreatment? = nil) {
+        self.init(style: style, family: family, envelope: envelope, colorMode: colorMode, now: now, footerPrefix: footerPrefix, contentMargin: contentMargin,
+                  freshness: freshness) { id, size in
             HeadroomWidgetProviderIcon(providerID: id, size: size)
         }
     }
@@ -148,8 +165,17 @@ struct HeadroomWidgetStyleContext {
     let colorMode: WidgetColorMode
     let now: Date
     let footerPrefix: String
+    /// U13: the "Reset at <time>" notes large prints in its tail, above the footer; the
+    /// freshness frame picks the rung that fits (`HeadroomWidgetFreshnessFrame`).
+    var pastResetNotes: [WidgetPastResetNote] = []
 
     var family: WidgetFamily { recipe.family }
+
+    func placing(_ notes: [WidgetPastResetNote]) -> HeadroomWidgetStyleContext {
+        var copy = self
+        copy.pastResetNotes = notes
+        return copy
+    }
     var scale: WidgetTypeScale { WidgetTypeScale.scale(for: family) }
     var slot: Double { WidgetMetrics.markSlot(for: family) }
 
@@ -172,6 +198,10 @@ struct HeadroomWidgetStyleTail<Mark: View>: View {
 
     var body: some View {
         let envelope = context.envelope
+        if !context.pastResetNotes.isEmpty {
+            HeadroomWidgetPastResetNotes(notes: context.pastResetNotes, family: context.family)
+                .padding(.bottom, 6)
+        }
         if context.recipe.showsSpend {
             HeadroomWidgetAPISpendStrip(
                 summaries: envelope.apiSpendProviders,

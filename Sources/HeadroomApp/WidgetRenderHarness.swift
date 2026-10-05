@@ -118,12 +118,13 @@ enum WidgetRenderHarness {
         }
         let styles = argument("--widget-style").flatMap { WidgetLayoutStyle(rawValue: $0) }.map { [$0] } ?? WidgetLayoutStyle.allCases
         let statusFixtures = Dictionary(uniqueKeysWithValues: WidgetStatusState.allCases.map { ("status-\($0)", $0) })
-        if let requested = argument("--widget-fixture"), !DemoScreenshotData.styleFixtureNames.contains(requested), statusFixtures[requested] == nil {
-            print("Unknown fixture \(requested). Fixtures: \((DemoScreenshotData.styleFixtureNames + statusFixtures.keys.sorted()).joined(separator: ", "))")
+        let styleFixtureNames = DemoScreenshotData.styleFixtureNames + freshnessFixtureNames
+        if let requested = argument("--widget-fixture"), !styleFixtureNames.contains(requested), statusFixtures[requested] == nil {
+            print("Unknown fixture \(requested). Fixtures: \((styleFixtureNames + statusFixtures.keys.sorted()).joined(separator: ", "))")
             exit(2)
         }
-        let fixtures = argument("--widget-fixture").map { DemoScreenshotData.styleFixtureNames.contains($0) ? [$0] : [] }
-            ?? (quick ? ["claudeCodex"] : DemoScreenshotData.styleFixtureNames)
+        let fixtures = argument("--widget-fixture").map { styleFixtureNames.contains($0) ? [$0] : [] }
+            ?? (quick ? ["claudeCodex"] : styleFixtureNames)
         let geometryNames = argument("--widget-geometry").map { [$0] } ?? ["mac", "ios61"]
         let chosen = geometries.filter { geometryNames.contains($0.name) }
         if chosen.isEmpty {
@@ -145,7 +146,7 @@ enum WidgetRenderHarness {
             guard !quick else { continue }
             // Color mode, the monochrome and stripped branches (KTD14), and the xxLarge
             // stand-in, on the fixtures where they matter.
-            for fixture in ["claudeCodex", "tightClaudeCursor", "staleUnavailable"] where fixtures.contains(fixture) {
+            for fixture in ["claudeCodex", "tightClaudeCursor", "staleUnavailable", "dimmed", "pastReset"] where fixtures.contains(fixture) {
                 for family in WidgetFamily.allCases {
                     let mac = geometries[0]
                     jobs.append(Job(style: style, fixture: fixture, family: family, dark: true, geometry: mac, colorMode: .event))
@@ -199,7 +200,7 @@ enum WidgetRenderHarness {
     }
 
     static func render(_ job: Job) -> (CGImage?, [String]) {
-        let envelope = DemoScreenshotData.styleFixture(job.fixture, now: now)
+        let envelope = freshnessFixture(job.fixture) ?? DemoScreenshotData.styleFixture(job.fixture, now: now)
         guard job.status != nil || envelope != nil,
               let base = job.geometry.sizes[job.family],
               let margin = job.geometry.margins[job.family]
@@ -221,7 +222,8 @@ enum WidgetRenderHarness {
             } else if let envelope {
                 HeadroomWidgetStyledTile(
                     style: job.style, family: job.family, envelope: envelope, colorMode: job.colorMode,
-                    now: now, footerPrefix: job.geometry.footerPrefix, contentMargin: margin
+                    now: now, footerPrefix: job.geometry.footerPrefix, contentMargin: margin,
+                    freshness: freshnessTreatment(job)
                 ) { id, markSize in
                     ProviderLogoView(providerID: ProviderID(id), size: markSize)
                 }
@@ -248,6 +250,64 @@ enum WidgetRenderHarness {
         .environment(\.loadingDate, now)
         .padding(12)
         .background(job.dark ? Color(red: 0.07, green: 0.08, blue: 0.12) : Color(red: 0.86, green: 0.89, blue: 0.93))
+    }
+
+    // MARK: Freshness fixtures (U13, iOS parity plan KTD15)
+
+    /// The dimmed and past-reset states, posed on the shared style fixtures. They live here,
+    /// not in `DemoScreenshotData`, because they are a treatment plus an envelope: the same
+    /// envelope renders dimmed only when the host's freshness rule says so.
+    static let freshnessFixtureNames = ["dimmed", "dimmedSpend", "pastReset", "pastResetPrimary", "dimmedPastReset"]
+
+    /// When the Mac was last heard from in the dimmed fixtures: past the 60-minute widget floor.
+    static let dimmedSince = now.addingTimeInterval(-95 * 60)
+
+    static func freshnessFixture(_ name: String) -> WidgetSnapshotEnvelope? {
+        switch name {
+        case "dimmed": return DemoScreenshotData.styleFixture("claudeCodex", now: now)
+        case "dimmedSpend": return DemoScreenshotData.styleFixture("spend", now: now)
+        case "pastReset", "dimmedPastReset":
+            // Both providers' 5-hour windows reset while the Mac slept: two notes, the tightest
+            // pressure on small.
+            return DemoScreenshotData.styleFixture("claudeCodex", now: now).map {
+                resetting($0, ago: [ProviderID.claude.raw: ["fiveHour": 20 * 60], ProviderID.codex.raw: ["fiveHour": 14 * 60]])
+            }
+        case "pastResetPrimary":
+            // The hero itself reset: Grok's only pool and one of Cursor's two.
+            return DemoScreenshotData.styleFixture("grokCursor", now: now).map {
+                resetting($0, ago: [ProviderID.grok.raw: ["other:Weekly": 25 * 60],
+                                    ProviderID.cursor.raw: ["other:Other Models": 3 * 3_600]])
+            }
+        default: return nil
+        }
+    }
+
+    static func freshnessTreatment(_ job: Job) -> WidgetFreshnessTreatment {
+        let host: WidgetFreshnessTreatment.Host = job.geometry.name == "mac" ? .mac : .phone
+        let dimmed = ["dimmed", "dimmedSpend", "dimmedPastReset"].contains(job.fixture)
+        // A fixed zone keeps the clock copy, and so the overflow findings, the same on every machine.
+        return WidgetFreshnessTreatment(now: now, dimmedSince: dimmed ? dimmedSince : nil, host: host,
+                                        timeZone: TimeZone(identifier: "America/New_York")!, locale: Locale(identifier: "en_US"))
+    }
+
+    /// Moves the named windows' resets (provider ID → window ID → seconds ago) into the past,
+    /// with no reading taken since.
+    private static func resetting(_ envelope: WidgetSnapshotEnvelope, ago: [String: [String: TimeInterval]]) -> WidgetSnapshotEnvelope {
+        let providers = envelope.providers.map { provider in
+            var copy = provider
+            copy.windows = provider.windows.map { window in
+                guard let seconds = ago[provider.id]?[window.id] else { return window }
+                return WidgetWindowSummary(
+                    kind: window.kind, label: window.label, percentRemaining: window.percentRemaining,
+                    utilization: window.utilization, resetSchedule: .scheduled(now.addingTimeInterval(-seconds)),
+                    resetLabel: window.resetLabel, observedAt: now.addingTimeInterval(-seconds - 60), severity: window.severity,
+                    freshness: window.freshness, billingPeriodDuration: window.billingPeriodDuration)
+            }
+            return copy
+        }
+        return WidgetSnapshotEnvelope(generatedAt: envelope.generatedAt, status: envelope.status, providers: providers,
+                                      apiSpendProviders: envelope.apiSpendProviders,
+                                      widgetProviderSelection: envelope.widgetProviderSelection)
     }
 
     @ViewBuilder

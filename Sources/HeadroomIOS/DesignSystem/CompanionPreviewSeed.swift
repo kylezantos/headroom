@@ -6,9 +6,9 @@ import Foundation
 /// environment variable (set in the scheme or via `simctl launch`). Never ships — the
 /// whole file is compiled out of Release.
 ///
-/// The numbers are the locked demo scenario shared with `DemoFixture` and
-/// `DemoScreenshotData`, so the menu-bar popover, the macOS widgets, and the iPhone all
-/// show the same moment. Unlike `--demo`, this path renders as ordinary *synced* content:
+/// The numbers are the v4 multi-account demo (`CompanionDemoData`), held to the Mac's
+/// `DemoFixture` by `DemoScenarioParityTests`, so the menu-bar popover, the macOS widgets,
+/// and the iPhone all show the same moment. Unlike `--demo`, this path renders as ordinary *synced* content:
 /// no Demo Mode banner, and Settings reports `Source: Mac snapshot`. That is what the
 /// portfolio case-study phone pair needs — it illustrates the Mac→iPhone mirror, so a
 /// "sample data / no accounts connected" banner would contradict the story it is proving.
@@ -42,91 +42,27 @@ enum CompanionPreviewSeed {
         ProcessInfo.processInfo.environment["HEADROOM_UI_TEST_RESET_DEMO"] == "1"
     }
 
+    /// The preview's v4 moment: the multi-account demo variant, resolved through the real
+    /// codec and resolver in memory (KTD21). Nothing here reads or writes iCloud or a cache.
+    static func snapshot(now: Date = Date()) -> CompanionResolvedSnapshot {
+        CompanionDemoData.snapshot(.multiAccount, now: now)
+    }
+
+    /// The build-33 view of the same moment: main accounts only (KTD13), so the preview's
+    /// numbers, Fable included, are the demo's and the Mac's.
     static func envelope(now: Date = Date()) -> WidgetSnapshotEnvelope {
-        WidgetSnapshotEnvelope(
-            generatedAt: now.addingTimeInterval(-4 * 60),
-            status: .enabled,
-            providers: [
-                WidgetProviderSummary(
-                    id: ProviderID.claude.raw,
-                    displayName: "Claude",
-                    planLabel: "max",
-                    freshness: .live,
-                    windows: [
-                        WidgetWindowSummary(
-                            kind: .weekly,
-                            label: "Weekly",
-                            percentRemaining: 38,
-                            resetsAt: now.addingTimeInterval(3 * 86_400),
-                            resetLabel: "Resets Jul 9",
-                            severity: .low
-                        ),
-                        WidgetWindowSummary(
-                            kind: .fiveHour,
-                            label: "5h",
-                            percentRemaining: 72,
-                            resetsAt: now.addingTimeInterval(3 * 3600),
-                            resetLabel: "Resets 2:15pm",
-                            severity: .healthy
-                        ),
-                        WidgetWindowSummary(
-                            kind: .other("Weekly (Fable)"),
-                            label: "Weekly (Fable)",
-                            percentRemaining: 54,
-                            resetsAt: now.addingTimeInterval(3 * 86_400),
-                            resetLabel: "Resets Jul 9",
-                            severity: .healthy
-                        )
-                    ],
-                    renewalDate: nil
-                ),
-                WidgetProviderSummary(
-                    id: ProviderID.codex.raw,
-                    displayName: "Codex",
-                    planLabel: "prolite",
-                    freshness: .live,
-                    windows: [
-                        WidgetWindowSummary(
-                            kind: .weekly,
-                            label: "Weekly",
-                            percentRemaining: 64,
-                            resetsAt: now.addingTimeInterval((6 * 86_400) + (4 * 3600)),
-                            resetLabel: "Resets in 6d 4h",
-                            severity: .healthy
-                        ),
-                        WidgetWindowSummary(
-                            kind: .fiveHour,
-                            label: "5h",
-                            percentRemaining: 91,
-                            resetsAt: now.addingTimeInterval((3 * 3600) + (12 * 60)),
-                            resetLabel: "Resets in 3h 12m",
-                            severity: .healthy
-                        )
-                    ],
-                    renewalDate: nil
-                )
-            ],
-            apiSpendProviders: [
-                WidgetAPISpendSummary(
-                    id: ProviderID.claude.raw,
-                    displayName: "Anthropic API",
-                    amount: 142.67,
-                    currency: "usd",
-                    periodLabel: "Current month",
-                    capturedAt: now.addingTimeInterval(-6 * 60),
-                    freshness: .live
-                ),
-                WidgetAPISpendSummary(
-                    id: ProviderID.codex.raw,
-                    displayName: "OpenAI API",
-                    amount: 58.90,
-                    currency: "usd",
-                    periodLabel: "Current month",
-                    capturedAt: now.addingTimeInterval(-9 * 60),
-                    freshness: .live
-                ),
-            ]
-        )
+        snapshot(now: now).primaryProjection()
+            ?? WidgetSnapshotEnvelope(generatedAt: now, status: .enabled, providers: [], apiSpendProviders: [])
+    }
+
+    /// KTD21: the preview seed writes only the demo cache, never v4 into the real cache.
+    /// The widget gallery renders the same moment by reading the App Group demo switch,
+    /// variant and screenshot presentation (no DEMO badge); `WidgetSnapshotCache`, the v4
+    /// `CompanionSnapshotCache` and iCloud are never touched.
+    static func seedDemoCache(_ store: CompanionDemoModeStore = .appGroup()) {
+        store.setVariant(.multiAccount)
+        store.setScreenshotPresentation(true)
+        store.setEnabled(true)
     }
 
     static func envelope(for state: UITestState, now: Date = Date()) -> WidgetSnapshotEnvelope? {

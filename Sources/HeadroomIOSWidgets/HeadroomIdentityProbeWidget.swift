@@ -5,6 +5,7 @@ import WidgetKit
 private struct HeadroomIdentityProbeEntry: TimelineEntry {
     let date: Date
     let record: CompanionIdentityProbeRecord?
+    var candidate = CompanionIdentityProbeCandidate.token
 }
 
 private struct HeadroomIdentityProbeProvider: TimelineProvider {
@@ -32,9 +33,11 @@ private struct HeadroomIdentityProbeProvider: TimelineProvider {
     }
 
     private func sample() -> HeadroomIdentityProbeEntry {
-        // No app-provided current-scope value: this process reads FileManager itself.
-        let record = CompanionIdentityProbe.appGroup().sample(role: .widget)
-        return HeadroomIdentityProbeEntry(date: record.time, record: record)
+        // No app-provided current-scope value: this process reads FileManager (token) or its
+        // own synchronized local KVS (marker) itself. The app only picks which candidate.
+        let candidate = CompanionIdentityProbe.appGroup().storedCandidate()
+        let record = CompanionIdentityProbe.appGroup(candidate: candidate).sample(role: .widget)
+        return HeadroomIdentityProbeEntry(date: record.time, record: record, candidate: candidate)
     }
 }
 
@@ -44,7 +47,7 @@ struct HeadroomIdentityProbeWidget: Widget {
             VStack(alignment: .leading) {
                 Text("Identity Probe").font(.caption.weight(.semibold))
                 if let record = entry.record {
-                    Text("Widget #\(record.ordinal) · \(record.step.rawValue)")
+                    Text("\(entry.candidate == .kvsMarker ? "Marker" : "Token") · Widget #\(record.ordinal) · \(record.step.rawValue)")
                         .font(.caption2)
                     Text("\(record.availability.rawValue) · \(record.equality.rawValue)")
                         .font(.caption)

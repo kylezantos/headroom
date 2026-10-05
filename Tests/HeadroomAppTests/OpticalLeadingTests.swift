@@ -226,3 +226,78 @@ struct OpticalCenteringTests {
             == OpticalCentering.inkCenterDrop(size: 13, weight: .medium))
     }
 }
+
+/// U3/KTD2: the shared popover rows swapped `NSFont` measurement and `OpticalLeading` /
+/// `OpticalCentering` for the CoreText helpers in `HeadroomWidgetTypography`. These pin the
+/// swap against the Mac's own metrics at every role the rows render, so the Mac popover keeps
+/// its measurements exactly at scale 1.0.
+@Suite
+struct SharedRowMetricsParityTests {
+    private static func appKitWidth(_ text: String, font: NSFont, kerning: CGFloat = 0) -> CGFloat {
+        var attributes: [NSAttributedString.Key: Any] = [.font: font]
+        if kerning != 0 { attributes[.kern] = kerning }
+        return (text as NSString).size(withAttributes: attributes).width
+    }
+
+    /// PB11: the title's truncation test measures with the title's kerning. Dropping it would
+    /// under-measure a long name by its glyph count × 0.15pt.
+    @Test(arguments: ["Personal", "Work — long-lived research account", "Anthropic", "🙂 hello", ""])
+    func theKernedTitleMeasuresAsTheMacDid(_ title: String) {
+        let font = NSFont.systemFont(ofSize: IdentityRowMetrics.titleSize, weight: .semibold)
+        let mac = Self.appKitWidth(title, font: font, kerning: IdentityRowMetrics.titleKerning)
+        let shared = HeadroomWidgetFontMetrics.textWidth(
+            title, size: IdentityRowMetrics.titleSize, weight: .semibold,
+            kerning: IdentityRowMetrics.titleKerning
+        )
+        #expect(abs(shared - mac) < 0.001)
+        if title.count > 1 {
+            let unkerned = HeadroomWidgetFontMetrics.textWidth(title, size: IdentityRowMetrics.titleSize, weight: .semibold)
+            #expect(unkerned > shared)
+        }
+    }
+
+    /// The meter's numeral column reserves "100%" in the 18pt semibold monospaced face.
+    @Test func theNumeralColumnReservesTheSameWidth() {
+        let mac = ceil(Self.appKitWidth("100%", font: .monospacedDigitSystemFont(ofSize: 18, weight: .semibold)))
+        let shared = ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: 18, weight: .semibold, mono: true))
+        #expect(shared == mac)
+    }
+
+    /// R2C8: the spend column reserves the widest visible amount, floored at "$0.00".
+    @Test(arguments: ["$0.00", "$58.90", "$1,234.56", "$12,345.67"])
+    func theSpendColumnReservesTheSameWidth(_ amount: String) {
+        let mac = ceil(Self.appKitWidth(amount, font: .monospacedDigitSystemFont(ofSize: 18, weight: .semibold)))
+        let shared = ceil(HeadroomWidgetFontMetrics.textWidth(amount, size: 18, weight: .semibold, mono: true))
+        #expect(shared == mac)
+    }
+
+    /// The shared spend row's column helper reserves exactly what the Mac section did.
+    @Test func theSpendRowsColumnHelperMatchesTheMacReservation() {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 18, weight: .semibold)
+        for amounts in [[], ["$58.90"], ["$142.67", "$58.90"], ["$12,345.67", "$0.00"]] {
+            let mac = (amounts + ["$0.00"]).map { ceil(Self.appKitWidth($0, font: font)) }.max() ?? 0
+            #expect(APISpendRowMetrics.amountColumnWidth(for: amounts) == mac)
+        }
+        #expect(APISpendRowMetrics.amountColumnWidth(for: ["$58.90"], scale: 1.15)
+            > APISpendRowMetrics.amountColumnWidth(for: ["$58.90"]))
+    }
+
+    /// Every leading correction the shared rows apply equals the Mac's at the same role:
+    /// meter label 13 medium, title 15 semibold.
+    @Test(arguments: ["Weekly", "5-hour", "Fable", "Auto", "Personal", "Work", "OpenAI", "anthropic", "", "🙂 hello"])
+    func leadingCorrectionsMatchAtEveryRowRole(_ text: String) {
+        for (size, weight) in [(CGFloat(13), Font.Weight.medium), (15, .semibold), (11, .regular), (18, .semibold)] {
+            #expect(HeadroomWidgetFontMetrics.leadingCorrection(for: text, size: size, weight: weight)
+                == OpticalLeading.correction(for: text, size: size, weight: .from(weight)))
+        }
+    }
+
+    /// PA6: the Micro row's cap-centre guides — label 13, countdown and term 11, numeral 18 —
+    /// read the same cap height through CoreText as through `NSFont`.
+    @Test func capCentresMatchAtEveryMicroRowRole() {
+        for (size, weight) in [(CGFloat(13), Font.Weight.medium), (11, .regular), (18, .semibold), (11, .medium)] {
+            #expect(HeadroomWidgetFontMetrics.capHeightCenter(size: size, weight: weight)
+                == OpticalCentering.capHeightCenter(size: size, weight: .from(weight)))
+        }
+    }
+}

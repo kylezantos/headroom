@@ -924,6 +924,9 @@ public enum CompanionSyncKeys {
     public static let providerPrefix = "headroom.sync.v4.provider."
     public static let requestPrefix = "headroom.sync.v4.request."
     public static let maximumKeyBytes = 64
+    /// The account-scope marker (KTD22 amendment, `CompanionKVSScopeMarker`). It lives outside
+    /// `namespace` so no v4 prefix sweep, sync-off cleanup or launch scan ever removes it.
+    public static let scopeMarker = "headroom.scope.v1"
     /// Contract: known providers; unknown IDs may sit in ordering metadata but are skipped.
     public static let knownProviderIDs = ["claude", "codex", "grok", "cursor"]
 

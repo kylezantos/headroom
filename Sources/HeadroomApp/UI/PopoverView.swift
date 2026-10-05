@@ -436,29 +436,17 @@ struct PopoverView: View {
             )
             waitingElapsed = handoffElapsed(for: account, now: now)
         }
-        var oldestLiveCapture: Date?
-        var newestCheck: Date?
-        for id in store.providerOrder {
-            for account in store.accounts(for: id) {
-                let snapshot = store.snapshot(for: account.key)
-                if case .live = snapshot.freshness, let capturedAt = snapshot.capturedAt {
-                    oldestLiveCapture = oldestLiveCapture.map { min($0, capturedAt) } ?? capturedAt
-                    newestCheck = newestCheck.map { max($0, capturedAt) } ?? capturedAt
-                    continue
-                }
-                // R2M5: a retained row's window keeps the *source* observation anchor across
-                // stale and unavailable transitions — the honest answer to "when was this
-                // last checked", and the only one left once every provider has gone stale.
-                if let observed = retainedObservation(in: snapshot) {
-                    newestCheck = newestCheck.map { max($0, observed) } ?? observed
-                }
-            }
-        }
+        // U3: the aggregation is Core's `FreshnessStamp.Anchors`, shared with the phone. A
+        // retained row keeps its own *source* observation anchor across stale and unavailable
+        // transitions — the honest answer to "when was this last checked" (R2M5).
+        let anchors = FreshnessStamp.Anchors(snapshots: store.providerOrder.lazy.flatMap { id in
+            store.accounts(for: id).map { store.snapshot(for: $0.key) }
+        })
         return PopoverHeaderStatusResolver.Input(
             setupText: setupText,
             waitingElapsed: waitingElapsed,
-            oldestLiveCapture: oldestLiveCapture,
-            newestCheck: newestCheck,
+            oldestLiveCapture: anchors.oldestLive,
+            newestCheck: anchors.newestCheck,
             now: now
         )
     }
@@ -469,11 +457,6 @@ struct PopoverView: View {
     private func handoffElapsed(for account: ProviderAccount, now: Date) -> TimeInterval? {
         guard let start = SetupSessions.waitingStart(for: account) else { return nil }
         return max(0, (pinnedDate ?? max(now, waitingClockNow)).timeIntervalSince(start))
-    }
-
-    private func retainedObservation(in snapshot: UsageSnapshot) -> Date? {
-        let observations = snapshot.windows.compactMap(\.observedAt)
-        return observations.max() ?? snapshot.capturedAt
     }
 
     /// R2M12: the account whose open handoff the header is clocking, if any. Nil covers a
@@ -721,8 +704,6 @@ enum PopoverHeaderStatusText {
     private static func padded(_ value: Int) -> String {
         value < 10 ? "0\(value)" : "\(value)"
     }
-
-    static let notChecked = "Not checked yet"
 }
 
 /// R2M5: one resolved header line. `kind` is the slot's *identity* — a phrase and a stamp are
@@ -783,43 +764,19 @@ enum PopoverHeaderStatusResolver {
         return nil
     }
 
-    /// The footer stamp beside Refresh. Sitting next to the control that changes it, the
-    /// age needs no "Updated" verb; "Checked" survives only to mark retained numbers, where
-    /// nothing on screen is live. A cycle in flight is the button's own label ("Refreshing…"),
-    /// so the stamp keeps showing the age rather than repeating it.
+    /// The footer stamp beside Refresh. U3: the wording and the roll value are Core's
+    /// `FreshnessStamp`, shared with the phone; this maps its kind into the slot's identity.
     static func freshness(_ input: Input) -> PopoverHeaderStatus {
-        if let oldest = input.oldestLiveCapture,
-           let label = Countdown.updatedLabel(capturedAt: oldest, now: input.now) {
-            // M2A: the label's own granularity is whole minutes since capture, so that is the
-            // value the roll follows. Between polls it only increases, which is what makes the
-            // digits climb; a landing capture resets it and they roll back down.
-            return PopoverHeaderStatus(
-                kind: .updated,
-                text: capitalizedFirst(label),
-                rollValue: elapsedMinutes(since: oldest, now: input.now)
-            )
-        }
-        if let newest = input.newestCheck,
-           let label = Countdown.updatedLabel(capturedAt: newest, now: input.now) {
-            return PopoverHeaderStatus(
-                kind: .lastChecked,
-                text: "Checked \(label)",
-                rollValue: elapsedMinutes(since: newest, now: input.now)
-            )
-        }
-        return PopoverHeaderStatus(
-            kind: .never,
-            text: PopoverHeaderStatusText.notChecked,
-            rollValue: nil
+        let stamp = FreshnessStamp.resolve(
+            FreshnessStamp.Anchors(oldestLive: input.oldestLiveCapture, newestCheck: input.newestCheck),
+            now: input.now
         )
-    }
-
-    private static func capitalizedFirst(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
-    }
-
-    private static func elapsedMinutes(since date: Date, now: Date) -> Double {
-        (max(0, now.timeIntervalSince(date)) / 60).rounded(.down)
+        let kind: PopoverHeaderStatus.Kind = switch stamp.kind {
+        case .updated: .updated
+        case .lastChecked: .lastChecked
+        case .never: .never
+        }
+        return PopoverHeaderStatus(kind: kind, text: stamp.text, rollValue: stamp.rollValue)
     }
 }
 

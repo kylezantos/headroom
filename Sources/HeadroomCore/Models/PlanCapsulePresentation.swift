@@ -76,11 +76,28 @@ extension UsageSnapshot {
     /// A live 5-hour or weekly window at Critical. Spark and other extra windows
     /// do not qualify: a banked reset does not refresh them (KTD5).
     public var hasLiveCriticalResettableWindow: Bool {
-        guard freshness == .live else { return false }
-        return windows.contains { window in
-            switch window.kind {
+        PlanCapsulePresentation.hasLiveCriticalResettableWindow(
+            snapshotIsLive: freshness == .live,
+            readings: windows.map(UsageMeterReading.init(window:))
+        )
+    }
+}
+
+extension PlanCapsulePresentation {
+    /// U3/KTD6.2: the capsule's auto-open decision reads the same normalized severity the
+    /// meter row paints, so a Mac capsule and a phone row cannot disagree about Critical at a
+    /// rounding boundary. Only the severity source changed; the live snapshot, live window and
+    /// resettable-kind gates are the ones the capsule always had. The phone passes readings
+    /// built from synced summaries (`UsageMeterReading(widgetSummary:)`).
+    public static func hasLiveCriticalResettableWindow(
+        snapshotIsLive: Bool,
+        readings: [UsageMeterReading]
+    ) -> Bool {
+        guard snapshotIsLive else { return false }
+        return readings.contains { reading in
+            switch reading.window.kind {
             case .fiveHour, .weekly:
-                return window.freshness == .live && window.severity == .critical
+                return reading.window.freshness == .live && reading.severity == .critical
             case .billingPeriod, .other:
                 return false
             }

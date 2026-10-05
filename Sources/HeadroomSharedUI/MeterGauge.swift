@@ -24,19 +24,26 @@ public struct MeterGauge: View {
     /// into micro-width × full-height slivers; the swatch's whole point is "the same little
     /// chips, just more of them, placed differently". Non-segmented shapes ignore it.
     public var miniatureSegmentCount: Int? = nil
+    /// KTD3 (iOS parity): the phone's one Dynamic Type unit over the popover ramp. Every
+    /// geometric measure — track, cells, gaps, radii, cap, inset — is multiplied, so the
+    /// gauge reserves its larger size in layout rather than being `scaleEffect`-ed into it.
+    /// Hairline strokes stay in points. The Mac passes 1, where nothing changes.
+    public var scale: CGFloat = 1
 
     public init(
         style: MeterStyle,
         fraction: Double,
         severity: UsageSeverity,
         freshness: UsageWindowFreshness,
-        miniatureSegmentCount: Int? = nil
+        miniatureSegmentCount: Int? = nil,
+        scale: CGFloat = 1
     ) {
         self.style = style
         self.fraction = fraction
         self.severity = severity
         self.freshness = freshness
         self.miniatureSegmentCount = miniatureSegmentCount
+        self.scale = scale
     }
 
     @Environment(\.colorScheme) private var scheme
@@ -77,17 +84,19 @@ public struct MeterGauge: View {
 
     private var microWidth: CGFloat {
         switch resolvedShape {
-        case .chip: return CGFloat(MeterGeometry.microChipWidth)
-        case .machined: return CGFloat(MeterGeometry.microMachinedWidth)
+        case .chip: return CGFloat(MeterGeometry.microChipWidth) * scale
+        case .machined: return CGFloat(MeterGeometry.microMachinedWidth) * scale
         case .segmented:
             let cells = CGFloat(resolvedCellCount)
-            return cells * CGFloat(MeterGeometry.microCellWidth)
-                + (cells - 1) * CGFloat(MeterGeometry.microCellGap)
-        case .tube: return CGFloat(MeterGeometry.microTubeWidth)
+            return (cells * CGFloat(MeterGeometry.microCellWidth)
+                + (cells - 1) * CGFloat(MeterGeometry.microCellGap)) * scale
+        case .tube: return CGFloat(MeterGeometry.microTubeWidth) * scale
         }
     }
 
-    private var gaugeHeight: CGFloat {
+    private var gaugeHeight: CGFloat { unscaledGaugeHeight * scale }
+
+    private var unscaledGaugeHeight: CGFloat {
         switch (style.format, resolvedShape) {
         // FS2: segmented rows size to the *cell* format, which the miniature override can
         // pull back to Micro — so the swatch's frame reserves 5pt, not Full's 14.5pt.
@@ -233,7 +242,7 @@ public struct MeterGauge: View {
     private func capMarker(shape: GaugeShape, fillLength: CGFloat, available: CGFloat) -> some View {
         let isVertical = shape == .tube
         let axis: MeterFillAxis = isVertical ? .vertical : .horizontal
-        let cap = MeterGeometry.cap(for: style.format)
+        let cap = scaledCap
         let center = continuousInset + CGFloat(MeterGeometry.capCenterOffset(
             fillLength: Double(fillLength),
             available: Double(available),
@@ -287,6 +296,15 @@ public struct MeterGauge: View {
         }
     }
 
+    private var scaledCap: MeterCapGeometry {
+        let cap = MeterGeometry.cap(for: style.format)
+        return MeterCapGeometry(
+            thickness: cap.thickness * Double(scale),
+            length: cap.length * Double(scale),
+            cornerRadius: cap.cornerRadius * Double(scale)
+        )
+    }
+
     private var resolvedCellCount: Int {
         miniatureSegmentCount ?? MeterRecipe.cellCount(for: style.format)
     }
@@ -303,8 +321,8 @@ public struct MeterGauge: View {
         let lit = freshness.isUnavailable
             ? 0
             : MeterRecipe.litCellCount(fraction: clampedFraction, cells: cells)
-        let gap = CGFloat(miniatureCell?.gap ?? MeterGeometry.cellGap(for: style.format))
-        let radius = CGFloat(miniatureCell?.radius ?? MeterGeometry.cellRadius(for: style.format))
+        let gap = CGFloat(miniatureCell?.gap ?? MeterGeometry.cellGap(for: style.format)) * scale
+        let radius = CGFloat(miniatureCell?.radius ?? MeterGeometry.cellRadius(for: style.format)) * scale
         let fillRecipe = MeterRecipe.fillRecipe(
             fill: style.fill,
             severity: severity,
@@ -322,7 +340,7 @@ public struct MeterGauge: View {
 
         // MX3: the lit tip stands proud of the row (Full only); the HStack's outer frame keeps
         // the row at `gaugeHeight`, so the extra height overflows rather than growing the row.
-        let tipHeight = CGFloat(miniatureCell?.tipHeight ?? MeterGeometry.tipCellHeight(for: style.format))
+        let tipHeight = CGFloat(miniatureCell?.tipHeight ?? MeterGeometry.tipCellHeight(for: style.format)) * scale
 
         return HStack(spacing: gap) {
             ForEach(0..<cells, id: \.self) { index in
@@ -334,7 +352,7 @@ public struct MeterGauge: View {
                         rampStops: rampStops
                     ))
                     .frame(
-                        width: style.format == .micro ? CGFloat(MeterGeometry.microCellWidth) : nil,
+                        width: style.format == .micro ? CGFloat(MeterGeometry.microCellWidth) * scale : nil,
                         height: index == lit - 1 ? tipHeight : gaugeHeight
                     )
                     .frame(maxWidth: style.format == .full ? .infinity : nil)
@@ -413,7 +431,7 @@ public struct MeterGauge: View {
             ForEach([0.25, 0.5, 0.75], id: \.self) { fraction in
                 Rectangle()
                     .fill(ProviderStyle.meterQuarterMark(scheme: scheme))
-                    .frame(width: 1, height: max(0, size.height - 4))
+                    .frame(width: 1, height: max(0, size.height - 4 * scale))
                     .position(x: size.width * fraction, y: size.height / 2)
             }
         }
@@ -421,7 +439,7 @@ public struct MeterGauge: View {
 
     private var continuousInset: CGFloat {
         guard resolvedShape == .machined else { return 0 }
-        return CGFloat(style.format == .micro ? MeterGeometry.microMachinedInset : MeterGeometry.fullTrackInset)
+        return CGFloat(style.format == .micro ? MeterGeometry.microMachinedInset : MeterGeometry.fullTrackInset) * scale
     }
 
     private var severityFillColor: Color {
@@ -451,9 +469,11 @@ public struct MeterGauge: View {
         CGFloat(MeterGeometry.continuousFillLength(
             available: Double(available),
             fraction: clampedFraction,
-            minimum: MeterGeometry.roundedMinimumFillLength(
-                for: style.format,
-                thickness: Double(continuousFillThickness)
+            // MX1: the rounded floor, with the format's own floor scaled alongside the
+            // thickness so the phone's 1% bar is still a clean dot.
+            minimum: max(
+                MeterGeometry.minimumFillLength(for: style.format) * Double(scale),
+                Double(continuousFillThickness)
             )
         ))
     }
@@ -461,7 +481,7 @@ public struct MeterGauge: View {
     /// MX1: the fill's thickness across its travel axis — the track inside its inset.
     private var continuousFillThickness: CGFloat {
         let across: CGFloat = switch (style.format, resolvedShape) {
-        case (.micro, .tube): CGFloat(MeterGeometry.microTubeWidth)
+        case (.micro, .tube): CGFloat(MeterGeometry.microTubeWidth) * scale
         default: gaugeHeight
         }
         return max(0, across - continuousInset * 2)

@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct UsageBarView: View {
+struct LegacyUsageBarView: View {
     let window: WidgetWindowSummary
     let now: Date
     var dimmed = false

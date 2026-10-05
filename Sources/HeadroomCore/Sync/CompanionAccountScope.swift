@@ -12,10 +12,10 @@ public enum CompanionScopeCheck: Equatable, Sendable {
     case changed(archive: Data)
 }
 
-/// The injected local account-scope seam. U4 ships no production conformer: the signed
-/// P5 gate for `FileManager.ubiquityIdentityToken` under the KVS-only entitlements failed
-/// on device, so cached loading stays unadopted until a separately verified candidate
-/// passes. Only test doubles implement this today.
+/// The injected local account-scope seam. The signed P5 gate for
+/// `FileManager.ubiquityIdentityToken` under the KVS-only entitlements failed on device, so
+/// cached loading stays unadopted until a separately verified candidate passes. The candidate
+/// conformer is `CompanionKVSScopeMarker`, wired only behind `CompanionLoaderAdoption`.
 public protocol CompanionAccountScopeProviding: Sendable {
     /// Compares the current identity with `archive` using the identity's own equality
     /// (never archive bytes, descriptions or hashes), sampling the identity fresh each call.

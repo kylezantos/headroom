@@ -95,37 +95,15 @@ struct PopoverHeaderStatusResolverTests {
         )
     }
 
-    /// Beside Refresh the stamp needs no "Updated" verb.
-    @Test func aLiveCaptureReadsAsABareAge() {
-        let status = PopoverHeaderStatusResolver.freshness(
-            input(oldestLiveCapture: now.addingTimeInterval(-8 * 60))
-        )
-        #expect(status.kind == .updated)
-        #expect(status.text == "8 min ago")
-        #expect(status.rollValue == 8)
-    }
-
-    @Test func aFreshCaptureReadsAsSentenceCase() {
-        let status = PopoverHeaderStatusResolver.freshness(input(oldestLiveCapture: now))
-        #expect(status.text == "Just now")
-    }
-
-    /// The whole point of R2M5: retained numbers on screen still carry a date, and say
-    /// they are not live.
-    @Test func nothingLiveFallsBackToTheNewestObservation() {
-        let status = PopoverHeaderStatusResolver.freshness(
-            input(newestCheck: now.addingTimeInterval(-12 * 60))
-        )
-        #expect(status.kind == .lastChecked)
-        #expect(status.text == "Checked 12 min ago")
-        #expect(status.rollValue == 12)
-    }
-
-    @Test func firstRunSaysSoRatherThanGoingSilent() {
-        let status = PopoverHeaderStatusResolver.freshness(input())
-        #expect(status.kind == .never)
-        #expect(status.text == "Not checked yet")
-        #expect(status.rollValue == nil)
+    /// U3: the stamp's wording moved to Core (`FreshnessStampTests`); the footer keeps its
+    /// slot identity, so each Core kind must land on its own `PopoverHeaderStatus.Kind`.
+    @Test func theFooterMapsEveryCoreStampOntoItsOwnSlot() {
+        let live = PopoverHeaderStatusResolver.freshness(input(oldestLiveCapture: now.addingTimeInterval(-8 * 60)))
+        #expect(live == PopoverHeaderStatus(kind: .updated, text: "8 min ago", rollValue: 8))
+        let retained = PopoverHeaderStatusResolver.freshness(input(newestCheck: now.addingTimeInterval(-12 * 60)))
+        #expect(retained == PopoverHeaderStatus(kind: .lastChecked, text: "Checked 12 min ago", rollValue: 12))
+        #expect(PopoverHeaderStatusResolver.freshness(input())
+            == PopoverHeaderStatus(kind: .never, text: "Not checked yet", rollValue: nil))
     }
 
     /// The header is empty unless a setup card needs the user.

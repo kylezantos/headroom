@@ -134,4 +134,259 @@ struct DemoScreenshotDataVariantsTests {
             #expect(provider.displaySubscriptionWindows.count == 2)
         }
     }
+
+    // MARK: - v4 demo variants (U7, KTD21)
+
+    private func content(_ variant: CompanionDemoVariant) throws -> CompanionResolvedContent {
+        try #require(CompanionDemoData.snapshot(variant, now: now).content)
+    }
+
+    private func provider(_ id: String, in content: CompanionResolvedContent) throws -> CompanionResolvedProvider {
+        try #require(content.providers.first { $0.id == id })
+    }
+
+    /// Every variant's bytes go through the real codec: the manifest decodes, each provider
+    /// key decodes against its suffix, and every digest is SHA-256 of the exact stored bytes.
+    @Test(arguments: CompanionDemoVariant.allCases)
+    func everyVariantPublishesBytesTheRealCodecAccepts(_ variant: CompanionDemoVariant) throws {
+        let publication = try CompanionDemoData.publication(variant, now: now)
+        switch CompanionSyncCodec.decodeManifest(publication.manifest) {
+        case .value(.active(let manifest)):
+            #expect(manifest.sourceID == CompanionDemoData.sourceID)
+            #expect(Set(manifest.providers.keys) == Set(publication.providerKeys.keys))
+            for (id, data) in publication.providerKeys {
+                guard case .value(let payload) = CompanionSyncCodec.decodeProviderPayload(data, providerID: id) else {
+                    Issue.record("\(variant) \(id) key did not decode")
+                    continue
+                }
+                #expect(payload.payloadGeneration == manifest.providers[id]?.payloadGeneration)
+                #expect(CompanionSyncCodec.digest(data) == manifest.providers[id]?.digest)
+                #expect(data.count <= CompanionSyncBudget.providerKeyBytes)
+            }
+            #expect(manifest.dropLadderLevel == publication.ladderLevel)
+        case .value(.disabled):
+            #expect(variant == .paused)
+        case .missing:
+            #expect(variant == .waiting || variant == .oldMac)
+        default:
+            Issue.record("\(variant) manifest did not decode")
+        }
+        if variant == .oldMac {
+            #expect(SyncedWidgetSnapshotCodec.decode(publication.v3).envelope?.companionLineage == nil)
+        } else {
+            #expect(publication.v3 == nil)
+        }
+        let snapshot = CompanionDemoData.resolve(publication, now: now)
+        #expect(snapshot.diagnostics.isEmpty)
+    }
+
+    @Test(arguments: CompanionDemoVariant.allCases)
+    func everyVariantResolvesToItsIntendedState(_ variant: CompanionDemoVariant) {
+        let snapshot = CompanionDemoData.snapshot(variant, now: now)
+        switch variant {
+        case .paused: #expect(snapshot.state == .paused)
+        case .waiting: #expect(snapshot.state == .waiting(nil))
+        case .oldMac:
+            #expect(snapshot.content?.origin == .v3)
+            #expect(snapshot.content?.notice == .updateMac)
+        default:
+            #expect(snapshot.content?.origin == .v4)
+            #expect(snapshot.content?.notice == nil)
+            #expect(snapshot.content?.providers.allSatisfy { if case .v4(.manifestDigestMatched) = $0.source { true } else { false } } == true)
+        }
+    }
+
+    @Test func unknownMissingAndLegacyVariantTokensFallBackToMultiAccount() {
+        #expect(CompanionDemoVariant.default == .multiAccount)
+        for token in [nil, "", "full", "noSpend", "nope", "MULTIACCOUNT"] as [String?] {
+            #expect(CompanionDemoVariant.resolving(token) == .multiAccount)
+        }
+        for variant in CompanionDemoVariant.allCases {
+            #expect(CompanionDemoVariant.resolving(variant.rawValue) == variant)
+            #expect(!variant.title.isEmpty)
+        }
+        // Mac `--demo <scenario>` names pose the same moment on the phone.
+        #expect(CompanionDemoVariant.resolving("multi-3") == .multiAccount)
+        #expect(CompanionDemoVariant.resolving("multi-4") == .fourProviders)
+        #expect(CompanionDemoVariant.resolving("banked-resets") == .bankedResets)
+        #expect(CompanionDemoVariant.resolving("multi-20") == .multi20)
+    }
+
+    @Test func multiAccountIsFiveAccountsAcrossTwoProvidersWithASampleReminder() throws {
+        let content = try content(.multiAccount)
+        #expect(content.providers.map(\.id) == ["claude", "codex"])
+        #expect(content.providers.map { $0.accounts.map(\.title) } == [["Personal", "Work", "Studio"], ["Personal", "Work"]])
+        #expect(content.providers.allSatisfy { $0.mainAccount?.title == "Personal" })
+        #expect(content.apiSpend.map(\.displayName) == ["Anthropic API", "OpenAI API"])
+        let reminder = try #require(content.reminderSummary)
+        #expect(reminder.macUseItUpEnabled)
+        #expect(reminder.rules == [try CompanionReminderRuleSummary(amount: 1, unit: .days, threshold: 50)])
+        #expect(content.display == CompanionDisplayBlock())
+        #expect(content.ladder == .full)
+    }
+
+    /// One Fable number on every demo and screenshot surface (KTD21).
+    @Test func fableIsOneValueAcrossEveryDemoSurface() throws {
+        func fable(_ windows: [WidgetWindowSummary]) -> [Int] {
+            windows.filter { $0.kind == .other("Weekly (Fable)") }.map(\.roundedPercentRemaining)
+        }
+        var seen: [Int] = []
+        for variant in CompanionDemoVariant.allCases {
+            let snapshot = CompanionDemoData.snapshot(variant, now: now)
+            seen += fable(snapshot.shownWindows(for: .app))
+        }
+        // The style fixtures that pose the shared moment; the rest pose tight, stale and
+        // pending states with their own deliberate numbers.
+        for name in ["claudeCodex", "claudeGrok", "sparkOn", "spend"] {
+            let envelope = try #require(DemoScreenshotData.styleFixture(name, now: now))
+            seen += envelope.providers.flatMap { fable($0.windows) }
+        }
+        for name in ["full", "noSpend", "claudeOnly", "claudeOnlyNoSpend", "codexFiveHourReturns", "attention", "fourProviders"] {
+            seen += DemoScreenshotData.envelope(for: name).providers.flatMap { fable($0.windows) }
+        }
+        #expect(!seen.isEmpty)
+        #expect(Set(seen) == [54])
+    }
+
+    @Test(arguments: CompanionDemoVariant.allCases)
+    func planLabelsAreStoredInDisplayForm(_ variant: CompanionDemoVariant) {
+        let content = CompanionDemoData.snapshot(variant, now: now).content
+        for account in content?.providers.flatMap(\.accounts) ?? [] {
+            let plan = account.planName
+            #expect(plan != nil)
+            #expect(PlanLabelPresentation.displayName(plan) == plan)
+        }
+    }
+
+    /// The wire carries no reset labels: every surface formats the deadline relative to now.
+    /// Only the past-reset fixture's own 5-hour window lies in the past.
+    @Test(arguments: CompanionDemoVariant.allCases)
+    func resetsAreDeadlinesRelativeToNow(_ variant: CompanionDemoVariant) {
+        let later = now.addingTimeInterval(86_400)
+        let a = CompanionDemoData.snapshot(variant, now: now).shownWindows(for: .app)
+        let b = CompanionDemoData.snapshot(variant, now: later).shownWindows(for: .app)
+        #expect(a.count == b.count)
+        for (early, late) in zip(a, b) {
+            #expect(early.resetLabel == nil)
+            guard case .scheduled(let first) = early.resetSchedule, case .scheduled(let second) = late.resetSchedule else {
+                Issue.record("\(variant) window has no scheduled reset")
+                continue
+            }
+            #expect(second.timeIntervalSince(first) == 86_400)
+            let pastReset = variant == .pastReset && early.kind == .fiveHour && first < now
+            #expect(first > now || pastReset)
+        }
+    }
+
+    @Test func fourProvidersCoversTheRegistryWithBillingPools() throws {
+        let content = try content(.fourProviders)
+        #expect(content.providers.map(\.id) == ["claude", "codex", "grok", "cursor"])
+        let grok = try #require(try provider("grok", in: content).mainAccount)
+        #expect(grok.windows.map(\.summary.label) == ["Weekly"])
+        #expect(grok.windows.allSatisfy { $0.summary.isBillingPeriod })
+        let cursor = try #require(try provider("cursor", in: content).mainAccount)
+        #expect(cursor.windows.map(\.summary.label) == ["Cursor Models", "Other Models"])
+        #expect(cursor.windows.map(\.summary.roundedPercentRemaining) == [69, 37])
+    }
+
+    @Test func bankedResetsPosesTwoOneAndAReportedZero() throws {
+        let codex = try provider("codex", in: try content(.bankedResets))
+        #expect(codex.accounts.map(\.title) == ["Northwind Research Workspace", "On call", "Quiet"])
+        #expect(codex.accounts.map(\.bankedResets) == [2, 1, 0])
+        // The one-credit account is Critical, so its capsule opens on its own.
+        #expect(codex.accounts[1].widgetWindows.first { $0.kind == .fiveHour }?.severity == .critical)
+        #expect(try provider("claude", in: try content(.bankedResets)).mainAccount?.bankedResets == nil)
+    }
+
+    @Test func displayChoicesCarriesANonDefaultDisplayBlockAndSparkRows() throws {
+        let content = try content(.displayChoices)
+        let display = try #require(content.display)
+        #expect(display.meterStyle == MeterStyle(format: .full, shape: .segmented, fill: .ghost))
+        #expect(display.percentageMode == .used)
+        #expect(display.accountTitleInk == .brand)
+        #expect(display.appSparkEnabled)
+        let codex = try provider("codex", in: content)
+        #expect(codex.accounts.allSatisfy { $0.windows.contains(where: \.isSpark) })
+        // Spark is flagged by the Mac, never inferred: Claude's Fable row is not Spark.
+        #expect(try provider("claude", in: content).accounts.flatMap(\.windows).allSatisfy { !$0.isSpark })
+    }
+
+    @Test func dimmedDimsEverySurfaceButMultiAccountDoesNot() throws {
+        let dimmed = try content(.dimmed)
+        let fresh = try content(.multiAccount)
+        for surface in CompanionFreshnessSurface.allCases {
+            #expect(CompanionFreshnessRule.isDimmed(dimmed.freshness, surface: surface, at: now))
+            #expect(!CompanionFreshnessRule.isDimmed(fresh.freshness, surface: surface, at: now))
+        }
+        #expect(CompanionFreshnessRule.lastHeardFromMac(dimmed.freshness) == now.addingTimeInterval(-2 * 3_600))
+    }
+
+    @Test func pastResetHidesOnlyThatWindowsNumber() throws {
+        let content = try content(.pastReset)
+        #expect(!CompanionFreshnessRule.isDimmed(content.freshness, surface: .app, at: now))
+        let claude = try #require(try provider("claude", in: content).mainAccount)
+        #expect(claude.attention == .retrying)
+        let hidden = claude.widgetWindows.filter { CompanionFreshnessRule.visiblePercentRemaining($0, at: now) == nil }
+        #expect(hidden.map(\.kind) == [.fiveHour])
+        #expect(CompanionFreshnessRule.pastResetTime(hidden[0], at: now) == now.addingTimeInterval(-25 * 60))
+    }
+
+    /// R2/KTD7: at the tested envelope every account reaches the phone.
+    @Test func multi20CarriesEveryAccountWithSparkRowsWithinBudget() throws {
+        let publication = try CompanionDemoData.publication(.multi20, now: now)
+        let content = try content(.multi20)
+        #expect(content.providers.map { $0.accounts.count } == [20, 20, 20, 1])
+        #expect(content.providers.allSatisfy { $0.omittedAccountCount == 0 })
+        #expect(content.display?.appSparkEnabled == true)
+        #expect(try provider("codex", in: content).mainAccount?.windows.contains(where: \.isSpark) == true)
+        #expect(content.ladder == CompanionDropLadder(level: publication.ladderLevel ?? -1))
+        #expect((publication.ladderLevel ?? 2) < 2)
+        var image = publication.providerKeys.reduce(into: [String: Data]()) { $0[CompanionSyncKeys.provider($1.key)!] = $1.value }
+        image[CompanionSyncKeys.manifest] = publication.manifest
+        #expect(CompanionBudgetMeasurement(image).fits)
+    }
+
+    /// KTD7 level 2: above the envelope the real budget fit caps extras at 20 per provider and
+    /// the phone shows "N more on your Mac".
+    @Test func aboveEnvelopeReachesTheAccountCapOnItsOwn() throws {
+        let publication = try CompanionDemoData.publication(.aboveEnvelope, now: now)
+        #expect(publication.ladderLevel == 2)
+        let content = try content(.aboveEnvelope)
+        #expect(content.ladder == .accountCap)
+        let omitted = CompanionDemoData.aboveEnvelopeCount - CompanionSyncBudget.accountEnvelope
+        #expect(content.providers.map(\.omittedAccountCount) == [omitted, omitted, omitted, 0])
+        #expect(content.providers.map { $0.accounts.count } == [20, 20, 20, 1])
+    }
+
+    @Test func oldMacShowsMainAccountsOnlyWithTheUpdateLine() throws {
+        let content = try content(.oldMac)
+        #expect(content.notice?.message == "Update Headroom on your Mac to see every account")
+        #expect(content.display == nil)
+        #expect(content.providers.map { $0.accounts.map(\.title) } == [["Claude"], ["Codex"]])
+        #expect(content.freshness.isV3Only)
+    }
+
+    /// Build-33 hosts read the stored token through `envelope(for:)`: a v4-only variant name
+    /// shows its main accounts, legacy names keep their envelopes.
+    @Test func legacyEnvelopeLookupProjectsV4OnlyVariants() {
+        let multi = DemoScreenshotData.envelope(for: "multiAccount")
+        #expect(multi.providers.map(\.id) == ["claude", "codex"])
+        #expect(multi.providers.map(\.planLabel) == ["Max", "Pro Lite"])
+        #expect(DemoScreenshotData.envelope(for: "bankedResets").providers.last?.planLabel == "Plus")
+        #expect(DemoScreenshotData.envelope(for: "fourProviders").providers.first?.windows.first?.resetLabel == "Resets 2:15pm")
+        #expect(DemoScreenshotData.envelope(for: "paused").providers.count == DemoScreenshotData.envelope(for: "full").providers.count)
+    }
+
+    @Test func publicationIsDeterministicForOneClock() throws {
+        for variant in CompanionDemoVariant.allCases {
+            let first = try CompanionDemoData.publication(variant, now: now)
+            let second = try CompanionDemoData.publication(variant, now: now)
+            // v4 bytes are deterministic (sorted keys, KTD6.2), so digests are stable. The v3
+            // codec has no sorted-keys contract; its decoded content must match.
+            #expect(first.manifest == second.manifest, "\(variant)")
+            #expect(first.providerKeys == second.providerKeys, "\(variant)")
+            #expect(SyncedWidgetSnapshotCodec.decode(first.v3) == SyncedWidgetSnapshotCodec.decode(second.v3), "\(variant)")
+        }
+    }
 }
+

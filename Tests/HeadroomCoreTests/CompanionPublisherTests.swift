@@ -403,6 +403,23 @@ struct CompanionPublisherTests {
         #expect(h.store.operations.isEmpty)
     }
 
+    /// Contract Decision 3 / AE4: sync off clears the whole v4 namespace, keys a newer build
+    /// wrote included, but never the account-scope marker that lives outside it.
+    @Test func syncOffSweepsUnknownNamespaceKeysButKeepsTheScopeMarker() async throws {
+        let h = Harness()
+        await h.submit(Self.capture())
+        let future = CompanionSyncKeys.namespace + "future"
+        h.store.seed(future, Data("{}".utf8))
+        h.store.seed(CompanionSyncKeys.scopeMarker, Data("marker".utf8))
+
+        await h.advance(3)
+        await h.submit(Self.disabled(at: 3))
+        #expect(h.store.operations.contains(.remove(future)))
+        #expect(h.store.keys(withPrefix: CompanionSyncKeys.namespace) == [CompanionSyncKeys.manifest])
+        #expect(h.store.data(forKey: CompanionSyncKeys.scopeMarker) == Data("marker".utf8))
+        #expect(!h.store.operations.contains(.remove(CompanionSyncKeys.scopeMarker)))
+    }
+
     @Test func everyLaunchWhileOffRepeatsTheSweep() async throws {
         let h = Harness()
         // Leftovers from a lost deletion, or a downgraded Mac that could not delete v4.
@@ -518,6 +535,21 @@ struct CompanionPublisherTests {
         await h.submit(Self.capture())
         let held = h.store.data(forKey: CompanionSyncKeys.manifest)
         h.store.seed(CompanionSyncKeys.request(deviceUUID: UUID().uuidString)!, Data(count: 63_900))
+        h.store.clearLog()
+        await h.advance(1)
+        await h.submit(Self.capture(at: 1, providers: [Self.provider(extras: [Self.account("w", title: "W")])]))
+        #expect(h.store.operations.isEmpty)
+        #expect(h.store.data(forKey: CompanionSyncKeys.manifest) == held)
+        #expect(h.diagnostics.load().lastFailure == "overBudget")
+    }
+
+    /// Contract Decision 3: an unknown key under the v4 namespace (a newer build's) counts
+    /// toward the 64 KB image like every known key.
+    @Test func unknownNamespaceKeysCountTowardTheBudget() async throws {
+        let h = Harness()
+        await h.submit(Self.capture())
+        let held = h.store.data(forKey: CompanionSyncKeys.manifest)
+        h.store.seed(CompanionSyncKeys.namespace + "future", Data(count: 63_900))
         h.store.clearLog()
         await h.advance(1)
         await h.submit(Self.capture(at: 1, providers: [Self.provider(extras: [Self.account("w", title: "W")])]))

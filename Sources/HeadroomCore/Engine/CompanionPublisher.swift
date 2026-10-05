@@ -620,9 +620,12 @@ public actor CompanionPublisher {
         let intervals = Dictionary(
             uniqueKeysWithValues: capture.providers.map { ($0.providerID, $0.effectiveIntervalSeconds) })
 
-        // Contract Decision 3: the measured set is every value under the v4 namespace.
+        // Contract Decision 3: the measured set is every value under the v4 namespace,
+        // including keys a newer build wrote that this one does not know. Provider keys and
+        // the manifest are this flush's own and are added below as they will stand.
         var protocolValues: [String: Data] = [:]
-        for key in store.keys(withPrefix: CompanionSyncKeys.requestPrefix) + [CompanionSyncKeys.receipt] {
+        for key in store.keys(withPrefix: CompanionSyncKeys.namespace)
+        where key != CompanionSyncKeys.manifest && !key.hasPrefix(CompanionSyncKeys.providerPrefix) {
             if let data = store.data(forKey: key) { protocolValues[key] = data }
         }
 
@@ -773,7 +776,9 @@ public actor CompanionPublisher {
     }
 
     /// KTD22 sync-off order: the disabled v3 envelope, then the disabled manifest
-    /// tombstone, then every provider, receipt and request key, then participants.
+    /// tombstone, then every provider, receipt and request key and any other key under the
+    /// v4 namespace (contract Decision 3, AE4), then participants. The scope marker lives
+    /// outside the namespace and is never swept.
     private func sweep(_ capture: CompanionPublishCapture) {
         let sourceID = configuration.sourceID
         let stamp = capture.generatedAt.date
@@ -792,6 +797,9 @@ public actor CompanionPublisher {
         for key in store.keys(withPrefix: CompanionSyncKeys.providerPrefix) { store.removeValue(forKey: key) }
         store.removeValue(forKey: CompanionSyncKeys.receipt)
         for key in store.keys(withPrefix: CompanionSyncKeys.requestPrefix) { store.removeValue(forKey: key) }
+        for key in store.keys(withPrefix: CompanionSyncKeys.namespace) where key != CompanionSyncKeys.manifest {
+            store.removeValue(forKey: key)
+        }
         notifyParticipants { await $0.companionSyncDidPurge() }
 
         sweptWhileDisabled = true

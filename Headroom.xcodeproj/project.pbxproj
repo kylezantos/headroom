@@ -26,11 +26,13 @@
 		06769F1846A5C3F03083EFBE /* HeadroomIOSWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE287C9A19A4E94BB93E88F /* HeadroomIOSWidgets.swift */; };
 		067EC7A5ACF44B9D4679A3EE /* UIBenchModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29549AD7EE05B47C38BAE7D2 /* UIBenchModelTests.swift */; };
 		0738487256E4F5D6D56EFA44 /* CompanionAttentionCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D7E9C365CC8B08666DEB89F /* CompanionAttentionCopy.swift */; };
+		077FC3CD22FB07E352BB8C4D /* CompanionDemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */; };
 		079F32150EB353B7459F9A1E /* VesselMark.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0627C951970F44087A8EE593 /* VesselMark.swift */; };
 		07DD05A5A542C61C98C43C14 /* HeadroomWidgetStyledBody.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCCDB3DAE232C200FAA8BB2B /* HeadroomWidgetStyledBody.swift */; };
 		07F7A0F664386AC8CE9247BC /* HeadroomWidgetTightestFirst.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E40442ADD49193D247EF655 /* HeadroomWidgetTightestFirst.swift */; };
 		07FEC9311797B972C4DBC492 /* GrokDTOs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D2DD5C8BCCC8BADC9508D07 /* GrokDTOs.swift */; };
 		084D12BD03637F092BEC19F5 /* SoftwareUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D98CDEAF6EF0A499E6D0A8FA /* SoftwareUpdateController.swift */; };
+		08A18D40A9312F7DEB5B8C9B /* CompanionDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E66E67262C892788840900 /* CompanionDemoData.swift */; };
 		08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */; };
 		0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */; };
 		0A685B2041A3418A5897E50C /* UseItUpLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */; };
@@ -193,12 +195,14 @@
 		580AB8BAD476B2611A8DF611 /* CompanionWireDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5C67D6F363B547DDC89B75 /* CompanionWireDate.swift */; };
 		587E36A44D8D636B4D686DD3 /* HeadroomMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304EFF5E1F665A9C8A8FD6FB /* HeadroomMotion.swift */; };
 		58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */; };
+		592A3A05A7431A95FCC2189E /* CompanionDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E66E67262C892788840900 /* CompanionDemoData.swift */; };
 		5AEA213A9A00A042EED6986D /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
 		5B66665B700965FBCFC93DBE /* MirrorPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E25CC17492F28F0E69876941 /* MirrorPresentation.swift */; };
 		5BE00F1CEAE1B3A5BA079543 /* LaneSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77C0D46544DF7793280C86B5 /* LaneSchedule.swift */; };
 		5C29DD87D44B30D832AD26A0 /* SkeletonMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20D0BF529D940EBAFE539D47 /* SkeletonMeter.swift */; };
 		5C5A40622D2287D76E49CDF7 /* IdentityRowResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */; };
 		5D4FA611C493F27C42A9B6E9 /* UseItUpEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FC49AE01AE7228F021F9226 /* UseItUpEvaluator.swift */; };
+		5DF7B3536DE75946C15A3D39 /* CompanionDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E66E67262C892788840900 /* CompanionDemoData.swift */; };
 		5E5D6B8244F9AECF48B5C00E /* HeadroomIOSTimelineProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9ADDC10A509A2B2E5C0F48B /* HeadroomIOSTimelineProvider.swift */; };
 		5E944B81F4BF70C58EF00164 /* CLIExecutableResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29EA356CD55A5493E55D8F86 /* CLIExecutableResolver.swift */; };
 		60698F3C586E47E6AF9082A6 /* HeadroomWidgetSharedUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */; };
@@ -304,6 +308,7 @@
 		9743E330418DC4B3CEF0D166 /* WidgetWindowRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D5513C2AB2C61E436AB502 /* WidgetWindowRanking.swift */; };
 		97577F3BA2867600F9A2ACD6 /* HeadroomWidgetFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925D38A1B5F4B62C12EFECF2 /* HeadroomWidgetFooter.swift */; };
 		99A555061BE9F0B37D39BA46 /* HeadroomWidgetVesselHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F70A32BED298DB58AE62BC /* HeadroomWidgetVesselHero.swift */; };
+		9A2359D6EC37215E9460769C /* CompanionDemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */; };
 		9A2E1DD1FDAA631A97E25F20 /* Redaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF324F891EEEAD03BABA4FC /* Redaction.swift */; };
 		9A3FF49A94D30656C5C713C9 /* HeadroomWidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D406B050387CDFAE6C0F966 /* HeadroomWidgetConfigurationIntent.swift */; };
 		9ABD466B37A907132B00F9EA /* WidgetWindowRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D5513C2AB2C61E436AB502 /* WidgetWindowRanking.swift */; };
@@ -432,6 +437,7 @@
 		DD3AA73184AE85B6F1D00849 /* CompanionCacheCoordination.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF78975454C1C4864B6B46AE /* CompanionCacheCoordination.swift */; };
 		DD58BD0566EB21FFEDDC5996 /* ResetSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */; };
 		DE5D42C8C26940DDC5C45B1C /* HeadroomWidgetFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925D38A1B5F4B62C12EFECF2 /* HeadroomWidgetFooter.swift */; };
+		DE78E295FCF484909A9B4101 /* CompanionDemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */; };
 		DE9FFC2530FE8CFDC23FAD45 /* StatusSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2373CA31089F62FECDF85D07 /* StatusSentence.swift */; };
 		DFF9414089ED41E64350E282 /* HeadroomWidgetStylePrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5520BF4DF5B5A5F5A5EF30F /* HeadroomWidgetStylePrimitives.swift */; };
 		E15F2271E06DA32E106CDA05 /* ResetClockFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E017709D234A921E25999F2 /* ResetClockFormatter.swift */; };
@@ -808,6 +814,7 @@
 		E129DC7D060EBB5B56418826 /* MenuBarPillArranger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPillArranger.swift; sourceTree = "<group>"; };
 		E16DFAD2EED790673FF2FCF8 /* HeadroomWidgetSharedUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetSharedUI.swift; sourceTree = "<group>"; };
 		E25CC17492F28F0E69876941 /* MirrorPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorPresentation.swift; sourceTree = "<group>"; };
+		E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionDemoLaunchOptions.swift; sourceTree = "<group>"; };
 		E542DE434B4A2F1EA525110E /* ProviderCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardView.swift; sourceTree = "<group>"; };
 		E5493786BF2891E1B61D670A /* CompanionAccountScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAccountScope.swift; sourceTree = "<group>"; };
 		E82174D6E3D6084D707A51A1 /* WidgetStatusCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatusCopy.swift; sourceTree = "<group>"; };
@@ -833,6 +840,7 @@
 		F7339860B2F91C83B1108CED /* AccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStorage.swift; sourceTree = "<group>"; };
 		F767701AEE449C92A62002E4 /* CodexProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexProvider.swift; sourceTree = "<group>"; };
 		F79F757570AB27C93700E341 /* IOSCompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSCompanionView.swift; sourceTree = "<group>"; };
+		F7E66E67262C892788840900 /* CompanionDemoData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionDemoData.swift; sourceTree = "<group>"; };
 		F9ADDC10A509A2B2E5C0F48B /* HeadroomIOSTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSTimelineProvider.swift; sourceTree = "<group>"; };
 		FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotCache.swift; sourceTree = "<group>"; };
 		FA51FBDBE0235A09EB8ED191 /* MeterStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterStyle.swift; sourceTree = "<group>"; };
@@ -997,6 +1005,7 @@
 				E5493786BF2891E1B61D670A /* CompanionAccountScope.swift */,
 				5D7E9C365CC8B08666DEB89F /* CompanionAttentionCopy.swift */,
 				EF78975454C1C4864B6B46AE /* CompanionCacheCoordination.swift */,
+				E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */,
 				97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */,
 				B6019B00EF172D09CACA2F6B /* CompanionIdentityProbe.swift */,
 				2DE0FD76474F6609DF9AC64B /* CompanionKVSScopeMarker.swift */,
@@ -1081,6 +1090,7 @@
 			isa = PBXGroup;
 			children = (
 				3C5CD411FF3CB3B7B9B5465F /* APISpendPresentation.swift */,
+				F7E66E67262C892788840900 /* CompanionDemoData.swift */,
 				194C63E8131AF50BE4E59CB2 /* CompanionFreshnessRule.swift */,
 				77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */,
 				A6F385F42931DC3265D13EE4 /* HalftoneGeometry.swift */,
@@ -1727,6 +1737,8 @@
 				0738487256E4F5D6D56EFA44 /* CompanionAttentionCopy.swift in Sources */,
 				C9A1E5A33C9DA60308C5E84B /* CompanionAttentionMapping.swift in Sources */,
 				971ADDC82367432BEDB2CA17 /* CompanionCacheCoordination.swift in Sources */,
+				08A18D40A9312F7DEB5B8C9B /* CompanionDemoData.swift in Sources */,
+				077FC3CD22FB07E352BB8C4D /* CompanionDemoLaunchOptions.swift in Sources */,
 				AF8D92D2E50538EC7D2B00B2 /* CompanionDemoModeStore.swift in Sources */,
 				36B3D7BE712A025BC3441FBB /* CompanionFreshnessRule.swift in Sources */,
 				7FCEE91A8EFC7A47D19698CE /* CompanionIdentityProbe.swift in Sources */,
@@ -1837,6 +1849,8 @@
 				05058E99A34A0D10743C8BA8 /* CompanionAccountScope.swift in Sources */,
 				A06967DD095208F09CBFC0D2 /* CompanionAttentionCopy.swift in Sources */,
 				73BAAD3411CFB32F60DC7A4F /* CompanionCacheCoordination.swift in Sources */,
+				5DF7B3536DE75946C15A3D39 /* CompanionDemoData.swift in Sources */,
+				9A2359D6EC37215E9460769C /* CompanionDemoLaunchOptions.swift in Sources */,
 				DC1870CA40E1A553BF305430 /* CompanionDemoModeStore.swift in Sources */,
 				B742DA1FF9639308DF6D03D7 /* CompanionFreshnessRule.swift in Sources */,
 				8EB4B80CB33393EF22DAEFB2 /* CompanionIdentityProbe.swift in Sources */,
@@ -2070,6 +2084,8 @@
 				ADFC8AC3DA7A164554421F54 /* CompanionAccountScope.swift in Sources */,
 				4E99CF9F7B35D878D0418E5F /* CompanionAttentionCopy.swift in Sources */,
 				DD3AA73184AE85B6F1D00849 /* CompanionCacheCoordination.swift in Sources */,
+				592A3A05A7431A95FCC2189E /* CompanionDemoData.swift in Sources */,
+				DE78E295FCF484909A9B4101 /* CompanionDemoLaunchOptions.swift in Sources */,
 				5620F4F237849FCB69F90A1C /* CompanionDemoModeStore.swift in Sources */,
 				A5E5A3E6EB142E7016431936 /* CompanionFreshnessRule.swift in Sources */,
 				E96E8DC7DD25A474AB975BF9 /* CompanionIdentityProbe.swift in Sources */,

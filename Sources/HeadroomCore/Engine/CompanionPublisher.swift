@@ -410,6 +410,10 @@ public actor CompanionPublisher {
     private var publishedStructure: CompanionPublishCapture.Structure?
     private var publishedInterval: TimeInterval?
     private var lastWriteAt: Date?
+    /// Every heartbeat attempt and every failed flush. The heartbeat is due one interval
+    /// after the later of this and `lastWriteAt`, so a heartbeat that cannot write (over
+    /// budget, a failed write, no capture) waits a whole interval, not the timer's 1 s floor.
+    private var lastAttemptAt: Date?
     private var lastPublishedGeneration: Int64 = -1
     /// KTD8: every key on the first publish after launch, after sync turns on and after
     /// an iCloud account change, whatever the coalescer's memory says.
@@ -554,11 +558,12 @@ public actor CompanionPublisher {
                 pendingForced = false
                 _ = await flush(capture, forced: forced, heartbeat: false, now: now)
             }
-        } else if lastStatus == .enabled, let lastWriteAt, let interval = publishedInterval,
-            now.timeIntervalSince(lastWriteAt) >= interval, let captureProvider
+        } else if lastStatus == .enabled, let base = heartbeatBase, let interval = publishedInterval,
+            now.timeIntervalSince(base) >= interval, let captureProvider
         {
             // Heartbeat: nothing dirty for a whole chosen interval. Ask for a fresh capture
             // so the manifest and the v3 mirror move together under a new generatedAt.
+            lastAttemptAt = now
             if let fresh = await captureProvider(), fresh.generation > lastPublishedGeneration {
                 if fresh.status == .disabled {
                     pending = fresh
@@ -569,6 +574,12 @@ public actor CompanionPublisher {
             }
         }
         schedule(now: configuration.now())
+    }
+
+    /// The latest write or attempt; nil until the first successful write.
+    private var heartbeatBase: Date? {
+        guard let lastWriteAt else { return nil }
+        return max(lastWriteAt, lastAttemptAt ?? lastWriteAt)
     }
 
     private func enterEnabled() {
@@ -586,8 +597,8 @@ public actor CompanionPublisher {
         let wake: Date?
         if pending != nil {
             wake = lastWriteAt.map { $0.addingTimeInterval(configuration.flushSpacing) } ?? now
-        } else if lastStatus == .enabled, let lastWriteAt, let interval = publishedInterval {
-            wake = lastWriteAt.addingTimeInterval(interval)
+        } else if lastStatus == .enabled, let base = heartbeatBase, let interval = publishedInterval {
+            wake = base.addingTimeInterval(interval)
         } else {
             wake = nil
         }
@@ -648,8 +659,7 @@ public actor CompanionPublisher {
         } catch {
             // Decision 3: stop and keep the last valid content rather than cap accounts.
             lastFit = false
-            diagnostics.lastFailure = "overBudget"
-            saveDiagnostics()
+            recordFailure("overBudget", at: now)
             return .overBudget
         }
 
@@ -700,8 +710,7 @@ public actor CompanionPublisher {
             let manifestBytes = try? CompanionSyncCodec.encode(CompanionManifest.active(manifest)),
             let v3Bytes = try? CompanionPublishImage.v3Bytes(capture: capture, sourceID: sourceID)
         else {
-            diagnostics.lastFailure = "encodeFailed"
-            saveDiagnostics()
+            recordFailure("encodeFailed", at: now)
             return .writeFailed
         }
         let manifestFingerprint = Self.manifestFingerprint(manifest)
@@ -722,8 +731,7 @@ public actor CompanionPublisher {
         let measurement = CompanionBudgetMeasurement(image)
         guard measurement.fits else {
             lastFit = false
-            diagnostics.lastFailure = "overBudget"
-            saveDiagnostics()
+            recordFailure("overBudget", at: now)
             return .overBudget
         }
 
@@ -731,8 +739,7 @@ public actor CompanionPublisher {
         var writes = 0
         for (id, bytes) in rewrites.sorted(by: { $0.key < $1.key }) {
             guard let key = CompanionSyncKeys.provider(id), store.set(bytes, forKey: key) else {
-                diagnostics.lastFailure = "writeFailed"
-                saveDiagnostics()
+                recordFailure("writeFailed", at: now)
                 return .writeFailed
             }
             writes += 1
@@ -740,8 +747,7 @@ public actor CompanionPublisher {
         guard store.set(manifestBytes, forKey: CompanionSyncKeys.manifest),
             store.set(v3Bytes, forKey: iCloudSnapshotSync.snapshotKey)
         else {
-            diagnostics.lastFailure = "writeFailed"
-            saveDiagnostics()
+            recordFailure("writeFailed", at: now)
             return .writeFailed
         }
         writes += 2
@@ -829,6 +835,13 @@ public actor CompanionPublisher {
             await previous?.value
             for participant in participants { await call(participant) }
         }
+    }
+
+    /// A failed flush counts as an attempt, so the next heartbeat backs off a whole interval.
+    private func recordFailure(_ reason: String, at now: Date) {
+        lastAttemptAt = now
+        diagnostics.lastFailure = reason
+        saveDiagnostics()
     }
 
     private func saveDiagnostics() {

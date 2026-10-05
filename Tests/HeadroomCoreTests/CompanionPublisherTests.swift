@@ -23,7 +23,7 @@ struct CompanionPublisherTests {
         /// What a heartbeat or forced republish captures: the latest state, re-stamped.
         var state: CompanionPublishCapture?
 
-        init() {
+        init(autoSchedule: Bool = false, sleep: (@Sendable (TimeInterval) async -> Void)? = nil) {
             let suite = "headroom.publisher.\(UUID().uuidString)"
             let defaults = UserDefaults(suiteName: suite)!
             defaults.removePersistentDomain(forName: suite)
@@ -38,7 +38,7 @@ struct CompanionPublisherTests {
                 store: store,
                 configuration: .init(
                     sourceID: F.macA, macAppVersion: "1.5 (40)", flushSpacing: 60,
-                    now: { clock.now }, autoSchedule: false),
+                    now: { clock.now }, autoSchedule: autoSchedule, sleep: sleep ?? { _ in }),
                 diagnosticsStore: diagnostics, participants: [lifecycle])
         }
 
@@ -556,6 +556,41 @@ struct CompanionPublisherTests {
         #expect(h.store.operations.isEmpty)
         #expect(h.store.data(forKey: CompanionSyncKeys.manifest) == held)
         #expect(h.diagnostics.load().lastFailure == "overBudget")
+    }
+
+    /// A failed heartbeat backs off one chosen interval instead of re-capturing and
+    /// re-encoding every second until the content shrinks (review #6).
+    @Test func anOverBudgetHeartbeatWaitsAWholeIntervalBeforeTryingAgain() async throws {
+        let sleep = RecordingSleep()
+        let h = Harness(autoSchedule: true, sleep: sleep.sleep)
+        await h.bindHeartbeat()
+        await h.submit(Self.capture())
+        #expect(await sleep.next() == 120)
+        let request = CompanionSyncKeys.request(deviceUUID: UUID().uuidString)!
+        h.store.seed(request, Data(count: 63_900))
+        let held = h.store.data(forKey: CompanionSyncKeys.manifest)
+
+        await h.advance(120)
+        #expect(h.diagnostics.load().lastFailure == "overBudget")
+        let captured = h.generation
+        #expect(await sleep.next() == 120)
+
+        // Each second of the following interval: no new capture, no new write, and the
+        // timer still aims at one interval after the failed attempt.
+        for second in 1...119 {
+            await h.advance(1)
+            #expect(await sleep.next() == TimeInterval(120 - second))
+        }
+        #expect(h.generation == captured)
+        #expect(h.store.data(forKey: CompanionSyncKeys.manifest) == held)
+
+        // One interval after the failed attempt it tries again, and recovers once room returns.
+        h.store.seed(request, nil)
+        await h.advance(1)
+        #expect(h.generation == captured + 1)
+        #expect(h.store.data(forKey: CompanionSyncKeys.manifest) != held)
+        #expect(h.diagnostics.load().lastFailure == nil)
+        #expect(await sleep.next() == 120)
     }
 
     // MARK: Write rate (KTD8 steady state)

@@ -308,6 +308,8 @@ public struct CheckNowStatus: Equatable, Sendable {
     public let nextDeadline: Date?
     /// The request ID this status describes.
     public let requestID: String
+    /// Phone clock when the request was written: the start of Settings' round trip (U9).
+    public let askedAt: Date
 
     public static func make(
         state: CheckNowRequestState, snapshot: CompanionResolvedSnapshot?, now: Date
@@ -339,7 +341,8 @@ public struct CheckNowStatus: Equatable, Sendable {
         }
         return CheckNowStatus(
             phase: phase, line: line, isInFlight: inFlight,
-            nextDeadline: CheckNowMachine.nextDeadline(of: state, now: now), requestID: state.requestID)
+            nextDeadline: CheckNowMachine.nextDeadline(of: state, now: now), requestID: state.requestID,
+            askedAt: state.askedAt)
     }
 
     /// KTD14.6: the phone looks the title up by account ID; an unknown provider or account

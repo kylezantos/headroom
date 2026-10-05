@@ -146,3 +146,70 @@ export this private file; only the enum report is shareable.
 **Reset probe only** removes its baseline and resets its rows, leaving usage caches
 alone. Remove the dedicated probe widget after testing. All helper, Settings UI and
 probe-widget registration are compiled out of Release.
+
+## Marker candidate
+
+Instructions only; no results are recorded here yet. This checks the KVS scope marker that
+replaces the failed token (`CompanionKVSScopeMarker`, key `headroom.scope.v1`, a random UUID
+in the iCloud key-value store). See `.context/ios-parity-work/u4-identity-diagnosis.md` §4.
+Adopting it also needs Kyle's sign-off on the KTD22 change: KTD22 names the token and says
+the scope never syncs, but the marker does sync. It holds no identity.
+
+Build and install the signed Debug build exactly as above. In Headroom → Settings →
+**Identity Candidate Probe · DEBUG**, set **Candidate** to **KVS marker**. The widget samples
+whichever candidate the app last selected, and its first line reads `Marker · Widget #N · <step>`.
+Each candidate has its own baseline and rows, so the token evidence above is left alone. The
+marker value is never shown or exported. Only enum verdicts appear, and the shared report adds
+`"candidate": "kvsMarker"`.
+
+### Short check (about 3 minutes)
+
+1. Use the usual Apple ID, online, with iCloud Drive on, and exit Demo. Select step `baseline`,
+   then **Reset probe only**, then **Arm baseline**. Require **Marker write: written** (or
+   `present` if a marker already exists) and an app row of `available / equal / written /
+   coordinated`.
+2. Turn on Airplane Mode and turn **iCloud Drive off**, keeping the same Apple ID. Select step
+   `offline` and choose **Sample app and request widget sample**. Require `available / equal /
+   readable / coordinated`.
+3. Force-quit the app. Remove the **Identity Probe · DEBUG** widget and add it again. Require a
+   fresh row, `Marker · Widget #N · offline`, reading `available · equal` and `readable ·
+   coordinated`. N must be higher than the last ordinal and the time must be after step 2.
+4. Open the app, select step `relaunch` and sample. Require `available / equal / readable`.
+5. Choose **Read bounded report**, then **Share enum-only report**. Restore iCloud Drive and the
+   network.
+
+Pass: every row reads `available · equal`. Any `unavailable` or `different` row means the
+candidate failed. Any row without a fresh widget invocation is unverified. In either case,
+stop and share the report.
+
+### Account-boundary check (required before adoption; may be deferred)
+
+Do this once, after the short check passes. Never press **Arm** while signed out or on
+another Apple ID: Arm writes a marker into whatever store is current.
+
+1. With the usual Apple ID's baseline armed, select step `emptyAccount`, sample once (this saves
+   the step), then force-quit the app.
+2. Sign out of iCloud, or switch to the empty Apple ID, and keep the app closed.
+3. Remove and re-add the probe widget. Require a fresh widget row of either `unavailable ·
+   notCompared` (no marker in the new store) or `available · different`. Either one means
+   cached content would be blocked. **`available · equal` is a leak**, and the candidate fails.
+   It means the local store still shows the old account's marker; this matters most for
+   sign-out, which Apple does not document.
+4. Open the app, keep step `emptyAccount` and **Sample** (do not Arm). Require the same: not
+   `equal`.
+5. Optional return check: sign back in to the usual Apple ID and give iCloud a minute. Select
+   `returnAccount` and sample, then re-add the widget with the app closed. Expect `available ·
+   equal` once the store has downloaded. `unavailable` while the download finishes is
+   acceptable, so sample again. `different` would mean the original marker was replaced, so
+   report it.
+
+Share the enum-only report after each check. Record the build, device class and iOS version,
+with no account or device identifiers.
+
+### Cleanup
+
+**Reset probe only** in marker mode clears only the marker baseline and rows. The KVS marker
+itself stays in iCloud on purpose: nothing deletes it, and production readers will use the same
+key. Set **Candidate** back to **Identity token** only if you are continuing the token
+diagnosis. Remove the probe widget afterwards. As with token mode, the probe, its Settings
+section and the widget registration are compiled out of Release.

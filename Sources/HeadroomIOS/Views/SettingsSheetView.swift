@@ -41,24 +41,17 @@ struct SettingsSheetView: View {
                 let shown = shownSnapshot(now: context.date)
                 let manifestRows = PhoneSettingsManifestRows(snapshot: shown)
                 List {
+                    // While in Explore Demo, its controls (sample state, Exit Demo) lead the
+                    // sheet: they are what a reviewer opens Settings for, and the sheet opens
+                    // at the medium detent (R30). Otherwise Demo keeps its S1-A place.
+                    if isDemoMode { demoSection }
                     AppearanceSection(appearance: $appearance, macDisplay: shown?.content?.display)
                     WidgetsGallerySection(manifestRows: manifestRows)
                     SyncSection(
                         snapshot: shown, isDemoMode: isDemoMode, lastCheckNow: lastCheckNow,
                         now: context.date)
                     RemindersSection(manifestRows: manifestRows)
-                    DemoSection(
-                        isDemoMode: isDemoMode, canExitDemo: canExitDemo,
-                        demoWidgetUnavailable: demoWidgetUnavailable,
-                        variant: Binding(get: { demoVariant }, set: selectDemoVariant),
-                        onEnterDemo: {
-                            dismiss()
-                            onEnterDemo()
-                        },
-                        onExitDemo: {
-                            dismiss()
-                            onExitDemo()
-                        })
+                    if !isDemoMode { demoSection }
                     AboutSection()
 
                     #if DEBUG
@@ -85,6 +78,21 @@ struct SettingsSheetView: View {
             guard snapshot == nil, !isDemoMode else { return }
             loadedSnapshot = Self.loadSnapshot()
         }
+    }
+
+    private var demoSection: some View {
+        DemoSection(
+            isDemoMode: isDemoMode, canExitDemo: canExitDemo,
+            demoWidgetUnavailable: demoWidgetUnavailable,
+            variant: Binding(get: { demoVariant }, set: selectDemoVariant),
+            onEnterDemo: {
+                dismiss()
+                onEnterDemo()
+            },
+            onExitDemo: {
+                dismiss()
+                onExitDemo()
+            })
     }
 
     /// Demo reads the chosen variant's bundled snapshot; otherwise the host's snapshot, or the

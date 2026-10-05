@@ -44,22 +44,28 @@ final class SettingsSheetUITests: XCTestCase {
         let status = element("headroom.settings.sync.status")
         let dimmed = element("headroom.settings.sync.dimmed")
         selectVariant("Multiple accounts")
-        scrollTo(status, upward: true)
+        scrollTo(status)
         XCTAssertTrue(status.exists)
         XCTAssertFalse(dimmed.exists)
 
         selectVariant("No recent update")
-        scrollTo(status, upward: true)
+        scrollTo(status)
         XCTAssertTrue(dimmed.waitForExistence(timeout: 3))
         XCTAssertTrue(dimmed.label.hasPrefix("No update from your Mac since "), dimmed.label)
 
         // Leave the shared App Group variant as Explore Demo's default for other suites.
         selectVariant("Multiple accounts")
-        scrollTo(status, upward: true)
+        scrollTo(status)
         XCTAssertFalse(dimmed.exists)
         let exit = app.buttons["headroom.demo.exit"]
-        scrollTo(exit)
+        scrollTo(exit, upward: true)
         exit.tap()
+        XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
+
+        // The picker wrote the App Group variant; a reset launch puts it back on the unset
+        // default so suites that read it (the `--demo` layout tests) start clean.
+        app.terminate()
+        app.launch()
         XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
     }
 
@@ -100,7 +106,7 @@ final class SettingsSheetUITests: XCTestCase {
 
     private func selectVariant(_ title: String) {
         let picker = app.buttons["headroom.demo.variant"]
-        scrollTo(picker)
+        scrollTo(picker, upward: true)
         picker.tap()
         let option = app.buttons[title].firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 3))
@@ -108,9 +114,13 @@ final class SettingsSheetUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 3))
     }
 
+    /// Scrolls the sheet until `target` is on screen, searching in `upward`'s direction
+    /// first and then the other way.
     private func scrollTo(_ target: XCUIElement, upward: Bool = false) {
-        for _ in 0..<16 where !(target.exists && target.isHittable) {
-            if upward { app.swipeDown() } else { app.swipeUp() }
+        for pass in [upward, !upward] {
+            for _ in 0..<14 where !(target.exists && target.isHittable) {
+                if pass { app.swipeDown() } else { app.swipeUp() }
+            }
         }
     }
 

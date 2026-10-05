@@ -174,6 +174,9 @@ struct IOSCompanionView: View {
             demoWidgetUnavailable = false
             suppressPersistedDemoForUITest = true
             demoModeStore.setEnabled(false)
+            // U12: a UI test that picked a variant in Settings › Demo leaves the App Group
+            // back on the unset default ("full"), so suites that read it start clean.
+            demoModeStore.setVariant("full")
             didApplyUITestReset = true
         }
         #endif

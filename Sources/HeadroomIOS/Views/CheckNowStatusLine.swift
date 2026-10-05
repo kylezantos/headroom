@@ -20,6 +20,13 @@ final class PhoneCheckNow {
     #if DEBUG
     /// AE8 UI-test marker: request keys this launch wrote. A demo pull must leave it at 0.
     private(set) var requestsWritten = 0
+    /// AE1 UI-test marker: pulls that re-read instead of checking. It proves an older Mac's
+    /// pull ran (review 2 #6), not merely that nothing was asked.
+    private(set) var rereadPulls = 0
+
+    func recordRereadPull() {
+        rereadPulls += 1
+    }
     #endif
 
     @ObservationIgnored private var client: CheckNowClient??

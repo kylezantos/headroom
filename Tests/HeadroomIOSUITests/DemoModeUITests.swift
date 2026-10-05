@@ -139,8 +139,14 @@ final class DemoModeUITests: XCTestCase {
     func testOldMacPullReReadsWithoutAsking() {
         launchDemo("oldMac")
         XCTAssertTrue(element("headroom.provider.claude").waitForExistence(timeout: 5))
+        let rereads = element("headroom.checknow.rereads")
+        XCTAssertEqual(rereads.value as? String, "0")
         pullToRefresh()
         let seen = statusLines(until: { _ in false }, timeout: 3)
+        // Review 2 #6: the pull ran and took the re-read path, and the line was sampled.
+        let reread = XCTNSPredicateExpectation(predicate: NSPredicate(format: "value == '1'"), object: rereads)
+        XCTAssertEqual(XCTWaiter.wait(for: [reread], timeout: 5), .completed, "the pull re-read once")
+        XCTAssertFalse(seen.isEmpty, "the status line was sampled")
         XCTAssertFalse(seen.contains("Asking your Mac…"), "saw \(seen)")
         XCTAssertTrue(seen.allSatisfy { $0.hasPrefix("Updated") }, "saw \(seen)")
         XCTAssertEqual(element("headroom.checknow.writes").value as? String, "0")

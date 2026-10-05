@@ -27,6 +27,27 @@ official `claude` CLI's `/usage` panel instead.
   idle popover/Settings measurements have not run; the diagnostic builds alone prove no
   performance result. Do not claim the plan's two-percentage-point budget passed.
 
+## iPhone usage screen follow-ups (2026-10-05, iPhone parity U21/U9/U11)
+
+- **Meter labels truncate to "…" at accessibility text sizes on a 390pt phone.** The shared
+  Micro row's last rung truncates its label once `PhoneScale` clamps at xxxLarge, so "5-hour"
+  and "Weekly" read "…" beside their countdowns (17e capture, AccessibilityXXXL). Pre-dates
+  U21; the spend title now wraps by word instead. Needs a phone rung that drops the gauge or
+  stacks the countdown before the label gives up.
+- **Spend chip placement is decided per row.** On a 402pt phone at the default size "OpenAI
+  API" holds its chip inline while "Anthropic API" drops it to the subline (KTD3's measured
+  fit). A card-wide decision would read calmer; it needs the card's width before layout.
+- **V38 has no one- or three-provider demo fixture.** The flowing-columns capture pass covers
+  two (with and without spend) and four providers; one and three need fixtures.
+- **"Last check" in Settings is session-only.** The round trip is recorded when this launch
+  sees a real request complete; a relaunch starts without one.
+- **iPad Pro 13 UI failures that also reproduce at the integration head (2f707342):**
+  `PhoneCardsUITests.testTruncatedTitlesDiscloseTheFullNameAtDefaultSize` fails every run
+  (iPad cards are wide enough that the title never truncates, so it is not a button), and
+  `SettingsSheetUITests.testSwitchingDemoVariantToDimmedShowsTheDimmedSurface` is
+  intermittent (failed at 2f707342 and once on the U21 branch, passed on the final run).
+  Both pass on the iPhone simulators.
+
 ## Phone publisher follow-ups (2026-10-04, iPhone parity U5)
 
 - **Two rare row kinds stay Mac-only.** The phone carries the widget row set plus flagged Spark

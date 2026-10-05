@@ -122,3 +122,12 @@ public struct UsageMeterReading: Sendable, Equatable {
         !dimmed && window.freshness.isLive && severity == .critical
     }
 }
+
+public extension UsagePercentageMode {
+    /// KTD6.2: the integer every Mac surface prints for a provider window — the popover row's
+    /// own `UsageMeterReading` figure — so the menu bar, its arranger and Settings never round
+    /// one window two ways. Nil when the row would hide its value (unavailable, non-finite).
+    func displayedPercentage(for window: UsageWindow) -> Int? {
+        UsageMeterReading(window: window).roundedPercentage(for: self)
+    }
+}

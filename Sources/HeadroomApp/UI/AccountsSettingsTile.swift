@@ -832,16 +832,19 @@ struct AccountsSettingsTile: View {
                 .foregroundStyle(.secondary)
         case .retainedUsage:
             HStack(spacing: 7) {
+                // KTD6.2: the popover row's integer; a row it would hide shows no figure here either.
                 ForEach(Array(snapshot.windows.prefix(2).enumerated()), id: \.offset) { _, window in
-                    Text("\(window.kind.compactName) \(store.usagePercentageMode.roundedPercentage(for: window))%")
+                    Text("\(window.kind.compactName) \(store.usagePercentageMode.displayedPercentage(for: window).map { "\($0)%" } ?? "—")")
                 }
             }
             .font(SettingsType.help.monospacedDigit())
             .foregroundStyle(.secondary)
             .opacity(0.68)
             .accessibilityLabel(
-                "Last known usage. " + snapshot.windows.prefix(2).map {
-                    "\($0.kind.spokenName) \(store.usagePercentageMode.roundedPercentage(for: $0)) percent \(store.usagePercentageMode.term)"
+                "Last known usage. " + snapshot.windows.prefix(2).map { window in
+                    store.usagePercentageMode.displayedPercentage(for: window).map {
+                        "\(window.kind.spokenName) \($0) percent \(store.usagePercentageMode.term)"
+                    } ?? "\(window.kind.spokenName) not available"
                 }.joined(separator: ", ")
             )
         }

@@ -150,6 +150,38 @@ struct CompanionCacheCoordinationTests {
         #expect(process(store).loader.load().content?.generation == 3)
     }
 
+    /// A failed removal during account-scope invalidation must not commit the new scope over
+    /// the old account's files: the sidecar stays dirty, nothing cached is served, and the
+    /// next successful commit rewrites every file under the new account.
+    @Test(arguments: [CompanionCacheFile.v4, .v3Compatibility])
+    func failedRemovalDuringAccountChangeServesNothingCached(failing: CompanionCacheFile) throws {
+        let store = SpyKeyValueStore()
+        publish(3, into: store, extras: 1)
+        store.seed(iCloudSnapshotSync.snapshotKey, F.v3Bytes(F.v3(generatedAt: 0, lineage: (F.macA, 1))))
+        #expect(process(store).loader.load().content?.generation == 3)
+        #expect(storage[.v4] != nil && storage[.v3Compatibility] != nil)
+
+        storage.failingRemovals = [failing]
+        scope.identity = "apple-id-b"
+        let switched = process(nil).loader.load()
+        #expect(switched.state == .accountScopeUnavailable)
+        #expect(switched.content == nil)
+        #expect(storage.sidecar?.committed == false)
+        #expect(storage.sidecar?.scopeArchive == Data("apple-id-b".utf8))
+
+        // Still failing: every later load under B serves nothing cached.
+        let again = process(nil).loader.load()
+        #expect(again.content == nil)
+        #expect(storage.sidecar?.committed == false)
+
+        // Once removal works, B's first commit rewrites everything and A's files are gone.
+        storage.failingRemovals = []
+        let recovered = process(nil).loader.load()
+        #expect(recovered.content == nil)
+        #expect(storage[.v4] == nil && storage[.v3Compatibility] == nil)
+        #expect(storage.sidecar?.committed == true)
+    }
+
     @Test func failedCoordinationServesNothing() throws {
         let store = SpyKeyValueStore()
         publish(1, into: store)

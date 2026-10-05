@@ -1026,6 +1026,54 @@ struct UsageStoreTests {
         #expect(store.menuBarSummary.severity == severity)
     }
 
+    /// KTD6.2 (review #16): the menu bar prints, inks and fills from the same normalized
+    /// reading as the popover row, so a fractional source can't read 16% in one and 15% in
+    /// the other.
+    @Test(arguments: [15.46, 15.05, 84.54, 15.04])
+    func menuBarAgreesWithThePopoverReading(remaining: Double) async {
+        let window = UsageWindow(kind: .weekly, utilization: 100 - remaining, resetsAt: reset)
+        let reading = UsageMeterReading(window: window)
+        for source in [MenuBarFillSource.auto, .claude] {
+            let store = makeStore(source: source, providers: [
+                StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [window])),
+            ])
+            await store.refreshAll()
+            for mode in UsagePercentageMode.allCases {
+                store.setUsagePercentageMode(mode)
+                let printed = "\(reading.roundedPercentage(for: mode)!)%"
+                // The pill arranger and Settings print through this same helper.
+                #expect(mode.displayedPercentage(for: window) == reading.roundedPercentage(for: mode))
+                #expect(store.menuBarSummary.text == printed)
+                #expect(store.menuBarSummary.severity == reading.severity)
+                let meter = store.providerMenuBarMeter(for: .claude)
+                #expect(meter.summary.text == printed)
+                #expect(meter.summary.severity == reading.severity)
+                #expect(meter.fill == reading.fraction(for: mode))
+                if source == .claude {
+                    #expect(store.menuBarFill == reading.fraction(for: mode))
+                }
+            }
+        }
+    }
+
+    @Test func menuBarPrintsTheNormalizedTenthLikeThePopover() async {
+        let store = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset),  // 15.46 left
+            ])),
+        ])
+        await store.refreshAll()
+        #expect(store.menuBarSummary.text == "16%")
+        store.setUsagePercentageMode(.used)
+        #expect(store.menuBarSummary.text == "85%")
+        #expect(UsagePercentageMode.remaining.displayedPercentage(
+            for: UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset)) == 16)
+        // A row the popover hides prints no figure on the other surfaces either.
+        #expect(UsagePercentageMode.remaining.displayedPercentage(
+            for: UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset,
+                             freshness: .unavailable(since: reset))) == nil)
+    }
+
     /// G1A: popover-only, so the store mirrors the choice and writes it back without
     /// touching any projection — and a repeat set is a no-op.
     @Test func accountTitleInkSeedsPersistsAndNoOpsWhenUnchanged() {

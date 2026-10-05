@@ -281,7 +281,12 @@ struct SyncedWidgetSnapshotModelsTests {
 
     @Test func encodedPayloadContainsNoKnownSecretStrings() throws {
         let data = try SyncedWidgetSnapshotCodec.encode(makeSyncedEnvelope(snapshot: liveSnapshot))
-        let payload = String(decoding: data, as: UTF8.self)
+        // U4 (V8): the v4 manifest and provider keys pass the same scan.
+        let provider = CompanionFixtures.bytes(
+            CompanionFixtures.payload(extras: [CompanionFixtures.account("x1", title: "Work")]))
+        let manifest = CompanionFixtures.bytes(
+            CompanionFixtures.manifest(entries: ["claude": CompanionFixtures.entry(provider, generation: 1)]))
+        let payload = [data, provider, manifest].map { String(decoding: $0, as: UTF8.self) }.joined()
 
         #expect(!payload.contains("access_token"))
         #expect(!payload.contains("refresh_token"))

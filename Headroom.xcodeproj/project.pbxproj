@@ -106,6 +106,7 @@
 		2CEAAD0475D4961B3B870BDF /* BankedResetAcknowledgements.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F251BFF52315295F65977E /* BankedResetAcknowledgements.swift */; };
 		2D14D10C880662C7787515B5 /* CodexConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CC53FEEE716121A11701F1 /* CodexConnection.swift */; };
 		2D2C110659ED2DABB204B574 /* CLIExecutableLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */; };
+		2D511025AFF4164C88753E47 /* UserRefreshRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A0E8B71BDE56ABAF99C346 /* UserRefreshRun.swift */; };
 		2E00B0AFCCC8BDE9CD1E612B /* iCloudSnapshotSync.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286C18406A7E80D0E42D1592 /* iCloudSnapshotSync.swift */; };
 		2E570A9E81B9F89B7B40DCAE /* WidgetStyleTokens.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CE67ED9AC9F588F9A8541D7 /* WidgetStyleTokens.swift */; };
 		2E7C9D7AE7AE1AF08FF431F6 /* NotificationsSettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */; };
@@ -274,6 +275,7 @@
 		77EF37E2C9BE4D5FFD98E462 /* cursor-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = 1CF869B3DC05316C71518F2A /* cursor-dark.svg */; };
 		7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		7863890791F11A63594C27EB /* MenuBarPillArrangerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2631CDFB3EFB8C74AE76D013 /* MenuBarPillArrangerTests.swift */; };
+		7A1D995760A17E95BC5F2CCE /* UserRefreshRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A0E8B71BDE56ABAF99C346 /* UserRefreshRun.swift */; };
 		7A415B4E9246C1CB4DF06150 /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
 		7B24D4B4F54DB2A2700E73CD /* CompanionKVSScopeMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE0FD76474F6609DF9AC64B /* CompanionKVSScopeMarker.swift */; };
 		7B70A94D4ED756E0FC690874 /* RaisedTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA92E8BACE2BD0885BADAA2F /* RaisedTile.swift */; };
@@ -321,6 +323,7 @@
 		9045091CCD720FB840C2E8DE /* HeadroomWidgetVesselHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F70A32BED298DB58AE62BC /* HeadroomWidgetVesselHero.swift */; };
 		90B210CD956A0DBA84E794C5 /* FlowingColumnsPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D99807334951CDDC737D158 /* FlowingColumnsPlan.swift */; };
 		917A6C1AAA68C10FBFA81FE0 /* CompanionSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF0EAE65138B3BD555EEACD /* CompanionSyncModels.swift */; };
+		91A59FECE86346B0283823D6 /* RefreshReceiptPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69193D80EC57DFD1C431841B /* RefreshReceiptPresentation.swift */; };
 		929EE0DD46ECC0A01A04797C /* LoadingClockEnvironment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2581B169C4378C1874F324DF /* LoadingClockEnvironment.swift */; };
 		93E3DBA60325FA9BA3B897F0 /* APISpendProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */; };
 		94B616960A02334A94964B51 /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = DD76D27342B5B3D9CA582449 /* Sparkle.xcframework */; };
@@ -393,6 +396,7 @@
 		B37989A7665033C855949C1C /* StatusSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2373CA31089F62FECDF85D07 /* StatusSentence.swift */; };
 		B380BB2769B4B2CE662D2B6E /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
 		B494D2006A1F972D140C6BD8 /* CompanionSyncLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DA2869F060DC3CA7EE7BE3D /* CompanionSyncLifecycle.swift */; };
+		B4B6FABEF2B4FF3C81E0575D /* RefreshReceiptPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69193D80EC57DFD1C431841B /* RefreshReceiptPresentation.swift */; };
 		B6012FDC966B53758A081BE9 /* HalftonePillRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D943C3629B5B80B1861F7DA9 /* HalftonePillRow.swift */; };
 		B6099A17FC050E89A37ED1B2 /* CompanionSyncCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */; };
 		B742DA1FF9639308DF6D03D7 /* CompanionFreshnessRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194C63E8131AF50BE4E59CB2 /* CompanionFreshnessRule.swift */; };
@@ -409,7 +413,6 @@
 		BD44394CE203039024DD4F7D /* HeadroomWidgetFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925D38A1B5F4B62C12EFECF2 /* HeadroomWidgetFooter.swift */; };
 		BDA68D06C64C691567AD5B71 /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
 		BDDA091083479FC275066C59 /* HeadroomWidgetStatusViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ED97996F3D0D748CD51AACC /* HeadroomWidgetStatusViews.swift */; };
-		BE725AD9CDAE659F6C69C52B /* UserRefreshRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80020A548D8811135366CBE4 /* UserRefreshRun.swift */; };
 		BF15CFCAEF6CF7181D91A6F7 /* SettingsRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 744C00250970DA4405528A9E /* SettingsRows.swift */; };
 		C000604822EDE36CCB99D307 /* ProviderCapabilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */; };
 		C0B3AA69105160B108C76467 /* HeadroomAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E0A8ACC16402469E129F6E /* HeadroomAppShortcuts.swift */; };
@@ -478,6 +481,7 @@
 		E18DE57B1F934A2358BA65EE /* BrandColorValues.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */; };
 		E22BC43CEDB98084B571D0C9 /* WidgetVesselGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1403220889349066990732C4 /* WidgetVesselGeometry.swift */; };
 		E2339DB699A5FF3C40C37F37 /* CompanionPrivacyCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCE90B831819668602B60AB /* CompanionPrivacyCopy.swift */; };
+		E29562CD3C9AB19C2AF029C3 /* UserRefreshRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A0E8B71BDE56ABAF99C346 /* UserRefreshRun.swift */; };
 		E29E2B87772530D886E3F94F /* SettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = C025DD0467C17BEED8A13DCE /* SettingsPane.swift */; };
 		E34A369D991B59A298AFC73A /* HeadroomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0B51A9D5A1F8B1C3217B253 /* HeadroomApp.swift */; };
 		E3DAD680F61370E67E369D19 /* AccountProbeScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8427EA4FFB9BD0AD0835F8B /* AccountProbeScheduler.swift */; };
@@ -503,6 +507,7 @@
 		E96E8DC7DD25A474AB975BF9 /* CompanionIdentityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6019B00EF172D09CACA2F6B /* CompanionIdentityProbe.swift */; };
 		E9ED48AF8AA26154FA45AB81 /* MenuBarLabelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */; };
 		EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */; };
+		EB61787A8DEC9D82564BBB68 /* RefreshReceiptPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69193D80EC57DFD1C431841B /* RefreshReceiptPresentation.swift */; };
 		ED9F19D03837966B4E83E67D /* HeadroomWidgetLiquidLevel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E306C9AF9CC0ACC24D30D1 /* HeadroomWidgetLiquidLevel.swift */; };
 		EF347E65B94D120C55BFEB66 /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		EF3B349C2E4C1D1A7DE56A6E /* vessel-app-icon.svg in Resources */ = {isa = PBXBuildFile; fileRef = C21C54F0CE85AEC7C48005B1 /* vessel-app-icon.svg */; };
@@ -737,7 +742,9 @@
 		647B97436A2026E1B0F66065 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		65084FF4FFAFB83B11B7601E /* DemoFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoFixture.swift; sourceTree = "<group>"; };
 		657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIExecutableLocator.swift; sourceTree = "<group>"; };
+		67A0E8B71BDE56ABAF99C346 /* UserRefreshRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRefreshRun.swift; sourceTree = "<group>"; };
 		67CCACF052D7A88A60F9A586 /* PhoneSyncCompositionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSyncCompositionTests.swift; sourceTree = "<group>"; };
+		69193D80EC57DFD1C431841B /* RefreshReceiptPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RefreshReceiptPresentation.swift; sourceTree = "<group>"; };
 		6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignOutRecord.swift; sourceTree = "<group>"; };
 		6E017709D234A921E25999F2 /* ResetClockFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResetClockFormatter.swift; sourceTree = "<group>"; };
 		6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSApp.swift; sourceTree = "<group>"; };
@@ -761,7 +768,6 @@
 		7F2F9184D275740BACC82442 /* SetupMotion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupMotion.swift; sourceTree = "<group>"; };
 		7FC49AE01AE7228F021F9226 /* UseItUpEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseItUpEvaluator.swift; sourceTree = "<group>"; };
 		7FF9A8670D6B5F9EEF1F7438 /* MeterStyleTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterStyleTile.swift; sourceTree = "<group>"; };
-		80020A548D8811135366CBE4 /* UserRefreshRun.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserRefreshRun.swift; sourceTree = "<group>"; };
 		80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeThumbnailPicker.swift; sourceTree = "<group>"; };
 		8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedWidgetSnapshotModels.swift; sourceTree = "<group>"; };
 		83D22F57070B5794BFECADE3 /* NotificationsSettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPane.swift; sourceTree = "<group>"; };
@@ -1052,7 +1058,6 @@
 				316B9C4940604D925421AD2A /* UsageStore.swift */,
 				60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */,
 				445BE4D41EA2C6946532B7A1 /* UsageStorePhoneSync.swift */,
-				80020A548D8811135366CBE4 /* UserRefreshRun.swift */,
 			);
 			path = Engine;
 			sourceTree = "<group>";
@@ -1388,12 +1393,14 @@
 				DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */,
 				2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */,
 				F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */,
+				69193D80EC57DFD1C431841B /* RefreshReceiptPresentation.swift */,
 				6E017709D234A921E25999F2 /* ResetClockFormatter.swift */,
 				88A9D9547DEA9C0D68A251AD /* ResetSchedule.swift */,
 				AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */,
 				B25D0ABB800B858F720C7128 /* UsageModels.swift */,
 				B0C0028BD003CD015FBDD181 /* UsageProvider.swift */,
 				A6FB36FA1D8A9F900DE5E146 /* UsageSeverityColorValues.swift */,
+				67A0E8B71BDE56ABAF99C346 /* UserRefreshRun.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1868,6 +1875,7 @@
 				AD98038B98D014D9ABB12124 /* ProviderID.swift in Sources */,
 				4590C3DC405F2F052A5EE7C8 /* ProviderSetup.swift in Sources */,
 				9A2E1DD1FDAA631A97E25F20 /* Redaction.swift in Sources */,
+				91A59FECE86346B0283823D6 /* RefreshReceiptPresentation.swift in Sources */,
 				27C2267E0215E977176A5651 /* ReprintRecipe.swift in Sources */,
 				0E2138255AC8C4AFA83B1EFC /* ResetClockFormatter.swift in Sources */,
 				DD58BD0566EB21FFEDDC5996 /* ResetSchedule.swift in Sources */,
@@ -1892,7 +1900,7 @@
 				CDD22CF9579A4F00E4E9211B /* UsageWindow+WidgetSummary.swift in Sources */,
 				5D4FA611C493F27C42A9B6E9 /* UseItUpEvaluator.swift in Sources */,
 				FA12FAB798F3E875BEF00193 /* UseItUpLedger.swift in Sources */,
-				BE725AD9CDAE659F6C69C52B /* UserRefreshRun.swift in Sources */,
+				E29562CD3C9AB19C2AF029C3 /* UserRefreshRun.swift in Sources */,
 				E47BF32D02DB9F1C0ACEC888 /* WidgetFreshnessTreatment.swift in Sources */,
 				B7B4BCBDAFCFC897ECCAACD9 /* WidgetLayoutStyle.swift in Sources */,
 				68E1808821DCB4FE160943F3 /* WidgetLoadingRecipes.swift in Sources */,
@@ -1999,6 +2007,7 @@
 				3064B21F5FFC627E8F3ED6BE /* ProviderID.swift in Sources */,
 				E41E57E19A4E079471F68C92 /* ProviderSetup.swift in Sources */,
 				5116532FC9BE6318359AE489 /* ProviderStyle.swift in Sources */,
+				EB61787A8DEC9D82564BBB68 /* RefreshReceiptPresentation.swift in Sources */,
 				47C132C34D579CB86A265270 /* ResetClockFormatter.swift in Sources */,
 				1B540F4332DC3E721D094854 /* ResetSchedule.swift in Sources */,
 				358659CB575E777134FC0560 /* SettingsPane.swift in Sources */,
@@ -2016,6 +2025,7 @@
 				8886421FF8849B22E82DFAB2 /* UsageWindow+WidgetSummary.swift in Sources */,
 				8D957E8ECDCB6A4B67F6AE5C /* UseItUpEvaluator.swift in Sources */,
 				0A685B2041A3418A5897E50C /* UseItUpLedger.swift in Sources */,
+				2D511025AFF4164C88753E47 /* UserRefreshRun.swift in Sources */,
 				4CCF793FE90325D49E23D87C /* WidgetFreshnessTreatment.swift in Sources */,
 				A6C16B14124470F91F66F7DF /* WidgetLayoutStyle.swift in Sources */,
 				893C7A00AD4C0E41D5AF07D3 /* WidgetLoadingRecipes.swift in Sources */,
@@ -2258,6 +2268,7 @@
 				9B189F289227E2BDD02849FA /* ProviderSetup.swift in Sources */,
 				D1C3E5C00AE4A34C313BCD99 /* ProviderStyle.swift in Sources */,
 				F89AF3D1FF6B5D5A36FE9DA3 /* ProviderTileView.swift in Sources */,
+				B4B6FABEF2B4FF3C81E0575D /* RefreshReceiptPresentation.swift in Sources */,
 				E15F2271E06DA32E106CDA05 /* ResetClockFormatter.swift in Sources */,
 				8D37A27F8FB8A9F3A5200078 /* ResetSchedule.swift in Sources */,
 				E719F9C33EB149B0EB2A6C63 /* SettingsPane.swift in Sources */,
@@ -2278,6 +2289,7 @@
 				E467C47E8048767D067220A6 /* UsageWindow+WidgetSummary.swift in Sources */,
 				9C29C1537BE02BD88121F3BE /* UseItUpEvaluator.swift in Sources */,
 				C9474A3C4A262F0ADEA26DC6 /* UseItUpLedger.swift in Sources */,
+				7A1D995760A17E95BC5F2CCE /* UserRefreshRun.swift in Sources */,
 				079F32150EB353B7459F9A1E /* VesselMark.swift in Sources */,
 				E7EC877D080EF886541EEC2F /* WidgetFreshnessTreatment.swift in Sources */,
 				0DB37291C4A766B66C8B5942 /* WidgetLayoutStyle.swift in Sources */,

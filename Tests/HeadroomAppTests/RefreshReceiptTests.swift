@@ -8,9 +8,10 @@ import Testing
     private let work = AccountKey(providerID: .claude, accountID: AccountID("work"))
     private let now = Date(timeIntervalSince1970: 100)
 
-    private func line(_ run: UserRefreshRun?, phase: ReprintRecipe.Phase = .spinner, date: Date? = nil) -> RefreshReceipt.Line? {
-        RefreshReceipt.line(run: run, phase: phase, now: date ?? now,
-                            title: { $0 == self.work ? "Claude Work" : "Claude" })
+    /// The footer passes the recipe's rest phase; the presentation lives in Core (U6).
+    private func line(_ run: UserRefreshRun?, phase: ReprintRecipe.Phase = .spinner, date: Date? = nil) -> RefreshReceiptPresentation.Line? {
+        RefreshReceiptPresentation.line(run: run, isResting: phase == .rest, now: date ?? now,
+                                        title: { $0 == self.work ? "Claude Work" : "Claude" })
     }
     @Test func setupOnlyAndRestLeaveTheSlotToTheStamp() {
         #expect(line(nil) == nil)
@@ -27,7 +28,7 @@ import Testing
         let run = UserRefreshRun(startedAt: now, entries: [claude: .init(origin: .fullRefresh, requestedAt: now,
             outcome: .stale, landedAt: now), work: .init(origin: .fullRefresh, requestedAt: now,
             outcome: .live, landedAt: now.addingTimeInterval(1))])
-        let expected = RefreshReceipt.Line(checked: true, text: "Claude Work", count: "2 of 2")
+        let expected = RefreshReceiptPresentation.Line(checked: true, text: "Claude Work", count: "2 of 2")
         #expect(line(run, phase: .spendTail, date: now.addingTimeInterval(4)) == expected)
         #expect(line(run, phase: .hold, date: now.addingTimeInterval(4.4)) == expected)
         #expect(line(run, phase: .rest, date: now.addingTimeInterval(4.5)) == nil)
@@ -41,5 +42,16 @@ import Testing
     @Test func newRunDuringHoldKeepsReceiptVisible() {
         let run = UserRefreshRun(startedAt: now, entries: [claude: .init(origin: .fullRefresh, requestedAt: now)])
         #expect(line(run, phase: .spinner) != nil)
+    }
+
+    /// U6: the phone's check-now line reuses these strings, so pin them here as the Mac
+    /// footer shows them.
+    @Test func sharedReceiptStringsAreTheFooterStrings() {
+        #expect(RefreshReceiptPresentation.checking(1).text == "Checking 1 account…")
+        #expect(RefreshReceiptPresentation.checking(3).text == "Checking 3 accounts…")
+        #expect(RefreshReceiptPresentation.landed(title: "Claude Work", live: true, completed: 2, total: 3)
+            == .init(checked: true, text: "Claude Work", count: "2 of 3"))
+        #expect(RefreshReceiptPresentation.title(providerName: "Claude", accountTitle: "Work", providerAccountCount: 1) == "Claude")
+        #expect(RefreshReceiptPresentation.title(providerName: "Claude", accountTitle: "Work", providerAccountCount: 2) == "Claude Work")
     }
 }

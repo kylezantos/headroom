@@ -413,7 +413,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   during App test bootstrap. `MenuBarSlosh` owns its small bounded clock instead, deriving
   frames from Core's wall clock and stopping after the wave/print deadline (KTD17 exception).
   The popover footer's stamp turns into a
-  per-account receipt during a user refresh (`refreshProgress`, `RefreshReceipt`). Both come
+  per-account receipt during a user refresh (`refreshProgress`, Core `RefreshReceiptPresentation`, shared with the phone's check-now line). Both come
   from the scheduler's probe and user-progress callbacks; see
   `design/refresh-stamp-merge-round3.html` (S2) and `…-round4.html` (W4).
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up

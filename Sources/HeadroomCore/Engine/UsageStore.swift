@@ -44,20 +44,6 @@ public struct MenuBarSummary: Sendable, Equatable {
     }
 }
 
-/// W4 (Oct 2026, design/refresh-stamp-merge-round4.html): a user-requested refresh in
-/// progress, which the popover footer turns into a one-line receipt.
-public struct RefreshProgress: Sendable, Equatable {
-    public let total: Int
-    public let completed: Int
-    /// The account that finished most recently; nil until the first one does.
-    public let lastLanded: AccountKey?
-
-    public init(total: Int, completed: Int, lastLanded: AccountKey?) {
-        self.total = total
-        self.completed = completed
-        self.lastLanded = lastLanded
-    }
-}
 
 /// One compact status unit for the menu bar. Automatic mode renders one summary;
 /// an explicit provider selection renders one meter per provider.
@@ -776,10 +762,11 @@ public final class UsageStore {
     /// W4: how the footer receipt names an account — the provider alone while it has one
     /// account (labels are hidden then), "Claude Work" once it has several.
     public func refreshReceiptTitle(for key: AccountKey) -> String {
-        let name = displayNames[key.providerID] ?? key.providerID.raw
         let accounts = accounts(for: key.providerID)
-        guard accounts.count > 1, let account = accounts.first(where: { $0.key == key }) else { return name }
-        return "\(name) \(account.label)"
+        return RefreshReceiptPresentation.title(
+            providerName: displayNames[key.providerID] ?? key.providerID.raw,
+            accountTitle: accounts.first(where: { $0.key == key })?.label,
+            providerAccountCount: accounts.count)
     }
 
     public var widgetsEnabled: Bool { preferences.widgetsEnabled }

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// Static outcomes only. No caught error or source-associated value enters diagnostics.
@@ -46,6 +47,68 @@ public enum CompanionSyncCodec {
             return .value(try decoder.decode(type, from: data))
         } catch {
             return .corrupt
+        }
+    }
+
+    /// Decision 1: source/status route first, so a disabled tombstone is recognized
+    /// without the active version header or any active field.
+    public static func decodeManifest(_ data: Data?) -> CompanionSyncDecodeResult<CompanionManifest> {
+        guard let data else { return .missing }
+        let decoder = JSONDecoder()
+        guard let routing = try? decoder.decode(ManifestRoutingHeader.self, from: data),
+            let sourceID = try? CompanionTransportValidation.uuid(routing.sourceID)
+        else { return .corrupt }
+        switch routing.status {
+        case CompanionManifestStatus.disabled.rawValue:
+            return .value(.disabled(sourceID: sourceID))
+        case CompanionManifestStatus.enabled.rawValue:
+            switch decode(data, as: CompanionActiveManifest.self) {
+            case .value(let manifest): return .value(.active(manifest))
+            case .missing: return .missing
+            case .corrupt: return .corrupt
+            case .unsupportedSchema: return .unsupportedSchema
+            case .unsupportedReader: return .unsupportedReader
+            case .unsupportedControlState: return .unsupportedControlState
+            }
+        default:
+            // An unknown status never becomes enabled or disabled (contract manifest.s).
+            return .unsupportedControlState
+        }
+    }
+
+    /// Version header, then mode, then body. The key suffix must name the same provider;
+    /// the source lineage is checked by the resolver against the manifest (KTD6.3).
+    public static func decodeProviderPayload(
+        _ data: Data?, providerID: String
+    ) -> CompanionSyncDecodeResult<CompanionProviderPayload> {
+        let result = decode(data, as: CompanionProviderPayload.self) { decoder, bytes in
+            try decoder.decode(PayloadControlHeader.self, from: bytes).mode != .unknown
+        }
+        if case .value(let payload) = result, payload.providerID != providerID { return .corrupt }
+        return result
+    }
+
+    /// KTD6.2: SHA-256 over the exact bytes stored in (or read from) a key. Callers pass
+    /// the raw Data; hashing a re-encoding would let unknown future fields change it.
+    public static func digest(_ data: Data) -> String {
+        SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    private struct ManifestRoutingHeader: Decodable {
+        let sourceID: String
+        let status: String
+
+        private enum CodingKeys: String, CodingKey {
+            case sourceID = "i"
+            case status = "s"
+        }
+    }
+
+    private struct PayloadControlHeader: Decodable {
+        let mode: CompanionPayloadMode
+
+        private enum CodingKeys: String, CodingKey {
+            case mode = "m"
         }
     }
 

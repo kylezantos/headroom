@@ -59,6 +59,9 @@ public struct CompanionPublishCapture: Sendable, Equatable {
     public let widgetProviderSelection: [String]?
     public let widgetSparkEnabled: Bool
     public let reminderSummary: CompanionReminderSummary?
+    /// KTD14.3 / Decision 2: the Mac's recent check-now answers, echoed in the manifest so a
+    /// phone can complete from the snapshot before the receipt arrives.
+    public internal(set) var answeredRequests: [CompanionAnsweredRequest]
     /// The paired schema-3 phone export of the same state (KTD5, KTD13).
     public let v3: WidgetSnapshotEnvelope
 
@@ -68,6 +71,7 @@ public struct CompanionPublishCapture: Sendable, Equatable {
         spendOrder: [String] = [], chosenIntervalSeconds: Int,
         display: CompanionDisplayBlock? = nil, widgetProviderSelection: [String]? = nil,
         widgetSparkEnabled: Bool = false, reminderSummary: CompanionReminderSummary? = nil,
+        answeredRequests: [CompanionAnsweredRequest] = [],
         v3: WidgetSnapshotEnvelope
     ) {
         self.generation = generation
@@ -81,6 +85,7 @@ public struct CompanionPublishCapture: Sendable, Equatable {
         self.widgetProviderSelection = widgetProviderSelection
         self.widgetSparkEnabled = widgetSparkEnabled
         self.reminderSummary = reminderSummary
+        self.answeredRequests = CompanionAnsweredRequest.terminalHistory(answeredRequests)
         self.v3 = v3
     }
 
@@ -135,8 +140,7 @@ public enum CompanionPublishImage {
 
     public static func manifest(
         capture: CompanionPublishCapture, sourceID: String, macAppVersion: String?,
-        entries: [String: CompanionManifestProviderEntry], ladderLevel: Int,
-        answeredRequests: [CompanionAnsweredRequest] = []
+        entries: [String: CompanionManifestProviderEntry], ladderLevel: Int
     ) throws -> CompanionActiveManifest {
         try CompanionActiveManifest(
             sourceID: sourceID, generation: capture.generation, generatedAt: capture.generatedAt,
@@ -144,7 +148,7 @@ public enum CompanionPublishImage {
             spendOrder: capture.spendOrder, chosenIntervalSeconds: capture.chosenIntervalSeconds,
             display: capture.display, widgetProviderSelection: capture.widgetProviderSelection,
             widgetSparkEnabled: capture.widgetSparkEnabled,
-            reminderSummary: capture.reminderSummary, answeredRequests: answeredRequests,
+            reminderSummary: capture.reminderSummary, answeredRequests: capture.answeredRequests,
             dropLadderLevel: ladderLevel)
     }
 
@@ -458,6 +462,35 @@ public actor CompanionPublisher {
         await evaluate()
     }
 
+    /// KTD8 / KTD14.5: check-now finish. Publishes now, skipping the spacing, and returns the
+    /// generation the phone must assemble — this capture's, or a newer one already stamped
+    /// after it (which, being captured later, carries the same answers). Nil when nothing
+    /// could be published (sync off, over budget, a failed write).
+    public func publishForced(_ capture: CompanionPublishCapture) async -> Int64? {
+        var target = capture
+        if let pending, pending.generation > target.generation { target = pending }
+        guard target.generation > lastPublishedGeneration else {
+            return lastPublishedGeneration >= capture.generation ? lastPublishedGeneration : nil
+        }
+        pending = nil
+        pendingForced = false
+        let now = configuration.now()
+        guard target.status == .enabled else {
+            pending = target
+            pendingForced = true
+            await evaluate()
+            return nil
+        }
+        enterEnabled()
+        let outcome = await flush(target, forced: true, heartbeat: false, now: now)
+        schedule(now: configuration.now())
+        switch outcome {
+        case .published(let generation, _): return generation
+        case .unchanged: return lastPublishedGeneration >= capture.generation ? lastPublishedGeneration : nil
+        case .swept, .overBudget, .writeFailed: return nil
+        }
+    }
+
     /// KTD8: pending writes flush on system sleep and app quit, spacing or not.
     public func flushPending() async {
         guard pending != nil else { return }
@@ -512,13 +545,7 @@ public actor CompanionPublisher {
                 schedule(now: now)
                 return
             }
-            if lastStatus != .enabled {
-                // Sync on (or the first enabled capture this launch): write everything.
-                if lastStatus == .disabled { writeAll = true }
-                lastStatus = .enabled
-                sweptWhileDisabled = false
-                notifyParticipants { await $0.companionSyncDidEnable() }
-            }
+            enterEnabled()
             let structural = publishedStructure.map { $0 != capture.structure } ?? true
             let spaced = lastWriteAt.map { now.timeIntervalSince($0) >= configuration.flushSpacing } ?? true
             if pendingForced || structural || writeAll || spaced {
@@ -542,6 +569,15 @@ public actor CompanionPublisher {
             }
         }
         schedule(now: configuration.now())
+    }
+
+    private func enterEnabled() {
+        guard lastStatus != .enabled else { return }
+        // Sync on (or the first enabled capture this launch): write everything.
+        if lastStatus == .disabled { writeAll = true }
+        lastStatus = .enabled
+        sweptWhileDisabled = false
+        notifyParticipants { await $0.companionSyncDidEnable() }
     }
 
     private func schedule(now: Date) {
@@ -817,11 +853,20 @@ public protocol CompanionPhoneSyncing: AnyObject {
     @MainActor func bind(captureProvider: @escaping @MainActor @Sendable () -> CompanionPublishCapture?)
     /// KTD8: flush pending writes now (system sleep, app quit).
     @MainActor func flushNow() async
+    /// KTD14.5: check-now finish (and cooldown). Stamps the next generation, lets `answering`
+    /// build the manifest's answered list with it, publishes immediately and returns the
+    /// generation the phone must assemble; nil when nothing was published.
+    @MainActor func submitForced(
+        _ capture: CompanionPublishCapture, answering: (Int64) -> [CompanionAnsweredRequest]
+    ) async -> Int64?
 }
 
 extension CompanionPhoneSyncing {
     @MainActor public func bind(captureProvider: @escaping @MainActor @Sendable () -> CompanionPublishCapture?) {}
     @MainActor public func flushNow() async {}
+    @MainActor public func submitForced(
+        _ capture: CompanionPublishCapture, answering: (Int64) -> [CompanionAnsweredRequest]
+    ) async -> Int64? { nil }
 }
 
 /// What the Settings footnote shows (KTD22): the last publish, the ladder and the last
@@ -882,11 +927,15 @@ public final class CompanionPhoneSync: CompanionPhoneSyncing {
         Task { [publisher] in await publisher.receive(stamped) }
     }
 
-    /// U6: check-now finish forces an immediate flush.
-    public func submitForced(_ capture: CompanionPublishCapture) {
+    /// U6 (KTD14.5): check-now finish forces an immediate flush of every changed provider
+    /// key plus the manifest, which echoes the answers stamped with this generation.
+    public func submitForced(
+        _ capture: CompanionPublishCapture, answering: (Int64) -> [CompanionAnsweredRequest]
+    ) async -> Int64? {
         lastForwardedStatus = capture.status
-        let stamped = stamp(capture)
-        Task { [publisher] in await publisher.receive(stamped, forced: true) }
+        var stamped = stamp(capture)
+        stamped.answeredRequests = CompanionAnsweredRequest.terminalHistory(answering(stamped.generation))
+        return await publisher.publishForced(stamped)
     }
 
     public func bind(captureProvider: @escaping @MainActor @Sendable () -> CompanionPublishCapture?) {

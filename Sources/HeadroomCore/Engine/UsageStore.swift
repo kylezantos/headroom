@@ -148,6 +148,19 @@ public final class UsageStore {
     public private(set) var userRefreshRun: UserRefreshRun?
     public private(set) var fullRefreshInFlight = false
     @ObservationIgnored private var fullRefreshOperationDepth = 0
+    /// KTD14.4 (iPhone parity U6): the one in-flight full refresh. Any second caller — the
+    /// popover, the launch refresh, a phone's check-now request — awaits it instead of
+    /// starting another probe round.
+    @ObservationIgnored private var fullRefreshTask: Task<Void, Never>?
+    /// When the in-flight full refresh started; nil while none runs.
+    public private(set) var fullRefreshStartedAt: Date?
+    /// KTD14.4: check-now's cooldown runs from the last completed full refresh, whatever
+    /// started it.
+    public private(set) var lastFullRefreshCompletedAt: Date?
+    /// KTD14.3 / Decision 2: the Mac's recent check-now answers, echoed in every manifest.
+    @ObservationIgnored var checkNowAnsweredRequests: [CompanionAnsweredRequest] = []
+    /// U6: the check-now receipt follows the scheduler's user-progress callback.
+    @ObservationIgnored var checkNowProgressObserver: (@MainActor () -> Void)?
     public private(set) var lastProbeEndTimes: [AccountKey: Date] = [:]
     public private(set) var apiSpendInFlightProviders: Set<ProviderID> = []
     @ObservationIgnored private var spendFetchDepths: [ProviderID: Int] = [:]
@@ -815,7 +828,33 @@ public final class UsageStore {
     /// KTD2: a user asked for everything. Every enabled account is due now, bypasses the
     /// duty-cycle gate, and the call returns once the lanes it started have drained — the
     /// contract the store tests and the launch refresh rely on.
+    ///
+    /// KTD14.4: one full refresh at a time. A second caller while one runs awaits that same
+    /// refresh, so five triggers in a row (or a phone joining the launch refresh) run one
+    /// probe round.
     public func refreshAll(origin: UserRefreshOrigin = .fullRefresh) async {
+        guard origin == .fullRefresh else {
+            await performRefreshAll(origin: origin)
+            return
+        }
+        if let fullRefreshTask {
+            await fullRefreshTask.value
+            return
+        }
+        fullRefreshStartedAt = now()
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.performRefreshAll(origin: .fullRefresh)
+            // Cleared inside the task, so every waiter resumes to a settled store.
+            self.fullRefreshTask = nil
+            self.fullRefreshStartedAt = nil
+            self.lastFullRefreshCompletedAt = self.now()
+        }
+        fullRefreshTask = task
+        await task.value
+    }
+
+    private func performRefreshAll(origin: UserRefreshOrigin) async {
         if origin != .setupCheck { visibleRefreshOperationDepth += 1 }
         defer {
             if origin != .setupCheck {
@@ -1455,5 +1494,6 @@ extension UsageStore: AccountProbeSchedulerHost {
             completed: completed,
             lastLanded: landed ?? refreshProgress?.lastLanded
         )
+        checkNowProgressObserver?()
     }
 }

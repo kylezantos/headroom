@@ -103,6 +103,7 @@
 		2B9EC5E5A86DCE59B1601A68 /* FreshnessStamp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C7F20A6C8A9A9104F120AC5 /* FreshnessStamp.swift */; };
 		2BBCD575C909816E909358A8 /* MenuBarSlosh.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC8BA877F597FA2B7FAC952 /* MenuBarSlosh.swift */; };
 		2BF0B11686FE1F03F51B1974 /* PlanCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61976BDA86182356251A6D79 /* PlanCapsule.swift */; };
+		2CAAA23841C80B4C487E43A7 /* CheckNowCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0897712E7C53C9E6E7C48564 /* CheckNowCoordinator.swift */; };
 		2CEAAD0475D4961B3B870BDF /* BankedResetAcknowledgements.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07F251BFF52315295F65977E /* BankedResetAcknowledgements.swift */; };
 		2D14D10C880662C7787515B5 /* CodexConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87CC53FEEE716121A11701F1 /* CodexConnection.swift */; };
 		2D2C110659ED2DABB204B574 /* CLIExecutableLocator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */; };
@@ -634,6 +635,7 @@
 		06F054A9662B9F4995B0CE81 /* SettingsSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSidebar.swift; sourceTree = "<group>"; };
 		07F251BFF52315295F65977E /* BankedResetAcknowledgements.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankedResetAcknowledgements.swift; sourceTree = "<group>"; };
 		0818290921E94A9AA9B67C17 /* APISpendMirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISpendMirrorView.swift; sourceTree = "<group>"; };
+		0897712E7C53C9E6E7C48564 /* CheckNowCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckNowCoordinator.swift; sourceTree = "<group>"; };
 		099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotExporter.swift; sourceTree = "<group>"; };
 		0A96F8FE3BA28A1820259476 /* HeadroomIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = HeadroomIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0B1C4C6BA491BBBFD084C67C /* HeadroomWidgetEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetEntry.swift; sourceTree = "<group>"; };
@@ -1049,6 +1051,7 @@
 			isa = PBXGroup;
 			children = (
 				E8427EA4FFB9BD0AD0835F8B /* AccountProbeScheduler.swift */,
+				0897712E7C53C9E6E7C48564 /* CheckNowCoordinator.swift */,
 				CCB4BD862E876F4163998908 /* CompanionAttentionMapping.swift */,
 				1C9F18C9A189406756CFFC18 /* CompanionPublisher.swift */,
 				1DA2869F060DC3CA7EE7BE3D /* CompanionSyncLifecycle.swift */,
@@ -1804,6 +1807,7 @@
 				7EED09F4BA5D31E84898F62E /* CLIExecutableDiscoveryIssue.swift in Sources */,
 				2D2C110659ED2DABB204B574 /* CLIExecutableLocator.swift in Sources */,
 				5E944B81F4BF70C58EF00164 /* CLIExecutableResolver.swift in Sources */,
+				2CAAA23841C80B4C487E43A7 /* CheckNowCoordinator.swift in Sources */,
 				88A12CC9CB08AA39AD5F14B0 /* CheckNowProtocol.swift in Sources */,
 				2310A2B62ACA0CAA20FDA2CE /* ClaudeAccountEmailReader.swift in Sources */,
 				4C0935F10F089C904FBDC937 /* ClaudeCapabilityDiagnostic.swift in Sources */,

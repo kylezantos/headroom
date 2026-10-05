@@ -23,10 +23,11 @@ final class PhoneCardsUITests: XCTestCase {
             let tops = stack.map(\.frame.minY)
             XCTAssertEqual(tops, tops.sorted(), "accounts render in the Mac's order")
         }
-        // U11: a wide window flows Codex into the next column; a phone stacks it below.
+        // U11: a window wide enough for two columns (876pt) flows Codex into the next one;
+        // a phone or a narrower iPad stacks it below.
         let claudeCard = element("headroom.provider.claude").frame
         let codexCard = element("headroom.provider.codex").frame
-        if app.windows.firstMatch.frame.width >= 700 {
+        if FlowingColumnsExpectation.columns(width: app.windows.firstMatch.frame.width) >= 2 {
             XCTAssertGreaterThan(codexCard.minX, claudeCard.maxX)
         } else {
             XCTAssertGreaterThan(codexCard.minY, claudeCard.minY)

@@ -331,6 +331,42 @@ struct CompanionSnapshotResolverTests {
         }
     }
 
+    /// U10's "Snapshot Unreadable" row: only a corrupt v3 key with nothing usable behind it.
+    /// A corrupt payload never hides readable cached or v4 content (field contract,
+    /// Decision 4), and a missing key still waits.
+    @Test func corruptV3IsUnreadableOnlyWhenNothingElseIsUsable() throws {
+        let corrupt = Data("{".utf8)
+        func resolve(manifest: Data? = nil, keys: [String: Data] = [:], v3: Data?, cache: CompanionCacheContents = .empty)
+            -> CompanionResolvedSnapshot
+        {
+            CompanionSnapshotResolver.resolve(
+                CompanionResolverInput(manifest: manifest, providerKeys: keys, v3: v3, cache: cache, now: now)
+            ).snapshot
+        }
+        #expect(resolve(v3: corrupt).state == .unreadable)
+        #expect(resolve(v3: nil).state == .waiting(nil))
+
+        // A readable cached v3 wins over the corrupt key.
+        let cachedV3 = F.v3(generatedAt: 30, lineage: (F.macA, 1))
+        let withCachedV3 = CompanionCacheContents(v3: CompanionCachedV3(keyRead: cachedV3))
+        #expect(resolve(v3: corrupt, cache: withCachedV3).content?.origin == .v3)
+
+        // Readable v4, from the key or from the checked cache, wins over the corrupt key.
+        let claude = F.bytes(F.payload(generation: 1))
+        let manifest = F.bytes(F.manifest(entries: ["claude": F.entry(claude, generation: 1)]))
+        let live = CompanionSnapshotResolver.resolve(
+            CompanionResolverInput(manifest: manifest, providerKeys: ["claude": claude], v3: corrupt, now: now))
+        #expect(live.snapshot.content?.origin == .v4)
+        #expect(resolve(v3: corrupt, cache: live.cache).content?.origin == .v4)
+        #expect(resolve(manifest: corrupt, v3: corrupt, cache: live.cache).content?.origin == .v4)
+
+        // A v4 that needs a newer reader asks for the update, the more useful screen.
+        var json = try #require(JSONSerialization.jsonObject(with: manifest) as? [String: Any])
+        json["r"] = 2
+        let future = try JSONSerialization.data(withJSONObject: json)
+        #expect(resolve(manifest: future, v3: corrupt).state == .waiting(.updatePhone))
+    }
+
     // MARK: Status and lineage changes (rule 5, KTD22)
 
     @Test func disabledTombstoneWinsFirstAndClearsAccountCaches() throws {

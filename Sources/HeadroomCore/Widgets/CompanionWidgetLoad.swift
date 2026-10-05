@@ -29,6 +29,9 @@ public struct CompanionWidgetLoad: Equatable, Sendable {
         case .accountScopeUnavailable:
             // Build 33's "iCloud Not Available" card: nothing scoped can be shown.
             return CompanionWidgetLoad(state: .setupNeeded, freshness: nil)
+        case .unreadable:
+            // Build 33's corrupt card, which already tells the user to check on the Mac.
+            return CompanionWidgetLoad(state: .corrupt, freshness: nil)
         case .waiting(.updatePhone):
             return CompanionWidgetLoad(state: .incompatibleSchema, freshness: nil)
         case .waiting:

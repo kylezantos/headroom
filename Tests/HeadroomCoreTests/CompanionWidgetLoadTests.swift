@@ -54,6 +54,20 @@ struct CompanionWidgetLoadTests {
         #expect(CompanionWidgetLoad.from(CompanionResolvedSnapshot(state: .waiting(nil)), isDemo: false).state == .waitingForMac)
         #expect(CompanionWidgetLoad.from(CompanionResolvedSnapshot(state: .waiting(.updateMac)), isDemo: false).state == .waitingForMac)
         #expect(CompanionWidgetLoad.from(CompanionResolvedSnapshot(state: .waiting(.updatePhone)), isDemo: false).state == .incompatibleSchema)
+        // U10's unreadable state keeps build 33's corrupt card ("Couldn’t read the data").
+        #expect(CompanionWidgetLoad.from(CompanionResolvedSnapshot(state: .unreadable), isDemo: false)
+            == CompanionWidgetLoad(state: .corrupt, freshness: nil))
+    }
+
+    @Test func aCorruptKeyWithNothingCachedShowsTheCorruptCard() {
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let store = SpyKeyValueStore()
+        store.seed(iCloudSnapshotSync.snapshotKey, Data("{".utf8))
+        let source = CompanionPhoneSnapshotSource.build33(
+            store: store,
+            compatibilityCache: WidgetSnapshotCache(defaults: nil, fileURL: directory.appendingPathComponent("widget-snapshot.json")),
+            now: { Self.now }, demo: nil)
+        #expect(CompanionWidgetLoad.from(source.load(), isDemo: false).state == .corrupt)
     }
 
     @Test func aMissingKeyWaitsForTheMac() {

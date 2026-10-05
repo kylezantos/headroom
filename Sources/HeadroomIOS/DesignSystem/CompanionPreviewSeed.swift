@@ -18,6 +18,8 @@ enum CompanionPreviewSeed {
         case waiting
         case content
         case stale
+        /// U10: a corrupt v3 key and nothing cached, through the real resolver.
+        case unreadable
     }
 
     /// Screen the preview harness should open on launch (`HEADROOM_PREVIEW_SCREEN`).
@@ -38,9 +40,9 @@ enum CompanionPreviewSeed {
         ProcessInfo.processInfo.environment["HEADROOM_UI_TEST_STATE"].flatMap(UITestState.init(rawValue:))
     }
 
-    /// U10: poses a status screen no fixture reaches (iCloud unavailable, unreadable, either
-    /// update screen) over a non-content state, for captures and UI tests. Raw values are
-    /// `CompanionStatusScreen`'s.
+    /// U10: poses a status screen no fixture reaches (iCloud unavailable, either update
+    /// screen) over a non-content state, for captures and UI tests. Raw values are
+    /// `CompanionStatusScreen`'s. Unreadable has a real route: `HEADROOM_UI_TEST_STATE=unreadable`.
     static var uiTestStatus: CompanionStatusScreen? {
         ProcessInfo.processInfo.environment["HEADROOM_UI_TEST_STATUS"].flatMap(CompanionStatusScreen.init(rawValue:))
     }
@@ -72,9 +74,17 @@ enum CompanionPreviewSeed {
         store.setEnabled(true)
     }
 
+    /// U10: what the phone resolves when the Mac's v3 key is present but undecodable and no
+    /// v4 or cache stands in. The resolver decides the state, not a posed screen.
+    static func unreadableSnapshot(now: Date = Date()) -> CompanionResolvedSnapshot {
+        CompanionSnapshotResolver.resolve(
+            CompanionResolverInput(manifest: nil, v3: Data("{".utf8), cache: .empty, now: now)
+        ).snapshot
+    }
+
     static func envelope(for state: UITestState, now: Date = Date()) -> WidgetSnapshotEnvelope? {
         switch state {
-        case .waiting:
+        case .waiting, .unreadable:
             return nil
         case .content:
             return envelope(now: now)

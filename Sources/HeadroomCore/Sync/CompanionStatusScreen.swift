@@ -7,8 +7,7 @@ public enum CompanionStatusScreen: String, CaseIterable, Equatable, Sendable {
     case waiting
     case paused
     case iCloudUnavailable
-    /// No resolved state reaches this today: the build-33 lift folds a corrupt read into
-    /// `.waiting(nil)`. The row stays so the copy is pinned and DEBUG captures can pose it.
+    /// A corrupt v3 key with nothing usable behind it (`CompanionResolvedState.unreadable`).
     case unreadable
     /// This iPhone's reader is older than the Mac's data.
     case updatePhone
@@ -25,6 +24,7 @@ public enum CompanionStatusScreen: String, CaseIterable, Equatable, Sendable {
         case .waiting(.none): self = .waiting
         case .waiting(.some(.updatePhone)): self = .updatePhone
         case .waiting(.some(.updateMac)): self = .updateMac
+        case .unreadable: self = .unreadable
         }
     }
 

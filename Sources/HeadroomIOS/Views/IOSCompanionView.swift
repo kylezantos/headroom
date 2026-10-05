@@ -118,7 +118,7 @@ struct IOSCompanionView: View {
             )
         case .some(let state):
             // U10: one Core row per non-content state (iCloud unavailable, paused, waiting,
-            // update needed), copy and actions included.
+            // unreadable, update needed), copy and actions included.
             if let screen = statusScreen(for: state) {
                 StatusScreen(screen: screen, onExploreDemo: enterDemo, onRefresh: refresh)
                     .navigationTitle("Headroom")
@@ -261,6 +261,9 @@ struct IOSCompanionView: View {
             return Loaded(snapshot: await loadFromSource(), isDemo: true)
         }
         #if DEBUG
+        if CompanionPreviewSeed.uiTestState == .unreadable {
+            return Loaded(snapshot: CompanionPreviewSeed.unreadableSnapshot(), isDemo: false)
+        }
         if let uiTestState = CompanionPreviewSeed.uiTestState {
             return Loaded(snapshot: Self.lifted(CompanionPreviewSeed.envelope(for: uiTestState)), isDemo: false)
         }
@@ -318,6 +321,7 @@ struct IOSCompanionView: View {
         case .accountScopeUnavailable: "scope"
         case .paused: "paused"
         case .waiting(let notice): "waiting.\(notice.map { "\($0)" } ?? "none")"
+        case .unreadable: "unreadable"
         case .content: "content"
         }
     }

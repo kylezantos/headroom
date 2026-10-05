@@ -440,6 +440,12 @@ struct UsageAnswerComposerTests {
         #expect(text(update) == "Update Headroom on this iPhone to read your Mac’s usage.")
     }
 
+    @Test func unreadableHasItsSentence() {
+        let result = answer(.claude, CompanionResolvedSnapshot(state: .unreadable))
+        #expect(result.kind == .unreadable && result.percentLeft == nil)
+        #expect(text(result) == "Headroom couldn’t read your Mac’s last update. Open Headroom on your Mac to send a new one.")
+    }
+
     @Test func accountScopeUnavailableHasItsSentence() {
         let result = answer(.claude, CompanionResolvedSnapshot(state: .accountScopeUnavailable))
         #expect(result.kind == .accountScopeUnavailable)
@@ -501,6 +507,7 @@ struct UsageAnswerComposerTests {
             CompanionResolvedSnapshot(state: .paused), CompanionResolvedSnapshot(state: .waiting(nil)),
             CompanionResolvedSnapshot(state: .waiting(.updatePhone)),
             CompanionResolvedSnapshot(state: .accountScopeUnavailable),
+            CompanionResolvedSnapshot(state: .unreadable),
             snapshot([provider(.codex, main: nil, source: .skeleton)]),
             snapshot([provider(.codex, main: nil, source: .skeleton)], generatedAgo: 2 * hour),
             snapshot([provider(.claude, main: account("primary", title: "P", isMain: true, windows: [

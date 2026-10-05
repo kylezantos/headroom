@@ -55,6 +55,8 @@ public struct PhoneSyncStatus: Equatable, Sendable {
             self.init(state: "Paused on your Mac", lastUpdate: nil, dimmedLine: nil)
         case .waiting:
             self.init(state: CompanionFreshnessCopy.waitingForMac, lastUpdate: nil, dimmedLine: nil)
+        case .unreadable:
+            self.init(state: "Couldn’t read your Mac’s last update", lastUpdate: nil, dimmedLine: nil)
         case .content(let content):
             let inputs = content.freshness
             let dimmed = CompanionFreshnessRule.isDimmed(inputs, surface: .app, at: now)

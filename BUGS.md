@@ -813,8 +813,11 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   Core and Mac suites pass (1,207 and 250 tests); keep these visible for the U20
   integration pass rather than weakening concurrency checking or assertions.
 - The iOS UI-test runner emits “Metadata extraction skipped, no AppIntents.framework
-  dependency found”; the app and extension build without warnings. Re-check the runner
-  configuration when U14 adds real App Intents.
+  dependency found”. Re-checked after U14 (2026-10-04): expected, no action. The runner
+  declares no intents; the app (`UsageLeftIntent`, `HeadroomAppShortcuts`) and the widget
+  extension both write `Metadata.appintents`, and the app's `AppShortcuts.xcstrings` gives
+  the SSU training step its phrase corpus (without it, the step logged “Could not archive SSU
+  artifacts” and Siri lost flexible phrase matching).
 
 ## Settings sidebar app icon drops its `<feMerge>` filter (2026-10-03)
 

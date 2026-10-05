@@ -181,9 +181,8 @@ private struct Composer {
                 opening = "On your main \(name) account, the"
             }
             sentences.append("\(opening) \(pastReset(lead))")
-            if let second = mainPlan.second {
-                sentences.append(second.value == nil ? "The \(pastReset(second))" : "It has \(phrase(second)).")
-            }
+            // A past-reset lead means no window has a number, so a second one is past reset too.
+            if let second = mainPlan.second { sentences.append("The \(pastReset(second))") }
         }
         let age = mainPlan.age ?? main.capturedAt ?? content.generatedAt
         updatedAt = age
@@ -191,15 +190,18 @@ private struct Composer {
         if let attention = attentionLine(provider, account: main) { sentences.append(attention) }
 
         guard let mainValue = percentLeft else { return }
-        let tighter = provider.accounts.filter { $0.id != main.id }.compactMap { account -> (String, SpokenPlan)? in
-            let plan = SpokenPlan(windows: shown(account), now: now)
-            guard let value = plan.lead?.value, value < mainValue else { return nil }
-            return (account.title, plan)
+        let tighter = provider.accounts.filter { $0.id != main.id }.compactMap {
+            account -> (CompanionResolvedAccount, SpokenWindow)? in
+            guard let lead = SpokenPlan(windows: shown(account), now: now).lead,
+                let value = lead.value, value < mainValue
+            else { return nil }
+            return (account, lead)
         }
-        for (title, plan) in tighter.prefix(UsageAnswerComposer.tighterAccountLimit) {
-            let subject = context.isProtectedDataAvailable ? title : "Another \(name) account"
-            sentences.append("\(subject) is tighter, with \(phrase(plan.lead!)).")
-            if let age = plan.leadAge { sentences.append(UsageAnswerCopy.updated(age, now: now)) }
+        for (account, lead) in tighter.prefix(UsageAnswerComposer.tighterAccountLimit) {
+            let subject = context.isProtectedDataAvailable ? account.title : "Another \(name) account"
+            sentences.append("\(subject) is tighter, with \(phrase(lead)).")
+            let age = lead.window.observedAt ?? account.capturedAt ?? content.generatedAt
+            sentences.append(UsageAnswerCopy.updated(age, now: now))
         }
         let remainder = tighter.count - UsageAnswerComposer.tighterAccountLimit
         if remainder > 0 { sentences.append(UsageAnswerCopy.moreTighter(remainder, name)) }
@@ -306,8 +308,6 @@ struct SpokenPlan {
     var age: Date? {
         [lead, second].compactMap { $0 }.compactMap(\.window.observedAt).min()
     }
-
-    var leadAge: Date? { lead?.window.observedAt }
 }
 
 /// KTD18 sentences, held to the R2C6 rules (curly apostrophes, one sign-in verb, no

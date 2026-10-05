@@ -403,10 +403,10 @@ enum Entry {
         semaphore.wait()
     }
 
-    /// Decode and print the widget-safe snapshot the Mac last published to iCloud KVS for the
-    /// iPhone. Answers the stale-sync question directly: is the "Sync snapshot to iPhone"
-    /// toggle on, and is a *fresh* payload actually sitting in the key-value store. The
-    /// snapshot model is redaction-safe (display-ready usage only — no credentials/paths).
+    /// What the Mac publishes to iCloud KVS for the iPhone (KTD22 diagnostics): whether sync
+    /// is on, every key under the v3 and v4 names with its byte size and decode status, and
+    /// the publisher's last publish, ladder level and quota event. Key names, sizes, times
+    /// and categories only: never payload contents, titles or the lineage UUID.
     private static func runPhoneSyncDump() {
         // The reading is only meaningful from the signed .app bundle: `swift run` has no bundle
         // identifier (so UserDefaults resolves a different domain) and no iCloud-KVS entitlement
@@ -414,36 +414,60 @@ enum Entry {
         // is never mistaken for the real app's state.
         print("bundle id: \(Bundle.main.bundleIdentifier ?? "(none — running outside an .app; readings are not the installed app's state)")")
 
-        let preferences = Preferences()
+        let defaults = UserDefaults.standard
+        let preferences = Preferences(defaults: defaults)
         print("syncToIPhoneEnabled: \(preferences.syncToIPhoneEnabled)")
+        // Drive-scoped signal: a missing token does not prove key-value sync is off.
+        print("iCloud identity token: \(FileManager.default.ubiquityIdentityToken == nil ? "absent" : "present") (iCloud Drive signal, not proof of key-value sync)")
+        let lineage = CompanionLineage(defaults: defaults)
+        print("lineage: \(lineage.hasLineage ? "present" : "none yet"), last generation \(lineage.currentGeneration.map(String.init) ?? "—")")
+
+        let formatter = ISO8601DateFormatter()
+        let diagnostics = CompanionPublishDiagnosticsStore(defaults: defaults).load()
+        print("last publish:     \(diagnostics.lastPublishAt.map(formatter.string(from:)) ?? "never")")
+        print("last generation:  \(diagnostics.lastGeneration.map(String.init) ?? "—")")
+        print("ladder level:     \(diagnostics.ladderLevel)")
+        print("last quota event: \(diagnostics.lastQuotaEventAt.map(formatter.string(from:)) ?? "none")")
+        print("last failure:     \(diagnostics.lastFailure ?? "none")")
+        print("last sync-off sweep: \(diagnostics.lastSweepAt.map(formatter.string(from:)) ?? "none")")
+        for (key, bytes) in diagnostics.keyBytes.sorted(by: { $0.key < $1.key }) {
+            print("  published \(key): \(bytes) bytes")
+        }
 
         let store = UbiquitousKeyValueSyncStore()
         _ = store.synchronize()
-        let data = store.data(forKey: iCloudSnapshotSync.snapshotKey)
-        print("KVS key:   \(iCloudSnapshotSync.snapshotKey)")
-        print("KVS bytes: \(data?.count ?? 0)")
-
-        switch SyncedWidgetSnapshotCodec.decode(data) {
+        print("KVS (this Mac's local copy):")
+        let v3 = store.data(forKey: iCloudSnapshotSync.snapshotKey)
+        print("  \(iCloudSnapshotSync.snapshotKey): \(v3?.count ?? 0) bytes")
+        switch SyncedWidgetSnapshotCodec.decode(v3) {
         case .missing:
-            print("RESULT: no payload in iCloud KVS (missing) — the Mac has not published, or the store is empty on this account.")
+            print("    v3: missing — the Mac has not published, or the store is empty on this account.")
         case .corrupt:
-            print("RESULT: payload present but undecodable (corrupt).")
+            print("    v3: present but undecodable (corrupt).")
         case .incompatibleSchema:
-            print("RESULT: payload schema incompatible with this build.")
+            print("    v3: schema incompatible with this build.")
         case .snapshot(let envelope):
-            let formatter = ISO8601DateFormatter()
-            print("RESULT: snapshot present")
-            print("  publishedAt:          \(formatter.string(from: envelope.publishedAt))")
-            print("  snapshot.generatedAt: \(formatter.string(from: envelope.snapshot.generatedAt))")
-            print("  sourceID:             \(envelope.sourceID)")
-            print("  sourcePlatform:       \(envelope.sourcePlatform.rawValue)")
-            print("  status:               \(envelope.snapshot.status.rawValue)")
-            print("  envelope.schema:      \(envelope.schemaVersion)")
-            print("  snapshot.schema:      \(envelope.snapshot.schemaVersion)")
+            print("    v3: \(envelope.snapshot.status.rawValue), generatedAt \(formatter.string(from: envelope.snapshot.generatedAt)), schema \(envelope.schemaVersion)/\(envelope.snapshot.schemaVersion), lineage \(envelope.companionLineage == nil ? "none" : "generation \(envelope.companionLineage!.generation)")")
             let providers = envelope.snapshot.providers.map(\.id).joined(separator: ", ")
-            print("  providers:            \(providers.isEmpty ? "(none)" : providers)")
-            let apiSpend = envelope.snapshot.apiSpendProviders.map(\.id).joined(separator: ", ")
-            print("  apiSpendProviders:    \(apiSpend.isEmpty ? "(none)" : apiSpend)")
+            print("    providers: \(providers.isEmpty ? "(none)" : providers)")
+        }
+        var total = 0
+        for key in store.keys(withPrefix: CompanionSyncKeys.namespace) {
+            let bytes = store.data(forKey: key)?.count ?? 0
+            total += bytes
+            let over = key.hasPrefix(CompanionSyncKeys.providerPrefix) && bytes > CompanionSyncBudget.providerKeyBytes
+            print("  \(key): \(bytes) bytes\(over ? " (over the per-key budget)" : "")")
+        }
+        print("  v4 total: \(total) of \(CompanionSyncBudget.namespaceBytes) bytes")
+        switch CompanionSyncCodec.decodeManifest(store.data(forKey: CompanionSyncKeys.manifest)) {
+        case .value(.disabled):
+            print("  manifest: disabled tombstone (sync off)")
+        case .value(.active(let manifest)):
+            print("  manifest: enabled, generation \(manifest.generation), ladder \(manifest.dropLadderLevel), providers \(manifest.providerOrder.joined(separator: ", "))")
+        case .missing:
+            print("  manifest: missing")
+        case let other:
+            print("  manifest: unreadable (\(other))")
         }
     }
 }
@@ -496,6 +520,11 @@ struct HeadroomApp: App {
             AppDelegate.stopDemo = { await demoController.shutdown() }
         } else {
             AppDelegate.stopDemo = nil
+        }
+        if DemoFixture.isEnabled {
+            AppDelegate.flushPhoneSync = nil
+        } else {
+            AppDelegate.flushPhoneSync = { await store.flushPhoneSync() }
         }
         // SwiftUI's `preferredColorScheme` doesn't reach the `MenuBarExtra(.window)`
         // popover panel or the Settings window's AppKit chrome — both are NSWindows whose
@@ -764,6 +793,8 @@ enum SystemAppearance {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var startUsageStore: (() -> Void)?
     static var stopDemo: (@MainActor () async -> Void)?
+    /// KTD8: pending phone writes flush before the app quits.
+    static var flushPhoneSync: (@MainActor () async -> Void)?
     private var terminationTask: Task<Void, Never>?
     /// Set from `HeadroomApp.init()`; applied here once `NSApp` exists (`.some(nil)` means
     /// "System" — leave `NSApp.appearance` at its default so it tracks the OS).
@@ -784,11 +815,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        guard let stopDemo = Self.stopDemo else { return .terminateNow }
+        let stopDemo = Self.stopDemo
+        let flushPhoneSync = Self.flushPhoneSync
+        guard stopDemo != nil || flushPhoneSync != nil else { return .terminateNow }
         if terminationTask == nil {
             terminationTask = Task {
-                await stopDemo()
-                Self.stopDemo = nil
+                if let flushPhoneSync { await flushPhoneSync() }
+                if let stopDemo {
+                    await stopDemo()
+                    Self.stopDemo = nil
+                }
                 sender.reply(toApplicationShouldTerminate: true)
             }
         }
@@ -901,8 +937,10 @@ enum AppComposition {
 
     /// Screenshot demo mode (`--demo`): fixed sample data wired into the real UI across
     /// every surface. Preferences live in a private UserDefaults suite so demo runs never
-    /// touch the user's real settings. Keeps the real widget + iCloud exporters, so the
-    /// macOS widgets and the iPhone mirror pick up the same fixed numbers.
+    /// touch the user's real settings. Keeps the real widget exporter so the macOS widgets
+    /// show the same fixed numbers, but never the iCloud one: a signed demo run would
+    /// overwrite the user's real phone snapshot (R37, 2026-10-04 iPhone parity plan). The
+    /// iPhone's own Explore Demo covers phone captures.
     @MainActor
     private static func demoStore() -> UsageStore {
         let prefs = launchPreferences
@@ -927,8 +965,7 @@ enum AppComposition {
                 DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
             ],
             preferences: prefs,
-            widgetExporter: widgetExporter(),
-            phoneSyncExporter: phoneSyncExporter()
+            widgetExporter: widgetExporter()
         )
     }
 
@@ -1265,8 +1302,83 @@ enum AppComposition {
         }
     }
 
-    static func phoneSyncExporter() -> any WidgetSnapshotExporting {
-        iCloudSnapshotPublisher(sync: iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore()))
+    /// KTD21 / R37: the phone publisher and its iCloud observers exist only in a real app
+    /// launch: never under `--demo`, the render and bench harnesses, or the XCTest host,
+    /// whose stores must not write the user's iCloud key-value store.
+    static func usesInertPhoneSync(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        arguments.contains("--demo")
+            || arguments.contains("--render-popover")
+            || arguments.contains("--render-widgets")
+            || arguments.contains("--render-loading-preview")
+            || arguments.contains("--bench-ui")
+            || usesNoOpWidgetExporter(environment: environment)
+    }
+
+    /// KTD8: the one coalesced v3 + v4 publisher per launch.
+    @MainActor static let companionPhoneSync: CompanionPhoneSync? = makeCompanionPhoneSync()
+
+    /// U16 (KTD19) adds the CloudKit reminder poster here. It implements
+    /// `CompanionSyncLifecycle`, so sync off purges its records after the KVS sweep and an
+    /// iCloud account change resets its outbox; nothing else in this file changes.
+    static var companionSyncParticipants: [any CompanionSyncLifecycle] { [] }
+
+    @MainActor static func phoneSyncExporter() -> CompanionPhoneSync? {
+        companionPhoneSync
+    }
+
+    @MainActor private static func makeCompanionPhoneSync() -> CompanionPhoneSync? {
+        guard !usesInertPhoneSync() else { return nil }
+        let sync = CompanionPhoneSync(
+            store: UbiquitousKeyValueSyncStore(),
+            lineage: CompanionLineage(defaults: launchDefaults),
+            diagnosticsStore: CompanionPublishDiagnosticsStore(defaults: launchDefaults),
+            macAppVersion: macAppVersion,
+            participants: companionSyncParticipants
+        )
+        CompanionSyncObservers.install(for: sync)
+        return sync
+    }
+
+    static var macAppVersion: String? {
+        let info = Bundle.main.infoDictionary
+        guard let version = info?["CFBundleShortVersionString"] as? String else { return nil }
+        guard let build = info?["CFBundleVersion"] as? String else { return version }
+        return "\(version) (\(build))"
+    }
+}
+
+/// iCloud and system signals the phone publisher reacts to. Request intake (U6) joins the
+/// external-change observer here.
+@MainActor
+enum CompanionSyncObservers {
+    private static var tokens: [any NSObjectProtocol] = []
+
+    static func install(for sync: CompanionPhoneSync) {
+        guard tokens.isEmpty else { return }
+        tokens.append(NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default, queue: .main
+        ) { [weak sync] note in
+            let change = iCloudKeyValueChange(userInfo: note.userInfo)
+            MainActor.assumeIsolated {
+                // KTD22: a new iCloud account gets every key republished.
+                if change.reason == .accountChange { sync?.accountDidChange() }
+                // KTD7: the quota signal is a diagnostic that may force one ladder step.
+                if let event = change.quotaEvent(at: Date()) { sync?.recordQuotaEvent(event) }
+            }
+        })
+        // KTD8: pending writes flush before the system sleeps.
+        tokens.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak sync] _ in
+            MainActor.assumeIsolated {
+                guard let sync else { return }
+                Task { await sync.flushNow() }
+            }
+        })
     }
 }
 

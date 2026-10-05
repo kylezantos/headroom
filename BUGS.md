@@ -27,6 +27,24 @@ official `claude` CLI's `/usage` panel instead.
   idle popover/Settings measurements have not run; the diagnostic builds alone prove no
   performance result. Do not claim the plan's two-percentage-point budget passed.
 
+## Phone publisher follow-ups (2026-10-04, iPhone parity U5)
+
+- **Two rare row kinds stay Mac-only.** The phone carries the widget row set plus flagged Spark
+  rows, so the KTD13 parity holds. A Codex window whose `limit_window_seconds` is unrecognized
+  (`.other(durationLabel)`) or a non-Spark Codex model row, and a Claude model row that is not
+  weekly (none is produced today), show in the popover but not on the phone. Carrying them needs
+  a wire flag the projection can filter, like `isSpark`.
+- **A setup session's typed overlay reaches the phone on the next capture.** Starting or
+  finishing a sign-in changes the account's attention line without a merge, so the phone sees it
+  at the next merge, setting change or heartbeat (one chosen interval at most). A coordinator
+  state hook would make it immediate.
+- **The capture is built on the main actor for every phone-bound change.** At the multi-20
+  envelope that is one full projection per merge (the publisher coalesces the writes, not the
+  captures). Unmeasured; if `--bench-ui` shows a cost, capture lazily at flush time instead.
+- **Two-device acceptance is pending (P5).** A signed Mac build with the KVS entitlement and the
+  physical iPhone must show a new Mac account within one publish, and `--dump-phone-sync` on the
+  signed build must list the keys and sizes. Only the unbundled dump has run.
+
 ## Focused render acceptance needs Screen Recording for the launching shell
 
 - `--menu-bar-only` and `--widgets-only` capture only through `screencapture -l` and fail

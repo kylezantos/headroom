@@ -127,32 +127,6 @@ public struct iCloudSnapshotSync: Sendable {
     }
 }
 
-public struct iCloudSnapshotPublisher: WidgetSnapshotExporting {
-    private let sync: iCloudSnapshotSync
-    private let now: @Sendable () -> Date
-    private let sourceID: @Sendable () -> String
-
-    public init(
-        sync: iCloudSnapshotSync,
-        now: @escaping @Sendable () -> Date = Date.init,
-        sourceID: @escaping @Sendable () -> String = { "Mac" }
-    ) {
-        self.sync = sync
-        self.now = now
-        self.sourceID = sourceID
-    }
-
-    public func export(_ envelope: WidgetSnapshotEnvelope) {
-        let synced = SyncedWidgetSnapshotEnvelope(
-            publishedAt: now(),
-            sourceID: sourceID(),
-            sourcePlatform: .macOS,
-            snapshot: envelope
-        )
-        try? sync.publish(synced)
-    }
-}
-
 #if canImport(Foundation)
 public struct UbiquitousKeyValueSyncStore: iCloudKeyValueSyncing, @unchecked Sendable {
     private let store: NSUbiquitousKeyValueStore

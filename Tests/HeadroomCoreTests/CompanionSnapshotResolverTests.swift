@@ -511,7 +511,13 @@ struct CompanionSnapshotResolverTests {
         let content = try #require(resolution.snapshot.content)
         #expect(CompanionFreshnessRule.updatedAt(resolution.snapshot.shownWindows(for: .app)) == F.date(-600).date)
         #expect(CompanionFreshnessRule.updatedAt(resolution.snapshot.shownWindows(for: .widget)) == F.date().date)
-        #expect(content.providers.last?.source == .skeleton)
+        let skeleton = try #require(content.providers.last)
+        #expect(skeleton.source == .skeleton)
         #expect(CompanionFreshnessRule.dimsAt(content.freshness, surface: .app) == F.date(5 + 900).date)
+        for (offset, waiting) in [(904, false), (905, true)] {
+            let dimmed = CompanionFreshnessRule.isDimmed(content.freshness, surface: .app, at: F.date(Int64(offset)).date)
+            #expect(skeleton.showsWaitingForMac(surfaceDimmed: dimmed) == waiting)
+            #expect(content.providers.first?.showsWaitingForMac(surfaceDimmed: dimmed) == false)
+        }
     }
 }

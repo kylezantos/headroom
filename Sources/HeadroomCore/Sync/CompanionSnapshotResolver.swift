@@ -108,6 +108,12 @@ public struct CompanionResolvedProvider: Equatable, Sendable, Identifiable {
     public var accounts: [CompanionResolvedAccount] {
         (mainAccount.map { [$0] } ?? []) + extraAccounts
     }
+
+    /// KTD6.3: a skeleton reads "Waiting for your Mac" once its surface's freshness rule
+    /// dims; until then it stays a quiet skeleton.
+    public func showsWaitingForMac(surfaceDimmed: Bool) -> Bool {
+        source == .skeleton && surfaceDimmed
+    }
 }
 
 public struct CompanionResolvedContent: Equatable, Sendable {

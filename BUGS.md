@@ -13,6 +13,13 @@ official `claude` CLI's `/usage` panel instead.
   connection" (2026-10-02). Exempt the test host (`XCTestConfigurationFilePath` in the
   environment) the way `--demo` is exempt.
 
+## Provider identity tests emit actor-isolation warnings
+
+- The Xcode 27 `HeadroomAppTests` run on 2026-10-04 passed 250 tests in 36 suites, but
+  `ProviderCardIdentityRowTests.swift` calls main-actor helpers and reads `mainAccountHelp`
+  from nonisolated test contexts. Align those test contexts with the helpers' isolation;
+  do not weaken concurrency checking. Evidence: `.context/lock-screen-u4-macos-app-tests.log`.
+
 ## Focused render acceptance needs Screen Recording for the launching shell
 
 - `--menu-bar-only` and `--widgets-only` capture only through `screencapture -l` and fail

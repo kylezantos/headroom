@@ -5,6 +5,7 @@ import WidgetKit
 struct HeadroomIOSWidgets: WidgetBundle {
     var body: some Widget {
         HeadroomIOSUsageWidget()
+        HeadroomLockScreenWidget()
     }
 }
 

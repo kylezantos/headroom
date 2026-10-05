@@ -1,0 +1,825 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Headroom · Lock Screen widgets — ten ideas</title>
+<style>
+  :root {
+    --page-bg: #0a0b0e; --ink: #f2f2f7; --ink2: rgba(235,235,245,0.72); --ink3: rgba(235,235,245,0.50);
+    --line: rgba(255,255,255,0.08); --accent: #0A84FF;
+    /* "SF Pro" keeps the real weight axis in Chromium; -apple-system snaps 600 to 700. */
+    --ft: "SF Pro", system-ui, sans-serif;
+    --fm: "SF Mono", ui-monospace, Menlo, monospace;
+    --wall: #222;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--page-bg); color: var(--ink); font-family: var(--ft); -webkit-font-smoothing: antialiased; }
+  .page { max-width: 1480px; margin: 0 auto; padding: 44px 32px 120px; }
+  .narrow { max-width: 1040px; }
+  h1 { font-size: 32px; font-weight: 700; letter-spacing: -0.5px; margin: 0 0 8px; }
+  h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.3px; margin: 0; }
+  h3 { font-size: 14px; font-weight: 700; margin: 0 0 4px; }
+  p, li { line-height: 1.55; }
+  .sub { color: var(--ink2); font-size: 15px; margin: 0; }
+  .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: var(--ink3); margin: 0 0 10px; }
+  code { font-family: var(--fm); font-size: 0.86em; color: #cfd6e4; background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 4px; }
+  .note { margin-top: 16px; padding: 14px 16px; border-radius: 12px; background: rgba(255,255,255,0.035); box-shadow: inset 0 0 0 1px var(--line); font-size: 13.5px; color: var(--ink2); }
+  .note b { color: var(--ink); }
+  .note.warm { box-shadow: inset 3px 0 0 #ffd479, inset 0 0 0 1px var(--line); }
+
+  .rules { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 22px; }
+  @media (max-width: 1000px) { .rules { grid-template-columns: 1fr; } }
+  .rule { padding: 13px 15px; border-radius: 12px; background: rgba(255,255,255,0.035); box-shadow: inset 0 0 0 1px var(--line); font-size: 13px; color: var(--ink2); line-height: 1.5; }
+  .rule b { color: var(--ink); }
+  .rule > b:first-child { display: block; font-size: 13.5px; margin-bottom: 3px; }
+
+  .controls { position: sticky; top: 0; z-index: 50; margin: 30px -32px 0; padding: 11px 32px; background: rgba(10,11,14,0.88); backdrop-filter: blur(18px) saturate(1.4); -webkit-backdrop-filter: blur(18px) saturate(1.4); border-bottom: 1px solid var(--line); display: flex; flex-wrap: wrap; gap: 9px 16px; align-items: center; }
+  .ctl { display: flex; align-items: center; gap: 7px; }
+  .ctl > span { font-size: 11px; font-weight: 600; color: var(--ink3); }
+  .seg-ctl { display: inline-flex; background: rgba(255,255,255,0.06); border-radius: 8px; padding: 2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
+  .seg-ctl button { appearance: none; border: 0; background: transparent; color: var(--ink2); font: 500 12px var(--ft); padding: 4px 9px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+  .seg-ctl button.on { background: rgba(255,255,255,0.14); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08); }
+
+  .band { margin-top: 48px; }
+  .band-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  .band-head .dim { color: var(--ink3); font-size: 13px; }
+
+  /* ---------- Wallpaper plates (the Lock Screen ground) ---------- */
+  .plate, .phone { position: relative; isolation: isolate; background: var(--wall); background-size: cover; background-position: center; overflow: hidden; }
+  /* The Lock Screen darkens the top of the wallpaper behind the clock and widgets. */
+  .plate::before, .phone::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0.20), rgba(0,0,0,0.04) 70%); pointer-events: none; }
+  .aod .plate::before, .aod .phone::before { background: rgba(0,0,0,0.66); }
+  .plate { border-radius: 20px; padding: 30px 26px 22px; display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; margin-top: 14px; }
+  .plate.inl { flex-direction: column; align-items: center; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 9px; flex: none; position: relative; }
+  .clab { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,0.86); text-shadow: 0 1px 2px rgba(0,0,0,0.55); text-align: center; max-width: 240px; line-height: 1.3; }
+
+  /* ============================================================
+     LOCK SCREEN WIDGET — vibrant rendering.
+     WidgetKit draws Lock Screen widgets in `.vibrant` mode: the content is reduced to one
+     luminance channel and composited as a bright material over the wallpaper. plus-lighter
+     white approximates that: brighter = more opaque, black = see-through. Values marked
+     PROPOSAL are not Core tokens yet.
+     ============================================================ */
+  .lw {
+    --v1: #fff;                          /* primary ink — numerals, fills, marks */
+    --v2: rgba(255,255,255,0.72);        /* PROPOSAL secondary ink — names, captions (≈ secondaryText 0.76) */
+    --v3: rgba(255,255,255,0.50);        /* PROPOSAL stale / tertiary */
+    --vt: rgba(255,255,255,0.24);        /* PROPOSAL track */
+    --vbg: rgba(255,255,255,0.15);       /* ≈ AccessoryWidgetBackground() — system-owned */
+    position: relative; flex: none; color: var(--v1); font-family: var(--ft); -webkit-font-smoothing: antialiased;
+    mix-blend-mode: plus-lighter;
+  }
+  .aod .lw { opacity: 0.68; }
+  .lw.circ { width: 72px; height: 72px; border-radius: 50%; overflow: hidden; }
+  .lw.rect { width: 160px; height: 72px; }
+  .lw.inl { height: 26px; max-width: 234px; display: inline-flex; align-items: center; gap: 5px; font-size: 17px; font-weight: 600; white-space: nowrap; }
+  .abg { position: absolute; inset: 0; border-radius: inherit; background: var(--vbg); }
+  .aod .abg { background: rgba(255,255,255,0.07); }
+  .cc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .rc { position: absolute; inset: 0; display: flex; flex-direction: column; min-width: 0; }
+  .row { display: flex; align-items: center; min-width: 0; }
+  .col { display: flex; flex-direction: column; min-width: 0; }
+  .sp { flex: 1 1 0; min-width: 0; min-height: 0; }
+  .clip { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .mk { flex: none; display: inline-flex; align-items: center; justify-content: center; color: var(--v1); }
+  .mk svg { display: block; }
+  .nm { font-weight: 600; color: var(--v2); letter-spacing: -0.15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .cap { color: var(--v2); font-weight: 600; font-size: 10px; white-space: nowrap; display: inline-flex; align-items: center; line-height: 1.15; }
+  .sub2 { color: var(--v2); font-weight: 500; font-size: 11.5px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .lab { color: var(--v2); font-weight: 500; font-size: 11px; white-space: nowrap; }
+  /* R5: semibold, monospaced digits, no kerning, "%" at full size. */
+  .num { font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0; white-space: nowrap; line-height: 1; display: inline-flex; align-items: center; flex: none; }
+  /* PROPOSAL low cue: black under plus-lighter is see-through, so this is a knockout numeral. */
+  .num.knock { background: #fff; color: #000; border-radius: 999px; padding: 0.08em 0.3em 0.06em; }
+  .bar { position: relative; overflow: hidden; background: var(--vt); flex: none; }
+  .bar > i { position: absolute; left: 0; top: 0; bottom: 0; display: block; background: var(--v1); border-radius: inherit; }
+  .wash { position: absolute; left: 0; right: 0; bottom: 0; background: linear-gradient(180deg, rgba(255,255,255,0.34), rgba(255,255,255,0.16)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.30); }
+  /* PROPOSAL: no bright surface line here. In one ink it reads as a strikethrough wherever it crosses the number. */
+  .aod .wash { background: rgba(255,255,255,0.10); box-shadow: none; }
+  .vdiv { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: rgba(255,255,255,0.28); }
+
+  /* Inline: the system date sits before the widget. */
+  .dl { display: flex; align-items: center; gap: 8px; justify-content: center; }
+  .dl-date { font: 600 17px var(--ft); color: #fff; mix-blend-mode: plus-lighter; white-space: nowrap; }
+
+  /* ---------- Phones ---------- */
+  .phones { display: flex; flex-wrap: wrap; gap: 34px; justify-content: center; margin-top: 18px; }
+  .phonecell { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+  .phone { width: 393px; height: 852px; border-radius: 55px; zoom: 0.72; box-shadow: 0 0 0 11px #17181c, 0 0 0 12.5px #3a3c42, 0 40px 70px -24px rgba(0,0,0,0.7); margin: 14px; }
+  .island { position: absolute; top: 11px; left: 50%; transform: translateX(-50%); width: 124px; height: 36px; border-radius: 20px; background: #000; z-index: 3; }
+  .ph-status { position: absolute; top: 21px; right: 34px; display: flex; gap: 6px; align-items: center; mix-blend-mode: plus-lighter; }
+  .ph-date { position: absolute; top: 76px; left: 0; right: 0; }
+  .ph-clock { position: absolute; top: 96px; left: 0; right: 0; text-align: center; font: 600 108px/1 var(--ft); letter-spacing: -2.5px; color: rgba(255,255,255,0.92); mix-blend-mode: plus-lighter; font-variant-numeric: tabular-nums; }
+  .ph-row { position: absolute; top: 224px; left: 0; right: 0; display: flex; justify-content: center; gap: 16px; }
+  .ph-btn { position: absolute; bottom: 46px; width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.15); mix-blend-mode: plus-lighter; display: flex; align-items: center; justify-content: center; }
+  .ph-home { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%); width: 136px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.85); mix-blend-mode: plus-lighter; }
+  .phcap { font-size: 13px; color: var(--ink2); max-width: 300px; text-align: center; line-height: 1.45; }
+  .phcap b { color: var(--ink); display: block; font-size: 14px; }
+
+  /* ---------- Idea cards ---------- */
+  .idea { margin-top: 56px; padding-top: 6px; border-top: 1px solid var(--line); }
+  .ihead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .inum { font-family: var(--fm); color: var(--ink3); font-weight: 500; font-size: 16px; }
+  .tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255,255,255,0.06); color: var(--ink2); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07); }
+  .tag.fam { color: #cfe3ff; background: rgba(10,132,255,0.12); box-shadow: inset 0 0 0 1px rgba(10,132,255,0.28); }
+  .tag.new { color: #ffe3a8; background: rgba(255,190,60,0.10); box-shadow: inset 0 0 0 1px rgba(255,190,60,0.26); }
+  .tag.pick { color: #7ee8a2; background: rgba(51,199,89,0.12); box-shadow: inset 0 0 0 1px rgba(51,199,89,0.30); }
+  .pitch { max-width: 860px; color: var(--ink2); font-size: 15px; margin: 8px 0 0; }
+  .pitch b { color: var(--ink); }
+  .reads { display: grid; grid-template-columns: 130px 1fr; gap: 6px 16px; margin: 16px 0 0; max-width: 1040px; font-size: 13.5px; }
+  .reads dt { color: var(--ink3); font-weight: 600; font-size: 12px; padding-top: 2px; }
+  .reads dd { margin: 0; color: var(--ink2); line-height: 1.5; }
+  .reads dd b { color: var(--ink); font-weight: 600; }
+  .reads dt.risk { color: #ffd479; }
+
+  .vbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin-top: 16px; }
+  .vgroup { display: inline-flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .vlabel { font-size: 12.5px; font-weight: 600; color: var(--ink2); padding: 5px 11px; border-radius: 8px; cursor: pointer; background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07); user-select: none; }
+  .vlabel input { display: none; }
+  .vlabel.approve:has(input:checked) { color: #7ee8a2; background: rgba(51,199,89,0.14); box-shadow: inset 0 0 0 1px rgba(51,199,89,0.34); }
+  .vlabel.deny:has(input:checked) { color: #ff8a80; background: rgba(255,87,74,0.13); box-shadow: inset 0 0 0 1px rgba(255,87,74,0.32); }
+  .vlabel.discuss:has(input:checked) { color: #ffd479; background: rgba(255,190,60,0.12); box-shadow: inset 0 0 0 1px rgba(255,190,60,0.30); }
+  .vlabel.opt:has(input:checked) { color: #cfe3ff; background: rgba(10,132,255,0.16); box-shadow: inset 0 0 0 1px rgba(10,132,255,0.40); }
+  .first { font-size: 12.5px; color: var(--ink2); display: inline-flex; gap: 5px; align-items: center; cursor: pointer; }
+  .cmt { flex: 1 1 320px; background: rgba(0,0,0,0.30); border: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.10); border-radius: 8px; color: var(--ink); font: 12.5px var(--ft); padding: 7px 9px; resize: vertical; min-height: 32px; }
+
+  table.map { border-collapse: collapse; font-size: 13px; margin-top: 14px; width: 100%; max-width: 1040px; }
+  table.map th { text-align: left; font-weight: 600; color: var(--ink3); padding: 7px 10px; border-bottom: 1px solid var(--line); font-size: 11.5px; }
+  table.map td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--ink2); vertical-align: top; }
+  table.map td b { color: var(--ink); font-weight: 600; }
+  ul.tight { margin: 8px 0 0; padding-left: 18px; color: var(--ink2); font-size: 13.5px; }
+  ul.tight li { margin: 3px 0; }
+  ul.tight b { color: var(--ink); }
+
+  .drow { display: grid; grid-template-columns: 260px 1fr; gap: 10px 16px; align-items: center; padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,0.035); box-shadow: inset 0 0 0 1px var(--line); margin-top: 8px; }
+  .drow .q { font-weight: 600; font-size: 13.5px; }
+  .drow .q span { display: block; font-weight: 500; color: var(--ink3); font-size: 12px; margin-top: 2px; }
+  .gnotes { width: 100%; min-height: 80px; margin-top: 14px; background: rgba(0,0,0,0.25); border: 0; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); border-radius: 10px; color: var(--ink); font: 13px var(--ft); padding: 10px 12px; }
+  .ans-row { display: flex; gap: 10px; align-items: center; margin-top: 16px; }
+  .ans-btn { appearance: none; border: 0; font: 600 13px var(--ft); padding: 9px 16px; border-radius: 9px; cursor: pointer; color: var(--ink); background: rgba(255,255,255,0.09); }
+  .ans-btn.primary { background: var(--accent); color: #fff; }
+  .ans-ok { font-size: 12.5px; color: #7ee8a2; font-weight: 600; }
+  #exportPreview { margin-top: 14px; white-space: pre-wrap; font: 12px/1.5 var(--fm); color: var(--ink2); background: rgba(0,0,0,.3); padding: 12px; border-radius: 10px; max-height: 340px; overflow: auto; display: none; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<symbol id="w-claude" viewBox="0 0 24 24"><path fill="currentColor" fill-rule="nonzero" d="M4.709 15.955l4.72-2.647.08-.23-.08-.128H9.2l-.79-.048-2.698-.073-2.339-.097-2.266-.122-.571-.121L0 11.784l.055-.352.48-.321.686.06 1.52.103 2.278.158 1.652.097 2.449.255h.389l.055-.157-.134-.098-.103-.097-2.358-1.596-2.552-1.688-1.336-.972-.724-.491-.364-.462-.158-1.008.656-.722.881.06.225.061.893.686 1.908 1.476 2.491 1.833.365.304.145-.103.019-.073-.164-.274-1.355-2.446-1.446-2.49-.644-1.032-.17-.619a2.97 2.97 0 01-.104-.729L6.283.134 6.696 0l.996.134.42.364.62 1.414 1.002 2.229 1.555 3.03.456.898.243.832.091.255h.158V9.01l.128-1.706.237-2.095.23-2.695.08-.76.376-.91.747-.492.584.28.48.685-.067.444-.286 1.851-.559 2.903-.364 1.942h.212l.243-.242.985-1.306 1.652-2.064.73-.82.85-.904.547-.431h1.033l.76 1.129-.34 1.166-1.064 1.347-.881 1.142-1.264 1.7-.79 1.36.073.11.188-.02 2.856-.606 1.543-.28 1.841-.315.833.388.091.395-.328.807-1.969.486-2.309.462-3.439.813-.042.03.049.061 1.549.146.662.036h1.622l3.02.225.79.522.474.638-.079.485-1.215.62-1.64-.389-3.829-.91-1.312-.329h-.182v.11l1.093 1.068 2.006 1.81 2.509 2.33.127.578-.322.455-.34-.049-2.205-1.657-.851-.747-1.926-1.62h-.128v.17l.444.649 2.345 3.521.122 1.08-.17.353-.608.213-.668-.122-1.374-1.925-1.415-2.167-1.143-1.943-.14.08-.674 7.254-.316.37-.729.28-.607-.461-.322-.747.322-1.476.389-1.924.315-1.53.286-1.9.17-.632-.012-.042-.14.018-1.434 1.967-2.18 2.945-1.726 1.845-.414.164-.717-.37.067-.662.401-.589 2.388-3.036 1.44-1.882.93-1.086-.006-.158h-.055L4.132 18.56l-1.13.146-.487-.456.061-.746.231-.243 1.908-1.312-.006.006z"/></symbol>
+  <symbol id="w-codex" viewBox="0.498 0.498 9.0039 9.0039">
+    
+    <path fill="currentColor" d="M3.53191 0.672167C3.89319 0.523523 4.2865 0.469819 4.67441 0.516166C5.17441 0.573666 5.61991 0.786167 6.01091 1.15367C6.01591 1.15867 6.02291 1.16217 6.02941 1.16417C6.03647 1.1659 6.04385 1.1659 6.05091 1.16417C6.55923 1.0329 7.09731 1.08148 7.57391 1.30167L7.59741 1.31267L7.65541 1.34117C8.15429 1.59402 8.54342 2.02067 8.74941 2.54067C8.85391 2.79567 8.90591 3.06117 8.90691 3.33817C8.91442 3.54417 8.89185 3.75017 8.83991 3.94967C8.83735 3.95974 8.83738 3.97029 8.84 3.98035C8.84263 3.9904 8.84775 3.99963 8.85491 4.00717C9.15191 4.31067 9.34891 4.67217 9.44641 5.09217C9.59091 5.80467 9.44291 6.44717 9.00291 7.01917L8.93491 7.10217C8.64349 7.43574 8.261 7.67695 7.83441 7.79617C7.82515 7.79888 7.81666 7.80373 7.80962 7.81033C7.80259 7.81694 7.7972 7.8251 7.79391 7.83417C7.69841 8.10967 7.60241 8.34567 7.42391 8.58117C6.97391 9.17467 6.31291 9.50417 5.56841 9.50017C4.97491 9.49717 4.44891 9.28017 3.98991 8.84917C3.983 8.8427 3.9745 8.83819 3.96528 8.83608C3.95606 8.83397 3.94644 8.83435 3.93741 8.83717C3.74341 8.89967 3.54741 8.90867 3.33541 8.90617C2.99774 8.90346 2.66514 8.82377 2.36291 8.67317C2.04632 8.51629 1.77069 8.28773 1.55791 8.00567C1.48191 7.90467 1.40641 7.80967 1.35091 7.69717C1.27514 7.54279 1.21323 7.38199 1.16591 7.21667C1.06601 6.84048 1.0636 6.44504 1.15891 6.06767C1.16204 6.05869 1.16307 6.04911 1.16191 6.03967C1.1602 6.03039 1.15545 6.02195 1.14841 6.01567C0.917442 5.78189 0.740911 5.50002 0.631408 5.19017C0.558583 4.99931 0.516232 4.79818 0.505908 4.59417C0.487743 4.32546 0.511528 4.05556 0.576408 3.79417C0.744908 3.23817 1.06741 2.80167 1.54291 2.48517C1.64891 2.41467 1.74941 2.35967 1.84341 2.32017C1.95091 2.27567 2.05841 2.23817 2.16641 2.20667C2.17413 2.20427 2.18113 2.20001 2.1868 2.19425C2.19247 2.18849 2.19663 2.18142 2.19891 2.17367C2.28091 1.87919 2.42194 1.60446 2.61341 1.36617C2.85477 1.05967 3.17114 0.820634 3.53191 0.672167ZM5.27291 5.95467C5.19165 5.95922 5.11522 5.99471 5.05931 6.05385C5.0034 6.11299 4.97225 6.19128 4.97225 6.27267C4.97225 6.35405 5.0034 6.43235 5.05931 6.49148C5.11522 6.55062 5.19165 6.58611 5.27291 6.59067H7.09091C7.13417 6.59309 7.17747 6.58667 7.21816 6.57178C7.25885 6.5569 7.29608 6.53387 7.32756 6.5041C7.35905 6.47433 7.38413 6.43846 7.40127 6.39866C7.41841 6.35887 7.42725 6.31599 7.42725 6.27267C7.42725 6.22934 7.41841 6.18647 7.40127 6.14667C7.38413 6.10688 7.35905 6.071 7.32756 6.04123C7.29608 6.01146 7.25885 5.98843 7.21816 5.97355C7.17747 5.95866 7.13417 5.95224 7.09091 5.95467H5.27291ZM3.23091 3.61517C3.18764 3.54469 3.11865 3.49381 3.03854 3.47328C2.95844 3.45275 2.87348 3.46419 2.80165 3.50517C2.72982 3.54615 2.67675 3.61346 2.65366 3.69287C2.63056 3.77228 2.63926 3.85756 2.67791 3.93067L3.31391 5.04267L2.68091 6.11067C2.6596 6.14662 2.64558 6.18641 2.63966 6.22778C2.63373 6.26914 2.63601 6.31127 2.64636 6.35176C2.65671 6.39225 2.67494 6.4303 2.7 6.46374C2.72506 6.49718 2.75646 6.52536 2.79241 6.54667C2.82836 6.56797 2.86815 6.58199 2.90952 6.58792C2.95088 6.59385 2.99301 6.59157 3.0335 6.58121C3.07399 6.57086 3.11204 6.55263 3.14548 6.52758C3.17892 6.50252 3.2071 6.47112 3.22841 6.43517L3.95541 5.20767C3.98407 5.15931 3.9994 5.10422 3.99984 5.048C4.00028 4.99179 3.98581 4.93647 3.95791 4.88767L3.23091 3.61517Z"/></symbol>
+  <symbol id="w-grok" viewBox="0 0.5039 24 23.0332"><path fill="currentColor" fill-rule="evenodd" d="M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815"/></symbol>
+  <symbol id="w-cursor" viewBox="1.4707 0 21.0586 24"><path fill="currentColor" fill-rule="evenodd" d="M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z"/></symbol>
+  <symbol id="ico-warn" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M7.13 1.75a1 1 0 0 1 1.74 0l6.03 10.6A1 1 0 0 1 14.03 14H1.97a1 1 0 0 1-.87-1.65l6.03-10.6Zm.17 3.4h1.4l-.2 4.25h-1L7.3 5.15Zm.7 5.2a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8Z"/></symbol>
+  <symbol id="ico-circle-warn" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M8 1a7 7 0 1 1 0 14A7 7 0 0 1 8 1Zm-.7 3.15h1.4l-.2 4.9h-1l-.2-4.9ZM8 10.2a.95.95 0 1 1 0 1.9.95.95 0 0 1 0-1.9Z"/></symbol>
+</defs></svg>
+
+<div class="page" id="page">
+  <div class="narrow">
+    <p class="eyebrow">Headroom · iPhone Lock Screen widgets · ideas · 2026-10-03</p>
+    <h1>Ten Lock Screen widgets, built from the four widget styles</h1>
+    <p class="sub">Eight of these are Lock Screen versions of <b>Nested Meter</b>, <b>Vessel Hero</b>, <b>Tightest First</b> and <b>Liquid Level</b>: one circle and one rectangle for each style. The other two are new ideas the Lock Screen makes possible: a refill countdown, and the text line beside the date. Every widget is drawn the way the Lock Screen draws widgets, in one white ink with no colour. The bar at the top switches wallpaper, data, how low limits are flagged, and Always On.</p>
+
+    <div class="rules">
+      <div class="rule"><b>Three sizes</b>Circle 72 × 72 · Rectangle 160 × 72 · Inline 234 × 26 pt (6.1″ iPhones; Pro Max-class phones run 76 / 172 × 76 / 257 × 26). Under the clock you get four circles, two rectangles, or one rectangle and two circles, plus one inline line beside the date.</div>
+      <div class="rule"><b>No colour</b>The Lock Screen draws widgets in <i>vibrant</i> mode: one white ink at different strengths, tinted by the wallpaper. Green, amber and red can’t come through, so a low limit has to read from the number and the shape. Headroom’s shared widget views already send vibrant down their monochrome branch.</div>
+      <div class="rule"><b>One provider per circle</b>A circle only has room for one provider, so these need a <b>Provider</b> option in Edit Widget (Automatic, Claude, Codex, Grok, Cursor). The data the Mac syncs already includes all four providers, so the widget data format doesn’t change (schema stays 3).</div>
+      <div class="rule"><b>Trust at a glance</b>There’s no room for “From Mac · 4 min ago”. Stale values dim to half ink, and a window with no value shows “—”, never 0% (R11). That makes the deferred “dim when the Mac’s data is old” item (BUGS.md) matter more here.</div>
+      <div class="rule"><b>Always On</b>When the phone is locked face-up, the system dims widgets further. Large filled areas should thin out: the liquid fades to a faint tint (<code>isLuminanceReduced</code>). Toggle <i>Always On</i> above to see it.</div>
+      <div class="rule"><b>Platform and parity</b>macOS has no Lock Screen widgets, so this is iPhone and iPad only, and nothing changes on the Mac. Every idea works for Claude, Codex, Grok and Cursor, using each provider’s main account. Apple Watch complications use the same three sizes, so these designs would also carry over to a Watch app.</div>
+    </div>
+  </div>
+
+  <div class="controls" id="controls"></div>
+
+  <section class="band">
+    <div class="band-head"><h2>Together on a Lock Screen</h2><span class="dim">Three example setups built from the ideas below. Each one follows the controls.</span></div>
+    <div class="phones" id="phones"></div>
+  </section>
+
+  <section class="band">
+    <div class="band-head"><h2>Round 2: replacements for the two gaps</h2><span class="dim">Two options each. Nested Meter needed a circle after 02 was denied; Tightest First needed a rectangle after 07 and 09 were denied.</span></div>
+  </section>
+  <div id="ideas2"></div>
+
+  <section class="band" style="margin-top:72px">
+    <div class="band-head"><h2>Round 1: the original ten</h2><span class="dim">Your verdicts are kept. 03 and 04 carry the size changes you asked for.</span></div>
+  </section>
+  <div id="ideas"></div>
+
+  <section class="band narrow" id="ship">
+    <p class="eyebrow">How they’d ship</p>
+    <h2>Keep the four style names; add a Provider option</h2>
+    <p class="sub" style="font-size:14px;margin-top:6px">Ideas 01–08 fill a grid: each of the four styles gets one circle and one rectangle. That lets the Lock Screen keep the <b>Style</b> names people already pick in Edit Widget, so each size has one drawing per style.</p>
+    <table class="map">
+      <tr><th>Style</th><th>Circle</th><th>Rectangle</th><th>Inline</th></tr>
+      <tr><td><b>Nested Meter</b> (default)</td><td>11 Nested Badge (A or B)</td><td>05 Nested Rows</td><td rowspan="4">10 Inline Readout: Tightest First shows the lowest limit; the other three styles show the providers’ main numbers</td></tr>
+      <tr><td><b>Vessel Hero</b></td><td>01 Vessel Badge</td><td>06 Twin Vessels</td></tr>
+      <tr><td><b>Tightest First</b></td><td>03 Tightest Gauge</td><td>12 Gauge Pair <i>or</i> Gauge + List</td></tr>
+      <tr><td><b>Liquid Level</b></td><td>04 Liquid Dial</td><td>08 Liquid Strip</td></tr>
+    </table>
+    <ul class="tight">
+      <li><b>Recommendation: a separate “Headroom” Lock Screen widget</b> with its own Edit Widget: <b>Style</b> and <b>Provider</b>, and no <b>Color</b> because the Lock Screen can’t show colour. It also leaves the home widgets’ just-shipped in-place migration (KTD1) alone. The alternative is adding the Lock Screen sizes to the current widget, which is simpler but shows a Color option that does nothing there. Whether one widget can hide Color for the Lock Screen sizes needs checking in WidgetKit.</li>
+      <li><b>Provider: Automatic</b> (the default) means the first widget provider for a circle (the same rule as small Vessel Hero, R6), and both widget providers for a rectangle or the inline line. For Tightest First, Automatic searches every provider. Choosing Claude, Codex, Grok or Cursor pins the widget to that one. This brings back the “choose a provider per widget” idea the widget-styles plan deferred, but only for the Lock Screen. Whether the home small Vessel Hero and Liquid Level should get it too is a separate parity call.</li>
+      <li><b>New pieces:</b> Lock Screen sizes (<code>.accessoryCircular</code>, <code>.accessoryRectangular</code>, <code>.accessoryInline</code>) in the iOS widget extension; Lock Screen ink values (marked PROPOSAL in this file’s CSS); a short window name for circles (Cursor’s pools as “Models” and “Other”, a proposal; rectangles and the inline line use the full “Cursor Models” and “Other Models” where they fit, and never a bare “Cursor 69%” that could read as Cursor’s total); a vessel image for the inline line. Every per-style decision stays in tested Core recipes, as with the home widgets.</li>
+      <li><b>If you’d rather start small:</b> 03 Tightest Gauge (the most useful single glance), 01 Vessel Badge (the brand), 05 Nested Rows (shows the most with no setup), 10 Inline Readout (space beside the date that would otherwise go unused).</li>
+    </ul>
+  </section>
+
+  <section class="band narrow">
+    <p class="eyebrow">Decisions</p>
+    <h2>Five calls before planning</h2>
+    <div id="drows"></div>
+    <textarea class="gnotes" id="gnotes" placeholder="Overall notes (which set ships first, anything missing, anything to drop)"></textarea>
+    <div class="ans-row">
+      <button type="button" class="ans-btn primary" id="btnCopy">Copy answers</button>
+      <button type="button" class="ans-btn" id="btnShow">Show export</button>
+      <button type="button" class="ans-btn" id="btnReset">Clear all</button>
+      <span class="ans-ok" id="copyOk"></span>
+    </div>
+    <pre id="exportPreview"></pre>
+  </section>
+</div>
+
+<script>
+(function () {
+'use strict';
+const NS = 'lockscreen-widgets-2026-10-03';
+const S = { wall: 'night', data: 'healthy', cue: 'knock', aod: 'off', zoom: '2' };
+try { Object.assign(S, JSON.parse(localStorage.getItem(NS + ':view') || '{}')); } catch (e) {}
+
+const WALLS = {
+  night: 'radial-gradient(70% 45% at 22% 18%, #6a52a8 0%, rgba(106,82,168,0) 70%), radial-gradient(70% 55% at 85% 78%, #1f6a86 0%, rgba(31,106,134,0) 70%), linear-gradient(165deg, #22183c 0%, #101630 52%, #070d18 100%)',
+  dune: 'radial-gradient(80% 50% at 72% 12%, #f3a76c 0%, rgba(243,167,108,0) 68%), radial-gradient(80% 60% at 8% 92%, #6d2f3d 0%, rgba(109,47,61,0) 70%), linear-gradient(172deg, #b5603f 0%, #5a2a36 58%, #26131f 100%)',
+  sea: 'radial-gradient(85% 45% at 30% 4%, #86c9cc 0%, rgba(134,201,204,0) 66%), radial-gradient(80% 60% at 92% 100%, #0d3a58 0%, rgba(13,58,88,0) 70%), linear-gradient(180deg, #3b8b9e 0%, #1b5370 55%, #0b2839 100%)',
+  pale: 'radial-gradient(80% 50% at 30% 10%, #f4ece0 0%, rgba(244,236,224,0) 70%), linear-gradient(172deg, #ddd0bd 0%, #c4b19c 55%, #a8927e 100%)'
+};
+const CONTROLS = [
+  ['wall', 'Wallpaper', [['night', 'Night'], ['dune', 'Dune'], ['sea', 'Sea'], ['pale', 'Pale (stress test)']]],
+  ['data', 'Data', [['healthy', 'Healthy'], ['tight', 'Tight'], ['stale', 'Codex stale · Fable missing'], ['pending', 'Grok waiting']]],
+  ['cue', 'Low cue (≤15%)', [['knock', 'Knockout'], ['glyph', 'Warning glyph'], ['none', 'Number only']]],
+  ['aod', 'Always On', [['off', 'Off'], ['on', 'On']]],
+  ['zoom', 'Zoom', [['1', '1×'], ['2', '2×'], ['3', '3×']]]
+];
+
+/* ============================================================
+   DATA — shaped like WidgetSnapshotEnvelope.providers. Grok and Cursor bill as pools
+   (BillingPeriodWindowClassifier); `short` is the PROPOSED circle label.
+   ============================================================ */
+const NOW = new Date(2026, 9, 3, 9, 41);
+function W(kind, label, short, pct, h) { return { kind, label, short, pct, h, live: true }; }
+function claude(a, b, c, ha, hb) { return { id: 'claude', name: 'Claude', windows: [W('5h', '5-hour', '5-hour', a, ha), W('wk', 'Weekly', 'Weekly', b, hb), W('model', 'Fable', 'Fable', c, hb)] }; }
+function codex(a, b, ha, hb) { return { id: 'codex', name: 'Codex', windows: [W('5h', '5-hour', '5-hour', a, ha), W('wk', 'Weekly', 'Weekly', b, hb)] }; }
+function grok(a, h) { return { id: 'grok', name: 'Grok', windows: [W('pool', 'Weekly', 'Weekly', a, h)] }; }
+function cursor(a, b, h) { return { id: 'cursor', name: 'Cursor', windows: [W('pool', 'Cursor Models', 'Models', a, h), W('pool', 'Other Models', 'Other', b, h)] }; }
+function healthy() { return { claude: claude(72, 38, 61, 3.25, 102), codex: codex(41, 64, 2.08, 74), grok: grok(56, 76), cursor: cursor(69, 37, 52) }; }
+function data() {
+  let d;
+  switch (S.data) {
+    case 'tight': d = { claude: claude(12, 9, 23, 1.67, 27), codex: codex(6, 28, 0.8, 49), grok: grok(14, 33), cursor: cursor(31, 8, 146) }; break;
+    case 'stale': d = healthy(); d.codex.windows.forEach(w => { w.live = false; }); d.claude.windows[2].pct = null; d.claude.windows[2].live = false; break;
+    case 'pending': d = healthy(); d.grok = { id: 'grok', name: 'Grok', pending: true, windows: [] }; break;
+    default: d = healthy();
+  }
+  return d;
+}
+const ORDER = ['claude', 'codex', 'grok', 'cursor'];
+const all = d => ORDER.map(k => d[k]);
+
+/* primarySubscriptionWindow with KTD4's unavailable filter: weekly, else the tightest pool. */
+function primary(p) {
+  const v = p.windows.filter(w => w.pct != null);
+  if (!v.length) return p.windows[0] || null;
+  return v.find(w => w.kind === 'wk') || v.slice().sort((a, b) => a.pct - b.pct)[0];
+}
+const others = (p, w) => p.windows.filter(x => x !== w);
+/* WidgetWindowRanking (KTD4): displayed value, lowest first; stale with live; unavailable last; ties keep source order. */
+function rank(list) {
+  return list.slice().sort((a, b) => {
+    const av = a.w.pct, bv = b.w.pct;
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return av - bv;
+  });
+}
+const tightAll = ps => rank(ps.flatMap(p => p.windows.map(w => ({ p, w }))));
+const crit = w => !!w && w.live && w.pct != null && w.pct <= 15;
+const isStale = w => !!w && !w.live && w.pct != null;
+const sib = p => p.windows.filter(w => w.kind === 'pool').length > 1;
+const pctTxt = w => (w && w.pct != null) ? Math.round(w.pct) + '%' : '—';
+
+function cd(h) {
+  const m = Math.round(h * 60);
+  if (m < 60) return m + 'm';
+  if (m < 1440) return Math.floor(m / 60) + 'h ' + (m % 60) + 'm';
+  return Math.floor(m / 1440) + 'd ' + Math.floor((m % 1440) / 60) + 'h';
+}
+function at(h) {
+  const d = new Date(NOW.getTime() + h * 3600e3);
+  const t = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return h < 24 ? t : d.toLocaleDateString('en-US', { weekday: 'short' }) + ' ' + t;
+}
+const weekday = h => new Date(NOW.getTime() + h * 3600e3).toLocaleDateString('en-US', { weekday: 'short' });
+const when = h => h < 24 ? cd(h) : weekday(h);
+
+/* ============================================================
+   PRIMITIVES
+   ============================================================ */
+let uid = 0;
+/* HeadroomBrandMark (#149): ink = slot × 13/15 × mass, aspect kept, centred. Template-rendered here. */
+const MASS = { claude: 1.0, codex: 0.92, grok: 1.2, cursor: 1.03 };
+const ASPECT = { claude: 1, codex: 1, grok: 24 / 23.0332, cursor: 21.0586 / 24 };
+function mk(id, slot, op) {
+  const ink = slot * 13 / 15 * MASS[id], a = ASPECT[id];
+  const w = a >= 1 ? ink : ink * a, h = a >= 1 ? ink / a : ink;
+  return `<span class="mk" style="width:${slot}px;height:${slot}px;${op ? 'opacity:' + op : ''}"><svg width="${w.toFixed(2)}" height="${h.toFixed(2)}"><use href="#w-${id}"/></svg></span>`;
+}
+function glyph(id, s, extra) { return `<svg width="${s}" height="${s}" style="flex:none;display:inline-block;${extra || ''}"><use href="#${id}"/></svg>`; }
+function num(w, size, o) {
+  o = o || {};
+  const t = pctTxt(w);
+  const st = `font-size:${size}px;${isStale(w) ? 'opacity:.5;' : ''}`;
+  let inner;
+  if (crit(w) && S.cue === 'knock') inner = `<span class="num knock" style="${st}">${t}</span>`;
+  else {
+    const pre = crit(w) && S.cue === 'glyph' ? glyph('ico-warn', Math.round(size * 0.62), 'margin-right:' + Math.max(2, Math.round(size * 0.14)) + 'px') : '';
+    inner = `<span class="num" style="${st}">${pre}${t}</span>`;
+  }
+  return o.minw ? `<span style="display:inline-flex;justify-content:flex-end;flex:none;min-width:${o.minw}px">${inner}</span>` : inner;
+}
+function bar(w, h, o) {
+  o = o || {};
+  const pct = w && w.pct != null ? w.pct : 0, min = pct > 0 ? h : 0;
+  return `<div class="bar" style="height:${h}px;border-radius:${h / 2}px;${o.style || ''}"><i style="width:max(${min}px,${pct}%);opacity:${isStale(w) ? 0.5 : 1}"></i></div>`;
+}
+/* WidgetVesselGeometry (KTD6) in its monochrome rule: liquid is the full-ink part, wall stays secondary. */
+function vessel(w, Wd, H, o) {
+  o = o || {};
+  const id = 'vc' + (++uid);
+  const sw = o.sw || Math.min(2.1, Math.max(1.5, Wd * 0.11));
+  const ins = sw + Math.max(0.6, Wd * 0.055), iw = Wd - 2 * ins, ih = H - 2 * ins;
+  const pct = w && w.pct != null ? w.pct : 0;
+  const lh = pct > 0 ? Math.min(ih, Math.max(iw * 0.5, ih * pct / 100)) : 0;
+  return `<svg width="${Wd}" height="${H}" style="display:block;flex:none;overflow:visible"><defs><clipPath id="${id}"><rect x="${ins}" y="${ins}" width="${iw}" height="${ih}" rx="${iw / 2}"/></clipPath></defs>` +
+    `<rect x="${sw / 2}" y="${sw / 2}" width="${Wd - sw}" height="${H - sw}" rx="${(Wd - sw) / 2}" fill="none" style="stroke:rgba(255,255,255,0.72)" stroke-width="${sw}"/>` +
+    `<rect clip-path="url(#${id})" x="${ins}" y="${(ins + ih - lh).toFixed(2)}" width="${iw}" height="${lh.toFixed(2)}" fill="#fff" opacity="${isStale(w) ? 0.5 : 1}"/></svg>`;
+}
+/* KTD7: the vessel is as tall as the digits' ink and sits on the numeral's baseline. */
+const DIGIT = {};
+function digitInk(n) {
+  if (!DIGIT[n]) {
+    const c = document.createElement('canvas').getContext('2d');
+    c.font = '600 ' + n + 'px ' + getComputedStyle(document.documentElement).getPropertyValue('--ft');
+    const m = c.measureText('0');
+    DIGIT[n] = { asc: m.actualBoundingBoxAscent, desc: m.actualBoundingBoxDescent };
+  }
+  return DIGIT[n];
+}
+function vesselFor(n) {
+  const d = digitInk(n), H = Math.round((d.asc + d.desc) * 2) / 2, Wd = Math.round(H * 0.61 * 2) / 2;
+  return { d, H, Wd, g: Math.round(n * 0.2) };
+}
+function hero(w, n) {
+  const v = vesselFor(n);
+  return { html: `<span class="row" style="gap:${v.g}px;align-items:baseline"><span style="display:block;transform:translateY(${v.d.desc.toFixed(2)}px)">${vessel(w, v.Wd, v.H)}</span>${num(w, n)}</span>`, indent: v.Wd + v.g };
+}
+function capFor(p, w) {
+  if (p.pending) return 'Waiting';
+  if (!w) return '—';
+  if (isStale(w)) return glyph('ico-circle-warn', 9, 'margin-right:3px') + 'Stale';
+  return w.short;
+}
+function idrow(p, slot, size) { return `<div class="row" style="gap:5px">${mk(p.id, slot, p.pending ? 0.6 : 0)}<span class="nm" style="font-size:${size || 12.5}px">${p.name}</span></div>`; }
+const circ = (inner, bg) => `<div class="lw circ">${bg === false ? '' : '<div class="abg"></div>'}${inner}</div>`;
+const rect = (inner, pad) => `<div class="lw rect"><div class="rc" style="${pad || ''}">${inner}</div></div>`;
+
+/* ============================================================
+   THE TEN
+   ============================================================ */
+/* 01 Vessel Badge — Vessel Hero, circular */
+function vbadge(p) {
+  const w = primary(p), h = hero(w, 19);
+  return circ(`<div class="cc">${mk(p.id, 13, p.pending ? 0.6 : 0)}<div style="height:4px"></div>${h.html}<span class="cap" style="margin-top:4px">${capFor(p, w)}</span></div>`);
+}
+/* 02 Nested Rings — Nested Meter, circular */
+function ringSVG(spec) {
+  let s = '<svg width="72" height="72" style="position:absolute;inset:0">';
+  spec.forEach(o => {
+    const C = 2 * Math.PI * o.r, f = o.w && o.w.pct != null ? Math.max(0, Math.min(1, o.w.pct / 100)) : 0;
+    s += `<circle cx="36" cy="36" r="${o.r}" fill="none" style="stroke:rgba(255,255,255,0.24)" stroke-width="${o.sw}"/>`;
+    if (f > 0) s += `<circle cx="36" cy="36" r="${o.r}" fill="none" stroke="#fff" stroke-opacity="${isStale(o.w) ? 0.5 : 1}" stroke-width="${o.sw}" stroke-linecap="round" stroke-dasharray="${(f * C).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 36 36)"/>`;
+  });
+  return s + '</svg>';
+}
+function rings(p) {
+  const w = primary(p), rest = w ? others(p, w).slice(0, 2) : [];
+  let spec;
+  if (!w) spec = [{ w: null, r: 31.5, sw: 5 }];
+  else if (sib(p)) spec = [{ w, r: 31.4, sw: 4.2 }, { w: rest[0], r: 25.8, sw: 4.2 }];
+  else spec = [{ w, r: 31.5, sw: 5 }].concat(rest.map((x, i) => ({ w: x, r: i ? 22.2 : 25.9, sw: 2.2 })));
+  return circ(ringSVG(spec) + `<div class="cc">${mk(p.id, 11, p.pending ? 0.6 : 0)}<div style="height:2px"></div>${num(w, 15)}</div>`);
+}
+/* 03 Tightest Gauge — Tightest First, circular. Open arc like the system .accessoryCircular gauge. */
+function tgauge(ps) { const top = tightAll(ps)[0]; return gaugeOf(top ? top.p : ps[0], top ? top.w : null); }
+function gaugeOf(p, w) {
+  const r = 29, C = 2 * Math.PI * r, L = 0.75 * C, f = w && w.pct != null ? Math.max(0, Math.min(1, w.pct / 100)) : 0;
+  const svg = `<svg width="72" height="72" style="position:absolute;inset:0"><circle cx="36" cy="36" r="${r}" fill="none" style="stroke:rgba(255,255,255,0.24)" stroke-width="4.6" stroke-linecap="round" stroke-dasharray="${L.toFixed(2)} ${C.toFixed(2)}" transform="rotate(135 36 36)"/>` +
+    (f > 0 ? `<circle cx="36" cy="36" r="${r}" fill="none" stroke="#fff" stroke-opacity="${isStale(w) ? 0.5 : 1}" stroke-width="4.6" stroke-linecap="round" stroke-dasharray="${(f * L).toFixed(2)} ${C.toFixed(2)}" transform="rotate(135 36 36)"/>` : '') + '</svg>';
+  return circ(svg + `<div class="cc" style="padding-bottom:3px"><span class="cap" style="font-size:9.5px">${capFor(p, w)}</span><div style="height:2px"></div>${num(w, 17)}</div><div style="position:absolute;left:0;right:0;bottom:5px;display:flex;justify-content:center">${mk(p.id, 15, p.pending ? 0.6 : 0)}</div>`);
+}
+/* 11 Nested Badge — Nested Meter, circular (round 2, replaces 02) */
+function nbars(p, width, h, rh, g) {
+  const w = primary(p), rest = w ? others(p, w).slice(0, 2) : [], s = sib(p);
+  return `<div class="col" style="gap:${g}px;width:${width}px;flex:none">${bar(w, h)}${rest.map(x => bar(x, s ? h : rh)).join('')}</div>`;
+}
+function nbadgeA(p) {
+  const w = primary(p);
+  return circ(`<div class="cc">${mk(p.id, 13, p.pending ? 0.6 : 0)}<div style="height:3px"></div>${num(w, 18)}<div style="height:6px"></div>${nbars(p, 34, 4, 2, 1.5)}</div>`);
+}
+function nbadgeB(p) {
+  const w = primary(p), o = w ? others(p, w)[0] : null;
+  const cap = p.pending ? 'Waiting' : isStale(w) ? capFor(p, w) : o ? o.short + ' ' + pctTxt(o) : (w ? 'Resets ' + weekday(w.h) : '—');
+  return circ(`<div class="cc"><div class="row" style="gap:3px">${mk(p.id, 12, p.pending ? 0.6 : 0)}${num(w, 17)}</div><div style="height:5px"></div>${nbars(p, 44, 4, 2, 1.5)}<span class="cap" style="margin-top:4px;font-size:9px">${cap}</span></div>`);
+}
+/* 12 Tightest First, rectangular (round 2, replaces 07 and 09). Both reuse the approved 03 gauge. */
+function gaugePair(ps) {
+  const r = tightAll(ps).filter(x => x.w.pct != null), a = r[0], b = r[1];
+  if (!a) return rect(`<div class="row" style="height:100%;gap:14px">${gaugeOf(ps[0], null)}<span class="sub2">Waiting for your Mac</span></div>`);
+  const right = b ? gaugeOf(b.p, b.w) : `<div class="col" style="justify-content:center;gap:3px;min-width:0"><span class="sub2">Only limit</span><span class="sub2" style="font-size:11px">resets ${weekday(a.w.h)}</span></div>`;
+  return rect(`<div class="row" style="height:100%;gap:16px">${gaugeOf(a.p, a.w)}${right}</div>`);
+}
+function gaugeList(ps) {
+  const r = tightAll(ps), a = r[0];
+  if (!a) return gaugePair(ps);
+  const rest = r.slice(1).filter(x => x.w.pct != null).slice(0, 2);
+  const rows = rest.length
+    ? rest.map(x => `<div class="col" style="gap:3px"><div class="row" style="gap:4px">${mk(x.p.id, 11)}<span class="lab clip" style="font-size:10.5px">${x.w.short}</span></div><div class="row" style="gap:5px">${bar(x.w, 3, { style: 'flex:1' })}${num(x.w, 12.5)}</div></div>`).join('')
+    : `<span class="sub2">Only limit</span><span class="sub2" style="font-size:11px">resets ${weekday(a.w.h)}</span>`;
+  return rect(`<div class="row" style="height:100%;gap:12px">${gaugeOf(a.p, a.w)}<div class="col" style="flex:1;min-width:0;gap:7px">${rows}</div></div>`);
+}
+/* 04 Liquid Dial — Liquid Level, circular */
+function ldial(p) {
+  const w = primary(p), pct = w && w.pct != null ? w.pct : 0;
+  return `<div class="lw circ"><div class="abg"></div>${pct > 0 ? `<div class="wash" style="height:${pct}%;opacity:${isStale(w) ? 0.5 : 1}"></div>` : ''}<div class="cc">${mk(p.id, 15, p.pending ? 0.6 : 0)}<div style="height:4px"></div>${num(w, 18)}<span class="cap" style="margin-top:3px;font-size:9.5px">${capFor(p, w)}</span></div></div>`;
+}
+/* 05 Nested Rows — Nested Meter, rectangular */
+function nested(p, h, rh, g) {
+  const w = primary(p), rest = w ? others(p, w).slice(0, 2) : [], s = sib(p);
+  return `<div class="col" style="gap:${s ? g + 1 : g}px;width:100%">${bar(w, h)}${rest.map(x => bar(x, s ? h : rh)).join('')}</div>`;
+}
+function nrowsAuto(ps) {
+  return rect(`<div class="col" style="height:100%;justify-content:center;gap:10px">${ps.map(p => `<div class="row" style="gap:8px">${mk(p.id, 15, p.pending ? 0.6 : 0)}<div style="flex:1;min-width:0">${nested(p, 6, 2.5, 2.5)}</div>${num(primary(p), 17, { minw: 44 })}</div>`).join('')}</div>`);
+}
+function detailLine(p, w) {
+  if (p.pending) return 'Waiting for your Mac';
+  if (!w) return '—';
+  const o = others(p, w)[0];
+  return o ? fitText([`${o.label} ${pctTxt(o)} · ${cd(o.h)}`, `${o.short} ${pctTxt(o)} · ${cd(o.h)}`], 11.5, 500, 158) : `Resets in ${cd(w.h)}`;
+}
+function nrowsOne(p) {
+  const w = primary(p);
+  return rect(`<div class="col" style="height:100%;justify-content:center"><div class="row" style="gap:6px">${mk(p.id, 15, p.pending ? 0.6 : 0)}<span class="nm" style="font-size:15px;flex:1">${p.name}</span>${num(w, 20)}</div><div style="height:8px"></div>${nested(p, 6, 2.5, 2.5)}<span class="sub2 clip" style="margin-top:7px">${detailLine(p, w)}</span></div>`);
+}
+/* 06 Twin Vessels — Vessel Hero, rectangular (the Mac menu bar, on the phone) */
+function twinAuto(ps) {
+  const cols = ps.map(p => {
+    const w = primary(p), h = hero(w, 21);
+    return `<div class="col" style="flex:1;min-width:0;justify-content:center">${idrow(p, 12, 12)}<div style="height:6px"></div>${h.html}<span class="cap" style="margin-top:4px;padding-left:${h.indent}px">${capFor(p, w)}</span></div>`;
+  });
+  return rect(`<div class="row" style="height:100%;align-items:stretch">${cols.join('<div style="width:1px;background:rgba(255,255,255,0.28);margin:6px 9px;flex:none"></div>')}</div>`);
+}
+function twinOne(p) {
+  const w = primary(p), h = hero(w, 30), rest = w ? others(p, w).slice(0, 2) : [];
+  const right = rest.length
+    ? rest.map(x => `<div class="row" style="gap:6px;justify-content:space-between"><span class="lab">${x.short}</span>${num(x, 13)}</div>`).join('')
+    : `<span class="lab">${p.pending ? 'Waiting' : 'Resets ' + weekday(w.h)}</span>`;
+  return rect(`<div class="row" style="height:100%;gap:12px;align-items:stretch"><div class="col" style="justify-content:center;flex:none">${idrow(p, 12, 12)}<div style="height:5px"></div>${h.html}<span class="cap" style="margin-top:4px;padding-left:${h.indent}px">${capFor(p, w)}</span></div><div class="col" style="flex:1;min-width:0;justify-content:center;gap:6px;padding-top:14px">${right}</div></div>`);
+}
+/* 07 Tightest Triage — Tightest First, rectangular */
+function triage(ps) {
+  const r = tightAll(ps), top = r[0];
+  if (!top) return rect(`<div class="col" style="height:100%;justify-content:center">${idrow(ps[0], 13)}<div class="num" style="font-size:27px;margin-top:3px">—</div><span class="sub2" style="margin-top:4px">Waiting for your Mac</span></div>`);
+  const next = r.slice(1).find(x => x.w.pct != null);
+  const lead = next ? 'Then ' + (next.p !== top.p ? next.p.name + ' ' : '') : '';
+  const nextTxt = next ? fitText([lead + next.w.label + ' ' + pctTxt(next.w), lead + next.w.short + ' ' + pctTxt(next.w)], 11, 500, 158) : 'Only limit';
+  const title = fitText([`${top.p.name} · ${top.w.label}`, `${top.p.name} · ${top.w.short}`], 12.5, 600, 140);
+  return rect(`<div class="col" style="height:100%;justify-content:center"><div class="row" style="gap:5px">${mk(top.p.id, 13)}<span class="nm" style="font-size:12.5px">${title}</span></div><div class="row" style="align-items:baseline;gap:7px;margin-top:1px">${num(top.w, 26)}<span class="sub2 clip">refills in ${cd(top.w.h)}</span></div>${bar(top.w, 4.5, { style: 'margin-top:5px' })}<span class="sub2 clip" style="margin-top:4px;font-size:11px">${nextTxt}</span></div>`);
+}
+/* 08 Liquid Strip — Liquid Level, rectangular */
+function lstrip(ps) {
+  const n = ps.length;
+  const wash = ps.map((p, i) => {
+    const w = primary(p), pct = w && w.pct != null ? w.pct : 0;
+    return pct > 0 ? `<div class="wash" style="left:${i * 100 / n}%;width:${100 / n}%;right:auto;height:${pct}%;opacity:${isStale(w) ? 0.5 : 1}"></div>` : '';
+  }).join('');
+  let content;
+  if (n > 1) {
+    content = `<div class="row" style="flex:1;align-items:stretch">${ps.map(p => { const w = primary(p); return `<div class="col" style="flex:1;min-width:0;padding:8px 10px 8px">${idrow(p, 12, 12)}<span class="sp"></span>${num(w, 22)}<span class="cap" style="margin-top:3px">${capFor(p, w)}</span></div>`; }).join('')}</div>`;
+  } else {
+    const p = ps[0], w = primary(p), o = w ? others(p, w)[0] : null;
+    const capTxt = w && !p.pending && !isStale(w) ? fitText([w.label, w.short], 10.5, 600, 64) : capFor(p, w);
+    content = `<div class="col" style="flex:1;padding:8px 11px 8px"><div class="row" style="gap:6px">${idrow(p, 13, 13)}<span class="sp"></span>${o ? `<span class="lab">${o.short} ${pctTxt(o)}</span>` : ''}</div><span class="sp"></span><div class="row" style="align-items:baseline;gap:8px">${num(w, 28)}<span class="cap clip" style="font-size:10.5px">${capTxt}</span></div></div>`;
+  }
+  return `<div class="lw rect" style="border-radius:14px;overflow:hidden"><div class="abg"></div>${wash}${n > 1 ? '<div class="vdiv"></div>' : ''}<div class="rc">${content}</div></div>`;
+}
+/* 09 Refill Timer — new, rectangular */
+function refill(ps) {
+  const top = tightAll(ps)[0];
+  if (!top) return triage(ps);
+  const w = top.w, p = top.p, v = vesselFor(26);
+  return rect(`<div class="col" style="height:100%;justify-content:center"><div class="row" style="gap:5px">${mk(p.id, 13)}<span class="nm" style="font-size:12.5px;flex:1">${fitText([`${p.name} · ${w.label}`, `${p.name} · ${w.short}`], 12.5, 600, 104)}</span>${num(w, 14)}</div><div class="row" style="align-items:baseline;gap:${v.g}px;margin-top:4px"><span style="display:block;transform:translateY(${v.d.desc.toFixed(2)}px)">${vessel(w, v.Wd, v.H)}</span><span class="num" style="font-size:26px;${isStale(w) ? 'opacity:.5' : ''}">${cd(w.h)}</span></div><span class="sub2" style="margin-top:5px">refills ${at(w.h)}</span></div>`);
+}
+/* 10 Inline Readout — text + one image; ViewThatFits picks the first candidate that fits. */
+let MCTX = null;
+function measure(t) {
+  if (!MCTX) { MCTX = document.createElement('canvas').getContext('2d'); }
+  MCTX.font = '600 17px ' + getComputedStyle(document.documentElement).getPropertyValue('--ft');
+  return MCTX.measureText(t).width;
+}
+function inlineW(cands, level, warn) {
+  const max = 234 - 9 - 5, pick = cands.find(t => measure(t) <= max) || cands[cands.length - 1];
+  const img = warn ? glyph('ico-circle-warn', 14) : vessel({ pct: level, live: true }, 9, 15, { sw: 1.4 });
+  return `<div class="lw inl">${img}<span>${pick}</span></div>`;
+}
+function inlAuto(ps) {
+  const ws = ps.map(primary), vals = ws.filter(w => w && w.pct != null).map(w => w.pct);
+  const warn = ps.some(p => p.pending) || ws.some(isStale);
+  return inlineW([ps.map((p, i) => p.name + ' ' + pctTxt(ws[i])).join(' · '), ws.map(pctTxt).join(' · ')], vals.length ? Math.min(...vals) : null, warn);
+}
+function inlTight(ps) {
+  const top = tightAll(ps)[0];
+  if (!top) return inlineW(['Waiting for your Mac'], null, true);
+  const t = pctTxt(top.w) + ' · ' + when(top.w.h);
+  return inlineW([top.p.name + ' ' + top.w.short + ' ' + t, top.w.short + ' ' + t], top.w.pct, isStale(top.w));
+}
+function inlOne(p) {
+  if (p.pending) return inlineW([p.name + ' · waiting for your Mac', p.name + ' · waiting'], null, true);
+  const w = primary(p);
+  let cands;
+  if (sib(p)) cands = [p.windows.map(x => x.label + ' ' + pctTxt(x)).join(' · '), p.windows.map((x, i) => (i ? x.short : x.label) + ' ' + pctTxt(x)).join(' · '), p.windows.map(x => x.short + ' ' + pctTxt(x)).join(' · ')];
+  else { const o = others(p, w)[0]; cands = [p.name + ' ' + pctTxt(w) + ' · ' + (o ? o.short + ' ' + pctTxt(o) : 'resets ' + weekday(w.h)), p.name + ' ' + pctTxt(w)]; }
+  const vals = p.windows.filter(x => x.pct != null).map(x => x.pct);
+  return inlineW(cands, vals.length ? Math.min(...vals) : null, p.windows.some(isStale));
+}
+function fitText(cands, px, weight, max) {
+  if (!MCTX) { MCTX = document.createElement('canvas').getContext('2d'); }
+  MCTX.font = weight + ' ' + px + 'px ' + getComputedStyle(document.documentElement).getPropertyValue('--ft');
+  return cands.find(t => MCTX.measureText(t).width <= max) || cands[cands.length - 1];
+}
+const dateline = inner => `<div class="dl"><span class="dl-date">Sat 3</span>${inner}</div>`;
+
+const IDEAS = [
+  { id: '01', name: 'Vessel Badge', fam: 'Circle', from: 'from Vessel Hero', pick: true,
+    pitch: 'The menu-bar vessel, one provider per circle. <b>The empty space above the liquid is your headroom</b>, and the number beside it says how much.',
+    cells: d => ORDER.map(k => [vbadge(d[k]), d[k].name]),
+    reads: [
+      ['Shows', 'Each provider’s main window (weekly, otherwise its tightest pool) as the vessel’s level and the number. The caption names that window.'],
+      ['Low', 'At 15% or less the number gets the low cue (pick one in the bar above). The vessel’s level shows the rest.'],
+      ['Stale, missing', 'A stale value dims to half ink and the caption reads “Stale”. A window with no value shows “—” and an empty vessel.'],
+      ['Grok, Cursor', 'Grok shows its single weekly pool. Cursor shows whichever pool is tighter and names it (“Other”).'],
+      ['Build', 'Uses <code>AccessoryWidgetBackground()</code> and the shipped vessel, sized to the height of the digits (KTD6, KTD7). The vessel’s existing monochrome look (full-ink liquid, dimmer wall) is already what the Lock Screen needs.']
+    ] },
+  { id: '02', name: 'Nested Rings', fam: 'Circle', from: 'from Nested Meter',
+    pitch: 'Nested Meter’s bars bent into rings. <b>A thick outer ring for the week, and thin inner rings for the 5-hour and model limits</b> that draw from it.',
+    cells: d => ORDER.map(k => [rings(d[k]), d[k].name]),
+    reads: [
+      ['Shows', 'Outer ring: the main window, which is also the number. Inner rings: the other windows in Nested Meter’s order (5-hour, then the model limit), two at most.'],
+      ['Low', 'Only the number gets the cue. The rings stay one ink.'],
+      ['Stale, missing', 'A stale ring fills at half ink. A window with no value is an empty track (try the “Fable missing” data).'],
+      ['Grok, Cursor', 'Grok is a single ring. Cursor’s two pools aren’t nested, so they’re two rings of equal weight, like the two equal bars on the home widget.'],
+      ['Build', 'Custom trimmed circles. The system’s ring gauge (<code>.accessoryCircularCapacity</code>) only draws one ring.'],
+      ['Risk', 'Claude’s three rings in 72 pt get busy. The inner rings are 2.2 pt wide.']
+    ] },
+  { id: '03', name: 'Tightest Gauge', fam: 'Circle', from: 'from Tightest First', pick: true,
+    pitch: 'One circle that answers “what runs out first?”. <b>On Automatic it follows the lowest limit across all four providers</b>, so a single circle covers everything.',
+    cells: d => [[tgauge(all(d)), 'Automatic · lowest of all four']].concat(ORDER.map(k => [tgauge([d[k]]), d[k].name])),
+    reads: [
+      ['Shows', 'The window with the lowest shown value, using KTD4’s ranking: stale ranks with live, and windows with no value go last. Window name on top, number in the middle, provider mark in the gap.'],
+      ['Low', 'The number gets the cue, and the arc is short by then anyway.'],
+      ['Stale, missing', 'A stale value dims, and so does its arc.'],
+      ['Grok, Cursor', 'The ranking only compares percentages, so Grok’s pool and Cursor’s two pools simply join the comparison.'],
+      ['Build', 'Shaped like Apple’s own <code>.accessoryCircular</code> gauge (an open arc with a label in the gap), so it looks native next to Weather or Battery. Use the system <code>Gauge</code> or a trimmed circle for an exact stroke.'],
+      ['Risk', 'On Automatic, the mark changes whenever a different provider becomes the tightest. That’s the point, but the circle doesn’t keep one identity.']
+    ] },
+  { id: '04', name: 'Liquid Dial', fam: 'Circle', from: 'from Liquid Level',
+    pitch: 'The circle is the vessel. <b>It fills from the bottom up to the main window’s level</b>, and reads from across the room.',
+    cells: d => ORDER.map(k => [ldial(d[k]), d[k].name]),
+    reads: [
+      ['Shows', 'The main window as the liquid level, with the number on top and a caption naming the window.'],
+      ['Low', 'The number gets the cue, and the level is near the bottom.'],
+      ['Stale, missing', 'Liquid at half strength. A window with no value shows an empty circle.'],
+      ['Always On', 'The liquid fades to 10% white, so a bright block isn’t left glowing on a dimmed screen.'],
+      ['Build', 'PROPOSAL: liquid fades from 34% to 16% white, with a faint 1 pt edge and <b>no bright surface line</b>. In one ink, a full-ink line looks like a strikethrough wherever it crosses the number. The home widget’s monochrome liquid is 12% (<code>washMonochromeOpacity</code>), which disappears against the Lock Screen’s backdrop circle.'],
+      ['Risk', 'At middle levels the liquid’s edge still runs behind the number. It reads as a fill edge rather than a line, but check the Pale wallpaper and a real device.']
+    ] },
+  { id: '05', name: 'Nested Rows', fam: 'Rectangle', from: 'from Nested Meter', pick: true,
+    pitch: 'The small Nested Meter, fitted into the rectangle. <b>Automatic shows your two widget providers with no setup</b>, one row each. Choose a provider to see all of its bars.',
+    cells: d => [[nrowsAuto([d.claude, d.codex]), 'Automatic · Claude + Codex'], [nrowsAuto([d.grok, d.cursor]), 'Automatic · Grok + Cursor'], [nrowsOne(d.claude), 'Claude'], [nrowsOne(d.cursor), 'Cursor']],
+    reads: [
+      ['Shows', 'Automatic: the same two providers the home widgets already show (<code>widgetProviders</code>), each as mark, nested bars and the main number. One provider: name, number, its bars, and one line of detail.'],
+      ['Low', 'The number gets the cue.'],
+      ['Stale, missing', 'Bars and number dim. A window with no value is an empty bar.'],
+      ['Grok, Cursor', 'Grok is a single bar with its reset time. Cursor’s pools are two equal bars, the same as on the home widget.'],
+      ['Build', 'The shipped bar view in its monochrome branch. Apple’s own Lock Screen rectangles have no background, so this one doesn’t either.']
+    ] },
+  { id: '06', name: 'Twin Vessels', fam: 'Rectangle', from: 'from Vessel Hero',
+    pitch: 'Your Mac’s menu bar, on the Lock Screen: <b>a vessel and a number for each provider, side by side.</b>',
+    cells: d => [[twinAuto([d.claude, d.codex]), 'Automatic · Claude + Codex'], [twinAuto([d.grok, d.cursor]), 'Automatic · Grok + Cursor'], [twinOne(d.claude), 'Claude'], [twinOne(d.grok), 'Grok']],
+    reads: [
+      ['Shows', 'Automatic: each widget provider’s main window as a vessel and number. One provider: a bigger vessel, with its other windows listed beside it.'],
+      ['Low', 'The number gets the cue.'],
+      ['Stale, missing', 'Dims. A window with no value shows an empty vessel and “—”.'],
+      ['Grok, Cursor', 'Grok has no other windows to list, so it shows its reset day. Cursor lists its other pool.'],
+      ['Build', 'The same vessel as 01, at 21 pt. “100%” sets the width limit for each half.']
+    ] },
+  { id: '07', name: 'Tightest Triage', fam: 'Rectangle', from: 'from Tightest First',
+    pitch: 'The lowest limit you have, shown big: <b>whose it is, how long until it refills, and what runs out next.</b>',
+    cells: d => [[triage(all(d)), 'Automatic · lowest of all four'], [triage([d.claude]), 'Claude'], [triage([d.cursor]), 'Cursor'], [triage([d.grok]), 'Grok']],
+    reads: [
+      ['Shows', 'The tightest window with its provider, the number, time until it refills, its bar, and the runner-up.'],
+      ['Automatic', 'PROPOSAL: compares every provider the Mac sends, not only the two widget providers. The synced data already includes them.'],
+      ['Stale, missing', 'A stale value keeps its place in the order but dims. A window with no value never takes the headline while another window has one.'],
+      ['Grok, Cursor', 'They’re just more entries in the same ranking.'],
+      ['Build', 'Uses the same ranking as the home Tightest First (<code>WidgetWindowRanking</code>), so the Lock Screen and Home Screen can’t disagree about which limit is tightest.']
+    ] },
+  { id: '08', name: 'Liquid Strip', fam: 'Rectangle', from: 'from Liquid Level',
+    pitch: 'Liquid Level’s split fill in a rounded rectangle: <b>two providers, two levels, with a divider between them.</b>',
+    cells: d => [[lstrip([d.claude, d.codex]), 'Automatic · Claude + Codex'], [lstrip([d.grok, d.cursor]), 'Automatic · Grok + Cursor'], [lstrip([d.claude]), 'Claude'], [lstrip([d.cursor]), 'Cursor']],
+    reads: [
+      ['Shows', 'Each provider’s main window as a liquid level in its half. One provider fills the full width and lists its next window beside the name.'],
+      ['Stale, missing', 'Liquid at half strength. A window with no value is empty.'],
+      ['Always On', 'The liquid fades to 10% white.'],
+      ['Build', 'The liquid needs a shape to sit in, so this uses <code>AccessoryWidgetBackground()</code>. Apple’s own rectangles have no background, so this one looks heavier than they do.'],
+      ['Risk', 'The same contrast question as 04, over a bigger area.']
+    ] },
+  { id: '09', name: 'Refill Timer', fam: 'Rectangle', from: 'Lock Screen only', fresh: true,
+    pitch: 'When you’re running low, what you want to know is when the limit comes back. <b>This shows how long until your tightest window refills, in large type.</b>',
+    cells: d => [[refill(all(d)), 'Automatic · lowest of all four'], [refill([d.codex]), 'Codex'], [refill([d.grok]), 'Grok'], [refill([d.cursor]), 'Cursor']],
+    reads: [
+      ['Shows', 'The tightest window’s time until it refills, the clock time it refills, and its current number.'],
+      ['Countdown', 'Counts down on its own between data refreshes (SwiftUI’s self-updating timer text), shown in hours and minutes only so nothing ticks every second.'],
+      ['Stale, missing', 'A stale reset time is still a real scheduled time, so the countdown stays but dims. A window with no value shows “—”.'],
+      ['Grok, Cursor', 'Monthly pools count in days (“6d 2h”).'],
+      ['Question', 'On a healthy day the tightest window may not refill for days, which is less useful to know. It could show the soonest refill instead, or switch to 05 when nothing is low. Worth discussing.']
+    ] },
+  { id: '10', name: 'Inline Readout', fam: 'Inline', from: 'works with every style', pick: true,
+    pitch: 'One line beside the date, above the clock. <b>Space most people leave empty.</b>',
+    inline: true,
+    cells: d => [[inlAuto([d.claude, d.codex]), 'Automatic · two widget providers'], [inlTight(all(d)), 'Tightest First · lowest of all four'], [inlOne(d.claude), 'Claude'], [inlOne(d.cursor), 'Cursor'], [inlAuto([d.grok, d.cursor]), 'Automatic · Grok + Cursor']],
+    reads: [
+      ['Shows', 'Automatic: “Claude 38% · Codex 64%”. Tightest First: the lowest limit and when it refills. One provider: its windows.'],
+      ['Fit', 'If the line is too long, the provider names drop first (“38% · 64%”); SwiftUI’s <code>ViewThatFits</code> picks the version that fits.'],
+      ['Low, stale', 'The inline line is one system font and colour, so it can’t dim or show a knockout. Its one image is a vessel filled to the lowest level shown, which carries the low cue by itself. Stale or missing data swaps the vessel for a warning glyph.'],
+      ['Grok, Cursor', 'Cursor reads “Cursor Models 69% · Other Models 37%”, and shortens to “Cursor Models 69% · Other 37%” or “Models 69% · Other 37%”.'],
+      ['Build', 'The inline size shows only text plus one image. The vessel is a custom symbol drawn at 11 fill levels.']
+    ] }
+];
+
+const IDEAS2 = [
+  { id: '11A', name: 'Nested Badge', fam: 'Circle', from: 'Nested Meter · replaces 02', fresh: true,
+    pitch: 'The small Nested Meter in a circle: <b>mark, number, and a short bar with its thin rails underneath.</b> No rings, so it stays calm next to the Vessel Badge.',
+    cells: d => ORDER.map(k => [nbadgeA(d[k]), d[k].name]),
+    reads: [
+      ['Shows', 'The main window as the number and the thick bar (34 pt wide). Thin rails under it for the other windows, in Nested Meter order, two at most.'],
+      ['Grok, Cursor', 'Grok is a single bar. Cursor’s two pools are two equal bars, the same as on the home widget.'],
+      ['Build', 'The shipped bar view at 4 pt and 2 pt, inside <code>AccessoryWidgetBackground()</code>. Nothing new to draw.'],
+      ['Risk', 'The rails are 2 pt, the smallest thing on the Lock Screen. They read as “there are more limits” more than as exact levels.']
+    ] },
+  { id: '11B', name: 'Nested Badge, labelled', fam: 'Circle', from: 'Nested Meter · replaces 02', fresh: true,
+    pitch: 'The same idea with <b>the mark beside the number, wider bars, and the next window named underneath</b> (“5-hour 72%”).',
+    cells: d => ORDER.map(k => [nbadgeB(d[k]), d[k].name]),
+    reads: [
+      ['Shows', 'Mark and number on one line, a 44 pt nested bar, then the first other window as text.'],
+      ['Grok, Cursor', 'Grok has no other window, so the caption gives its reset day. Cursor names its other pool (“Models 69%”).'],
+      ['Trade-off', 'More information than 11A, but four lines in a 72 pt circle is as dense as these get. Compare them side by side on the Pale wallpaper.']
+    ] },
+  { id: '12A', name: 'Gauge Pair', fam: 'Rectangle', from: 'Tightest First · replaces 07 and 09', fresh: true,
+    pitch: 'Two of your approved Tightest Gauges side by side: <b>the two lowest limits you have.</b> Two circles plus the 16 pt gap is exactly one rectangle’s width.',
+    cells: d => [[gaugePair(all(d)), 'Automatic · two lowest of all four'], [gaugePair([d.claude]), 'Claude'], [gaugePair([d.cursor]), 'Cursor'], [gaugePair([d.grok]), 'Grok · one limit']],
+    reads: [
+      ['Shows', 'Automatic ranks every provider and shows the lowest two. Pinned to one provider, it shows that provider’s two lowest windows.'],
+      ['One limit', 'Grok has a single pool, so the second slot says “Only limit” and when it resets.'],
+      ['Build', 'The 03 gauge drawn twice. It reads like two circles placed next to each other, which is the point: it matches the circle row.']
+    ] },
+  { id: '12B', name: 'Gauge + List', fam: 'Rectangle', from: 'Tightest First · replaces 07 and 09', fresh: true,
+    pitch: 'The lowest limit as a Tightest Gauge, with <b>the next two lowest listed beside it</b> as small bars.',
+    cells: d => [[gaugeList(all(d)), 'Automatic · lowest of all four'], [gaugeList([d.claude]), 'Claude'], [gaugeList([d.cursor]), 'Cursor'], [gaugeList([d.grok]), 'Grok · one limit']],
+    reads: [
+      ['Shows', 'The gauge on the left, then two rows: mark, window name, a 3 pt bar and its number.'],
+      ['Trade-off', 'Three limits instead of two, but the list is small and text-heavy, the thing you turned down in 07.']
+    ] }
+];
+
+/* ============================================================
+   PHONES
+   ============================================================ */
+const STATUS = '<svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="8" width="3" height="4" rx="1" fill="#fff"/><rect x="5" y="5.5" width="3" height="6.5" rx="1" fill="#fff"/><rect x="10" y="3" width="3" height="9" rx="1" fill="#fff"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#fff"/></svg><svg width="27" height="13" viewBox="0 0 27 13"><rect x="0.5" y="0.5" width="23" height="12" rx="3.6" fill="none" stroke="rgba(255,255,255,.55)"/><rect x="2" y="2" width="17" height="9" rx="2.2" fill="#fff"/><rect x="24.6" y="4.2" width="1.8" height="4.6" rx="0.9" fill="rgba(255,255,255,.55)"/></svg>';
+const FLASH = '<svg width="20" height="22" viewBox="0 0 20 22"><path fill="#fff" d="M5 1h10l-1.4 5H6.4L5 1zm1.6 6.5h6.8V20a1.5 1.5 0 0 1-1.5 1.5H8.1A1.5 1.5 0 0 1 6.6 20V7.5z"/><circle cx="10" cy="12" r="1.3" fill="#000"/></svg>';
+const CAM = '<svg width="24" height="20" viewBox="0 0 24 20"><path fill="#fff" d="M3 4.5h4l2-2.5h6l2 2.5h4a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V6.5a2 2 0 0 1 2-2z"/><circle cx="12" cy="11.5" r="4.4" fill="#000"/></svg>';
+function phone(inl, row) {
+  return `<div class="phone"><div class="island"></div><div class="ph-status">${STATUS}</div><div class="ph-date">${dateline(inl)}</div><div class="ph-clock">9:41</div><div class="ph-row">${row.join('')}</div><div class="ph-btn" style="left:46px">${FLASH}</div><div class="ph-btn" style="right:46px">${CAM}</div><div class="ph-home"></div></div>`;
+}
+function renderPhones() {
+  const d = data();
+  const P = [
+    { t: 'Every provider', c: 'Inline Readout (Automatic) and four Vessel Badges, one per provider.', inl: inlAuto([d.claude, d.codex]), row: ORDER.map(k => vbadge(d[k])) },
+    { t: 'Two plus the tightest', c: 'Inline (Tightest First), Nested Rows for the two widget providers, Tightest Gauge on Automatic, and a Liquid Dial for Cursor.', inl: inlTight(all(d)), row: [nrowsAuto([d.claude, d.codex]), tgauge(all(d)), ldial(d.cursor)] },
+    { t: 'Two rectangles', c: 'Inline for Claude, then Gauge Pair (12A) and Twin Vessels.', inl: inlOne(d.claude), row: [gaugePair(all(d)), twinAuto([d.claude, d.codex])] }
+  ];
+  document.getElementById('phones').innerHTML = P.map(p => `<div class="phonecell">${phone(p.inl, p.row)}<div class="phcap"><b>${p.t}</b>${p.c}</div></div>`).join('');
+}
+
+/* ============================================================
+   RENDER
+   ============================================================ */
+let state = {};
+try { state = JSON.parse(localStorage.getItem(NS) || '{}') || {}; } catch (e) {}
+state.v = state.v || {}; state.f = state.f || {}; state.c = state.c || {}; state.d = state.d || {};
+const save = () => { try { localStorage.setItem(NS, JSON.stringify(state)); } catch (e) {} };
+const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+function plateHTML(o, d) {
+  const z = +S.zoom, cells = o.cells(d);
+  if (o.inline) return `<div class="plate inl" style="gap:22px">${cells.map(c => `<div class="cell"><div style="zoom:${z}">${dateline(c[0])}</div><div class="clab">${c[1]}</div></div>`).join('')}</div>`;
+  return `<div class="plate" style="gap:24px ${Math.round(16 * z + 6)}px">${cells.map(c => `<div class="cell"><div style="zoom:${z}">${c[0]}</div><div class="clab">${c[1]}</div></div>`).join('')}</div>`;
+}
+function ideaHTML(o, d) {
+  return `
+    <section class="idea" data-id="${o.id}">
+      <div class="ihead"><span class="inum">${o.id}</span><h2>${o.name}</h2><span class="tag fam">${o.fam}</span><span class="tag${o.fresh ? ' new' : ''}">${o.from}</span>${o.pick ? '<span class="tag pick">Start-small pick</span>' : ''}</div>
+      <p class="pitch">${o.pitch}</p>
+      ${plateHTML(o, d)}
+      <dl class="reads">${o.reads.map(r => `<dt${r[0] === 'Risk' || r[0] === 'Question' ? ' class="risk"' : ''}>${r[0]}</dt><dd>${r[1]}</dd>`).join('')}</dl>
+      <div class="vbar"><div class="vgroup">${[['approve', 'Approve'], ['deny', 'Deny'], ['discuss', 'Discuss']].map(x => `<label class="vlabel ${x[0]}"><input type="radio" name="v-${o.id}" value="${x[0]}"${state.v[o.id] === x[0] ? ' checked' : ''}>${x[1]}</label>`).join('')}</div>
+        <label class="first"><input type="checkbox"${state.f[o.id] ? ' checked' : ''}>In the first set</label>
+        <textarea class="cmt" rows="1" placeholder="Comment on ${o.name}">${esc(state.c[o.id] || '')}</textarea></div>
+    </section>`;
+}
+function renderIdeas() {
+  const d = data();
+  document.getElementById('ideas2').innerHTML = IDEAS2.map(o => ideaHTML(o, d)).join('');
+  document.getElementById('ideas').innerHTML = IDEAS.map(o => ideaHTML(o, d)).join('');
+  document.querySelectorAll('.idea').forEach(sec => {
+    const id = sec.getAttribute('data-id');
+    sec.querySelectorAll('input[type=radio]').forEach(i => i.addEventListener('click', () => { if (state.v[id] === i.value) { state.v[id] = null; i.checked = false; } else state.v[id] = i.value; save(); }));
+    sec.querySelector('input[type=checkbox]').addEventListener('change', e => { state.f[id] = e.target.checked; save(); });
+    sec.querySelector('textarea').addEventListener('input', e => { state.c[id] = e.target.value; save(); });
+  });
+}
+const DECISIONS = [
+  ['cfg', 'How the Lock Screen widget is set up', 'What Edit Widget shows', [['separate', 'Separate Lock Screen widget: Style + Provider (rec.)'], ['same', 'Add Lock Screen sizes to the current widget, plus Provider'], ['fixed', 'No Style option: one fixed design per size']]],
+  ['cue', 'Low cue', 'Colour can’t show, so ≤15% needs a shape', [['knock', 'Knockout number'], ['glyph', 'Warning glyph'], ['none', 'Number only']]],
+  ['rank', 'Tightest First on Automatic compares…', 'Applies to 03, 10 and 12', [['all', 'Every provider the Mac sends (rec.)'], ['two', 'Only the two widget providers']]],
+  ['nmcircle', 'Nested Meter circle', 'Round 2', [['a', '11A Nested Badge (rec.)'], ['b', '11B Nested Badge, labelled']]],
+  ['tfrect2', 'Tightest First rectangle', 'Round 2', [['pair', '12A Gauge Pair (rec.)'], ['list', '12B Gauge + List']]]
+];
+function renderDecisions() {
+  document.getElementById('drows').innerHTML = DECISIONS.map(q => `<div class="drow" data-q="${q[0]}"><div class="q">${q[1]}<span>${q[2]}</span></div><div class="vgroup">${q[3].map(x => `<label class="vlabel opt"><input type="radio" name="d-${q[0]}" value="${x[0]}"${state.d[q[0]] === x[0] ? ' checked' : ''}>${x[1]}</label>`).join('')}</div></div>`).join('');
+  document.querySelectorAll('.drow').forEach(r => {
+    const q = r.getAttribute('data-q');
+    r.querySelectorAll('input').forEach(i => i.addEventListener('click', () => { if (state.d[q] === i.value) { state.d[q] = null; i.checked = false; } else state.d[q] = i.value; save(); }));
+  });
+  const g = document.getElementById('gnotes'); g.value = state.g || ''; g.oninput = () => { state.g = g.value; save(); };
+}
+function renderControls() {
+  document.getElementById('controls').innerHTML = CONTROLS.map(c => `<div class="ctl"><span>${c[1]}</span><div class="seg-ctl">${c[2].map(o => `<button type="button" data-k="${c[0]}" data-v="${o[0]}" class="${S[c[0]] === o[0] ? 'on' : ''}">${o[1]}</button>`).join('')}</div></div>`).join('');
+  document.querySelectorAll('.seg-ctl button').forEach(b => b.addEventListener('click', () => {
+    S[b.getAttribute('data-k')] = b.getAttribute('data-v');
+    try { localStorage.setItem(NS + ':view', JSON.stringify(S)); } catch (e) {}
+    renderAll();
+  }));
+}
+function renderAll() {
+  document.documentElement.style.setProperty('--wall', WALLS[S.wall]);
+  document.body.classList.toggle('aod', S.aod === 'on');
+  renderControls(); renderPhones(); renderIdeas();
+}
+function exportMD() {
+  const lab = k => { const c = CONTROLS.find(x => x[0] === k); return c[2].find(o => o[0] === S[k])[1]; };
+  const L = ['## Lock Screen widget ideas: answers', '', 'Viewed with: ' + ['wall', 'data', 'cue', 'aod'].map(k => lab(k)).join(' · '), '', '### Decisions'];
+  DECISIONS.forEach(q => { const a = q[3].find(x => x[0] === state.d[q[0]]); L.push('- ' + q[1] + ': ' + (a ? a[1].replace(' (rec.)', '') : 'no answer')); });
+  L.push('', '### Ideas');
+  IDEAS2.concat(IDEAS).forEach(o => {
+    const v = state.v[o.id], f = state.f[o.id], c = (state.c[o.id] || '').trim();
+    L.push('- ' + o.id + ' ' + o.name + ' (' + o.fam + '): ' + (v ? { approve: 'Approve', deny: 'Deny', discuss: 'Discuss' }[v] : 'No verdict') + (f ? ' · first set' : '') + (c ? ' — ' + c.replace(/\n+/g, ' ') : ''));
+  });
+  if ((state.g || '').trim()) L.push('', '### Overall notes', state.g.trim());
+  return L.join('\n');
+}
+function fb(t) { const a = document.createElement('textarea'); a.value = t; document.body.appendChild(a); a.select(); try { document.execCommand('copy'); } catch (e) {} document.body.removeChild(a); }
+document.getElementById('btnCopy').addEventListener('click', () => {
+  const md = exportMD(), ok = () => { const e = document.getElementById('copyOk'); e.textContent = 'Copied'; setTimeout(() => { e.textContent = ''; }, 1800); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(md).then(ok, () => { fb(md); ok(); }); else { fb(md); ok(); }
+});
+document.getElementById('btnShow').addEventListener('click', () => { const e = document.getElementById('exportPreview'); e.textContent = exportMD(); e.style.display = e.style.display === 'block' ? 'none' : 'block'; });
+document.getElementById('btnReset').addEventListener('click', () => { if (confirm('Clear every answer and comment?')) { state = { v: {}, f: {}, c: {}, d: {} }; save(); renderIdeas(); renderDecisions(); } });
+
+const start = () => { renderAll(); renderDecisions(); };
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(start); else start();
+})();
+</script>
+</body>
+</html>

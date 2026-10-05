@@ -507,6 +507,50 @@ public enum DemoScreenshotData {
         }
     }
 
+    /// U3 (2026-10-04 Lock Screen plan): extra fixtures never enter the home job set.
+    public static let lockScreenFixtureNames = styleFixtureNames + [
+        "thirdProviderTightest", "pinnedAbsent", "cursorLonePool", "cursorIncluded", "resetReached",
+    ]
+
+    public static func lockScreenFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
+        if let home = styleFixture(name, now: now) { return home }
+        func window(_ label: String, percent: Double, resetIn: TimeInterval = 3 * 86_400) -> WidgetWindowSummary {
+            WidgetWindowSummary(
+                kind: .other(label), label: label, percentRemaining: percent,
+                resetSchedule: .scheduled(now.addingTimeInterval(resetIn)), resetLabel: nil,
+                severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: percent)),
+                billingPeriodDuration: 30 * 86_400
+            )
+        }
+        func cursor(_ windows: [WidgetWindowSummary]) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: ProviderID.cursor.raw, displayName: "Cursor", planLabel: "Pro+",
+                                  freshness: .live, windows: windows, renewalDate: nil)
+        }
+        func envelope(_ providers: [WidgetProviderSummary], selection: [String]? = nil) -> WidgetSnapshotEnvelope {
+            WidgetSnapshotEnvelope(generatedAt: now.addingTimeInterval(-240), status: .enabled,
+                                   providers: providers, widgetProviderSelection: selection ?? providers.map(\.id))
+        }
+        switch name {
+        case "thirdProviderTightest":
+            guard let base = styleFixture("claudeCodex", now: now) else { return nil }
+            return envelope(base.providers + [cursor([window("Cursor Models", percent: 69), window("Other Models", percent: 8)])],
+                            selection: [ProviderID.claude.raw, ProviderID.codex.raw])
+        case "pinnedAbsent":
+            return styleFixture("claudeCodex", now: now)
+        case "cursorLonePool":
+            return envelope([cursor([window("Cursor Models", percent: 69)])])
+        case "cursorIncluded":
+            return envelope([cursor([window("Included", percent: 37)])])
+        case "resetReached":
+            let reached = WidgetWindowSummary(kind: .weekly, label: "Weekly", percentRemaining: 8,
+                                              resetSchedule: .scheduled(now.addingTimeInterval(-60)),
+                                              resetLabel: nil, severity: .critical)
+            return envelope([WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
+                                                  freshness: .live, windows: [reached], renewalDate: nil)])
+        default: return nil
+        }
+    }
+
     // MARK: Helpers
 
     private static func window(

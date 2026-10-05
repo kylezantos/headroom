@@ -57,6 +57,17 @@ public enum WidgetStatusState: Sendable, Equatable, CaseIterable {
         }
     }
 
+    /// R9 (2026-10-04 Lock Screen plan): one word in the circle's caption slot.
+    public var lockScreenWord: String {
+        switch self {
+        case .macSetupNeeded, .iosSetupNeeded: "Setup"
+        case .macPending, .iosWaitingForMac: "Waiting"
+        case .macDisabled, .iosDisabled: "Off"
+        case .iosCorrupt: "Unreadable"
+        case .macIncompatibleSchema, .iosIncompatibleSchema: "Update"
+        }
+    }
+
     /// WCW4: how full the vessel mark beside the card draws, 0…1.
     ///
     /// The mark is the only picture on a status card, so it must not imply a reading. The two

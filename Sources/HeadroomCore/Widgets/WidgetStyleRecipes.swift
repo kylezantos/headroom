@@ -76,6 +76,31 @@ public struct WidgetRankedRow: Sendable, Equatable, Identifiable {
     public var id: String { "\(providerID)|\(window.id)" }
 }
 
+/// KTD3 (2026-10-04 Lock Screen plan): home and Lock Screen use the same value-aware
+/// single-provider pick and stable cross-provider ranking, with each caller owning its scope.
+public enum WidgetProviderSelection {
+    public static func singleProvider(from providers: [WidgetStyleProviderRecipe]) -> WidgetStyleProviderRecipe? {
+        guard let first = providers.first else { return nil }
+        return first.hasDisplayValue ? first : providers.first(where: \.hasDisplayValue) ?? first
+    }
+
+    public static func rankedRows(from providers: [WidgetStyleProviderRecipe]) -> [WidgetRankedRow] {
+        let all = providers.flatMap { provider in
+            provider.windows.map {
+                (row: WidgetRankedRow(providerID: provider.id, providerName: provider.summary.displayName, window: $0), window: $0)
+            }
+        }
+        let rankedWindows = WidgetWindowRanking.ranked(all.map(\.window))
+        var remaining = all
+        var rows: [WidgetRankedRow] = []
+        for window in rankedWindows {
+            guard let index = remaining.firstIndex(where: { $0.window == window }) else { continue }
+            rows.append(remaining.remove(at: index).row)
+        }
+        return rows
+    }
+}
+
 /// KTD9: one column of Liquid Level's full-bleed wash.
 public struct WidgetWashSegment: Sendable, Equatable, Identifiable {
     public let providerID: String
@@ -118,25 +143,14 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
         var shown = envelope.widgetProviders.map(WidgetStyleProviderRecipe.init(summary:))
         // R6: small Vessel Hero and small Liquid Level have room for one provider. Take the
         // first, unless it has nothing to show yet and the second does.
-        if family == .small, style == .vesselHero || style == .liquidLevel, let first = shown.first {
-            let pick = first.hasDisplayValue ? first : shown.first(where: \.hasDisplayValue) ?? first
+        if family == .small, style == .vesselHero || style == .liquidLevel,
+           let pick = WidgetProviderSelection.singleProvider(from: shown) {
             shown = [pick]
         }
         providers = shown
 
         if style == .tightestFirst, family == .large {
-            let all = shown.flatMap { provider in
-                provider.windows.map {
-                    (row: WidgetRankedRow(providerID: provider.id, providerName: provider.summary.displayName, window: $0), window: $0)
-                }
-            }
-            let rankedWindows = WidgetWindowRanking.ranked(all.map(\.window))
-            var remaining = all
-            var rows: [WidgetRankedRow] = []
-            for window in rankedWindows {
-                guard let index = remaining.firstIndex(where: { $0.window == window }) else { continue }
-                rows.append(remaining.remove(at: index).row)
-            }
+            let rows = WidgetProviderSelection.rankedRows(from: shown)
             rankedRows = rows
             rankedRowsLadder = rows.isEmpty ? [] : (1...rows.count).reversed().map { Array(rows.prefix($0)) }
             providersWithoutRows = shown.filter(\.windows.isEmpty)

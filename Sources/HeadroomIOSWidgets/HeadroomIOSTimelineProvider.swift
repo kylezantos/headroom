@@ -13,12 +13,12 @@ struct HeadroomIOSTimelineProvider: AppIntentTimelineProvider {
         if context.isPreview {
             return entry(date: .now, state: .demo(DemoScreenshotData.envelope), configuration: configuration)
         }
-        return entry(date: .now, state: resolvedState(), configuration: configuration)
+        return entry(date: .now, state: HeadroomIOSWidgetStateResolver.resolvedState(demoEnvelope: DemoScreenshotData.envelope), configuration: configuration)
     }
 
     func timeline(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> Timeline<HeadroomIOSWidgetEntry> {
         let now = Date.now
-        let state = resolvedState()
+        let state = HeadroomIOSWidgetStateResolver.resolvedState(demoEnvelope: DemoScreenshotData.envelope)
         let envelope: WidgetSnapshotEnvelope?
         switch state {
         case .demo(let content), .content(let content): envelope = content
@@ -43,9 +43,14 @@ struct HeadroomIOSTimelineProvider: AppIntentTimelineProvider {
         )
     }
 
-    private func resolvedState() -> IOSWidgetSnapshotState {
+}
+
+/// KTD10 (2026-10-04 Lock Screen plan): both iOS kinds share newest-valid cache/iCloud
+/// resolution; their demo envelopes stay independent and never enter persistence.
+enum HeadroomIOSWidgetStateResolver {
+    static func resolvedState(demoEnvelope: @autoclosure () -> WidgetSnapshotEnvelope) -> IOSWidgetSnapshotState {
         if CompanionDemoModeStore.appGroup().isEnabled {
-            return .demo(DemoScreenshotData.envelope)
+            return .demo(demoEnvelope())
         }
         let cache = WidgetSnapshotCache.appGroup()
         let sync = iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore())
@@ -61,7 +66,7 @@ struct HeadroomIOSTimelineProvider: AppIntentTimelineProvider {
         return .from(cacheRead: cacheRead, syncRead: syncRead)
     }
 
-    private func adoptable(remote: WidgetSnapshotEnvelope, into cacheRead: WidgetSnapshotCacheRead) -> Bool {
+    private static func adoptable(remote: WidgetSnapshotEnvelope, into cacheRead: WidgetSnapshotCacheRead) -> Bool {
         guard let cached = cacheRead.envelope else { return true }
         return remote.generatedAt > cached.generatedAt
     }

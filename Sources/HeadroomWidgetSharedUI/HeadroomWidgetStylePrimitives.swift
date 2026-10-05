@@ -19,7 +19,7 @@ public enum HeadroomWidgetRenderingContext: Sendable, Equatable {
     case fullColor
     /// Accented or vibrant (iOS Tinted/Clear, macOS desktop widgets behind windows): one ink.
     case monochrome
-    /// Full color with the background stripped (StandBy, the Lock Screen).
+    /// Full color with the background stripped (StandBy). Lock Screen vibrant is monochrome.
     case stripped
 
     public var usesFullColorTokens: Bool { self == .fullColor }

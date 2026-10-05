@@ -99,6 +99,7 @@ targets:
       - path: Sources/HeadroomCore/Models/ProviderID.swift
       - path: Sources/HeadroomCore/Models/Countdown.swift
       - path: Sources/HeadroomCore/Models/ResetSchedule.swift
+      - path: Sources/HeadroomCore/Models/ResetClockFormatter.swift
       - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Models/UsageSeverityColorValues.swift
       - path: Sources/HeadroomCore/Models/ProviderSetup.swift
@@ -139,6 +140,7 @@ targets:
       - path: Sources/HeadroomCore/Models/ProviderID.swift
       - path: Sources/HeadroomCore/Models/Countdown.swift
       - path: Sources/HeadroomCore/Models/ResetSchedule.swift
+      - path: Sources/HeadroomCore/Models/ResetClockFormatter.swift
       - path: Sources/HeadroomCore/Models/BrandColorValues.swift
       - path: Sources/HeadroomCore/Models/UsageSeverityColorValues.swift
       - path: Sources/HeadroomCore/Models/ProviderSetup.swift

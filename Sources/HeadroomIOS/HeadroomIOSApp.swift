@@ -8,6 +8,7 @@ struct HeadroomIOSApp: App {
     var body: some Scene {
         WindowGroup {
             IOSCompanionView(appearance: appearanceBinding)
+                .demoWidgetWall()
                 .preferredColorScheme(appearanceBinding.wrappedValue.colorScheme)
         }
     }

@@ -32,6 +32,9 @@ struct HeadroomAppIconView: View {
                 .fill(Color(red: 0.055, green: 0.070, blue: 0.095))
             VesselMark(fill: 0.58)
                 .frame(width: size * 0.36, height: size * 0.62)
+                // U10: the vessel's neutral inks follow the scheme; the icon tile is always
+                // dark, so it takes the dark inks in either appearance.
+                .environment(\.colorScheme, .dark)
         }
     }
 

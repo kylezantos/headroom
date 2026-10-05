@@ -48,7 +48,8 @@ struct SettingsAccountLoadingState {
         let candidates = snapshot.windows.filter { !$0.freshness.isUnavailable }
         let window = candidates.first(where: { choice.matches($0.kind) })
             ?? candidates.min(by: { $0.percentRemaining < $1.percentRemaining })
-        return window.map { mode.fraction(for: $0) } ?? LoadingMotionConstants.decorativeLevel
+        // KTD6.2: the same normalized fill the popover row and menu bar draw.
+        return window.map { UsageMeterReading(window: $0).fraction(for: mode) } ?? LoadingMotionConstants.decorativeLevel
     }
 }
 

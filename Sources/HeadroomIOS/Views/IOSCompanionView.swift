@@ -116,40 +116,24 @@ struct IOSCompanionView: View {
                 onExitDemo: exitDemo,
                 onCheckNow: pullToCheckNow
             )
-        case .paused:
-            StatusScreen(
-                title: "Companion Sync Paused",
-                message: "Turn Sync snapshot to iPhone back on in Headroom Settings on your Mac.",
-                onExploreDemo: enterDemo,
-                onRefresh: refresh
-            )
-            .navigationTitle("Headroom")
-        case .accountScopeUnavailable:
-            StatusScreen(
-                title: "iCloud Not Available",
-                message: "Make sure iCloud is enabled for Headroom on this device and your Mac.",
-                onExploreDemo: enterDemo,
-                onRefresh: refresh
-            )
-            .navigationTitle("Headroom")
-        case .waiting(.some(.updatePhone)):
-            StatusScreen(
-                title: "Update Needed",
-                message: "Update Headroom on your Mac and iPhone so their snapshot formats match.",
-                onExploreDemo: enterDemo,
-                onRefresh: refresh
-            )
-            .navigationTitle("Headroom")
-        case .waiting:
-            StatusScreen(
-                title: "Waiting for Mac",
-                message: "Open Headroom on your Mac to start syncing your usage to this device.",
-                isWaiting: true,
-                onExploreDemo: enterDemo,
-                onRefresh: refresh
-            )
-            .navigationTitle("Headroom")
+        case .some(let state):
+            // U10: one Core row per non-content state (iCloud unavailable, paused, waiting,
+            // update needed), copy and actions included.
+            if let screen = statusScreen(for: state) {
+                StatusScreen(screen: screen, onExploreDemo: enterDemo, onRefresh: refresh)
+                    .navigationTitle("Headroom")
+            }
         }
+    }
+
+    /// U10: the status screen for a non-content state. DEBUG captures and UI tests can pose
+    /// the screens no fixture reaches (`HEADROOM_UI_TEST_STATUS`) over a non-content state.
+    private func statusScreen(for state: CompanionResolvedState) -> CompanionStatusScreen? {
+        guard let screen = CompanionStatusScreen(state) else { return nil }
+        #if DEBUG
+        if let posed = CompanionPreviewSeed.uiTestStatus { return posed }
+        #endif
+        return screen
     }
 
     @Environment(\.colorScheme) private var scheme

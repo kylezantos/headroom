@@ -112,3 +112,35 @@ actor RecordingLifecycle: CompanionSyncLifecycle {
     func companionSyncDidPurge() async { events.append("purge") }
     func companionSyncAccountDidChange() async { events.append("account") }
 }
+
+/// The publisher's timer sleep with the real clock taken out: records every requested delay
+/// and then parks (cancellably) so only the test's own `tick()` calls drive decisions.
+final class RecordingSleep: @unchecked Sendable {
+    private let lock = NSLock()
+    private var delays: [TimeInterval] = []
+    private var cursor = 0
+
+    var requested: [TimeInterval] { lock.withLock { delays } }
+
+    /// The next delay the publisher scheduled, in order. The timer task records it once it
+    /// starts, so this waits (bounded) rather than racing it.
+    func next() async -> TimeInterval? {
+        for _ in 0..<2_000 {
+            let delay: TimeInterval? = lock.withLock {
+                guard cursor < delays.count else { return nil }
+                cursor += 1
+                return delays[cursor - 1]
+            }
+            if let delay { return delay }
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        return nil
+    }
+
+    var sleep: @Sendable (TimeInterval) async -> Void {
+        { [self] seconds in
+            lock.withLock { delays.append(seconds) }
+            try? await Task.sleep(for: .seconds(3_600))
+        }
+    }
+}

@@ -45,6 +45,13 @@ official `claude` CLI's `/usage` panel instead.
   physical iPhone must show a new Mac account within one publish, and `--dump-phone-sync` on the
   signed build must list the keys and sizes. Only the unbundled dump has run.
 
+- **Use-it-up reminders still round the raw window (review #16 residual).** The popover, menu
+  bar, pill arranger and Settings tile print the normalized `UsageMeterReading` integer (KTD6.2),
+  so 15.46% left reads 16%. `UseItUpEvaluator` still takes `Int(window.percentRemaining.rounded())`
+  and gates `percentLeft >= rule.threshold` on it, so a banner can say 15% where the popover said
+  16%, and a window can sit one point either side of a rule's threshold. Moving it changes when
+  reminders fire, so it needs its own decision and tests.
+
 ## Check-now follow-ups (2026-10-05, iPhone parity U6)
 
 - **Check-now is dormant on the phone until loader adoption.** `CompanionLoaderAdoption` is off

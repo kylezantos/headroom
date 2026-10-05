@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 // iPhone parity U6 (KTD14, R18, R19): the phone side of check-now. Pure state machine plus
 // a thin client that owns the KVS request key and the App Group state. Compiled into both
@@ -355,6 +356,25 @@ public struct CheckNowStatus: Equatable, Sendable {
 
 // MARK: - Client
 
+/// U6 spike instrumentation (`docs/qa/2026-10-check-now-latency-spike.md`): one line per
+/// state change, the request ID's first eight characters only, static wording otherwise.
+public enum CheckNowLog {
+    public static let logger = Logger(subsystem: "com.kylezantos.headroom", category: "checknow")
+
+    public static func tag(_ requestID: String) -> String { String(requestID.prefix(8)) }
+
+    static func name(_ phase: CheckNowPhase) -> String {
+        switch phase {
+        case .asking: "asking"
+        case .checking: "checking"
+        case .noAnswer: "noAnswer"
+        case .notFinished: "notFinished"
+        case .finished: "finished"
+        case .cooldown: "cooldown"
+        }
+    }
+}
+
 /// Where the install's one request state lives: the App Group, so the app, the widget
 /// extension and controls coalesce onto one outstanding request (Decision 2).
 public protocol CheckNowStateStoring: Sendable {
@@ -445,6 +465,7 @@ public final class CheckNowClient: @unchecked Sendable {
                 else { return .rereadOnly }
                 store.synchronize()
                 stateStore.save(state)
+                CheckNowLog.logger.info("phone request \(CheckNowLog.tag(state.requestID), privacy: .public) written")
                 return .requested(CheckNowStatus.make(state: state, snapshot: snapshot, now: at))
             }
         }
@@ -456,12 +477,18 @@ public final class CheckNowClient: @unchecked Sendable {
         lock.withLock {
             guard var state = stateStore.load() else { return nil }
             let at = now()
+            let before = CheckNowMachine.phase(of: state, now: at)
             if case .value(let receipt) = CompanionSyncCodec.decodeReceipt(store.data(forKey: CompanionSyncKeys.receipt)) {
                 state = CheckNowMachine.receive(receipt, into: state, now: at)
             }
             state = CheckNowMachine.receive(snapshot, into: state, now: at)
             stateStore.save(state)
-            return CheckNowStatus.make(state: state, snapshot: snapshot, now: at)
+            let status = CheckNowStatus.make(state: state, snapshot: snapshot, now: at)
+            if CheckNowLog.name(before) != CheckNowLog.name(status.phase) {
+                CheckNowLog.logger.info(
+                    "phone request \(CheckNowLog.tag(state.requestID), privacy: .public) \(CheckNowLog.name(status.phase), privacy: .public) after \(at.timeIntervalSince(state.askedAt), format: .fixed(precision: 1), privacy: .public)s")
+            }
+            return status
         }
     }
 }

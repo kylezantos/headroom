@@ -219,6 +219,8 @@ public final class CheckNowCoordinator {
                 continue
             }
             admitted.append(Intake(device: device, request: request))
+            CheckNowLog.logger.info(
+                "mac request \(CheckNowLog.tag(id), privacy: .public) admitted (\(fromLaunch ? "launch" : "live", privacy: .public))")
         }
         admit(admitted)
     }
@@ -265,6 +267,11 @@ public final class CheckNowCoordinator {
 
     private func progressDidChange() {
         guard var current = run, let progress = host?.checkNowProgress else { return }
+        if let landed = progress.lastLanded, progress.completed > (current.progress?.completed ?? 0) {
+            // Spike: consecutive landings of one provider give that lane's per-probe time.
+            CheckNowLog.logger.info(
+                "mac landed \(landed.providerID, privacy: .public) \(progress.completed)/\(progress.total)")
+        }
         current.progress = progress
         run = current
         writeActiveReceipt(spaced: true)
@@ -410,6 +417,8 @@ public final class CheckNowCoordinator {
         }
         store.set(bytes, forKey: CompanionSyncKeys.receipt)
         store.synchronize()
+        CheckNowLog.logger.info(
+            "mac receipt \(receipt.state.rawValue, privacy: .public) for \(receipt.requestIDs.map(CheckNowLog.tag).joined(separator: ","), privacy: .public)")
         lastReceiptWriteAt = configuration.now()
         lastFailure = nil
     }

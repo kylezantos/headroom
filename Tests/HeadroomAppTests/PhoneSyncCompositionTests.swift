@@ -30,4 +30,20 @@ struct PhoneSyncCompositionTests {
         #expect(AppComposition.usesInertPhoneSync())
         #expect(AppComposition.phoneSyncExporter() == nil)
     }
+
+    /// U6 / R19 / KTD21: no check-now coordinator under `--demo` or in a test host, so
+    /// neither ever runs a refresh for a phone or writes a receipt.
+    @Test func demoAndTestHostsComposeNoCheckNowCoordinator() {
+        let suite = "headroom.checknow.composition.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = UsageStore(providers: [], preferences: Preferences(defaults: defaults))
+        #expect(AppComposition.makeCheckNowCoordinator(
+            store: store, arguments: ["Headroom", "--demo"], environment: [:]) == nil)
+        #expect(AppComposition.makeCheckNowCoordinator(
+            store: store, arguments: ["Headroom"],
+            environment: ["XCTestConfigurationFilePath": "/tmp/probe.xctestconfiguration"]) == nil)
+        #expect(AppComposition.makeCheckNowCoordinator(store: store) == nil)
+        #expect(CompanionSyncObservers.checkNow == nil)
+    }
 }

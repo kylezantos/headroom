@@ -20,7 +20,7 @@ struct AboutLinksTests {
     }
 
     @Test func everyLinkIsHTTPSWithAHostAndAUniqueRowID() {
-        let all = [AboutLinks.tipJar] + AboutLinks.maker
+        let all = [AboutLinks.tipJar, AboutLinks.getHeadroomForMac] + AboutLinks.maker
         for link in all {
             #expect(link.url.scheme == "https")
             #expect(link.url.host() != nil)
@@ -47,5 +47,11 @@ extension AboutLinksTests {
         #expect(AboutLinks.iPhoneApp.url.absoluteString == "https://apps.apple.com/app/id6787519784")
         #expect(AboutLinks.iPhoneApp.url.scheme == "https")
         #expect(AboutLinks.iPhoneApp.title == "Get Headroom for iPhone")
+    }
+
+    /// U12 / R23: the phone's Mac link goes to the website, not the tip jar.
+    @Test func getHeadroomForMacOpensTheWebsite() {
+        #expect(AboutLinks.getHeadroomForMac.url.absoluteString == "https://headroom.zantos.co")
+        #expect(AboutLinks.getHeadroomForMac.title == "Get Headroom for Mac")
     }
 }

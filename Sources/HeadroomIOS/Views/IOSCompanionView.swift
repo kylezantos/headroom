@@ -40,7 +40,9 @@ struct IOSCompanionView: View {
                         appearance: $appearance,
                         onEnterDemo: enterDemo,
                         onExitDemo: exitDemo,
-                        forcesLargeDetent: opensSettingsForCapture
+                        forcesLargeDetent: opensSettingsForCapture,
+                        // U12: Settings › Demo switched the variant; re-read the demo data.
+                        onDemoVariantChange: { Task { await refresh() } }
                     )
                 }
         }
@@ -149,13 +151,16 @@ struct IOSCompanionView: View {
         isDemoMode && !DemoScreenshotData.isEnabled
     }
 
-    /// DEBUG-only: lets the case-study capture script open Settings on launch and shoot it
-    /// headlessly, with no UI automation. Compiled out of Release.
+    /// Lets a capture launch open Settings and shoot it headlessly, with no UI automation:
+    /// `--demo --demo-screen settings` in any build, and the DEBUG case-study preview seed.
     private var opensSettingsForCapture: Bool {
+        // KTD21 / U12: a `--demo --demo-screen settings` screenshot launch opens the sheet.
+        let launch = CompanionDemoLaunchOptions.current
+        if launch.isDemoLaunch && launch.screen == .settings { return true }
         #if DEBUG
-        CompanionPreviewSeed.previewScreen == .settings
+        return CompanionPreviewSeed.previewScreen == .settings
         #else
-        false
+        return false
         #endif
     }
 
@@ -169,6 +174,9 @@ struct IOSCompanionView: View {
             demoWidgetUnavailable = false
             suppressPersistedDemoForUITest = true
             demoModeStore.setEnabled(false)
+            // U12: a UI test that picked a variant in Settings › Demo leaves the App Group
+            // back on the unset default ("full"), so suites that read it start clean.
+            demoModeStore.setVariant("full")
             didApplyUITestReset = true
         }
         #endif

@@ -40,6 +40,17 @@ public enum AboutLinks {
 
     public static let makerName = "Kyle Zantos"
 
+    /// U12 / R23: the phone's one-line row to the Mac app. Kyle (S4-C): short enough that the
+    /// row never wraps, so the trailing edge carries only the outbound arrow, not the domain.
+    public static let getHeadroomForMac = AboutLink(
+        title: "Get Headroom for Mac",
+        destination: "headroom.zantos.co",
+        url: "https://headroom.zantos.co"
+    )
+
+    /// The phone's About header line. The phone has no tip jar this round (S4-C).
+    public static let companionTagline = "iPhone & iPad companion"
+
     /// The "Made by" rows, in display order. GitHub is the profile, not the repo: the
     /// repository is private, so a repo link would 404 for everyone but its owner.
     public static let maker: [AboutLink] = [

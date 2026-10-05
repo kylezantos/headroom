@@ -45,6 +45,26 @@ official `claude` CLI's `/usage` panel instead.
   physical iPhone must show a new Mac account within one publish, and `--dump-phone-sync` on the
   signed build must list the keys and sizes. Only the unbundled dump has run.
 
+## Check-now follow-ups (2026-10-05, iPhone parity U6)
+
+- **Check-now is dormant on the phone until loader adoption.** `CompanionLoaderAdoption` is off
+  (P5 identity gate failed), so phone surfaces resolve the v3 key, the resolver's winner is never
+  v4, and `CheckNowClient.pull` answers `.rereadOnly` (KTD14.1). U9's pull shows re-read only
+  until adoption flips. The Mac side is live as soon as a 1.5 phone writes a request.
+- **The latency spike has not run.** `docs/qa/2026-10-check-now-latency-spike.md` holds the
+  protocol and empty tables. Its 20-account write-throttling run needs either 20 real accounts
+  on a test Mac or a DEBUG publisher harness: `--demo multi-20` never writes iCloud (R37). The
+  per-probe constant (30 s) is provisional until then.
+- **A failed answer reuses the not-finished line.** When the Mac's forced flush fails (over
+  budget, write failure) it answers `failed`; the phone shows "Your Mac started checking but
+  hasn’t finished. Pull again later." No dedicated copy exists.
+- **Device UUID creation can race across processes.** `CheckNowDeviceIdentity` creates the
+  install's UUID on first read through App Group defaults with no file coordination; an app and
+  a widget extension reading it for the first time at once could each mint one, leaving one stale
+  request key until the 30-day prune.
+- **A launch with sync off skips the request scan.** Requests written before sync turns back on
+  were swept by sync-off anyway; requests written after reach the Mac by live notification.
+
 ## Focused render acceptance needs Screen Recording for the launching shell
 
 - `--menu-bar-only` and `--widgets-only` capture only through `screencapture -l` and fail

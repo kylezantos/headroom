@@ -95,7 +95,8 @@ extension UsageStore {
             // The same normalized selection the schema-3 export carries (KTD13).
             widgetProviderSelection: v3.widgetProviderSelection,
             widgetSparkEnabled: showCodexSparkCountersInWidgets,
-            reminderSummary: companionReminderSummary(), v3: v3)
+            reminderSummary: companionReminderSummary(),
+            answeredRequests: checkNowAnsweredRequests, v3: v3)
     }
 
     /// KTD9: suffixes follow stored registry order, never the main-first display order.

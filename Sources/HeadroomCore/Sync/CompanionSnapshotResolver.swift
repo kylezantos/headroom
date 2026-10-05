@@ -135,6 +135,12 @@ public struct CompanionResolvedContent: Equatable, Sendable {
     /// API spend rows in the Mac's spend order; a spend-only key has no provider card.
     public let apiSpend: [WidgetAPISpendSummary]
     public let freshness: CompanionFreshnessInputs
+    /// KTD14.7 (field contract, check-now): the manifest generation once every provider it
+    /// expects is at or above that manifest's entry — a provider the manifest references
+    /// without an entry is a documented terminal skeleton. Nil while any key lags, so one
+    /// newer provider can never satisfy a check's `finishedGeneration` on its own. Always
+    /// nil for lifted v3 content.
+    public internal(set) var assembledGeneration: Int64? = nil
 }
 
 public enum CompanionResolvedState: Equatable, Sendable {
@@ -480,7 +486,11 @@ extension CompanionSnapshotResolver {
             let key = CompanionSnapshotResolver.manifestFirstSeenKey(
                 sourceID: manifest.sourceID, generation: manifest.generation,
                 generatedAt: manifest.generatedAt)
-            return CompanionResolvedContent(
+            let assembled = wanted.allSatisfy { providerID in
+                guard let entry = manifest.providers[providerID] else { return true }
+                return (chosen[providerID]?.payload.payloadGeneration ?? -1) >= entry.payloadGeneration
+            }
+            var content = CompanionResolvedContent(
                 origin: .v4, notice: nil, sourceID: manifest.sourceID,
                 generation: manifest.generation, generatedAt: manifest.generatedAt.date,
                 chosenIntervalSeconds: manifest.chosenIntervalSeconds, display: manifest.display,
@@ -493,6 +503,8 @@ extension CompanionSnapshotResolver {
                 freshness: CompanionFreshnessInputs(
                     generatedAt: manifest.generatedAt.date, firstSeen: firstSeen(key),
                     largestEffectiveIntervalSeconds: largestInterval(manifest), isV3Only: false))
+            content.assembledGeneration = assembled ? manifest.generation : nil
+            return content
         }
 
         /// Decision 4: equal generation needs the exact-byte digest; ahead and behind keys

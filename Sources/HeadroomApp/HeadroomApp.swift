@@ -500,6 +500,10 @@ struct HeadroomApp: App {
                 claudeExecutableLocator: AppComposition.claudeExecutableLocator
             )
         }
+        // U6 (KTD14.2, KTD21): phone check-now requests reach the coordinator through the
+        // iCloud observer; it exists only where the phone publisher does.
+        let checkNow = AppComposition.makeCheckNowCoordinator(store: store)
+        CompanionSyncObservers.checkNow = checkNow
         self.preferences = preferences
         self.demoController = demoController
         _store = State(initialValue: store)
@@ -507,7 +511,12 @@ struct HeadroomApp: App {
         _systemIsDark = State(initialValue: SystemAppearance.isDark())
         AppDelegate.startUsageStore = {
             if demoController?.loading == true { demoController?.start() }
-            else { Task { await store.start() } }
+            else {
+                Task { await store.start() }
+                // Requests queued before now, and the launch scan's finds, join the launch
+                // refresh: the store's one-full-refresh guard makes it one pass either way.
+                checkNow?.start()
+            }
         }
         #if HEADROOM_BENCH
         if let reportURL = LoadingNativeBench.reportURL {
@@ -1329,6 +1338,22 @@ enum AppComposition {
         companionPhoneSync
     }
 
+    /// U6 (KTD14.2, KTD21): the phone check-now coordinator. Like the publisher it exists
+    /// only in a real launch — never under `--demo`, the harnesses or the XCTest host — and
+    /// answers as this Mac's lineage.
+    @MainActor static func makeCheckNowCoordinator(
+        store: UsageStore,
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> CheckNowCoordinator? {
+        guard !usesInertPhoneSync(arguments: arguments, environment: environment), companionPhoneSync != nil
+        else { return nil }
+        return CheckNowCoordinator(
+            store: UbiquitousKeyValueSyncStore(), host: store,
+            ledger: CheckNowLedger(defaults: launchDefaults),
+            configuration: .init(sourceID: CompanionLineage(defaults: launchDefaults).sourceID))
+    }
+
     @MainActor private static func makeCompanionPhoneSync() -> CompanionPhoneSync? {
         guard !usesInertPhoneSync() else { return nil }
         let sync = CompanionPhoneSync(
@@ -1350,11 +1375,12 @@ enum AppComposition {
     }
 }
 
-/// iCloud and system signals the phone publisher reacts to. Request intake (U6) joins the
-/// external-change observer here.
+/// iCloud and system signals the phone publisher and the check-now coordinator react to.
 @MainActor
 enum CompanionSyncObservers {
     private static var tokens: [any NSObjectProtocol] = []
+    /// U6: request changes go to the coordinator, which queues anything before its start().
+    static var checkNow: CheckNowCoordinator?
 
     static func install(for sync: CompanionPhoneSync) {
         guard tokens.isEmpty else { return }
@@ -1368,6 +1394,8 @@ enum CompanionSyncObservers {
                 if change.reason == .accountChange { sync?.accountDidChange() }
                 // KTD7: the quota signal is a diagnostic that may force one ladder step.
                 if let event = change.quotaEvent(at: Date()) { sync?.recordQuotaEvent(event) }
+                // KTD14.2: typed changes filtered to request keys inside the coordinator.
+                if change.touches(prefix: CompanionSyncKeys.requestPrefix) { checkNow?.receive(change) }
             }
         })
         // KTD8: pending writes flush before the system sleeps.

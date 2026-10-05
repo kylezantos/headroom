@@ -547,8 +547,8 @@ private struct RefreshFooter: View {
                         until: current.needsTimeline ? deadlines.compactMap { $0 }.max() : nil,
                         interval: printing ? 1 / 30 : LoadingMotionConstants.sloshFrameInterval) { date in
             let recipe = makeRecipe(date)
-            let receipt = RefreshReceipt.line(run: run, phase: recipe.phase, now: date,
-                                              title: { store.refreshReceiptTitle(for: $0) })
+            let receipt = RefreshReceiptPresentation.line(run: run, isResting: recipe.phase == .rest, now: date,
+                                                          title: { store.refreshReceiptTitle(for: $0) })
             HStack(spacing: 10) {
                 // PA11b: native bezel owns its appearance-safe chrome and cached label.
                 Button { store.refreshNow() } label: {
@@ -611,7 +611,7 @@ private struct RefreshFooter: View {
                                               removal: .move(edge: .top).combined(with: .opacity))
     }
 
-    private func receiptLine(_ line: RefreshReceipt.Line) -> some View {
+    private func receiptLine(_ line: RefreshReceiptPresentation.Line) -> some View {
         HStack(spacing: 5) {
             if line.checked {
                 Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold)).foregroundStyle(.tertiary)
@@ -621,37 +621,6 @@ private struct RefreshFooter: View {
         }
         .font(.system(size: 11).monospacedDigit())
         .lineLimit(1)
-    }
-}
-
-/// W4 (Oct 2026, design/refresh-stamp-merge-round4.html): the footer receipt for a refresh
-/// the user started. Pure, so the copy is pinned by tests without a store.
-enum RefreshReceipt {
-    struct Line: Hashable {
-        /// The account's numbers came back live. A probe that ended stale is named without
-        /// a check: its card already says what went wrong.
-        let checked: Bool
-        let text: String
-        let count: String?
-    }
-
-    /// R4/R5: the recipe owns hand-back, and recorded outcomes own the checkmark.
-    static func line(run: UserRefreshRun?, phase: ReprintRecipe.Phase, now: Date,
-                     title: (AccountKey) -> String) -> Line? {
-        guard phase != .rest, let run else { return nil }
-        let entries = run.entries.filter { $0.value.origin != .setupCheck && $0.value.requestedAt <= now }
-        guard !entries.isEmpty else { return nil }
-        let landed = entries.filter { $0.value.outcome != nil && $0.value.landedAt.map { $0 <= now } == true }
-        let latest = landed.max {
-            if $0.value.landedAt != $1.value.landedAt { return $0.value.landedAt! < $1.value.landedAt! }
-            // Pinned fixtures may land together; a dictionary's iteration order is not a receipt order.
-            return $0.key.description < $1.key.description
-        }
-        guard let latest else {
-            return Line(checked: false, text: "Checking \(entries.count) \(entries.count == 1 ? "account" : "accounts")…", count: nil)
-        }
-        return Line(checked: latest.value.outcome == .live, text: title(latest.key),
-                    count: "\(landed.count) of \(entries.count)")
     }
 }
 

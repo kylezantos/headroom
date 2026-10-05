@@ -1,68 +1,55 @@
 import SwiftUI
 
+/// U10 (P59, G7): the Headroom vessel on the phone, drawn on the widget's
+/// `WidgetVesselGeometry` (the menu-bar glyph's 11:18) in neutral inks — the widget vessel's
+/// resting wall and the "only when low" neutral body. It is a mark, not a meter: no severity
+/// colour and no system blue (G6). Sized from the height it is offered.
 struct VesselMark: View {
-    var fill: CGFloat = 0.46
-    var isEmpty = false
+    var fill: Double = 0.30
+    /// The status mock (P59) draws its 84pt vessel with a 2.6 wall; the widget clamp (≤ 2.1)
+    /// is for numeral-sized vessels and hairlines at this size. Nil takes the widget clamp.
+    var stroke: Double?
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        ZStack {
-            Capsule()
-                .strokeBorder(outlineStyle, lineWidth: 2)
-            Capsule()
-                .inset(by: 4)
-                .fill(liquidStyle)
-                .mask {
-                    GeometryReader { proxy in
-                        Rectangle()
-                            .frame(height: proxy.size.height * clampedFill)
-                            .frame(maxHeight: .infinity, alignment: .bottom)
-                    }
-                }
-            if !isEmpty {
+        GeometryReader { proxy in
+            let geometry = Self.geometry(fitting: proxy.size, stroke: stroke)
+            let inset = CGFloat(geometry.inset)
+            let liquid = CGFloat(geometry.liquidHeight(fraction: fill))
+            ZStack {
                 Capsule()
-                    .fill(Color.white.opacity(scheme == .dark ? 0.22 : 0.34))
-                    .frame(width: 4)
-                    .padding(.vertical, 18)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 15)
+                    .inset(by: CGFloat(geometry.stroke) / 2)
+                    .stroke(wallInk, lineWidth: CGFloat(geometry.stroke))
+                if liquid > 0 {
+                    // VesselGlyph.render: clip to the inset capsule, then fill the lower part.
+                    Rectangle()
+                        .fill(liquidInk)
+                        .frame(height: liquid)
+                        .frame(maxHeight: .infinity, alignment: .bottom)
+                        .frame(width: CGFloat(geometry.innerWidth), height: CGFloat(geometry.innerHeight))
+                        .clipShape(Capsule())
+                        .padding(inset)
+                }
             }
+            .frame(width: CGFloat(geometry.width), height: CGFloat(geometry.height))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        // U8 (G6): no system blue anywhere — the glow and liquid take the neutral control
-        // ink until U10 redraws this vessel on `WidgetVesselGeometry`.
-        .shadow(color: PhoneControlStyle.tint.opacity(scheme == .dark ? 0.16 : 0.10), radius: 18, y: 8)
         .accessibilityHidden(true)
     }
 
-    private var clampedFill: CGFloat {
-        isEmpty ? 0.26 : min(1, max(0, fill))
+    /// The largest 11:18 vessel inside `size`.
+    static func geometry(fitting size: CGSize, stroke: Double?) -> WidgetVesselGeometry {
+        let height = min(Double(size.height), Double(size.width) / WidgetVesselGeometry.aspect)
+        let base = WidgetVesselGeometry(height: max(0, height))
+        return WidgetVesselGeometry(width: base.width, height: base.height, stroke: stroke)
     }
 
-    private var outlineStyle: AnyShapeStyle {
-        if isEmpty {
-            AnyShapeStyle(Color(styleTint: HeadroomWidgetColorValues.hairline(dark: scheme == .dark)))
-        } else {
-            AnyShapeStyle(LinearGradient(
-                colors: [
-                    Color.white.opacity(scheme == .dark ? 0.22 : 0.72),
-                    Color.black.opacity(scheme == .dark ? 0.12 : 0.10)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            ))
-        }
+    private var wallInk: Color {
+        Color(styleTint: HeadroomWidgetColorValues.tertiaryText(dark: scheme == .dark))
     }
 
-    private var liquidStyle: AnyShapeStyle {
-        if isEmpty {
-            AnyShapeStyle(ProviderStyle.barTrack(scheme: scheme))
-        } else {
-            AnyShapeStyle(LinearGradient(
-                colors: [PhoneControlStyle.tint.opacity(0.62), PhoneControlStyle.tint.opacity(0.86)],
-                startPoint: .top,
-                endPoint: .bottom
-            ))
-        }
+    private var liquidInk: Color {
+        Color(styleTint: HeadroomWidgetColorValues.neutralFill(dark: scheme == .dark))
     }
 }

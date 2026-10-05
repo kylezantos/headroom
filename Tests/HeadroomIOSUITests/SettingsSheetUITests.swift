@@ -43,19 +43,30 @@ final class SettingsSheetUITests: XCTestCase {
         // Explore Demo opens the multi-account variant: the Mac is current, nothing is dimmed.
         let status = element("headroom.settings.sync.status")
         let dimmed = element("headroom.settings.sync.dimmed")
+        // The row right above where the dimmed sentence sits: once it is on screen, a dimmed
+        // sentence would be too, so its absence is not just a lazy row scrolled out of view.
+        let lastUpdate = element("headroom.settings.sync.lastUpdate")
         selectVariant("Multiple accounts")
         scrollTo(status)
         XCTAssertTrue(status.exists)
+        scrollTo(lastUpdate)
+        XCTAssertTrue(waitForDisappearance(dimmed))
         XCTAssertFalse(dimmed.exists)
 
         selectVariant("No recent update")
         scrollTo(status)
+        XCTAssertTrue(status.exists)
+        // On the taller iPad sheet the swipe that brings the status row in can leave the
+        // sentence below the fold; scroll to the sentence itself before waiting on it.
+        scrollTo(dimmed)
         XCTAssertTrue(dimmed.waitForExistence(timeout: 3))
         XCTAssertTrue(dimmed.label.hasPrefix("No update from your Mac since "), dimmed.label)
 
         // Leave the shared App Group variant as Explore Demo's default for other suites.
         selectVariant("Multiple accounts")
         scrollTo(status)
+        scrollTo(lastUpdate)
+        XCTAssertTrue(waitForDisappearance(dimmed))
         XCTAssertFalse(dimmed.exists)
         let exit = app.buttons["headroom.demo.exit"]
         scrollTo(exit, upward: true)
@@ -112,6 +123,19 @@ final class SettingsSheetUITests: XCTestCase {
         XCTAssertTrue(option.waitForExistence(timeout: 3))
         option.tap()
         XCTAssertTrue(picker.waitForExistence(timeout: 3))
+        // The picker exists while its menu is still dismissing; wait until the menu has gone
+        // and the picker's label carries the new choice, so the sheet has re-rendered from it.
+        let settled = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label CONTAINS %@", title), object: picker)
+        XCTAssertEqual(XCTWaiter.wait(for: [settled], timeout: 5), .completed,
+                       "the picker reads \(title); got \(picker.label)")
+        XCTAssertTrue(waitForDisappearance(app.buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", title, "headroom.demo.variant")).firstMatch))
+    }
+
+    private func waitForDisappearance(_ element: XCUIElement, timeout: TimeInterval = 5) -> Bool {
+        let gone = XCTNSPredicateExpectation(predicate: NSPredicate(format: "exists == false"), object: element)
+        return XCTWaiter.wait(for: [gone], timeout: timeout) == .completed
     }
 
     /// Scrolls the sheet until `target` is on screen, searching in `upward`'s direction

@@ -41,12 +41,16 @@ official `claude` CLI's `/usage` panel instead.
   two (with and without spend) and four providers; one and three need fixtures.
 - **"Last check" in Settings is session-only.** The round trip is recorded when this launch
   sees a real request complete; a relaunch starts without one.
-- **iPad Pro 13 UI failures that also reproduce at the integration head (2f707342):**
-  `PhoneCardsUITests.testTruncatedTitlesDiscloseTheFullNameAtDefaultSize` fails every run
-  (iPad cards are wide enough that the title never truncates, so it is not a button), and
-  `SettingsSheetUITests.testSwitchingDemoVariantToDimmedShowsTheDimmedSurface` is
-  intermittent (failed at 2f707342 and once on the U21 branch, passed on the final run).
-  Both pass on the iPhone simulators.
+- **iPad Pro 13: `SettingsSheetUITests.testMacLinkRowIsOneLineAtDefaultSize` is
+  intermittent.** It failed 2 of 4 runs on review-fixes-2 (`XCTAssertTrue(mac.exists)` after
+  `scrollTo(website)`), passes on both iPhones. Likely the same lazy-list cause the dimmed-variant
+  test had: the swipe that brings "Website" in leaves the "Get Headroom for Mac" row outside the
+  rendered rows. Fix the same way (scroll to the Mac row itself, then check both rows). The
+  earlier default-size title-disclosure failure and the dimmed-variant flake were fixed in review
+  2 (#7 and the predicate waits).
+- **Companion cache invalidation write failures have no tests** (review 2 testing gap): a failing
+  first sidecar write (dirty marker), a failing final commit write in `invalidateLocked`, and the
+  `.changed` guard returning nil when the first step fails. Only a failing removal is covered.
 
 ## Phone publisher follow-ups (2026-10-04, iPhone parity U5)
 

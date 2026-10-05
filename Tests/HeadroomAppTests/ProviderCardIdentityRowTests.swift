@@ -375,32 +375,46 @@ struct IdentityRowMetricsTests {
     /// PB11: the title tooltip needs a truthful truncation signal. A row wide enough for the
     /// string is not truncated; a narrower one is.
     @Test func truncationIsMeasuredAgainstTheStringsOwnWidth() {
-        let intrinsic = IdentityRow.titleIntrinsicWidth("Personal")
+        let intrinsic = IdentityRowText.titleIntrinsicWidth("Personal")
         #expect(intrinsic > 0)
-        #expect(IdentityRow.titleIsTruncated("Personal", renderedWidth: intrinsic + 10) == false)
-        #expect(IdentityRow.titleIsTruncated("Personal", renderedWidth: intrinsic) == false)
-        #expect(IdentityRow.titleIsTruncated("Personal", renderedWidth: intrinsic - 12) == true)
+        #expect(IdentityRowText.titleIsTruncated("Personal", renderedWidth: intrinsic + 10) == false)
+        #expect(IdentityRowText.titleIsTruncated("Personal", renderedWidth: intrinsic) == false)
+        #expect(IdentityRowText.titleIsTruncated("Personal", renderedWidth: intrinsic - 12) == true)
     }
 
     /// Sub-pixel layout rounding must not claim a truncation that never happened.
     @Test func aQuarterPointShortOfIdealIsNotTruncation() {
-        let intrinsic = IdentityRow.titleIntrinsicWidth("Work")
-        #expect(IdentityRow.titleIsTruncated("Work", renderedWidth: intrinsic - 0.25) == false)
+        let intrinsic = IdentityRowText.titleIntrinsicWidth("Work")
+        #expect(IdentityRowText.titleIsTruncated("Work", renderedWidth: intrinsic - 0.25) == false)
     }
 
     /// The pre-layout pass reports zero, which is not a truncation — otherwise every row
     /// would flash a redundant tooltip on its first frame.
     @Test func aZeroWidthIsThePreLayoutPassNotATruncation() {
-        #expect(IdentityRow.titleIsTruncated("A very long account label", renderedWidth: 0) == false)
+        #expect(IdentityRowText.titleIsTruncated("A very long account label", renderedWidth: 0) == false)
+    }
+
+    /// U3/KTD3: the phone's title is 1.15× in size *and* kerning, so the truncation test
+    /// measures the string at the scale it renders, not the popover's.
+    @Test func truncationIsMeasuredAtTheRowsScale() {
+        let popover = IdentityRowText.titleIntrinsicWidth("Personal")
+        let phone = IdentityRowText.titleIntrinsicWidth("Personal", scale: 1.15)
+        #expect(phone == HeadroomWidgetFontMetrics.textWidth(
+            "Personal", size: 15 * 1.15, weight: .semibold, kerning: -0.15 * 1.15
+        ))
+        #expect(phone > popover)
+        // A width that holds the popover title truncates the phone's.
+        #expect(IdentityRowText.titleIsTruncated("Personal", renderedWidth: popover + 1) == false)
+        #expect(IdentityRowText.titleIsTruncated("Personal", renderedWidth: popover + 1, scale: 1.15) == true)
     }
 
     /// A longer string needs more room, so it truncates at a width the shorter one survives.
     @Test func alongerTitleTruncatesSooner() {
-        let short = IdentityRow.titleIntrinsicWidth("Work")
-        let long = IdentityRow.titleIntrinsicWidth("Work — long-lived research account")
+        let short = IdentityRowText.titleIntrinsicWidth("Work")
+        let long = IdentityRowText.titleIntrinsicWidth("Work — long-lived research account")
         #expect(long > short)
-        #expect(IdentityRow.titleIsTruncated("Work", renderedWidth: short + 4) == false)
-        #expect(IdentityRow.titleIsTruncated("Work — long-lived research account",
+        #expect(IdentityRowText.titleIsTruncated("Work", renderedWidth: short + 4) == false)
+        #expect(IdentityRowText.titleIsTruncated("Work — long-lived research account",
                                              renderedWidth: short + 4) == true)
     }
 }
@@ -444,18 +458,18 @@ struct IdentityRowHelpTests {
     private let banked = "2 banked resets — a full reset refreshes the 5-hour and weekly windows"
 
     @Test func helpLinesJoinTitleEmailMainAndBankedInOrder() {
-        let help = IdentityRow.helpLines(
+        let help = IdentityRowText.helpLines(
             title: "Personal",
             titleIsTruncated: true,
             email: "a@example.com",
             isMenuBarAccount: true,
             bankedHelp: banked
         )
-        #expect(help == "Personal\na@example.com\n\(IdentityRow.mainAccountHelp)\n\(banked)")
+        #expect(help == "Personal\na@example.com\n\(IdentityRowText.mainAccountHelp)\n\(banked)")
     }
 
     @Test func accessibilityPartsAppendTheBankedPhrase() {
-        let label = IdentityRow.accessibilityParts(
+        let label = IdentityRowText.accessibilityParts(
             title: "Personal",
             planDisplayName: "Plus",
             isMenuBarAccount: true,
@@ -549,5 +563,37 @@ struct CardRowActionTests {
         #expect(SetupRowChip.recovery(.installClaudeCLI, label: "Install Claude Code").opensElsewhere)
         #expect(CardRowButtonAction(label: "Check Now", recovery: .checkNow, perform: {}).opensElsewhere == false)
         #expect(CardRowButtonAction(label: "Sign In", recovery: .connectGrok, perform: {}).opensElsewhere)
+    }
+}
+
+/// U3: the spend row's VoiceOver phrase moved to the shared row with its layout; it still
+/// reads the figure then its direction, and the state only when the row is not live.
+@Suite
+struct APISpendRowAccessibilityTests {
+    private func snapshot(_ freshness: Freshness, kind: APISpendKind = .periodSpend) -> APISpendSnapshot {
+        APISpendSnapshot(
+            providerID: .claude, displayName: "Anthropic API", amount: 142.67, currency: "USD",
+            periodLabel: "October", kind: kind, capturedAt: nil, freshness: freshness
+        )
+    }
+
+    @Test func aLiveRowReadsItsFigureAndDirection() {
+        let status = APISpendRowStatus(badge: nil, tone: .quiet, message: nil, callToAction: nil, remoteHint: nil)
+        #expect(APISpendRowMetrics.accessibilityLabel(
+            snapshot: snapshot(.live), contextLabel: "Oct", amount: "$142.67", status: status
+        ) == "Anthropic API, Oct, $142.67 used")
+        #expect(APISpendRowMetrics.accessibilityLabel(
+            snapshot: snapshot(.live, kind: .balance), contextLabel: "Remaining balance", amount: "$142.67", status: status
+        ) == "Anthropic API, Remaining balance, $142.67 left")
+    }
+
+    @Test func aStaleRowAddsItsBadgeAndMessage() {
+        let status = APISpendRowStatus(
+            badge: "Key rejected", shortBadge: "Rejected", tone: .critical,
+            message: "The key was rejected", callToAction: "Replace Key", remoteHint: nil
+        )
+        #expect(APISpendRowMetrics.accessibilityLabel(
+            snapshot: snapshot(.stale(.needsReauth("x"))), contextLabel: "Oct", amount: nil, status: status
+        ) == "Anthropic API, Oct, Key rejected, The key was rejected")
     }
 }

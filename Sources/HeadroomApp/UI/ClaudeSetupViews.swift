@@ -292,8 +292,7 @@ enum ClaudeSetupStyle {
         ProviderStyle.connectedInk(dark: dark)
     }
     static func connectedBackground(dark: Bool) -> Color {
-        let green = HeadroomSeverityColorValues.healthy(dark: dark)
-        return Color(red: green.red, green: green.green, blue: green.blue).opacity(0.12)
+        ProviderStyle.connectedBackground(dark: dark)
     }
 }
 

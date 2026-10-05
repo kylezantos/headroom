@@ -1,9 +1,10 @@
-#if SWIFT_PACKAGE
-import HeadroomSharedUI
-#endif
-import AppKit
 import SwiftUI
+#if SWIFT_PACKAGE
 import HeadroomCore
+import HeadroomWidgetSharedUI
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 
 /// M4A: which accounts have already shown their arrival this launch. Session-scoped, in
 /// memory, exactly like `PopoverEntranceAnimation` — and for the same reason. The popover
@@ -39,30 +40,38 @@ private enum ArrivalRegistry {
 /// R2B2: the slot is reserved even when there is no term to print — an `.unavailable` row
 /// that dropped its suffix used to pull its gauge and numeral ≈22.5pt right of the rows above
 /// it.
-enum MeterSuffixColumn {
-    static let size: CGFloat = 11
+public enum MeterSuffixColumn {
+    public static let size: CGFloat = 11
     /// The gap the numeral cluster already spent between figure and term.
-    static let gap: CGFloat = 5
+    public static let gap: CGFloat = 5
 }
 
 /// The suffix itself.
-struct MeterSuffixLabel: View {
-    let term: String
+public struct MeterSuffixLabel: View {
+    public let term: String
     /// R2B2: `false` reserves the column without printing anything. The word is still laid
     /// out — inked `Color.clear` rather than swapped for a spacer — so the reserved slot keeps
     /// a real term's line box and baseline instead of approximating them.
-    var isVisible: Bool = true
+    public var isVisible: Bool = true
+    /// KTD3: the phone's one type unit; the Mac passes 1.
+    public var scale: CGFloat = 1
+
+    public init(term: String, isVisible: Bool = true, scale: CGFloat = 1) {
+        self.term = term
+        self.isVisible = isVisible
+        self.scale = scale
+    }
 
     @Environment(\.colorScheme) private var scheme
 
-    var body: some View {
+    public var body: some View {
         Text(term)
-            .font(.system(size: MeterSuffixColumn.size))
+            .font(.system(size: MeterSuffixColumn.size * scale))
             .foregroundStyle(isVisible ? ProviderStyle.tertiaryText(scheme: scheme) : Color.clear)
             .lineLimit(1)
             // PA6: inert in Full's baseline row; in Micro it puts the term's cap centre on
-            // the row's one optical axis.
-            .capHeightCentered(size: MeterSuffixColumn.size, weight: .regular)
+            // the row's one optical axis. KTD2: CoreText metrics, identical to the Mac's.
+            .widgetCapHeightCentered(size: MeterSuffixColumn.size * scale, weight: .regular)
             // CMM12 (Kyle, 2026-09-10): natural width, no reserved column. The row is
             // trailing-aligned, so its last glyph always lands on the 34pt axis — evenly
             // gapped left and right — and rows that print the same word (every meter row in
@@ -77,16 +86,66 @@ struct MeterSuffixLabel: View {
 /// One usage row in either the full two-line frame or the compact micro frame.
 /// The row owns text, accessibility, and value motion; `MeterGauge` owns every
 /// shape × fill rendering decision.
-struct UsageBarView: View {
-    let window: UsageWindow
-    let percentageMode: UsagePercentageMode
-    let now: Date
-    let meterStyle: MeterStyle
-    var dimmed: Bool = false
+///
+/// KTD2 (iOS parity): the popover's row, made platform-neutral so the phone renders the same
+/// object — CoreText measurement and optics instead of `NSFont`, one `scale` for KTD3, and a
+/// `UsageMeterReading` as its only numeric input.
+public struct UsageBarView: View {
+    /// KTD6.2: the canonical normalized value plus the window it describes. The percentage,
+    /// fill and severity ink all read `reading`, never the window's raw arithmetic.
+    public let reading: UsageMeterReading
+    public let percentageMode: UsagePercentageMode
+    public let now: Date
+    public let meterStyle: MeterStyle
+    public var dimmed: Bool = false
     /// M4A: the account this row belongs to, and the row's opt-in to the once-per-launch
     /// draw-in. `nil` — the default — means "paint the final value immediately", which is
     /// what every preview, specimen, and non-account surface wants.
-    var arrivalKey: AccountKey? = nil
+    public var arrivalKey: AccountKey? = nil
+    /// KTD3: type, spacing, the numeral column and the gauge all multiply by this, so the
+    /// row reserves its larger layout rather than being scaled after layout. The Mac passes 1.
+    public var scale: CGFloat = 1
+
+    public init(
+        reading: UsageMeterReading,
+        percentageMode: UsagePercentageMode,
+        now: Date,
+        meterStyle: MeterStyle,
+        dimmed: Bool = false,
+        arrivalKey: AccountKey? = nil,
+        scale: CGFloat = 1
+    ) {
+        self.reading = reading
+        self.percentageMode = percentageMode
+        self.now = now
+        self.meterStyle = meterStyle
+        self.dimmed = dimmed
+        self.arrivalKey = arrivalKey
+        self.scale = scale
+    }
+
+    /// The Mac's form: the reading is normalized from the actual provider window.
+    public init(
+        window: UsageWindow,
+        percentageMode: UsagePercentageMode,
+        now: Date,
+        meterStyle: MeterStyle,
+        dimmed: Bool = false,
+        arrivalKey: AccountKey? = nil,
+        scale: CGFloat = 1
+    ) {
+        self.init(
+            reading: UsageMeterReading(window: window),
+            percentageMode: percentageMode,
+            now: now,
+            meterStyle: meterStyle,
+            dimmed: dimmed,
+            arrivalKey: arrivalKey,
+            scale: scale
+        )
+    }
+
+    private var window: UsageWindow { reading.window }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
@@ -107,14 +166,17 @@ struct UsageBarView: View {
     /// one — so it checks whether it is still the current landing instead.
     @State private var landGeneration = 0
 
-    private let labelSize: CGFloat = 13
-    private let resetSize: CGFloat = 11
+    private var labelSize: CGFloat { 13 * scale }
+    private var resetSize: CGFloat { 11 * scale }
     private static let percentSize: CGFloat = 18
+    private var percentSize: CGFloat { Self.percentSize * scale }
     /// FS1 (Kyle, Sep 2026): Full sat its full-width gauge 5pt under the label it belongs
     /// to, which crowded the two into one band; 7 lets the bar breathe without breaking the
     /// pairing. Only Full stacks a gauge under its label now — Micro is always a single row —
     /// so this is Full's label→gauge gap.
-    private var rowSpacing: CGFloat { 7 }
+    private var rowSpacing: CGFloat { 7 * scale }
+    /// The row's HStack gaps and its spacer's floor.
+    private var gap: CGFloat { 6 * scale }
 
     /// Fill length and numeral — one cause, one motion (M1A). Both are `.movement`.
     private struct RowValue: Equatable {
@@ -144,24 +206,23 @@ struct UsageBarView: View {
     /// monospaced-digit system font the numeral renders in, so it stays correct if
     /// `percentSize` changes instead of drifting from a hard-coded pixel guess.
     /// M4A leans on it too: the roll from "0%" happens inside a frame that never resizes.
-    private static let percentColumnWidth: CGFloat = {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: percentSize, weight: .semibold)
-        return ceil(("100%" as NSString).size(withAttributes: [.font: font]).width)
-    }()
+    /// KTD2: measured with CoreText (`HeadroomWidgetFontMetrics.textWidth`), which reports
+    /// exactly what `NSString.size(withAttributes:)` did for the same face.
+    private var percentColumnWidth: CGFloat {
+        ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: percentSize, weight: .semibold, mono: true))
+    }
 
     // MARK: - What the window says
 
-    private var pct: Int? {
-        window.freshness.isUnavailable ? nil : percentageMode.roundedPercentage(for: window)
-    }
+    private var pct: Int? { reading.roundedPercentage(for: percentageMode) }
 
-    private var fraction: Double {
-        window.freshness.isUnavailable ? 0 : percentageMode.fraction(for: window)
-    }
+    private var fraction: Double { reading.fraction(for: percentageMode) }
 
     private var liveValue: RowValue { RowValue(fraction: fraction, pct: pct) }
 
-    private var severity: UsageSeverity { window.severity }
+    /// KTD6.2: the normalized severity. A reading with no finite value has none to paint and
+    /// shows no fill or figure, so it takes the neutral band rather than a guessed one.
+    private var severity: UsageSeverity { reading.severity ?? .healthy }
 
     private var tone: RowTone { RowTone(freshness: window.freshness, dimmed: dimmed) }
 
@@ -296,7 +357,7 @@ struct UsageBarView: View {
         }
         // M3A′: on the way to `.unavailable` the fill keeps its length and fades out, so
         // nothing travels and a return to live crossfades back at the same length.
-        let value = window.freshness.isUnavailable
+        let value = reading.hidesValue
             ? RowValue(fraction: from.fraction, pct: nil)
             : liveValue
 
@@ -331,8 +392,8 @@ struct UsageBarView: View {
         }
     }
 
-    var body: some View {
-        let _ = BenchCounters.hit("UsageBarView")
+    public var body: some View {
+        let _ = SharedBenchCounters.hit("UsageBarView")
         Group {
             switch meterStyle.format {
             case .full:
@@ -371,11 +432,11 @@ struct UsageBarView: View {
 
     private func fullMeter(inlineReset: Bool) -> some View {
         VStack(alignment: .leading, spacing: rowSpacing) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: gap) {
                 labelText
                 stateLabel
                 if inlineReset { resetLabel(fixedSize: true) }
-                Spacer(minLength: 6)
+                Spacer(minLength: gap)
                 numeralCluster(capCentred: false)
             }
 
@@ -398,7 +459,7 @@ struct UsageBarView: View {
     /// PA6 (Kyle): "center aligned with each other, not the bottom baseline." The row keeps
     /// `.center` — a shared baseline would leave the 18pt numeral riding visibly high over a
     /// 13pt label — but every text element now declares where its **cap-height centre** is,
-    /// measured from the real `NSFont` (`OpticalCentering`), instead of leaning on its line
+    /// measured from the real font (CoreText, `HeadroomWidgetFontMetrics`), instead of its line
     /// box. SwiftUI's plain `.center` centres line boxes, and a line box is asymmetric about
     /// its ink by a different amount at each size (0.68pt at 13, 0.36pt at 18), so the label
     /// was sitting ~0.3pt below the numeral it labels. The gauge keeps the default `.center`
@@ -412,9 +473,9 @@ struct UsageBarView: View {
     }
 
     private func microLine(short: Bool, truncatesLabel: Bool) -> some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: gap) {
             labelCluster(short: short, truncatesLabel: truncatesLabel)
-            Spacer(minLength: 6)
+            Spacer(minLength: gap)
             gauge
             numeralCluster(capCentred: true)
         }
@@ -425,9 +486,9 @@ struct UsageBarView: View {
     /// the sole flexible element, so it truncates while the countdown stays whole. `short`
     /// selects the coarse countdown. Cap centres keep the pair on the row's one optical axis.
     private func labelCluster(short: Bool, truncatesLabel: Bool) -> some View {
-        HStack(alignment: .center, spacing: 6) {
+        HStack(alignment: .center, spacing: gap) {
             labelText
-                .capHeightCentered(size: labelSize, weight: .medium)
+                .widgetCapHeightCentered(size: labelSize, weight: .medium)
             resetLabel(fixedSize: true, short: short)
         }
         .fixedSize(horizontal: !truncatesLabel, vertical: false)
@@ -441,7 +502,7 @@ struct UsageBarView: View {
             .truncationMode(.tail)
             // OA1: "Weekly" (a diagonal) against "5-hour" (a flat stem) is the widest
             // stagger in the card — 1.25pt apart at this size before the correction.
-            .opticalLeading(label, size: labelSize, weight: .medium)
+            .widgetOpticalLeading(label, size: labelSize, weight: .medium)
     }
 
     /// M3A′: Full has a row wide enough for the state, so it keeps the label — it fades in
@@ -478,7 +539,7 @@ struct UsageBarView: View {
                 .help(resetLine.tooltip)
                 // PA6: inert in Full's baseline row; in Micro it puts the countdown's cap
                 // centre on the same axis as the label beside it.
-                .capHeightCentered(size: resetSize, weight: .regular)
+                .widgetCapHeightCentered(size: resetSize, weight: .regular)
         }
     }
 
@@ -486,16 +547,16 @@ struct UsageBarView: View {
     /// optical axis — while Full keeps the shared baseline that makes "72% used" read as one
     /// phrase across a wide row.
     private func numeralCluster(capCentred: Bool) -> some View {
-        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: MeterSuffixColumn.gap) {
+        HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: MeterSuffixColumn.gap * scale) {
             Text(percentText)
-                .font(.system(size: Self.percentSize, weight: .semibold).monospacedDigit())
+                .font(.system(size: percentSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(numeralInk)
                 .contentTransition(numeralTransition)
-                .frame(minWidth: Self.percentColumnWidth, alignment: .trailing)
-                .capHeightCentered(size: Self.percentSize, weight: .semibold)
+                .frame(minWidth: percentColumnWidth, alignment: .trailing)
+                .widgetCapHeightCentered(size: percentSize, weight: .semibold)
             // R2B2: an `.unavailable` row has no term to print, but it keeps the column —
             // otherwise its "—" and gauge slide right of the live rows stacked above it.
-            MeterSuffixLabel(term: percentageMode.term, isVisible: displayedValue.pct != nil)
+            MeterSuffixLabel(term: percentageMode.term, isVisible: displayedValue.pct != nil, scale: scale)
         }
         .fixedSize()
     }
@@ -538,7 +599,8 @@ struct UsageBarView: View {
             style: meterStyle,
             fraction: displayedValue.fraction,
             severity: displayedSeverity,
-            freshness: gaugeFreshness
+            freshness: gaugeFreshness,
+            scale: scale
         )
     }
 

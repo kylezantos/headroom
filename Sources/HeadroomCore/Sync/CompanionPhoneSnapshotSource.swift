@@ -4,12 +4,12 @@ import Foundation
 /// (KTD6, KTD13). Hosts always consume `CompanionResolvedSnapshot` and its freshness inputs and
 /// never construct `iCloudSnapshotSync` or `CompanionSnapshotLoader` themselves.
 ///
-/// With `CompanionLoaderAdoption.isEnabled` off (the default until the KTD22 device gate
-/// passes), `load()` runs build 33's loading path exactly — the v3 key plus the
+/// With `CompanionLoaderAdoption.isEnabled` off (the rollback path; on since 2026-10-05),
+/// `load()` runs build 33's loading path exactly — the v3 key plus the
 /// `widget-snapshot.json` adoption rules — and lifts the winner through the resolver's v3-only
 /// rules with an empty v4 cache, so no v4 cache is ever served. With it on, `load()` is
 /// `CompanionSnapshotLoader` over the real KVS store, the App Group `CompanionSnapshotCache` and
-/// the KVS scope-marker provider.
+/// the KVS scope-marker provider, after creating the marker if the store has none.
 public struct CompanionPhoneSnapshotSource: Sendable {
     private let loadSnapshot: @Sendable () -> CompanionResolvedSnapshot
     private let handleChange: @Sendable (iCloudKeyValueChange) -> Void
@@ -92,14 +92,21 @@ public struct CompanionPhoneSnapshotSource: Sendable {
             })
         }
         let loader = CompanionSnapshotLoader(store: store, cache: cache, now: now)
+        let marker = CompanionKVSScopeMarkerWriter(store: store, now: now)
         return CompanionPhoneSnapshotSource(
             load: {
                 // KTD21: demo is decided before iCloud is touched, synchronize included.
                 if let demo, let snapshot = demo() { return snapshot }
-                store.synchronize()
+                // KTD22: whichever phone process loads first creates the marker if the store has
+                // none (after an update, a placed widget can run before the app), so the scope
+                // check below has something to compare. It synchronizes the store itself.
+                _ = marker.ensureMarker()
                 return loader.load()
             },
-            handle: { loader.handle($0) })
+            handle: { change in
+                marker.record(change)
+                loader.handle(change)
+            })
     }
 
     static func appGroupCache(appGroupIdentifier: String, store: any iCloudKeyValueSyncing)

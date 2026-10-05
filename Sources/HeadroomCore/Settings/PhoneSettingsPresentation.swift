@@ -111,6 +111,8 @@ public enum PhoneSettingsCopy {
         "Display choices",
         "Check-now requests",
         "A random ID for your Mac and for each iPhone or iPad",
+        // KTD22 (2026-10-05): the scope marker, so saved data never outlives an account switch.
+        "A random ID that tells this app which iCloud account its saved data belongs to",
     ]
     public static let whatSyncsFooter =
         "Sign-ins, emails and API keys never leave your Mac. iCloud key-value data isn’t end-to-end encrypted."

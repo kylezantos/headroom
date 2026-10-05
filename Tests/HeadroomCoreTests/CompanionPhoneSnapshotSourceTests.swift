@@ -279,10 +279,12 @@ struct CompanionPhoneSnapshotSourceTests {
         #expect(content.providers.map(\.id) == ["claude"])
     }
 
-    // MARK: Source composition (adoption off)
+    // MARK: Source composition
 
-    @Test func adoptionIsOffByDefault() {
-        #expect(CompanionLoaderAdoption.isEnabled == false)
+    /// KTD22: Kyle approved the KVS marker on 2026-10-05, so phones load through the scoped
+    /// loader; the build-33 path below stays the rollback.
+    @Test func adoptionIsOn() {
+        #expect(CompanionLoaderAdoption.isEnabled)
     }
 
     @Test func build33SourceWritesOnlyTheCompatibilityFileFromTheKey() throws {

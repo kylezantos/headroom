@@ -51,10 +51,11 @@ public enum CompanionScopeMarkerWriteResult: String, Equatable, Sendable {
     case rejected
 }
 
-/// The marker's single writer. Only the iPhone app process may create one; the widget
-/// extension, Siri, controls and the Mac never do. It writes a fresh random UUID only when the
-/// key is absent and never writes a remembered value from memory or the sidecar, so a marker can
-/// never be carried from one account's store into another's.
+/// The marker's writer, created by every phone process's adopted loader (app, widget extension,
+/// Siri, controls); the Mac never writes it. It writes a fresh random UUID only when the key is
+/// absent and never writes a remembered value from memory or the sidecar, so a marker can never
+/// be carried from one account's store into another's. A widget that writes into a new account's
+/// empty store still mismatches the sidecar's old archive, so caches are invalidated, not served.
 ///
 /// Fail-safe races: two devices writing at once leaves the last writer's value and costs the
 /// other device one invalidation; a write the system discards during an initial download is

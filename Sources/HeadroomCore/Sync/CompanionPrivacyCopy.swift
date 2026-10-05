@@ -9,8 +9,9 @@ public enum CompanionPrivacyCopy {
     /// (KTD9). No copy implies end-to-end encryption.
     public static let whatSyncs =
         "Sends account names you chose, plan names, usage, reset times, API spend, display "
-        + "choices and check-now requests through your iCloud, with a random ID for this Mac "
-        + "and each iPhone or iPad. Sign-ins, emails and API keys never sync. iCloud "
+        + "choices and check-now requests through your iCloud, with random IDs for this Mac, "
+        + "each iPhone or iPad and your iCloud account’s sync. Sign-ins, emails and API keys "
+        + "never sync. iCloud "
         + "key-value data isn’t end-to-end encrypted."
 
     /// The Mac's sync status line (KTD22 diagnostics), from times and counts only.

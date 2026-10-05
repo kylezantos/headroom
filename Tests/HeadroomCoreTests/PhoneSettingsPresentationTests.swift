@@ -107,6 +107,7 @@ struct PhoneSettingsPresentationTests {
             "Display choices",
             "Check-now requests",
             "A random ID for your Mac and for each iPhone or iPad",
+            "A random ID that tells this app which iCloud account its saved data belongs to",
         ])
         #expect(PhoneSettingsCopy.whatSyncsFooter.contains("isn’t end-to-end encrypted"))
         #expect(!PhoneSettingsCopy.whatSyncsFooter.localizedCaseInsensitiveContains("source ID"))

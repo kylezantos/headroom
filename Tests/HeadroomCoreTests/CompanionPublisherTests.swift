@@ -728,8 +728,8 @@ struct CompanionPrivacyCopyTests {
         let copy = CompanionPrivacyCopy.whatSyncs
         for phrase in [
             "account names you chose", "plan names", "usage", "reset times", "API spend",
-            "display choices", "check-now requests", "random ID for this Mac",
-            "each iPhone or iPad", "Sign-ins, emails and API keys never sync",
+            "display choices", "check-now requests", "random IDs for this Mac",
+            "each iPhone or iPad", "your iCloud account’s sync", "Sign-ins, emails and API keys never sync",
             "isn’t end-to-end encrypted",
         ] {
             #expect(copy.contains(phrase), "\(phrase)")

@@ -150,14 +150,16 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
   Headroom on your Mac to see every account"), assembles providers per KTD6.3, and hands widgets
   `primaryProjection()`. The app, the iOS widget extension and Siri load through
   `CompanionPhoneSnapshotSource`; the Mac widget still reads its local App Group file.
-- **Cached loading is switched off.** `CompanionLoaderAdoption.isEnabled` is `false`: with it
-  off the source runs build 33's loading path and lifts it through the resolver's v3-only rules,
-  so no v4 content and no check-now request reaches a phone. The scoped loader must never serve a
-  cache written under another iCloud account, and its account-scope candidate failed on device
-  (`ubiquityIdentityToken` differs between app and widget, and is nil with iCloud Drive off). Its
-  replacement, the KVS scope marker `headroom.scope.v1` (`CompanionKVSScopeMarker`, written only
-  by the iPhone app), awaits the device check in
-  `docs/qa/2026-10-04-companion-identity-candidate-gate.md` and Kyle's KTD22 sign-off.
+- **Cached loading is scoped by the KVS marker.** `CompanionLoaderAdoption.isEnabled` is `true`
+  (Oct 5): phones load through `CompanionSnapshotLoader`, which never serves a cache written under
+  another iCloud account. The scope is the KVS marker `headroom.scope.v1`
+  (`CompanionKVSScopeMarker`), a random UUID that lives in the iCloud store itself, so an account
+  change swaps it. Every phone process's loader creates it when the store has none (a placed widget
+  can run before the app after an update); none ever rewrites one. The first candidate,
+  `ubiquityIdentityToken`, failed on device (it differs between app and widget and is nil with
+  iCloud Drive off). Kyle approved the marker and everyday-use acceptance in place of the DEBUG
+  probe; the account-switch check in `docs/qa/2026-10-04-companion-identity-candidate-gate.md`
+  remains a U20 item. Turning the switch off restores build 33's loading path.
 - **The Mac publisher coalesces (KTD8).** `UsageStore` hands a fresh capture to
   `CompanionPhoneSync` on every phone-bound change; it stamps a generation on the main actor and
   forwards to the serial `CompanionPublisher` actor. Flushes write changed provider keys, the
@@ -515,8 +517,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   after assembling `finishedGeneration` (`Sync/CheckNowProtocol.swift`). Single-account checks,
   setup checks and spend-only refreshes never answer a request. Timing constants are
   provisional until `docs/qa/2026-10-check-now-latency-spike.md` runs. The phone sends requests
-  only when the resolver's winner is v4, so it stays re-read-only while
-  `CompanionLoaderAdoption` is off.
+  only when the resolver's winner is v4; a Mac on 1.4.1 or older only gets a re-read.
 - **The v3 key must stay readable by build 33.** `Build33DecoderGoldenTests` runs the Mac's v3
   output through a frozen copy of that decoder; never weaken it. The Mac's random lineage UUID
   goes only in `companionSourceID`, never in v3's `sourceID`, which build 33 prints as "<sourceID>
@@ -525,9 +526,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   (`CompanionSyncCodec.digest`) is computed over the raw `Data` written to, or read from, the key.
   Hashing a decoded-and-re-encoded payload breaks as soon as a newer Mac adds a field.
 - **The scope marker lives outside the v4 namespace on purpose.** `headroom.scope.v1` must never
-  match a `headroom.sync.v4.` prefix sweep, sync-off cleanup or launch scan, and only the iPhone
-  app process writes it. Don't flip `CompanionLoaderAdoption.isEnabled` until the marker's
-  device check passes and Kyle signs off the KTD22 change.
+  match a `headroom.sync.v4.` prefix sweep, sync-off cleanup or launch scan. Phone processes
+  write it only when absent and the Mac never does; never write a remembered value from memory or
+  the sidecar, or a marker could carry one account's scope into another's store.
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

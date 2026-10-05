@@ -2,9 +2,8 @@ import SwiftUI
 import WidgetKit
 
 /// The app's one loading path (KTD6, U8): everything the phone shows comes from
-/// `CompanionPhoneSnapshotSource` as a `CompanionResolvedSnapshot`. With
-/// `CompanionLoaderAdoption.isEnabled` off, the source runs build 33's path lifted through the
-/// resolver; no view reads iCloud or a cache itself.
+/// `CompanionPhoneSnapshotSource` as a `CompanionResolvedSnapshot` (the scoped loader since
+/// `CompanionLoaderAdoption` turned on); no view reads iCloud or a cache itself.
 enum PhoneSnapshotLoading {
     /// KTD21: `--demo`, `--demo-variant` and `--demo-screen`, parsed once.
     static let launch = CompanionDemoLaunchOptions.current
@@ -74,7 +73,6 @@ struct IOSCompanionView: View {
                 }
         }
         .onAppear {
-            ensureScopeMarkerIfAdopted()
             Task {
                 await refresh()
                 // Capture harness only: present Settings once content has settled so the
@@ -84,18 +82,16 @@ struct IOSCompanionView: View {
         }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
-            ensureScopeMarkerIfAdopted()
             Task { await refresh() }
         }
         .onOpenURL { _ in
             Task { await refresh() }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSUbiquitousKeyValueStore.didChangeExternallyNotification)) { note in
-            // KTD22: the typed change goes to the source first; with adoption on, an account
-            // change clears every cache before the reload below reads anything.
-            let change = iCloudKeyValueChange(userInfo: note.userInfo)
-            source.handle(change)
-            recordScopeMarkerChangeIfAdopted(change)
+            // KTD22: the typed change goes to the source first. An account change clears every
+            // cache, and an initial-sync or account change defers the marker write, before the
+            // reload below reads anything.
+            source.handle(iCloudKeyValueChange(userInfo: note.userInfo))
             Task { await refresh() }
         }
     }
@@ -324,26 +320,6 @@ struct IOSCompanionView: View {
         case .unreadable: "unreadable"
         case .content: "content"
         }
-    }
-
-    // MARK: KTD22 scope-marker hook (prepared, not enabled)
-
-    /// KTD22: the app is the KVS scope marker's only writer. This hook runs on launch and
-    /// foreground, and only once `CompanionLoaderAdoption.isEnabled` turns on (after the P5
-    /// device gate passes); today it never constructs the writer.
-    private func ensureScopeMarkerIfAdopted() {
-        guard CompanionLoaderAdoption.isEnabled, !demoModeStore.isActive(launch: launch) else { return }
-        Task.detached { _ = ScopeMarkerHook.writer.ensureMarker() }
-    }
-
-    private func recordScopeMarkerChangeIfAdopted(_ change: iCloudKeyValueChange) {
-        guard CompanionLoaderAdoption.isEnabled else { return }
-        ScopeMarkerHook.writer.record(change)
-    }
-
-    private enum ScopeMarkerHook {
-        /// Lazily created: never touched while adoption is off.
-        static let writer = CompanionKVSScopeMarkerWriter(store: UbiquitousKeyValueSyncStore())
     }
 
     // MARK: DEBUG diagnostics

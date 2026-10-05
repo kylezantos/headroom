@@ -28,8 +28,9 @@ servers of its own.**
   iPhone" is on, Headroom for Mac writes a summary to iCloud key-value storage in your
   own Apple account, and the iPhone and iPad app, its widgets and Siri read it. The
   summary holds account names you chose, plan names, usage, reset times, API spend,
-  display choices, check-now requests, and a random ID for your Mac and for each iPhone
-  or iPad. Sign-ins, credentials, emails, and API keys never leave your Mac and are
+  display choices, check-now requests, a random ID for your Mac and for each iPhone or
+  iPad, and one more random ID that lets the app check its saved data belongs to the iCloud
+  account signed in now. Sign-ins, credentials, emails, and API keys never leave your Mac and are
   never part of it. iCloud key-value data is not end-to-end encrypted.
 - [**Reminders on your iPhone use your private iCloud database.** If you turn on "Also
   send to iPhone and iPad" on your Mac, reminder text is stored in your own private
@@ -44,7 +45,7 @@ servers of its own.**
 - **Everything is a switch.** Widget sharing and iPhone sync are opt-in switches in
   Headroom's settings. Turning them off stops the corresponding data flow immediately.
   Turning off "Sync usage to iPhone" also removes the synced account data from iCloud;
-  only a note that sync is off, with your Mac's random ID, stays. Data left in an iCloud
+  only a note that sync is off, with your Mac's random ID, and the random iCloud ID stay. Data left in an iCloud
   account you signed out of stays there until you sign back in to it and turn sync off.
   Deleting the app removes everything it stored on that device.
 

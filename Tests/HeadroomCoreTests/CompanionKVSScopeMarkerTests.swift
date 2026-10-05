@@ -297,7 +297,7 @@ struct CompanionKVSScopeMarkerTests {
             now: { F.date(60).date }, demo: nil)
         #expect(source.load().content?.origin == .v4)
         #expect(device.synchronizations == 1)
-        #expect(device.mutations == 0)  // readers never write the marker
+        #expect(device.mutations == 0)  // a present marker is never rewritten
 
         let accountB = MarkerKeyValueStore()
         accountB.marker = "marker-b"
@@ -305,6 +305,38 @@ struct CompanionKVSScopeMarkerTests {
         #expect(source.load().content == nil)
         #expect(device.synchronizations == 2)
         #expect(!hasCachedContent())
+    }
+
+    /// After an update, a placed widget can load before the app ever runs: whichever phone process
+    /// loads first creates the marker, and a new scope serves no earlier cached content.
+    @Test func adoptedSourceCreatesAMissingMarkerBeforeItsFirstLoad() throws {
+        let device = accountA(marker: nil)
+        let source = CompanionPhoneSnapshotSource.adopted(
+            store: device,
+            cache: CompanionSnapshotCache(
+                storage: storage, coordinator: BarrierCoordinator(anchor: anchor),
+                scope: CompanionKVSScopeMarker(store: device)),
+            now: { F.date(60).date }, demo: nil)
+        #expect(device.marker == nil)
+        #expect(source.load().content?.origin == .v4)
+        #expect(device.marker != nil)
+        let written = device.marker
+        _ = source.load()
+        #expect(device.marker == written)  // never rewritten once present
+    }
+
+    /// An initial-sync notice defers the write, so the first download can't race a new marker.
+    @Test func adoptedSourceDefersTheMarkerAfterAnInitialSyncNotice() throws {
+        let device = accountA(marker: nil)
+        let source = CompanionPhoneSnapshotSource.adopted(
+            store: device,
+            cache: CompanionSnapshotCache(
+                storage: storage, coordinator: BarrierCoordinator(anchor: anchor),
+                scope: CompanionKVSScopeMarker(store: device)),
+            now: { F.date(60).date }, demo: nil)
+        source.handle(iCloudKeyValueChange(reason: .initialSyncChange, changedKeys: []))
+        #expect(source.load().state == .accountScopeUnavailable)
+        #expect(device.marker == nil)
     }
 
     @Test func adoptedSourceForwardsAccountChangesToTheLoader() throws {

@@ -157,3 +157,154 @@ public enum MirrorPresentation {
         Countdown.updatedLabel(capturedAt: generatedAt, now: now)
     }
 }
+
+// MARK: - U21: freshness line, meter rows and spend rows
+
+/// U21 (R9, R10, KTD15): what the slot under "Usage" says when no check-now line is showing.
+public enum CompanionScreenFreshness: Equatable, Sendable {
+    /// R9: the oldest live reading on screen, never the Mac's publish time.
+    case stamp(FreshnessStamp)
+    /// R10: "No update from your Mac since <time>", in the stamp's own slot.
+    case dimmed(String)
+
+    public var text: String {
+        switch self {
+        case .stamp(let stamp): MirrorPresentation.subtitle(for: stamp)
+        case .dimmed(let line): line
+        }
+    }
+
+    public var isDimmed: Bool {
+        if case .dimmed = self { true } else { false }
+    }
+}
+
+/// One meter row as the phone draws it (R11): a window past its reset with no newer reading
+/// goes through the unavailable path — no numeral, no fill — and carries the reset time its
+/// "Reset at <time> · waiting for your Mac" line names.
+public struct CompanionMeterRow: Equatable, Sendable {
+    public let window: WidgetWindowSummary
+    public let pastResetAt: Date?
+}
+
+/// U21 (KTD3, P45–P53): one API spend row, resolved for the shared `APISpendRow` from the
+/// synced summary. The same Core decisions the popover's row model makes — title and chip
+/// split, context label, amount text, status — so the two rows cannot drift.
+public struct CompanionSpendRowModel: Equatable, Sendable, Identifiable {
+    public let snapshot: APISpendSnapshot
+    public let status: APISpendRowStatus
+    public let title: String
+    public let contextLabel: String
+    /// The figure alone; the shared row prints the "used"/"left" term after it.
+    public let amount: String?
+
+    public var id: String { snapshot.providerID.raw }
+
+    public init(_ summary: WidgetAPISpendSummary) {
+        let kind = summary.semanticKind
+        let freshness: Freshness = switch summary.freshness {
+        case .pending: .pending
+        case .live: .live
+        // The row only distinguishes live, pending and not-live; the typed status below
+        // carries what the stale line says, so no message is re-derived from this reason.
+        case .stale(let message, let needsAttention): .stale(needsAttention ? .needsReauth(message) : .transient(message))
+        }
+        snapshot = APISpendSnapshot(
+            providerID: ProviderID(summary.id), displayName: summary.displayName, amount: summary.amount,
+            currency: summary.currency, periodLabel: summary.periodLabel, kind: kind,
+            capturedAt: summary.capturedAt, freshness: freshness)
+        status = APISpendPresentation.rowStatus(
+            freshness: summary.freshness, attention: summary.attention, providerID: ProviderID(summary.id),
+            displayName: summary.displayName, kind: kind)
+        let identity = APISpendPresentation.popoverIdentity(displayName: summary.displayName)
+        let context = APISpendPresentation.contextLabel(kind: kind, periodLabel: summary.periodLabel)
+        title = identity.title
+        // X5: a balance row's "Remaining balance" outranks the name's qualifier.
+        contextLabel = kind == .balance ? context : (identity.chipOverride ?? context)
+        amount = APISpendPresentation.amountText(amount: summary.amount, currency: summary.currency)
+    }
+}
+
+extension MirrorPresentation {
+    /// R10/KTD15: the dimmed sentence once the app surface passes its threshold, otherwise the
+    /// R9 stamp over the windows the screen shows (`shownWindows` applies the phone's Spark
+    /// switch). Times use the shared clock formatter in the user's zone.
+    public static func freshness(
+        _ content: CompanionResolvedContent,
+        shownWindows: (CompanionResolvedAccount) -> [WidgetWindowSummary],
+        now: Date, timeZone: TimeZone = .current, locale: Locale = .current
+    ) -> CompanionScreenFreshness {
+        if CompanionFreshnessRule.isDimmed(content.freshness, surface: .app, at: now) {
+            let heard = CompanionFreshnessRule.lastHeardFromMac(content.freshness)
+            return .dimmed(CompanionFreshnessCopy.noUpdate(
+                since: WidgetClockText.text(for: heard, now: now, timeZone: timeZone, locale: locale)))
+        }
+        return .stamp(FreshnessStamp.resolve(
+            stampAnchors(content, shownWindows: shownWindows, now: now), now: now))
+    }
+
+    /// R9 (P57): `FreshnessStamp`'s aggregation over the phone's model. A live account's live
+    /// windows anchor "Updated" at their own observation time (the account's capture time when
+    /// a window carries none); a row hidden past its reset is not a reading on screen. Every
+    /// other row only answers "when was this last checked".
+    public static func stampAnchors(
+        _ content: CompanionResolvedContent,
+        shownWindows: (CompanionResolvedAccount) -> [WidgetWindowSummary],
+        now: Date
+    ) -> FreshnessStamp.Anchors {
+        var anchors = FreshnessStamp.Anchors()
+        for account in content.providers.flatMap(\.accounts) {
+            for window in shownWindows(account) {
+                guard let observed = window.observedAt ?? account.capturedAt else { continue }
+                anchors.newestCheck = anchors.newestCheck.map { max($0, observed) } ?? observed
+                guard account.freshness == .live, window.freshness.isLive,
+                    CompanionFreshnessRule.pastResetTime(window, at: now) == nil
+                else { continue }
+                anchors.oldestLive = anchors.oldestLive.map { min($0, observed) } ?? observed
+            }
+        }
+        return anchors
+    }
+
+    /// "Updated 2 min ago", "Updated just now"; the stamp's other kinds read as they are.
+    public static func subtitle(for stamp: FreshnessStamp) -> String {
+        guard stamp.kind == .updated else { return stamp.text }
+        return "Updated \(stamp.text.prefix(1).lowercased() + stamp.text.dropFirst())"
+    }
+}
+
+extension CompanionCardPresentation {
+    /// R3 + R11: the rows in reading order, each past-reset window taken through the
+    /// unavailable path with its reset time.
+    public static func meterRows(_ windows: [CompanionResolvedWindow], now: Date) -> [CompanionMeterRow] {
+        rows(windows).map { window in
+            guard window.hasDisplayValue, let resetAt = CompanionFreshnessRule.pastResetTime(window, at: now) else {
+                return CompanionMeterRow(window: window, pastResetAt: nil)
+            }
+            return CompanionMeterRow(window: window.madeUnavailable(since: resetAt), pastResetAt: resetAt)
+        }
+    }
+
+    /// KTD15: whole-surface dimming and an account's own stale treatment are one secondary-ink
+    /// demotion. A row is dimmed or it isn't; nothing multiplies a second time.
+    public static func rowsDimmed(accountDimmed: Bool, surfaceDimmed: Bool) -> Bool {
+        accountDimmed || surfaceDimmed
+    }
+
+    /// AE6: "Reset at 2:00 PM · waiting for your Mac".
+    public static func pastResetLine(
+        _ resetAt: Date, now: Date, timeZone: TimeZone = .current, locale: Locale = .current
+    ) -> String {
+        CompanionFreshnessCopy.pastReset(
+            at: WidgetClockText.text(for: resetAt, now: now, timeZone: timeZone, locale: locale))
+    }
+}
+
+extension CompanionCardPresentation {
+    /// R14/AE1: only a lineage-less v3 (an older Mac) says what updating adds. A current
+    /// Mac's v3 mirror read without its manifest carries no notice, so it never asks an
+    /// up-to-date Mac to update (KTD6.5).
+    public static func compatibilityLine(_ content: CompanionResolvedContent) -> String? {
+        content.notice == .updateMac ? CompanionCompatibilityNotice.updateMac.message : nil
+    }
+}

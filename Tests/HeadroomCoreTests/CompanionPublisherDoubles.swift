@@ -50,8 +50,14 @@ final class RecordingKeyValueStore: iCloudKeyValueSyncing, @unchecked Sendable {
     private let lock = NSLock()
     private var storage: [String: Data] = [:]
     private var log: [Operation] = []
+    private var rejecting = false
 
     var operations: [Operation] { lock.withLock { log } }
+    /// While true every `set` is refused (iCloud's quota or a full disk), storing nothing.
+    var rejectsWrites: Bool {
+        get { lock.withLock { rejecting } }
+        set { lock.withLock { rejecting = newValue } }
+    }
     var setCount: Int { lock.withLock { log.filter { if case .set = $0 { true } else { false } }.count } }
     var allKeys: [String] { lock.withLock { storage.keys.sorted() } }
 
@@ -61,6 +67,7 @@ final class RecordingKeyValueStore: iCloudKeyValueSyncing, @unchecked Sendable {
 
     @discardableResult func set(_ data: Data, forKey key: String) -> Bool {
         lock.withLock {
+            guard !rejecting else { return false }
             storage[key] = data
             log.append(.set(key))
             return true

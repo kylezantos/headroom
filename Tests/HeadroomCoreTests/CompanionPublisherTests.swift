@@ -593,6 +593,65 @@ struct CompanionPublisherTests {
         #expect(await sleep.next() == 120)
     }
 
+    /// Review 2 testing gap: a heartbeat whose write fails backs off one chosen interval the
+    /// same way: no re-capture or write attempt until a whole interval after the failure.
+    @Test func aWriteFailedHeartbeatWaitsAWholeIntervalBeforeTryingAgain() async throws {
+        let sleep = RecordingSleep()
+        let h = Harness(autoSchedule: true, sleep: sleep.sleep)
+        await h.bindHeartbeat()
+        await h.submit(Self.capture())
+        #expect(await sleep.next() == 120)
+        let held = h.store.data(forKey: CompanionSyncKeys.manifest)
+        h.store.rejectsWrites = true
+
+        await h.advance(120)
+        #expect(h.diagnostics.load().lastFailure == "writeFailed")
+        let captured = h.generation
+        #expect(await sleep.next() == 120)
+        for second in 1...119 {
+            await h.advance(1)
+            #expect(await sleep.next() == TimeInterval(120 - second))
+        }
+        #expect(h.generation == captured, "no re-capture inside the interval")
+        #expect(h.store.data(forKey: CompanionSyncKeys.manifest) == held)
+
+        h.store.rejectsWrites = false
+        await h.advance(1)
+        #expect(h.generation == captured + 1)
+        #expect(h.store.data(forKey: CompanionSyncKeys.manifest) != held)
+        #expect(h.diagnostics.load().lastFailure == nil)
+        #expect(await sleep.next() == 120)
+    }
+
+    /// Review 2 testing gap: a heartbeat whose capture comes back empty (nothing to publish
+    /// yet) counts as an attempt too, so the provider is asked again only one interval later.
+    @Test func anEmptyHeartbeatCaptureWaitsAWholeIntervalBeforeAskingAgain() async throws {
+        let sleep = RecordingSleep()
+        let h = Harness(autoSchedule: true, sleep: sleep.sleep)
+        let asks = CaptureAskCounter()
+        await h.publisher.setCaptureProvider {
+            asks.increment()
+            return nil
+        }
+        await h.submit(Self.capture())
+        #expect(await sleep.next() == 120)
+        h.store.clearLog()
+
+        await h.advance(120)
+        #expect(asks.count == 1)
+        #expect(await sleep.next() == 120)
+        for second in 1...119 {
+            await h.advance(1)
+            #expect(await sleep.next() == TimeInterval(120 - second))
+        }
+        #expect(asks.count == 1, "the provider is not asked again inside the interval")
+        #expect(h.store.operations.isEmpty)
+
+        await h.advance(1)
+        #expect(asks.count == 2)
+        #expect(await sleep.next() == 120)
+    }
+
     // MARK: Write rate (KTD8 steady state)
 
     /// The multi-20 envelope with a 2-minute interval: 61 accounts, one merge every two
@@ -690,4 +749,12 @@ struct CompanionPrivacyCopyTests {
         #expect(CompanionPrivacyCopy.macStatus(lastPublishAt: at, formattedTime: "at 2:41 PM", ladderLevel: 0, lastFailure: "overBudget")
             .hasSuffix("The latest update didn’t fit in iCloud, so your iPhone keeps the one before."))
     }
+}
+
+/// Counts how often the publisher asked for a heartbeat capture.
+private final class CaptureAskCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var asks = 0
+    var count: Int { lock.withLock { asks } }
+    func increment() { lock.withLock { asks += 1 } }
 }

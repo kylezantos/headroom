@@ -91,6 +91,20 @@ At Kyle's direction, U5/U6 proceeded before the two physical answers above. Neit
 - `HeadroomIOS` and `HeadroomIOSWidgets` Simulator builds exited 0 on the merged tree (`.context/m-*-sim.log`).
 - macOS `HeadroomAppTests` could not run: another workspace's Headroom.app was open, so the test host exited early (the BUGS.md single-instance item). Last green run: post-U4, 250 tests in 36 suites.
 
+## Simulator pass of the final designs — 2026-10-05
+
+iPhone 16 Pro / iOS 27.0 Simulator, demo `fourProviders`. All three sizes drew the final designs. The inline line showed the generated vessel image ("Demo · Weekly 64% · 2h") and, after demo exit, the warning image with "Headroom · Waiting for…". "Demo" was visible in every style checked, and every widget returned to "Waiting for your Mac" after demo exit. Screenshots: `.context/u6-sim-*.png`, crops `.context/u6-crop-*.png`.
+
+Three defects, all from iOS drawing text ~1.2× larger than the macOS harness, were fixed by re-spacing. The full sweep passed afterward; a device look confirms them:
+
+1. Nested Badge clipped "Demo" at the circle's bottom. In demo it now keeps only the parent bar.
+2. Tightest Gauge pinned to Grok: the mark touched "56%". The number now sits higher, with the mark lower in the gap.
+3. The Liquid Strip pair truncated "Codex". The column insets are narrower.
+
+Judge by eye: Vessel Badge's vessel and number run close to the circle's sides. Seen and intended: a two-provider rectangle in demo prints "Demo" in place of the first provider's name (its mark still names it). The pinned inline line drops the provider name when the full line doesn't fit.
+
+Not covered (Simulator lag): Tightest First circle on Automatic, Tightest First rectangle, inline Edit Widget, other wallpapers.
+
 ## U9 device acceptance — pending (Kyle)
 
 Install the device build (`.context/lock-screen-spike-device/Build/Products/Debug-iphoneos/HeadroomIOS.app`) and record pass/fail for each:

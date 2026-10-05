@@ -923,6 +923,11 @@ Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
   on dark, light and photo wallpapers, normal and Always On, is the judge.
 - **The inline vessel SVGs use `clipPath`.** If CoreSVG drops it on a device, the liquid would
   draw square-cornered; regenerate with `swift run Headroom --generate-lock-screen-vessels`.
+- **The macOS harness draws Lock Screen text about a fifth smaller than iOS does.** In the
+  2026-10-05 Simulator pass, numerals and captions measured ~1.2× their harness width relative to
+  the circle, so Nested Badge clipped "Demo", Grok's mark touched the Tightest Gauge number and
+  Liquid Strip truncated "Codex" while the sweep stayed green. Those three were re-spaced; the
+  sweep can't catch this class, so judge circle and rectangle fit on a device.
 - **No Lock Screen previews in Settings → Widgets & iPhone.**
 - **The Lock Screen dims through the stale state, with no "No update since" line.** It takes the
   home widgets' `WidgetFreshnessTreatment` (iPhone parity U13): dimmed data draws every window in

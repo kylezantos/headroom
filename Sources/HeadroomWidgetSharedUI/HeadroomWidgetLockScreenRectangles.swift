@@ -301,7 +301,7 @@ struct HeadroomWidgetLockScreenLiquidStrip: View {
             HStack(spacing: 0) {
                 ForEach(Array(recipe.slots.enumerated()), id: \.offset) { index, slot in
                     VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 5) {
+                        HStack(spacing: 4) {
                             HeadroomWidgetLockScreenSlotMark(slot: slot, size: 12, art: art)
                             HeadroomWidgetLockScreenLabel(text: recipe.displayName(forSlotAt: index), size: 12, weight: .semibold)
                         }
@@ -311,8 +311,9 @@ struct HeadroomWidgetLockScreenLiquidStrip: View {
                             .padding(.top, 1)
                     }
                     // R15: the knockout capsule is taller than a bare numeral; these insets
-                    // keep a low half inside the 68 pt strip.
-                    .padding(.horizontal, 8)
+                    // keep a low half inside the 68 pt strip and leave "Codex" room at iOS
+                    // text metrics.
+                    .padding(.horizontal, 6)
                     .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .lockScreenSlotElement(recipe, index: index)

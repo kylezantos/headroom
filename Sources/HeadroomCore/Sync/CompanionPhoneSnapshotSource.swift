@@ -255,10 +255,3 @@ extension CompanionResolvedContent {
             providers: providers, apiSpend: apiSpend, freshness: freshness)
     }
 }
-
-/// Placeholder until the KVS scope marker lands in this stream: serves nothing (KTD22).
-struct CompanionKVSScopeMarker: CompanionAccountScopeProviding {
-    let store: any iCloudKeyValueSyncing
-    init(store: any iCloudKeyValueSyncing) { self.store = store }
-    func check(against archive: Data?) -> CompanionScopeCheck { .unavailable }
-}

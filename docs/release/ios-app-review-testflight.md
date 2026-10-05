@@ -141,11 +141,9 @@ Mac 1.5 build that has the iCloud key-value entitlement, on the same Apple ID; r
     age, open with "No update from your Mac since …" when dimmed, speak a past-reset window as
     "reset at <time>, waiting for your Mac", and omit account names while the phone is locked.
     Demo answers say they are sample data. Siri never changes anything.
-15. **Reminders [U15].** If the spike passed and U16 shipped: turn on "Also send to iPhone and
-    iPad" on the Mac, allow notifications on the phone, and confirm a use-it-up reminder and a
-    Codex banked-reset notice arrive once each on the locked phone; turning the switch or sync
-    off deletes the pending records. If the spike failed: the Reminders section says
-    "Reminders come from Headroom on your Mac" and no phone notification exists.
+15. **Reminders [U15, deferred].** Phone reminders are deferred to a future version: the
+    Reminders section says "Reminders come from Headroom on your Mac" and no phone
+    notification exists.
 16. **Lock Screen and Control Center [U17].** Add each Lock Screen accessory family and the
     control. They follow the main account, show DEMO in demo, and dim (the small families and the
     control as the dimmed treatment plus the bare time). Repeat

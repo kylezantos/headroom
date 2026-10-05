@@ -875,6 +875,7 @@ Order: A and B start together (B's Core types do not depend on shared UI); A's U
 
 ### U15. CloudKit reminders spike
 
+- **Status (2026-10-05): deferred to a future version.** Kyle paused the spike partway to keep 1.5 manageable, so it neither passed nor failed. 1.5 ships the R29 Mac-only path, and U16 doesn't run in 1.5. Partial results and leftovers are in `BUGS.md` under "Phone reminders deferred to a future version".
 - **Goal:** Prove or disprove CloudKit push reminders under Developer ID before any product code.
 - **Requirements:** R28, R29; KTD19.
 - **Dependencies:** P3.
@@ -892,6 +893,7 @@ Order: A and B start together (B's Core types do not depend on shared UI); A's U
 
 ### U16. CloudKit reminders
 
+- **Status (2026-10-05): deferred to a future version** along with U15. 1.5 keeps U12's "Reminders come from Headroom on your Mac" stub.
 - **Goal:** The Mac's reminders and banked-reset notices reach the phone when the user asks.
 - **Requirements:** R28, R29; KTD19, KTD22.
 - **Dependencies:** U15 (pass), U5, U8 (delegate stub), U12 (Reminders stub).

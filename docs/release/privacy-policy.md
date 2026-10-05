@@ -32,10 +32,6 @@ servers of its own.**
   iPad, and one more random ID that lets the app check its saved data belongs to the iCloud
   account signed in now. Sign-ins, credentials, emails, and API keys never leave your Mac and are
   never part of it. iCloud key-value data is not end-to-end encrypted.
-- [**Reminders on your iPhone use your private iCloud database.** If you turn on "Also
-  send to iPhone and iPad" on your Mac, reminder text is stored in your own private
-  iCloud database so it can arrive as a notification. Depending on your notification
-  preview setting, it can show account names on your Lock Screen.]
 - **Update checks.** The Mac app checks `headroom.zantos.co` for new versions using
   the standard Sparkle framework. This is an ordinary HTTPS request for a version
   file; no personal information or system profile is sent.

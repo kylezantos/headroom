@@ -27,6 +27,31 @@ official `claude` CLI's `/usage` panel instead.
   idle popover/Settings measurements have not run; the diagnostic builds alone prove no
   performance result. Do not claim the plan's two-percentage-point budget passed.
 
+## Phone reminders deferred to a future version (2026-10-05, iPhone parity U15/U16)
+
+- **Kyle deferred phone reminders out of 1.5.** He made this choice to keep the release
+  manageable, so it is not a spike failure. 1.5 takes the R29 path: reminders stay Mac-only, the
+  phone's Reminders section says "Reminders come from Headroom on your Mac", and the listing
+  copy makes no phone-reminder claim. U16 doesn't run in 1.5. Pick the work up again from
+  U15/U16 and KTD19 in `docs/plans/2026-10-04-0923-feat-ios-parity-round-plan.md`.
+- **Where the spike stopped.** The runbook is `docs/qa/2026-10-cloudkit-reminders-spike.md`, on
+  the unmerged branch `spike/u15-cloudkit-reminders`. Done on 2026-10-05:
+  - The Mac build carries the CloudKit keys with environment `Production`, signed with the G2
+    Developer ID identity and the P3 profile.
+  - Notarization accepted it (`f46fbc9a…`) and Gatekeeper reports "Notarized Developer ID".
+  - The app launched without an AMFI kill, and `--spike-cloudkit-status` printed
+    `account=available`. This is half of check 1.
+  - Spike TestFlight build 34 was uploaded.
+  
+  Not done:
+  - The `ReminderEvent` schema is in neither Development nor Production; `cktool` rejected the
+    management token.
+  - No record was saved, and checks 2 and 3 and questions 4–7 weren't run.
+- **Build 34 is taken.** Spike iOS build 34 was uploaded to App Store Connect. The 1.5 TestFlight
+  and App Store upload must use build **35 or higher**. Expire build 34 in TestFlight.
+- **The iPhone carries the spike's Debug build.** It was installed over Headroom on Kyle's
+  iPhone for Step 3. Reinstall Headroom from TestFlight or the App Store.
+
 ## iPhone usage screen follow-ups (2026-10-05, iPhone parity U21/U9/U11)
 
 - **Meter labels truncate to "…" at accessibility text sizes on a 390pt phone.** The shared

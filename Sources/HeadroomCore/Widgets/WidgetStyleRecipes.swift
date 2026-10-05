@@ -111,13 +111,24 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
     /// R14: the API spend strip and the "Updated N ago" footer are large-only.
     public let showsSpend: Bool
     public let showsFooter: Bool
+    /// U13 (KTD15): the freshness rules applied to every window above. While dimmed, the
+    /// dimmed sentence takes the footer's place.
+    public let freshness: WidgetFreshnessTreatment
+    /// R11: one "Reset at <time>" note per shown provider with a window past its reset.
+    public let pastResetNotes: [WidgetPastResetNote]
 
     public var showsWashDivider: Bool { washSegments.count > 1 }
     /// KTD10: how many shedding rungs the widget tries — the longest provider ladder, at least
     /// one. Pair with `WidgetStyleProviderRecipe.secondary(atRung:)`.
     public var ladderRungCount: Int { max(1, providers.map(\.secondaryLadder.count).max() ?? 1) }
 
-    public init(style: WidgetLayoutStyle, family: WidgetFamily, envelope: WidgetSnapshotEnvelope) {
+    public init(
+        style: WidgetLayoutStyle, family: WidgetFamily, envelope source: WidgetSnapshotEnvelope,
+        freshness: WidgetFreshnessTreatment = .none
+    ) {
+        // U13: every decision below reads the windows after the KTD15 rules, so past-reset
+        // and dimmed windows rank, fill and wash through the existing unavailable and stale paths.
+        let envelope = freshness.applied(to: source)
         self.style = style
         self.family = family
         var shown = envelope.widgetProviders.map(WidgetStyleProviderRecipe.init(summary:))
@@ -163,7 +174,12 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
             : []
 
         showsSpend = family == .large && !envelope.apiSpendProviders.isEmpty
-        showsFooter = family == .large
+        showsFooter = family == .large && !freshness.isDimmed
+        self.freshness = freshness
+        pastResetNotes = shown.compactMap { recipe in
+            source.providers.first { $0.id == recipe.id }
+                .flatMap { freshness.pastResetNote(for: $0, namesProvider: shown.count > 1) }
+        }
     }
 }
 

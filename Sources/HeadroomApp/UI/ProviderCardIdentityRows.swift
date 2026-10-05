@@ -1,102 +1,11 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import AppKit
 import SwiftUI
 import HeadroomCore
 
 // MARK: - Unified identity row
-
-enum IdentityRowMetrics {
-    static let markSlotWidth: CGFloat = 15
-    static let spacing: CGFloat = 6
-    /// CMM4 (Kyle, 2026-09-10): the identity row's gap to what it heads — 4 over meters,
-    /// 6 over a sign-in sentence. Frame units; ≈14pt / ≈12.5pt of ink in Micro.
-    static let identityToMetersGap: CGFloat = 4
-    static let identityToSentenceGap: CGFloat = 6
-    /// CMM10 (Kyle, 2026-09-10): one title recipe for account rows *and* spend rows — same
-    /// ink token, same size, same kerning — so "Anthropic API" and "Personal" are one object.
-    static let titleSize: CGFloat = 15
-    static let titleKerning: CGFloat = -0.15
-    /// CMM6: how far a chip row's first box hangs outside the text axis.
-    static let chipBoxOutdent: CGFloat = 1
-    static let meterContentInset = markSlotWidth + spacing
-    /// L4B: the trailing gutter mirrors the label column instead of the mark. With the
-    /// card's own 13pt padding this ends every identity row and every meter row 34pt from
-    /// the card's right edge — the same 34pt the titles and meter labels start at — and
-    /// leaves the provider mark hanging alone in its 13pt gutter.
-    static let contentTrailingInset = meterContentInset
-    /// C6A: one capsule height for everything that rides an identity line. Vertical padding
-    /// could not deliver it — a 10.5pt tag's line box is taller than a 9.5pt pill's, so the
-    /// same `vPad 3` produced 18/19/20 — and the drift is invisible until two capsules sit
-    /// side by side. An explicit height with centred text cannot drift.
-    static let capsuleHeight: CGFloat = 18
-
-    /// PA7: one capsule *label* role to go with C6A's one capsule height. The six capsules
-    /// were sharing a box while running 9.5 medium / 10 semibold / 10.5 semibold / 11
-    /// semibold inside it, with kerning on two of the six — and the spend state tag swaps
-    /// into the period chip's own slot, so "Rejected" changed size and weight in place where
-    /// "September" had been. Capsules only read as peers if their labels are peers. Ink and
-    /// fill stay per-recipe; only the type is shared.
-    static let capsuleLabelSize: CGFloat = 10.5
-    static let capsuleLabelWeight: Font.Weight = .medium
-    static let capsuleLabelKerning: CGFloat = 0.2
-}
-
-/// R2C17: one capsule was carrying four meanings — plan (Max, Pro Lite), period (September),
-/// measure (Remaining balance) and the freshness *warning* (Stale) all in the same grey
-/// chrome, so "Work · Pro · Stale" read the warning as a third subscription tier. Things that
-/// look the same must behave the same, so the family splits: metadata is a flat label, state
-/// is a filled-and-outlined chip. These are the shared values that split needs.
-enum IdentityCapsuleStyle {
-    /// R2C17: the stale chip's fill, previously an untokenised `secondary.opacity(0.18)`
-    /// written out once on the identity row and again in the spend view.
-    static let staleFill = Color.secondary.opacity(0.18)
-    /// CMM9: the plan / period pill — a step quieter than a state chip and without its ring.
-    static let metadataFill = Color.secondary.opacity(0.12)
-
-    /// R2C17: outlined-and-filled reads as state; flat reads as label. One hairline is the
-    /// whole difference, so it lives here rather than at either call site.
-    static let stateBorder = Color.secondary.opacity(0.35)
-    static let stateBorderWidth: CGFloat = 1
-}
-
-extension View {
-    /// C6A: the one identity-line capsule. Each recipe keeps its own horizontal padding and
-    /// fill; the height is not negotiable. PA7 added the label role — set through the
-    /// environment, so a call site that still declares `Text.font(_:)` would silently win.
-    /// None do: the six recipes were stripped when this took the type over.
-    ///
-    /// R2C17 added `border`, defaulted off: only a state chip is outlined.
-    func identityCapsule<Fill: ShapeStyle>(
-        fill: Fill,
-        horizontalPadding: CGFloat,
-        border: Color? = nil
-    ) -> some View {
-        font(.system(
-            size: IdentityRowMetrics.capsuleLabelSize,
-            weight: IdentityRowMetrics.capsuleLabelWeight
-        ))
-        // PA7: kerning is applied on each capsule Text at the call site, not here — as a
-        // View modifier it leaked into the sibling layout and truncated the spend title.
-        .fixedSize()
-        .frame(height: IdentityRowMetrics.capsuleHeight)
-        .padding(.horizontal, horizontalPadding)
-        .background(fill, in: Capsule())
-        .overlay {
-            if let border {
-                Capsule().strokeBorder(border, lineWidth: IdentityCapsuleStyle.stateBorderWidth)
-            }
-        }
-    }
-
-    /// The metadata half of the split — plan, period, measure.
-    ///
-    /// CMM9 (Kyle, 2026-09-10): back in its own pill. R2C17 had flattened it to a bare label
-    /// so that only *state* chips carried a fill; Kyle wants the plan and period "in their
-    /// own dip like they used to be", just styled apart from Stale — so this is a quiet fill
-    /// with no ring, and the state chips keep the fill-plus-hairline recipe.
-    func identityMetadataLabel() -> some View {
-        identityCapsule(fill: IdentityCapsuleStyle.metadataFill, horizontalPadding: 5)
-    }
-}
 
 // MARK: - S2B status sentence
 
@@ -134,362 +43,55 @@ func neverSignedInOutcome(for providerID: ProviderID) -> ProviderSetupOutcome? {
     }
 }
 
-/// S2B: severity lives in the sentence's ink, so the mapping from state to ink is stated
-/// once here rather than re-decided at each of the six former glyph sites.
-enum StatusSentenceSeverity {
-    /// Something needs the user, and the account is otherwise intact: sign in needed, a
-    /// stale capture, a missing CLI, a handoff standing in the way.
-    case attention
-    /// The provider or the OS said no: a rejected sign-in, a denied read, a failed handoff.
-    case critical
-    /// A handoff is running. Not a severity at all — the row is mid-flight.
-    case progress
-    /// Informational and nobody's fault: retryable staleness the next poll may clear.
-    case neutral
-    /// Below informational — a first-run line with nothing to report yet.
-    case quiet
+/// U3: the Mac's identity row is the shared `IdentityRow` with the Mac's own logo view and
+/// its per-account loading pill. The alias names the specialization for tests and hosts.
+typealias MacIdentityRow = IdentityRow<ProviderLogoView, IdentityLoadingAccessory>
 
-    /// R2C5: `.attention` used to paint with the meter's Low amber, so an amber 38% Weekly bar
-    /// could sit two rows above an amber "Sign in with the official Claude CLI" with no
-    /// relationship between them — one colour, two meanings. Account lifecycle comes off the
-    /// severity ramp onto the neutral label ink; the sentence is already 11.5 medium against
-    /// 11 regular metadata, so weight and position carry it. `.critical` keeps the red,
-    /// because a provider refusal genuinely is an error and is the card's only red.
-    ///
-    /// `AnyShapeStyle` rather than `Color` because `.neutral`/`.quiet` are the *hierarchical*
-    /// inks the spend card was already painting with, and flattening them to `Color.secondary`
-    /// / a tertiary literal would shift those two rows. `.progress` keeps `Color.secondary`
-    /// for the same reason in reverse — that is the ink it has always drawn.
-    func ink(scheme: ColorScheme) -> AnyShapeStyle {
-        switch self {
-        case .attention: AnyShapeStyle(ProviderStyle.meterLabelInk(scheme: scheme))
-        case .critical: AnyShapeStyle(ProviderStyle.criticalText(scheme: scheme))
-        case .progress: AnyShapeStyle(Color.secondary)
-        case .neutral: AnyShapeStyle(.secondary)
-        case .quiet: AnyShapeStyle(.tertiary)
-        }
-    }
-
-    /// S2B: only the provider's own refusals earn the critical ink. Everything else is a
-    /// state the user can walk out of, so it stays attention rather than shouting.
-    static func forSetupOutcome(_ outcome: ProviderSetupOutcome?) -> StatusSentenceSeverity {
-        switch outcome {
-        case .codexRejectedAuth, .codexPermissionDenied, .codexUnsafePermissions,
-             .grokRejectedAuth, .grokPermissionDenied, .grokUnsafePermissions:
-            .critical
-        default:
-            .attention
-        }
-    }
-
-    /// P4C: the API-spend card's four tones land on this same table, so its sentence is the
-    /// account rows' `StatusSentence` rather than a second copy of the recipe. `.warning`
-    /// is `.attention` by construction — R2C5 already took both off the severity ramp onto
-    /// `meterLabelInk`.
-    static func forSpendTone(_ tone: APISpendRowStatus.Tone) -> StatusSentenceSeverity {
-        switch tone {
-        case .quiet: .quiet
-        case .neutral: .neutral
-        case .warning: .attention
-        case .critical: .critical
-        }
-    }
-}
-
-/// S2B: the whole status line — no glyph, no state tag. 11.5 medium, inked by severity,
-/// starting on the 34pt content axis (the 21pt inset inside the card's own 13pt padding),
-/// wrapping freely and stopping at the card's own 13pt trailing edge.
-struct StatusSentence: View {
-    let text: String
-    let severity: StatusSentenceSeverity
-    /// False where the row supplies the axis itself — the waiting row's spinner occupies
-    /// the 15pt mark slot, and the single-account setup notice sits above a guided card
-    /// that starts at the card's own 13pt edge.
-    var indented: Bool = true
-
-    @Environment(\.colorScheme) private var scheme
+/// R6/R10: the account row's trailing loading pill, present only where the card supplies a
+/// loading read. Its own body stays the small boundary that observes fast work signals.
+struct IdentityLoadingAccessory: View {
+    let readLoading: (() -> AccountLoadingState)?
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 11.5, weight: .medium))
-            .foregroundStyle(severity.ink(scheme: scheme))
-            // PB11: this sentence routinely runs to three lines in a 299pt card, and at
-            // SF's default it was setting at ~1.22 leading while Settings' help text gets
-            // 1.4. Two points brings the popover's wrapping prose into the same band.
-            .lineSpacing(2)
-            .fixedSize(horizontal: false, vertical: true)
-            // OA1: the sentence starts a line on the same content axis as the titles and
-            // meter labels above it, so it hangs on the same optical edge they do.
-            .opticalLeading(text, size: 11.5, weight: .medium)
-            .padding(.leading, indented ? IdentityRowMetrics.meterContentInset : 0)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        if let readLoading {
+            AccountActionPill(readLoading: readLoading)
+        }
     }
 }
 
-/// The one identity treatment used for provider-name and account-name rows (KTD9).
-/// The mark owns the only brand color; account metadata and state remain neutral.
-struct IdentityRow: View {
-    let providerID: ProviderID
-    let title: String
-    let planLabel: String?
-    let isMenuBarAccount: Bool
-    let isStale: Bool
-    let email: String?
-    let showsPersistentEmail: Bool
-    let showsConnectedChip: Bool
-    /// R2C22: the capability card stamps the provider mark on its own header row *and* on
-    /// every account row beneath it, so "✳ Claude" sat 7pt above "✳ Personal". A nested
-    /// account row hides its mark and keeps the slot, so the title column never shifts.
-    var showsMark: Bool = true
-    var bankedResets: Int? = nil
-    var isCritical: Bool = false
-    var isRevealing: Bool = false
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// PB11: whether the tail truncation actually bit. Measured, not guessed — SwiftUI has
-    /// no "did this Text truncate" signal, so the rendered width is compared against the
-    /// string's intrinsic width in the same font.
-    @State private var titleIsTruncated = false
-
-    @ViewBuilder var body: some View {
-        let email = normalizedEmail
-        if let tooltip = rowHelp(email: email) {
-            row(email: email)
-                .help(tooltip)
-        } else {
-            row(email: email)
-        }
-    }
-
-    private func row(email: String?) -> some View {
-        HStack(spacing: IdentityRowMetrics.spacing) {
-            if showsMark {
-                ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
-            } else {
-                // R2C22: the slot stays reserved, so a nested row's title lands on the same
-                // axis as the header row's above it.
-                Color.clear.frame(
-                    width: IdentityRowMetrics.markSlotWidth,
-                    height: IdentityRowMetrics.markSlotWidth
-                )
-            }
-            titleText
-            if planDisplayName != nil || (bankedResets ?? 0) > 0 {
-                PlanCapsule(
-                    planDisplayName: planDisplayName,
-                    bankedResets: bankedResets,
-                    isCritical: isCritical,
-                    isRevealing: isRevealing
-                )
-            }
-            // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
-            // rather than pushed to the row's trailing edge — one chip run reading
-            // "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
-            if isStale {
-                staleTag
-                    // RM1: the freshness scope around it is `.movement`, so the tag keeps
-                    // its fade under Reduce Motion on its own.
-                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
-            }
-            if showsConnectedChip {
-                ConnectedChip()
-                    .transition(.connectedChip(reduceMotion: reduceMotion))
-            }
-            if showsPersistentEmail, let email {
-                Text(email)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .layoutPriority(1)
-            }
-            Spacer(minLength: 6)
-        }
-        // L4B: trailing controls stop level with the meter rows below them.
-        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(accessibilityIdentity(email: email))
-    }
-
-    /// T1A sized this off Kyle's Paper mock at 15pt on the `accountTitle` ink so the name
-    /// labels its meters instead of competing with the popover's own 20pt bold header. G1
-    /// restored `.semibold` — `.medium` on a recessive grey lost the row's anchor — and the
-    /// ink is now the user's `AccountTitleInk` choice (neutral grey or the provider's brand
-    /// tint). Kerning is unchanged throughout.
-    private var titleText: some View {
-        Text(title)
-            .font(.system(size: Self.titleSize, weight: .semibold))
-            .kerning(Self.titleKerning)
-            .accountTitleInk(for: providerID)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            // PB11: measured on the Text itself, before the optical pull-back, so the
-            // comparison is against the width the string was actually given.
-            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width in
-                titleIsTruncated = Self.titleIsTruncated(title, renderedWidth: width)
-            }
-            // OA1: "Personal" and "Work" carry side bearings 0.66pt apart at this size, so
-            // without this the title column visibly jitters account to account.
-            .opticalLeading(title, size: Self.titleSize, weight: .semibold)
-            // PB11: the account name identifies the row; the email is a detail the tooltip
-            // has always carried anyway. Outranking the email's `layoutPriority(1)` stops a
-            // long address eating the name it belongs to.
-            .layoutPriority(2)
-    }
-
-    private static let titleSize = IdentityRowMetrics.titleSize
-    private static let titleKerning = IdentityRowMetrics.titleKerning
-
-    /// PB11: the width the title wants, from the same real font metrics `OpticalLeading`
-    /// reads. Kept separate from the comparison below so the predicate is testable without
-    /// a render.
-    static func titleIntrinsicWidth(_ title: String) -> CGFloat {
-        (title as NSString).size(withAttributes: [
-            .font: NSFont.systemFont(ofSize: titleSize, weight: .semibold),
-            .kern: titleKerning,
-        ]).width
-    }
-
-    /// True once the row is narrower than the string needs. The half-point slack keeps
-    /// sub-pixel layout rounding from claiming a truncation that never happened; a zero
-    /// width is the pre-layout pass, not a truncation.
-    static func titleIsTruncated(_ title: String, renderedWidth: CGFloat) -> Bool {
-        guard renderedWidth > 0 else { return false }
-        return renderedWidth + 0.5 < titleIntrinsicWidth(title)
-    }
-
-    /// L5D: the main account carries no visible marker. Order already says it — main is
-    /// always its provider's first row — and a second capsule beside the plan badge made a
-    /// busy title cluster busier, so the fact moves to this row's tooltip and to VoiceOver.
-    /// One `.help` per row: nested help modifiers let the innermost win on macOS, so a
-    /// separate tooltip on the title would swallow the email the row has always shown.
-    ///
-    /// PB11: a truncated title joins it. The tail ellipsis is the only place the row loses
-    /// information the user cannot recover any other way, and the row already owns the one
-    /// tooltip on this line.
-    private func rowHelp(email: String?) -> String? {
-        Self.helpLines(
-            title: title,
-            titleIsTruncated: titleIsTruncated,
-            email: email,
-            isMenuBarAccount: isMenuBarAccount,
-            bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
-        )
-    }
-
-    /// One tooltip, in a fixed order: truncated title, email, main-account note, banked resets.
-    static func helpLines(
+extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadingAccessory {
+    /// The Mac's call shape, unchanged by the extraction: the logo fills the scaled slot,
+    /// tooltips stay the title disclosure (no host action), and scale is the popover's 1.
+    init(
+        providerID: ProviderID,
         title: String,
-        titleIsTruncated: Bool,
-        email: String?,
-        isMenuBarAccount: Bool,
-        bankedHelp: String?
-    ) -> String? {
-        var lines: [String] = []
-        if titleIsTruncated { lines.append(title) }
-        if let email { lines.append(email) }
-        if isMenuBarAccount { lines.append(mainAccountHelp) }
-        if let bankedHelp { lines.append(bankedHelp) }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
-    }
-
-    private var normalizedEmail: String? {
-        guard let email, !email.isEmpty else { return nil }
-        return email
-    }
-
-    /// Raw ids (`prolite`, `SuperGrok`) never reach the badge — Core owns the humanizing
-    /// so the lenient provider models keep their verbatim value (#709).
-    private var planDisplayName: String? {
-        PlanLabelPresentation.displayName(planLabel)
-    }
-
-    /// S2B removed the status glyphs and left severity to the sentence's ink — but a
-    /// transient-stale row renders no sentence at all (`stateContent` keeps its dimmed
-    /// meters), so this tag survives as that state's only visible signal. C6A gives it the
-    /// same 18pt as the plan pill beside it.
-    private var staleTag: some View {
-        Text("Stale")
-            .kerning(IdentityRowMetrics.capsuleLabelKerning)
-            // PA7: type comes from `identityCapsule` now.
-            .foregroundStyle(.secondary)
-            // R2C17: a state chip, so it keeps its fill and takes the hairline that tells it
-            // apart from the flat plan label now sitting beside it.
-            .identityCapsule(
-                fill: IdentityCapsuleStyle.staleFill,
-                horizontalPadding: 5,
-                border: IdentityCapsuleStyle.stateBorder
-            )
-    }
-
-    /// L5D: with the badge gone, the row tooltip and this VoiceOver phrase are the only
-    /// places the fact is stated — keep them in step.
-    static let mainAccountHelp = "Main account — shown in the menu bar and widgets"
-
-    private func accessibilityIdentity(email: String?) -> String {
-        Self.accessibilityParts(
-            title: title,
-            planDisplayName: planDisplayName,
-            isMenuBarAccount: isMenuBarAccount,
-            isStale: isStale,
-            email: email,
-            showsConnectedChip: showsConnectedChip,
-            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
-        )
-    }
-
-    static func accessibilityParts(
-        title: String,
-        planDisplayName: String?,
+        planLabel: String?,
         isMenuBarAccount: Bool,
         isStale: Bool,
         email: String?,
+        showsPersistentEmail: Bool,
         showsConnectedChip: Bool,
-        bankedPhrase: String?
-    ) -> String {
-        var parts = [title]
-        if let planDisplayName { parts.append("\(planDisplayName) plan") }
-        if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
-        if isStale { parts.append("Stale") }
-        if let email { parts.append("signed in as \(email)") }
-        if showsConnectedChip { parts.append("Connected") }
-        if let bankedPhrase { parts.append(bankedPhrase) }
-        return parts.joined(separator: ", ")
-    }
-}
-
-private extension AnyTransition {
-    /// M8A: a sign-in payoff earns a little arrival, so the chip enters on opacity plus a
-    /// 0.96 scale; it leaves on opacity alone, because an exit that announces itself twice
-    /// reads as an error. S2A drops the scale under Reduce Motion and keeps the fade.
-    static func connectedChip(reduceMotion: Bool) -> AnyTransition {
-        guard !reduceMotion else { return .opacity }
-        return .asymmetric(
-            insertion: .opacity.combined(with: .scale(scale: 0.96)),
-            removal: .opacity
-        )
-    }
-}
-
-private struct ConnectedChip: View {
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "checkmark")
-                // R2B3: 9pt bold beside a 10.5 medium label was the heavier of the two at the
-                // smaller size; semibold puts the glyph's stroke back in step with its word.
-                .font(.system(size: 9, weight: .semibold))
-            // PA7: the tallest label of the six took the shared role too; only the
-            // checkmark keeps a font of its own, because it is a glyph, not a label.
-            Text("Connected")
-                .kerning(IdentityRowMetrics.capsuleLabelKerning)
-        }
-        .foregroundStyle(ClaudeSetupStyle.connectedInk(dark: scheme == .dark))
-        // C6A: was the tallest of the three capsules at ~19–20pt; now the same 18 as the rest.
-        .identityCapsule(
-            fill: ClaudeSetupStyle.connectedBackground(dark: scheme == .dark),
-            horizontalPadding: 8
+        showsMark: Bool = true,
+        bankedResets: Int? = nil,
+        isCritical: Bool = false,
+        isRevealing: Bool = false,
+        loadingAccessory: (() -> AccountLoadingState)? = nil
+    ) {
+        self.init(
+            providerID: providerID,
+            title: title,
+            planLabel: planLabel,
+            isMenuBarAccount: isMenuBarAccount,
+            isStale: isStale,
+            email: email,
+            showsPersistentEmail: showsPersistentEmail,
+            showsConnectedChip: showsConnectedChip,
+            showsMark: showsMark,
+            bankedResets: bankedResets,
+            isCritical: isCritical,
+            isRevealing: isRevealing,
+            mark: { ProviderLogoView(providerID: providerID, size: $0) },
+            accessory: { IdentityLoadingAccessory(readLoading: loadingAccessory) }
         )
     }
 }
@@ -515,6 +117,7 @@ struct AccountSectionView: View {
     /// R2C22: false for the account rows nested under a capability card's own provider row.
     var showsMark: Bool = true
     var claimBankedResetReveal: ((AccountKey, Int?) -> Bool)? = nil
+    var readLoading: () -> AccountLoadingState = { .init() }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -526,6 +129,7 @@ struct AccountSectionView: View {
     private var account: ProviderAccount { entry.account }
 
     var body: some View {
+        let _ = BenchCounters.hit("AccountSectionView")
         // The session is read once per render and handed down. Every scope below wants the
         // same value, and the read stays here inside `body` so the `@Observable` coordinator
         // dependency is still registered.
@@ -627,7 +231,8 @@ struct AccountSectionView: View {
             showsMark: showsMark,
             bankedResets: snapshot.bankedResets,
             isCritical: snapshot.hasLiveCriticalResettableWindow,
-            isRevealing: isRevealingBankedResets
+            isRevealing: isRevealingBankedResets,
+            loadingAccessory: readLoading
         )
     }
 
@@ -927,8 +532,11 @@ struct AccountSectionView: View {
     }
 
     private var accountSkeleton: some View {
-        SkeletonMeter(labelWidth: 72, valueWidth: 38, format: meterStyle.format)
-            .padding(.leading, IdentityRowMetrics.meterContentInset)
-            .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
+        VStack(alignment: .leading, spacing: 9) {
+            SkeletonMeter(labelWidth: 72, valueWidth: 38, format: meterStyle.format)
+            FetchingUsageLine(readLoading: readLoading)
+        }
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
+        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
     }
 }

@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import AppKit
 import WidgetKit
@@ -7,7 +10,8 @@ import HeadroomCore
 /// `--probe-grok` / `--probe-cursor` run the real provider capture once and print parsed
 /// windows; `--probe-spend <openai|anthropic|xai> [--key-file <path>]` verifies a key-based
 /// API-spend path; `--dump-phone-sync` decodes the iCloud KVS payload the Mac published for
-/// the iPhone. All run without launching the menu bar UI.
+/// the iPhone; `--bench-ui` measures the popover and Settings offscreen (`UIBenchHarness`).
+/// All run without launching the menu bar UI.
 @main
 enum Entry {
     static func main() {
@@ -35,6 +39,12 @@ enum Entry {
             runPhoneSyncDump()
             return
         }
+        if let index = CommandLine.arguments.firstIndex(of: "--render-loading-preview") {
+            let outDir = CommandLine.arguments.indices.contains(index + 1)
+                ? CommandLine.arguments[index + 1] : "loading-preview"
+            MainActor.assumeIsolated { MiniPillPreviewHarness.run(outputDirectory: outDir) }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-widgets") {
             // KTD12 (widget-styles plan): headless renders of every widget style.
             let outDir = CommandLine.arguments.indices.contains(index + 1)
@@ -53,6 +63,12 @@ enum Entry {
             let outDir = CommandLine.arguments.indices.contains(index + 1)
                 ? CommandLine.arguments[index + 1] : "popover-shots"
             MainActor.assumeIsolated { PopoverRenderHarness.run(outputDirectory: outDir) }
+            return
+        }
+        if CommandLine.arguments.contains("--bench-ui") {
+            // Offscreen perf bench: timings, frame-by-frame probes, and (with -DHEADROOM_BENCH)
+            // view-body counts for the popover and Settings.
+            MainActor.assumeIsolated { UIBenchHarness.run() }
             return
         }
         // `--demo <scenario>` (demo mode, Jul 2026): reject an unrecognized scenario before the
@@ -394,10 +410,10 @@ enum Entry {
         semaphore.wait()
     }
 
-    /// Decode and print the widget-safe snapshot the Mac last published to iCloud KVS for the
-    /// iPhone. Answers the stale-sync question directly: is the "Sync snapshot to iPhone"
-    /// toggle on, and is a *fresh* payload actually sitting in the key-value store. The
-    /// snapshot model is redaction-safe (display-ready usage only — no credentials/paths).
+    /// What the Mac publishes to iCloud KVS for the iPhone (KTD22 diagnostics): whether sync
+    /// is on, every key under the v3 and v4 names with its byte size and decode status, and
+    /// the publisher's last publish, ladder level and quota event. Key names, sizes, times
+    /// and categories only: never payload contents, titles or the lineage UUID.
     private static func runPhoneSyncDump() {
         // The reading is only meaningful from the signed .app bundle: `swift run` has no bundle
         // identifier (so UserDefaults resolves a different domain) and no iCloud-KVS entitlement
@@ -405,36 +421,60 @@ enum Entry {
         // is never mistaken for the real app's state.
         print("bundle id: \(Bundle.main.bundleIdentifier ?? "(none — running outside an .app; readings are not the installed app's state)")")
 
-        let preferences = Preferences()
+        let defaults = UserDefaults.standard
+        let preferences = Preferences(defaults: defaults)
         print("syncToIPhoneEnabled: \(preferences.syncToIPhoneEnabled)")
+        // Drive-scoped signal: a missing token does not prove key-value sync is off.
+        print("iCloud identity token: \(FileManager.default.ubiquityIdentityToken == nil ? "absent" : "present") (iCloud Drive signal, not proof of key-value sync)")
+        let lineage = CompanionLineage(defaults: defaults)
+        print("lineage: \(lineage.hasLineage ? "present" : "none yet"), last generation \(lineage.currentGeneration.map(String.init) ?? "—")")
+
+        let formatter = ISO8601DateFormatter()
+        let diagnostics = CompanionPublishDiagnosticsStore(defaults: defaults).load()
+        print("last publish:     \(diagnostics.lastPublishAt.map(formatter.string(from:)) ?? "never")")
+        print("last generation:  \(diagnostics.lastGeneration.map(String.init) ?? "—")")
+        print("ladder level:     \(diagnostics.ladderLevel)")
+        print("last quota event: \(diagnostics.lastQuotaEventAt.map(formatter.string(from:)) ?? "none")")
+        print("last failure:     \(diagnostics.lastFailure ?? "none")")
+        print("last sync-off sweep: \(diagnostics.lastSweepAt.map(formatter.string(from:)) ?? "none")")
+        for (key, bytes) in diagnostics.keyBytes.sorted(by: { $0.key < $1.key }) {
+            print("  published \(key): \(bytes) bytes")
+        }
 
         let store = UbiquitousKeyValueSyncStore()
         _ = store.synchronize()
-        let data = store.data(forKey: iCloudSnapshotSync.snapshotKey)
-        print("KVS key:   \(iCloudSnapshotSync.snapshotKey)")
-        print("KVS bytes: \(data?.count ?? 0)")
-
-        switch SyncedWidgetSnapshotCodec.decode(data) {
+        print("KVS (this Mac's local copy):")
+        let v3 = store.data(forKey: iCloudSnapshotSync.snapshotKey)
+        print("  \(iCloudSnapshotSync.snapshotKey): \(v3?.count ?? 0) bytes")
+        switch SyncedWidgetSnapshotCodec.decode(v3) {
         case .missing:
-            print("RESULT: no payload in iCloud KVS (missing) — the Mac has not published, or the store is empty on this account.")
+            print("    v3: missing — the Mac has not published, or the store is empty on this account.")
         case .corrupt:
-            print("RESULT: payload present but undecodable (corrupt).")
+            print("    v3: present but undecodable (corrupt).")
         case .incompatibleSchema:
-            print("RESULT: payload schema incompatible with this build.")
+            print("    v3: schema incompatible with this build.")
         case .snapshot(let envelope):
-            let formatter = ISO8601DateFormatter()
-            print("RESULT: snapshot present")
-            print("  publishedAt:          \(formatter.string(from: envelope.publishedAt))")
-            print("  snapshot.generatedAt: \(formatter.string(from: envelope.snapshot.generatedAt))")
-            print("  sourceID:             \(envelope.sourceID)")
-            print("  sourcePlatform:       \(envelope.sourcePlatform.rawValue)")
-            print("  status:               \(envelope.snapshot.status.rawValue)")
-            print("  envelope.schema:      \(envelope.schemaVersion)")
-            print("  snapshot.schema:      \(envelope.snapshot.schemaVersion)")
+            print("    v3: \(envelope.snapshot.status.rawValue), generatedAt \(formatter.string(from: envelope.snapshot.generatedAt)), schema \(envelope.schemaVersion)/\(envelope.snapshot.schemaVersion), lineage \(envelope.companionLineage == nil ? "none" : "generation \(envelope.companionLineage!.generation)")")
             let providers = envelope.snapshot.providers.map(\.id).joined(separator: ", ")
-            print("  providers:            \(providers.isEmpty ? "(none)" : providers)")
-            let apiSpend = envelope.snapshot.apiSpendProviders.map(\.id).joined(separator: ", ")
-            print("  apiSpendProviders:    \(apiSpend.isEmpty ? "(none)" : apiSpend)")
+            print("    providers: \(providers.isEmpty ? "(none)" : providers)")
+        }
+        var total = 0
+        for key in store.keys(withPrefix: CompanionSyncKeys.namespace) {
+            let bytes = store.data(forKey: key)?.count ?? 0
+            total += bytes
+            let over = key.hasPrefix(CompanionSyncKeys.providerPrefix) && bytes > CompanionSyncBudget.providerKeyBytes
+            print("  \(key): \(bytes) bytes\(over ? " (over the per-key budget)" : "")")
+        }
+        print("  v4 total: \(total) of \(CompanionSyncBudget.namespaceBytes) bytes")
+        switch CompanionSyncCodec.decodeManifest(store.data(forKey: CompanionSyncKeys.manifest)) {
+        case .value(.disabled):
+            print("  manifest: disabled tombstone (sync off)")
+        case .value(.active(let manifest)):
+            print("  manifest: enabled, generation \(manifest.generation), ladder \(manifest.dropLadderLevel), providers \(manifest.providerOrder.joined(separator: ", "))")
+        case .missing:
+            print("  manifest: missing")
+        case let other:
+            print("  manifest: unreadable (\(other))")
         }
     }
 }
@@ -452,22 +492,56 @@ struct HeadroomApp: App {
     @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let preferences: Preferences
+    private let demoController: LoadingDemoController?
 
     @MainActor
     init() {
         let preferences = AppComposition.launchPreferences
-        let store = AppComposition.store(preferences: preferences)
+        let demoController = DemoFixture.isEnabled
+            ? LoadingDemoController(loading: DemoFixture.scenarioRequest() == .multiAccount(.loading)) : nil
+        let store = AppComposition.store(preferences: preferences, demoController: demoController)
+        demoController?.configure(store: store)
         if !DemoFixture.isEnabled {
             SetupSessions.configure(
                 store: store,
                 claudeExecutableLocator: AppComposition.claudeExecutableLocator
             )
         }
+        // U6 (KTD14.2, KTD21): phone check-now requests reach the coordinator through the
+        // iCloud observer; it exists only where the phone publisher does.
+        let checkNow = AppComposition.makeCheckNowCoordinator(store: store)
+        CompanionSyncObservers.checkNow = checkNow
         self.preferences = preferences
+        self.demoController = demoController
         _store = State(initialValue: store)
         _appearancePreference = State(initialValue: preferences.appearancePreference)
         _systemIsDark = State(initialValue: SystemAppearance.isDark())
-        AppDelegate.startUsageStore = { Task { await store.start() } }
+        AppDelegate.startUsageStore = {
+            if demoController?.loading == true { demoController?.start() }
+            else {
+                Task { await store.start() }
+                // Requests queued before now, and the launch scan's finds, join the launch
+                // refresh: the store's one-full-refresh guard makes it one pass either way.
+                checkNow?.start()
+            }
+        }
+        #if HEADROOM_BENCH
+        if let reportURL = LoadingNativeBench.reportURL {
+            AppDelegate.startUsageStore = {
+                Task { await LoadingNativeBench.run(store: store, preferences: preferences, reportURL: reportURL) }
+            }
+        }
+        #endif
+        if let demoController {
+            AppDelegate.stopDemo = { await demoController.shutdown() }
+        } else {
+            AppDelegate.stopDemo = nil
+        }
+        if DemoFixture.isEnabled {
+            AppDelegate.flushPhoneSync = nil
+        } else {
+            AppDelegate.flushPhoneSync = { await store.flushPhoneSync() }
+        }
         // SwiftUI's `preferredColorScheme` doesn't reach the `MenuBarExtra(.window)`
         // popover panel or the Settings window's AppKit chrome — both are NSWindows whose
         // appearance follows the process. Drive `NSApp.appearance` so the theme toggle
@@ -491,6 +565,8 @@ struct HeadroomApp: App {
         }
     }
 
+    // ML1: `--bench-ui scene` measures `BenchSceneStandIn` (UIBenchHarness.swift), not this body.
+    // Mirror a change to what this body reads or builds into the stand-in before measuring it.
     var body: some Scene {
         MenuBarExtra {
             PopoverView(store: store) {
@@ -516,39 +592,31 @@ struct HeadroomApp: App {
                     store.refreshOnPopoverOpen()
                 }
         } label: {
-            MenuBarLabel(
-                meters: store.menuBarMeters,
-                showsPercentage: store.showMenuBarPercentage,
-                // L1A: only the real status item follows the live menu bar. The Settings
-                // specimens keep the default pinned-dark palette because they sit on a
-                // fixed dark plate.
-                appearance: .menuBar,
-                updatingProviders: store.menuBarUpdatingProviders
-            )
-            .preferredColorScheme(resolvedScheme)
-            .task { await store.start() }
-            // Attach to the status item's own window once the scene exists (L1A). The menu
-            // bar's appearance is not the process appearance: a light system appearance over
-            // a dark wallpaper still gets a dark menu bar, which is exactly the case the old
-            // dark pin got right by accident and a system-appearance check would get wrong.
-            .task { MenuBarAppearanceMonitor.shared.start() }
-            // Track OS light/dark flips so `.system` content re-resolves live (chrome
-            // follows the OS on its own via `NSApp.appearance == nil`). Attached to the
-            // always-present label, not the on-demand popover, so it never misses a change.
-            .onReceive(DistributedNotificationCenter.default().publisher(
-                for: Notification.Name("AppleInterfaceThemeChangedNotification")
-            )) { _ in
-                systemIsDark = SystemAppearance.isDark()
-                // An OS theme flip repaints the menu bar backplate; re-read it in case the
-                // status window was replaced and the KVO has nothing to fire from (L1A).
-                MenuBarAppearanceMonitor.shared.refresh()
-            }
-            // Re-read the OS truth on any theme switch so a Light→System flip resolves
-            // against the live setting, not a possibly-stale mirror.
-            .onChange(of: appearancePreference) { _, _ in
-                systemIsDark = SystemAppearance.isDark()
-                MenuBarAppearanceMonitor.shared.refresh()
-            }
+            MenuBarStatusLabel(store: store)
+                .preferredColorScheme(resolvedScheme)
+                .task { await store.start() }
+                // Attach to the status item's own window once the scene exists (L1A). The menu
+                // bar's appearance is not the process appearance: a light system appearance over
+                // a dark wallpaper still gets a dark menu bar, which is exactly the case the old
+                // dark pin got right by accident and a system-appearance check would get wrong.
+                .task { MenuBarAppearanceMonitor.shared.start() }
+                // Track OS light/dark flips so `.system` content re-resolves live (chrome
+                // follows the OS on its own via `NSApp.appearance == nil`). Attached to the
+                // always-present label, not the on-demand popover, so it never misses a change.
+                .onReceive(DistributedNotificationCenter.default().publisher(
+                    for: Notification.Name("AppleInterfaceThemeChangedNotification")
+                )) { _ in
+                    systemIsDark = SystemAppearance.isDark()
+                    // An OS theme flip repaints the menu bar backplate; re-read it in case the
+                    // status window was replaced and the KVO has nothing to fire from (L1A).
+                    MenuBarAppearanceMonitor.shared.refresh()
+                }
+                // Re-read the OS truth on any theme switch so a Light→System flip resolves
+                // against the live setting, not a possibly-stale mirror.
+                .onChange(of: appearancePreference) { _, _ in
+                    systemIsDark = SystemAppearance.isDark()
+                    MenuBarAppearanceMonitor.shared.refresh()
+                }
         }
         .menuBarExtraStyle(.window)
 
@@ -558,11 +626,9 @@ struct HeadroomApp: App {
                 appearancePreference: $appearancePreference,
                 softwareUpdates: softwareUpdates,
                 preferences: preferences,
-                // Demo runs stay off the real Keychain: the unsigned debug binary would
-                // otherwise raise one prompt per API-key provider every time Settings opens.
-                credentialStore: DemoFixture.isEnabled
-                    ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
-                    : CredentialStore(),
+                credentialStore: AppComposition.settingsCredentialStore,
+                launchControl: AppComposition.settingsLaunchControl,
+                duplicateDetector: AppComposition.settingsDuplicateDetector,
                 // U6: the one client per launch; inert under `--demo` and unbundled runs (KTD9).
                 notificationClient: AppComposition.notificationClient
             )
@@ -742,6 +808,10 @@ enum SystemAppearance {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var startUsageStore: (() -> Void)?
+    static var stopDemo: (@MainActor () async -> Void)?
+    /// KTD8: pending phone writes flush before the app quits.
+    static var flushPhoneSync: (@MainActor () async -> Void)?
+    private var terminationTask: Task<Void, Never>?
     /// Set from `HeadroomApp.init()`; applied here once `NSApp` exists (`.some(nil)` means
     /// "System" — leave `NSApp.appearance` at its default so it tracks the OS).
     static var startupAppearance: NSAppearance??
@@ -758,6 +828,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.appearance = appearance
         }
         Self.startUsageStore?()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let stopDemo = Self.stopDemo
+        let flushPhoneSync = Self.flushPhoneSync
+        guard stopDemo != nil || flushPhoneSync != nil else { return .terminateNow }
+        if terminationTask == nil {
+            terminationTask = Task {
+                if let flushPhoneSync { await flushPhoneSync() }
+                if let stopDemo {
+                    await stopDemo()
+                    Self.stopDemo = nil
+                }
+                sender.reply(toApplicationShouldTerminate: true)
+            }
+        }
+        return .terminateLater
     }
 }
 
@@ -834,12 +921,12 @@ enum AppComposition {
     }
 
     @MainActor
-    static func store(preferences: Preferences = launchPreferences) -> UsageStore {
+    static func store(preferences: Preferences = launchPreferences, demoController: LoadingDemoController? = nil) -> UsageStore {
         if DemoFixture.isEnabled {
             // `--demo <scenario>` opts into the isolated multi-account preview; a bare `--demo`
             // keeps the single-account screenshot fixtures the marketing pipeline relies on.
             if case .multiAccount(let scenario) = DemoFixture.scenarioRequest() {
-                return demoMultiAccountStore(scenario: scenario)
+                return demoMultiAccountStore(scenario: scenario, controller: demoController)
             }
             return demoStore()
         }
@@ -866,8 +953,10 @@ enum AppComposition {
 
     /// Screenshot demo mode (`--demo`): fixed sample data wired into the real UI across
     /// every surface. Preferences live in a private UserDefaults suite so demo runs never
-    /// touch the user's real settings. Keeps the real widget + iCloud exporters, so the
-    /// macOS widgets and the iPhone mirror pick up the same fixed numbers.
+    /// touch the user's real settings. Keeps the real widget exporter so the macOS widgets
+    /// show the same fixed numbers, but never the iCloud one: a signed demo run would
+    /// overwrite the user's real phone snapshot (R37, 2026-10-04 iPhone parity plan). The
+    /// iPhone's own Explore Demo covers phone captures.
     @MainActor
     private static func demoStore() -> UsageStore {
         let prefs = launchPreferences
@@ -892,8 +981,7 @@ enum AppComposition {
                 DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
             ],
             preferences: prefs,
-            widgetExporter: widgetExporter(),
-            phoneSyncExporter: phoneSyncExporter()
+            widgetExporter: widgetExporter()
         )
     }
 
@@ -909,11 +997,13 @@ enum AppComposition {
     /// return their snapshots instantly (Refresh re-serves them at no cost — no CLI, no
     /// network), and the widget/iCloud exporters are omitted so no App Group or KVS write
     /// happens. The `providerFactory` returns fixtures too, so even "Add account" in Settings
-    /// never spawns the claude/codex CLIs.
+    /// never spawns the claude/codex CLIs when paired with the inert demo coordinator.
     @MainActor
-    private static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario) -> UsageStore {
-        let prefsDefaults = launchDefaults
-        let prefs = launchPreferences
+    static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario,
+                                     controller: LoadingDemoController? = nil,
+                                     defaults: UserDefaults? = nil) -> UsageStore {
+        let prefsDefaults = defaults ?? launchDefaults
+        let prefs = Preferences(defaults: prefsDefaults)
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
@@ -922,7 +1012,7 @@ enum AppComposition {
         // API spend surfaces are off by default, so enable exactly the ones this scenario
         // wires — derived from the providers rather than a hardcoded Claude/Codex pair, so
         // `spend-states`' xAI balance row is not silently filtered out of the card.
-        let spendProviders = demoSpendProviders(for: scenario)
+        let spendProviders = scenario == .loading ? (controller?.spendProviders() ?? demoSpendProviders(for: scenario)) : demoSpendProviders(for: scenario)
         for provider in spendProviders {
             if let surface = UsageSurface.api(for: provider.id) {
                 prefs.setSurfaceEnabled(true, for: surface)
@@ -954,8 +1044,9 @@ enum AppComposition {
         // `Optional.map` trips a Swift 6.3 type-checker crash — mirror the harness's pattern.
         var factory: (@MainActor (ProviderAccount) -> any UsageProvider)?
         if registry != nil {
-            factory = { account in
-                DemoUsageProvider(
+            factory = { [weak controller] account in
+                if let controller { return controller.provider(for: account, needsSetup: true) }
+                return DemoUsageProvider(
                     id: account.providerID,
                     displayName: account.providerID.displayName,
                     snapshot: .pending(for: account.providerID),
@@ -963,15 +1054,20 @@ enum AppComposition {
                 )
             }
         }
+        let providers: [any UsageProvider]
+        if scenario == .loading, let controller { providers = fixture.accounts.map { controller.provider(for: $0) } }
+        else { providers = fixture.providers }
         return UsageStore(
-            providers: fixture.providers,
+            providers: providers,
             apiSpendProviders: spendProviders,
             preferences: prefs,
             accounts: fixture.accounts,
             accountRegistry: registry,
+            accountStorage: controller?.accountStorage ?? DemoAccountStorage(),
             providerFactory: factory,
             continuityCache: continuityCache,
-            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults)
+            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults),
+            now: { [clock = controller?.clock] in clock?.now() ?? Date() }
         )
     }
 
@@ -1173,6 +1269,11 @@ enum AppComposition {
         environment["XCTestConfigurationFilePath"] != nil
     }
 
+    /// The Settings window's key store, one per launch rather than one per scene-body pass.
+    /// Demo runs stay off the real Keychain: the unsigned debug binary would otherwise raise
+    /// one prompt per API-key provider every time Settings opens.
+    static let settingsCredentialStore = makeSettingsCredentialStore(isDemo: DemoFixture.isEnabled)
+
     /// U5: the one notification client per launch. The store's coordinator posts through
     /// it and `SettingsView` reads and requests permission through it (U6).
     @MainActor static let notificationClient: any NotificationClient = makeNotificationClient()
@@ -1189,6 +1290,8 @@ enum AppComposition {
         arguments.contains("--demo")
             || arguments.contains("--render-popover")
             || arguments.contains("--render-widgets")
+            || arguments.contains("--render-loading-preview")
+            || arguments.contains("--bench-ui")
             || usesNoOpWidgetExporter(environment: environment)
             || !bundle.supportsUserNotifications
     }
@@ -1215,8 +1318,102 @@ enum AppComposition {
         }
     }
 
-    static func phoneSyncExporter() -> any WidgetSnapshotExporting {
-        iCloudSnapshotPublisher(sync: iCloudSnapshotSync(store: UbiquitousKeyValueSyncStore()))
+    /// KTD21 / R37: the phone publisher and its iCloud observers exist only in a real app
+    /// launch: never under `--demo`, the render and bench harnesses, or the XCTest host,
+    /// whose stores must not write the user's iCloud key-value store.
+    static func usesInertPhoneSync(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        arguments.contains("--demo")
+            || arguments.contains("--render-popover")
+            || arguments.contains("--render-widgets")
+            || arguments.contains("--render-loading-preview")
+            || arguments.contains("--bench-ui")
+            || usesNoOpWidgetExporter(environment: environment)
+    }
+
+    /// KTD8: the one coalesced v3 + v4 publisher per launch.
+    @MainActor static let companionPhoneSync: CompanionPhoneSync? = makeCompanionPhoneSync()
+
+    /// U16 (KTD19) adds the CloudKit reminder poster here. It implements
+    /// `CompanionSyncLifecycle`, so sync off purges its records after the KVS sweep and an
+    /// iCloud account change resets its outbox; nothing else in this file changes.
+    static var companionSyncParticipants: [any CompanionSyncLifecycle] { [] }
+
+    @MainActor static func phoneSyncExporter() -> CompanionPhoneSync? {
+        companionPhoneSync
+    }
+
+    /// U6 (KTD14.2, KTD21): the phone check-now coordinator. Like the publisher it exists
+    /// only in a real launch — never under `--demo`, the harnesses or the XCTest host — and
+    /// answers as this Mac's lineage.
+    @MainActor static func makeCheckNowCoordinator(
+        store: UsageStore,
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> CheckNowCoordinator? {
+        guard !usesInertPhoneSync(arguments: arguments, environment: environment), companionPhoneSync != nil
+        else { return nil }
+        return CheckNowCoordinator(
+            store: UbiquitousKeyValueSyncStore(), host: store,
+            ledger: CheckNowLedger(defaults: launchDefaults),
+            configuration: .init(sourceID: CompanionLineage(defaults: launchDefaults).sourceID))
+    }
+
+    @MainActor private static func makeCompanionPhoneSync() -> CompanionPhoneSync? {
+        guard !usesInertPhoneSync() else { return nil }
+        let sync = CompanionPhoneSync(
+            store: UbiquitousKeyValueSyncStore(),
+            lineage: CompanionLineage(defaults: launchDefaults),
+            diagnosticsStore: CompanionPublishDiagnosticsStore(defaults: launchDefaults),
+            macAppVersion: macAppVersion,
+            participants: companionSyncParticipants
+        )
+        CompanionSyncObservers.install(for: sync)
+        return sync
+    }
+
+    static var macAppVersion: String? {
+        let info = Bundle.main.infoDictionary
+        guard let version = info?["CFBundleShortVersionString"] as? String else { return nil }
+        guard let build = info?["CFBundleVersion"] as? String else { return version }
+        return "\(version) (\(build))"
+    }
+}
+
+/// iCloud and system signals the phone publisher and the check-now coordinator react to.
+@MainActor
+enum CompanionSyncObservers {
+    private static var tokens: [any NSObjectProtocol] = []
+    /// U6: request changes go to the coordinator, which queues anything before its start().
+    static var checkNow: CheckNowCoordinator?
+
+    static func install(for sync: CompanionPhoneSync) {
+        guard tokens.isEmpty else { return }
+        tokens.append(NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: NSUbiquitousKeyValueStore.default, queue: .main
+        ) { [weak sync] note in
+            let change = iCloudKeyValueChange(userInfo: note.userInfo)
+            MainActor.assumeIsolated {
+                // KTD22: a new iCloud account gets every key republished.
+                if change.reason == .accountChange { sync?.accountDidChange() }
+                // KTD7: the quota signal is a diagnostic that may force one ladder step.
+                if let event = change.quotaEvent(at: Date()) { sync?.recordQuotaEvent(event) }
+                // KTD14.2: typed changes filtered to request keys inside the coordinator.
+                if change.touches(prefix: CompanionSyncKeys.requestPrefix) { checkNow?.receive(change) }
+            }
+        })
+        // KTD8: pending writes flush before the system sleeps.
+        tokens.append(NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.willSleepNotification, object: nil, queue: .main
+        ) { [weak sync] _ in
+            MainActor.assumeIsolated {
+                guard let sync else { return }
+                Task { await sync.flushNow() }
+            }
+        })
     }
 }
 

@@ -44,7 +44,8 @@ struct HeadroomLockScreenWidgetView: View {
             HeadroomWidgetLockScreenBody(
                 recipe: LockScreenWidgetRecipe(style: entry.style, family: family,
                                                providerChoice: entry.providerChoice,
-                                               state: entry.state, now: entry.date),
+                                               state: entry.state, now: entry.date,
+                                               freshness: entry.freshnessTreatment),
                 art: Self.art
             ) { image in
                 // KTD9: inline renders only text and one image, so the icon stays a bare Image.

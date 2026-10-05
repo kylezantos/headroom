@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import AppKit
 import SwiftUI
 import HeadroomCore
@@ -20,6 +23,7 @@ struct SettingsPaneScaffold<Content: View>: View {
     }
 
     var body: some View {
+        let _ = BenchCounters.hit("SettingsPaneScaffold")
         ScrollView(.vertical) {
             // R2C19: the pane's two levels no longer share one 14. The title sits close to
             // the tile it heads and the tiles stand well apart, so which level a gap
@@ -65,6 +69,7 @@ struct GeneralSettingsPane: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = BenchCounters.hit("GeneralSettingsPane")
         SettingsPaneScaffold(SettingsPane.general.label) {
             SettingsTile {
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
@@ -196,6 +201,7 @@ struct AppearanceSettingsPane: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = BenchCounters.hit("AppearanceSettingsPane")
         SettingsPaneScaffold(SettingsPane.appearance.label) {
             // R6: sits on the pane background above the tiles, not inside one — it is
             // the subject of the pane, not another setting.
@@ -285,6 +291,7 @@ struct MenuBarSettingsPane: View {
     }
 
     var body: some View {
+        let _ = BenchCounters.hit("MenuBarSettingsPane")
         // The specimen stays in view while the editor scrolls at the window's resize floor.
         VStack(alignment: .leading, spacing: SettingsMetrics.headerToContent) {
             Text(SettingsPane.menuBar.label)
@@ -744,6 +751,7 @@ struct WidgetsSettingsPane: View {
     @Binding var showCodexSparkCountersInWidgets: Bool
     @Binding var syncToIPhoneEnabled: Bool
     var body: some View {
+        let _ = BenchCounters.hit("WidgetsSettingsPane")
         SettingsPaneScaffold(SettingsPane.widgets.label) {
             // L9P: sits on the pane background above the tile, like the Appearance
             // specimen — it is the subject of the pane, not another setting.
@@ -788,6 +796,7 @@ struct AccountsSettingsPane: View {
     let surfaceBinding: (UsageSurface) -> Binding<Bool>
 
     var body: some View {
+        let _ = BenchCounters.hit("AccountsSettingsPane")
         SettingsPaneScaffold(SettingsPane.accounts.label) {
             AccountsSettingsTile(
                 store: store,
@@ -817,6 +826,7 @@ struct APISpendSettingsPane: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let _ = BenchCounters.hit("APISpendSettingsPane")
         SettingsPaneScaffold(SettingsPane.apiSpend.label) {
             SettingsTile {
                 ForEach(store.registeredAPISpendProviderOrder, id: \.self) { providerID in
@@ -1130,6 +1140,7 @@ struct AboutSettingsPane: View {
     @Binding var automaticUpdateDownloads: Bool
 
     var body: some View {
+        let _ = BenchCounters.hit("AboutSettingsPane")
         SettingsPaneScaffold(SettingsPane.about.label) {
             AboutIdentityCard()
 

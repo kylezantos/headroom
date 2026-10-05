@@ -15,15 +15,18 @@ public enum DemoScreenshotData {
     public static var isEnabled: Bool { CommandLine.arguments.contains("--demo") }
 
     /// The current demo envelope variant, selecting from the named fixtures below.
-    /// Reads the `companionDemoVariant` key from the app-group defaults when available;
+    /// A `--demo-variant` launch argument wins (KTD21); otherwise reads the
+    /// `companionDemoVariant` key from the app-group defaults when available;
     /// falls back to "full" if the variant is unset or unrecognized.
     public static var envelope: WidgetSnapshotEnvelope {
-        let variant = CompanionDemoModeStore.appGroup().variant
+        let variant = CompanionDemoLaunchOptions.current.variant?.rawValue
+            ?? CompanionDemoModeStore.appGroup().variant
         return self.envelope(for: variant)
     }
 
     /// Resolves a named demo fixture variant to its WidgetSnapshotEnvelope.
-    /// Unknown variants fall back to the `full` fixture.
+    /// Unknown variants, and v4 variants with no content (paused, waiting), fall back to the
+    /// `full` fixture.
     public static func envelope(for variant: String) -> WidgetSnapshotEnvelope {
         switch variant {
         case "noSpend":
@@ -39,7 +42,11 @@ public enum DemoScreenshotData {
         case "fourProviders":
             return fourProvidersEnvelope
         default:
-            return fullEnvelope
+            // U7: a v4 variant chosen in Explore Demo reaches build-33 hosts as its
+            // main-account projection (KTD13) until they adopt the resolved snapshot.
+            return CompanionDemoVariant(token: variant)
+                .flatMap { CompanionDemoData.snapshot($0, now: Date()).primaryProjection() }
+                ?? fullEnvelope
         }
     }
 
@@ -418,7 +425,8 @@ public enum DemoScreenshotData {
     /// stale, unavailable and pending paths are posed against a fixed `now`.
     public static let styleFixtureNames = [
         "claudeCodex", "claudeGrok", "codexCursor", "grokCursor", "tightClaudeCursor",
-        "sparkOn", "staleUnavailable", "pending", "firstPending", "signedOut", "cursorOnly", "spend",
+        "sparkOn", "staleUnavailable", "pending", "firstPending", "pendingAll", "pendingPools", "pendingCodex", "pendingCursor",
+        "signedOut", "cursorOnly", "spend",
     ]
 
     public static func styleFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
@@ -478,18 +486,22 @@ public enum DemoScreenshotData {
         }
         let pending = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
                                             freshness: .pending, windows: [], renewalDate: nil)
+        func waiting(_ id: ProviderID, _ name: String) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: id.raw, displayName: name, planLabel: nil,
+                                  freshness: .pending, windows: [], renewalDate: nil)
+        }
         // WCM5-v: a provider that needs the user, with no retained window — large prints its reason.
         let signedOut = WidgetProviderSummary(id: ProviderID.claude.raw, displayName: "Claude", planLabel: "Max",
                                               freshness: .stale(message: ProviderSetupOutcome.claudeLoginRequired.message, needsAttention: true),
                                               windows: [], renewalDate: nil)
         switch name {
-        case "claudeCodex": return envelope([claude(72, 38, 61), codex(41, 64)])
-        case "claudeGrok": return envelope([claude(72, 38, 61), grok(56)])
+        case "claudeCodex": return envelope([claude(72, 38, 54), codex(41, 64)])
+        case "claudeGrok": return envelope([claude(72, 38, 54), grok(56)])
         case "codexCursor": return envelope([codex(41, 64), cursor(69, 37)])
         case "grokCursor": return envelope([grok(56), cursor(69, 37)])
         case "tightClaudeCursor":
             return envelope([claude(12, 9, 23, fiveHourReset: 1.66 * hour, weekReset: 1.1 * day), cursor(31, 8, resetIn: 6.1 * day)])
-        case "sparkOn": return envelope([claude(72, 38, 61), codex(41, 64, spark: 22)])
+        case "sparkOn": return envelope([claude(72, 38, 54), codex(41, 64, spark: 22)])
         case "staleUnavailable":
             return envelope([
                 claude(72, 38, 5, fable: .stale(observedAt: now.addingTimeInterval(-2 * hour))),
@@ -498,10 +510,14 @@ public enum DemoScreenshotData {
             ])
         case "pending": return envelope([pending, codex(41, 64)])
         case "firstPending": return envelope([pending, grok(56)])
+        case "pendingAll": return envelope([pending, waiting(.codex, "Codex")])
+        case "pendingPools": return envelope([waiting(.grok, "Grok"), waiting(.cursor, "Cursor")])
+        case "pendingCodex": return envelope([waiting(.codex, "Codex")])
+        case "pendingCursor": return envelope([waiting(.cursor, "Cursor")])
         case "signedOut": return envelope([signedOut, codex(41, 64)])
         case "cursorOnly": return envelope([cursor(69, 37)])
         case "spend":
-            return envelope([claude(72, 38, 61), codex(41, 64)],
+            return envelope([claude(72, 38, 54), codex(41, 64)],
                             spend: [spendRow(.claude, "Anthropic API", 142.67), spendRow(.codex, "OpenAI API", 58.90)])
         default: return nil
         }

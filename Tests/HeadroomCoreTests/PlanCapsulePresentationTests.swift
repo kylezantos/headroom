@@ -80,6 +80,47 @@ struct PlanCapsulePresentationTests {
         #expect(!critical.markedStale(.transient("offline")).hasLiveCriticalResettableWindow)
     }
 
+    /// U3/KTD6.2: the auto-open decision reads normalized severity. 15.04% remaining (raw
+    /// binary 15.040000000000006, Low) now opens because it normalizes to 15.0, as the phone
+    /// sees it; the decimal tie at 15.05% normalizes to 15.1 and stays shut.
+    @Test(arguments: [(84.96, true), (84.95, false), (85.0, true), (84.0, false), (100.0, true), (50.04, false)])
+    func criticalGateUsesTheNormalizedValue(utilization: Double, opens: Bool) {
+        for kind in [WindowKind.fiveHour, .weekly] {
+            let window = UsageWindow(kind: kind, utilization: utilization, resetsAt: .distantFuture)
+            #expect(snapshot(freshness: .live, windows: [window]).hasLiveCriticalResettableWindow == opens)
+        }
+    }
+
+    /// The freshness and kind gates are the ones the capsule always had, at the boundary too.
+    @Test func normalizedCriticalKeepsTheLiveResettableGates() {
+        let observed = Date(timeIntervalSince1970: 1_800_000_000)
+        let critical = UsageWindow(kind: .fiveHour, utilization: 84.96, resetsAt: .distantFuture)
+        #expect(!snapshot(freshness: .live, windows: [critical.withFreshness(.stale(observedAt: observed))]).hasLiveCriticalResettableWindow)
+        #expect(!snapshot(freshness: .live, windows: [critical.withFreshness(.unavailable(since: observed))]).hasLiveCriticalResettableWindow)
+        #expect(!snapshot(freshness: .stale(.transient("offline")), windows: [critical]).hasLiveCriticalResettableWindow)
+        #expect(!snapshot(freshness: .pending, windows: [critical]).hasLiveCriticalResettableWindow)
+        let spark = UsageWindow(kind: .other("Spark"), utilization: 84.96, resetsAt: .distantFuture)
+        let period = UsageWindow(kind: .billingPeriod(label: "Included", duration: 2_592_000), utilization: 99, resetsAt: .distantFuture)
+        #expect(!snapshot(freshness: .live, windows: [spark, period]).hasLiveCriticalResettableWindow)
+    }
+
+    /// The phone asks the same question of synced readings.
+    @Test func phoneReadingsTakeTheSameDecision() {
+        func row(_ remaining: Double, _ freshness: WidgetWindowFreshness = .live) -> UsageMeterReading {
+            UsageMeterReading(widgetSummary: WidgetWindowSummary(
+                kind: .weekly, label: "Weekly", percentRemaining: remaining,
+                resetSchedule: .scheduled(.distantFuture), resetLabel: nil,
+                severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: remaining)), freshness: freshness
+            ))
+        }
+        #expect(PlanCapsulePresentation.hasLiveCriticalResettableWindow(snapshotIsLive: true, readings: [row(15.04)]))
+        #expect(!PlanCapsulePresentation.hasLiveCriticalResettableWindow(snapshotIsLive: true, readings: [row(15.05)]))
+        #expect(!PlanCapsulePresentation.hasLiveCriticalResettableWindow(snapshotIsLive: false, readings: [row(10)]))
+        #expect(!PlanCapsulePresentation.hasLiveCriticalResettableWindow(
+            snapshotIsLive: true, readings: [row(10, .stale(observedAt: Date(timeIntervalSince1970: 0)))]
+        ))
+    }
+
     @Test func helpAndVoiceOverNameTheSpare() {
         #expect(PlanCapsulePresentation.helpLine(count: 2) == "2 banked resets — a full reset refreshes the 5-hour and weekly windows")
         #expect(PlanCapsulePresentation.helpLine(count: 1) == "1 banked reset — a full reset refreshes the 5-hour and weekly windows")

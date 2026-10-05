@@ -16,8 +16,13 @@ extension UsageStore {
         accounts(for: providerID).first
     }
 
-    public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator) {
+    public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator?) {
         setupCoordinator = coordinator
+    }
+
+    /// An isolated demo/capture owner releases its sources before awaiting scheduler teardown.
+    public func waitForAccountProbesToFinish() async {
+        await scheduler.waitUntilLanesIdle()
     }
 
     /// Reject any capture started before this reset boundary and drop retained usage
@@ -76,6 +81,8 @@ extension UsageStore {
             for: providerID,
             reason: .notLoggedIn(Self.finishSignInMessage)
         )
+        // R17: a new account reaches the phone without waiting for a refresh.
+        exportPhoneSyncSnapshot()
         return account
     }
 
@@ -85,6 +92,8 @@ extension UsageStore {
         accountsByProvider[key.providerID] = accountRegistry.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         )
+        // R17 / KTD9: titles are resolved on the Mac, so a rename re-exports them.
+        exportPhoneSyncSnapshot()
     }
 
     public func canPromoteAccount(_ key: AccountKey) -> Bool {

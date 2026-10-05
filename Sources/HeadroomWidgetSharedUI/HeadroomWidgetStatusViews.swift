@@ -66,8 +66,7 @@ public struct HeadroomWidgetStatusCard: View {
         HStack(alignment: .top, spacing: CGFloat(WidgetMetrics.markGap)) {
             // WCF3: the mark hangs in the gutter, leading-aligned, and the text starts on
             // the content axis (mark slot + 6) — the same axis the meters start on.
-            HeadroomVesselMark(fill: state.vesselFill)
-                .frame(width: 12, height: 20)
+            statusMark
                 .frame(width: CGFloat(WidgetMetrics.markSlot(for: family)), alignment: .leading)
             VStack(alignment: .leading, spacing: 4) {
                 if family != .small {
@@ -77,6 +76,7 @@ public struct HeadroomWidgetStatusCard: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .widgetOpticalLeading(state.title, size: titleSize, weight: .semibold)
+                        .headroomWidgetProbe()
                 }
                 // WCF7: the sentence is the element that gives — two lines, then a tail
                 // ellipsis. Nothing here clips or overlaps the tile's content box.
@@ -87,6 +87,7 @@ public struct HeadroomWidgetStatusCard: View {
                     .truncationMode(.tail)
                     .fixedSize(horizontal: false, vertical: true)
                     .widgetOpticalLeading(state.message, size: messageSize, weight: .medium)
+                    .headroomWidgetProbe()
             }
             Spacer(minLength: 0)
         }
@@ -95,5 +96,19 @@ public struct HeadroomWidgetStatusCard: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(family == .small ? state.message : "\(state.title). \(state.message)")
+    }
+
+    @ViewBuilder private var statusMark: some View {
+        if let placeholder = state.loadingPlaceholder(availableWidth: WidgetMetrics.markSlot(for: family)) {
+            if placeholder.usesRow {
+                HalftonePillRow(pills: placeholder.pills, labelWidth: placeholder.width)
+            } else if let pill = placeholder.pills.first {
+                HalftoneVesselView(state: pill, width: placeholder.width, height: placeholder.height,
+                                  columns: 3, rows: 6)
+            }
+        } else {
+            HeadroomVesselMark(fill: state.vesselFill)
+                .frame(width: 12, height: 20)
+        }
     }
 }

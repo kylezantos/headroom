@@ -191,15 +191,18 @@ public struct LockScreenWidgetRecipe: Sendable, Equatable {
     }
     public var accessibilityText: String { accessibilityElements.joined(separator: "; ") }
 
-    public init(style: WidgetLayoutStyle, family: LockScreenWidgetFamily, providerChoice: LockScreenProviderChoice, state: IOSWidgetSnapshotState, now: Date) {
+    /// `freshness`: the home widgets' KTD15 rules (iOS parity U13). Dimmed data draws every
+    /// window in the stale state; a window ten minutes past its reset draws as unavailable.
+    public init(style: WidgetLayoutStyle, family: LockScreenWidgetFamily, providerChoice: LockScreenProviderChoice,
+                state: IOSWidgetSnapshotState, now: Date, freshness: WidgetFreshnessTreatment = .none) {
         self.style = style
         self.family = family
         self.providerChoice = providerChoice
         let envelope: WidgetSnapshotEnvelope?
         let statusState: WidgetStatusState?
         switch state {
-        case .content(let content): envelope = content; isDemo = false; statusState = nil
-        case .demo(let content): envelope = content; isDemo = true; statusState = nil
+        case .content(let content): envelope = freshness.applied(to: content); isDemo = false; statusState = nil
+        case .demo(let content): envelope = freshness.applied(to: content); isDemo = true; statusState = nil
         case .disabled: envelope = nil; isDemo = false; statusState = .iosDisabled
         case .setupNeeded: envelope = nil; isDemo = false; statusState = .iosSetupNeeded
         case .waitingForMac: envelope = nil; isDemo = false; statusState = .iosWaitingForMac

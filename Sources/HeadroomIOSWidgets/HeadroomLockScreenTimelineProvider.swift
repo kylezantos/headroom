@@ -7,6 +7,12 @@ struct HeadroomLockScreenWidgetEntry: TimelineEntry {
     var style: WidgetLayoutStyle = LockScreenWidgetChoices.defaultStyle
     var providerChoice: LockScreenProviderChoice = .automatic
     var isPlaceholder = false
+    /// U13 (iOS parity, KTD15): the same dimming and past-reset inputs the home widgets take.
+    var freshness: CompanionFreshnessInputs?
+
+    var freshnessTreatment: WidgetFreshnessTreatment {
+        .widget(inputs: freshness, now: date, host: .phone)
+    }
 }
 
 struct HeadroomLockScreenTimelineProvider: AppIntentTimelineProvider {
@@ -16,34 +22,55 @@ struct HeadroomLockScreenTimelineProvider: AppIntentTimelineProvider {
     }
 
     func snapshot(for configuration: HeadroomLockScreenConfigurationIntent, in context: Context) async -> HeadroomLockScreenWidgetEntry {
-        let state = context.isPreview
-            ? IOSWidgetSnapshotState.demo(DemoScreenshotData.envelope(for: "fourProviders"))
-            : resolvedState()
-        return entry(date: .now, state: state, configuration: configuration)
+        if context.isPreview {
+            return entry(date: .now, load: Load(state: .demo(Self.demoEnvelope), freshness: nil), configuration: configuration)
+        }
+        return entry(date: .now, load: load(), configuration: configuration)
     }
 
     func timeline(for configuration: HeadroomLockScreenConfigurationIntent, in context: Context) async -> Timeline<HeadroomLockScreenWidgetEntry> {
         let now = Date.now
-        let state = resolvedState()
+        let load = load()
         let envelope: WidgetSnapshotEnvelope?
-        switch state {
+        switch load.state {
         case .demo(let content), .content(let content): envelope = content
         default: envelope = nil
         }
-        let entries = WidgetTimelineSchedule.entryDates(for: envelope, now: now).map { date in
-            entry(date: date, state: state, configuration: configuration)
+        // U13: entries at the dim moment and ten minutes after each reset, as on the home widgets.
+        let timeline = CompanionTimelineSchedule.timeline(for: envelope, freshness: load.freshness, now: now)
+        let entries = timeline.entryDates.map { date in
+            entry(date: date, load: load, configuration: configuration)
         }
-        return Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now)))
+        return Timeline(entries: entries, policy: .after(timeline.reloadDate))
     }
 
-    private func resolvedState() -> IOSWidgetSnapshotState {
-        HeadroomIOSWidgetStateResolver.resolvedState(demoEnvelope: DemoScreenshotData.envelope(for: "fourProviders"))
+    /// KTD10: Lock Screen demo always shows the four-provider envelope, so every pinned
+    /// provider has data, whichever demo variant the Home Screen widgets show.
+    private static var demoEnvelope: WidgetSnapshotEnvelope { DemoScreenshotData.envelope(for: "fourProviders") }
+
+    private struct Load {
+        let state: IOSWidgetSnapshotState
+        let freshness: CompanionFreshnessInputs?
     }
 
-    private func entry(date: Date, state: IOSWidgetSnapshotState, configuration: HeadroomLockScreenConfigurationIntent) -> HeadroomLockScreenWidgetEntry {
+    /// U13 (KTD13, iOS parity): the same shared phone source as the home widgets. Demo is
+    /// decided before iCloud is touched; only its envelope differs (KTD10 above).
+    private func load() -> Load {
+        let demoStore = CompanionDemoModeStore.appGroup()
+        let demoSnapshot = demoStore.loaderSeam(launch: .current)()
+        let snapshot = CompanionPhoneSnapshotSource.production(demo: { demoSnapshot }).load()
+        let load = CompanionWidgetLoad.from(snapshot, isDemo: demoSnapshot != nil)
+        if case .demo = load.state {
+            return Load(state: .demo(Self.demoEnvelope), freshness: nil)
+        }
+        return Load(state: load.state, freshness: load.freshness)
+    }
+
+    private func entry(date: Date, load: Load, configuration: HeadroomLockScreenConfigurationIntent) -> HeadroomLockScreenWidgetEntry {
         HeadroomLockScreenWidgetEntry(
-            date: date, state: state,
-            style: configuration.layoutStyle, providerChoice: configuration.providerChoice
+            date: date, state: load.state,
+            style: configuration.layoutStyle, providerChoice: configuration.providerChoice,
+            freshness: load.freshness
         )
     }
 }

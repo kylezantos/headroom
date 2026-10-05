@@ -1,6 +1,12 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import AppKit
 import HeadroomCore
+#if canImport(HeadroomWidgetSharedUI)
+import HeadroomWidgetSharedUI
+#endif
 
 /// The native popover (U7). Composes one card per provider on a system surface, a gear
 /// that opens Settings, and a Quit control (required — the app has no Dock presence,
@@ -21,15 +27,12 @@ struct PopoverView: View {
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
-    /// Content extends past the scroll cap and isn't scrolled to the bottom — gates
-    /// the bottom fade so it never softens a fully visible last card.
-    @State private var scrollContinuesBelow = false
-    /// L2A: live scroll geometry driving the bespoke gutter indicator. The system
-    /// scroller is hidden, so this is the only position and length cue.
-    @State private var scrollMetrics = PopoverScrollMetrics()
-    @State private var scrollIndicatorVisible = false
-    @State private var scrollIndicatorHideTask: Task<Void, Never>?
+    @Environment(\.loadingDate) private var pinnedDate
+    /// L2A: live scroll geometry for the bottom feather and the bespoke gutter indicator.
+    /// SC1 (2026-10-03 perf bench): held in a model that only those two child views read.
+    /// As `@State` here, every scroll frame re-ran this whole body and rebuilt every card —
+    /// ~40ms and 230 view bodies per scroll step at 20 accounts.
+    @State private var scroll = PopoverScrollModel()
     /// Measured height of the card stack. `MenuBarExtra(.window)` sizes its window to the
     /// content's ideal height, and a `ScrollView` has no ideal height of its own — left to
     /// self-size it collapsed to zero and the popover opened at 127pt with no cards
@@ -45,7 +48,10 @@ struct PopoverView: View {
     private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
     var body: some View {
+        let _ = BenchCounters.hit("PopoverView")
         TimelineView(.periodic(from: .now, by: 60)) { context in
+            let now = pinnedDate ?? context.date
+            let _ = BenchCounters.hit("PopoverView.timeline")
             let accountsByVisibleProvider = store.providerOrder.reduce(
                 into: [ProviderID: [ProviderAccount]]()
             ) { accounts, providerID in
@@ -79,7 +85,7 @@ struct PopoverView: View {
                 }
             )
             VStack(spacing: 20) {
-                header(now: context.date)
+                header(now: now)
                     // Header sits 14pt above the first card (vs the 20pt tile gap) — the
                     // title belongs to the content below it more than cards belong to
                     // each other.
@@ -115,10 +121,19 @@ struct PopoverView: View {
                                     percentageMode: store.usagePercentageMode,
                                     meterStyle: store.meterStyle,
                                     anyProviderMultiAccount: anyProviderMultiAccount,
-                                    now: context.date,
-                                    onRetrySetup: { store.refreshNow() },
+                                    now: now,
+                                    onRetrySetup: {
+                                        if let account = store.primaryAccount(for: id) { store.refreshAccountNow(account.key) }
+                                    },
+                                    onRetryProvider: { store.refreshProviderNow(id) },
                                     onRetryAccount: { store.refreshAccountNow($0.key) },
-                                    claimBankedResetReveal: { store.claimBankedResetReveal(for: $0, currentCount: $1) }
+                                    claimBankedResetReveal: { store.claimBankedResetReveal(for: $0, currentCount: $1) },
+                                    loadingForAccount: { key in
+                                        // R6/R10: evaluated by glyph children, not this large body.
+                                        AccountLoadingState.resolve(key: key, checking: store.accountActionCheckingKeys,
+                                            probing: store.probingAccounts, ends: store.lastProbeEndTimes,
+                                            fullRefresh: store.fullRefreshInFlight)
+                                    }
                                 )
                                 .id(meterRecipeKey)
                                 .transition(.opacity)
@@ -138,7 +153,7 @@ struct PopoverView: View {
                             // both surfaces describe the same account change the same way.
                             .transition(.settingsReveal)
                         }
-                        APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)
+                        APISpendSectionView(store: store, now: now, onOpenSettings: openSettingsDismissingPopover)
                             // S5A: the spend tile is a sibling card, so it arrives and
                             // leaves the same way the provider cards above it do.
                             .transition(.settingsReveal)
@@ -160,11 +175,14 @@ struct PopoverView: View {
                     // Scroll content is laid out at its ideal height regardless of the
                     // ScrollView's own frame, so this reports the true stack height even
                     // on the first pass while the frame below is still zero.
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { cardsHeight = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: {
+                        BenchCounters.mark("cardsHeight=\($0)")
+                        cardsHeight = $0
+                    }
                 }
                 // L2A: the stock overlay scroller sat on the card border and painted a
                 // near-black well over the card interior when it expanded. We hide it and
-                // draw our own in the 19pt shell gutter instead (see `scrollIndicator`),
+                // draw our own in the 19pt shell gutter instead (see `PopoverScrollIndicator`),
                 // which also retires main's borrowed 10pt scroller gutter — the viewport
                 // and the cards are the same width again.
                 .scrollIndicators(.hidden)
@@ -185,31 +203,16 @@ struct PopoverView: View {
                         content: geometry.contentSize.height
                     )
                 } action: { _, metrics in
-                    scrollMetrics = metrics
-                    scrollContinuesBelow = metrics.continuesBelow
-                    flashScrollIndicator(overflows: metrics.overflows)
+                    BenchCounters.mark("scrollMetrics(viewport=\(metrics.viewport),content=\(metrics.content))")
+                    scroll.update(metrics)
                 }
-                .mask {
-                    VStack(spacing: 0) {
-                        Rectangle().fill(.black)
-                        LinearGradient(
-                            stops: Self.featherStops(fadesOut: scrollContinuesBelow),
-                            startPoint: .top, endPoint: .bottom
-                        )
-                        .frame(height: Self.featherHeight)
-                    }
-                }
-                // S2A: the feather is pure mask opacity, so Reduce Motion keeps the
-                // 200ms softening rather than hard-cutting the card edge.
-                .animation(
-                    HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                    value: scrollContinuesBelow
-                )
+                // FA1: the feather animates its own opacity only (see `PopoverScrollFeather`).
+                .mask { PopoverScrollFeather(model: scroll) }
                 // Applied outside the mask so the indicator never feathers at the ends,
                 // and outside the feather animations so its position tracks the scroll 1:1.
-                .overlay(alignment: .topTrailing) { scrollIndicator }
+                .overlay(alignment: .topTrailing) { PopoverScrollIndicator(model: scroll) }
                 .frame(height: forcedCardsHeight ?? min(cardsHeight, 640))
-                footer(now: context.date)
+                footer(now: now)
             }
             // M9C (Sep 2026): no entrance motion at all, not even on the first open. Kyle
             // reviewed the once-per-session fade in the live build and called for instant —
@@ -231,101 +234,6 @@ struct PopoverView: View {
 
     /// M5A follow-up: one key for the whole card list, read once per body pass.
     private var meterRecipeKey: String { MeterRecipeKey.key(for: store.meterStyle) }
-
-    // MARK: - Scroll feather (R2C23)
-
-    /// R2C23: 14pt, down from 26 — the old band was taller than a whole Micro meter row, so
-    /// the last chip in the list rendered as a half-dissolved ghost and the card's bottom rim
-    /// never drew at all. Notification Centre, Raycast and Linear all fade ~12–16pt.
-    private static let featherHeight: CGFloat = 14
-
-    /// R2C23: non-linear, so the fade is back-loaded and the top two-thirds of the band stays
-    /// crisp — a soft edge rather than missing data. A straight `LinearGradient` between two
-    /// colours could not express it; these are its three stops.
-    private static let featherOpacities: [Double] = [1.0, 0.55, 0.0]
-
-    /// `fadesOut: false` is the gated case — a popover that doesn't scroll keeps its crisp
-    /// last card edge.
-    private static func featherStops(fadesOut: Bool) -> [Gradient.Stop] {
-        let opacities = fadesOut
-            ? featherOpacities
-            : Array(repeating: 1.0, count: featherOpacities.count)
-        let lastIndex = Double(opacities.count - 1)
-        return opacities.enumerated().map { index, opacity in
-            Gradient.Stop(color: .black.opacity(opacity), location: Double(index) / lastIndex)
-        }
-    }
-
-    // MARK: - Bespoke scroll indicator (L2A)
-
-    /// A 3pt capsule whose centre sits 8pt from the shell's right edge, so it lives wholly
-    /// inside the 19pt gutter and never touches a card (the cards' right edge is 19pt in).
-    /// No track, no well, no hover growth — the three things the stock scroller was faulted
-    /// for. Drawn only while the content overflows the 640pt cap.
-    @ViewBuilder private var scrollIndicator: some View {
-        if scrollMetrics.overflows {
-            Capsule()
-                .fill(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.30))
-                .opacity(scrollIndicatorVisible ? 1 : 0)
-                // Fade-out is the specified 200ms on `settle`'s curve; the appearance is
-                // the shorter `quickSettle` so the cue is already there when the finger
-                // lands. S2A: the capsule only ever changes opacity, so Reduce Motion keeps
-                // both timings — the geometry below is what stays untweened.
-                .animation(scrollIndicatorAnimation, value: scrollIndicatorVisible)
-                // Geometry sits outside the animation scope so the capsule slides with the
-                // scroll rather than easing behind it.
-                .frame(
-                    width: PopoverScrollIndicatorMetrics.width,
-                    height: scrollIndicatorLength
-                )
-                .offset(x: PopoverScrollIndicatorMetrics.gutterOffset, y: scrollIndicatorOffsetY)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-
-    private var scrollIndicatorAnimation: Animation? {
-        HeadroomMotion.resolved(
-            scrollIndicatorVisible ? HeadroomMotion.quickSettle : HeadroomMotion.settle,
-            .crossfade,
-            reduceMotion: reduceMotion
-        )
-    }
-
-    /// Proportional length — viewport × (viewport / content) — floored at 24pt so a very
-    /// long list still leaves something to see, and capped by the inset track.
-    private var scrollIndicatorLength: CGFloat {
-        let viewport = scrollMetrics.viewport
-        let content = scrollMetrics.content
-        guard viewport > 0, content > viewport else { return 0 }
-        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
-        return min(track, max(PopoverScrollIndicatorMetrics.minimumLength, viewport * (viewport / content)))
-    }
-
-    private var scrollIndicatorOffsetY: CGFloat {
-        let viewport = scrollMetrics.viewport
-        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
-        let travel = max(track - scrollIndicatorLength, 0)
-        let scrollable = max(scrollMetrics.content - viewport, 1)
-        let progress = min(max(scrollMetrics.offset / scrollable, 0), 1)
-        return PopoverScrollIndicatorMetrics.endInset + travel * progress
-    }
-
-    /// Appears on scroll, holds 900ms, then fades. Each geometry change restarts the hold,
-    /// so a continuous drag keeps it lit and it settles once the list stops moving.
-    private func flashScrollIndicator(overflows: Bool) {
-        scrollIndicatorHideTask?.cancel()
-        guard overflows else {
-            scrollIndicatorVisible = false
-            return
-        }
-        scrollIndicatorVisible = true
-        scrollIndicatorHideTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(900))
-            guard !Task.isCancelled else { return }
-            scrollIndicatorVisible = false
-        }
-    }
 
     /// Native pattern: navigating out of the transient menu-bar popover into the persistent
     /// Settings window dismisses the popover (mirrors Control Center → System Settings). The
@@ -437,7 +345,7 @@ struct PopoverView: View {
         // only ticks per minute. This runs *only* while a handoff clock is on screen and is
         // cancelled the moment it isn't — a clock bound to real work, not a decorative loop.
         .task(id: headerWaitingAccount?.key) {
-            guard headerWaitingAccount != nil else { return }
+            guard pinnedDate == nil, headerWaitingAccount != nil else { return }
             while !Task.isCancelled {
                 waitingClockNow = .now
                 try? await Task.sleep(for: .seconds(1))
@@ -528,29 +436,17 @@ struct PopoverView: View {
             )
             waitingElapsed = handoffElapsed(for: account, now: now)
         }
-        var oldestLiveCapture: Date?
-        var newestCheck: Date?
-        for id in store.providerOrder {
-            for account in store.accounts(for: id) {
-                let snapshot = store.snapshot(for: account.key)
-                if case .live = snapshot.freshness, let capturedAt = snapshot.capturedAt {
-                    oldestLiveCapture = oldestLiveCapture.map { min($0, capturedAt) } ?? capturedAt
-                    newestCheck = newestCheck.map { max($0, capturedAt) } ?? capturedAt
-                    continue
-                }
-                // R2M5: a retained row's window keeps the *source* observation anchor across
-                // stale and unavailable transitions — the honest answer to "when was this
-                // last checked", and the only one left once every provider has gone stale.
-                if let observed = retainedObservation(in: snapshot) {
-                    newestCheck = newestCheck.map { max($0, observed) } ?? observed
-                }
-            }
-        }
+        // U3: the aggregation is Core's `FreshnessStamp.Anchors`, shared with the phone. A
+        // retained row keeps its own *source* observation anchor across stale and unavailable
+        // transitions — the honest answer to "when was this last checked" (R2M5).
+        let anchors = FreshnessStamp.Anchors(snapshots: store.providerOrder.lazy.flatMap { id in
+            store.accounts(for: id).map { store.snapshot(for: $0.key) }
+        })
         return PopoverHeaderStatusResolver.Input(
             setupText: setupText,
             waitingElapsed: waitingElapsed,
-            oldestLiveCapture: oldestLiveCapture,
-            newestCheck: newestCheck,
+            oldestLiveCapture: anchors.oldestLive,
+            newestCheck: anchors.newestCheck,
             now: now
         )
     }
@@ -560,12 +456,7 @@ struct PopoverView: View {
     /// tick lands.
     private func handoffElapsed(for account: ProviderAccount, now: Date) -> TimeInterval? {
         guard let start = SetupSessions.waitingStart(for: account) else { return nil }
-        return max(0, max(now, waitingClockNow).timeIntervalSince(start))
-    }
-
-    private func retainedObservation(in snapshot: UsageSnapshot) -> Date? {
-        let observations = snapshot.windows.compactMap(\.observedAt)
-        return observations.max() ?? snapshot.capturedAt
+        return max(0, (pinnedDate ?? max(now, waitingClockNow)).timeIntervalSince(start))
     }
 
     /// R2M12: the account whose open handoff the header is clocking, if any. Nil covers a
@@ -604,147 +495,132 @@ struct PopoverView: View {
         return store.appDisplaySnapshot(for: .codex).codexConnectionAction
     }
 
-    /// Refresh carries its own in-flight state: while a cycle runs the word gives way to the
-    /// system spinner in the same bezel and the button disables (UI-02 — a manual refresh
-    /// spawns a multi-second Claude session, so the button must not read as broken). The
-    /// freshness stamp sits beside it, next to the control that changes it (Sep 2026), and
-    /// turns into the refresh receipt while one runs (W4).
     private func footer(now: Date) -> some View {
         let freshness = PopoverHeaderStatusResolver.freshness(statusInput(now: now))
-        let receipt = RefreshReceipt.line(
-            progress: store.isRefreshing ? store.refreshProgress : nil,
-            title: { store.refreshReceiptTitle(for: $0) },
-            isLive: { if case .live = store.snapshot(for: $0).freshness { true } else { false } }
-        )
-        return HStack(spacing: 10) {
-            // PA11b (Kyle): "we do need the resting container for all our buttons."
-            // Keep the footer on AppKit's native bordered style. A custom `ButtonStyle`
-            // label is rehosted upside down when a cached `MenuBarExtra` panel changes
-            // appearance; the native style owns its label and chrome as one surface.
-            Button { store.refreshNow() } label: {
-                // Hidden rather than removed, so the bezel keeps its width under the spinner.
-                Text("Refresh").opacity(store.isRefreshing ? 0 : 1)
-            }
-            // A second click would only queue behind the cycle already running.
-            .disabled(store.isRefreshing)
-            // The native bezel draws its label as a still image, so a live spinner inside
-            // the label never animates; it's laid over the bezel instead.
-            .overlay {
-                if store.isRefreshing {
-                    ProgressView()
-                        .controlSize(.small)
-                        .transition(.opacity)
-                        .allowsHitTesting(false)
-                }
-            }
-            // M11A/S2A: the swap is opacity in a fixed slot, so Reduce Motion keeps the
-            // crossfade instead of blinking the control out from under the pointer.
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: store.isRefreshing
-            )
-            // R2M8: ⌘R is the category's own convention (Raycast, Linear, Ice all ship it)
-            // and a utility opened 30× a day should not need the pointer. The swap is driven
-            // by `isRefreshing`, i.e. by the work, not by the click — so Emil's "keyboard
-            // actions don't animate" rule needs nothing here.
-            .keyboardShortcut("r", modifiers: .command)
-            .accessibilityLabel(store.isRefreshing ? "Refreshing usage" : "Refresh")
-            // W4 (round-4 receipt roll): while a refresh you started runs, the stamp's slot
-            // becomes a one-line receipt that rolls upward as each account lands, then hands
-            // back to the stamp. The ZStack holds both lines mid-roll; a stamp and "Not
-            // checked yet" are different lines too, as in the header slot.
-            ZStack(alignment: .leading) {
-                if let receipt {
-                    receiptLine(receipt)
-                        .id(receipt)
-                        .transition(receiptTransition)
-                } else {
-                    statusLine(freshness)
-                        .transition(receiptTransition)
-                }
-            }
-            .clipped()
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: freshness.kind
-            )
-            // Resolved as a crossfade: under Reduce Motion the transition below is opacity
-            // alone, so keeping the timing keeps the fade (S2A).
-            .animation(
-                HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                value: receipt
-            )
-            Spacer(minLength: 0)
-            // PA11b: same native bordered control as Refresh — the app's only two
-            // whole-app controls read as one pair and share the appearance-safe path.
-            Button("Quit") { NSApplication.shared.terminate(nil) }
-        }
-        .buttonStyle(.bordered)
-        .controlSize(.regular)
-        .buttonBorderShape(.roundedRectangle(radius: 7))
-        .font(.system(size: 12.5, weight: .semibold))
-    }
-
-    /// M2A: states only move forward, so each new line rolls up from below. Reduce Motion
-    /// swaps lines with a crossfade instead.
-    private var receiptTransition: AnyTransition {
-        reduceMotion
-            ? .opacity
-            : .asymmetric(
-                insertion: .move(edge: .bottom).combined(with: .opacity),
-                removal: .move(edge: .top).combined(with: .opacity)
-            )
-    }
-
-    /// The stamp's own size and inks: the account reads at secondary, the check and the
-    /// count recede to tertiary so the name carries the line.
-    private func receiptLine(_ line: RefreshReceipt.Line) -> some View {
-        HStack(spacing: 5) {
-            if line.checked {
-                Image(systemName: "checkmark")
-                    .font(.system(size: 8.5, weight: .bold))
-                    .foregroundStyle(.tertiary)
-            }
-            Text(line.text)
-                .foregroundStyle(.secondary)
-            if let count = line.count {
-                Text(count)
-                    .foregroundStyle(.tertiary)
-                    .padding(.leading, 2)
-            }
-        }
-        .font(.system(size: 11).monospacedDigit())
-        .lineLimit(1)
+        return RefreshFooter(store: store, freshness: freshness)
     }
 }
 
-/// W4 (Oct 2026, design/refresh-stamp-merge-round4.html): the footer receipt for a refresh
-/// the user started. Pure, so the copy is pinned by tests without a store.
-enum RefreshReceipt {
-    struct Line: Hashable {
-        /// The account's numbers came back live. A probe that ended stale is named without
-        /// a check: its card already says what went wrong.
-        let checked: Bool
-        let text: String
-        let count: String?
+/// KTD17/KTD18: only the small footer observes fast work signals and redraws its clock.
+/// The card stack and PopoverView's minute timeline never receive per-frame state writes.
+private struct RefreshFooter: View {
+    let store: UsageStore
+    let freshness: PopoverHeaderStatus
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.loadingDate) private var pinnedDate
+
+    var body: some View {
+        let meters = store.menuBarMeters
+        let mains = Dictionary(uniqueKeysWithValues: store.providerOrder.compactMap { id in
+            store.primaryAccount(for: id).map { (id, $0.key) }
+        })
+        let sourceIdentity = ReprintSourceIdentity(meters: meters,
+            automatic: store.menuBarFillSource.providerIDs == nil, currentMains: mains)
+        let run = store.userRefreshRun
+        let work = store.visibleRefreshWork
+        let probing = store.probingAccounts
+        let ends = store.lastProbeEndTimes
+        let spend = store.apiSpendInFlightProviders
+        let now = pinnedDate ?? Date()
+        let makeRecipe: (Date) -> ReprintRecipe = { date in
+            ReprintRecipe(meters: meters, automatic: store.menuBarFillSource.providerIDs == nil,
+                currentMains: mains, run: run, probingAccounts: probing, probeEndTimes: ends,
+                spendInFlightProviders: spend, visibleWork: work, now: date, reduceMotion: reduceMotion)
+        }
+        let current = makeRecipe(now)
+        // The one-shot expiry pauses this timeline after the hold, last print or wave.
+        let deadlines = [work.clearedAt?.addingTimeInterval(LoadingMotionConstants.endHoldDuration)]
+            + (run?.entries.values.filter { $0.origin != .setupCheck }.map {
+                ($0.landedAt ?? $0.requestedAt).addingTimeInterval(
+                    $0.landedAt == nil ? LoadingMotionConstants.ghostWipeDuration : LoadingMotionConstants.printDuration)
+            } ?? []).map(Optional.some)
+            + ends.values.map { Optional(Date(timeIntervalSince1970: floor($0.timeIntervalSince1970) + 1)) }
+        let ongoingMotion = !reduceMotion && (current.phase == .spinner || current.phase == .spendTail)
+            && (!probing.isEmpty || current.phase == .spendTail)
+        let printing = current.pills.contains { pill in
+            switch pill.ink {
+            case .printing, .crossfade: true
+            default: false
+            }
+        }
+        LoadingTimeline(active: ongoingMotion,
+                        until: current.needsTimeline ? deadlines.compactMap { $0 }.max() : nil,
+                        interval: printing ? 1 / 30 : LoadingMotionConstants.sloshFrameInterval) { date in
+            let recipe = makeRecipe(date)
+            let receipt = RefreshReceiptPresentation.line(run: run, isResting: recipe.phase == .rest, now: date,
+                                                          title: { store.refreshReceiptTitle(for: $0) })
+            HStack(spacing: 10) {
+                // PA11b: native bezel owns its appearance-safe chrome and cached label.
+                Button { store.refreshNow() } label: {
+                    Text("Refresh").opacity(recipe.isEnabled ? 1 : 0)
+                }
+                .disabled(!recipe.isEnabled)
+                .overlay {
+                    if !recipe.isEnabled {
+                        ZStack {
+                            HalftonePillRow(pills: recipe.pills)
+                                // KTD19: changing to an unrequested main crossfades uniformly;
+                                // the Core recipe never invents a fresh print for that account.
+                                .id(sourceIdentity)
+                                .transition(.opacity)
+                        }
+                        .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                                    reduceMotion: reduceMotion), value: sourceIdentity)
+                        .allowsHitTesting(false)
+                        .transition(.opacity)
+                    }
+                }
+                .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                            reduceMotion: reduceMotion), value: recipe.isEnabled)
+                // R2M8: ⌘R follows the work, never a click-specific animation. R5 keeps
+                // it enabled during setup-only checks; KTD9 disables through spend and hold.
+                .keyboardShortcut("r", modifiers: .command)
+                .accessibilityLabel(recipe.isEnabled ? "Refresh" : "Refreshing usage")
+                ZStack(alignment: .leading) {
+                    if let receipt {
+                        receiptLine(receipt).id(receipt).transition(receiptTransition)
+                    } else {
+                        Text(freshness.text)
+                            .font(.system(size: 11).monospacedDigit())
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                            .contentTransition(freshness.rollValue.map {
+                                HeadroomMotion.numericText(value: $0, reduceMotion: reduceMotion)
+                            } ?? .identity)
+                            .id(freshness.kind)
+                            .transition(receiptTransition)
+                    }
+                }
+                .clipped()
+                .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                            reduceMotion: reduceMotion), value: freshness.kind)
+                .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
+                            reduceMotion: reduceMotion), value: receipt)
+                Spacer(minLength: 0)
+                Button("Quit") { NSApplication.shared.terminate(nil) }
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
+            .buttonBorderShape(.roundedRectangle(radius: 7))
+            .font(.system(size: 12.5, weight: .semibold))
+        }
     }
 
-    /// Nil once the user's work has drained, which hands the slot back to the stamp.
-    static func line(
-        progress: RefreshProgress?,
-        title: (AccountKey) -> String,
-        isLive: (AccountKey) -> Bool
-    ) -> Line? {
-        guard let progress, progress.total > 0 else { return nil }
-        guard let landed = progress.lastLanded else {
-            let noun = progress.total == 1 ? "account" : "accounts"
-            return Line(checked: false, text: "Checking \(progress.total) \(noun)…", count: nil)
+    private var receiptTransition: AnyTransition {
+        reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
+                                              removal: .move(edge: .top).combined(with: .opacity))
+    }
+
+    private func receiptLine(_ line: RefreshReceiptPresentation.Line) -> some View {
+        HStack(spacing: 5) {
+            if line.checked {
+                Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold)).foregroundStyle(.tertiary)
+            }
+            Text(line.text).foregroundStyle(.secondary)
+            if let count = line.count { Text(count).foregroundStyle(.tertiary).padding(.leading, 2) }
         }
-        return Line(
-            checked: isLive(landed),
-            text: title(landed),
-            count: "\(progress.completed) of \(progress.total)"
-        )
+        .font(.system(size: 11).monospacedDigit())
+        .lineLimit(1)
     }
 }
 
@@ -797,8 +673,6 @@ enum PopoverHeaderStatusText {
     private static func padded(_ value: Int) -> String {
         value < 10 ? "0\(value)" : "\(value)"
     }
-
-    static let notChecked = "Not checked yet"
 }
 
 /// R2M5: one resolved header line. `kind` is the slot's *identity* — a phrase and a stamp are
@@ -859,43 +733,19 @@ enum PopoverHeaderStatusResolver {
         return nil
     }
 
-    /// The footer stamp beside Refresh. Sitting next to the control that changes it, the
-    /// age needs no "Updated" verb; "Checked" survives only to mark retained numbers, where
-    /// nothing on screen is live. A cycle in flight is the button's own label ("Refreshing…"),
-    /// so the stamp keeps showing the age rather than repeating it.
+    /// The footer stamp beside Refresh. U3: the wording and the roll value are Core's
+    /// `FreshnessStamp`, shared with the phone; this maps its kind into the slot's identity.
     static func freshness(_ input: Input) -> PopoverHeaderStatus {
-        if let oldest = input.oldestLiveCapture,
-           let label = Countdown.updatedLabel(capturedAt: oldest, now: input.now) {
-            // M2A: the label's own granularity is whole minutes since capture, so that is the
-            // value the roll follows. Between polls it only increases, which is what makes the
-            // digits climb; a landing capture resets it and they roll back down.
-            return PopoverHeaderStatus(
-                kind: .updated,
-                text: capitalizedFirst(label),
-                rollValue: elapsedMinutes(since: oldest, now: input.now)
-            )
-        }
-        if let newest = input.newestCheck,
-           let label = Countdown.updatedLabel(capturedAt: newest, now: input.now) {
-            return PopoverHeaderStatus(
-                kind: .lastChecked,
-                text: "Checked \(label)",
-                rollValue: elapsedMinutes(since: newest, now: input.now)
-            )
-        }
-        return PopoverHeaderStatus(
-            kind: .never,
-            text: PopoverHeaderStatusText.notChecked,
-            rollValue: nil
+        let stamp = FreshnessStamp.resolve(
+            FreshnessStamp.Anchors(oldestLive: input.oldestLiveCapture, newestCheck: input.newestCheck),
+            now: input.now
         )
-    }
-
-    private static func capitalizedFirst(_ text: String) -> String {
-        text.prefix(1).uppercased() + text.dropFirst()
-    }
-
-    private static func elapsedMinutes(since date: Date, now: Date) -> Double {
-        (max(0, now.timeIntervalSince(date)) / 60).rounded(.down)
+        let kind: PopoverHeaderStatus.Kind = switch stamp.kind {
+        case .updated: .updated
+        case .lastChecked: .lastChecked
+        case .never: .never
+        }
+        return PopoverHeaderStatus(kind: kind, text: stamp.text, rollValue: stamp.rollValue)
     }
 }
 
@@ -929,6 +779,146 @@ private struct PopoverScrollMetrics: Equatable {
 
     var overflows: Bool { viewport > 0 && content > viewport + 1 }
     var continuesBelow: Bool { offset + viewport < content - 4 }
+}
+
+/// SC1: the scroll chrome's state, out of `PopoverView`'s body. Each property is written
+/// only when it changes, so a scroll frame re-renders the indicator alone and the feather
+/// only when the list stops or starts continuing below the cap.
+@MainActor
+@Observable
+private final class PopoverScrollModel {
+    private(set) var metrics = PopoverScrollMetrics()
+    /// Content extends past the scroll cap and isn't scrolled to the bottom — gates the
+    /// bottom fade so it never softens a fully visible last card.
+    private(set) var continuesBelow = false
+    private(set) var indicatorVisible = false
+    @ObservationIgnored private var indicatorHideTask: Task<Void, Never>?
+
+    /// Called only when the metrics changed (`onScrollGeometryChange` compares them).
+    func update(_ metrics: PopoverScrollMetrics) {
+        self.metrics = metrics
+        if continuesBelow != metrics.continuesBelow { continuesBelow = metrics.continuesBelow }
+        flashIndicator(overflows: metrics.overflows)
+    }
+
+    /// Appears on scroll, holds 900ms, then fades. Each geometry change restarts the hold,
+    /// so a continuous drag keeps it lit and it settles once the list stops moving.
+    private func flashIndicator(overflows: Bool) {
+        indicatorHideTask?.cancel()
+        guard overflows else {
+            if indicatorVisible { indicatorVisible = false }
+            return
+        }
+        if !indicatorVisible { indicatorVisible = true }
+        indicatorHideTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(900))
+            guard !Task.isCancelled else { return }
+            self?.indicatorVisible = false
+        }
+    }
+}
+
+/// The scroll viewport's mask (R2C23): crisp everywhere except a back-loaded bottom fade while
+/// content continues below the cap.
+///
+/// FA1 (2026-10-03 perf bench): the fade's animation is scoped to the band's opacity. It used
+/// to wrap the whole ScrollView, and the feather flips in the same transaction as the open's
+/// 0 → measured height change, so the card list grew open over ~12 frames on every open —
+/// the entrance M9C removed — re-rendering the popover on each frame.
+private struct PopoverScrollFeather: View {
+    let model: PopoverScrollModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// R2C23: 14pt, down from 26 — the old band was taller than a whole Micro meter row, so
+    /// the last chip in the list rendered as a half-dissolved ghost and the card's bottom rim
+    /// never drew at all. Notification Centre, Raycast and Linear all fade ~12–16pt.
+    private static let featherHeight: CGFloat = 14
+
+    /// R2C23: non-linear, so the fade is back-loaded and the top two-thirds of the band stays
+    /// crisp — a soft edge rather than missing data. A straight `LinearGradient` between two
+    /// colours could not express it; these are its three stops.
+    private static let featherStops: [Gradient.Stop] = [
+        Gradient.Stop(color: .black, location: 0),
+        Gradient.Stop(color: .black.opacity(0.55), location: 0.5),
+        Gradient.Stop(color: .black.opacity(0), location: 1),
+    ]
+
+    var body: some View {
+        let _ = BenchCounters.hit("PopoverScrollFeather")
+        let fadesOut = model.continuesBelow
+        VStack(spacing: 0) {
+            Rectangle().fill(.black)
+            ZStack {
+                LinearGradient(stops: Self.featherStops, startPoint: .top, endPoint: .bottom)
+                // The gated case: an opaque band over the fade, so a popover that doesn't
+                // scroll keeps its crisp last card edge. FA1: the body-scoped animation
+                // reaches this opacity only — never the band's place in a growing viewport.
+                // S2A: pure mask opacity, so Reduce Motion keeps the 200ms softening.
+                Rectangle().fill(.black)
+                    .animation(
+                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
+                    ) { $0.opacity(fadesOut ? 0 : 1) }
+            }
+            .frame(height: Self.featherHeight)
+        }
+    }
+}
+
+/// L2A: a 3pt capsule whose centre sits 8pt from the shell's right edge, so it lives wholly
+/// inside the 19pt gutter and never touches a card (the cards' right edge is 19pt in).
+/// No track, no well, no hover growth — the three things the stock scroller was faulted
+/// for. Drawn only while the content overflows the 640pt cap.
+private struct PopoverScrollIndicator: View {
+    let model: PopoverScrollModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        let _ = BenchCounters.hit("PopoverScrollIndicator")
+        if model.metrics.overflows {
+            Capsule()
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.28 : 0.30))
+                .opacity(model.indicatorVisible ? 1 : 0)
+                // Fade-out is the specified 200ms on `settle`'s curve; the appearance is
+                // the shorter `quickSettle` so the cue is already there when the finger
+                // lands. S2A: the capsule only ever changes opacity, so Reduce Motion keeps
+                // both timings — the geometry below is what stays untweened.
+                .animation(visibilityAnimation, value: model.indicatorVisible)
+                // Geometry sits outside the animation scope so the capsule slides with the
+                // scroll rather than easing behind it.
+                .frame(width: PopoverScrollIndicatorMetrics.width, height: length)
+                .offset(x: PopoverScrollIndicatorMetrics.gutterOffset, y: offsetY)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var visibilityAnimation: Animation? {
+        HeadroomMotion.resolved(
+            model.indicatorVisible ? HeadroomMotion.quickSettle : HeadroomMotion.settle,
+            .crossfade,
+            reduceMotion: reduceMotion
+        )
+    }
+
+    /// Proportional length — viewport × (viewport / content) — floored at 24pt so a very
+    /// long list still leaves something to see, and capped by the inset track.
+    private var length: CGFloat {
+        let viewport = model.metrics.viewport
+        let content = model.metrics.content
+        guard viewport > 0, content > viewport else { return 0 }
+        let track = max(viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
+        return min(track, max(PopoverScrollIndicatorMetrics.minimumLength, viewport * (viewport / content)))
+    }
+
+    private var offsetY: CGFloat {
+        let metrics = model.metrics
+        let track = max(metrics.viewport - 2 * PopoverScrollIndicatorMetrics.endInset, 0)
+        let travel = max(track - length, 0)
+        let scrollable = max(metrics.content - metrics.viewport, 1)
+        let progress = min(max(metrics.offset / scrollable, 0), 1)
+        return PopoverScrollIndicatorMetrics.endInset + travel * progress
+    }
 }
 
 private struct PopoverSurfaceModifier: ViewModifier {

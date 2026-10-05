@@ -332,6 +332,22 @@ struct LockScreenWidgetRecipeTests {
         #expect(recipe(.nestedMeter, .rectangle, [F.claude()], choice: .cursor).title(forSlotAt: 0) == "Cursor")
     }
 
+    @Test func homeFreshnessRulesDimAndHideLockScreenReadings() throws {
+        let envelope = F.envelope([F.claude()])
+        let dimmed = WidgetFreshnessTreatment(now: F.now, dimmedSince: F.now.addingTimeInterval(-7200), host: .phone)
+        let r = LockScreenWidgetRecipe(style: .liquidLevel, family: .circle, providerChoice: .claude,
+                                       state: .content(envelope), now: F.now, freshness: dimmed)
+        let main = try #require(r.slots.first?.primary)
+        #expect(main.state == .stale)
+        #expect(main.caption.hasPrefix("⚠ "))
+        let past = F.provider("claude", "Claude", [F.window(.weekly, label: "Weekly", percent: 40, resetIn: -900)])
+        let reset = LockScreenWidgetRecipe(style: .liquidLevel, family: .circle, providerChoice: .claude,
+                                           state: .content(F.envelope([past])), now: F.now,
+                                           freshness: WidgetFreshnessTreatment(now: F.now, host: .phone))
+        #expect(reset.slots.first?.primary.state == .unavailable)
+        #expect(reset.slots.first?.primary.numberText == "—")
+    }
+
     @Test func countdownTextIsTheBareSharedCountdown() throws {
         let main = try #require(recipe(.nestedMeter, .rectangle, [F.claude()], choice: .claude).slots.first?.primary)
         let countdown = try #require(main.countdownText)

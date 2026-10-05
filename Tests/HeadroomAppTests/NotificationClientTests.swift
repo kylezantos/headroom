@@ -166,6 +166,9 @@ struct NotificationClientTests {
             arguments: ["Headroom", "--render-popover", "/tmp/shots"], environment: [:], bundle: appBundle
         ))
         #expect(AppComposition.usesInertNotificationClient(
+            arguments: ["Headroom", "--bench-ui", "popover"], environment: [:], bundle: appBundle
+        ))
+        #expect(AppComposition.usesInertNotificationClient(
             arguments: ["Headroom"],
             environment: [:],
             bundle: NotificationBundleDescriptor(identifier: nil, url: URL(fileURLWithPath: "/tmp/.build/debug"))

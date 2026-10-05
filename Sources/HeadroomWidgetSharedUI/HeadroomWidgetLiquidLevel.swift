@@ -94,7 +94,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
     @ViewBuilder
     private func heroBlock(_ provider: WidgetStyleProviderRecipe, size: Double, extra: String?, mediumDetail: Bool = false) -> some View {
         if provider.isWaiting {
-            HeadroomWidgetWaitingLine(size: context.scale.countdown)
+            HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
         } else {
             VStack(alignment: .leading, spacing: 5) {
                 HeadroomWidgetNumeral(provider.primary, size: size, providerIsLive: context.isLive(provider), now: context.now)

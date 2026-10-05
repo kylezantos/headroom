@@ -20,10 +20,24 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
 
     // MARK: Small
 
-    private var small: some View {
+    /// U13: only while the dimmed sentence takes a line, the heading is a last resort.
+    @ViewBuilder private var small: some View {
+        if context.recipe.isDimmed {
+            ViewThatFits(in: .vertical) {
+                smallStack(showsHeading: true)
+                smallStack(showsHeading: false)
+            }
+        } else {
+            smallStack(showsHeading: true)
+        }
+    }
+
+    private func smallStack(showsHeading: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
-            HeadroomWidgetCaption(WidgetStyleCopy.tightestSmallHeading, size: context.scale.header)
-            Spacer(minLength: 6)
+            if showsHeading {
+                HeadroomWidgetCaption(WidgetStyleCopy.tightestSmallHeading, size: context.scale.header)
+                Spacer(minLength: 6)
+            }
             VStack(alignment: .leading, spacing: 12) {
                 ForEach(context.recipe.providers) { provider in
                     let live = context.isLive(provider)
@@ -38,7 +52,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                             }
                         }
                         if provider.isWaiting {
-                            HeadroomWidgetWaitingLine(size: WidgetStyleType.compactCaption)
+                            HeadroomWidgetWaitingLine(provider: provider, size: WidgetStyleType.compactCaption)
                         } else {
                             HStack(alignment: .center, spacing: 7) {
                                 HeadroomWidgetStyleBar(provider.tightest, colorMode: context.colorMode, providerIsLive: live,
@@ -59,22 +73,35 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
 
     // MARK: Medium
 
-    private var medium: some View {
+    /// U13: only while the dimmed sentence takes a line, the line of other windows is a last
+    /// resort; the binding window stays.
+    @ViewBuilder private var medium: some View {
+        if context.recipe.isDimmed {
+            ViewThatFits(in: .vertical) {
+                mediumColumns(showsRest: true)
+                mediumColumns(showsRest: false)
+            }
+        } else {
+            mediumColumns(showsRest: true)
+        }
+    }
+
+    private func mediumColumns(showsRest: Bool) -> some View {
         HStack(alignment: .top, spacing: 20) {
             ForEach(Array(context.recipe.providers.enumerated()), id: \.element.id) { index, provider in
                 if index > 0 { HeadroomWidgetRule(.vertical) }
-                mediumColumn(provider)
+                mediumColumn(provider, showsRest: showsRest)
             }
         }
     }
 
-    private func mediumColumn(_ provider: WidgetStyleProviderRecipe) -> some View {
+    private func mediumColumn(_ provider: WidgetStyleProviderRecipe, showsRest: Bool) -> some View {
         let live = context.isLive(provider)
         return VStack(alignment: .leading, spacing: 0) {
             HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: true, mark: mark)
             Spacer(minLength: 4)
             if provider.isWaiting {
-                HeadroomWidgetWaitingLine(size: context.scale.countdown)
+                HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
             } else if let tightest = provider.tightest {
                 HeadroomWidgetNumeral(tightest, size: context.hero(), providerIsLive: live, now: context.now)
                 HeadroomWidgetCaption(Self.captionLine(tightest, now: context.now), size: context.scale.countdown, ink: .label)
@@ -82,7 +109,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                 HeadroomWidgetStyleBar(tightest, colorMode: context.colorMode, providerIsLive: live, height: 6)
                     .padding(.top, 8)
                 let rest = provider.windows.filter { $0 != tightest }
-                if !rest.isEmpty {
+                if showsRest, !rest.isEmpty {
                     HeadroomWidgetCaption(rest.map { "\($0.widgetDisplayLabel) \(HeadroomWidgetWindowText.percent($0))" }.joined(separator: " · "),
                                           size: context.scale.countdown, ink: .countdown)
                         .padding(.top, 8)
@@ -181,7 +208,7 @@ struct HeadroomWidgetTightestFirst<Mark: View>: View {
                 HeadroomWidgetIdentityRow(provider: provider, slot: context.slot, scale: context.scale, showsPlan: false,
                                           showsStaleReason: true, mark: mark)
                 if provider.isWaiting {
-                    HeadroomWidgetWaitingLine(size: context.scale.countdown)
+                    HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
                 }
             }
             .padding(.top, 10)

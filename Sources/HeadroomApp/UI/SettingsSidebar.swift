@@ -49,6 +49,7 @@ struct SettingsSidebar: View {
     private static let logoSize: CGFloat = 28
 
     var body: some View {
+        let _ = BenchCounters.hit("SettingsSidebar")
         VStack(alignment: .leading, spacing: 0) {
             header
                 .padding(.top, Self.identityTopInset)

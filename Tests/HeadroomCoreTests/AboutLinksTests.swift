@@ -20,7 +20,7 @@ struct AboutLinksTests {
     }
 
     @Test func everyLinkIsHTTPSWithAHostAndAUniqueRowID() {
-        let all = [AboutLinks.tipJar] + AboutLinks.maker
+        let all = [AboutLinks.tipJar, AboutLinks.getHeadroomForMac] + AboutLinks.maker
         for link in all {
             #expect(link.url.scheme == "https")
             #expect(link.url.host() != nil)
@@ -38,5 +38,20 @@ extension AboutLinksTests {
     @Test func headerAndTipJarCopyAreTheApprovedWording() {
         #expect(AboutLinks.tagline == "AI usage limits + API spend right from your menu bar")
         #expect(AboutLinks.tipJarNote == "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe.")
+    }
+}
+
+extension AboutLinksTests {
+    /// G9: the Mac's Widgets & iPhone pane links to the live listing by its stable ID.
+    @Test func iPhoneAppLinkOpensTheAppStoreListingByID() {
+        #expect(AboutLinks.iPhoneApp.url.absoluteString == "https://apps.apple.com/app/id6787519784")
+        #expect(AboutLinks.iPhoneApp.url.scheme == "https")
+        #expect(AboutLinks.iPhoneApp.title == "Get Headroom for iPhone")
+    }
+
+    /// U12 / R23: the phone's Mac link goes to the website, not the tip jar.
+    @Test func getHeadroomForMacOpensTheWebsite() {
+        #expect(AboutLinks.getHeadroomForMac.url.absoluteString == "https://headroom.zantos.co")
+        #expect(AboutLinks.getHeadroomForMac.title == "Get Headroom for Mac")
     }
 }

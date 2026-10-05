@@ -1,98 +1,232 @@
 import SwiftUI
 
+/// The usage screen (U8): one card per provider from the resolved companion snapshot (KTD6),
+/// every account stacked inside, at the popover's proportions one Dynamic Type step up (KTD3).
+/// U21 adds the freshness line, whole-surface dimming, past-reset rows, the old-Mac line and
+/// the shared spend rows; U9 the pull-to-check-now line; U11 the flowing columns.
 struct MirrorView: View {
-    let envelope: WidgetSnapshotEnvelope
-    let syncInfo: IOSCompanionSyncInfo?
-    var diagnostics: IOSSyncDiagnostics? = nil
+    let content: CompanionResolvedContent
     let isDemoMode: Bool
+    /// KTD21: Explore Demo keeps a neutral banner; a `--demo` screenshot launch hides it.
+    let showsDemoBanner: Bool
     let canExitDemo: Bool
     let demoWidgetUnavailable: Bool
+    let checkNow: PhoneCheckNow
     let onExitDemo: () -> Void
-    @Binding var appearance: AppearanceSetting
-    var onRefresh: () async -> Void
+    /// U9: pull to refresh and ⌘R. Writes the request (or starts the demo replay) and returns
+    /// at once; an older Mac re-reads instead.
+    var onCheckNow: () async -> Void
 
     @Environment(\.colorScheme) private var scheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
+    /// KTD3: the phone's one Dynamic Type unit over the popover ramp. Every shared row, gap
+    /// and reservation on this screen multiplies by it.
+    @ScaledMetric(relativeTo: .body) private var phoneScale: CGFloat = PhoneScale.defaultFactor
+    private var scale: CGFloat { PhoneScale.clamped(phoneScale) }
+    /// KTD16: shown from the first frame when the launch's entrance has already played.
+    @State private var cardsShown = PhoneLaunchEntrance.shared.hasPlayed
+    @State private var disclosedTitle: DisclosedTitle?
+
+    /// The approved mock's screen rhythm (U1-B): 20pt side margins and 20pt between tiles.
+    private static let sideMargin: CGFloat = 20
+    private static let tileGap: CGFloat = 20
+
+    /// KTD17: the phone keeps its 20pt margins; a regular-width window takes the iPad mock's 28.
+    private var margin: CGFloat {
+        horizontalSizeClass == .regular ? FlowingColumnsMetrics.defaultMargin : Self.sideMargin
+    }
+
     var body: some View {
-        // A per-minute `now` so "Updated N min ago" and the reset countdowns tick without a
-        // data poll — same pattern the Mac popover uses.
-        TimelineView(.periodic(from: .now, by: 60)) { context in
+        // KTD11: U12's one store ("Match my Mac" or the phone's override). It is observable,
+        // so a Settings change re-renders the cards.
+        let display = PhoneDemoMeterStyle.applied(to: PhoneDisplayPreferencesStore.app.resolve(mac: content.display))
+        // A per-minute `now` so "Updated N min ago", the reset countdowns, the dim moment and
+        // the past-reset moment tick without a data poll — same pattern the Mac popover uses.
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let context = context(display: display, now: timeline.date)
             ScrollView {
-                VStack(spacing: 12) {
-                    if isDemoMode {
+                VStack(spacing: Self.tileGap) {
+                    if showsDemoBanner {
                         DemoModeBanner(
                             canExitDemo: canExitDemo,
                             widgetUnavailable: demoWidgetUnavailable,
                             onExitDemo: onExitDemo
                         )
+                        .padding(.horizontal, margin)
                     }
-                    LazyVGrid(columns: providerColumns, alignment: .center, spacing: 12) {
-                        ForEach(Array(envelope.providers.enumerated()), id: \.element.id) { index, provider in
-                            ProviderTileView(
-                                provider: provider,
-                                now: context.date,
-                                entranceDelay: reduceMotion ? 0 : Double(index) * 0.055
-                            )
-                            .frame(maxHeight: .infinity, alignment: .top)
-                        }
+                    if let line = CompanionCardPresentation.compatibilityLine(content) {
+                        UpdateMacLine(text: line, scale: scale)
+                            .padding(.horizontal, margin)
                     }
-                    if !envelope.apiSpendProviders.isEmpty {
-                        APISpendMirrorView(
-                            summaries: envelope.apiSpendProviders,
-                            now: context.date,
-                            entranceDelay: reduceMotion ? 0 : Double(envelope.providers.count) * 0.055
-                        )
-                        .frame(maxWidth: horizontalSizeClass == .regular ? 640 : .infinity)
+                    if content.providers.isEmpty && content.apiSpend.isEmpty {
+                        emptyLine
                     }
+                    cards(context)
                 }
-                .frame(maxWidth: horizontalSizeClass == .regular ? 980 : .infinity)
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal, 18)
                 .padding(.top, 4)
                 .padding(.bottom, 30)
             }
             .background(HeadroomTheme.backgroundView(scheme).ignoresSafeArea())
             .scrollContentBackground(.hidden)
-            .refreshable { await onRefresh() }
-            // Native large title + subtitle (iOS 26): "Usage" is the screen title and
-            // collapses into the bar on scroll; the freshness stamp rides along as the
-            // subtitle instead of a hand-built header.
+            // U9: returns as soon as the request is written, so the system spinner leaves and
+            // the line under the title carries the Mac's progress.
+            .refreshable { await onCheckNow() }
+            // Native large title (iOS 26): "Usage" collapses into the bar on scroll, and the
+            // one status slot rides beneath it as the large subtitle.
             .navigationTitle("Usage")
-            .navigationSubtitle(updatedText(now: context.date))
             .navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .largeSubtitle) {
+                    statusLine(freshness: freshness(display: display, now: timeline.date))
+                }
+            }
+            .background { checkNowShortcut }
+        }
+        .environment(\.accountTitleInk, display.accountTitleInk)
+        .sheet(item: $disclosedTitle) { disclosed in
+            PhoneTitleDisclosureSheet(disclosed: disclosed)
+        }
+        .onAppear(perform: startEntranceIfNeeded)
+        #if DEBUG
+        .overlay(alignment: .topLeading) { PhoneEntranceMarker(checkNow: checkNow) }
+        #endif
+    }
+
+    private func context(display: ResolvedPhoneDisplay, now: Date) -> PhoneCardContext {
+        PhoneCardContext(
+            display: display,
+            usesAccountRows: CompanionCardPresentation.usesAccountRows(content.providers),
+            widgetProviderIDs: CompanionCardPresentation.widgetProviderIDs(content),
+            ladder: content.ladder,
+            surfaceDimmed: CompanionFreshnessRule.isDimmed(content.freshness, surface: .app, at: now),
+            now: now,
+            scale: scale,
+            onTruncatedTitle: { disclosedTitle = $0 }
+        )
+    }
+
+    /// R9/R10: the stamp over the windows on screen (the phone's Spark switch applied), or
+    /// the dimmed sentence in its slot.
+    private func freshness(display: ResolvedPhoneDisplay, now: Date) -> CompanionScreenFreshness {
+        MirrorPresentation.freshness(
+            content, shownWindows: { display.appWindows($0.windows).map(\.summary) }, now: now)
+    }
+
+    /// U9/U21: one slot. The check-now line while a request shows; otherwise the freshness
+    /// line — or, in Explore Demo, the sample-data note that stands in for it.
+    private func statusLine(freshness: CompanionScreenFreshness) -> some View {
+        let resting = isDemoMode && showsDemoBanner ? "Sample data · No account connected" : freshness.text
+        return CheckNowStatusLine(
+            slot: checkNow.slot(at: Date()),
+            restingText: resting,
+            inFlightEndedAt: checkNow.inFlightEndedAt
+        )
+        .accessibilityValue(freshness.isDimmed ? "dimmed" : "")
+    }
+
+    /// U9: iPad's ⌘R runs the same action as the pull. Invisible; it only carries the shortcut.
+    private var checkNowShortcut: some View {
+        Button("Check Now") { Task { await onCheckNow() } }
+            .keyboardShortcut("r", modifiers: .command)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    /// U11 (KTD17): provider cards, then the spend card, flow into columns on iPad and wide
+    /// windows; a phone gets one column at its own margins. A card's ID changes with its
+    /// account set, so adding an account re-plans while a height change keeps every column.
+    /// VoiceOver reads provider order, then spend.
+    private func cards(_ context: PhoneCardContext) -> some View {
+        let offsets = accountOffsets
+        return FlowingColumns(margin: margin, gap: Self.tileGap) {
+            ForEach(Array(content.providers.enumerated()), id: \.element.id) { index, provider in
+                PhoneProviderCard(provider: provider, context: context)
+                    .phoneCardEntrance(isShown: cardsShown, accountsBefore: offsets[index])
+                    .flowingColumnsCard(id: Self.columnsKey(provider))
+            }
+            if !content.apiSpend.isEmpty {
+                PhoneSpendCard(summaries: content.apiSpend, surfaceDimmed: context.surfaceDimmed, scale: scale)
+                    .phoneCardEntrance(isShown: cardsShown, accountsBefore: accountCount)
+                    .flowingColumnsCard(id: "spend")
+            }
         }
     }
 
-    private var providerColumns: [GridItem] {
-        if horizontalSizeClass == .regular && envelope.providers.count > 1 {
-            return [
-                GridItem(.flexible(minimum: 280), spacing: 12, alignment: .top),
-                GridItem(.flexible(minimum: 280), spacing: 12, alignment: .top),
-            ]
-        }
-        return [GridItem(.flexible())]
+    static func columnsKey(_ provider: CompanionResolvedProvider) -> String {
+        ([provider.id] + provider.accounts.map(\.id).sorted()).joined(separator: "|")
     }
 
-    private func updatedText(now: Date) -> String {
-        if isDemoMode { return "Sample data · No account connected" }
-        if let updated = MirrorPresentation.updatedLabel(generatedAt: envelope.generatedAt, now: now) {
-            return "Updated \(updated)"
+    /// KTD16: each card's stagger counts the accounts above it, capped after the eighth.
+    private var accountOffsets: [Int] {
+        var running = 0
+        return content.providers.map { provider in
+            defer { running += max(1, provider.accounts.count) }
+            return running
         }
-        return "Latest Mac snapshot"
+    }
+
+    private var accountCount: Int {
+        content.providers.reduce(0) { $0 + max(1, $1.accounts.count) }
+    }
+
+    /// KTD16: the launch's one entrance. A screen built after it played (a demo switch, a
+    /// status screen giving way to content) shows its cards at once.
+    private func startEntranceIfNeeded() {
+        guard !cardsShown else { return }
+        _ = PhoneLaunchEntrance.shared.claim()
+        cardsShown = true
+    }
+
+    /// M3: a Mac that tracks nothing gets a plain line, not a blank screen.
+    private var emptyLine: some View {
+        Text(CompanionCardCopy.noSubscriptions)
+            .font(.system(size: StatusSentence.size * scale, weight: .medium))
+            .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 48 * scale)
+            .padding(.horizontal, margin)
+            .accessibilityIdentifier("headroom.empty")
     }
 }
 
+/// R14/AE1: an older Mac sends main accounts only; the line says what updating it adds, in
+/// the cards' neutral status voice (P39/P40) with the same Mac glyph.
+private struct UpdateMacLine: View {
+    let text: String
+    let scale: CGFloat
+
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: PhoneCardMetrics.statusGlyphGap * scale) {
+            Image(systemName: "desktopcomputer")
+                .font(.system(size: PhoneCardMetrics.statusGlyphSize * scale, weight: .regular))
+                .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                .accessibilityHidden(true)
+            StatusSentence(text: text, severity: .attention, indented: false, scale: scale)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("headroom.update-mac")
+    }
+}
+
+/// KTD21/G5: Explore Demo's banner in the neutral chip style — no tint, no system blue.
 private struct DemoModeBanner: View {
     let canExitDemo: Bool
     let widgetUnavailable: Bool
     let onExitDemo: () -> Void
 
+    @Environment(\.colorScheme) private var scheme
+
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "sparkles")
-                .foregroundStyle(.tint)
+                .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
             VStack(alignment: .leading, spacing: 2) {
                 Text("Demo Mode")
                     .font(.subheadline.weight(.semibold))
@@ -100,7 +234,7 @@ private struct DemoModeBanner: View {
                     ? "Sample data — widgets could not join Demo Mode"
                     : "Sample data — no accounts are connected")
                     .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
             }
             Spacer(minLength: 8)
             if canExitDemo {
@@ -111,7 +245,7 @@ private struct DemoModeBanner: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accentColor.opacity(0.09), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(IdentityCapsuleStyle.metadataFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityLabel(widgetUnavailable
             ? "Demo Mode. Sample data. Widgets could not join Demo Mode on this install."
@@ -119,3 +253,36 @@ private struct DemoModeBanner: View {
         .accessibilityIdentifier("headroom.demo.banner")
     }
 }
+
+#if DEBUG
+/// KTD16 UI-test marker: how many times the card entrance has started this launch. Invisible,
+/// DEBUG-only; the test reads it to prove a data refresh never replays the entrance.
+/// AE8: a second marker counts the check-now request keys this launch wrote, and AE1's third
+/// the pulls that re-read instead.
+private struct PhoneEntranceMarker: View {
+    let checkNow: PhoneCheckNow
+
+    var body: some View {
+        ZStack {
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Card entrance")
+                .accessibilityValue("\(PhoneLaunchEntrance.shared.playCount)")
+                .accessibilityIdentifier("headroom.entrance")
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Check-now requests written")
+                .accessibilityValue("\(checkNow.requestsWritten)")
+                .accessibilityIdentifier("headroom.checknow.writes")
+            Color.clear
+                .frame(width: 1, height: 1)
+                .accessibilityElement()
+                .accessibilityLabel("Check-now re-read pulls")
+                .accessibilityValue("\(checkNow.rereadPulls)")
+                .accessibilityIdentifier("headroom.checknow.rereads")
+        }
+    }
+}
+#endif

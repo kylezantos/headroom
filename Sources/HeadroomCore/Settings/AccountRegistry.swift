@@ -35,6 +35,17 @@ public struct AccountRegistry: @unchecked Sendable { // UserDefaults is thread-s
         for providerID: ProviderID,
         capacity: Int = AccountRegistry.testedEnvelope
     ) -> [ProviderAccount] {
+        applyingPrimarySelection(to: storedOrderAccounts(for: providerID, capacity: capacity), for: providerID)
+    }
+
+    /// The same visible rows in stored registry order (built-in first, then extras in
+    /// creation order), before the primary selection moves one to the front. KTD9 (iPhone
+    /// parity plan): phone titles disambiguate by this order, so Make Main never moves a
+    /// " · N" suffix.
+    public func storedOrderAccounts(
+        for providerID: ProviderID,
+        capacity: Int = AccountRegistry.testedEnvelope
+    ) -> [ProviderAccount] {
         let stored = load().filter { $0.providerID == providerID }
         // Treat persisted metadata as untrusted input: older builds, manual defaults
         // edits, or a torn write must not create duplicate rows or multiple built-ins.
@@ -63,16 +74,10 @@ public struct AccountRegistry: @unchecked Sendable { // UserDefaults is thread-s
                 // torn state — the ordinary read path stays write-free.
                 saveHiddenBuiltIns(hidden.subtracting([providerID]))
             } else {
-                return applyingPrimarySelection(
-                    to: Array(extras.prefix(max(0, capacity - 1))),
-                    for: providerID
-                )
+                return Array(extras.prefix(max(0, capacity - 1)))
             }
         }
-        return applyingPrimarySelection(
-            to: Array(([builtIn] + extras).prefix(max(0, capacity))),
-            for: providerID
-        )
+        return Array(([builtIn] + extras).prefix(max(0, capacity)))
     }
 
     public func canAddAccount(for providerID: ProviderID, capacity: Int = AccountRegistry.testedEnvelope) -> Bool {

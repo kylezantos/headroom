@@ -6,6 +6,9 @@ struct HeadroomIOSWidgets: WidgetBundle {
     var body: some Widget {
         HeadroomIOSUsageWidget()
         HeadroomLockScreenWidget()
+        #if DEBUG
+        HeadroomIdentityProbeWidget()
+        #endif
     }
 }
 

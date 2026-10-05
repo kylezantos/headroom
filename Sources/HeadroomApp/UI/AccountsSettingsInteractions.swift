@@ -393,9 +393,8 @@ enum AccountsSettingsInteractions {
         return account
     }
 
-    /// Provider capability belongs to the shared executable, so the notice always binds
-    /// its recovery to the selected primary account. Check Again's callback consequently
-    /// refreshes one account after forced discovery instead of sweeping every configured login.
+    /// Provider capability belongs to the shared executable: the handoff binds to the
+    /// selected primary, while Check Again refreshes every account of this provider (R18).
     @discardableResult
     static func performCapabilityRecovery(
         _ action: SetupRecoveryAction,
@@ -408,7 +407,11 @@ enum AccountsSettingsInteractions {
     ) -> Bool {
         guard let primary = store.primaryAccount(for: providerID) else { return false }
         perform(action, primary) {
-            (refresh ?? store.refreshAccountNow)(primary.key)
+            if let refresh {
+                for account in store.accounts(for: providerID) { refresh(account.key) }
+            } else {
+                store.refreshProviderNow(providerID)
+            }
         }
         return true
     }

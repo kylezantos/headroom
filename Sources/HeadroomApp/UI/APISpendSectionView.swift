@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import AppKit
 import HeadroomCore
@@ -11,31 +14,9 @@ struct APISpendSectionView: View {
     let now: Date
     let onOpenSettings: () -> Void
 
-    /// S5A: the amount matches the meter numeral — 18pt semibold monospaced digits in a
-    /// reserved column — so every spend total and every percentage in the popover share one
-    /// right edge, and the digit roll happens inside a frame that never resizes.
-    private static let amountSize: CGFloat = 18
-
-    /// Measured from the same font the numeral renders in (mirrors
-    /// `UsageBarView.percentColumnWidth`) rather than a hard-coded guess.
-    ///
-    /// R2C8 (Fable, post-merge): the column reserves the widest total the card is *showing*
-    /// (floor "$0.00"), not a fixed "$0,000.00". The direction suffix Kyle asked for costs
-    /// the row ~33pt, and with the fixed reservation every spend title truncated in the live
-    /// capture ("Anthropi…", "OpenAI…", "xA…"). Every amount still shares one right edge
-    /// because all rows reserve the same measured width.
-    private static func amountColumnWidth(for amounts: [String]) -> CGFloat {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: amountSize, weight: .semibold)
-        let widest = (amounts + ["$0.00"])
-            .map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }
-            .max() ?? 0
-        return widest
-    }
-
-    private var amountColumnWidth: CGFloat {
-        Self.amountColumnWidth(for: store.apiSpendProviderOrder.compactMap { rowModel(for: $0).amount })
-    }
-
+    /// S5A/U3: the amount's size lives with the shared row (`APISpendRowMetrics`); the top-up
+    /// glyph below is centred on it.
+    private static let amountSize = APISpendRowMetrics.amountSize
 
     /// S5A: the top-up glyph lives in the identity row's 21pt trailing gutter, to the right
     /// of the amount — 3pt gap plus an 18pt slot. The slot is reserved on every row (empty
@@ -47,8 +28,11 @@ struct APISpendSectionView: View {
     private static let topUpGlyphSize: CGFloat = 13
 
     var body: some View {
-        let models = store.apiSpendProviderOrder.map(rowModel(for:))
+        let _ = BenchCounters.hit("APISpendSectionView")
+        let models = rowModels()
         if !models.isEmpty {
+            // Measured once per pass, not once per row: every row reads it (2026-10-03 perf bench).
+            let amountWidth = APISpendRowMetrics.amountColumnWidth(for: models.compactMap(\.amount))
             // S5A: no eyebrow and no divider. The card now speaks the provider cards'
             // language — identity rows on the shared content axis, chunked by the same 22pt
             // gap the account sections use, inside the byte-identical tile.
@@ -62,7 +46,7 @@ struct APISpendSectionView: View {
                 // block again and keeps the account gap.
                 VStack(alignment: .leading, spacing: Self.rowGap(for: models)) {
                     ForEach(models) { model in
-                        spendRow(model)
+                        spendRow(model, amountWidth: amountWidth)
                     }
                 }
                 actionRow(models)
@@ -98,12 +82,21 @@ struct APISpendSectionView: View {
         var showsCTA: Bool { status.showsCTA(hasAmount: amount != nil) }
     }
 
-    private func rowModel(for id: ProviderID) -> SpendRowModel {
+    /// The period label is the same for every row, and formatting it is a date format, so it
+    /// is resolved once per pass here rather than inside each row (2026-10-03 perf bench).
+    private func rowModels() -> [SpendRowModel] {
+        let order = store.apiSpendProviderOrder
+        guard !order.isEmpty else { return [] }
+        let periodLabel = store.apiSpendPeriod.displayLabel(now: now)
+        return order.map { rowModel(for: $0, periodLabel: periodLabel) }
+    }
+
+    private func rowModel(for id: ProviderID, periodLabel: String) -> SpendRowModel {
         let snapshot = store.apiSpendSnapshot(for: id)
         let identity = APISpendPresentation.popoverIdentity(displayName: snapshot.displayName)
         let context = APISpendPresentation.contextLabel(
             kind: snapshot.kind,
-            periodLabel: store.apiSpendPeriod.displayLabel(now: now)
+            periodLabel: periodLabel
         )
         // Badge, sub-line and button title all come from one Core decision, so a rejected
         // key can no longer be badged "Needs setup" next to an "Add Key" button.
@@ -127,181 +120,41 @@ struct APISpendSectionView: View {
 
     // MARK: - Row
 
-    @ViewBuilder private func spendRow(_ model: SpendRowModel) -> some View {
+    /// U3: the row itself is the shared `APISpendRow`. The Mac keeps what is Mac-only: the
+    /// logo, the waiting line that observes spend activity, and the hover top-up on the amount.
+    private func spendRow(_ model: SpendRowModel, amountWidth: CGFloat) -> some View {
         let snapshot = model.snapshot
-        // S5A: the sentence sits where an account's meters sit — indented to the content
-        // axis, below the name — so a stale spend row and a stale account row have the same
-        // silhouette. R4A sets the rhythm: 6 inside the group (title → sentence), 12 outside
-        // it (sentence → action row, from `CardActionRow`), 13 to the card edge.
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 0) {
-                identityLine(model)
-                    // RM1: colour only — the tag ⇄ chip swap and the amount's ink — inside a
-                    // fixed-height line, so this scope keeps its crossfade under Reduce Motion.
-                    .animation(
-                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                        value: snapshot.freshness
-                    )
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(accessibilityLabel(model))
-                // CMM5: the trailing gutter stays empty, exactly as it is on a meter row, so
-                // the amount's digits end on the percentages' column. X5 still applies —
-                // with no figure there is nothing to reserve.
-                if model.amount != nil {
-                    Color.clear.frame(width: IdentityRowMetrics.contentTrailingInset, height: 1)
-                }
-            }
-            // The live "Updated N min ago" sub-line is dropped — the popover header
-            // already carries one consolidated stamp. Non-live states keep their
-            // status line because it carries information the header does not (U2).
-            if snapshot.freshness != .live, let message = model.status.message {
-                // S2B: the account rows' own sentence, not a local copy of its recipe —
-                // `StatusSentenceSeverity` now carries the spend card's quiet and neutral
-                // inks too. X5 (Kyle): `indented` is the leading on the content axis, and the
-                // trailing inset stays 0, so the sentence runs to 13pt from the card edge and
-                // wraps on measure instead of tearing at 155pt.
-                StatusSentence(
-                    text: message,
-                    severity: StatusSentenceSeverity.forSpendTone(model.status.tone)
-                )
-                    .accessibilityHidden(true)
-                    // M4A: freshness is a colour-and-presence change, so the line fades in
-                    // and out rather than sliding.
-                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
-            }
-        }
-        // S2A: the whole freshness change — dimmed numeral ink and the state line's
-        // arrival — is one motion. RM1: the row's scope is `.movement`, so under Reduce
-        // Motion the row's height snaps; the line's fade rides its transition, and the ink
-        // keeps its crossfade on the identity line's own scope below.
-        .animation(
-            HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
-            value: snapshot.freshness
-        )
-    }
-
-    private func identityLine(_ model: SpendRowModel) -> some View {
-        HStack(spacing: IdentityRowMetrics.spacing) {
-            ProviderLogoView(providerID: model.snapshot.providerID, size: IdentityRowMetrics.markSlotWidth)
-            Text(model.title)
-                // G1: semibold, matching the account titles above.
-                // CMM10: the account title's own size, kerning and ink token, verbatim.
-                .font(.system(size: IdentityRowMetrics.titleSize, weight: .semibold))
-                .kerning(IdentityRowMetrics.titleKerning)
-                // G1: the same neutral-or-brand ink preference the account titles read.
-                .accountTitleInk(for: model.snapshot.providerID)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .layoutPriority(1)
-                // OA1: the spend title shares the account titles' axis, so it shares their
-                // optical alignment too.
-                .opticalLeading(model.title, size: IdentityRowMetrics.titleSize, weight: .semibold)
-            // X5 (Kyle): the state tag stands exactly where the period chip stands, in line
-            // with the title it belongs to — a billing period is meaningless once the figure
-            // is stale or absent. Live and pending rows keep the chip and carry no tag.
-            if let shortBadge = model.status.shortBadge {
-                stateTag(shortBadge, tone: model.status.tone)
-            } else {
-                periodChip(model.contextLabel)
-            }
-            // PA7: zero, not 6 — the HStack already spends 6pt on either side of this spacer,
-            // so a 6pt floor double-counted the gap and, once the capsule grew to 10.5pt, left
-            // "Anthropic API" 2pt short beside the reserved "$0,000.00" column.
-            Spacer(minLength: 0)
-            if model.amount != nil {
-                // CMM5 (Kyle, 2026-09-10): the top-up glyph sits to the *left* of the amount
-                // instead of in the trailing gutter, so a spend row and a meter row share the
-                // same three trailing columns — figure, suffix, empty 21pt gutter — and one
-                // right edge. Nothing is reserved when a provider has no billing page; the
-                // amount is right-aligned regardless.
-                amountColumn(model)
-                    // S5A (Kyle): the amount never gives up width and never drops to a second
-                    // line — at the popover's 299pt content width the chip truncates first.
-                    .layoutPriority(2)
-                    // IA1 (Kyle, 2026-09-23): the 18pt amount's ~21pt line box made this row
-                    // taller than an account's identity row, and the centred title dropped
-                    // ~1pt below the account titles in the cards above. The amount now lays
-                    // out in the capsule's 18pt box — the identity line's own height — and
-                    // its digits, which are shorter than that, still centre on the title.
-                    .frame(height: IdentityRowMetrics.capsuleHeight)
-            }
-        }
-    }
-
-    /// The period reads as the plan chip does on an account row, so "September" and "Pro"
-    /// are the same kind of object in the same slot.
-    private func periodChip(_ label: String) -> some View {
-        Text(label)
-            .kerning(IdentityRowMetrics.capsuleLabelKerning)
-            // PA7: the capsule owns the type; this row only chooses the ink.
-            // R2C17: metadata ink is the plan pill's token, not system `.tertiary`.
-            .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
-            .lineLimit(1)
-            // C6A: the shared identity-line capsule, so the period chip and the state tag
-            // that stands in for it are the same object at the same height.
-            // R2C17: the period is metadata, so it drops the fill and reads as a label —
-            // the same split the plan pill it mirrors took.
-            .identityMetadataLabel()
-    }
-
-    /// S5A (Kyle): every amount — including the xAI balance row's — sits on the identity
-    /// line in this one reserved column.
-    ///
-    /// R2C8 (Kyle): and it carries its direction. "$58.90" read as money spent on the OpenAI
-    /// row and money remaining on the xAI row directly below it, with nothing but a grey
-    /// capsule — which elsewhere holds "September" and "Pro Lite" — to tell them apart. The
-    /// suffix is the meter rows' own "used"/"left" object in the shared `MeterSuffixColumn`,
-    /// so the amount's digits land on the same right edge as the percentages above them and
-    /// the two figures read as one family rather than two.
-    @ViewBuilder private func amountColumn(_ model: SpendRowModel) -> some View {
-        let amount = model.amount
-        let providerID = model.snapshot.providerID
-        let revealed = hoveredTopUp == providerID
-        // CMM10: the glyph's hit frame is 22pt so its hover pill is a real pill, not a sliver
-        // clipped against the digits; the frame overhangs the 7pt gap by its own margin so
-        // the "+" ink still sits `topUpToAmountGap` off the first digit.
-        let glyphSpan = Self.topUpHitSize + Self.topUpToAmountGap - (Self.topUpHitSize - Self.topUpGlyphSize) / 2
-        HStack(spacing: MeterSuffixColumn.gap) {
-            Text(amount ?? "")
-                .font(.system(size: Self.amountSize, weight: .semibold).monospacedDigit())
-                .foregroundStyle(model.snapshot.freshness == .live ? .primary : .secondary)
-                .lineLimit(1)
-                // M1A: the total rolls to its new value on the same spring the meters use.
-                .contentTransition(
-                    HeadroomMotion.numericText(value: model.snapshot.amount ?? 0, reduceMotion: reduceMotion)
-                )
-                .animation(
-                    HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
-                    value: model.snapshot.amount
-                )
-                .privacySensitive()
-                // CMM8 (Kyle, 2026-09-10): the top-up glyph takes no room at rest. It lives in
-                // an overlay off the amount's leading edge and reveals only while the pointer
-                // is over the figure, so the column reserves nothing for it.
-                .overlay(alignment: .leading) {
-                    topUpGlyph(model, revealed: revealed)
-                        .offset(x: -glyphSpan)
-                }
-                // The hover band covers the glyph's landing zone too (B3H's pad → shape →
-                // unpad), so sliding onto the "+" keeps it revealed long enough to click.
-                .padding(.leading, glyphSpan)
-                .contentShape(Rectangle())
-                .padding(.leading, -glyphSpan)
-                .onHover { inside in
+        return APISpendRow(
+            snapshot: snapshot,
+            status: model.status,
+            title: model.title,
+            contextLabel: model.contextLabel,
+            amount: model.amount,
+            amountColumnWidth: amountWidth,
+            amountDecoration: SpendTopUpReveal(
+                glyph: topUpGlyph(model, revealed: hoveredTopUp == snapshot.providerID),
+                glyphSpan: Self.topUpGlyphSpan,
+                help: topUpHelp(for: model) ?? "",
+                onHover: { inside in
                     if inside {
-                        hoveredTopUp = providerID
-                    } else if hoveredTopUp == providerID {
+                        hoveredTopUp = snapshot.providerID
+                    } else if hoveredTopUp == snapshot.providerID {
                         hoveredTopUp = nil
                     }
                 }
-                // CMM10: the standard AppKit tooltip on the hover area itself, so the reveal
-                // explains the "+" after the system delay without the pointer having to
-                // reach the glyph. Only where a billing page exists.
-                .help(topUpHelp(for: model) ?? "")
-                // S5A: every row's last digit lands on the numeral column's right edge.
-                .frame(width: amountColumnWidth, alignment: .trailing)
-            MeterSuffixLabel(term: APISpendPresentation.directionTerm(kind: model.snapshot.kind))
-        }
+            ),
+            mark: { ProviderLogoView(providerID: snapshot.providerID, size: $0) },
+            waitingLine: { message in
+                SpendWaitingLine(store: store, providerID: snapshot.providerID, message: message)
+            }
+        )
+    }
+
+    /// CMM10: the glyph's hit frame is 22pt so its hover pill is a real pill, not a sliver
+    /// clipped against the digits; the frame overhangs the 7pt gap by its own margin so the
+    /// "+" ink still sits `topUpToAmountGap` off the first digit.
+    private static var topUpGlyphSpan: CGFloat {
+        topUpHitSize + topUpToAmountGap - (topUpHitSize - topUpGlyphSize) / 2
     }
 
     /// Quiet escape hatch to top up: opens the provider's billing page (the screen with the
@@ -378,45 +231,6 @@ struct APISpendSectionView: View {
         }
     }
 
-    // MARK: - State line
-
-    /// S5A: every tag in the popover is a capsule, so these are too. Neutral and quiet take
-    /// the identity row's "Stale" recipe; warning and critical take the meter's "Low" chip
-    /// recipe, tinted by the tone's own text ink. C6A fixes the height for all four.
-    private func stateTag(_ badge: String, tone: APISpendRowStatus.Tone) -> some View {
-        let ink = badgeColor(tone)
-        return Text(badge)
-            .kerning(IdentityRowMetrics.capsuleLabelKerning)
-            // PA7: the tag stands in the period chip's own slot, so it must not change size
-            // or weight in place — "Rejected" is now the same object as "September".
-            .foregroundStyle(ink)
-            .lineLimit(1)
-            // C6A: the same shared capsule as the period chip it stands in for.
-            // R2C17: a state chip keeps its kind-tinted fill, and the neutral tones take
-            // the one named stale recipe rather than a second copy of `0.18`.
-            .identityCapsule(
-                fill: tone == .quiet || tone == .neutral
-                    ? IdentityCapsuleStyle.staleFill
-                    : ink.opacity(0.16),
-                horizontalPadding: 5,
-                border: tone == .quiet || tone == .neutral
-                    ? IdentityCapsuleStyle.stateBorder
-                    : nil
-            )
-    }
-
-    private func badgeColor(_ tone: APISpendRowStatus.Tone) -> Color {
-        switch tone {
-        case .quiet, .neutral:
-            .secondary
-        case .warning:
-            ProviderStyle.severityColor(for: .low, scheme: scheme)
-        case .critical:
-            // Text ink, not the bar fill — the badge is small type on the tile surface.
-            ProviderStyle.criticalText(scheme: scheme)
-        }
-    }
-
     // MARK: - Card foot (P4C)
 
     /// P4C: every action the card offers collects in one row at the bottom of the card
@@ -453,19 +267,54 @@ struct APISpendSectionView: View {
         default: return "\(cta) (\(vendor))"
         }
     }
+}
 
-    // MARK: - Accessibility
+/// CMM8 (Kyle, 2026-09-10): the top-up glyph takes no room at rest. It lives in an overlay
+/// off the amount's leading edge and reveals only while the pointer is over the figure, so
+/// the column reserves nothing for it. U3: applied by the shared row before its column frame,
+/// exactly where the popover always attached it.
+private struct SpendTopUpReveal<Glyph: View>: ViewModifier {
+    let glyph: Glyph
+    let glyphSpan: CGFloat
+    let help: String
+    let onHover: (Bool) -> Void
 
-    private func accessibilityLabel(_ model: SpendRowModel) -> String {
-        var parts = [model.snapshot.displayName, model.contextLabel]
-        // R2C8: VoiceOver hears the same phrase the row prints — figure then direction.
-        if let amount = model.amount {
-            parts.append("\(amount) \(APISpendPresentation.directionTerm(kind: model.snapshot.kind))")
+    func body(content: Content) -> some View {
+        content
+            .overlay(alignment: .leading) {
+                glyph.offset(x: -glyphSpan)
+            }
+            // The hover band covers the glyph's landing zone too (B3H's pad → shape →
+            // unpad), so sliding onto the "+" keeps it revealed long enough to click.
+            .padding(.leading, glyphSpan)
+            .contentShape(Rectangle())
+            .padding(.leading, -glyphSpan)
+            .onHover(perform: onHover)
+            // CMM10: the standard AppKit tooltip on the hover area itself, so the reveal
+            // explains the "+" after the system delay without the pointer having to reach
+            // the glyph. Only where a billing page exists.
+            .help(help)
+    }
+}
+
+/// R11: only this small waiting line observes spend activity; the shared spend card
+/// retains its existing formatting and layout boundaries for all four providers.
+struct SpendWaitingLine: View {
+    let store: UsageStore
+    let providerID: ProviderID
+    let message: String
+
+    static func motion(providerID: ProviderID, inFlight: Set<ProviderID>) -> LoadingMotion {
+        inFlight.contains(providerID) ? .slosh : .still
+    }
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: IdentityRowMetrics.spacing) {
+            MiniPill(mode: Self.motion(providerID: providerID, inFlight: store.apiSpendInFlightProviders).miniPillMode)
+                .foregroundStyle(.tertiary)
+                .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
+            StatusSentence(text: message, severity: .quiet, indented: false)
         }
-        if model.snapshot.freshness != .live {
-            if let badge = model.status.badge { parts.append(badge) }
-            if let message = model.status.message { parts.append(message) }
-        }
-        return parts.joined(separator: ", ")
+        .padding(.leading, IdentityRowMetrics.meterContentInset)
     }
 }

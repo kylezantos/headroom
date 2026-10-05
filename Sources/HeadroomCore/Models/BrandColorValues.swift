@@ -427,6 +427,38 @@ public enum HeadroomWidgetColorValues {
     }
 }
 
+/// U8 (U9-A "Neutral, like the Mac popover"; R4, G6): the phone's control colours. Nothing on
+/// the phone is system blue and nothing borrows a brand hue for chrome; controls take the
+/// same neutral the popover's labels are inked in, inverted per scheme so a filled button
+/// stays a filled button. Contrast is asserted in `BrandColorValuesTests`.
+public enum HeadroomControlColorValues {
+    private static let darkNeutral = HeadroomRGBColor(red: 0.92, green: 0.92, blue: 0.96)
+    private static let lightNeutral = HeadroomRGBColor(red: 0.24, green: 0.24, blue: 0.26)
+
+    /// The root `.tint` and the prominent button's fill: text-safe on every phone surface,
+    /// so bare text buttons and toolbar items read at body contrast.
+    public static func tint(dark: Bool) -> HeadroomRGBColor {
+        dark ? darkNeutral : lightNeutral
+    }
+
+    public static func buttonFill(dark: Bool) -> HeadroomRGBColor {
+        tint(dark: dark)
+    }
+
+    /// The label drawn on `buttonFill`. SwiftUI's prominent style paints white labels, which
+    /// on the dark scheme's near-white fill would vanish, so the label is named too: the
+    /// screen's own darkest stop in dark, white in light.
+    public static func buttonLabel(dark: Bool) -> HeadroomRGBColor {
+        dark ? HeadroomWidgetColorValues.containerBackgroundTop(dark: true) : .white
+    }
+
+    /// A switch's on-state: the neutral at the mock's 0.62 (`--toggle-neutral`). A full-ink
+    /// track would swallow the white knob in dark, so the on-state is quieter than the tint.
+    public static func switchOn(dark: Bool) -> HeadroomTint {
+        HeadroomTint(color: tint(dark: dark), opacity: 0.62)
+    }
+}
+
 /// The ramp's dark-scheme start is mixed against different meter surfaces. Light mode
 /// uses the same white mix on both because both reference surfaces are light neutrals.
 public enum MeterRampSurface: Sendable {

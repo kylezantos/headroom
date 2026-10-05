@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import HeadroomCore
 
@@ -763,8 +766,10 @@ struct PillValueMenu: View {
         guard let window = option.window else { return "Not in the latest usage" }
         if window.freshness.isUnavailable { return "Not available right now" }
         let mode = store.usagePercentageMode
+        // KTD6.2: the popover row's integer, not a second rounding of the raw window.
+        guard let percentage = mode.displayedPercentage(for: window) else { return "Not available right now" }
         let reset = Countdown.resetText(for: window, now: .now)
-        return "\(mode.roundedPercentage(for: window))% \(mode.term) · \(reset)"
+        return "\(percentage)% \(mode.term) · \(reset)"
     }
 
     private var closestDetail: String? {

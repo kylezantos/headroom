@@ -1026,13 +1026,62 @@ struct UsageStoreTests {
         #expect(store.menuBarSummary.severity == severity)
     }
 
+    /// KTD6.2 (review #16): the menu bar prints, inks and fills from the same normalized
+    /// reading as the popover row, so a fractional source can't read 16% in one and 15% in
+    /// the other.
+    @Test(arguments: [15.46, 15.05, 84.54, 15.04])
+    func menuBarAgreesWithThePopoverReading(remaining: Double) async {
+        let window = UsageWindow(kind: .weekly, utilization: 100 - remaining, resetsAt: reset)
+        let reading = UsageMeterReading(window: window)
+        for source in [MenuBarFillSource.auto, .claude] {
+            let store = makeStore(source: source, providers: [
+                StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [window])),
+            ])
+            await store.refreshAll()
+            for mode in UsagePercentageMode.allCases {
+                store.setUsagePercentageMode(mode)
+                let printed = "\(reading.roundedPercentage(for: mode)!)%"
+                // The pill arranger and Settings print through this same helper.
+                #expect(mode.displayedPercentage(for: window) == reading.roundedPercentage(for: mode))
+                #expect(store.menuBarSummary.text == printed)
+                #expect(store.menuBarSummary.severity == reading.severity)
+                let meter = store.providerMenuBarMeter(for: .claude)
+                #expect(meter.summary.text == printed)
+                #expect(meter.summary.severity == reading.severity)
+                #expect(meter.fill == reading.fraction(for: mode))
+                if source == .claude {
+                    #expect(store.menuBarFill == reading.fraction(for: mode))
+                }
+            }
+        }
+    }
+
+    @Test func menuBarPrintsTheNormalizedTenthLikeThePopover() async {
+        let store = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset),  // 15.46 left
+            ])),
+        ])
+        await store.refreshAll()
+        #expect(store.menuBarSummary.text == "16%")
+        store.setUsagePercentageMode(.used)
+        #expect(store.menuBarSummary.text == "85%")
+        #expect(UsagePercentageMode.remaining.displayedPercentage(
+            for: UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset)) == 16)
+        // A row the popover hides prints no figure on the other surfaces either.
+        #expect(UsagePercentageMode.remaining.displayedPercentage(
+            for: UsageWindow(kind: .weekly, utilization: 84.54, resetsAt: reset,
+                             freshness: .unavailable(since: reset))) == nil)
+    }
+
     /// G1A: popover-only, so the store mirrors the choice and writes it back without
     /// touching any projection — and a repeat set is a no-op.
     @Test func accountTitleInkSeedsPersistsAndNoOpsWhenUnchanged() {
         let preferences = freshPreferences()
         preferences.accountTitleInk = .brand
+        preferences.syncToIPhoneEnabled = true
         let exporter = SpyWidgetExporter()
-        let phoneExporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
         let store = UsageStore(
             providers: [
                 StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
@@ -1055,8 +1104,11 @@ struct UsageStoreTests {
         store.setAccountTitleInk(.neutral)
         #expect(store.accountTitleInk == .neutral)
         #expect(preferences.accountTitleInk == .brand)
+        // Mac widgets carry no ink; the phone's display block does (iPhone parity KTD11),
+        // so the one real change reached the phone once and the repeat set did not.
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.exports.isEmpty)
+        #expect(phoneExporter.captures.count == 1)
+        #expect(phoneExporter.last?.display?.accountTitleInk == .neutral)
     }
 
     @Test func meterStyleSeedsPersistsAndNeverTriggersWidgetExport() {
@@ -1064,8 +1116,9 @@ struct UsageStoreTests {
         preferences.meterFormat = .full
         preferences.meterShape = .tube
         preferences.meterFill = .ghost
+        preferences.syncToIPhoneEnabled = true
         let exporter = SpyWidgetExporter()
-        let phoneExporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
         let store = UsageStore(
             providers: [
                 StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
@@ -1085,11 +1138,13 @@ struct UsageStoreTests {
         #expect(preferences.meterShape == updated.shape)
         #expect(preferences.meterFill == updated.fill)
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.exports.isEmpty)
+        // KTD11: the meter style travels in the phone's display block, never to widgets.
+        #expect(phoneExporter.captures.count == 1)
+        #expect(phoneExporter.last?.display?.meterStyle == updated)
 
         store.setMeterStyle(updated)
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.exports.isEmpty)
+        #expect(phoneExporter.captures.count == 1)
     }
 
     @Test func exportedWidgetSnapshotIsInvariantAcrossEveryMeterStyle() async throws {
@@ -1326,17 +1381,22 @@ struct UsageStoreTests {
     @Test func widgetSelectionCanChangeIndependentlyAndExportsImmediately() {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .both
+        preferences.syncToIPhoneEnabled = true
         let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyWidgetExporter()
         let store = UsageStore(providers: [
             StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
             StubProvider(id: .codex, displayName: "Codex", snapshot: .pending(for: .codex)),
-        ], preferences: preferences, widgetExporter: exporter)
+        ], preferences: preferences, widgetExporter: exporter, phoneSyncExporter: phoneExporter)
         store.setWidgetPrioritySource(.codex)
         #expect(exporter.exports.last?.widgetProviderSelection == ["codex"])
+        // iPhone widgets read the same selection from the phone envelope (R36).
+        #expect(phoneExporter.exports.last?.widgetProviderSelection == ["codex"])
         #expect(store.menuBarFillSource == .both)
         store.setWidgetPrioritySource(.auto)
         #expect(preferences.widgetPriorityProviders == [])
         #expect(exporter.exports.last?.widgetProviderSelection == ["claude", "codex"])
+        #expect(phoneExporter.exports.last?.widgetProviderSelection == ["claude", "codex"])
     }
 
     @Test func menuBarRestoresIndependentOrderForAllFourProviders() async {
@@ -1456,6 +1516,64 @@ struct UsageStoreTests {
         #expect(meters[0].summary.providerID == .codex)
         #expect(meters[0].summary.severity == .critical)
         #expect(meters[0].fill == nil)      // `.none` uses static vessel level.
+    }
+
+    @Test func menuBarGhostTracksPendingMainsRatherThanNilFill() async {
+        let pending = makeStore(source: .both, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .stale(for: .codex, reason: .notLoggedIn("signed out"))),
+        ])
+        #expect(pending.menuBarMeters.allSatisfy { $0.awaitingFirstReading })
+        await pending.refreshAll()
+        #expect(pending.menuBarMeters.map(\.awaitingFirstReading) == [true, false])
+        #expect(pending.menuBarMeters.allSatisfy { $0.fill == nil })
+        #expect(pending.menuBarMeters.map(\.sourceAccountKey) == [
+            AccountKey(providerID: .claude, accountID: .primary), AccountKey(providerID: .codex, accountID: .primary),
+        ])
+
+        let unavailable = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 10, resetsAt: reset, freshness: .unavailable(since: reset)),
+            ])),
+        ])
+        await unavailable.refreshAll()
+        #expect(unavailable.menuBarMeters[0].fill == nil)
+        #expect(!unavailable.menuBarMeters[0].awaitingFirstReading)
+    }
+
+    @Test func automaticGhostNeedsNeutralSummaryAndAtLeastOnePendingMain() async {
+        let mixed = makeStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset),
+            ])),
+        ])
+        #expect(mixed.menuBarMeters[0].awaitingFirstReading)
+        await mixed.refreshAll()
+        #expect(!mixed.menuBarMeters[0].awaitingFirstReading)
+        #expect(mixed.menuBarMeters[0].isLiveReading)
+        #expect(mixed.menuBarMeters[0].fill == nil)
+
+        let signedOut = makeStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .stale(for: .claude, reason: .notLoggedIn("signed out"))),
+        ])
+        await signedOut.refreshAll()
+        #expect(!signedOut.menuBarMeters[0].awaitingFirstReading)
+        #expect(!signedOut.menuBarMeters[0].isLiveReading)
+    }
+
+    @Test func menuBarFirstResultCarriesLiveProvenanceEvenWhenStaleHasANumber() async {
+        let stale = UsageSnapshot(providerID: .claude, windows: [
+            UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset),
+        ], planLabel: nil, capturedAt: Date(), freshness: .stale(.transient("offline")))
+        let store = makeStore(source: .claude, providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: stale),
+        ])
+        #expect(store.menuBarMeters[0].awaitingFirstReading)
+        await store.refreshAll()
+        #expect(!store.menuBarMeters[0].awaitingFirstReading)
+        #expect(store.menuBarMeters[0].fill == 0.8)
+        #expect(!store.menuBarMeters[0].isLiveReading)
     }
 
     @Test func menuBarMetersCanShowClaudeAndCodexSideBySide() async {

@@ -4,21 +4,91 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
-## App-target tests can't run while any Headroom.app is open
+## App-target test host isolation (resolved 2026-10-04)
 
 - The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in
   `HeadroomApp.swift`) also runs inside the XCTest host. With another Headroom.app running —
   e.g. a different Conductor workspace's build — the `HeadroomAppTests` host prints "already
   running" and exits 0, and xcodebuild reports "Early unexpected exit … before establishing
-  connection" (2026-10-02). Exempt the test host (`XCTestConfigurationFilePath` in the
-  environment) the way `--demo` is exempt.
+  connection" (2026-10-02). The shared `HeadroomAppTests` scheme now launches with `--demo`,
+  using the existing isolated host and single-instance exemption. The production guard is
+  unchanged. Verified with another workspace's app running: 263 App tests in 38 suites passed.
 
-## Provider identity tests emit actor-isolation warnings
+## Loading language follow-ups (2026-10-04)
 
-- The Xcode 27 `HeadroomAppTests` run on 2026-10-04 passed 250 tests in 36 suites, but
-  `ProviderCardIdentityRowTests.swift` calls main-actor helpers and reads `mainAccountHelp`
-  from nonisolated test contexts. Align those test contexts with the helpers' isolation;
-  do not weaken concurrency checking. Evidence: `.context/lock-screen-u4-macos-app-tests.log`.
+- **Signed-out and all-unavailable menu pills still use the decorative level.** The ghost
+  flag deliberately covers only a main account awaiting its first reading. Extend the neutral
+  treatment separately; `fill == nil` must not become a pending-data signal.
+- **An automatic neutral pill has no summary provider to slosh.** First-reading ghost and print
+  work through its fixed identity, but neutral automatic work still needs an explicit motion
+  source when no main has a usable reading. Deferred by the loading-language plan.
+- **The loading-language CPU budget is unverified.** Kyle approved the native loading demo
+  and requested merge. The back-to-back `--demo multi-20` main-thread CPU comparison and
+  idle popover/Settings measurements have not run; the diagnostic builds alone prove no
+  performance result. Do not claim the plan's two-percentage-point budget passed.
+
+## iPhone usage screen follow-ups (2026-10-05, iPhone parity U21/U9/U11)
+
+- **Meter labels truncate to "…" at accessibility text sizes on a 390pt phone.** The shared
+  Micro row's last rung truncates its label once `PhoneScale` clamps at xxxLarge, so "5-hour"
+  and "Weekly" read "…" beside their countdowns (17e capture, AccessibilityXXXL). Pre-dates
+  U21; the spend title now wraps by word instead. Needs a phone rung that drops the gauge or
+  stacks the countdown before the label gives up.
+- **Spend chip placement is decided per row.** On a 402pt phone at the default size "OpenAI
+  API" holds its chip inline while "Anthropic API" drops it to the subline (KTD3's measured
+  fit). A card-wide decision would read calmer; it needs the card's width before layout.
+- **V38 has no one- or three-provider demo fixture.** The flowing-columns capture pass covers
+  two (with and without spend) and four providers; one and three need fixtures.
+- **"Last check" in Settings is session-only.** The round trip is recorded when this launch
+  sees a real request complete; a relaunch starts without one.
+- **Companion cache invalidation write failures have no tests** (review 2 testing gap): a failing
+  first sidecar write (dirty marker), a failing final commit write in `invalidateLocked`, and the
+  `.changed` guard returning nil when the first step fails. Only a failing removal is covered.
+
+## Phone publisher follow-ups (2026-10-04, iPhone parity U5)
+
+- **Two rare row kinds stay Mac-only.** The phone carries the widget row set plus flagged Spark
+  rows, so the KTD13 parity holds. A Codex window whose `limit_window_seconds` is unrecognized
+  (`.other(durationLabel)`) or a non-Spark Codex model row, and a Claude model row that is not
+  weekly (none is produced today), show in the popover but not on the phone. Carrying them needs
+  a wire flag the projection can filter, like `isSpark`.
+- **A setup session's typed overlay reaches the phone on the next capture.** Starting or
+  finishing a sign-in changes the account's attention line without a merge, so the phone sees it
+  at the next merge, setting change or heartbeat (one chosen interval at most). A coordinator
+  state hook would make it immediate.
+- **The capture is built on the main actor for every phone-bound change.** At the multi-20
+  envelope that is one full projection per merge (the publisher coalesces the writes, not the
+  captures). Unmeasured; if `--bench-ui` shows a cost, capture lazily at flush time instead.
+- **Two-device acceptance is pending (P5).** A signed Mac build with the KVS entitlement and the
+  physical iPhone must show a new Mac account within one publish, and `--dump-phone-sync` on the
+  signed build must list the keys and sizes. Only the unbundled dump has run.
+
+- **Use-it-up reminders still round the raw window (review #16 residual).** The popover, menu
+  bar, pill arranger and Settings tile print the normalized `UsageMeterReading` integer (KTD6.2),
+  so 15.46% left reads 16%. `UseItUpEvaluator` still takes `Int(window.percentRemaining.rounded())`
+  and gates `percentLeft >= rule.threshold` on it, so a banner can say 15% where the popover said
+  16%, and a window can sit one point either side of a rule's threshold. Moving it changes when
+  reminders fire, so it needs its own decision and tests.
+
+## Check-now follow-ups (2026-10-05, iPhone parity U6)
+
+- **Check-now is dormant on the phone until loader adoption.** `CompanionLoaderAdoption` is off
+  (P5 identity gate failed), so phone surfaces resolve the v3 key, the resolver's winner is never
+  v4, and `CheckNowClient.pull` answers `.rereadOnly` (KTD14.1). U9's pull shows re-read only
+  until adoption flips. The Mac side is live as soon as a 1.5 phone writes a request.
+- **The latency spike has not run.** `docs/qa/2026-10-check-now-latency-spike.md` holds the
+  protocol and empty tables. Its 20-account write-throttling run needs either 20 real accounts
+  on a test Mac or a DEBUG publisher harness: `--demo multi-20` never writes iCloud (R37). The
+  per-probe constant (30 s) is provisional until then.
+- **A failed answer reuses the not-finished line.** When the Mac's forced flush fails (over
+  budget, write failure) it answers `failed`; the phone shows "Your Mac started checking but
+  hasn’t finished. Pull again later." No dedicated copy exists.
+- **Device UUID creation can race across processes.** `CheckNowDeviceIdentity` creates the
+  install's UUID on first read through App Group defaults with no file coordination; an app and
+  a widget extension reading it for the first time at once could each mint one, leaving one stale
+  request key until the 30-day prune.
+- **A launch with sync off skips the request scan.** Requests written before sync turns back on
+  were swept by sync-off anyway; requests written after reach the Mac by live notification.
 
 ## Focused render acceptance needs Screen Recording for the launching shell
 
@@ -35,6 +105,9 @@ official `claude` CLI's `/usage` panel instead.
   decides which state lands in the image. AR1 (2026-09-25) lengthened the meter arrival and the
   snapshot wait with it; `connected-used-light` then captured Connected mid-roll where it had
   captured Waiting before. Drive those states from an injected clock instead of sleeping.
+- The new `--loading-only` path uses a pinned clock and held real requests, including Opening,
+  Waiting and Confirming. Two 2026-10-04 runs matched all 26 decoded images. The legacy
+  `connected-*` and `dualWaiting-*` path above remains outside that deterministic capture flow.
 
 ## Unbundled `swift run` popover still shows a faint second rim
 
@@ -370,8 +443,11 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   priority *label*, which named switched-off picks; `MenuBarPrioritySelection.label` now feeds
   from the fetched order and reads "None" when every pick is off. The stored preference keeps
   the off pick so re-enabling restores it.
-- **The iOS targets compile a hand-picked list of Core files, so a new Core file can break the
-  phone build silently.** `HeadroomIOS` and `HeadroomIOSWidgets` enumerate individual
+- ~~**The iOS targets compile a hand-picked list of Core files, so a new Core file can break the
+  phone build silently.**~~ Resolved 2026-10-04 (iPhone parity U1, `871d2a05`): both iOS targets
+  include Core's `Models/`, `Notifications/`, `Settings/`, `Sync/` and `Widgets/` folders whole
+  (KTD4), and the iOS simulator build is a pre-PR check in AGENTS.md. Original note:
+  `HeadroomIOS` and `HeadroomIOSWidgets` enumerate individual
   `Sources/HeadroomCore/Models/*.swift` paths in `project.yml`; the Sep 9 fill-tier split added
   a `UsageSeverity` overload in `UsageSeverityColorValues.swift` that the lists lacked, and
   `HeadroomIOS` did not build from 2026-09-09 until 2026-09-10. Nothing in `swift test` or the
@@ -404,6 +480,31 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   byte-identical). The names promise scenarios the harness never draws; anything touching the
   Grok/Cursor cards or the spend rows has no headless visual evidence. Wire the fixture's spend
   providers and enable the Grok/Cursor surfaces in the multi path.
+- **The harness's `connected` capture can show a Claude "Waiting for sign-in…" card.** Seen
+  2026-10-03 on Kyle's machine: `popover-connected-{light,dark}.png` drew the Claude setup-waiting
+  card above Codex instead of the connected Claude card. Suspected cause (unverified): the harness
+  resets `openedSetupAt` but still restores the real durable handoff markers under
+  `~/Library/Application Support/Headroom/Setup`, so a live machine's pending handoff leaks into a
+  fixture. Isolate the harness from the real setup-marker directory.
+- **`Scripts/capture-demo-screenshots.sh` quits the installed Headroom.** Its macOS half runs
+  `killall Headroom` (line 113) before launching the `--demo` build, which also kills the user's
+  live menu bar app — against the release-ops rule on broad process termination. Terminate only
+  the worktree build's PID, or keep using `HEADROOM_IOS_ONLY=1` until it's fixed.
+- **Changing widget providers on the Mac doesn't reach iPhone widgets.** `setWidgetPrioritySource`
+  (`UsageStore.swift:485-490`) calls `exportWidgetSnapshot()` but not `exportPhoneSyncSnapshot()`,
+  so the iPhone envelope's `widgetProviderSelection` stays stale until the next primary merge.
+  Slated for the 2026-10 iPhone parity round.
+- **The public iPhone app (1.0, build 24) can't read any current Mac's snapshot.** Built from
+  `1f4acb53`, it requires sync schema 1 exactly and a `resetsAt` on every window. Mac 1.1.2
+  (Jul 28) moved to schema 2 and today's Mac publishes schema 3 without `resetsAt`, so App Store
+  phones paired with an updated Mac show "Snapshot Unreadable" / "Update Needed" — and the
+  unreadable copy tells users to "publish a fresh snapshot", which can never help. Fix is shipping
+  a current iPhone build (1.5); found 2026-10-04 (see
+  `docs/plans/2026-10-04-ios-parity-research/repo-patterns.md`). Kyle accepted waiting for 1.5 over a
+  Mac-side schema-1 stopgap because the iPhone app has few users.
+- **A bare `--demo` Mac run publishes demo data to the real iCloud store.** `HeadroomApp.swift`
+  (~861-890) wires the phone-sync exporter in demo mode, so a properly signed demo build (e.g. a
+  screenshot run) overwrites the user's real phone snapshot. Demo must never write KVS (demo plan R3).
 
 ## iPhone sync — Mac needs the iCloud-KVS entitlement (provisioning-gated)
 
@@ -672,7 +773,10 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   (R2C8):** the amount column now measures the widest total the card is showing (floor "$0.00")
   instead of reserving "$0,000.00"; amounts stay on one right edge and every spend title renders
   whole in the live `spend-states` capture. Re-check a "Last 30 days" chip on the next shoot.
-- **The iOS mirror still shows its own "Low" chip.** AP1 removed the macOS popover chip in favour
+- ~~**The iOS mirror still shows its own "Low" chip.**~~ Resolved 2026-10-05 (iPhone parity U8,
+  `89a20d57`): the phone draws the popover's shared rows with red critical ink, and
+  `MirrorPresentation.showsLowChip` and the phone's own bar view are gone. Original note:
+  AP1 removed the macOS popover chip in favour
   of red critical ink, but `Sources/HeadroomIOS/Views/UsageBarView.swift` keeps a `lowChip` driven by
   `MirrorPresentation.showsLowChip` (`MirrorPresentationTests.swift:70`). Bring the phone surface in line
   or decide it keeps the chip deliberately.
@@ -734,8 +838,9 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
   heights, `.accented`/StandBy as WidgetKit actually draws them, and **Dynamic Type at
   `xxLarge`** still need a device — macOS `ImageRenderer` ignores `.dynamicTypeSize`, so the
   harness's `shrunk` pass (85% tiles) stands in, and its findings are warnings, not failures.
-  As of 2026-10-03 the shrunk pass shows Nested Meter and Tightest First small/medium crowding
-  the margin by a few points (rails drop and labels truncate first; nothing overlaps).
+  The 2026-10-04 loading sweep rendered 2,004 tiles with no real-geometry overflow. Its shrunk
+  surrogate produced 89 warnings, including mixed-pending Tightest First medium tiles; these
+  warnings do not establish actual device Dynamic Type fit.
 - **`HeadroomWidgetSharedUI` view code is verified by renders, not tests.** The style decisions
   (ranking, shown providers, shedding ladders, wash segments, color resolver, vessel geometry)
   are Core recipes under `swift test`; the views that lay them out are checked by the
@@ -753,10 +858,13 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
 - **Liquid Level's wash in accented, vibrant and StandBy is reasoned, not measured (KTD9).** It
   draws `.primary` at 0.12 with an accentable top edge; nobody has seen it on a tinted iPhone, a
   Tahoe desktop behind windows, or StandBy.
-- **Old data is not dimmed.** When the Mac sleeps, the envelope stays "live" and an iPhone widget
+- ~~**Old data is not dimmed.**~~ Resolved 2026-10-04 (iPhone parity U13): every style takes
+  `WidgetFreshnessTreatment` from the KTD15 rule, dims past its threshold (60-minute floor on the
+  phone, 120 minutes against the Mac's own export time on the Mac) and hides a number ten minutes
+  past its reset; `CompanionTimelineSchedule` schedules both moments. Original note:
+  When the Mac sleeps, the envelope stays "live" and an iPhone widget
   can show hours-old numbers in full color, with no footer on small and medium (R14). Needs a
-  threshold on `generatedAt` that applies to every style. Since 2026-10-05 this also covers the
-  Lock Screen widget, which draws the same envelope.
+  threshold on `generatedAt` that applies to every style.
 - **Per-widget provider choice.** Small Vessel Hero and small Liquid Level show the first widget
   provider (or the second when the first has no value yet). Choosing which provider a widget
   shows would be a third Edit Widget parameter. The Lock Screen widget has this Provider choice
@@ -791,6 +899,10 @@ Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
 - **The inline vessel SVGs use `clipPath`.** If CoreSVG drops it on a device, the liquid would
   draw square-cornered; regenerate with `swift run Headroom --generate-lock-screen-vessels`.
 - **No Lock Screen previews in Settings → Widgets & iPhone.**
+- **The Lock Screen dims through the stale state, with no "No update since" line.** It takes the
+  home widgets' `WidgetFreshnessTreatment` (iPhone parity U13): dimmed data draws every window in
+  half ink with the warning glyph, and a window ten minutes past its reset reads "—". There is no
+  room for the home widgets' dimmed sentence or "Reset at" note in a circle or the inline line.
 - **A lone Cursor pool on the home widgets reads "monthly left"** (`WidgetStyleCopy.leftCaption`),
   which reads as Cursor's whole allowance. The Lock Screen names the pool (R11); the home copy
   does not yet.
@@ -801,3 +913,52 @@ Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
   153–172 pt rectangles and 225–257 pt inline lines (KTD12); layouts flex, but nobody has seen
   them on those devices.
 
+### Xcode 27 test compiler warnings (iOS parity U1, 2026-10-04)
+
+- `NotificationCoordinatorTests.swift:278–279` ignores the result of `schedulerMerge`.
+  `ProviderCardIdentityRowTests.swift:378–458` emits actor-isolation warnings. The U1
+  Core and Mac suites pass (1,207 and 250 tests); keep these visible for the U20
+  integration pass rather than weakening concurrency checking or assertions.
+- ~~The iOS UI-test runner emits “Metadata extraction skipped, no AppIntents.framework
+  dependency found”.~~ Closed 2026-10-04: re-checked after U14, expected, no action. The runner
+  declares no intents; the app (`UsageLeftIntent`, `HeadroomAppShortcuts`) and the widget
+  extension both write `Metadata.appintents`, and the app's `AppShortcuts.xcstrings` gives
+  the SSU training step its phrase corpus (without it, the step logged “Could not archive SSU
+  artifacts” and Siri lost flexible phrase matching).
+
+## Settings sidebar app icon drops its `<feMerge>` filter (2026-10-03)
+
+- `Sources/HeadroomApp/Resources/AppIcon/vessel-app-icon.svg` uses `<feMerge>`, which CoreSVG
+  does not support ("Filter primitive: <feMerge> is currently not supported", logged during the
+  popover/Settings perf bench). `AppIconGlyph` loads that SVG through `NSImage`, so the Settings
+  sidebar's identity mark renders without whatever that filter adds. Flatten the filter into the
+  paths or ship a pre-rendered PDF/PNG for the sidebar.
+
+## Popover & Settings snappiness residuals (2026-10-03 perf audit)
+
+The audit's fixes 1–6 land in #157 (feather animation scope, scroll chrome out of `PopoverView`'s
+body, `MenuBarStatusLabel`, Settings opening on its stored pane, batched Settings-open writes,
+the spend month label). Measured offscreen; numbers in the PR. How to measure, and the hot-spot
+checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
+
+- **Pane switches build in the click's frame, then blur in.** Into Appearance, Widgets,
+  Notifications or Accounts takes ~60–70ms (multi-5) before anything moves, ~259ms into Accounts
+  at 20 accounts; then `settingsPane`'s 200ms fade from a 3pt blur plays. Candidates: instant or
+  ≤120ms opacity-only for clicks (keyboard is already instant, KB1); a `LazyVStack` for the
+  account rows; the Appearance specimen builds its card twice (hidden twin) and passes
+  `now: Date()`, so it is never equal.
+- **Every card re-renders on any store change.** `ProviderCardView` gets fresh closures and `now`
+  each pass, so one account refresh re-runs all cards (after #157, ~240ms CPU per refresh at 20 accounts, ~140ms at 5;
+  ~360ms / ~150ms before it).
+  `PopoverView` also calls `appDisplaySnapshot` ~3× per account and builds `statusInput` twice.
+- **First open per launch (M9A arrival) pegs the main thread** ~740ms at 20 accounts after #157 (~890ms before; ~135ms at 5): each meter row makes three state writes in its `.task`.
+- **The duplicate-login scan reruns on every Claude capture** while Settings is open (its
+  fingerprint carries `capturedAt`), reads every `.claude.json` even with one Claude account, and
+  `Task.detached` ignores cancellation, so a 20-account refresh stacks ~20 overlapping scans.
+- **The saved-key presence check reads the secret.** `refreshSavedKeyPresence` calls
+  `CredentialStore.apiKey(for:)`, which returns key data; an attributes-only existence query
+  would do.
+- **`--render-popover`'s multi-account path never draws the spend card.** `renderMulti` builds its
+  store with `apiSpendProviders: []`, so `spend-states` / `spend-retained` captures show only the
+  provider cards, and the spend card (where the month-label formatter hot spot lived) is never
+  rendered or measured there.

@@ -23,14 +23,14 @@ struct HeadroomTileModifier: ViewModifier {
             .background {
                 shape
                     .fill(HeadroomTheme.tileFill(scheme))
-                    .shadow(color: Color(HeadroomWidgetColorValues.tileCloseShadow(dark: dark)), radius: 1.5, y: 1)
-                    .shadow(color: Color(HeadroomWidgetColorValues.tileAmbientShadow(dark: dark)), radius: dark ? 11 : 6, y: dark ? 9 : 3)
-                    .shadow(color: Color(HeadroomWidgetColorValues.tileLongShadow(dark: dark)), radius: 13, y: 9)
+                    .shadow(color: Color(styleTint: HeadroomWidgetColorValues.tileCloseShadow(dark: dark)), radius: 1.5, y: 1)
+                    .shadow(color: Color(styleTint: HeadroomWidgetColorValues.tileAmbientShadow(dark: dark)), radius: dark ? 11 : 6, y: dark ? 9 : 3)
+                    .shadow(color: Color(styleTint: HeadroomWidgetColorValues.tileLongShadow(dark: dark)), radius: 13, y: 9)
             }
             // The ring — a faint hairline that replaces the border (not a hard outline).
             .overlay {
                 shape.strokeBorder(
-                    Color(HeadroomWidgetColorValues.tileRing(dark: dark)),
+                    Color(styleTint: HeadroomWidgetColorValues.tileRing(dark: dark)),
                     lineWidth: 1
                 )
             }
@@ -38,7 +38,7 @@ struct HeadroomTileModifier: ViewModifier {
             // would vanish on the light card, so it's dark-only.
             .overlay(alignment: .top) {
                 shape
-                    .fill(Color(HeadroomWidgetColorValues.tileTopRim(dark: dark)))
+                    .fill(Color(styleTint: HeadroomWidgetColorValues.tileTopRim(dark: dark)))
                     .frame(height: 1)
                     .padding(.horizontal, 9)
                     .allowsHitTesting(false)

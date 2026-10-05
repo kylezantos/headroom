@@ -36,6 +36,8 @@ targets:
       # L9P: the Widgets & iPhone settings pane previews the real small/medium widget
       # bodies. Compiled into the app the same way the two widget extensions compile it.
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
     dependencies:
       - target: HeadroomCore
       - target: HeadroomWidgets
@@ -69,6 +71,8 @@ targets:
     platform: macOS
     sources:
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
       - path: Sources/HeadroomWidgets
         excludes:
           - HeadroomWidgets.entitlements
@@ -90,35 +94,35 @@ targets:
     type: application
     platform: iOS
     sources:
+      # Loading-language KTD7: phone placeholders use the same vessel renderer as widgets;
+      # U12's read-only gallery previews the real widget styles.
+      - path: Sources/HeadroomWidgetSharedUI
       - path: Sources/HeadroomIOS
         excludes:
           - HeadroomIOS.entitlements
           - Info.plist
       - path: Sources/HeadroomApp/Resources/Assets.xcassets
       - path: Sources/HeadroomSharedResources/BrandIcons.xcassets
-      - path: Sources/HeadroomCore/Models/ProviderID.swift
-      - path: Sources/HeadroomCore/Models/Countdown.swift
-      - path: Sources/HeadroomCore/Models/ResetSchedule.swift
-      - path: Sources/HeadroomCore/Models/ResetClockFormatter.swift
-      - path: Sources/HeadroomCore/Models/BrandColorValues.swift
-      - path: Sources/HeadroomCore/Models/UsageSeverityColorValues.swift
-      - path: Sources/HeadroomCore/Models/ProviderSetup.swift
-      - path: Sources/HeadroomCore/Models/UsageModels.swift
-      - path: Sources/HeadroomCore/Models/PlanLabelPresentation.swift
-      # WCM6: the shared widget bar reuses MeterGeometry.continuousFillLength (constant
-      # minimum-fill floors) from the popover's meter contract.
-      - path: Sources/HeadroomCore/Models/MeterStyle.swift
+      # KTD4 (iOS parity): shared Core folders stay dependency-closed; Mac-only
+      # logic belongs in Engine/Providers/Credentials or the Mac app.
+      - path: Sources/HeadroomCore/Models
+      - path: Sources/HeadroomCore/Notifications
+      - path: Sources/HeadroomCore/Settings
+        excludes:
+          - LaunchAtLogin.swift
+      - path: Sources/HeadroomCore/Sync
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift
-      - path: Sources/HeadroomCore/Sync
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
     dependencies:
       - target: HeadroomIOSWidgets
         embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylezantos.headroom.ios
-        MARKETING_VERSION: 1.0
+        MARKETING_VERSION: 1.5
         CURRENT_PROJECT_VERSION: 33
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/HeadroomIOS/Info.plist
@@ -130,6 +134,8 @@ targets:
     platform: iOS
     sources:
       - path: Sources/HeadroomWidgetSharedUI
+      # KTD1 (iOS parity): one shared stateless component folder on every host.
+      - path: Sources/HeadroomSharedUI
       - path: Sources/HeadroomIOSWidgets
         excludes:
           - HeadroomIOSWidgets.entitlements
@@ -137,26 +143,21 @@ targets:
       # KTD1/KTD2 (widget-styles plan): one Edit Widget intent shared with the macOS extension.
       - path: Sources/HeadroomWidgets/HeadroomWidgetConfigurationIntent.swift
       - path: Sources/HeadroomSharedResources/BrandIcons.xcassets
-      - path: Sources/HeadroomCore/Models/ProviderID.swift
-      - path: Sources/HeadroomCore/Models/Countdown.swift
-      - path: Sources/HeadroomCore/Models/ResetSchedule.swift
-      - path: Sources/HeadroomCore/Models/ResetClockFormatter.swift
-      - path: Sources/HeadroomCore/Models/BrandColorValues.swift
-      - path: Sources/HeadroomCore/Models/UsageSeverityColorValues.swift
-      - path: Sources/HeadroomCore/Models/ProviderSetup.swift
-      - path: Sources/HeadroomCore/Models/UsageModels.swift
-      - path: Sources/HeadroomCore/Models/PlanLabelPresentation.swift
-      # WCM6: the shared widget bar reuses MeterGeometry.continuousFillLength (constant
-      # minimum-fill floors) from the popover's meter contract.
-      - path: Sources/HeadroomCore/Models/MeterStyle.swift
+      # KTD4 (iOS parity): shared Core folders stay dependency-closed; Mac-only
+      # logic belongs in Engine/Providers/Credentials or the Mac app.
+      - path: Sources/HeadroomCore/Models
+      - path: Sources/HeadroomCore/Notifications
+      - path: Sources/HeadroomCore/Settings
+        excludes:
+          - LaunchAtLogin.swift
+      - path: Sources/HeadroomCore/Sync
       - path: Sources/HeadroomCore/Widgets
         excludes:
           - WidgetSnapshotProjector.swift
-      - path: Sources/HeadroomCore/Sync
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylezantos.headroom.ios.widgets
-        MARKETING_VERSION: 1.0
+        MARKETING_VERSION: 1.5
         CURRENT_PROJECT_VERSION: 33
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/HeadroomIOSWidgets/Info.plist
@@ -201,5 +202,8 @@ schemes:
         Headroom: all
         HeadroomAppTests: [test]
     test:
+      # The hosted unit suite uses isolated fixtures while another real copy may run.
+      commandLineArguments:
+        "--demo": true
       targets:
         - HeadroomAppTests

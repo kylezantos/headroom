@@ -55,6 +55,20 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
     `AccountProbeScheduler` (per-lane due queue), `UsageStore` (`@MainActor @Observable`).
   - `Settings/` — `Preferences` (UserDefaults), `AccountRegistry` (persisted account
     catalog, capacity-aware; the tested envelope is 20 per provider), `LaunchAtLogin` (SMAppService).
+  - `Sync/` — the phone contract both platforms compile: v4 models and codec
+    (`CompanionSyncModels`, `CompanionSyncCodec`), `CompanionSnapshotResolver`,
+    `CompanionSnapshotLoader` with its scoped App Group cache, `CompanionPhoneSnapshotSource`,
+    the phone half of check-now (`CheckNowProtocol`) and demo replay. The Mac-only halves
+    (`CompanionPublisher`, `CheckNowCoordinator`, `CompanionAttentionMapping`) live in `Engine/`.
+- `Sources/HeadroomSharedUI` — the popover's stateless components, compiled into the Mac app,
+  the iPhone app and both widget extensions: `MeterGauge`, `UsageBarView`, `IdentityRow`,
+  `APISpendRow`, `PlanCapsule`, `StatusSentence`, `SkeletonMeter`, `ProviderStyle`, the
+  AppKit-free `HeadroomMotion`, `Layout/FlowingColumnsLayout` and `Settings/MeterStyleTile`.
+  SwiftPM builds it as a public module (Mac files `#if SWIFT_PACKAGE import HeadroomSharedUI
+  #endif`); Xcode compiles the folder straight into each target. Run both `swift build` and an
+  xcodebuild after touching it: the first catches a missing `public`, the second a name collision.
+- `Sources/HeadroomIOS`, `Sources/HeadroomIOSWidgets` — the read-only iPhone/iPad companion
+  and its widgets. Nothing on the phone talks to a provider or signs in.
 - `Sources/HeadroomApp` — SwiftUI `MenuBarExtra(.window)` shell + adaptive popover (Liquid
   Glass on Tahoe, native material on Sequoia), cards, settings, menu bar label.
   `MeterGauge` is the popover's single format × shape × fill renderer; `AppComposition` is
@@ -66,11 +80,27 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
 Data flow: `PollingEngine` wakes at the earliest due account → `AccountProbeScheduler`
 drains each CLI lane one probe at a time (most overdue first) and fetches the HTTP lane's
 due accounts concurrently → `UsageStore` merges with continuity → menu bar label + popover
-bind to the `@Observable` store.
+bind to the `@Observable` store, the Mac widgets read the App Group file, and the phone publisher
+(`CompanionPhoneSync` → `CompanionPublisher`) writes iCloud KVS → every phone surface resolves it
+through `CompanionSnapshotResolver`.
+
+**Loading language (Oct 2026).** `UserRefreshRun` retains per-account origins and outcomes;
+`VisibleRefreshWork` drives the footer through subscription and spend work without treating
+setup verification as a user refresh. `ReprintRecipe` derives wipe, ghost, fresh print and
+end hold from that record on every frame. `SetupMotion` chooses slosh for app work and the
+approved drip for a user wait; successful Settings removal uses the row's drain transition.
+Shared vessel views own paused `LoadingTimeline` clocks and accept `loadingDate` for captures;
+the native menu label keeps its bounded clock exception described below. iPhone and widget
+waiting placeholders use uniform ghosts, with outlines in monochrome rendering; schema stays 3.
+`--demo loading` uses controlled fixture sources, inert account storage and a typed setup
+coordinator. All native demos keep setup, account management, credentials, duplicate detection
+and launch-at-login isolated from the user's CLI files and system services.
 
 The popover meter style is one global `MeterStyle`, persisted as three independent
-UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStore`. It affects
-only the macOS popover: widget, phone, and menu-bar projections intentionally carry no style.
+UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStore`. Widget and
+menu-bar projections intentionally carry no style. The phone's v4 manifest does (Oct 2026): its
+display block carries meter style, percentage mode, account-name ink and the in-app Spark switch,
+which the phone follows under one "Match my Mac" switch (`PhoneDisplayPreferencesStore`, KTD11).
 
 **Widget styles (Oct 2026).** Each placed widget chooses its own **Style** (Nested Meter —
 the default — Vessel Hero, Tightest First, Liquid Level) and **Color** (Always colored, Only
@@ -106,6 +136,70 @@ with `swift run Headroom --generate-lock-screen-vessels`. Plan:
 `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`.
 Tube remains a stored shape when Full is selected, but `GaugeShape.resolved(for:)` renders it
 as Chip until the user returns to Micro.
+
+**Widget freshness (Oct 2026).** Every phone surface dims from one pure rule,
+`CompanionFreshnessRule` (KTD15): past max(15 min, 2 × the largest effective interval the Mac
+reports), 120 min when only v3 is known, with a 60-minute floor for widgets, Lock Screen and
+Control; ten minutes past a reset with no newer reading the number hides. Widgets take it as
+`WidgetFreshnessTreatment`, a recipe input that turns past-reset windows unavailable and demotes
+a dimmed widget's windows to stale once (never stacked opacity). `HeadroomWidgetFreshnessFrame`
+lays out the "Reset at <time>" notes (dropped first) and the "No update … since" line (never
+dropped) for every style; `CompanionTimelineSchedule` adds entries at the dim moment and each
+reset + 10 min. The Mac widget dims against its own export time on the 120-minute threshold.
+
+### iPhone and iPad companion (Oct 2026)
+
+Plan: `docs/plans/2026-10-04-0923-feat-ios-parity-round-plan.md`; every key and field, with its
+fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durable reasoning:
+`docs/solutions/architecture-patterns/companion-sync-v4-multi-key.md`.
+
+- **Two sync formats in one publish.** The Mac writes v4 under `headroom.sync.v4.`: a manifest
+  (`…manifest`: lineage, generation, status, provider order, per-provider generation + SHA-256
+  digest + effective interval, display block, widget selection, reminder summary, answered
+  check-now IDs, ladder level), one key per provider (`…provider.<id>`: every account in Make Main
+  order with Mac-resolved titles, typed attention, banked resets, flagged Spark rows, API spend),
+  one store-wide `…receipt` and one `…request.<deviceUUID>` per phone install. It keeps writing
+  the primary-only schema-3 key `headroom.syncedWidgetSnapshot` alongside, with the same
+  `generatedAt` plus `companionSourceID`/`companionGeneration`, so build-33 phones keep working.
+- **One resolver for every phone surface.** `CompanionSnapshotResolver` decides v4 versus v3
+  (a disabled tombstone always wins; a v3 that names the manifest's lineage is a mirror and never
+  wins while the manifest is readable; a lineage-less, newer v3 is an older Mac and adds "Update
+  Headroom on your Mac to see every account"), assembles providers per KTD6.3, and hands widgets
+  `primaryProjection()`. The app, the iOS widget extension and Siri load through
+  `CompanionPhoneSnapshotSource`; the Mac widget still reads its local App Group file.
+- **Cached loading is scoped by the KVS marker.** `CompanionLoaderAdoption.isEnabled` is `true`
+  (Oct 5): phones load through `CompanionSnapshotLoader`, which never serves a cache written under
+  another iCloud account. The scope is the KVS marker `headroom.scope.v1`
+  (`CompanionKVSScopeMarker`), a random UUID that lives in the iCloud store itself, so an account
+  change swaps it. Every phone process's loader creates it when the store has none (a placed widget
+  can run before the app after an update); none ever rewrites one. The first candidate,
+  `ubiquityIdentityToken`, failed on device (it differs between app and widget and is nil with
+  iCloud Drive off). Kyle approved the marker and everyday-use acceptance in place of the DEBUG
+  probe; the account-switch check in `docs/qa/2026-10-04-companion-identity-candidate-gate.md`
+  remains a U20 item. Turning the switch off restores build 33's loading path.
+- **The Mac publisher coalesces (KTD8).** `UsageStore` hands a fresh capture to
+  `CompanionPhoneSync` on every phone-bound change; it stamps a generation on the main actor and
+  forwards to the serial `CompanionPublisher` actor. Flushes write changed provider keys, the
+  manifest and the v3 key together, at most once per 60 s; a heartbeat rewrites manifest + v3
+  once per chosen interval; status, account set, main account, titles, display block, intervals
+  and widget selection force an immediate flush. Change detection ignores timestamps, but a key is
+  rewritten once any observation in it advances by a chosen interval, so "Updated" stays honest.
+  The publisher test at multi-20 on a 2-minute interval averages about 4.9 key writes a minute
+  (target ≤ 6); real iCloud throttling is unmeasured until the check-now spike runs.
+- **Budget ladder (KTD7).** `CompanionPayloadBudget` measures the whole v4 namespace before
+  every write (requests and receipt included): 15,000 bytes per provider key, 64,000 for the set.
+  Level 1 drops extra accounts' model rows; level 2 caps extras only above 20 per provider. Over
+  budget after that, the publisher writes nothing and keeps the last good content. Multi-20 with
+  Spark rows measures 27,508 bytes at level 0.
+- **Sync off sweeps.** The disabled v3 envelope, then a two-field manifest tombstone, then every
+  other key under the namespace. The sweep repeats on every launch while sync is off, which also
+  repairs keys a downgraded 1.4.1 Mac cannot delete. Diagnostics (key names and sizes, ladder
+  level, last failure) come from `--dump-phone-sync`, run from the signed bundle.
+- **Demo isolation.** The Mac's publisher and check-now observer exist only in a real launch
+  (`AppComposition.usesInertPhoneSync`: off under `--demo`, the render and bench harnesses and
+  the XCTest host). The phone's Explore Demo replays bundled `CompanionDemoVariant` fixtures
+  (snapshots and a check-now receipt) and never writes iCloud or the snapshot caches. `--demo
+  --demo-variant <name> --demo-screen <usage|settings|widgets>` launches a screenshot pose.
 
 ### Multi-account (Jul 2026)
 
@@ -160,11 +254,18 @@ never auto-merged.
 ```bash
 swift build                        # HeadroomCore + Headroom
 swift test                         # unit suite (fast, all mocked — no CLI/network/Keychain)
+xcodegen generate                  # regenerate the project after project.yml changes
+xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=26.5' build
+# Required pre-PR iOS build (app + extension), alongside swift build and swift test.
 ./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
+Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick]  # headless widget-style renders + overflow sweep
-swift run Headroom --demo [multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # live app with fixture data (screenshots, multi-account preview; multi-20 is the tested envelope)
+swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope
+swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi20] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
+# Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```
 
@@ -184,8 +285,9 @@ never collapse them into a generic “released.” Preflight dedicated test envi
 security/browser handoffs before publishing. Do not brute-force menu-bar UI, configure iPhone
 Mirroring during a release, or use broad process termination to clean up QA copies.
 
-Building requires Xcode 26.6 / Swift 6.3.3. The app targets macOS 15+ on Apple silicon; a real
-macOS 15 Apple-silicon runtime smoke is required before advertising Sequoia support. Claude
+Building requires Xcode 27.0 / Swift 6.4 (iOS 27 SDK). The iOS deployment target remains
+26.0; guard any iOS 27 API with an availability check. The app targets macOS 15+ on Apple
+silicon; a real macOS 15 Apple-silicon runtime smoke is required before advertising Sequoia support. Claude
 requires the `claude` CLI logged in; Codex requires its CLI-managed `~/.codex/auth.json`.
 When Codex auth is missing or rejected, the app delegates recovery to official `codex login`
 in Terminal and never owns the browser callback, token refresh, or auth-file writes.
@@ -198,6 +300,11 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   S2A policy and don't knowingly regress it, but don't hold a change back, or expand its
   scope, over Reduce Motion or accessibility polish. Reviews should report such gaps at low
   priority rather than as blockers.
+- **Both iOS targets include Core by whole folder**: `Models/`, `Notifications/`,
+  `Settings/` (except `LaunchAtLogin.swift`), `Sync/`, and `Widgets/` (except
+  `WidgetSnapshotProjector.swift`). Files in those folders reference only types in the
+  same five folders; Mac-only logic belongs in `Engine/`, `Providers/`, `Credentials/`
+  or the Mac app. Do not replace this with a hand-picked file list (KTD4, iOS parity plan).
 - **Swift 6 strict concurrency is on.** `CredentialStore` is an `actor`; `UsageStore` is
   `@MainActor`; models and providers are `Sendable`. Keep it compiling clean under complete
   concurrency checking.
@@ -240,6 +347,15 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   `BUGS.md` remain; Core recipe tests prove decisions, not SwiftUI rendering or window sizing. The
   harness does honour `--meter-style`, so `--render-popover <dir> --meter-style full.segmented.ghost`
   is the way to sanity-check the Settings swatches and specimen in a non-default style headlessly.
+
+- **Snappiness is measured, not eyeballed (Oct 2026).** A still render proves the settled layout,
+  not motion or re-render cost. Changes that add an animation, a scroll or geometry callback, a
+  timer, an `onAppear` correction, a per-row formatter, or a fast-changing store read in the
+  popover, Settings or the scene body should be checked with body counts and back-to-back
+  before/after runs (`--bench-ui`, see Commands; its `scene` section measures a stand-in for
+  `HeadroomApp.body`, so mirror scene-body changes into `BenchSceneStandIn` first). The method and the hot-spot checklist (implicit animation over a measured
+  container, per-frame `@State` in a big body, store reads in `App.body`/scene closures) are in
+  `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-spot-checklist.md`.
 
 - **The Claude probe is print-first, PTY-fallback.** `ClaudeUsageCLIProbe` first runs
   `claude -p "/usage" --no-session-persistence` (non-interactive, ~2s, atomic report — no
@@ -323,7 +439,15 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   only; timer passes never show "Refreshing…". Don't reintroduce a sweep-per-tick path or a
   computed stretch factor: the gate is measured from the probe log (`LaneSchedule`), so an
   outage clears within one normal pass. See
-  `docs/plans/2026-09-19-2217-feat-per-account-polling-schedule-plan.md`.
+  `docs/plans/2026-09-19-2217-feat-per-account-polling-schedule-plan.md`. **Export rule
+  (amended Oct 2026, iPhone parity KTD8):** a main account's merge writes the Mac widget file and
+  reloads its timelines; every merge, extras included, marks the phone path dirty
+  (`exportPhoneSyncSnapshot()`), and an extra's merge never reloads Mac WidgetKit timelines. A
+  full refresh exports once at its end. The publisher coalesces, so this is never a write per merge.
+- **Every `UsageStore` change the phone can see must call `exportPhoneSyncSnapshot()`.** Account
+  add/rename/remove/Make Main, the display setters, `reschedulePolling`, widget selection, the
+  Spark, provider and reminder switches all do; nothing calls it for you. `PhoneExportTriggerTests`
+  covers them, so add a case there with any new phone-visible setting.
 - **Per-account isolation is env-var based and verified**: a fresh `CLAUDE_CONFIG_DIR`
   reports "Not logged in · Please run /login" and a fresh `CODEX_HOME` reports "Not
   logged in"; a fresh `GROK_HOME` is isolated the same way. The CLIs never fall back to
@@ -393,14 +517,43 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
   first-pass identity (Phase 2 owns visual density). The four-provider demo is
   `--demo multi-4` (popover) / the `fourProviders` `DemoScreenshotData` variant (iOS widget).
-- **The menu bar's only motion is the slosh (Oct 2026).** A pill's liquid surface travels
+- **The menu bar sloshes and prints its first live reading (Oct 2026).** A pill's liquid surface travels
   while its provider's main account is being probed, timer polls included
   (`UsageStore.menuBarUpdatingProviders` → `MenuBarSlosh` → `VesselGlyph` wave frames). The
   level never moves and the numeral still hard-cuts (M10A); a pill finishes its wave before
-  going flat, and Reduce Motion keeps it flat. The popover footer's stamp turns into a
-  per-account receipt during a user refresh (`refreshProgress`, `RefreshReceipt`). Both come
+  going flat. A pending main shows a 3×6 halftone ghost; its first live reading prints in
+  four frames at 10fps, while stale results and main-account switches never print (KTD13).
+  Reduce Motion keeps the wave flat and blends ghost to solid uniformly. Settings previews
+  use the same ghost image path with motion disabled. Keep this label one rasterized Image:
+  nesting `LoadingTimeline` in `MenuBarExtra` reproduced an endless status-button update loop
+  during App test bootstrap. `MenuBarSlosh` owns its small bounded clock instead, deriving
+  frames from Core's wall clock and stopping after the wave/print deadline (KTD17 exception).
+  The popover footer's stamp turns into a
+  per-account receipt during a user refresh (`refreshProgress`, Core `RefreshReceiptPresentation`, shared with the phone's check-now line). Both come
   from the scheduler's probe and user-progress callbacks; see
   `design/refresh-stamp-merge-round3.html` (S2) and `…-round4.html` (W4).
+- **Check-now (Oct 2026, iPhone parity U6) joins one full refresh.** `refreshAll()` keeps one
+  in-flight full-refresh task (`fullRefreshStartedAt`); every other caller — popover, launch, a
+  phone request — awaits it, and `lastFullRefreshCompletedAt` starts a 60 s cooldown. A phone
+  request (`headroom.sync.v4.request.<deviceUUID>`) reaches `CheckNowCoordinator` through the
+  iCloud observer and one launch scan, never under `--demo` or a test host. Finish is a forced
+  publish whose manifest echoes the stamped answer, then the finished receipt (KTD14.5); never
+  write the receipt first. The phone matches its own request ID only and shows "Just now" only
+  after assembling `finishedGeneration` (`Sync/CheckNowProtocol.swift`). Single-account checks,
+  setup checks and spend-only refreshes never answer a request. Timing constants are
+  provisional until `docs/qa/2026-10-check-now-latency-spike.md` runs. The phone sends requests
+  only when the resolver's winner is v4; a Mac on 1.4.1 or older only gets a re-read.
+- **The v3 key must stay readable by build 33.** `Build33DecoderGoldenTests` runs the Mac's v3
+  output through a frozen copy of that decoder; never weaken it. The Mac's random lineage UUID
+  goes only in `companionSourceID`, never in v3's `sourceID`, which build 33 prints as "<sourceID>
+  on Mac". Retire v3 later by writing a higher inner schema, never by deleting the key.
+- **Digests cover the exact stored bytes.** The manifest's per-provider SHA-256
+  (`CompanionSyncCodec.digest`) is computed over the raw `Data` written to, or read from, the key.
+  Hashing a decoded-and-re-encoded payload breaks as soon as a newer Mac adds a field.
+- **The scope marker lives outside the v4 namespace on purpose.** `headroom.scope.v1` must never
+  match a `headroom.sync.v4.` prefix sweep, sync-off cleanup or launch scan. Phone processes
+  write it only when absent and the Mac never does; never write a remembered value from memory or
+  the sidecar, or a marker could carry one account's scope into another's store.
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

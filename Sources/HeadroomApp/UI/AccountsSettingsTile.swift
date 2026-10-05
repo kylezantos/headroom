@@ -1,3 +1,6 @@
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 import SwiftUI
 import AppKit
 import Combine
@@ -121,11 +124,8 @@ struct AccountsSettingsTile: View {
                         restoreRemovalFocus()
                         return
                     }
-                    // M7A: every state a completed removal touches settles in one
-                    // transaction, on the same `reorder` spring the list identity below
-                    // carries, so the tile contracts while the row fades rather than after
-                    // it. Dismissing the dialog in its own animation while the row left on
-                    // another is what read as a second, later step.
+                    // KTD12: the store already detached the row. Its exit transition owns
+                    // the drain; this transaction only settles the dialog bookkeeping.
                     withAnimation(
                         HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion)
                     ) {
@@ -279,10 +279,7 @@ struct AccountsSettingsTile: View {
             }
             ForEach(accounts) { account in
                 accountRow(account, capability: capability, presentation: presentation)
-                    // M7A: an added row arrives with the Settings reveal (4pt rise + blur
-                    // + fade); a removed one only fades — `settingsReveal` is already
-                    // asymmetric that way, so exits stay softer than entrances.
-                    .transition(.settingsReveal)
+                    .transition(SettingsAccountExit.transition(reduceMotion: reduceMotion))
             }
             if store.isBuiltInTrackingStopped(for: providerID) {
                 // The way back from stop-tracking: resurface the CLI's own login and
@@ -385,6 +382,8 @@ struct AccountsSettingsTile: View {
             removalState: removalState
         )
         let isEditingLabel = focusedLabel == account.key || hoveredLabel == account.key
+        let loadingLevel = SettingsAccountLoadingState.displayedLevel(snapshot: store.appDisplaySnapshot(for: account.key),
+            mode: store.usagePercentageMode, choice: store.menuBarWindowChoice(for: account.providerID))
         let email = accountEmail(from: snapshot)
         // R2C6: the row prints the *popover's* sentence for this state ("Sign in with the
         // official Claude CLI") rather than a Settings-only "Needs sign-in". One act, one
@@ -416,6 +415,10 @@ struct AccountsSettingsTile: View {
                 // takes. Only the *buttons* drop to a second line when there are two of them.
                 // Moving the status with them meant two never-signed-in rows in one list
                 // printed the same state in two different places, which reads as two states.
+                SettingsAccountWaitPill(store: store, account: account, status: status,
+                    waitingForClaudeCode: capabilityRow == .waitingForClaudeCode,
+                    showsStatus: !presentation.hidesAccountStatus(isSetupState: status.isSetupState),
+                    level: loadingLevel)
                 if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
                     accountStatus(
                         capabilityRow,
@@ -543,6 +546,7 @@ struct AccountsSettingsTile: View {
             setupFailure: setupFailure,
             setupSentence: setupSentence,
             setupMode: SetupSessions.mode(for: account),
+            setupWaitingTitle: SetupSessions.waitingPhase(for: account)?.copy.title,
             providerDisplayName: store.displayNames[account.providerID]
                 ?? account.providerID.raw.capitalized
         )
@@ -807,6 +811,7 @@ struct AccountsSettingsTile: View {
         setupFailure: String?,
         setupSentence: String?,
         setupMode: SetupHandoffMode,
+        setupWaitingTitle: String?,
         providerDisplayName: String
     ) -> some View {
         switch presentation {
@@ -816,6 +821,7 @@ struct AccountsSettingsTile: View {
                 setupFailure: setupFailure,
                 setupSentence: setupSentence,
                 setupMode: setupMode,
+                setupWaitingTitle: setupWaitingTitle,
                 providerDisplayName: providerDisplayName
             )
         case .waitingForClaudeCode:
@@ -826,16 +832,19 @@ struct AccountsSettingsTile: View {
                 .foregroundStyle(.secondary)
         case .retainedUsage:
             HStack(spacing: 7) {
+                // KTD6.2: the popover row's integer; a row it would hide shows no figure here either.
                 ForEach(Array(snapshot.windows.prefix(2).enumerated()), id: \.offset) { _, window in
-                    Text("\(window.kind.compactName) \(store.usagePercentageMode.roundedPercentage(for: window))%")
+                    Text("\(window.kind.compactName) \(store.usagePercentageMode.displayedPercentage(for: window).map { "\($0)%" } ?? "—")")
                 }
             }
             .font(SettingsType.help.monospacedDigit())
             .foregroundStyle(.secondary)
             .opacity(0.68)
             .accessibilityLabel(
-                "Last known usage. " + snapshot.windows.prefix(2).map {
-                    "\($0.kind.spokenName) \(store.usagePercentageMode.roundedPercentage(for: $0)) percent \(store.usagePercentageMode.term)"
+                "Last known usage. " + snapshot.windows.prefix(2).map { window in
+                    store.usagePercentageMode.displayedPercentage(for: window).map {
+                        "\(window.kind.spokenName) \($0) percent \(store.usagePercentageMode.term)"
+                    } ?? "\(window.kind.spokenName) not available"
                 }.joined(separator: ", ")
             )
         }
@@ -846,6 +855,7 @@ struct AccountsSettingsTile: View {
         setupFailure: String?,
         setupSentence: String?,
         setupMode: SetupHandoffMode,
+        setupWaitingTitle: String?,
         providerDisplayName: String
     ) -> some View {
         switch status {
@@ -853,18 +863,19 @@ struct AccountsSettingsTile: View {
             // PB13: the window's one affirmative-state treatment, shared with "Saved
             // securely" in API Spend. Plain secondary text rendered identically to Stale,
             // which is the opposite state.
-            SettingsSuccessStatus(text: "Connected")
+            if let setupWaitingTitle {
+                Text(setupWaitingTitle).font(SettingsType.help).foregroundStyle(.secondary)
+            } else {
+                SettingsSuccessStatus(text: "Connected")
+            }
         case .fetching:
             Text("Fetching…")
                 .font(SettingsType.help)
                 .foregroundStyle(.secondary)
         case .waiting:
-            HStack(spacing: 5) {
-                ProgressView().controlSize(.mini)
-                Text(setupMode == .deviceCode ? "Waiting for device code…" : "Waiting for sign-in…")
-                    .font(SettingsType.help)
-                    .foregroundStyle(.secondary)
-            }
+            Text(setupWaitingTitle ?? (setupMode == .deviceCode ? "Waiting for device code…" : "Waiting for sign-in…"))
+                .font(SettingsType.help)
+                .foregroundStyle(.secondary)
         case .stale:
             // Clock glyph separates "data gone old" from the affirmative "Connected" —
             // the two rendered identically before (impeccable audit P1). Restrained on
@@ -900,10 +911,7 @@ struct AccountsSettingsTile: View {
                 .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
                 .lineLimit(2)
         case .removing:
-            HStack(spacing: 5) {
-                ProgressView().controlSize(.mini)
-                Text("Removing…").font(SettingsType.help).foregroundStyle(.secondary)
-            }
+            Text("Removing…").font(SettingsType.help).foregroundStyle(.secondary)
         case .setupActive:
             Text("Close setup, then retry")
                 .font(.system(size: 11, weight: .medium))

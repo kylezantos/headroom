@@ -6,6 +6,8 @@ import Foundation
 protocol AccountProbeSchedulerHost: AnyObject {
     var schedulerNow: Date { get }
     var schedulerChosenInterval: TimeInterval { get }
+    func schedulerStartsNewUserRun(origin: UserRefreshOrigin) -> Bool
+    func schedulerUserRunDidChange(_ run: UserRefreshRun)
     func schedulerProvider(for key: AccountKey) -> (any UsageProvider)?
     /// Attached, not being removed, and its subscription surface is on.
     func schedulerIsEligible(_ key: AccountKey) -> Bool
@@ -69,6 +71,10 @@ final class AccountProbeScheduler {
     private var lanes: [ProviderPollingLane: LaneState] = [:]
     /// Accounts a user action marked due and that have not merged yet (KTD2).
     private var userPending: Set<AccountKey> = []
+    private var userRun: UserRefreshRun?
+    /// KTD2/R5: a ladder check after a user landing is current setup work, not a new
+    /// request to fade/print the retained user entry during its spend tail.
+    private var setupPendingPreservingLanding: Set<AccountKey> = []
     /// W4: how many accounts the current run of user work asked for and has finished. Both
     /// restart when user work begins from nothing pending.
     private var userTotal = 0
@@ -99,7 +105,7 @@ final class AccountProbeScheduler {
             lanes[lane]?.priority.removeAll { $0 == key }
         }
         priorityLocatorGeneration.removeValue(forKey: key)
-        finish(key)
+        finish(key, outcome: .dropped)
     }
 
     /// KTD11: a re-enabled or newly attached account is due now once, with no history, so
@@ -118,10 +124,10 @@ final class AccountProbeScheduler {
 
     /// KTD2: a user asked for everything. Every eligible account is due now and bypasses
     /// the duty-cycle gate; `waitUntilUserWorkDrains()` returns when all of them merged.
-    func markAllDue() {
+    func markAllDue(origin: UserRefreshOrigin = .fullRefresh) {
         guard let host else { return }
         for key in order where host.schedulerIsEligible(key) {
-            insertUserPending(key)
+            insertUserPending(key, origin: origin)
             // KTD7 parity with `requestPriority`: a probe already running answers the
             // request unless it started before a reset or handoff boundary.
             if isInFlight(key) {
@@ -133,9 +139,9 @@ final class AccountProbeScheduler {
     }
 
     /// KTD7: front of the account's lane; served after the in-flight probe.
-    func requestPriority(_ key: AccountKey) {
+    func requestPriority(_ key: AccountKey, origin: UserRefreshOrigin = .accountAction) {
         guard let host, records[key] != nil, host.schedulerIsEligible(key) else { return }
-        insertUserPending(key)
+        insertUserPending(key, origin: origin)
         if isInFlight(key) {
             // The running probe answers the request; one that predates a reset or handoff
             // boundary cannot (its result will be rejected), so a follow-up is queued.
@@ -155,7 +161,7 @@ final class AccountProbeScheduler {
         for key in keys {
             if let lane = laneOf[key] { lanes[lane]?.priority.removeAll { $0 == key } }
             priorityLocatorGeneration.removeValue(forKey: key)
-            if !isInFlight(key) { finish(key) }
+            if !isInFlight(key) { finish(key, outcome: .dropped) }
         }
     }
 
@@ -370,7 +376,7 @@ final class AccountProbeScheduler {
             }
             // A record without a provider would be selected again at once (serial lane) or
             // keep the wake at one second (concurrent lane).
-            if host?.schedulerProvider(for: key) == nil { unregister(key) } else { finish(key) }
+            if host?.schedulerProvider(for: key) == nil { unregister(key) } else { finish(key, outcome: .dropped) }
             return
         }
         let start = host.schedulerNow
@@ -416,7 +422,7 @@ final class AccountProbeScheduler {
             // clears an earlier path miss from the same pass.
             lanes[lane]?.newestCapability[key.providerID] = capability
         }
-        finish(key)
+        finish(key, outcome: accepted ? (result.snapshot.freshness == .live ? .live : .stale) : .dropped)
         // A follow-up queued behind this probe: the serial loop picks it up itself, but a
         // concurrent lane has no loop, so its batch is started here.
         if case .concurrent = lane, lanes[lane]?.priority.contains(key) == true { dispatchUserWork(in: lane) }
@@ -498,22 +504,54 @@ final class AccountProbeScheduler {
         lanes[lane]?.log = log
     }
 
-    private func insertUserPending(_ key: AccountKey) {
+    private func insertUserPending(_ key: AccountKey, origin: UserRefreshOrigin) {
         let wasEmpty = userPending.isEmpty
-        if wasEmpty { userTotal = 0; userCompleted = 0 }
+        // R5: setup verification must not replace a user's retained landing during its end hold.
+        if userRun == nil || (wasEmpty && host?.schedulerStartsNewUserRun(origin: origin) == true) {
+            userRun = UserRefreshRun(startedAt: host?.schedulerNow ?? Date())
+        }
+        if origin == .setupCheck,
+           let entry = userRun?.entries[key], entry.origin != .setupCheck, entry.outcome != nil {
+            setupPendingPreservingLanding.insert(key)
+        } else {
+            // An explicit user request can upgrade the setup-only probe already in flight
+            // and reopen the historical entry; ordinary pending precedence stays unchanged.
+            setupPendingPreservingLanding.remove(key)
+            if var entry = userRun?.entries[key] {
+                let becomesUserRequest = entry.origin == .setupCheck && origin != .setupCheck
+                if origin != .setupCheck || entry.origin == .setupCheck { entry.origin = origin }
+                // Coalesced user requests keep their first wipe time. Upgrading a setup check
+                // starts its first wipe now; re-reading a landed key starts a new one (KTD2).
+                if entry.outcome != nil || becomesUserRequest {
+                    entry.requestedAt = host?.schedulerNow ?? Date()
+                    entry.outcome = nil
+                    entry.landedAt = nil
+                }
+                userRun?.entries[key] = entry
+            } else {
+                userRun?.entries[key] = UserRefreshEntry(origin: origin, requestedAt: host?.schedulerNow ?? Date())
+            }
+            if let userRun { host?.schedulerUserRunDidChange(userRun) }
+        }
         guard userPending.insert(key).inserted else { return }
+        if wasEmpty { userTotal = 0; userCompleted = 0 }
         userTotal += 1
         if wasEmpty { host?.schedulerUserWorkDidChange(hasPending: true) }
         host?.schedulerUserProgressDidChange(total: userTotal, completed: userCompleted, landed: nil)
     }
 
-    private func finish(_ key: AccountKey) {
+    private func finish(_ key: AccountKey, outcome: UserRefreshOutcome) {
         // A follow-up probe is still queued for this key; it answers the waiters instead.
         if let lane = laneOf[key], lanes[lane]?.priority.contains(key) == true { return }
         if let waiters = completionWaiters.removeValue(forKey: key) {
             for waiter in waiters { waiter.resume() }
         }
         guard userPending.remove(key) != nil else { return }
+        if setupPendingPreservingLanding.remove(key) == nil {
+            userRun?.entries[key]?.outcome = outcome
+            userRun?.entries[key]?.landedAt = host?.schedulerNow
+            if let userRun { host?.schedulerUserRunDidChange(userRun) }
+        }
         userCompleted += 1
         host?.schedulerUserProgressDidChange(total: userTotal, completed: userCompleted, landed: key)
         guard userPending.isEmpty else { return }

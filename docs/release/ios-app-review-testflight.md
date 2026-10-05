@@ -1,10 +1,18 @@
 # iOS App Review and TestFlight Runbook
 
-Release candidate: iOS 1.0 build 24 (`com.kylezantos.headroom.ios`) with widget extension
-build 24 (`com.kylezantos.headroom.ios.widgets`). The confirmed last uploaded build baseline is
-23; build 24 was confirmed unused before stamping on 2026-07-20.
+Release candidate: iOS **1.5** (`com.kylezantos.headroom.ios`) with its widget extension
+(`com.kylezantos.headroom.ios.widgets`), shipped together with Mac 1.5 (KTD23). The build number
+is **not decided yet**: TestFlight already holds 1.5 (33), and two documents each claim 34 (see
+"Build numbers" in `release-operations.md`). Use the highest build App Store Connect actually
+shows as `HEADROOM_IOS_LAST_UPLOADED_BUILD`, never a number from this file.
 
-## Why this resubmission exists
+Marks used below: **[adoption]** needs `CompanionLoaderAdoption.isEnabled` on, which waits for
+the KVS scope-marker device check and Kyle's KTD22 sign-off; with it off, the phone shows each
+provider's main account only and pull-to-refresh re-reads. **[U15]** needs the CloudKit reminders
+spike to pass and U16 to land. **[U17]** needs the Lock Screen and Control Center work to land.
+Record an unmet condition as "not run (condition)", never as a pass.
+
+## Why the 1.0 resubmission existed (history)
 
 On July 15, 2026, App Review rejected build 14 under Guideline 2.1(a) because the
 reviewer could not access connected functionality without a Mac/iCloud publisher.
@@ -23,27 +31,30 @@ snapshot cache.
 swift test
 xcodegen generate
 
-# Run HeadroomIOSUITests on an iPhone simulator.
-# An iPad simulator pass is welcome when a layout change calls for it, but is not a release gate.
+# Run HeadroomIOSUITests on an iPhone simulator (and, for 1.5, an iPad simulator; see below).
 
-HEADROOM_IOS_LAST_UPLOADED_BUILD=23 Scripts/verify-ios-release.sh --source
+HEADROOM_IOS_LAST_UPLOADED_BUILD=<highest uploaded> Scripts/verify-ios-release.sh --source
 ```
+
+For 1.5 the iPad pass is a release gate, because the iPad layout changed (R24): run
+`HeadroomIOSUITests` on iPhone 17 Pro **and** iPad Pro 13-inch simulators, plus the headless
+`xcrun simctl` captures at the default size and xxLarge in both appearances.
 
 The release script repeats source preflight, archives, validates the signed host and
 embedded widget, and only then exports/uploads:
 
 ```bash
-HEADROOM_IOS_LAST_UPLOADED_BUILD=23 ./Scripts/release-ios-testflight.sh
+HEADROOM_IOS_LAST_UPLOADED_BUILD=<highest uploaded> ./Scripts/release-ios-testflight.sh
 
-HEADROOM_IOS_LAST_UPLOADED_BUILD=23 \
+HEADROOM_IOS_LAST_UPLOADED_BUILD=<highest uploaded> \
 HEADROOM_IOS_UPLOAD=1 \
   ./Scripts/release-ios-testflight.sh
 ```
 
 If using API-key authentication, set all three `HEADROOM_ASC_KEY_PATH`,
 `HEADROOM_ASC_KEY_ID`, and `HEADROOM_ASC_ISSUER_ID` variables. Never paste their values
-into this document or command output. Build 23 is already used; 24 is the paired host/widget
-candidate and the source/archive checks continue to use 23 as the uploaded baseline.
+into this document or command output. The export sets `iCloudContainerEnvironment` to
+Production (`Scripts/ExportOptions-TestFlight.plist`); every TestFlight build reads Production.
 
 ## Efficient App Store Connect path
 
@@ -72,53 +83,162 @@ build is not yet an available or accepted TestFlight build.
 
 ## Internal TestFlight acceptance
 
-Keep the currently accepted build available while validating the candidate.
+Keep the currently accepted build available while validating the candidate. Pair it with a signed
+Mac 1.5 build that has the iCloud key-value entitlement, on the same Apple ID; run that Mac's
+`Headroom.app/Contents/MacOS/Headroom --dump-phone-sync` whenever a step asks which keys exist.
 
 1. Wait for App Store Connect processing and export-compliance completion.
 2. Assign the candidate to the internal Headroom group first.
 3. Delete prior development/App Store copies before installing from TestFlight.
-4. On an iPhone, launch with no Mac publisher available. An iPad spot check is optional.
-5. Tap **Explore Demo** and verify Claude, Codex, Weekly (Fable), API Spend, Settings,
-   light/dark appearance, and readable portrait/landscape layouts.
-6. Add small, medium, and large widgets. Each must show a visible DEMO label and open
-   `headroom://usage` back to the labeled demo.
-7. Terminate/relaunch the app; app and widget must remain in demo.
-8. Exit through Settings; app and widget must return to the real waiting/synced state.
-9. Publish a real Mac snapshot and verify it appears unchanged after demo exit.
-10. Add, fail, rename, and remove an additional Mac account; confirm the iPhone app and widgets
-    remain byte-for-byte focused on each provider's built-in account and never show the extra
-    account label or setup state.
-11. Check stale/offline/setup states and confirm no provider credential action exists on iOS.
+4. On an iPhone, launch with no Mac publisher available: the Waiting for Mac screen offers
+   Explore Demo.
+5. Tap **Explore Demo**. The default "Multiple accounts" sample shows Claude Personal, Work and
+   Studio and Codex Personal and Work stacked inside their provider cards, main first, in the
+   meter style the sample Mac uses. Check red numerals on critical rows, bare countdowns
+   ("3d 23h"), no "Low" chip, the Codex plan capsule (tap opens it; it opens on its own while a
+   live 5-hour or weekly limit is critical), API spend, light/dark, portrait/landscape.
+6. In Settings (one sheet: Appearance, Widgets, iPhone sync, Reminders, Demo, About), check
+   Match my Mac and its overrides on the live specimen, the widgets gallery, the "What syncs
+   through your iCloud" list, and About's "Get Headroom for Mac" row with no tip jar. Under
+   **Demo › Sample state**, walk every state: No recent update ("No update from your Mac since
+   …"), Past reset ("Reset at … · waiting for your Mac", no number), Older Mac app ("Update
+   Headroom on your Mac to see every account"), Sync paused, Waiting for Mac, More than 20
+   accounts ("N more on your Mac"), Account states, Banked resets, Display choices.
+7. Add small, medium, and large widgets. Each shows a visible DEMO label, follows the sample's
+   main accounts only, and opens `headroom://usage` back to the labeled demo.
+8. Terminate/relaunch the app; app and widget must remain in demo. The card entrance plays once
+   on launch, not on a refresh or rotation.
+9. Exit through Settings; app and widget must return to the real waiting/synced state.
+10. **Accounts on a real Mac [adoption].** On the Mac, add a second account to a provider,
+    rename it, make it fail (sign it out), Make Main, then remove it; also give two accounts the
+    same name. After each change, within one Mac publish (about a minute):
+    - the phone shows every Mac account inside its provider card, in the Mac's order with the
+      main account first, titled with the name chosen on the Mac (duplicates read "Work" and
+      "Work · 2", and Make Main never swaps the suffixes); no email ever appears;
+    - the failed account reads a typed line in neutral ink that says what to do on the Mac
+      (for example "Sign in again on your Mac"), with no sign-in action on the phone;
+    - Home Screen widgets show only each provider's main account and switch when Make Main
+      moves it; they never show an extra account's name or setup state.
+    With adoption off, record "main accounts only (adoption off)" and continue; that result is
+    expected, not a pass.
+11. **Old Mac.** With a 1.4.1 Mac publishing, the phone shows each provider's main account and
+    "Update Headroom on your Mac to see every account"; pull-to-refresh only re-reads.
+12. **Check now [adoption].** Pull to refresh on the usage screen: "Asking your Mac…", then
+    "Checking N accounts…" with per-account progress, then "Just now". With the Mac asleep or
+    Headroom quit, after 60 seconds the phone reads "Your Mac hasn't answered. It may be asleep,
+    or Headroom isn't open." and keeps the last numbers. Five pulls within ten seconds start one
+    Mac refresh. A second pull within a minute of a finished check reads "Checked a moment ago".
+    In Explore Demo, a pull plays the sample receipt and writes nothing. Timing constants stay
+    provisional until `docs/qa/2026-10-check-now-latency-spike.md` is filled in; record the
+    observed acknowledgement time.
+13. **Freshness.** Quit Headroom on the Mac. The app dims and says "No update from your Mac
+    since <time>" once the Mac has been quiet past max(15 minutes, twice its interval); widgets
+    dim no sooner than 60 minutes. A window ten minutes past its reset with no newer reading
+    hides its number on every surface. A healthy Mac never dims anything.
+14. **Siri and Shortcuts.** Ask "How much Claude is left in Headroom" (repeat for Codex, Grok,
+    Cursor) and run "Usage Left" from the Shortcuts app. Answers use "left", name the main
+    account's tightest window (plus weekly when different, plus any tighter account) with its
+    age, open with "No update from your Mac since …" when dimmed, speak a past-reset window as
+    "reset at <time>, waiting for your Mac", and omit account names while the phone is locked.
+    Demo answers say they are sample data. Siri never changes anything.
+15. **Reminders [U15].** If the spike passed and U16 shipped: turn on "Also send to iPhone and
+    iPad" on the Mac, allow notifications on the phone, and confirm a use-it-up reminder and a
+    Codex banked-reset notice arrive once each on the locked phone; turning the switch or sync
+    off deletes the pending records. If the spike failed: the Reminders section says
+    "Reminders come from Headroom on your Mac" and no phone notification exists.
+16. **Lock Screen and Control Center [U17].** Add each Lock Screen accessory family and the
+    control. They follow the main account, show DEMO in demo, and dim (the small families and the
+    control as the dimmed treatment plus the bare time). Repeat
+    `docs/qa/2026-10-03-widget-config-upgrade-spike.md` with the Lock Screen family over a
+    previously placed widget.
+17. **iPad.** On an iPad (or iPad simulator if no device is at hand; say which), cards fill the
+    width in flowing columns: 13-inch portrait 2, landscape 3, 11-inch and mini portrait 1. Resize
+    with Stage Manager and change the text size: columns re-plan with no overflow and VoiceOver
+    order follows provider order. Settings, demo and widgets behave as on iPhone.
+18. **Sync off.** Turn off "Sync usage to iPhone" on the Mac. The phone shows "Companion Sync
+    Paused", and `--dump-phone-sync` lists only `headroom.sync.v4.manifest` (the tombstone) under
+    `headroom.sync.v4.`. Turning sync back on restores every account.
+19. Check stale/offline/setup states and confirm no provider credential action exists on iOS.
 
 Only after this gate passes: assign the same build to the intended external group,
 submit for Beta App Review when required, and enable broader invitations after approval.
 
 ## TestFlight “What to Test”
 
-```text
-New in this build: one-tap Demo Mode and native iPad support.
+Draft for 1.5. Drop each bracketed sentence whose condition did not ship.
 
-Please test Explore Demo from a clean launch with no Mac connected. Check Claude,
-Codex, Weekly (Fable), API Spend, Settings, and small/medium/large widgets on iPhone or
-iPad. Confirm the DEMO label remains after relaunch, widget taps return to the app, and
-Exit Demo restores your original Waiting for Mac or real synced snapshot. If you use
-Headroom for Mac, also verify fresh sync plus stale/offline behavior after exiting demo.
+```text
+New in 1.5: the iPhone and iPad app now looks like Headroom's Mac popover and shows every
+account your Mac tracks, in your Mac's meter style. Pull down to ask your Mac to check now.
+Widgets dim when your Mac hasn't updated in a while. Siri answers "How much Claude is left
+in Headroom". iPad fills its width with columns. [Reminders can arrive on your iPhone from
+Headroom for Mac.] [Lock Screen widgets and a Control Center control are new.]
+
+Please pair this build with Headroom 1.5 for Mac on the same Apple ID, then check that every
+Mac account appears, names match, and pulling down updates the numbers. Try Explore Demo from
+a clean launch with no Mac, and walk the sample states in Settings › Demo. Add small, medium
+and large widgets. If you still run Headroom 1.4.1 on your Mac, the app shows main accounts
+and asks you to update the Mac.
 
 Report device, OS version, widget size, appearance, and reproduction steps with feedback.
 ```
 
+## Notes for App Review (1.5 draft)
+
+Paste into App Store Connect › App Review Information › Notes once Kyle approves it; the 1.0
+block in `appstore-listing.md` is superseded for 1.5. Drop each bracketed sentence whose
+condition did not ship. The sync sentence follows KTD22's what-syncs list.
+
+```text
+Headroom has no login or Headroom account. Please leave "Sign-in required" off.
+
+To review every feature without a Mac or provider account:
+1. Launch Headroom on iPhone or iPad and tap "Explore Demo".
+2. Review the usage screen: Claude and Codex with several accounts, meter rows, reset
+   countdowns, the Codex plan capsule (tap it) and API spend. Pull down to see the
+   check-now sequence play from sample data.
+3. Open Settings (gear). Under Demo › Sample state you can switch between every state the
+   app can show, including no recent update, a passed reset, an older Mac and sync paused.
+4. Add a small, medium, or large Headroom widget[, or a Lock Screen widget]. Widgets show
+   the same clearly labeled sample data while Demo is on.
+5. Ask Siri "How much Claude is left in Headroom", or run "Usage Left" in Shortcuts.
+6. In Settings, tap "Exit Demo" to return to the real companion state.
+
+Demo uses bundled sample data, makes no network request and never writes to iCloud. Live
+data comes from Headroom for Mac through the user's own iCloud: account names the user
+chose, plan names, usage, reset times, API spend, display choices, check-now requests and
+a random ID for the Mac and for each iPhone or iPad[, plus reminder text in the user's
+private iCloud database]. Sign-ins, emails and API keys never leave the Mac. The iOS app
+and widgets are read-only and never contact an AI provider.[ Reminders are sent by the
+Mac app and cannot be triggered from Demo.]
+
+There is no hidden functionality, dynamic code, analytics, or data collection.
+Contact kylezantos@gmail.com if any assistance is needed.
+```
+
+## App Privacy
+
+Stays **Data Not Collected** for 1.5. Apple defines "collect" as "transmitting data off the
+device in a way that allows you and/or your third-party partners to access it for a period
+longer than what is necessary to service the transmitted request in real time"
+(developer.apple.com/app-store/app-privacy-details, checked 2026-10-05). Synced data moves only
+between the user's own devices through their iCloud key-value store [and private CloudKit
+database]; the developer cannot read either, and the app has no analytics or third-party SDKs.
+Re-check if any data ever reaches a developer server or the CloudKit public database.
+
 ## App Review fields
 
 - Sign-in required: **Off**. Headroom has no login or account.
-- Review Notes: paste the current block in `docs/release/appstore-listing.md`.
-- Screenshots: capture with `Scripts/capture-demo-screenshots.sh`; include both the
-  6.9-inch iPhone and required 13-inch iPad App Store sets. This metadata requirement does
-  not make an iPad runtime/UI-test pass a release gate.
+- Review Notes: the 1.5 draft above, once approved.
+- Screenshots: the Graphite set from `Scripts/capture-appstore-shots.sh` composed in
+  `design/appstore/compositor.html` from `design/appstore/shots.json` (frame table and captions
+  await Kyle's sign-off): iPhone 6.9-inch 1320 × 2868 and iPad 13-inch 2064 × 2752, sRGB, no
+  alpha. Turn off Mac availability for the iOS app (R33).
 - Support URL: `https://headroom.zantos.co`
 - Privacy URL: `https://headroom.zantos.co/privacy`
 - Export compliance: `ITSAppUsesNonExemptEncryption = NO` in host and extension.
 
-## Reply to the unresolved App Review message
+## Reply to the unresolved App Review message (1.0, July 2026 — history)
 
 ```text
 Hello,

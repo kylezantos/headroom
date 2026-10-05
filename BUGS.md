@@ -425,8 +425,11 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   priority *label*, which named switched-off picks; `MenuBarPrioritySelection.label` now feeds
   from the fetched order and reads "None" when every pick is off. The stored preference keeps
   the off pick so re-enabling restores it.
-- **The iOS targets compile a hand-picked list of Core files, so a new Core file can break the
-  phone build silently.** `HeadroomIOS` and `HeadroomIOSWidgets` enumerate individual
+- ~~**The iOS targets compile a hand-picked list of Core files, so a new Core file can break the
+  phone build silently.**~~ Resolved 2026-10-04 (iPhone parity U1, `871d2a05`): both iOS targets
+  include Core's `Models/`, `Notifications/`, `Settings/`, `Sync/` and `Widgets/` folders whole
+  (KTD4), and the iOS simulator build is a pre-PR check in AGENTS.md. Original note:
+  `HeadroomIOS` and `HeadroomIOSWidgets` enumerate individual
   `Sources/HeadroomCore/Models/*.swift` paths in `project.yml`; the Sep 9 fill-tier split added
   a `UsageSeverity` overload in `UsageSeverityColorValues.swift` that the lists lacked, and
   `HeadroomIOS` did not build from 2026-09-09 until 2026-09-10. Nothing in `swift test` or the
@@ -752,7 +755,10 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   (R2C8):** the amount column now measures the widest total the card is showing (floor "$0.00")
   instead of reserving "$0,000.00"; amounts stay on one right edge and every spend title renders
   whole in the live `spend-states` capture. Re-check a "Last 30 days" chip on the next shoot.
-- **The iOS mirror still shows its own "Low" chip.** AP1 removed the macOS popover chip in favour
+- ~~**The iOS mirror still shows its own "Low" chip.**~~ Resolved 2026-10-05 (iPhone parity U8,
+  `89a20d57`): the phone draws the popover's shared rows with red critical ink, and
+  `MirrorPresentation.showsLowChip` and the phone's own bar view are gone. Original note:
+  AP1 removed the macOS popover chip in favour
   of red critical ink, but `Sources/HeadroomIOS/Views/UsageBarView.swift` keeps a `lowChip` driven by
   `MirrorPresentation.showsLowChip` (`MirrorPresentationTests.swift:70`). Bring the phone surface in line
   or decide it keeps the chip deliberately.
@@ -834,7 +840,11 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
 - **Liquid Level's wash in accented, vibrant and StandBy is reasoned, not measured (KTD9).** It
   draws `.primary` at 0.12 with an accentable top edge; nobody has seen it on a tinted iPhone, a
   Tahoe desktop behind windows, or StandBy.
-- **Old data is not dimmed.** When the Mac sleeps, the envelope stays "live" and an iPhone widget
+- ~~**Old data is not dimmed.**~~ Resolved 2026-10-04 (iPhone parity U13): every style takes
+  `WidgetFreshnessTreatment` from the KTD15 rule, dims past its threshold (60-minute floor on the
+  phone, 120 minutes against the Mac's own export time on the Mac) and hides a number ten minutes
+  past its reset; `CompanionTimelineSchedule` schedules both moments. Original note:
+  When the Mac sleeps, the envelope stays "live" and an iPhone widget
   can show hours-old numbers in full color, with no footer on small and medium (R14). Needs a
   threshold on `generatedAt` that applies to every style.
 - **Per-widget provider choice.** Small Vessel Hero and small Liquid Level show the first widget
@@ -857,8 +867,8 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   `ProviderCardIdentityRowTests.swift:378–458` emits actor-isolation warnings. The U1
   Core and Mac suites pass (1,207 and 250 tests); keep these visible for the U20
   integration pass rather than weakening concurrency checking or assertions.
-- The iOS UI-test runner emits “Metadata extraction skipped, no AppIntents.framework
-  dependency found”. Re-checked after U14 (2026-10-04): expected, no action. The runner
+- ~~The iOS UI-test runner emits “Metadata extraction skipped, no AppIntents.framework
+  dependency found”.~~ Closed 2026-10-04: re-checked after U14, expected, no action. The runner
   declares no intents; the app (`UsageLeftIntent`, `HeadroomAppShortcuts`) and the widget
   extension both write `Metadata.appintents`, and the app's `AppShortcuts.xcstrings` gives
   the SSU training step its phrase corpus (without it, the step logged “Could not archive SSU

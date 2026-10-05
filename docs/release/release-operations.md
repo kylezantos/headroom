@@ -129,6 +129,63 @@ app running, close only QA copies whose exact paths and PIDs were verified, and 
 or a broad process match during release acceptance. Treat the WidgetKit extension as a separate,
 normal process.
 
+## 1.5 paired release: sync skew, iCloud environments and build numbers
+
+Mac 1.5 publishes two phone formats in one publish: the primary-only schema-3 key that build 33
+and 1.4.1-era phones read, and the multi-account v4 keys under `headroom.sync.v4.` (AGENTS.md,
+"iPhone and iPad companion"). Users will mix versions, so the U20 integration pass records every
+row below on a signed Mac and the physical iPhone, same Apple ID. Fill the result columns from
+what was observed; leave a cell empty rather than guess. Record key names and sizes only, from
+the Mac's `--dump-phone-sync` (signed bundle) and the phone's DEBUG Sync Diagnostics, never
+payload contents.
+
+| Pairing or event | Format that won (v4 / v3 / none) | Lineage seen | Ladder level | Dimming state | v4 keys present (names, sizes) | Result |
+|---|---|---|---|---|---|---|
+| 1.4.1 Mac + 1.5 phone | | | | | | |
+| 1.5 Mac + build-33 phone | | | | | | |
+| 1.5 Mac + 1.5 phone | | | | | | |
+| 1.4.1 Mac upgraded in place to 1.5 while a 1.5 phone shows v3 (no skeleton flash, no "update your Mac" line) | | | | | | |
+| 1.5 Mac downgraded to 1.4.1, then upgraded again (stale pre-downgrade v4 never shows as current) | | | | | | |
+| Sync off on a 1.5 Mac | | | | | | |
+| Sync off on a downgraded 1.4.1 Mac (v4 keys stay until the next 1.5 launch) | | | | | | |
+| 1.5 Mac + public 1.0 (24) phone (expected "Snapshot Unreadable" or frozen, no crash) | | | | | | |
+| 1.5 iPhone + 1.5 iPad on one Mac (two request keys, one Mac refresh, both finish) | | | | | | |
+| Two Macs on one Apple ID (optional, unsupported; record for the release notes) | | | | | | |
+| Build 33 reinstalled over 1.5 (`widget-snapshot.json` still decodes) | | | | | | |
+| Mac clock 10 minutes behind | | | | | | |
+| Mac clock 10 minutes ahead | | | | | | |
+| Phone Apple ID changed while the app is closed, to an account with no Headroom keys and iCloud Drive off (no prior-account content on widget, Siri or control loads) | | | | | | |
+| Same Apple ID, phone offline (cached content still shows) | | | | | | |
+| Developer ID Mac + TestFlight phone (CloudKit Production on both) | | | | | | |
+| Xcode-run Mac + Xcode-run phone (CloudKit Development on both) | | | | | | |
+
+The account-change and offline rows only mean something once `CompanionLoaderAdoption` is on;
+until then record "adoption off" and the build-33 behavior observed. Record the signed identity
+gate result (`docs/qa/2026-10-04-companion-identity-candidate-gate.md`) beside them.
+
+**A 1.4.1 Mac cannot delete v4 keys.** It predates the v4 namespace, so turning sync off there
+writes only the disabled schema-3 envelope and leaves the manifest, provider, receipt and request
+keys in iCloud. A phone still reads the disabled v3 as paused. The next 1.5 launch with sync off
+sweeps the leftovers, because the 1.5 sweep repeats on every launch while sync is off. Say so in
+the release notes for anyone who downgrades.
+
+**iCloud environments (CloudKit reminders, conditional on the U15 spike).** Key-value storage has
+no environment split; CloudKit does. A notarized Developer ID Mac carries
+`icloud-container-environment = Production`, and every TestFlight or App Store phone reads
+Production, so the shipping pair is Production + Production. A Mac run from Xcode and a phone run
+from Xcode both use Development. Never pair across environments: a Development Mac writes records
+a Production phone never sees, and the subscription silently stays quiet. Deploy the
+`ReminderEvent` schema to Production before any Production build saves a record; Production
+schema changes cannot be removed. The spike runbook on `spike/u15-cloudkit-reminders`
+(`docs/qa/2026-10-cloudkit-reminders-spike.md`) carries the exact steps.
+
+**Build numbers: decision for Kyle.** Mac 1.4.1 is build 33, and iOS TestFlight already holds
+1.5 (33). PR #160's `docs/release/1.5-release-checklist.md` assigns 1.5 / **34** to every target.
+The U15 spike runbook also uploads an iOS **34** to TestFlight, so if the spike uploads first,
+the release can no longer use 34 on iOS. Choose one before either upload: keep 34 for the release
+and give the spike a different number, or let the spike take 34 and move every 1.5 target
+(Mac included, so the paired builds stay equal) to 35.
+
 ## Phase 4 — closeout
 
 Update the release evidence with exact facts and timestamps:

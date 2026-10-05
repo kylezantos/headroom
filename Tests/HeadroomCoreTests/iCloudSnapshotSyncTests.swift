@@ -144,6 +144,14 @@ final class MemoryiCloudKeyValueStore: iCloudKeyValueSyncing, @unchecked Sendabl
         }
     }
 
+    func removeValue(forKey key: String) {
+        lock.withLock { _ = storage.removeValue(forKey: key) }
+    }
+
+    func keys(withPrefix prefix: String) -> [String] {
+        lock.withLock { storage.keys.filter { $0.hasPrefix(prefix) }.sorted() }
+    }
+
     func seed(_ envelope: SyncedWidgetSnapshotEnvelope) throws {
         storage[iCloudSnapshotSync.snapshotKey] = try SyncedWidgetSnapshotCodec.encode(envelope)
     }

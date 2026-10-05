@@ -359,7 +359,7 @@ extension CompanionSnapshotResolver {
                 {
                     return cached
                 }
-                cache.v3 = CompanionCachedV3(envelope: remote)
+                cache.v3 = CompanionCachedV3(keyRead: remote)
                 return remote
             case .incompatibleSchema:
                 // An incompatible v3 never hides a readable v4, and is never shown.
@@ -371,7 +371,7 @@ extension CompanionSnapshotResolver {
 
         mutating func pause(keepingV3 v3: SyncedWidgetSnapshotEnvelope?) -> CompanionResolvedSnapshot {
             // KTD22: keep only the paused state; account-bearing caches go.
-            cache = CompanionCacheContents(paused: true, v3: v3.map(CompanionCachedV3.init))
+            cache = CompanionCacheContents(paused: true, v3: v3.map { CompanionCachedV3(keyRead: $0) })
             return CompanionResolvedSnapshot(state: .paused, diagnostics: diagnostics)
         }
 

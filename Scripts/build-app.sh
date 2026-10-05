@@ -3,6 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 source Scripts/macos-compatibility.sh
+source Scripts/codesign-identity.sh
 
 CONFIG_INPUT="${1:-release}"
 # `--deps-only` prepares the vendored dependencies the Xcode project expects on disk
@@ -49,16 +50,19 @@ read -r -a CODESIGN_OPTIONS <<< "${HEADROOM_CODESIGN_OPTIONS}"
 
 select_codesign_identity() {
   if [[ -n "${HEADROOM_CODESIGN_IDENTITY}" ]]; then
-    printf '%s\n' "${HEADROOM_CODESIGN_IDENTITY}"
+    # A name may match a renewed certificate too; sign with the newest one's SHA-1.
+    local resolved=""
+    if [[ "${HEADROOM_CODESIGN_IDENTITY}" != "-" && ! "${HEADROOM_CODESIGN_IDENTITY}" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+      resolved="$(headroom_newest_identity_sha "${HEADROOM_CODESIGN_IDENTITY}")"
+    fi
+    printf '%s\n' "${resolved:-${HEADROOM_CODESIGN_IDENTITY}}"
     return
   fi
 
-  local identities
-  identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
   local identity
-  identity="$(printf '%s\n' "${identities}" | sed -n 's/^.*"\(Apple Development:[^"]*\)".*$/\1/p' | head -n 1)"
+  identity="$(headroom_newest_identity_sha "Apple Development:")"
   if [[ -z "${identity}" ]]; then
-    identity="$(printf '%s\n' "${identities}" | sed -n 's/^.*"\(Developer ID Application:[^"]*\)".*$/\1/p' | head -n 1)"
+    identity="$(headroom_newest_identity_sha "Developer ID Application:")"
   fi
 
   printf '%s\n' "${identity:--}"
@@ -78,7 +82,7 @@ derive_team_identifier() {
 
   if [[ "${CODESIGN_IDENTITY}" != "-" ]] && command -v openssl >/dev/null 2>&1; then
     local subject
-    subject="$(security find-certificate -c "${CODESIGN_IDENTITY}" -p 2>/dev/null \
+    subject="$(security find-certificate -c "${CODESIGN_IDENTITY_NAME}" -p 2>/dev/null \
       | openssl x509 -noout -subject 2>/dev/null \
       | head -n 1 || true)"
     local team
@@ -201,7 +205,7 @@ validate_provisioning_profile() {
     echo "Couldn't read the name from ${variable_name}: ${profile}" >&2
     exit 66
   }
-  case "${CODESIGN_IDENTITY}" in
+  case "${CODESIGN_IDENTITY_NAME}" in
     "Apple Development:"*)
       if [[ "${profile_name}" != "Mac Team Provisioning Profile:"* ]]; then
         echo "${variable_name} is not an Apple Development profile: ${profile_name}" >&2
@@ -278,6 +282,10 @@ if ! command -v xcodegen >/dev/null 2>&1; then
 fi
 
 CODESIGN_IDENTITY="$(select_codesign_identity)"
+CODESIGN_IDENTITY_NAME="${CODESIGN_IDENTITY}"
+if [[ "${CODESIGN_IDENTITY}" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+  CODESIGN_IDENTITY_NAME="$(headroom_identity_name_for_sha "${CODESIGN_IDENTITY}")"
+fi
 if [[ "${HEADROOM_ENABLE_ICLOUD_ENTITLEMENT}" == "1" && "${CODESIGN_IDENTITY}" == "-" ]]; then
   echo "HEADROOM_ENABLE_ICLOUD_ENTITLEMENT=1 requires an Apple codesigning identity." >&2
   echo "Set HEADROOM_CODESIGN_IDENTITY to Apple Development or Developer ID Application." >&2
@@ -324,7 +332,7 @@ find "${APP}" -name '*.cstemp' -delete
 if [[ "${CODESIGN_IDENTITY}" == "-" ]]; then
   echo "→ codesign ad-hoc (set HEADROOM_CODESIGN_IDENTITY to use an Apple certificate)"
 else
-  echo "→ codesign with ${CODESIGN_IDENTITY}"
+  echo "→ codesign with ${CODESIGN_IDENTITY_NAME} (${CODESIGN_IDENTITY:0:8}…)"
 fi
 echo "→ codesign options: ${HEADROOM_CODESIGN_OPTIONS}"
 echo "→ app group: ${HEADROOM_APP_GROUP_IDENTIFIER}"

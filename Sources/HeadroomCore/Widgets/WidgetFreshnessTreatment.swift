@@ -161,7 +161,11 @@ public extension WidgetStyleRecipe {
     var isDimmed: Bool { freshness.isDimmed }
     /// R10: the dimmed sentence, longest first. Empty while not dimmed.
     var dimmedCaptions: [String] { freshness.dimmedCaptions }
-    /// U13: small families drop the "Reset at <time>" notes first, before any rail or row;
-    /// medium and large keep them and shed their own rows to make room.
-    var pastResetNotesDropFirst: Bool { family == .small }
+    /// U13/KTD10: the "Reset at <time>" notes, fullest first — every note, then the first
+    /// provider's alone. They are the first thing a widget drops, before any rail or row
+    /// sheds; the window itself already reads "—" (R11), so the note only explains it.
+    var pastResetNoteRungs: [[WidgetPastResetNote]] {
+        guard let first = pastResetNotes.first else { return [] }
+        return pastResetNotes.count > 1 ? [pastResetNotes, [first]] : [[first]]
+    }
 }

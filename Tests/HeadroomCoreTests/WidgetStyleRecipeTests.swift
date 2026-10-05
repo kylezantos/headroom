@@ -542,8 +542,20 @@ struct WidgetFreshnessRecipeTests {
             #expect(recipe.pastResetNotes.map(\.providerID) == ["claude"], "\(style) \(family)")
             #expect(recipe.pastResetNotes.first?.windowID == "fiveHour")
             #expect(recipe.pastResetNotes.first?.resetAt == F.now.addingTimeInterval(-20 * Self.minute))
-            #expect(recipe.pastResetNotesDropFirst == (family == .small))
+            #expect(recipe.pastResetNoteRungs == [recipe.pastResetNotes])
         }
+    }
+
+    @Test func noteRungsShedToTheFirstProvidersNoteBeforeDroppingWhole() {
+        let codexPast = F.provider("codex", "Codex", [
+            WidgetWindowSummary(kind: .fiveHour, label: "5h", percentRemaining: 41, resetSchedule: .scheduled(F.now.addingTimeInterval(-14 * Self.minute)),
+                                resetLabel: nil, severity: .healthy),
+        ])
+        for (style, family) in Self.everyCase where !(family == .small && [.vesselHero, .liquidLevel].contains(style)) {
+            let recipe = Self.recipe(style, family, [Self.claudePastFiveHourReset(), codexPast], Self.treatment())
+            #expect(recipe.pastResetNoteRungs.map { $0.map(\.providerID) } == [["claude", "codex"], ["claude"]], "\(style) \(family)")
+        }
+        #expect(F.recipe(.nestedMeter, .small, [F.claude()]).pastResetNoteRungs.isEmpty)
     }
 
     @Test func resetNoteCopyNamesTheWindowAndWaitsForTheMacOnThePhone() {
@@ -599,9 +611,9 @@ struct WidgetFreshnessRecipeTests {
             }
             #expect(recipe.washSegments.allSatisfy { $0.window?.freshness.isStale == true })
             #expect(recipe.rankedRows.allSatisfy { $0.window.freshness.isStale })
-            // The dimmed sentence takes the footer's place on large.
+            // The dimmed sentence takes the place of the footer and the spend strip on large.
             #expect(!recipe.showsFooter)
-            #expect(recipe.showsSpend == (family == .large))
+            #expect(!recipe.showsSpend)
         }
     }
 

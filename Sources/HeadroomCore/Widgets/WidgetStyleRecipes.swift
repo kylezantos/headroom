@@ -112,7 +112,7 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
     public let showsSpend: Bool
     public let showsFooter: Bool
     /// U13 (KTD15): the freshness rules applied to every window above. While dimmed, the
-    /// dimmed sentence takes the footer's place.
+    /// dimmed sentence takes the place of the footer and the spend strip.
     public let freshness: WidgetFreshnessTreatment
     /// R11: one "Reset at <time>" note per shown provider with a window past its reset.
     public let pastResetNotes: [WidgetPastResetNote]
@@ -173,7 +173,9 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
             }
             : []
 
-        showsSpend = family == .large && !envelope.apiSpendProviders.isEmpty
+        // U13: while dimmed, the dimmed sentence takes the footer's place and the spend strip
+        // yields to it — its amounts are as old as the meters, and KTD10 sheds spend first.
+        showsSpend = family == .large && !envelope.apiSpendProviders.isEmpty && !freshness.isDimmed
         showsFooter = family == .large && !freshness.isDimmed
         self.freshness = freshness
         pastResetNotes = shown.compactMap { recipe in

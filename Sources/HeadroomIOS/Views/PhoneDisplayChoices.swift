@@ -30,6 +30,24 @@ struct PhoneDisplayResolver: Sendable {
     let resolve: @Sendable (CompanionDisplayBlock?) -> PhoneDisplayChoices
 
     static let matchingMac = PhoneDisplayResolver(resolve: PhoneDisplayChoices.matchingMac)
+
+    /// KTD21: a `--demo` screenshot launch may pin the meter style with the Mac's own
+    /// `--meter-style <format>.<shape>.<fill>` token, so one fixture can be shot in every
+    /// style. Ignored outside a demo launch and for a malformed token.
+    static func demoLaunchOverride(
+        arguments: [String] = CommandLine.arguments, base: PhoneDisplayResolver = .matchingMac
+    ) -> PhoneDisplayResolver? {
+        guard arguments.contains(CompanionDemoLaunchOptions.demoFlag),
+              let index = arguments.firstIndex(of: "--meter-style"),
+              arguments.indices.contains(index + 1),
+              let style = MeterStyle(launchToken: arguments[index + 1])
+        else { return nil }
+        return PhoneDisplayResolver { block in
+            var choices = base.resolve(block)
+            choices.meterStyle = style
+            return choices
+        }
+    }
 }
 
 extension EnvironmentValues {

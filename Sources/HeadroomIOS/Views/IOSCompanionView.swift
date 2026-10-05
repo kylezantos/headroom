@@ -36,6 +36,9 @@ struct IOSCompanionView: View {
     var body: some View {
         NavigationStack {
             content
+                .environment(
+                    \.phoneDisplayResolver,
+                    PhoneDisplayResolver.demoLaunchOverride(base: inheritedDisplayResolver) ?? inheritedDisplayResolver)
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button {
@@ -141,6 +144,7 @@ struct IOSCompanionView: View {
     }
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.phoneDisplayResolver) private var inheritedDisplayResolver
 
     /// The Settings sheet's sync rows. The Mac's source ID is a random lineage UUID, never a
     /// name to show, so the sheet reads "Headroom on Mac".

@@ -13,6 +13,23 @@ public enum DemoFixture {
     /// True when the app (macOS or iOS) was launched with `--demo`.
     public static var isEnabled: Bool { CommandLine.arguments.contains("--demo") }
 
+    /// Fixed-anchor loading captures never inherit wall-clock reset or capture dates.
+    public static func loadingSnapshot(for id: ProviderID, at date: Date) -> UsageSnapshot {
+        let windows: [UsageWindow]
+        switch id {
+        case .claude:
+            windows = [UsageWindow(kind: .fiveHour, utilization: 28, resetsAt: date.addingTimeInterval(11_700)),
+                       UsageWindow(kind: .weekly, utilization: 62, resetsAt: date.addingTimeInterval(345_600))]
+        case .codex:
+            windows = [UsageWindow(kind: .weekly, utilization: 36, resetsAt: date.addingTimeInterval(540_000))]
+        default:
+            windows = [UsageWindow(kind: .billingPeriod(label: "Monthly", duration: 2_592_000),
+                                   utilization: 44, resetsAt: date.addingTimeInterval(1_036_800))]
+        }
+        return UsageSnapshot(providerID: id, windows: windows, planLabel: "Demo",
+                             accountEmail: "demo@example.com", capturedAt: date, freshness: .live)
+    }
+
     // MARK: Subscription usage
 
     public static var claudeSnapshot: UsageSnapshot {
@@ -321,6 +338,8 @@ extension DemoFixture {
     /// live `--demo <scenario>` launch mode (interactive multi-account preview + genuine
     /// Liquid-Glass screenshots), so both draw from one fixture source (demo mode, Jul 2026).
     public enum MultiAccountScenario: String, CaseIterable, Sendable {
+        /// KTD16: the app adds controlled requests and an inert typed setup lifecycle.
+        case loading
         case multiTwo = "multi-2"
         case multiThree = "multi-3"
         case multiFive = "multi-5"
@@ -513,6 +532,18 @@ extension DemoFixture {
     public static func multiFixture(for scenario: MultiAccountScenario) -> MultiAccountFixture {
         var pairs: [(account: ProviderAccount, provider: any UsageProvider)] = []
         switch scenario {
+        case .loading:
+            pairs = registeredProviderOrder.map { id in
+                builtInProviderPair(provider: id, snapshot: id == .codex
+                    ? .stale(for: id, reason: .notLoggedIn(UsageStore.finishSignInMessage))
+                    : loadingSnapshot(for: id, at: Date()))
+            }
+            let work = ProviderAccount(id: AccountID("loading-work"), providerID: .claude, label: "Work")
+            let pending = ProviderAccount(id: AccountID("loading-pending"), providerID: .claude, label: "Pending")
+            pairs += [
+                (work, DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: loadingSnapshot(for: .claude, at: Date()), accountID: work.id)),
+                (pending, DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude), accountID: pending.id)),
+            ]
         case .multiTwo:
             pairs = [
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),

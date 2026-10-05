@@ -1285,6 +1285,7 @@ private struct BenchSceneStandIn: View {
     let preferences: Preferences
     let credentialStore: CredentialStore
     let notificationClient: any NotificationAuthorizing
+    private let launchControl: any LaunchAtLoginControlling = DemoLaunchAtLogin()
     @State private var appearancePreference: AppearancePreference = .light
 
     var body: some View {
@@ -1294,6 +1295,7 @@ private struct BenchSceneStandIn: View {
             appearancePreference: $appearancePreference,
             preferences: preferences,
             credentialStore: credentialStore,
+            launchControl: launchControl,
             duplicateDetector: ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil }),
             notificationClient: notificationClient
         )

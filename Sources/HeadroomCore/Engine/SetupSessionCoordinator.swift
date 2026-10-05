@@ -540,6 +540,13 @@ public final class SetupSessionCoordinator {
         invalidateWork(for: key, finalState: .cancelled, releaseLoginSlot: true)
     }
 
+    /// Isolated composition teardown also joins preparation suspended at an injected boundary.
+    public func cancelAndWait(for keys: Set<AccountKey>) async {
+        let tasks = keys.compactMap { preparationTasks[$0] }
+        for key in keys { forceCancel(key) }
+        for task in tasks { await task.value }
+    }
+
     public func connectedPayoffToken(for key: AccountKey) -> SetupConnectedPayoffToken? {
         guard state(for: key) == .connected else { return nil }
         return SetupConnectedPayoffToken(

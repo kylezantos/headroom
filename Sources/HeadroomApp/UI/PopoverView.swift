@@ -24,6 +24,7 @@ struct PopoverView: View {
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.loadingDate) private var pinnedDate
     /// L2A: live scroll geometry for the bottom feather and the bespoke gutter indicator.
     /// SC1 (2026-10-03 perf bench): held in a model that only those two child views read.
     /// As `@State` here, every scroll frame re-ran this whole body and rebuilt every card —
@@ -46,6 +47,7 @@ struct PopoverView: View {
     var body: some View {
         let _ = BenchCounters.hit("PopoverView")
         TimelineView(.periodic(from: .now, by: 60)) { context in
+            let now = pinnedDate ?? context.date
             let _ = BenchCounters.hit("PopoverView.timeline")
             let accountsByVisibleProvider = store.providerOrder.reduce(
                 into: [ProviderID: [ProviderAccount]]()
@@ -80,7 +82,7 @@ struct PopoverView: View {
                 }
             )
             VStack(spacing: 20) {
-                header(now: context.date)
+                header(now: now)
                     // Header sits 14pt above the first card (vs the 20pt tile gap) — the
                     // title belongs to the content below it more than cards belong to
                     // each other.
@@ -116,7 +118,7 @@ struct PopoverView: View {
                                     percentageMode: store.usagePercentageMode,
                                     meterStyle: store.meterStyle,
                                     anyProviderMultiAccount: anyProviderMultiAccount,
-                                    now: context.date,
+                                    now: now,
                                     onRetrySetup: {
                                         if let account = store.primaryAccount(for: id) { store.refreshAccountNow(account.key) }
                                     },
@@ -148,7 +150,7 @@ struct PopoverView: View {
                             // both surfaces describe the same account change the same way.
                             .transition(.settingsReveal)
                         }
-                        APISpendSectionView(store: store, now: context.date, onOpenSettings: openSettingsDismissingPopover)
+                        APISpendSectionView(store: store, now: now, onOpenSettings: openSettingsDismissingPopover)
                             // S5A: the spend tile is a sibling card, so it arrives and
                             // leaves the same way the provider cards above it do.
                             .transition(.settingsReveal)
@@ -207,7 +209,7 @@ struct PopoverView: View {
                 // and outside the feather animations so its position tracks the scroll 1:1.
                 .overlay(alignment: .topTrailing) { PopoverScrollIndicator(model: scroll) }
                 .frame(height: forcedCardsHeight ?? min(cardsHeight, 640))
-                footer(now: context.date)
+                footer(now: now)
             }
             // M9C (Sep 2026): no entrance motion at all, not even on the first open. Kyle
             // reviewed the once-per-session fade in the live build and called for instant —
@@ -340,7 +342,7 @@ struct PopoverView: View {
         // only ticks per minute. This runs *only* while a handoff clock is on screen and is
         // cancelled the moment it isn't — a clock bound to real work, not a decorative loop.
         .task(id: headerWaitingAccount?.key) {
-            guard headerWaitingAccount != nil else { return }
+            guard pinnedDate == nil, headerWaitingAccount != nil else { return }
             while !Task.isCancelled {
                 waitingClockNow = .now
                 try? await Task.sleep(for: .seconds(1))
@@ -463,7 +465,7 @@ struct PopoverView: View {
     /// tick lands.
     private func handoffElapsed(for account: ProviderAccount, now: Date) -> TimeInterval? {
         guard let start = SetupSessions.waitingStart(for: account) else { return nil }
-        return max(0, max(now, waitingClockNow).timeIntervalSince(start))
+        return max(0, (pinnedDate ?? max(now, waitingClockNow)).timeIntervalSince(start))
     }
 
     private func retainedObservation(in snapshot: UsageSnapshot) -> Date? {
@@ -526,6 +528,8 @@ private struct RefreshFooter: View {
         let mains = Dictionary(uniqueKeysWithValues: store.providerOrder.compactMap { id in
             store.primaryAccount(for: id).map { (id, $0.key) }
         })
+        let sourceIdentity = ReprintSourceIdentity(meters: meters,
+            automatic: store.menuBarFillSource.providerIDs == nil, currentMains: mains)
         let run = store.userRefreshRun
         let work = store.visibleRefreshWork
         let probing = store.probingAccounts
@@ -571,11 +575,11 @@ private struct RefreshFooter: View {
                             HalftonePillRow(pills: recipe.pills)
                                 // KTD19: changing to an unrequested main crossfades uniformly;
                                 // the Core recipe never invents a fresh print for that account.
-                                .id(meters.map { $0.sourceAccountKey })
+                                .id(sourceIdentity)
                                 .transition(.opacity)
                         }
                         .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
-                                    reduceMotion: reduceMotion), value: meters.map { $0.sourceAccountKey })
+                                    reduceMotion: reduceMotion), value: sourceIdentity)
                         .allowsHitTesting(false)
                         .transition(.opacity)
                     }

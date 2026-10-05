@@ -458,11 +458,15 @@ struct HeadroomApp: App {
     @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let preferences: Preferences
+    private let demoController: LoadingDemoController?
 
     @MainActor
     init() {
         let preferences = AppComposition.launchPreferences
-        let store = AppComposition.store(preferences: preferences)
+        let demoController = DemoFixture.isEnabled
+            ? LoadingDemoController(loading: DemoFixture.scenarioRequest() == .multiAccount(.loading)) : nil
+        let store = AppComposition.store(preferences: preferences, demoController: demoController)
+        demoController?.configure(store: store)
         if !DemoFixture.isEnabled {
             SetupSessions.configure(
                 store: store,
@@ -470,10 +474,26 @@ struct HeadroomApp: App {
             )
         }
         self.preferences = preferences
+        self.demoController = demoController
         _store = State(initialValue: store)
         _appearancePreference = State(initialValue: preferences.appearancePreference)
         _systemIsDark = State(initialValue: SystemAppearance.isDark())
-        AppDelegate.startUsageStore = { Task { await store.start() } }
+        AppDelegate.startUsageStore = {
+            if demoController?.loading == true { demoController?.start() }
+            else { Task { await store.start() } }
+        }
+        #if HEADROOM_BENCH
+        if let reportURL = LoadingNativeBench.reportURL {
+            AppDelegate.startUsageStore = {
+                Task { await LoadingNativeBench.run(store: store, preferences: preferences, reportURL: reportURL) }
+            }
+        }
+        #endif
+        if let demoController {
+            AppDelegate.stopDemo = { await demoController.shutdown() }
+        } else {
+            AppDelegate.stopDemo = nil
+        }
         // SwiftUI's `preferredColorScheme` doesn't reach the `MenuBarExtra(.window)`
         // popover panel or the Settings window's AppKit chrome — both are NSWindows whose
         // appearance follows the process. Drive `NSApp.appearance` so the theme toggle
@@ -559,6 +579,8 @@ struct HeadroomApp: App {
                 softwareUpdates: softwareUpdates,
                 preferences: preferences,
                 credentialStore: AppComposition.settingsCredentialStore,
+                launchControl: AppComposition.settingsLaunchControl,
+                duplicateDetector: AppComposition.settingsDuplicateDetector,
                 // U6: the one client per launch; inert under `--demo` and unbundled runs (KTD9).
                 notificationClient: AppComposition.notificationClient
             )
@@ -738,6 +760,8 @@ enum SystemAppearance {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static var startUsageStore: (() -> Void)?
+    static var stopDemo: (@MainActor () async -> Void)?
+    private var terminationTask: Task<Void, Never>?
     /// Set from `HeadroomApp.init()`; applied here once `NSApp` exists (`.some(nil)` means
     /// "System" — leave `NSApp.appearance` at its default so it tracks the OS).
     static var startupAppearance: NSAppearance??
@@ -754,6 +778,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSApp.appearance = appearance
         }
         Self.startUsageStore?()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let stopDemo = Self.stopDemo else { return .terminateNow }
+        if terminationTask == nil {
+            terminationTask = Task {
+                await stopDemo()
+                Self.stopDemo = nil
+                sender.reply(toApplicationShouldTerminate: true)
+            }
+        }
+        return .terminateLater
     }
 }
 
@@ -830,12 +866,12 @@ enum AppComposition {
     }
 
     @MainActor
-    static func store(preferences: Preferences = launchPreferences) -> UsageStore {
+    static func store(preferences: Preferences = launchPreferences, demoController: LoadingDemoController? = nil) -> UsageStore {
         if DemoFixture.isEnabled {
             // `--demo <scenario>` opts into the isolated multi-account preview; a bare `--demo`
             // keeps the single-account screenshot fixtures the marketing pipeline relies on.
             if case .multiAccount(let scenario) = DemoFixture.scenarioRequest() {
-                return demoMultiAccountStore(scenario: scenario)
+                return demoMultiAccountStore(scenario: scenario, controller: demoController)
             }
             return demoStore()
         }
@@ -905,11 +941,13 @@ enum AppComposition {
     /// return their snapshots instantly (Refresh re-serves them at no cost — no CLI, no
     /// network), and the widget/iCloud exporters are omitted so no App Group or KVS write
     /// happens. The `providerFactory` returns fixtures too, so even "Add account" in Settings
-    /// never spawns the claude/codex CLIs.
+    /// never spawns the claude/codex CLIs when paired with the inert demo coordinator.
     @MainActor
-    private static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario) -> UsageStore {
-        let prefsDefaults = launchDefaults
-        let prefs = launchPreferences
+    static func demoMultiAccountStore(scenario: DemoFixture.MultiAccountScenario,
+                                     controller: LoadingDemoController? = nil,
+                                     defaults: UserDefaults? = nil) -> UsageStore {
+        let prefsDefaults = defaults ?? launchDefaults
+        let prefs = Preferences(defaults: prefsDefaults)
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
@@ -918,7 +956,7 @@ enum AppComposition {
         // API spend surfaces are off by default, so enable exactly the ones this scenario
         // wires — derived from the providers rather than a hardcoded Claude/Codex pair, so
         // `spend-states`' xAI balance row is not silently filtered out of the card.
-        let spendProviders = demoSpendProviders(for: scenario)
+        let spendProviders = scenario == .loading ? (controller?.spendProviders() ?? demoSpendProviders(for: scenario)) : demoSpendProviders(for: scenario)
         for provider in spendProviders {
             if let surface = UsageSurface.api(for: provider.id) {
                 prefs.setSurfaceEnabled(true, for: surface)
@@ -950,8 +988,9 @@ enum AppComposition {
         // `Optional.map` trips a Swift 6.3 type-checker crash — mirror the harness's pattern.
         var factory: (@MainActor (ProviderAccount) -> any UsageProvider)?
         if registry != nil {
-            factory = { account in
-                DemoUsageProvider(
+            factory = { [weak controller] account in
+                if let controller { return controller.provider(for: account, needsSetup: true) }
+                return DemoUsageProvider(
                     id: account.providerID,
                     displayName: account.providerID.displayName,
                     snapshot: .pending(for: account.providerID),
@@ -959,15 +998,20 @@ enum AppComposition {
                 )
             }
         }
+        let providers: [any UsageProvider]
+        if scenario == .loading, let controller { providers = fixture.accounts.map { controller.provider(for: $0) } }
+        else { providers = fixture.providers }
         return UsageStore(
-            providers: fixture.providers,
+            providers: providers,
             apiSpendProviders: spendProviders,
             preferences: prefs,
             accounts: fixture.accounts,
             accountRegistry: registry,
+            accountStorage: controller?.accountStorage ?? DemoAccountStorage(),
             providerFactory: factory,
             continuityCache: continuityCache,
-            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults)
+            bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults),
+            now: { [clock = controller?.clock] in clock?.now() ?? Date() }
         )
     }
 
@@ -1172,9 +1216,7 @@ enum AppComposition {
     /// The Settings window's key store, one per launch rather than one per scene-body pass.
     /// Demo runs stay off the real Keychain: the unsigned debug binary would otherwise raise
     /// one prompt per API-key provider every time Settings opens.
-    static let settingsCredentialStore: CredentialStore = DemoFixture.isEnabled
-        ? CredentialStore(apiKeyStore: DemoAPIKeyStore())
-        : CredentialStore()
+    static let settingsCredentialStore = makeSettingsCredentialStore(isDemo: DemoFixture.isEnabled)
 
     /// U5: the one notification client per launch. The store's coordinator posts through
     /// it and `SettingsView` reads and requests permission through it (U6).

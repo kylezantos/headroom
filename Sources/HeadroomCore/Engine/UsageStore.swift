@@ -1407,8 +1407,10 @@ extension UsageStore: AccountProbeSchedulerHost {
         engine?.rephase()
     }
 
-    var schedulerStartsNewUserRun: Bool {
-        userRefreshRun == nil || userRefreshRun?.refreshingClearedAt != nil
+    func schedulerStartsNewUserRun(origin: UserRefreshOrigin) -> Bool {
+        guard let run = userRefreshRun else { return true }
+        guard let clearedAt = run.refreshingClearedAt else { return false }
+        return origin != .setupCheck || now().timeIntervalSince(clearedAt) >= Self.refreshRunRetentionDuration
     }
 
     func schedulerUserRunDidChange(_ run: UserRefreshRun) {

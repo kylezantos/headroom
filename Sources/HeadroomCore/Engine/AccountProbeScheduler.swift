@@ -6,7 +6,7 @@ import Foundation
 protocol AccountProbeSchedulerHost: AnyObject {
     var schedulerNow: Date { get }
     var schedulerChosenInterval: TimeInterval { get }
-    var schedulerStartsNewUserRun: Bool { get }
+    func schedulerStartsNewUserRun(origin: UserRefreshOrigin) -> Bool
     func schedulerUserRunDidChange(_ run: UserRefreshRun)
     func schedulerProvider(for key: AccountKey) -> (any UsageProvider)?
     /// Attached, not being removed, and its subscription surface is on.
@@ -506,7 +506,8 @@ final class AccountProbeScheduler {
 
     private func insertUserPending(_ key: AccountKey, origin: UserRefreshOrigin) {
         let wasEmpty = userPending.isEmpty
-        if userRun == nil || (wasEmpty && host?.schedulerStartsNewUserRun == true) {
+        // R5: setup verification must not replace a user's retained landing during its end hold.
+        if userRun == nil || (wasEmpty && host?.schedulerStartsNewUserRun(origin: origin) == true) {
             userRun = UserRefreshRun(startedAt: host?.schedulerNow ?? Date())
         }
         if origin == .setupCheck,

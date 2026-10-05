@@ -81,7 +81,7 @@ All paths are under `Sources/`.
 | Plan / period / stale capsule | `.identityCapsule`, `PlanCapsule` | Padding-sized capsules (they drift in height) |
 | Usage meter | `UsageBarView` / `MeterGauge` via `MeterRecipe` | New bar drawing |
 | Widget style body | `HeadroomWidgetStyledBody` + `HeadroomWidgetStyledBackground` over a `WidgetStyleRecipe`; pieces `HeadroomWidgetStyleBar`, `HeadroomWidgetVessel`/`HeadroomWidgetVesselNumeral`, `HeadroomWidgetNumeral`, `HeadroomWidgetIdentityRow`, `HeadroomWidgetFittingCaption` | Per-host widget layouts; deciding windows or fills in a view |
-| Loading placeholder | `SkeletonMeter` | Spinners, pulses |
+| Pending numeric-meter layout | Static `SkeletonMeter` beside the account's loading vessel | Animated skeletons, pulses |
 | Loading and waiting vessel | `HalftoneVesselView` / `HalftonePillRow` (shared), `MiniPill` (macOS rows) | Slosh while working, drip while waiting on the user, ghost → print when a fresh reading lands; `SetupMotion` and `ReprintRecipe` decide states. |
 | Provider mark | `ProviderLogoView` (macOS and iOS each have one) | Loading SVGs directly |
 | Revealing a Settings sub-option | `.transition(.settingsReveal)` | Ad-hoc slide/scale |

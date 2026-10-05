@@ -55,6 +55,57 @@ struct UsageStoreRefreshRunTests {
         #expect(store.visibleRefreshWork.clearedAt == t0.addingTimeInterval(1))
     }
 
+    @Test(arguments: [false, true])
+    func setupCheckDuringEndHoldPreservesUserLanding(sameAccount: Bool) async {
+        let clock = MutableDateSource(t0)
+        let action = probe(.codex, clock: clock, stale: true)
+        let unrelated = probe(.claude, clock: clock)
+        let store = UsageStore(providers: [action, unrelated], preferences: preferences(), now: clock.now)
+        store.refreshAccountNow(action.accountKey, origin: .accountAction)
+        await store.scheduler.waitUntilLanesIdle()
+        let historicalRun = store.userRefreshRun
+        let historicalWork = store.visibleRefreshWork
+        #expect(historicalRun?.entries[action.accountKey]?.outcome == .stale)
+        #expect(reprint(store, at: clock.now()).phase == .hold)
+
+        clock.set(t0.addingTimeInterval(0.1))
+        let setup = sameAccount ? action : unrelated
+        setup.suspendNextFetch()
+        store.refreshAccountNow(setup.accountKey, origin: .setupCheck)
+        await setup.waitUntilStarted()
+        #expect(store.userRefreshRun?.id == historicalRun?.id)
+        #expect(store.userRefreshRun?.entries[action.accountKey] == historicalRun?.entries[action.accountKey])
+        #expect(store.visibleRefreshWork == historicalWork)
+        #expect(reprint(store, at: t0.addingTimeInterval(0.49)).phase == .hold)
+        #expect(reprint(store, at: t0.addingTimeInterval(0.5)).phase == .rest)
+
+        clock.set(t0.addingTimeInterval(0.6))
+        setup.release()
+        await store.scheduler.waitUntilLanesIdle()
+        #expect(store.userRefreshRun?.entries[action.accountKey] == historicalRun?.entries[action.accountKey])
+        #expect(store.visibleRefreshWork == historicalWork)
+        #expect(reprint(store, at: clock.now()).phase == .rest)
+    }
+
+    @Test func setupCheckAfterRetentionStartsSetupOnlyRun() async {
+        let clock = MutableDateSource(t0)
+        let provider = probe(.codex, clock: clock)
+        let store = UsageStore(providers: [provider], preferences: preferences(), now: clock.now)
+        store.refreshAccountNow(provider.accountKey)
+        await store.scheduler.waitUntilLanesIdle()
+        let historicalID = store.userRefreshRun?.id
+        clock.set(t0.addingTimeInterval(0.71))
+        provider.suspendNextFetch()
+        store.refreshAccountNow(provider.accountKey, origin: .setupCheck)
+        await provider.waitUntilStarted()
+        #expect(store.userRefreshRun?.id != historicalID)
+        #expect(store.userRefreshRun?.entries[provider.accountKey]?.origin == .setupCheck)
+        #expect(store.accountActionCheckingKeys.isEmpty)
+        #expect(reprint(store, at: clock.now()).phase == .rest)
+        provider.release()
+        await store.scheduler.waitUntilLanesIdle()
+    }
+
     @Test func spendOnlyCompletionHoldsEvenWithRetainedSetupHistory() async {
         let clock = MutableDateSource(t0)
         let setup = probe(.claude, clock: clock)

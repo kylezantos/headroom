@@ -149,6 +149,60 @@ enum SetupSessions {
     private static var capabilityAnnouncementDedupe = CapabilityAnnouncementDedupe()
     private static var claudeExecutableLocator: any CLIExecutableLocating = CLIExecutableLocator.claude()
     private static var builtInClaudeWorkspace = ClaudeUsageWorkspace.defaultDirectoryURL
+    private static var cancellationCleanup: @MainActor (ProviderAccount, PreparedScript?) -> Void = productionCancellationCleanup
+    private static var demoPreviousLocator: (any CLIExecutableLocating)?
+    private static var waitingClock: @MainActor () -> Date = { Date() }
+
+    /// KTD16: demos attach the real state machine without staging, restoring or reading markers.
+    static func configureDemo(store: UsageStore, coordinator: SetupSessionCoordinator,
+                              now: @escaping @MainActor () -> Date,
+                              cancellationCleanup: @escaping @MainActor (ProviderAccount, PreparedScript?) -> Void) {
+        self.store = store
+        self.coordinator = coordinator
+        demoPreviousLocator = claudeExecutableLocator
+        claudeExecutableLocator = InertDemoExecutableLocator()
+        self.cancellationCleanup = cancellationCleanup
+        waitingClock = now
+        store.attachSetupCoordinator(coordinator)
+    }
+
+    /// Capture owners must await their source/driver teardown before legacy fixture flags resume.
+    static func tearDownDemo(coordinator owned: SetupSessionCoordinator, keys: Set<AccountKey>) {
+        guard coordinator === owned else { return }
+        for key in keys {
+            owned.forceCancel(key)
+            completionTasks.removeValue(forKey: key)?.cancel()
+            checkNowTasks.removeValue(forKey: key)?.cancel()
+            preparedScripts.removeValue(forKey: key)
+            activeScripts.removeValue(forKey: key)
+            handoffTerminalApps.removeValue(forKey: key)
+            handoffInteractiveReasons.removeValue(forKey: key)
+            refusedHandoffPurposes.removeValue(forKey: key)
+            SetupSessionActivity.shared.set(nil, for: key)
+            SetupSessionActivity.shared.endWaiting(for: key)
+            SetupSessionActivity.shared.releaseConnectedPayoff(for: key)
+            if key.providerID == .claude { ClaudeSetupSession.cancelRetries(for: key.accountID) }
+            if key.providerID == .codex { CodexSetupSession.cancelRetries(for: key.accountID) }
+        }
+        store?.attachSetupCoordinator(nil)
+        store = nil
+        coordinator = nil
+        cancellationCleanup = productionCancellationCleanup
+        if let demoPreviousLocator { claudeExecutableLocator = demoPreviousLocator }
+        demoPreviousLocator = nil
+        waitingClock = { Date() }
+        failureAnnouncer = SetupFailureAnnouncer()
+        capabilityAnnouncementDedupe = CapabilityAnnouncementDedupe()
+    }
+
+    static func hasDemoBoundary(_ owned: SetupSessionCoordinator) -> Bool { coordinator === owned }
+    static var outstandingScriptCount: Int { preparedScripts.count + activeScripts.count }
+    static var outstandingCompletionTaskCount: Int { completionTasks.count }
+
+    private struct InertDemoExecutableLocator: CLIExecutableLocating {
+        func locate(forceRefresh: Bool) async -> CLIExecutableLocation { .confirmedAbsent }
+        func invalidate(path: String, reason: CLIExecutableInvalidationReason) async {}
+    }
 
     /// The one shared Claude locator, so manual-command surfaces resolve the same
     /// validated absolute executable the probe and setup handoff use (R6).
@@ -208,6 +262,7 @@ enum SetupSessions {
         builtInClaudeWorkspace: URL = ClaudeUsageWorkspace.defaultDirectoryURL
     ) {
         self.store = store
+        cancellationCleanup = productionCancellationCleanup
         self.claudeExecutableLocator = claudeExecutableLocator
         self.builtInClaudeWorkspace = builtInClaudeWorkspace
         let coordinator = SetupSessionCoordinator(
@@ -299,12 +354,12 @@ enum SetupSessions {
     /// "Reopen" and "Continue Setup" keep the clock the user has been reading rather than
     /// restarting it — and so a restored start seeded by `restoreWaitingStart` survives the
     /// next call rather than being rewritten to now.
-    static func noteHandoffBegan(for account: ProviderAccount, at date: Date = .now) {
+    static func noteHandoffBegan(for account: ProviderAccount, at date: Date? = nil) {
         // Review #1: a handoff that actually begins supersedes the refusal recorded before
         // it, whether or not this call goes on to stamp the clock.
         refusedHandoffPurposes.removeValue(forKey: account.key)
         guard !isWaiting(for: account) else { return }
-        SetupSessionActivity.shared.beginWaiting(for: account.key, at: date)
+        SetupSessionActivity.shared.beginWaiting(for: account.key, at: date ?? waitingClock())
     }
 
     /// R2M12: seed the clock of a handoff restored from its durable marker. `configure`
@@ -740,6 +795,15 @@ enum SetupSessions {
         refusedHandoffPurposes.removeValue(forKey: account.key)
         let prepared = preparedScripts.removeValue(forKey: account.key)
             ?? activeScripts.removeValue(forKey: account.key)
+        cancellationCleanup(account, prepared)
+        coordinator?.forceCancel(account.key)
+        store?.cancelAccountRemoval(account.key)
+        SetupSessionActivity.shared.set(nil, for: account.key)
+        SetupSessionActivity.shared.endWaiting(for: account.key)
+        SetupSessionActivity.shared.releaseConnectedPayoff(for: account.key)
+    }
+
+    private static func productionCancellationCleanup(_ account: ProviderAccount, _ prepared: PreparedScript?) {
         let marker = prepared?.completionMarker ?? completionMarker(
             for: account,
             builtInClaudeWorkspace: builtInClaudeWorkspace
@@ -748,10 +812,6 @@ enum SetupSessions {
         if let prepared {
             try? FileManager.default.removeItem(at: prepared.scriptURL)
         }
-        coordinator?.forceCancel(account.key)
-        store?.cancelAccountRemoval(account.key)
-        SetupSessionActivity.shared.set(nil, for: account.key)
-        SetupSessionActivity.shared.endWaiting(for: account.key)
     }
 
     /// KTD1/KTD4 (2026-09-19 sign-in plan): resolved executable plus the account's

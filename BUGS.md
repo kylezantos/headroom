@@ -4,14 +4,28 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
-## App-target tests can't run while any Headroom.app is open
+## App-target test host isolation (resolved 2026-10-04)
 
 - The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in
   `HeadroomApp.swift`) also runs inside the XCTest host. With another Headroom.app running —
   e.g. a different Conductor workspace's build — the `HeadroomAppTests` host prints "already
   running" and exits 0, and xcodebuild reports "Early unexpected exit … before establishing
-  connection" (2026-10-02). Exempt the test host (`XCTestConfigurationFilePath` in the
-  environment) the way `--demo` is exempt.
+  connection" (2026-10-02). The shared `HeadroomAppTests` scheme now launches with `--demo`,
+  using the existing isolated host and single-instance exemption. The production guard is
+  unchanged. Verified with another workspace's app running: 263 App tests in 38 suites passed.
+
+## Loading language follow-ups (2026-10-04)
+
+- **Signed-out and all-unavailable menu pills still use the decorative level.** The ghost
+  flag deliberately covers only a main account awaiting its first reading. Extend the neutral
+  treatment separately; `fill == nil` must not become a pending-data signal.
+- **An automatic neutral pill has no summary provider to slosh.** First-reading ghost and print
+  work through its fixed identity, but neutral automatic work still needs an explicit motion
+  source when no main has a usable reading. Deferred by the loading-language plan.
+- **The loading-language CPU budget is unverified.** Kyle approved the native loading demo
+  and requested merge. The back-to-back `--demo multi-20` main-thread CPU comparison and
+  idle popover/Settings measurements have not run; the diagnostic builds alone prove no
+  performance result. Do not claim the plan's two-percentage-point budget passed.
 
 ## Focused render acceptance needs Screen Recording for the launching shell
 
@@ -28,6 +42,9 @@ official `claude` CLI's `/usage` panel instead.
   decides which state lands in the image. AR1 (2026-09-25) lengthened the meter arrival and the
   snapshot wait with it; `connected-used-light` then captured Connected mid-roll where it had
   captured Waiting before. Drive those states from an injected clock instead of sleeping.
+- The new `--loading-only` path uses a pinned clock and held real requests, including Opening,
+  Waiting and Confirming. Two 2026-10-04 runs matched all 26 decoded images. The legacy
+  `connected-*` and `dualWaiting-*` path above remains outside that deterministic capture flow.
 
 ## Unbundled `swift run` popover still shows a faint second rim
 
@@ -727,8 +744,9 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
   heights, `.accented`/StandBy as WidgetKit actually draws them, and **Dynamic Type at
   `xxLarge`** still need a device — macOS `ImageRenderer` ignores `.dynamicTypeSize`, so the
   harness's `shrunk` pass (85% tiles) stands in, and its findings are warnings, not failures.
-  As of 2026-10-03 the shrunk pass shows Nested Meter and Tightest First small/medium crowding
-  the margin by a few points (rails drop and labels truncate first; nothing overlaps).
+  The 2026-10-04 loading sweep rendered 2,004 tiles with no real-geometry overflow. Its shrunk
+  surrogate produced 89 warnings, including mixed-pending Tightest First medium tiles; these
+  warnings do not establish actual device Dynamic Type fit.
 - **`HeadroomWidgetSharedUI` view code is verified by renders, not tests.** The style decisions
   (ranking, shown providers, shedding ladders, wash segments, color resolver, vessel geometry)
   are Core recipes under `swift test`; the views that lay them out are checked by the

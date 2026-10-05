@@ -1,5 +1,16 @@
 import Foundation
 
+/// KTD19: automatic ink follows every current main, independently of the summary winner.
+public struct ReprintSourceIdentity: Sendable, Hashable {
+    public let keys: [AccountKey?]
+
+    public init(meters: [MenuBarMeter], automatic: Bool, currentMains: [ProviderID: AccountKey]) {
+        keys = automatic
+            ? currentMains.values.sorted { $0.description < $1.description }.map(Optional.some)
+            : meters.map(\.sourceAccountKey)
+    }
+}
+
 /// Loading-language KTD5/KTD18: reopening a view cannot restart a wipe, print or hold.
 public struct ReprintRecipe: Sendable, Equatable {
     public enum Phase: Sendable, Equatable {

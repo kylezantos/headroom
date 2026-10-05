@@ -943,6 +943,42 @@ struct BrandColorValuesTests {
             #expect(lifted.opacity <= HeadroomWidgetColorValues.barTrack(dark: dark).opacity, "dark=\(dark)")
         }
     }
+
+    /// U8 (U9-A, G6): the phone's controls are neutral and still legible. The label on a
+    /// filled button and the bare tint used by text buttons clear WCAG AA small text on every
+    /// surface they sit on; a switch's on-state clears the 3:1 non-text floor against the
+    /// list cell it is drawn in.
+    @Test func phoneControlColoursAreNeutralAndClearTheirContrastFloors() {
+        for dark in [true, false] {
+            let fill = HeadroomControlColorValues.buttonFill(dark: dark)
+            let label = HeadroomControlColorValues.buttonLabel(dark: dark)
+            #expect(contrastRatio(label, fill) >= 4.5, "label on fill, dark=\(dark)")
+            // Neutral: no hue to speak of, so nothing reads as system blue or a brand accent.
+            #expect(rgbChroma(fill) < 0.05, "fill chroma, dark=\(dark)")
+            #expect(rgbChroma(HeadroomControlColorValues.tint(dark: dark)) < 0.05, "tint chroma, dark=\(dark)")
+
+            let tint = HeadroomControlColorValues.tint(dark: dark)
+            let screens = widgetContainerColors(dark: dark) + raisedTileFillColors(dark: dark)
+                + groupedListColors(dark: dark)
+            for background in screens {
+                #expect(contrastRatio(tint, background) >= 4.5, "tint on \(hex(background)), dark=\(dark)")
+            }
+
+            let switchOn = HeadroomControlColorValues.switchOn(dark: dark)
+            for cell in groupedListColors(dark: dark) {
+                let track = composite(switchOn, over: cell)
+                #expect(contrastRatio(track, cell) >= 3, "switch on \(hex(cell)), dark=\(dark)")
+            }
+        }
+    }
+}
+
+/// iOS grouped list surfaces the phone's Settings rows sit on: `systemGroupedBackground` and
+/// `secondarySystemGroupedBackground` (#F2F2F7 / #FFFFFF light, #000000 / #1C1C1E dark).
+private func groupedListColors(dark: Bool) -> [HeadroomRGBColor] {
+    dark
+        ? [.black, HeadroomRGBColor(red: 28 / 255, green: 28 / 255, blue: 30 / 255)]
+        : [HeadroomRGBColor(red: 242 / 255, green: 242 / 255, blue: 247 / 255), .white]
 }
 
 private func hex(_ color: HeadroomRGBColor) -> String {

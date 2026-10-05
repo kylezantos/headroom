@@ -84,6 +84,19 @@ public enum CompanionAttentionCopy {
         }
     }
 
+    /// U8 (V12, spec-flow F3): the phone card names the account it is talking about, so the
+    /// sign-in family reads "Sign in to Work on your Mac" where a stack holds several. The
+    /// title is the one the user chose on the Mac (KTD9), never an email; every other
+    /// category keeps its canonical sentence.
+    public static func account(_ attention: CompanionAttention?, title: String?) -> String {
+        guard let title, !title.isEmpty else { return account(attention) }
+        switch attention {
+        case .signInRequired, .neverOnboarded: return "Sign in to \(title) on your Mac"
+        case .signInAgain: return "Sign in to \(title) again on your Mac"
+        default: return account(attention)
+        }
+    }
+
     public static func spend(_ attention: CompanionSpendAttention?) -> String {
         switch attention {
         case .missingKey, .setupRequired: "Set up API spend on your Mac"

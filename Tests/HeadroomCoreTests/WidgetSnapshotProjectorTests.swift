@@ -204,11 +204,11 @@ struct WidgetSnapshotProjectorTests {
         #expect(live.utilization == 0)
         #expect(live.resetSchedule == .unresolved(.absent))
         #expect(live.observedAt == now)
-        #expect(MirrorPresentation.resetText(for: live, now: now) == "Available")
+        #expect(Countdown.resetText(schedule: live.resetSchedule, utilization: live.utilization, isLive: live.freshness.isLive, now: now) == "Available")
         #expect(stale.utilization == 0)
         #expect(stale.resetSchedule == .unresolved(.absent))
         #expect(stale.observedAt == observedAt)
-        #expect(MirrorPresentation.resetText(for: stale, now: now) == "Reset info unavailable")
+        #expect(Countdown.resetText(schedule: stale.resetSchedule, utilization: stale.utilization, isLive: stale.freshness.isLive, now: now) == "Reset info unavailable")
     }
 
     @Test func disabledExportContainsNoProviderData() {

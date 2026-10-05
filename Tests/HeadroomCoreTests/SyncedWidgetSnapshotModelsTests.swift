@@ -36,7 +36,7 @@ struct SyncedWidgetSnapshotModelsTests {
             #expect(window.resetSchedule == .unresolved(.legacyUnknown))
             #expect(window.utilization == nil)
             #expect(window.observedAt == generatedAt)
-            #expect(MirrorPresentation.resetText(for: window, now: generatedAt) == "Reset info unavailable")
+            #expect(Countdown.resetText(schedule: window.resetSchedule, utilization: window.utilization, isLive: window.freshness.isLive, now: generatedAt) == "Reset info unavailable")
         }
     }
 

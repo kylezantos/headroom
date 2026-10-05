@@ -18,9 +18,11 @@ struct HeadroomTimelineProvider: AppIntentTimelineProvider {
         // not run Headroom yet would otherwise show it a status card. The iOS provider has
         // always had this branch; the Mac one did not.
         if context.isPreview {
-            return entry(date: .now, state: .content(DemoScreenshotData.envelope), configuration: configuration)
+            // Demo data carries no Mac clock: the gallery never dims.
+            return entry(date: .now, state: .content(DemoScreenshotData.envelope), configuration: configuration, freshness: nil)
         }
-        return entry(date: .now, state: resolvedState(), configuration: configuration)
+        let state = resolvedState()
+        return entry(date: .now, state: state, configuration: configuration, freshness: state.freshness)
     }
 
     func timeline(for configuration: HeadroomWidgetConfigurationIntent, in context: Context) async -> Timeline<HeadroomWidgetEntry> {
@@ -28,22 +30,27 @@ struct HeadroomTimelineProvider: AppIntentTimelineProvider {
         let state = resolvedState()
         let envelope: WidgetSnapshotEnvelope?
         if case .content(let content) = state { envelope = content } else { envelope = nil }
-        let entries = WidgetTimelineSchedule.entryDates(for: envelope, now: now).map { date in
-            entry(date: date, state: state, configuration: configuration)
+        // U13: entries also land at the dim moment and ten minutes after each reset, so the
+        // widget dims and hides a past-reset number without waiting for the app (KTD15).
+        let timeline = CompanionTimelineSchedule.timeline(for: envelope, freshness: state.freshness, now: now)
+        let entries = timeline.entryDates.map { date in
+            entry(date: date, state: state, configuration: configuration, freshness: state.freshness)
         }
-        return Timeline(entries: entries, policy: .after(WidgetTimelineSchedule.refreshDate(after: now)))
+        return Timeline(entries: entries, policy: .after(timeline.reloadDate))
     }
 
     private func entry(
         date: Date,
         state: HeadroomWidgetState,
-        configuration: HeadroomWidgetConfigurationIntent
+        configuration: HeadroomWidgetConfigurationIntent,
+        freshness: CompanionFreshnessInputs?
     ) -> HeadroomWidgetEntry {
         HeadroomWidgetEntry(
             date: date,
             state: state,
             style: configuration.layoutStyle,
-            colorMode: configuration.colorMode
+            colorMode: configuration.colorMode,
+            freshness: freshness
         )
     }
 

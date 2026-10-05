@@ -85,24 +85,6 @@ struct iCloudSnapshotSyncTests {
         }
     }
 
-    @Test func publisherWrapsWidgetSnapshotWithMacMetadata() {
-        let store = MemoryiCloudKeyValueStore()
-        let sync = iCloudSnapshotSync(store: store)
-        let publisher = iCloudSnapshotPublisher(
-            sync: sync,
-            now: { publishedAt },
-            sourceID: { "mac-1" }
-        )
-
-        publisher.export(.disabled(generatedAt: generatedAt))
-
-        let read = sync.read()
-        #expect(read.envelope?.publishedAt == publishedAt)
-        #expect(read.envelope?.sourceID == "mac-1")
-        #expect(read.envelope?.sourcePlatform == .macOS)
-        #expect(read.envelope?.snapshot.status == .disabled)
-    }
-
     private func syncedEnvelope(
         publishedAt: Date? = nil,
         sourceID: String = "mac",

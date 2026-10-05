@@ -1031,8 +1031,9 @@ struct UsageStoreTests {
     @Test func accountTitleInkSeedsPersistsAndNoOpsWhenUnchanged() {
         let preferences = freshPreferences()
         preferences.accountTitleInk = .brand
+        preferences.syncToIPhoneEnabled = true
         let exporter = SpyWidgetExporter()
-        let phoneExporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
         let store = UsageStore(
             providers: [
                 StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
@@ -1055,8 +1056,11 @@ struct UsageStoreTests {
         store.setAccountTitleInk(.neutral)
         #expect(store.accountTitleInk == .neutral)
         #expect(preferences.accountTitleInk == .brand)
+        // Mac widgets carry no ink; the phone's display block does (iPhone parity KTD11),
+        // so the one real change reached the phone once and the repeat set did not.
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.exports.isEmpty)
+        #expect(phoneExporter.captures.count == 1)
+        #expect(phoneExporter.last?.display?.accountTitleInk == .neutral)
     }
 
     @Test func meterStyleSeedsPersistsAndNeverTriggersWidgetExport() {
@@ -1064,8 +1068,9 @@ struct UsageStoreTests {
         preferences.meterFormat = .full
         preferences.meterShape = .tube
         preferences.meterFill = .ghost
+        preferences.syncToIPhoneEnabled = true
         let exporter = SpyWidgetExporter()
-        let phoneExporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
         let store = UsageStore(
             providers: [
                 StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
@@ -1085,11 +1090,13 @@ struct UsageStoreTests {
         #expect(preferences.meterShape == updated.shape)
         #expect(preferences.meterFill == updated.fill)
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.exports.isEmpty)
+        // KTD11: the meter style travels in the phone's display block, never to widgets.
+        #expect(phoneExporter.captures.count == 1)
+        #expect(phoneExporter.last?.display?.meterStyle == updated)
 
         store.setMeterStyle(updated)
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.exports.isEmpty)
+        #expect(phoneExporter.captures.count == 1)
     }
 
     @Test func exportedWidgetSnapshotIsInvariantAcrossEveryMeterStyle() async throws {

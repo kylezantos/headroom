@@ -80,17 +80,11 @@ final class PhoneCardsUITests: XCTestCase {
         XCTAssertTrue(element("headroom.account.claude.claude-account-2").exists)
     }
 
-    /// U3-A: the glyph marks only the main account of a provider the widgets show.
-    func testWidgetGlyphMarksOnlyTheFollowedMainAccountAndExplainsItself() {
+    func testAccountHeadersOmitWidgetMarkers() {
         launch("accountStates")
-        let codexGlyph = element("headroom.widget-glyph.codex")
-        XCTAssertTrue(codexGlyph.waitForExistence(timeout: 5))
-        XCTAssertFalse(element("headroom.widget-glyph.claude").exists, "Claude is not in the widget selection")
-        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "headroom.widget-glyph.codex").count, 1)
-        codexGlyph.tap()
-        XCTAssertTrue(app.staticTexts["Your widgets follow this account. Change it with Make Main on your Mac."]
-            .waitForExistence(timeout: 3))
-        XCTAssertFalse(element("headroom.title-disclosure.title").exists, "the glyph tap only explains")
+        XCTAssertTrue(element("headroom.account.codex.primary").waitForExistence(timeout: 5))
+        XCTAssertFalse(element("headroom.widget-glyph.codex").exists)
+        XCTAssertFalse(element("headroom.widget-glyph.claude").exists)
     }
 
     /// U3 step 6: shared long prefixes stay distinguishable through the full-name sheet. A
@@ -103,7 +97,7 @@ final class PhoneCardsUITests: XCTestCase {
         if FlowingColumnsExpectation.isRegularWidth(app.windows.firstMatch.frame.width) {
             assertTitlesStayPlainText()
         } else {
-            assertTitleDisclosure()
+            assertTitleDisclosure(mainFits: true)
         }
     }
 
@@ -144,7 +138,7 @@ final class PhoneCardsUITests: XCTestCase {
 
     // MARK: Helpers
 
-    private func assertTitleDisclosure() {
+    private func assertTitleDisclosure(mainFits: Bool = false) {
         let twin = element("headroom.account.codex.codex-northwind-2.title")
         XCTAssertTrue(twin.waitForExistence(timeout: 5))
         XCTAssertEqual(twin.label, "Northwind Research Workspace · 2")
@@ -158,6 +152,15 @@ final class PhoneCardsUITests: XCTestCase {
         XCTAssertTrue(element("headroom.provider.codex").exists)
 
         let main = element("headroom.account.codex.primary.title")
+        // Removing the widget marker lets the main title fit at the default phone size.
+        if mainFits {
+            XCTAssertEqual(main.elementType, .staticText)
+            XCTAssertEqual(main.label, "Northwind Research Workspace")
+            main.tap()
+            XCTAssertFalse(full.exists)
+            return
+        }
+        XCTAssertEqual(main.elementType, .button)
         main.tap()
         XCTAssertTrue(full.waitForExistence(timeout: 3))
         XCTAssertEqual(full.label, "Northwind Research Workspace")

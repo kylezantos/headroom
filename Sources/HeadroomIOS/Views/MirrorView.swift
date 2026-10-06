@@ -109,7 +109,6 @@ struct MirrorView: View {
         PhoneCardContext(
             display: display,
             usesAccountRows: CompanionCardPresentation.usesAccountRows(content.providers),
-            widgetProviderIDs: CompanionCardPresentation.widgetProviderIDs(content),
             ladder: content.ladder,
             surfaceDimmed: CompanionFreshnessRule.isDimmed(content.freshness, surface: .app, at: now),
             now: now,

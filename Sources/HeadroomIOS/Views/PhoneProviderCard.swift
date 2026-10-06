@@ -32,7 +32,6 @@ enum PhoneCardMetrics {
 struct PhoneCardContext {
     let display: ResolvedPhoneDisplay
     let usesAccountRows: Bool
-    let widgetProviderIDs: [String]
     let ladder: CompanionDropLadder
     let surfaceDimmed: Bool
     let now: Date
@@ -152,7 +151,6 @@ struct PhoneAccountSection: View {
 
     /// R5: the phone's capsule opens on tap (there is no hover on iPhone).
     @State private var isCapsuleOpen = false
-    @State private var showsWidgetNote = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var scale: CGFloat { context.scale }
@@ -187,9 +185,6 @@ struct PhoneAccountSection: View {
     }
 
     private var identityRow: some View {
-        let showsGlyph = CompanionCardPresentation.showsWidgetGlyph(
-            account: account, in: provider, title: title,
-            usesAccountRows: context.usesAccountRows, widgetProviderIDs: context.widgetProviderIDs)
         let hasBankedResets = (account.bankedResets ?? 0) > 0
         return IdentityRow(
             providerID: ProviderID(provider.id),
@@ -210,36 +205,9 @@ struct PhoneAccountSection: View {
                     DisclosedTitle(providerID: provider.id, providerName: provider.displayName, title: full))
             },
             onPlanCapsuleTap: hasBankedResets ? { isCapsuleOpen.toggle() } : nil,
-            accessoryPlacement: .afterChips,
             accessibilityIdentifierPrefix: identifier
         ) { slot in
             ProviderLogoView(providerID: provider.id, slot: slot)
-        } accessory: {
-            if showsGlyph {
-                widgetGlyphButton
-            }
-        }
-    }
-
-    /// U3-A: the account the widgets follow. A tap explains it; Make Main lives on the Mac.
-    private var widgetGlyphButton: some View {
-        Button {
-            showsWidgetNote = true
-        } label: {
-            PhoneWidgetGlyph(scale: scale)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Widgets follow this account")
-        .accessibilityIdentifier("headroom.widget-glyph.\(provider.id)")
-        .popover(isPresented: $showsWidgetNote) {
-            Text(CompanionCardCopy.widgetFollows)
-                .font(.subheadline)
-                .foregroundStyle(.primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(width: 260, alignment: .leading)
-                .padding(16)
-                .presentationCompactAdaptation(.popover)
-                .accessibilityIdentifier("headroom.widget-glyph.note")
         }
     }
 
@@ -305,6 +273,7 @@ struct PhoneMeterRows: View {
                     // leaves fades instead of handing its neighbour another window's value.
                     ForEach(Self.keyed(rows.map(\.window)), id: \.key) { keyed in
                         let pastResetAt = rows.first { $0.window.id == keyed.window.id }?.pastResetAt
+                        let isMuted = dimmed || !keyed.window.freshness.isLive
                         VStack(alignment: .leading, spacing: PhoneCardMetrics.pastResetGap * scale) {
                             UsageBarView(
                                 reading: UsageMeterReading(widgetSummary: keyed.window),
@@ -315,6 +284,10 @@ struct PhoneMeterRows: View {
                                 arrivalKey: arrivalKey,
                                 scale: scale
                             )
+                            // Retained readings should look inactive beside live accounts;
+                            // keep identity, recovery instructions and reset notes at full ink.
+                            .saturation(isMuted ? 0 : 1)
+                            .opacity(isMuted ? 0.6 : 1)
                             if let pastResetAt {
                                 pastResetLine(pastResetAt, key: keyed.key)
                             }
@@ -398,38 +371,5 @@ struct PhoneSkeletonBody: View {
         }
         .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
         .padding(.trailing, IdentityRowMetrics.contentTrailingInset * scale)
-    }
-}
-
-/// U3-A: the widget glyph from the approved mock — two small tiles over one wide one, drawn
-/// at the capsule label's size so it reads as one more chip on the identity line.
-struct PhoneWidgetGlyph: View {
-    let scale: CGFloat
-
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        let side = (IdentityRowMetrics.capsuleLabelSize + 1) * scale
-        Canvas { context, size in
-            let unit = size.width / 12
-            let line = 1.2 * unit
-            let radius = 1.3 * unit
-            let tiles = [
-                CGRect(x: 0.6, y: 0.6, width: 4.6, height: 4.6),
-                CGRect(x: 6.8, y: 0.6, width: 4.6, height: 4.6),
-                CGRect(x: 0.6, y: 6.8, width: 10.8, height: 4.6),
-            ]
-            for tile in tiles {
-                let rect = CGRect(x: tile.minX * unit, y: tile.minY * unit,
-                                  width: tile.width * unit, height: tile.height * unit)
-                context.stroke(
-                    Path(roundedRect: rect, cornerRadius: radius),
-                    with: .color(ProviderStyle.tertiaryText(scheme: scheme)),
-                    lineWidth: line)
-            }
-        }
-        .frame(width: side, height: side)
-        // A 13pt glyph is too small a target; the hit area grows without moving the layout.
-        .contentShape(Rectangle().inset(by: -10 * scale))
     }
 }

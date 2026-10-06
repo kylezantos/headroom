@@ -1,8 +1,8 @@
 import SwiftUI
 import WidgetKit
 
-/// R20 / S1-A (approved): one Settings sheet on a native list — Appearance, Widgets, iPhone
-/// sync, Reminders, Demo and About. Every section reads the one resolved snapshot the app shows
+/// R20 / S1-A: one Settings sheet on a native list — About, Appearance, Widgets, iPhone
+/// sync, Reminders and Demo. Every section reads the one resolved snapshot the app shows
 /// (KTD6); in Explore Demo that is the chosen demo variant, so every row reads the fixture
 /// (R30).
 struct SettingsSheetView: View {
@@ -41,9 +41,8 @@ struct SettingsSheetView: View {
                 let shown = shownSnapshot(now: context.date)
                 let manifestRows = PhoneSettingsManifestRows(snapshot: shown)
                 List {
-                    // While in Explore Demo, its controls (sample state, Exit Demo) lead the
-                    // sheet: they are what a reviewer opens Settings for, and the sheet opens
-                    // at the medium detent (R30). Otherwise Demo keeps its S1-A place.
+                    AboutSection()
+                    // Demo controls stay near the top so Exit Demo is easy to find (R30).
                     if isDemoMode { demoSection }
                     AppearanceSection(
                         appearance: $appearance, macDisplay: shown?.content?.display,
@@ -54,7 +53,6 @@ struct SettingsSheetView: View {
                         now: context.date)
                     RemindersSection(manifestRows: manifestRows)
                     if !isDemoMode { demoSection }
-                    AboutSection()
 
                     #if DEBUG
                     diagnosticsSection(now: context.date)

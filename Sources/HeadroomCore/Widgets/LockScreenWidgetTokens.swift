@@ -7,15 +7,15 @@ public enum LockScreenWidgetTokens {
     public static let secondaryInk = 0.72 // KTD5: approved vessel wall and secondary labels.
     public static let halfInk = 0.50 // R8: retained readings use half ink.
     public static let trackInk = 0.24 // KTD5: approved arc and bar tracks.
-    public static let washTop = 0.30 // KTD5: approved liquid wash, without a bright edge.
-    public static let washBottom = 0.12 // KTD5: approved lower wash level.
+    public static let washTop = 0.18 // Keep the wash subordinate to numbers and marks in vibrant rendering.
+    public static let washBottom = 0.10 // A quiet lower wash still separates filled from unfilled space.
     public static let alwaysOnWash = 0.08 // R14: lower luminance while the phone is dimmed.
 
     public static let tightestNumeral = 17.0 // R3: user-approved gauge size.
     public static let tightestMark = 15.0 // R3: mark sits inside the arc gap.
     public static let liquidNumeral = 18.0 // R3: user-approved dial size.
-    public static let liquidMark = 15.0 // R3: dial marks match gauge marks.
-    public static let vesselNumeral = 19.0 // R2: Vessel Badge design 01.
+    public static let liquidMark = 14.0 // Leave the caption breathing room inside the circular mask.
+    public static let vesselNumeral = 16.0 // Leave room for the vessel beside a two-digit reading.
     public static let nestedNumeral = 18.0 // R2: Nested Badge design 11A.
     public static let badgeMark = 13.0 // R2: designs 01 and 11A share this mark slot.
     public static let nestedBarWidth = 34.0 // R2: approved compact badge bars.

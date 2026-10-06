@@ -157,7 +157,7 @@ struct HeadroomWidgetLockScreenTwinVessels: View {
                             .padding(.vertical, 6)
                             .padding(.horizontal, 9)
                     }
-                    column(slot, name: recipe.displayName(forSlotAt: index), numeralSize: 21, gapAboveHero: 6)
+                    column(slot, name: recipe.displayName(forSlotAt: index), numeralSize: slot.primary.numberText == "100%" ? 18 : 21, gapAboveHero: 6)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .lockScreenSlotElement(recipe, index: index)
                 }

@@ -75,6 +75,7 @@ struct HeadroomWidgetLockScreenLabel: View {
             // R16: labels can carry readings ("Weekly 42% · 4d"); names redact with them.
             .privacySensitive()
             .headroomWidgetProbe()
+            .lockScreenReadableProbe()
     }
 }
 

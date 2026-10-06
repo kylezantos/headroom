@@ -522,6 +522,17 @@ private extension WidgetRenderHarness {
         let collector = ProbeCollector()
         let tile = lockBody(recipe)
             .frame(width: size.width, height: size.height)
+            .overlayPreferenceValue(HeadroomLockScreenReadableBounds.self) { anchors in
+                GeometryReader { geometry in
+                    let _ = anchors.forEach { anchor in
+                        if job.family == .circle,
+                           !HeadroomLockScreenReadableBounds.fits(geometry[anchor], in: geometry.size) {
+                            collector.add("readable content crosses circular clipping boundary")
+                        }
+                    }
+                    Color.clear
+                }
+            }
             // KTD5: vibrant rendering lightens the wallpaper by each gray's lightness;
             // plus-lighter is the design doc's stand-in for that material mapping.
             .compositingGroup()

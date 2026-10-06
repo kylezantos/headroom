@@ -3,6 +3,39 @@ import HeadroomCore
 #endif
 import SwiftUI
 
+/// Readable ink needs a circular-boundary check; full-bleed washes and arcs do not.
+public struct HeadroomLockScreenReadableBounds: PreferenceKey {
+    public static let defaultValue: [Anchor<CGRect>] = []
+    public static func reduce(value: inout [Anchor<CGRect>], nextValue: () -> [Anchor<CGRect>]) {
+        value += nextValue()
+    }
+
+    public static func fits(_ bounds: CGRect, in size: CGSize) -> Bool {
+        // Leave one point between readable ink and the system's circular clipping edge.
+        let radius = min(size.width, size.height) / 2 - 1
+        return [bounds.minX, bounds.maxX].allSatisfy { x in
+            [bounds.minY, bounds.maxY].allSatisfy { y in
+                hypot(x - size.width / 2, y - size.height / 2) <= radius
+            }
+        }
+    }
+}
+
+private struct LockScreenReadableProbe: ViewModifier {
+    @Environment(\.headroomWidgetProbesEnabled) private var enabled
+    func body(content: Content) -> some View {
+        if enabled {
+            content.anchorPreference(key: HeadroomLockScreenReadableBounds.self, value: .bounds) { [$0] }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func lockScreenReadableProbe() -> some View { modifier(LockScreenReadableProbe()) }
+}
+
 /// KTD5/KTD6: presentation of Core's resolved states, independent of home rendering modes.
 enum HeadroomWidgetLockScreenInk {
     static func numeral(_ state: LockScreenWindowState) -> Color {
@@ -76,6 +109,7 @@ public struct HeadroomWidgetLockScreenBrandMark<Mark: View>: View {
             .fixedSize()
             .accessibilityHidden(true)
             .headroomWidgetProbe()
+            .lockScreenReadableProbe()
     }
 }
 
@@ -124,6 +158,7 @@ public struct HeadroomWidgetLockScreenNumeral: View {
             .fixedSize()
             .privacySensitive()
             .headroomWidgetProbe()
+            .lockScreenReadableProbe()
     }
 }
 
@@ -157,6 +192,7 @@ public struct HeadroomWidgetLockScreenCaption: View {
         .foregroundStyle(HeadroomWidgetLockScreenInk.caption(recipe.state))
         .privacySensitive()
         .headroomWidgetProbe()
+        .lockScreenReadableProbe()
     }
 }
 
@@ -168,18 +204,21 @@ public struct HeadroomWidgetLockScreenArc: View {
     public init(_ recipe: LockScreenWindowRecipe) { self.recipe = recipe }
 
     public var body: some View {
-        ZStack {
-            arc(fraction: LockScreenWidgetTokens.arcSweep)
-                .stroke(Color(white: LockScreenWidgetTokens.trackInk), style: stroke)
-            if !environment.hidesContent, recipe.fillFraction > 0 {
-                arc(fraction: LockScreenWidgetTokens.arcSweep * recipe.fillFraction)
-                    .stroke(HeadroomWidgetLockScreenInk.fill(recipe.state), style: stroke)
+        GeometryReader { geometry in
+            let diameter = min(geometry.size.width, geometry.size.height,
+                LockScreenWidgetTokens.arcRadius * 2 + LockScreenWidgetTokens.arcStroke)
+            ZStack {
+                arc(fraction: LockScreenWidgetTokens.arcSweep)
+                    .stroke(Color(white: LockScreenWidgetTokens.trackInk), style: stroke)
+                if !environment.hidesContent, recipe.fillFraction > 0 {
+                    arc(fraction: LockScreenWidgetTokens.arcSweep * recipe.fillFraction)
+                        .stroke(HeadroomWidgetLockScreenInk.fill(recipe.state), style: stroke)
+                }
             }
+            .rotationEffect(.degrees(LockScreenWidgetTokens.arcRotation))
+            .frame(width: diameter, height: diameter)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .rotationEffect(.degrees(LockScreenWidgetTokens.arcRotation))
-        .frame(width: LockScreenWidgetTokens.arcRadius * 2 + LockScreenWidgetTokens.arcStroke,
-               height: LockScreenWidgetTokens.arcRadius * 2 + LockScreenWidgetTokens.arcStroke)
-        .fixedSize()
         .accessibilityHidden(true)
         .headroomWidgetProbe()
     }

@@ -525,7 +525,7 @@ public enum DemoScreenshotData {
 
     /// U3 (2026-10-04 Lock Screen plan): extra fixtures never enter the home job set.
     public static let lockScreenFixtureNames = styleFixtureNames + [
-        "thirdProviderTightest", "pinnedAbsent", "cursorLonePool", "cursorIncluded", "resetReached",
+        "thirdProviderTightest", "pinnedAbsent", "cursorLonePool", "cursorIncluded", "resetReached", "full", "empty",
     ]
 
     public static func lockScreenFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
@@ -547,6 +547,14 @@ public enum DemoScreenshotData {
                                    providers: providers, widgetProviderSelection: selection ?? providers.map(\.id))
         }
         switch name {
+        case "full", "empty":
+            return envelope(["claude", "codex", "grok", "cursor"].map { id in
+                WidgetProviderSummary(id: id, displayName: id.capitalized, planLabel: nil,
+                    freshness: .live, windows: [WidgetWindowSummary(kind: .weekly, label: "Weekly",
+                        percentRemaining: name == "full" ? 100 : 0,
+                        resetSchedule: .scheduled(now.addingTimeInterval(86_400)), resetLabel: nil,
+                        severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: name == "full" ? 100 : 0)))], renewalDate: nil)
+            })
         case "thirdProviderTightest":
             guard let base = styleFixture("claudeCodex", now: now) else { return nil }
             return envelope(base.providers + [cursor([window("Cursor Models", percent: 69), window("Other Models", percent: 8)])],

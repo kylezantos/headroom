@@ -4,8 +4,8 @@ import HeadroomCore
 import SwiftUI
 
 /// R2: one circle design per style — Nested Badge (11A), Vessel Badge (01), Tightest Gauge
-/// (03) and Liquid Dial (04). Sizes are the approved 72 pt reference values (R3); every
-/// element is fixed-size and centred, so the 68 and 76 pt circles only move the margin.
+/// (03) and Liquid Dial (04). Keep readable content inside the circular mask, including
+/// the smaller content proposals used by the Lock Screen picker.
 struct HeadroomWidgetLockScreenCircle: View {
     let recipe: LockScreenWidgetRecipe
     let art: HeadroomWidgetLockScreenArt
@@ -47,7 +47,7 @@ struct HeadroomWidgetLockScreenNestedBadge: View {
             VStack(spacing: 0) {
                 HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.badgeMark, art: art)
                 Spacer().frame(height: 2)
-                HeadroomWidgetLockScreenNumeral(slot.primary, size: LockScreenWidgetTokens.nestedNumeral)
+                HeadroomWidgetLockScreenNumeral(slot.primary, size: slot.primary.numberText == "100%" ? 17 : LockScreenWidgetTokens.nestedNumeral)
                 if hasNoReading {
                     HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
                         .padding(.top, 3)
@@ -57,11 +57,12 @@ struct HeadroomWidgetLockScreenNestedBadge: View {
                     HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
                         .padding(.top, 2)
                 } else {
-                    Spacer().frame(height: 6)
+                    Spacer().frame(height: 3)
                     HeadroomWidgetLockScreenNestedBars(slot)
                 }
             }
             .padding(.vertical, 4)
+            .padding(.bottom, 2)
         }
     }
 }
@@ -76,12 +77,11 @@ struct HeadroomWidgetLockScreenVesselBadge: View {
             art.accessoryBackground()
             VStack(spacing: 0) {
                 HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.badgeMark, art: art)
-                Spacer().frame(height: 4)
-                HeadroomWidgetLockScreenHero(recipe: slot.primary, numeralSize: LockScreenWidgetTokens.vesselNumeral)
-                Spacer().frame(height: 3)
+                HeadroomWidgetLockScreenHero(recipe: slot.primary, numeralSize: slot.primary.numberText == "100%" ? 14 : LockScreenWidgetTokens.vesselNumeral)
                 HeadroomWidgetLockScreenCaption(slot.primary, compact: true)
-                    .frame(maxWidth: 52)
+                    .frame(maxWidth: 38)
             }
+            .padding(.bottom, 4)
         }
     }
 }
@@ -97,8 +97,8 @@ struct HeadroomWidgetLockScreenTightestGauge: View {
             art.accessoryBackground()
             HeadroomWidgetLockScreenArc(slot.primary)
             VStack(spacing: 2) {
-                HeadroomWidgetLockScreenCaption(slot.primary, compact: true)
-                    .frame(maxWidth: 40)
+                HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
+                    .frame(maxWidth: 36)
                 HeadroomWidgetLockScreenNumeral(slot.primary, size: LockScreenWidgetTokens.tightestNumeral)
             }
             // R3: the mark sits in the arc's gap and clears the number at iOS text metrics,
@@ -117,18 +117,24 @@ struct HeadroomWidgetLockScreenLiquidDial: View {
     let slot: LockScreenProviderSlot
     let art: HeadroomWidgetLockScreenArt
 
+    // Explicit fit steps preserve the caption and the low-reading capsule at narrow chords.
+    private var numeralSize: Double {
+        if slot.primary.usesKnockout { return 16 }
+        return slot.primary.numberText == "100%" ? 17 : LockScreenWidgetTokens.liquidNumeral
+    }
+
     var body: some View {
         ZStack {
             art.accessoryBackground()
             HeadroomWidgetLockScreenWash(slot.primary)
             VStack(spacing: 0) {
                 HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.liquidMark, art: art)
-                Spacer().frame(height: 4)
-                HeadroomWidgetLockScreenNumeral(slot.primary, size: LockScreenWidgetTokens.liquidNumeral)
-                Spacer().frame(height: 3)
+                HeadroomWidgetLockScreenNumeral(slot.primary, size: numeralSize)
                 HeadroomWidgetLockScreenCaption(slot.primary, compact: true)
-                    .frame(maxWidth: 54)
+                    .frame(maxWidth: 38)
             }
+            // The lower chord narrows faster than the top mark; lift the stack slightly.
+            .padding(.bottom, 6)
         }
         .clipShape(Circle())
     }
@@ -146,5 +152,6 @@ struct HeadroomWidgetLockScreenStatusCircle: View {
             HeadroomWidgetLockScreenLabel(text: status.circleWord, size: LockScreenWidgetTokens.captionSize, weight: .semibold)
                 .frame(maxWidth: 60)
         }
+        .padding(.bottom, 4)
     }
 }

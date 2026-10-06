@@ -43,6 +43,7 @@ struct WidgetWallView: View {
         case home
         /// One tile per style (frames I6, P4).
         case styles
+        case lock
 
         static let flag = "--widget-wall"
 
@@ -78,6 +79,7 @@ struct WidgetWallView: View {
                 switch arrangement {
                 case .home: home(geometry)
                 case .styles: styles(geometry)
+                case .lock: lockScreen
                 }
             }
             .padding(.top, geometry.topInset)
@@ -85,6 +87,57 @@ struct WidgetWallView: View {
     }
 
     // MARK: Arrangements
+
+    /// Native iOS typography at constrained accessory sizes; never loads live account data.
+    private var lockScreen: some View {
+        VStack(spacing: 18) {
+            ForEach(WidgetLayoutStyle.allCases, id: \.self) { style in
+                VStack(spacing: 6) {
+                    Text(style.displayName).font(.caption)
+                    HStack(spacing: 20) {
+                        ForEach([58.0, 62.0, 68.0, 76.0], id: \.self) { side in
+                            VStack {
+                                HeadroomWidgetLockScreenBody(
+                                    recipe: LockScreenWidgetRecipe(style: style, family: .circle,
+                                        providerChoice: lockProvider, state: lockState, now: now),
+                                    art: HeadroomWidgetLockScreenArt(
+                                        mark: { id, size in AnyView(ProviderLogoView(providerID: id, size: size)) },
+                                        accessoryBackground: { AnyView(Color(white: 0.15)) })) { _ in Image(systemName: "circle") }
+                                    .frame(width: side, height: side)
+                                    .dynamicTypeSize(...DynamicTypeSize.xLarge)
+                                    .overlayPreferenceValue(HeadroomLockScreenReadableBounds.self) { anchors in
+                                        GeometryReader { geometry in
+                                            let failures = anchors.filter {
+                                                !HeadroomLockScreenReadableBounds.fits(geometry[$0], in: geometry.size)
+                                            }.count
+                                            Text(anchors.isEmpty ? "No probes" : "\(failures)")
+                                                .font(.system(size: 8))
+                                                .foregroundStyle(failures == 0 ? .green : .red)
+                                                .accessibilityIdentifier("lock.bounds.\(style.rawValue).\(Int(side))")
+                                                .accessibilityValue(anchors.map { "\(geometry[$0])" }.joined(separator: "; "))
+                                        }
+                                    }
+                                    .environment(\.headroomWidgetProbesEnabled, true)
+                                Text("\(Int(side)) pt").font(.caption2)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .foregroundStyle(.white)
+    }
+
+    private var lockProvider: LockScreenProviderChoice {
+        ProcessInfo.processInfo.environment["HEADROOM_LOCK_PROVIDER"]
+            .flatMap(LockScreenProviderChoice.init(rawValue:)) ?? .automatic
+    }
+
+    private var lockState: IOSWidgetSnapshotState {
+        let fixture = ProcessInfo.processInfo.environment["HEADROOM_LOCK_FIXTURE"] ?? "claudeCodex"
+        return .content(DemoScreenshotData.lockScreenFixture(fixture, now: now)
+            ?? CompanionPreviewSeed.envelope(now: now))
+    }
 
     @ViewBuilder
     private func home(_ g: WallGeometry) -> some View {

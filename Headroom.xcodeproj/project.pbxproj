@@ -318,6 +318,7 @@
 		7C0E40B9335E4B04164B5F1E /* IdentityRowAccessoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A88A309A2D206D6F0D34A04C /* IdentityRowAccessoryTests.swift */; };
 		7C27C0A7221FDBE90A58DF08 /* HeadroomWidgetLockScreenCircles.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */; };
 		7C2FCF4BA202ED7878B3E172 /* PopoverLoadingRenderHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 755B8D595E2B9656B94B4154 /* PopoverLoadingRenderHarness.swift */; };
+		7C77AF4AD3B701192D39C9A1 /* LockScreenLayoutUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7CE60159C2805C2C88B936 /* LockScreenLayoutUITests.swift */; };
 		7D00BE8DB67E3F51576914C8 /* AppearanceSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EEC15C0D8442A7F945EC6F0 /* AppearanceSection.swift */; };
 		7D53C5FE0A37FF614973C232 /* APISpendPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5CD411FF3CB3B7B9B5465F /* APISpendPresentation.swift */; };
 		7DA9475C063F5AEF3D4522E4 /* AccountsSettingsInteractions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F0AA4563CCCC6ACDAD77D34 /* AccountsSettingsInteractions.swift */; };
@@ -753,6 +754,7 @@
 		29549AD7EE05B47C38BAE7D2 /* UIBenchModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIBenchModelTests.swift; sourceTree = "<group>"; };
 		29EA356CD55A5493E55D8F86 /* CLIExecutableResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIExecutableResolver.swift; sourceTree = "<group>"; };
 		2C5E07A3442A2D67471E6CF8 /* ProviderID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderID.swift; sourceTree = "<group>"; };
+		2C7CE60159C2805C2C88B936 /* LockScreenLayoutUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenLayoutUITests.swift; sourceTree = "<group>"; };
 		2DE0FD76474F6609DF9AC64B /* CompanionKVSScopeMarker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionKVSScopeMarker.swift; sourceTree = "<group>"; };
 		2EAC8682BF1F21248D8770E3 /* PhoneSpendCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneSpendCard.swift; sourceTree = "<group>"; };
 		2FD77A48D1A5D29660802171 /* UIBenchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIBenchModel.swift; sourceTree = "<group>"; };
@@ -1281,6 +1283,7 @@
 			children = (
 				4BE9F956D9F249904E8CE412 /* DemoModeUITests.swift */,
 				8DD11E6B43A134A8D62849D7 /* FlowingColumnsExpectation.swift */,
+				2C7CE60159C2805C2C88B936 /* LockScreenLayoutUITests.swift */,
 				83DEF0E8363D4227E827AE37 /* PhoneCardsUITests.swift */,
 				926228C877EF61458BB10B50 /* ResponsiveLayoutUITests.swift */,
 				925946EA0A296F96CEAC8239 /* SettingsSheetUITests.swift */,
@@ -2251,6 +2254,7 @@
 			files = (
 				5008B2F6E2EF64BBE31CBE01 /* DemoModeUITests.swift in Sources */,
 				2184637AA11825BF22DC8814 /* FlowingColumnsExpectation.swift in Sources */,
+				7C77AF4AD3B701192D39C9A1 /* LockScreenLayoutUITests.swift in Sources */,
 				F33300C483C48B6C2526053E /* PhoneCardsUITests.swift in Sources */,
 				A26582D2FF5A8D5A851910EF /* ResponsiveLayoutUITests.swift in Sources */,
 				9065B930E1EA16886381F38E /* SettingsSheetUITests.swift in Sources */,
@@ -2594,7 +2598,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomWidgets/HeadroomWidgets.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -2647,7 +2651,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOS/HeadroomIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2667,7 +2671,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomApp/HeadroomApp.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle\"",
@@ -2676,7 +2680,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Headroom;
 				INFOPLIST_KEY_CFBundleName = Headroom;
 				INFOPLIST_KEY_CFBundleShortVersionString = 1.5;
-				INFOPLIST_KEY_CFBundleVersion = 40;
+				INFOPLIST_KEY_CFBundleVersion = 41;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSMinimumSystemVersion = "$(MACOSX_DEPLOYMENT_TARGET)";
@@ -2767,7 +2771,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomApp/HeadroomApp.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle\"",
@@ -2776,7 +2780,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Headroom;
 				INFOPLIST_KEY_CFBundleName = Headroom;
 				INFOPLIST_KEY_CFBundleShortVersionString = 1.5;
-				INFOPLIST_KEY_CFBundleVersion = 40;
+				INFOPLIST_KEY_CFBundleVersion = 41;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSMinimumSystemVersion = "$(MACOSX_DEPLOYMENT_TARGET)";
@@ -2835,7 +2839,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOS/HeadroomIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2853,7 +2857,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOSWidgets/HeadroomIOSWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOSWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -2979,7 +2983,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomWidgets/HeadroomWidgets.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -2998,7 +3002,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOSWidgets/HeadroomIOSWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 40;
+				CURRENT_PROJECT_VERSION = 41;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOSWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";

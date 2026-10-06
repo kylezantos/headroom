@@ -252,6 +252,7 @@ private struct DemoModeBanner: View {
             Spacer(minLength: 8)
             if canExitDemo {
                 Button("Exit", action: onExitDemo)
+                    .accessibilityIdentifier("headroom.demo.exit")
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }
@@ -259,7 +260,7 @@ private struct DemoModeBanner: View {
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(IdentityCapsuleStyle.metadataFill, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(widgetUnavailable
             ? "Demo Mode. Sample data. Widgets could not join Demo Mode on this install."
             : "Demo Mode. Sample data. No accounts are connected.")

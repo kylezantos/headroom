@@ -19,7 +19,8 @@ final class DemoModeUITests: XCTestCase {
 
         app.buttons["headroom.settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
-        exitDemoFromSettings()
+        app.buttons["Done"].tap()
+        exitDemoFromBanner()
 
         XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
     }
@@ -37,19 +38,18 @@ final class DemoModeUITests: XCTestCase {
         XCTAssertTrue(element("headroom.demo.banner").waitForExistence(timeout: 5))
 
         app.buttons["headroom.settings"].tap()
-        exitDemoFromSettings()
+        app.buttons["Done"].tap()
+        exitDemoFromBanner()
         XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
     }
 
-    private func exitDemoFromSettings() {
+    private func exitDemoFromBanner() {
         let exit = app.buttons["headroom.demo.exit"]
-        // About leads Settings; the demo controls may start below the visible list.
         for _ in 0..<5 {
             if exit.exists && exit.isHittable { break }
-            app.swipeUp()
+            app.swipeDown()
         }
-        XCTAssertTrue(exit.exists && exit.isHittable, "Exit Demo remains reachable in Settings")
-        XCTAssertTrue(app.staticTexts["You are viewing sample data. Your synced snapshot is unchanged."].exists)
+        XCTAssertTrue(exit.exists && exit.isHittable, "Demo remains escapable from Usage")
         exit.tap()
     }
 

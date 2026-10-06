@@ -1,8 +1,7 @@
 import SwiftUI
-import WidgetKit
 
 /// R20 / S1-A: one Settings sheet on a native list — About, Appearance, Widgets, iPhone
-/// sync, Reminders and Demo. Every section reads the one resolved snapshot the app shows
+/// sync. Every section reads the one resolved snapshot the app shows
 /// (KTD6); in Explore Demo that is the chosen demo variant, so every row reads the fixture
 /// (R30).
 struct SettingsSheetView: View {
@@ -12,11 +11,7 @@ struct SettingsSheetView: View {
     let syncInfo: IOSCompanionSyncInfo?
     var diagnostics: IOSSyncDiagnostics? = nil
     let isDemoMode: Bool
-    let canExitDemo: Bool
-    let demoWidgetUnavailable: Bool
     @Binding var appearance: AppearanceSetting
-    let onEnterDemo: () -> Void
-    let onExitDemo: () -> Void
     /// Capture harness only: pins the sheet to `.large` so a screenshot shows the settled,
     /// opaque sheet instead of the half-height detent over a dimmed Usage screen.
     var forcesLargeDetent: Bool = false
@@ -25,15 +20,9 @@ struct SettingsSheetView: View {
     var snapshot: CompanionResolvedSnapshot? = nil
     /// U9: the last finished check-now round trip. Nil hides the row; it is never faked.
     var lastCheckNow: PhoneCheckNowRoundTrip? = nil
-    /// Called after Settings › Demo switches the variant, so the host re-reads demo data.
-    var onDemoVariantChange: () -> Void = {}
 
     @Environment(\.dismiss) private var dismiss
     @State private var loadedSnapshot: CompanionResolvedSnapshot?
-    @State private var demoVariant: CompanionDemoVariant = .default
-
-    private let demoStore = CompanionDemoModeStore.appGroup()
-    private let launch = CompanionDemoLaunchOptions.current
 
     var body: some View {
         NavigationStack {
@@ -42,8 +31,6 @@ struct SettingsSheetView: View {
                 let manifestRows = PhoneSettingsManifestRows(snapshot: shown)
                 List {
                     AboutSection()
-                    // Demo controls stay near the top so Exit Demo is easy to find (R30).
-                    if isDemoMode { demoSection }
                     AppearanceSection(
                         appearance: $appearance, macDisplay: shown?.content?.display,
                         macNeedsUpdate: shown?.content?.notice == .updateMac)
@@ -51,8 +38,6 @@ struct SettingsSheetView: View {
                     SyncSection(
                         snapshot: shown, isDemoMode: isDemoMode, lastCheckNow: lastCheckNow,
                         now: context.date)
-                    RemindersSection(manifestRows: manifestRows)
-                    if !isDemoMode { demoSection }
 
                     #if DEBUG
                     diagnosticsSection(now: context.date)
@@ -71,44 +56,19 @@ struct SettingsSheetView: View {
         // U9-A: neutral like the popover; nothing in the sheet draws in system blue.
         .tint(.primary)
         .presentationDetents(forcesLargeDetent ? [.large] : [.medium, .large])
-        .onAppear {
-            demoVariant = demoStore.variant(launch: launch)
-        }
         .task(id: isDemoMode) {
             guard snapshot == nil, !isDemoMode else { return }
             loadedSnapshot = Self.loadSnapshot()
         }
     }
 
-    private var demoSection: some View {
-        DemoSection(
-            isDemoMode: isDemoMode, canExitDemo: canExitDemo,
-            demoWidgetUnavailable: demoWidgetUnavailable,
-            variant: Binding(get: { demoVariant }, set: selectDemoVariant),
-            onEnterDemo: {
-                dismiss()
-                onEnterDemo()
-            },
-            onExitDemo: {
-                dismiss()
-                onExitDemo()
-            })
-    }
-
-    /// Demo reads the chosen variant's bundled snapshot; otherwise the host's snapshot, or the
-    /// one this sheet loaded through the shared phone source.
     private func shownSnapshot(now: Date) -> CompanionResolvedSnapshot? {
-        if isDemoMode { return CompanionDemoData.snapshot(demoVariant, now: now) }
-        return snapshot ?? loadedSnapshot
-    }
-
-    private func selectDemoVariant(_ variant: CompanionDemoVariant) {
-        demoVariant = variant
-        // KTD21: the App Group variant only; widgets re-read it on their next timeline.
-        if demoStore.setVariant(variant) == .changed {
-            WidgetCenter.shared.reloadTimelines(ofKind: HeadroomIOSWidgetConfiguration.kind)
+        if let snapshot { return snapshot }
+        if isDemoMode {
+            let variant = CompanionDemoModeStore.appGroup().variant(launch: .current)
+            return CompanionDemoData.snapshot(variant, now: now)
         }
-        onDemoVariantChange()
+        return loadedSnapshot
     }
 
     private static func loadSnapshot() -> CompanionResolvedSnapshot {

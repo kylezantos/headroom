@@ -97,10 +97,9 @@ Mac 1.5 build that has the iCloud key-value entitlement, on the same Apple ID; r
    meter style the sample Mac uses. Check red numerals on critical rows, bare countdowns
    ("3d 23h"), no "Low" chip, the Codex plan capsule (tap opens it; it opens on its own while a
    live 5-hour or weekly limit is critical), API spend, light/dark, portrait/landscape.
-6. In Settings (one sheet: Appearance, Widgets, iPhone sync, Reminders, Demo, About), check
+6. In Settings (one sheet: About, Appearance, Widgets and iPhone sync), check
    Match my Mac and its overrides on the live specimen, the widgets gallery, the "What syncs
-   through your iCloud" list, and About's "Get Headroom for Mac" row with no tip jar. Under
-   **Demo › Sample state**, walk every state: No recent update ("No update from your Mac since
+   through your iCloud" list, and About's "Get Headroom for Mac" row with no tip jar. Use launch fixtures during simulator QA to walk every state: No recent update ("No update from your Mac since
    …"), Past reset ("Reset at … · waiting for your Mac", no number), Older Mac app ("Update
    Headroom on your Mac to see every account"), Sync paused, Waiting for Mac, More than 20
    accounts ("N more on your Mac"), Account states, Banked resets, Display choices.
@@ -108,7 +107,7 @@ Mac 1.5 build that has the iCloud key-value entitlement, on the same Apple ID; r
    main accounts only, and opens `headroom://usage` back to the labeled demo.
 8. Terminate/relaunch the app; app and widget must remain in demo. The card entrance plays once
    on launch, not on a refresh or rotation.
-9. Exit through Settings; app and widget must return to the real waiting/synced state.
+9. Exit through the Demo Mode banner on Usage; app and widget must return to the real waiting/synced state.
 10. **Accounts on a real Mac [adoption].** On the Mac, add a second account to a provider,
     rename it, make it fail (sign it out), Make Main, then remove it; also give two accounts the
     same name. After each change, within one Mac publish (about a minute):
@@ -174,7 +173,7 @@ Headroom for Mac.] [Lock Screen widgets and a Control Center control are new.]
 
 Please pair this build with Headroom 1.5 for Mac on the same Apple ID, then check that every
 Mac account appears, names match, and pulling down updates the numbers. Try Explore Demo from
-a clean launch with no Mac, and walk the sample states in Settings › Demo. Add small, medium
+a clean launch with no Mac; leave it using Exit in the Demo Mode banner. Add small, medium
 and large widgets. If you still run Headroom 1.4.1 on your Mac, the app shows main accounts
 and asks you to update the Mac.
 
@@ -195,8 +194,7 @@ To review every feature without a Mac or provider account:
 2. Review the usage screen: Claude and Codex with several accounts, meter rows, reset
    countdowns, the Codex plan capsule (tap it) and API spend. Pull down to see the
    check-now sequence play from sample data.
-3. Open Settings (gear). Under Demo › Sample state you can switch between every state the
-   app can show, including no recent update, a passed reset, an older Mac and sync paused.
+3. Open Settings (gear) to inspect About, Appearance, Widgets and iPhone sync.
 4. Add a small, medium, or large Headroom widget[, or a Lock Screen widget]. Widgets show
    the same clearly labeled sample data while Demo is on.
 5. Ask Siri "How much Claude is left in Headroom", or run "Usage Left" in Shortcuts.

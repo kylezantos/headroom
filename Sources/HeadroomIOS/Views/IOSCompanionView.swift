@@ -73,19 +73,10 @@ struct IOSCompanionView: View {
                         syncInfo: syncInfo,
                         diagnostics: diagnostics,
                         isDemoMode: isDemoMode,
-                        canExitDemo: canExitDemo,
-                        demoWidgetUnavailable: demoWidgetUnavailable,
                         appearance: $appearance,
-                        onEnterDemo: enterDemo,
-                        onExitDemo: exitDemo,
                         forcesLargeDetent: opensSettingsForCapture,
                         snapshot: snapshot,
-                        lastCheckNow: checkNow.lastRoundTrip,
-                        // U12: Settings › Demo switched the variant; re-read the demo data.
-                        onDemoVariantChange: {
-                            checkNow.reset()
-                            Task { await refresh() }
-                        }
+                        lastCheckNow: checkNow.lastRoundTrip
                     )
                 }
         }

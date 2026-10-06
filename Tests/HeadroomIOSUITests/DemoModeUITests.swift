@@ -19,7 +19,6 @@ final class DemoModeUITests: XCTestCase {
 
         app.buttons["headroom.settings"].tap()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.staticTexts["You are viewing sample data. Your synced snapshot is unchanged."].exists)
         exitDemoFromSettings()
 
         XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
@@ -50,6 +49,7 @@ final class DemoModeUITests: XCTestCase {
             app.swipeUp()
         }
         XCTAssertTrue(exit.exists && exit.isHittable, "Exit Demo remains reachable in Settings")
+        XCTAssertTrue(app.staticTexts["You are viewing sample data. Your synced snapshot is unchanged."].exists)
         exit.tap()
     }
 

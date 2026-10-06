@@ -252,6 +252,50 @@ struct CompanionPublisherTests {
 
     // MARK: Honest stamp (KTD8)
 
+    @Test func checkNowPublishesFreshObservationTimesEvenWhenNumbersAreUnchanged() async throws {
+        let h = Harness()
+        let retained = Self.row(.other, name: "Weekly (Fable)", freshness: .stale, observed: -7_200)
+        func capture(_ time: Int64) -> CompanionPublishCapture {
+            Self.capture(at: time, providers: [
+                Self.provider(main: Self.account(captured: time, extraRows: [retained])),
+                Self.provider("codex", main: Self.account(captured: time)),
+                Self.provider("grok", main: Self.account(captured: time)),
+                Self.provider("cursor", main: Self.account(captured: time)),
+            ], interval: 300)
+        }
+        await h.submit(capture(0))
+        h.clock.advance(180)
+        var finished = capture(180)
+        finished.generation = 2
+        #expect(await h.publisher.publishForced(finished) == 2)
+
+        for id in ["claude", "codex", "grok", "cursor"] {
+            #expect(h.payload(id)?.mainAccount?.capturedAt == F.date(180))
+            #expect(h.manifest()?.providers[id]?.payloadGeneration == 2)
+        }
+        #expect(h.payload("claude")?.mainAccount?.windows.last?.observedAtOverride == F.date(-7_200))
+
+        let resolved = CompanionSnapshotResolver.resolve(CompanionResolverInput(
+            manifest: h.store.data(forKey: CompanionSyncKeys.manifest),
+            providerKeys: Dictionary(uniqueKeysWithValues: ["claude", "codex", "grok", "cursor"].map {
+                ($0, h.store.data(forKey: CompanionSyncKeys.provider($0)!)!)
+            }),
+            v3: h.store.data(forKey: iCloudSnapshotSync.snapshotKey), now: F.date(184).date))
+        let content = try #require(resolved.snapshot.content)
+        // After the three-second completion hold the real stamp must still say just now.
+        #expect(MirrorPresentation.freshness(content, shownWindows: { $0.widgetWindows },
+            now: F.date(184).date).text == "Updated just now")
+
+        // Completion with no newly observed readings need not rewrite every provider key.
+        h.store.clearLog()
+        finished.generation = 3
+        #expect(await h.publisher.publishForced(finished) == 3)
+        #expect(!h.store.operations.contains { operation in
+            if case .set(let key) = operation { return key.hasPrefix(CompanionSyncKeys.providerPrefix) }
+            return false
+        })
+    }
+
     @Test func anObservationAdvancingByOneIntervalRewritesTheKeyWithUnchangedNumbers() async throws {
         let h = Harness()
         await h.bindHeartbeat()

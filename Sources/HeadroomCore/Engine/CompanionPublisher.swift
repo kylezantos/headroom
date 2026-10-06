@@ -486,7 +486,7 @@ public actor CompanionPublisher {
             return nil
         }
         enterEnabled()
-        let outcome = await flush(target, forced: true, heartbeat: false, now: now)
+        let outcome = await flush(target, forced: true, heartbeat: false, now: now, includeFreshObservations: true)
         schedule(now: configuration.now())
         switch outcome {
         case .published(let generation, _): return generation
@@ -616,10 +616,12 @@ public actor CompanionPublisher {
 
     /// One store-wide flush. Provider keys are rewritten only when their content changed
     /// (timestamps ignored), when an included observation advanced by at least one chosen
-    /// interval, when iCloud no longer holds the bytes last written, or on write-all.
+    /// interval (any advance at check-now completion), when iCloud no longer holds the bytes
+    /// last written, or on write-all.
     @discardableResult
     private func flush(
-        _ capture: CompanionPublishCapture, forced: Bool, heartbeat: Bool, now: Date
+        _ capture: CompanionPublishCapture, forced: Bool, heartbeat: Bool, now: Date,
+        includeFreshObservations: Bool = false
     ) async -> FlushOutcome {
         let sourceID = configuration.sourceID
         let generation = capture.generation
@@ -675,7 +677,11 @@ public actor CompanionPublisher {
             let prior = published[id]
             let advanced = prior.map { prior in
                 observations.contains { name, value in
-                    prior.observations[name].map { Double(value - $0) >= interval } ?? false
+                    prior.observations[name].map {
+                        // KTD14.5: a completed check must deliver its actual readings before
+                        // the phone reports success, even when usage percentages stayed put.
+                        includeFreshObservations ? value > $0 : Double(value - $0) >= interval
+                    } ?? false
                 }
             } ?? true
             let rewrite = writeAll || prior == nil || prior?.fingerprint != fingerprint

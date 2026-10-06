@@ -119,18 +119,18 @@ final class DemoModeUITests: XCTestCase {
     // MARK: U9: pull to check now
 
     /// AE8: a demo pull plays the bundled receipt — a landed account "n of N" — and ends at
-    /// "Just now", then the stamp returns; no request key is written.
+    /// "Updated just now", then the stamp returns; no request key is written.
     func testDemoPullPlaysTheReceiptToJustNowAndWritesNothing() {
         launchDemo("multiAccount")
         XCTAssertTrue(element("headroom.provider.claude").waitForExistence(timeout: 5))
         pullToRefresh()
-        let seen = statusLines(until: { $0 == "Just now" }, timeout: 15)
-        XCTAssertEqual(seen.last, "Just now", "saw \(seen)")
+        let seen = statusLines(until: { $0 == "Updated just now" }, timeout: 15)
+        XCTAssertEqual(seen.last, "Updated just now", "saw \(seen)")
         XCTAssertTrue(seen.contains { $0.contains(" of 5") }, "a landed account reads n of 5; saw \(seen)")
         XCTAssertTrue(seen.contains { $0 == "Asking your Mac…" || $0.hasPrefix("Checking 5 accounts") || $0.contains(" of 5") })
         let line = element("headroom.status-line")
         let reverted = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label BEGINSWITH 'Updated'"), object: line)
+            predicate: NSPredicate(format: "value == 'freshness'"), object: line)
         XCTAssertEqual(XCTWaiter.wait(for: [reverted], timeout: 6), .completed, "the stamp returns after Just now")
         XCTAssertEqual(element("headroom.checknow.writes").value as? String, "0", "demo writes nothing (AE8)")
     }
@@ -158,8 +158,8 @@ final class DemoModeUITests: XCTestCase {
         XCTAssertTrue(element("headroom.provider.claude").waitForExistence(timeout: 5))
         guard app.windows.firstMatch.frame.width >= 700 else { throw XCTSkip("⌘R is the iPad keyboard path") }
         app.typeKey("r", modifierFlags: .command)
-        let seen = statusLines(until: { $0 == "Just now" }, timeout: 15)
-        XCTAssertEqual(seen.last, "Just now", "saw \(seen)")
+        let seen = statusLines(until: { $0 == "Updated just now" }, timeout: 15)
+        XCTAssertEqual(seen.last, "Updated just now", "saw \(seen)")
     }
 
     /// A slow drag from the top of the content, long enough to pass the refresh threshold on

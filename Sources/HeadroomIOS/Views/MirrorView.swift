@@ -16,6 +16,7 @@ struct MirrorView: View {
     /// U9: pull to refresh and ⌘R. Writes the request (or starts the demo replay) and returns
     /// at once; an older Mac re-reads instead.
     var onCheckNow: () async -> Void
+    var onSettings: () -> Void
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -70,16 +71,27 @@ struct MirrorView: View {
             .background(HeadroomTheme.backgroundView(scheme).ignoresSafeArea())
             .scrollContentBackground(.hidden)
             // U9: returns as soon as the request is written, so the system spinner leaves and
-            // the line under the title carries the Mac's progress.
+            // the toolbar carries the Mac's progress.
             .refreshable { await onCheckNow() }
-            // Native large title (iOS 26): "Usage" collapses into the bar on scroll, and the
-            // one status slot rides beneath it as the large subtitle.
             .navigationTitle("Usage")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .largeSubtitle) {
+            .toolbar(.hidden, for: .navigationBar)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                // Native toolbar hosting freezes the loading timeline between receipt
+                // updates. A screen-owned header keeps the desktop vessel clock live.
+                HStack(spacing: 12) {
+                    Text("Usage")
+                        .font(.largeTitle.bold())
+                        .lineLimit(1)
+                        .layoutPriority(1)
+                        .accessibilityAddTraits(.isHeader)
+                    Spacer(minLength: 8)
                     statusLine(freshness: freshness(display: display, now: timeline.date))
+                    PhoneSettingsButton(action: onSettings, usesHeaderStyle: true)
+                        .buttonStyle(.plain)
                 }
+                .padding(.horizontal, margin)
+                .padding(.top, 8)
+                .padding(.bottom, 12)
             }
             .background { checkNowShortcut }
         }
@@ -120,9 +132,11 @@ struct MirrorView: View {
         return CheckNowStatusLine(
             slot: checkNow.slot(at: Date()),
             restingText: resting,
-            inFlightEndedAt: checkNow.inFlightEndedAt
+            inFlightEndedAt: checkNow.inFlightEndedAt,
+            requestedAt: checkNow.status?.askedAt,
+            didUpdate: checkNow.status?.phase == .finished(notUpdated: 0),
+            isDimmed: freshness.isDimmed
         )
-        .accessibilityValue(freshness.isDimmed ? "dimmed" : "")
     }
 
     /// U9: iPad's ⌘R runs the same action as the pull. Invisible; it only carries the shortcut.

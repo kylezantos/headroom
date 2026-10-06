@@ -1,6 +1,27 @@
 import SwiftUI
 import WidgetKit
 
+struct PhoneSettingsButton: View {
+    let action: () -> Void
+    var usesHeaderStyle = false
+
+    var body: some View {
+        Button(action: action) {
+            if usesHeaderStyle {
+                Image(systemName: "gearshape")
+                    .font(.title2)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Circle())
+                    .glassEffect(.regular, in: .circle)
+            } else {
+                Image(systemName: "gearshape")
+            }
+        }
+            .accessibilityLabel("Settings")
+            .accessibilityIdentifier("headroom.settings")
+    }
+}
+
 /// The app's one loading path (KTD6, U8): everything the phone shows comes from
 /// `CompanionPhoneSnapshotSource` as a `CompanionResolvedSnapshot` (the scoped loader since
 /// `CompanionLoaderAdoption` turned on); no view reads iCloud or a cache itself.
@@ -40,14 +61,10 @@ struct IOSCompanionView: View {
         NavigationStack {
             content
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button {
-                            showSettings = true
-                        } label: {
-                            Image(systemName: "gearshape")
+                    if !hasUsageContent {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            PhoneSettingsButton { showSettings = true }
                         }
-                        .accessibilityLabel("Settings")
-                        .accessibilityIdentifier("headroom.settings")
                     }
                 }
                 .sheet(isPresented: $showSettings) {
@@ -110,7 +127,8 @@ struct IOSCompanionView: View {
                 demoWidgetUnavailable: demoWidgetUnavailable,
                 checkNow: checkNow,
                 onExitDemo: exitDemo,
-                onCheckNow: pullToCheckNow
+                onCheckNow: pullToCheckNow,
+                onSettings: { showSettings = true }
             )
         case .some(let state):
             // U10: one Core row per non-content state (iCloud unavailable, paused, waiting,
@@ -120,6 +138,11 @@ struct IOSCompanionView: View {
                     .navigationTitle("Headroom")
             }
         }
+    }
+
+    /// The usage screen owns both toolbar items so their order is stable.
+    private var hasUsageContent: Bool {
+        if case .content = snapshot?.state { true } else { false }
     }
 
     /// U10: the status screen for a non-content state. DEBUG captures and UI tests can pose

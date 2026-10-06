@@ -38,7 +38,7 @@ final class PhoneCheckNow {
     @ObservationIgnored private var demoState: CheckNowRequestState?
     @ObservationIgnored private var demoAdopt: ((CompanionResolvedSnapshot) -> Void)?
 
-    /// What the slot under the title shows right now.
+    /// What the inline header status shows right now.
     func slot(at now: Date) -> CheckNowSlot {
         _ = tick
         return CheckNowLinePolicy.slot(status: status, completedAt: completedAt, now: now)
@@ -178,24 +178,25 @@ final class PhoneCheckNow {
     }
 }
 
-/// U9/U21: the one line under "Usage". While a check runs it is the Mac's receipt —
-/// "Asking your Mac…", "Checking 3 accounts…", "✓ Work · 2 of 3", "Just now" or a timeout
-/// line — with the shared loading row at its leading edge only while a request is in flight
-/// (KTD16). Otherwise it is the freshness stamp, or the dimmed "No update from your Mac
+/// U9/U21: the inline status beside "Usage". While a check runs it is the Mac's receipt —
+/// "Asking your Mac…", "Checking 3", "✓ Work · 2 of 3", "Updated just now" or a timeout
+/// line — with one shared vessel through the request and its bounded completion animation.
+/// Otherwise it is the freshness stamp, or the dimmed "No update from your Mac
 /// since <time>" in the same slot (R10). It never dims with the surface (U21).
 struct CheckNowStatusLine: View {
     let slot: CheckNowSlot
     /// The freshness line, or the demo banner's sample-data note standing in for it.
     let restingText: String
     let inFlightEndedAt: Date?
+    let requestedAt: Date?
+    let didUpdate: Bool
+    let isDimmed: Bool
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.loadingDate) private var pinnedDate
 
     var body: some View {
-        // The status glyph's gap (`PhoneCardMetrics.statusGlyphGap`): the loading row stands
-        // where a line's leading glyph does.
         HStack(spacing: PhoneCardMetrics.statusGlyphGap) {
             loadingRow
             ZStack(alignment: .leading) {
@@ -205,15 +206,13 @@ struct CheckNowStatusLine: View {
             }
             .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion), value: identity)
         }
-        .font(.subheadline.monospacedDigit())
+        .font(.caption.monospacedDigit())
         .lineLimit(1)
-        // The large-subtitle slot centres its item; the line belongs under the title's
-        // leading edge, where the native subtitle sat.
-        .frame(maxWidth: .infinity, alignment: .leading)
-        // Measured on the iOS 26.5 simulator: the toolbar item sits 6pt inside the title's
-        // leading edge; this puts the line's first glyph back under "Usage".
-        .padding(.leading, -6)
-        .accessibilityElement(children: .combine)
+        // Approved F: reserve space for the large title and the 44pt Settings control.
+        .frame(maxWidth: 190, alignment: .trailing)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+        .accessibilityValue(slot == .freshness ? (isDimmed ? "dimmed" : "freshness") : "check-now")
         .accessibilityIdentifier("headroom.status-line")
     }
 
@@ -237,7 +236,7 @@ struct CheckNowStatusLine: View {
             Text(restingText)
                 .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
         case .checkNow(.message(let text), _):
-            Text(text)
+            Text(text == CheckNowCopy.justNow ? "Updated just now" : text)
                 .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
         case .checkNow(.receipt(let line), _):
             // W4: the Mac footer's receipt line (`RefreshFooter.receiptLine`) — its 5pt gaps
@@ -249,7 +248,7 @@ struct CheckNowStatusLine: View {
                         .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
                         .accessibilityLabel("Checked")
                 }
-                Text(line.text)
+                Text(compactReceipt(line.text))
                     .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
                 if let count = line.count {
                     Text(count)
@@ -260,20 +259,47 @@ struct CheckNowStatusLine: View {
         }
     }
 
-    /// KTD16: the phone's existing check-in-flight object (`StatusScreen`'s Refresh), which
-    /// finishes its wave after the request lands and then leaves.
+    private var accessibilityText: String {
+        switch slot {
+        case .freshness: restingText
+        case .checkNow(.message(let text), _):
+            text == CheckNowCopy.justNow ? "Updated just now" : text
+        case .checkNow(.receipt(let line), _):
+            [line.checked ? "Checked" : nil, line.text, line.count].compactMap { $0 }.joined(separator: " ")
+        }
+    }
+
+    private func compactReceipt(_ text: String) -> String {
+        guard text.hasPrefix("Checking ") else { return text }
+        return text.replacingOccurrences(of: " accounts…", with: "")
+            .replacingOccurrences(of: " account…", with: "")
+    }
+
+    /// Same vessel, ink transitions and wall-clock slosh as the desktop refresh pills.
+    /// Only this child ticks; the header and cards don't observe animation frames.
     private var loadingRow: some View {
-        let recipe = LoadingCheckRecipe(
-            isChecking: isInFlight, endedAt: inFlightEndedAt, now: pinnedDate ?? Date(), reduceMotion: reduceMotion)
-        return LoadingTimeline(active: isInFlight && !reduceMotion, until: recipe.waveEnd) { date in
-            let frame = LoadingCheckRecipe(
-                isChecking: isInFlight, endedAt: inFlightEndedAt, now: date, reduceMotion: reduceMotion)
-            if frame.isWorking {
-                HalftonePillRow(pills: frame.pills, sloshEndedAt: inFlightEndedAt)
+        let recipe = pillRecipe(at: pinnedDate ?? Date())
+        // The outer clock only advances wipe/print/hold; the vessel owns the desktop's
+        // 10fps slosh clock. Long requests must not keep a second 30fps clock alive.
+        let deadline = isInFlight
+            ? requestedAt?.addingTimeInterval(LoadingMotionConstants.ghostWipeDuration)
+            : recipe.visibleUntil
+        return LoadingTimeline(active: false, until: deadline,
+                               interval: 1 / 30) { date in
+            let frame = pillRecipe(at: date)
+            if let pill = frame.pill {
+                HalftoneVesselView(state: pill, width: 10, height: 16, columns: 4, rows: 8,
+                                   sloshEndedAt: isInFlight ? nil : inFlightEndedAt)
                     .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
                     .transition(.opacity)
             }
         }
+    }
+
+    private func pillRecipe(at date: Date) -> PhoneRefreshPillRecipe {
+        PhoneRefreshPillRecipe(isChecking: isInFlight, requestedAt: requestedAt,
+                              endedAt: inFlightEndedAt, didUpdate: didUpdate,
+                              now: date, reduceMotion: reduceMotion)
     }
 
     private var transition: AnyTransition {

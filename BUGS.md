@@ -4,6 +4,14 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## iOS test-result collection (2026-10-05)
+
+- **Multi-destination iOS test collection can stall (2026-10-05).** A single Xcode 27
+  invocation targeting iPhone and iPad on iOS 26.5 stopped producing results with no UI-test
+  runner left; cancellation reported an unfinished “Download and merge code coverage
+  profiles” operation. The interrupted bundle had no readable summary. Run destinations
+  separately while investigating; never count that interrupted run as passing evidence.
+
 ## App-target test host isolation (resolved 2026-10-04)
 
 - The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in

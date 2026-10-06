@@ -1,15 +1,12 @@
 # Headroom Privacy Policy
 
 Source for `headroom.zantos.co/privacy` (`app/headroom/privacy/page.tsx` in `headroom-site`).
-Keep the two in step; the 1.5 change is prepared for Kyle as a diff, not applied to the site.
-The bracketed reminders item ships only if the CloudKit reminders spike (U15) passes and U16
-lands; delete it otherwise. Set the effective date to the day 1.5 ships.
+The 1.5 sync disclosure was published through headroom-site PR #10.
 
-**Effective [1.5 release date]**
+**Effective October 6, 2026**
 
-Headroom shows how much of your AI-subscription usage remains. It is built so that
-your data stays yours: **Headroom collects nothing, tracks nothing, and has no
-servers of its own.**
+Headroom shows how much of your AI-subscription usage remains. The Mac and iPhone apps have **no analytics or telemetry**. This policy explains
+how they read and sync usage data, and what this website measures.
 
 ## What Headroom does with data
 
@@ -30,8 +27,8 @@ servers of its own.**
   summary holds account names you chose, plan names, usage, reset times, API spend,
   display choices, check-now requests, a random ID for your Mac and for each iPhone or
   iPad, and one more random ID that lets the app check its saved data belongs to the iCloud
-  account signed in now. Sign-ins, credentials, emails, and API keys never leave your Mac and are
-  never part of it. iCloud key-value data is not end-to-end encrypted.
+  account signed in now. Provider sign-in credentials and API keys are never part of this
+  summary. iCloud key-value data is not end-to-end encrypted.
 - **Update checks.** The Mac app checks `headroom.zantos.co` for new versions using
   the standard Sparkle framework. This is an ordinary HTTPS request for a version
   file; no personal information or system profile is sent.
@@ -43,7 +40,6 @@ servers of its own.**
   Turning off "Sync usage to iPhone" also removes the synced account data from iCloud;
   only a note that sync is off, with your Mac's random ID, and the random iCloud ID stay. Data left in an iCloud
   account you signed out of stays there until you sign back in to it and turn sync off.
-  Deleting the app removes everything it stored on that device.
 
 ## This website
 

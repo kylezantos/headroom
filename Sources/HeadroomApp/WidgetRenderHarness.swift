@@ -16,7 +16,8 @@ import SwiftUI
 ///
 /// Filters: `--widget-style <id>`, `--widget-fixture <name>`, `--widget-geometry mac|ios61|ios67`,
 /// `--widget-quick` (Claude + Codex only, both appearances, macOS and 6.1″),
-/// `--widget-family lock|home` (Lock Screen bodies only, or the unchanged home sweep).
+/// `--widget-family lock|home` (Lock Screen bodies only, or the unchanged home sweep),
+/// `--widget-transparent` (no harness backdrops, 4× scale).
 @MainActor
 enum WidgetRenderHarness {
     struct Geometry {
@@ -114,6 +115,11 @@ enum WidgetRenderHarness {
     }
 
     // MARK: Jobs
+
+    /// Compositing renders for video and marketing: the harness's own backdrops (export padding,
+    /// Lock Screen wallpaper) go transparent and tiles render at 4×; widget designs are untouched.
+    static let transparent = CommandLine.arguments.contains("--widget-transparent")
+    static var renderScale: CGFloat { transparent ? 4 : 2 }
 
     private static func argument(_ flag: String) -> String? {
         guard let index = CommandLine.arguments.firstIndex(of: flag), index + 1 < CommandLine.arguments.count else { return nil }
@@ -226,7 +232,7 @@ enum WidgetRenderHarness {
         let collector = ProbeCollector()
         let tile = tileView(job: job, envelope: envelope, size: size, margin: margin, collector: collector)
         let renderer = ImageRenderer(content: tile)
-        renderer.scale = 2
+        renderer.scale = renderScale
         return (renderer.cgImage, collector.problems)
     }
 
@@ -266,7 +272,7 @@ enum WidgetRenderHarness {
         .environment(\.headroomWidgetProbesEnabled, true)
         .environment(\.loadingDate, now)
         .padding(12)
-        .background(job.dark ? Color(red: 0.07, green: 0.08, blue: 0.12) : Color(red: 0.86, green: 0.89, blue: 0.93))
+        .background(transparent ? Color.clear : job.dark ? Color(red: 0.07, green: 0.08, blue: 0.12) : Color(red: 0.86, green: 0.89, blue: 0.93))
     }
 
     // MARK: Freshness fixtures (U13, iOS parity plan KTD15)
@@ -367,7 +373,7 @@ enum WidgetRenderHarness {
             for variant in byVariant.keys.sorted() {
                 html += "<h3>\(variant)</h3><div class=row>"
                 for (_, file) in byVariant[variant]!.sorted(by: { "\($0.0.family)" > "\($1.0.family)" }) {
-                    html += "<img src=\"\(file)\" style=\"zoom:0.5\">"
+                    html += "<img src=\"\(file)\" style=\"zoom:\(transparent ? "0.25" : "0.5")\">"
                 }
                 html += "</div>"
             }
@@ -380,7 +386,7 @@ enum WidgetRenderHarness {
             for section in sections.keys.sorted() {
                 html += "<h3>\(section)</h3><div class=row>"
                 for (job, file) in sections[section]!.sorted(by: { $0.0.fileName < $1.0.fileName }) {
-                    html += "<figure style=\"margin:0\"><img src=\"\(file)\" style=\"zoom:0.5\"><figcaption>\(job.source.name) · \(job.providerChoice.rawValue)</figcaption></figure>"
+                    html += "<figure style=\"margin:0\"><img src=\"\(file)\" style=\"zoom:\(transparent ? "0.25" : "0.5")\"><figcaption>\(job.source.name) · \(job.providerChoice.rawValue)</figcaption></figure>"
                 }
                 html += "</div>"
             }
@@ -557,9 +563,9 @@ private extension WidgetRenderHarness {
             .redacted(reason: job.mode.redaction)
             // KTD12: export padding is outside the probed accessory content box.
             .padding(12)
-            .background(Color(white: 0.08))
+            .background(transparent ? Color.clear : Color(white: 0.08))
         let renderer = ImageRenderer(content: tile)
-        renderer.scale = 2
+        renderer.scale = renderScale
         return (renderer.cgImage, collector.problems)
     }
 
@@ -596,7 +602,10 @@ private extension WidgetRenderHarness {
 
     static func lockWallpaper(size: CGSize) -> some View {
         // KTD8/U4: opaque alternating diagonal bands make a real numeral cut-out observable.
-        Canvas { context, canvas in
+        // Skipped inside the Canvas so the default view tree, and its pixels, stay identical.
+        let skip = transparent
+        return Canvas { context, canvas in
+            guard !skip else { return }
             context.fill(Path(CGRect(origin: .zero, size: canvas)), with: .color(Color(white: 0.12)))
             let band: CGFloat = 8 // Diagnostic pattern crosses every digit, including at 17 pt.
             for offset in stride(from: -canvas.height, through: canvas.width, by: band * 2) {

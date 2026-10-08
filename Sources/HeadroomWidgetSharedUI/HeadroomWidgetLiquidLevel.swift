@@ -11,8 +11,11 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
     let mark: (String, CGFloat) -> Mark
 
     /// Keeps each column's text clear of the centre divider; the columns themselves split the
-    /// content box at the same centre line the wash splits the tile.
-    private let columnGutter: CGFloat = 14
+    /// content box at the same centre line the wash splits the tile. Each wash column reads as
+    /// its own panel, so its inner inset matches the tile's outer one: the 16pt macOS content
+    /// margin plus the 2pt residual. At 14 the right column's text sat visibly tighter to the
+    /// divider than the left column's sat to the tile edge.
+    private let columnGutter: CGFloat = 18
 
     var body: some View {
         switch context.family {

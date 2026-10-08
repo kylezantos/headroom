@@ -295,26 +295,37 @@ struct HeadroomWidgetLockScreenLiquidStrip: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
+    private func column(_ slot: LockScreenProviderSlot, index: Int, outer: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 4) {
+                HeadroomWidgetLockScreenSlotMark(slot: slot, size: 12, art: art)
+                HeadroomWidgetLockScreenLabel(text: recipe.displayName(forSlotAt: index), size: 12, weight: .semibold)
+            }
+            Spacer(minLength: 0)
+            HeadroomWidgetLockScreenNumeral(slot.primary, size: 22)
+            HeadroomWidgetLockScreenCaption(slot.primary, size: 10)
+                .padding(.top, 1)
+        }
+        // R15: the knockout capsule is taller than a bare numeral; these insets keep a low
+        // half inside the 68 pt strip and leave "Codex" room at iOS text metrics.
+        .padding(.leading, index == 0 ? outer : 6)
+        .padding(.trailing, index == recipe.slots.count - 1 ? outer : 6)
+        .padding(.vertical, 6)
+    }
+
     @ViewBuilder
     private var content: some View {
         if recipe.slots.count > 1 {
             HStack(spacing: 0) {
                 ForEach(Array(recipe.slots.enumerated()), id: \.offset) { index, slot in
-                    VStack(alignment: .leading, spacing: 0) {
-                        HStack(spacing: 4) {
-                            HeadroomWidgetLockScreenSlotMark(slot: slot, size: 12, art: art)
-                            HeadroomWidgetLockScreenLabel(text: recipe.displayName(forSlotAt: index), size: 12, weight: .semibold)
-                        }
-                        Spacer(minLength: 0)
-                        HeadroomWidgetLockScreenNumeral(slot.primary, size: 22)
-                        HeadroomWidgetLockScreenCaption(slot.primary, size: 10)
-                            .padding(.top, 1)
+                    // The outer edges take 10 pt so text clears the 14 pt corner curve; the
+                    // divider side has no curve and keeps 6 pt. Two "100%" numerals at SE width
+                    // don't fit that, so those columns fall back to the original 6 pt (WCF7:
+                    // give up space before shrinking or truncating anything).
+                    ViewThatFits(in: .horizontal) {
+                        column(slot, index: index, outer: 10)
+                        column(slot, index: index, outer: 6)
                     }
-                    // R15: the knockout capsule is taller than a bare numeral; these insets
-                    // keep a low half inside the 68 pt strip and leave "Codex" room at iOS
-                    // text metrics.
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 4)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
                     .lockScreenSlotElement(recipe, index: index)
                 }

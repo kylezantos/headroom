@@ -4,6 +4,18 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## App Store capture script (2026-10-08)
+
+- **`Scripts/capture-appstore-shots.sh` drops frames that never settle, then fails composing.**
+  A `--device iphone69 --frames I1,I2,I4,I6,I8,I9,I10` run on iOS 26.5 logged "did not settle
+  within 25s; kept the last capture" for I1, I2 and I9, but no raw PNG exists for them. The
+  likely path is `settle_capture` returning 1 from its `app_running` wait before it takes any
+  screenshot; the caller prints "kept the last capture" either way (unverified which branch
+  fired). The compositor then failed with "could not load …/raw/I1-iphone69-dark.png" and
+  composed nothing. A plain `simctl io screenshot` 9 s after launch captured all three
+  cleanly. Fail the frame loudly when no raw file exists, and check `app_running` against the
+  first launch of each appearance.
+
 ## iOS test-result collection (2026-10-05)
 
 - **Multi-destination iOS test collection can stall (2026-10-05).** A single Xcode 27

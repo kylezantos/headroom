@@ -98,17 +98,30 @@ Already declared in the binary: `ITSAppUsesNonExemptEncryption = NO`
 
 ## Screenshots
 
-6.9" iPhone (1320 × 2868), from `~/Desktop/headroom-shots/appstore-6.9/`:
+**Planned for the next iOS release; not uploaded yet.** The live listing still shows the Graphite set
+from 1.5 (`design/appstore/shots.json`). Re-run the captures if that release changes any screen
+shown here, then upload this set in place of Graphite.
 
-1. `ios-usage-dark-6.9.png` — dark mode, both providers live
-2. `ios-usage-light-6.9.png` — light mode
+The **Print** set (chosen 2026-10-09). Source:
+`design/appstore/print/` (layout, captures, renders; its README covers refreshing captures).
+Render with `Scripts/export-appstore-print.sh`, which writes `dist/appstore/print/` and verifies
+size, sRGB and no alpha. Upload in this order.
 
-13" iPad (2064 × 2752), from `~/Desktop/headroom-shots/appstore-13/`:
+6.9" iPhone (1320 × 2868), `dist/appstore/print/iphone69/`:
 
-1. `ios-usage-dark-13.png` — native two-column iPad demo
-2. `ios-usage-light-13.png` — native two-column iPad demo
+1. `iphone69-01-how-much-is-left.png` — "How much is left?" Halftone vessel at 38%, Usage below
+2. `iphone69-02-every-account.png` — "Every account, on your iPhone." Multi-account Usage
+3. `iphone69-03-lock-screen.png` — "And your Lock Screen." Inline, circle and rectangle widgets
+4. `iphone69-04-widget-style.png` — "Pick a widget style." Tightest First solid, other styles ghosted
+5. `iphone69-05-pull-to-check-now.png` — "Pull to check now." Real check-now receipt
+6. `iphone69-06-know-your-limits.png` — "Know your limits." Requires Headroom for Mac
 
-All images use the same labeled representative demo data as the reviewed binary.
+13" iPad (2064 × 2752), `dist/appstore/print/ipad13/`: the same six frames in the same order
+(`ipad13-01-…` to `ipad13-06-…`), using the native two-column iPad captures, the iPad widget wall,
+an iPad-proportioned Lock Screen and "on your iPad" / "Headroom for iPad" copy.
+
+All captures use the labeled representative demo data (`--demo` fixtures). No caption mentions a
+price; provider marks appear only inside real UI.
 
 ## Notes for App Review (paste into "App Review Information → Notes")
 

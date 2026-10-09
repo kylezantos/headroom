@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Headroom App Store screenshots · Print</title>
+<!--
+  The "Print" App Store set (chosen 2026-10-09): six iPhone 6.9″ frames (1320×2868) and six
+  iPad 13″ frames (2064×2752). README.md in this folder covers captures and export.
+
+  Real pixels: Simulator captures in assets/captures (demo fixtures, 9:41 on 2026-01-13; the
+  check-now frames are real receipts caught after a pull / ⌘R). Lock Screen widgets are the
+  app's `--render-widgets --widget-transparent` renders, composited plus-lighter as vibrant
+  rendering does (KTD5). Art, not UI: the halftone vessel (HRKit, the site's dot model) and the
+  ghost-print mask on the widget styles you didn't pick.
+
+  Review: open the file. Export: `?device=iphone|ipad&frame=N` shows one frame at the page
+  origin; Scripts/export-appstore-print.sh screenshots, converts to sRGB, strips alpha, verifies.
+-->
+<style>
+@font-face { font-family: "TX-02"; src: url("assets/brand/TX-02-Regular.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "TX-02"; src: url("assets/brand/TX-02-Medium.woff2") format("woff2"); font-weight: 500; }
+:root { --base: #05060b; --fg: #f5f5f7; --fg2: #a1a1a6; --fg3: #8a8a90; --gold: #d29b3d; --amber: #FF9E0A;
+  --sf: "SF Pro", system-ui, sans-serif; --tx: "TX-02", ui-monospace, monospace;
+  --night: radial-gradient(130% 75% at 50% 108%, #16245a 0%, #0a1436 38%, #050a1d 70%, #02040c 100%); }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: #0b0c10; color: var(--fg); font-family: var(--sf); -webkit-font-smoothing: antialiased; }
+.review { padding: 56px; }
+.review h1 { font-family: var(--tx); font-weight: 500; font-size: 26px; margin: 40px 0 20px; }
+.strip { display: flex; gap: 16px; flex-wrap: wrap; }
+.slot { position: relative; overflow: hidden; border-radius: 18px; }
+.slot.iphone { width: 330px; height: 717px; }
+.slot.ipad { width: 516px; height: 688px; }
+.slot > .f { transform: scale(0.25); transform-origin: 0 0; }
+body.export { background: #000; }
+body.export .review { padding: 0; }
+body.export .review h1 { display: none; }
+body.export .slot { border-radius: 0; }
+body.export .slot.iphone { width: 1320px; height: 2868px; }
+body.export .slot.ipad { width: 2064px; height: 2752px; }
+body.export .slot > .f { transform: none; }
+
+.f { position: absolute; left: 0; top: 0; overflow: hidden; background: var(--base); }
+.f.iphone { width: 1320px; height: 2868px; }
+.f.ipad { width: 2064px; height: 2752px; }
+.abs { position: absolute; }
+.scr { position: absolute; overflow: hidden; background: #000; box-shadow: 0 0 0 2.5px rgba(255,255,255,0.13); }
+.scr > img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+.tile { position: absolute; overflow: hidden; }
+.tile > img { position: absolute; }
+.hl { position: absolute; font-family: var(--tx); font-weight: 500; letter-spacing: -0.02em; color: var(--fg); line-height: 1.04; white-space: nowrap; }
+.sub { position: absolute; font-family: var(--sf); color: var(--fg2); line-height: 1.32; white-space: nowrap; }
+.big { position: absolute; font-family: var(--sf); font-weight: 600; line-height: 1; color: var(--amber); letter-spacing: -0.02em; }
+.url { position: absolute; font-family: var(--tx); color: var(--gold); }
+.tabs { position: absolute; display: flex; font-family: var(--tx); color: var(--fg3); white-space: nowrap; }
+.tabs .on { color: var(--fg); border-bottom: 4px solid var(--fg); padding-bottom: 8px; }
+/* Ghost print: the styles you didn't pick, in halftone dots */
+.ghost { -webkit-mask-image: radial-gradient(circle at center, #000 34%, transparent 38%); -webkit-mask-size: 11px 11px; opacity: 0.62; filter: grayscale(1) brightness(1.4); }
+/* iPhone Lock Screen, in the films' 470×1022 coordinates */
+.lock { position: absolute; left: 0; top: 0; width: 470px; height: 1022px; overflow: hidden; transform-origin: 0 0; font-family: var(--sf); text-align: center; color: rgba(240,242,255,0.95); background: var(--night); }
+.lock .dl { top: 94px; gap: 4px; font-size: 22px; }
+.lock .dl img { width: 268.28px; height: 52px; margin: -12px -4px; }
+.lock .time { top: 124px; font-size: 128px; }
+.lock .wrow { top: 280px; }
+/* iPad Lock Screen, in points (1032×1376, portrait) */
+.lockpad { position: absolute; left: 0; top: 0; width: 1032px; height: 1376px; overflow: hidden; transform-origin: 0 0; font-family: var(--sf); text-align: center; color: rgba(240,242,255,0.95); background: var(--night); }
+.lockpad .dl { top: 92px; gap: 6px; font-size: 26px; }
+.lockpad .dl img { width: 258px; height: 50px; margin: -10px -4px; }
+.lockpad .time { top: 128px; font-size: 168px; }
+.lockpad .wrow { top: 340px; gap: 4px; }
+.lock .stars, .lockpad .stars { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.lock .dl, .lockpad .dl { position: absolute; left: 0; right: 0; display: flex; justify-content: center; align-items: center; font-weight: 600; color: rgba(240,242,255,0.8); }
+.lock .dl img, .lockpad .dl img, .lock .wrow img, .lockpad .wrow img { mix-blend-mode: plus-lighter; display: block; }
+.lock .time, .lockpad .time { position: absolute; left: 0; right: 0; font-weight: 600; line-height: 1; letter-spacing: -0.01em; }
+.lock .wrow, .lockpad .wrow { position: absolute; left: 0; right: 0; display: flex; justify-content: center; align-items: center; }
+.lock .bar, .lockpad .bar { position: absolute; left: 50%; bottom: 14px; margin-left: -68px; width: 136px; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+<div class="review">
+  <h1>iPhone 6.9″ · 1320 × 2868</h1><div class="strip" id="iphone"></div>
+  <h1>iPad 13″ · 2064 × 2752</h1><div class="strip" id="ipad"></div>
+</div>
+<script src="assets/kit/site-lib.js"></script>
+<script src="assets/kit/gsap.min.js"></script>
+<script src="assets/kit/headroom-kit.js"></script>
+<script>
+const CAP = {
+  iphone: { w: 1320, h: 2868, usage: "assets/captures/iphone-usage.png", check: "assets/captures/iphone-check-now.png", styles: "assets/captures/iphone-widget-styles.png" },
+  ipad: { w: 2064, h: 2752, usage: "assets/captures/ipad-usage.png", check: "assets/captures/ipad-check-now.png", styles: "assets/captures/ipad-widget-styles.png" },
+};
+// Widget tiles measured in each styles-wall capture: [x, y, w, h] in capture pixels, plus corner radius.
+const TILES = {
+  iphone: { r: 66, nested: [114, 269, 1092, 511], vessel: [114, 906, 509, 509], tightest: [696, 906, 509, 509], liquid: [114, 1541, 1092, 509] },
+  ipad: { r: 44, nested: [235, 160, 757, 337], liquid: [1071, 160, 757, 337], vessel: [653, 580, 339, 337], tightest: [1071, 580, 339, 337] },
+};
+const R = (s) => `assets/renders/${s}`;
+
+const hl = (t, x, y, size) => `<div class="hl" style="left:${x}px;top:${y}px;font-size:${size}px">${t}</div>`;
+const sub = (t, x, y, size, extra = "") => `<div class="sub" style="left:${x}px;top:${y}px;font-size:${size}px;${extra}">${t}</div>`;
+const frame = (device, inner) => `<div class="f ${device}">${inner}</div>`;
+/** A region of a capture at scale k, placed at (x, y). */
+const cut = (cap, [cx, cy, cw, ch], x, y, k, r = "0", cls = "scr", src = cap.usage) =>
+  `<div class="${cls}" style="left:${x}px;top:${y}px;width:${cw * k}px;height:${ch * k}px;border-radius:${r}">` +
+  `<img src="${src}" style="width:${cap.w * k}px;height:${cap.h * k}px;left:${-cx * k}px;top:${-cy * k}px"></div>`;
+/** A whole capture as a frameless screen, `w` wide; `r` is the corner radius as a fraction of w. */
+const screen = (cap, src, x, y, w, r) => `<div class="scr" style="left:${x}px;top:${y}px;width:${w}px;height:${w * cap.h / cap.w}px;border-radius:${w * r}px"><img src="${src}"></div>`;
+const tile = (device, name, x, y, k, ghost = false) => {
+  const cap = CAP[device], t = TILES[device];
+  return cut(cap, t[name], x, y, k, `${t.r * k}px`, ghost ? "tile ghost" : "tile", cap.styles);
+};
+const vessel = (w, h, cx, cy, u) => `<canvas class="abs" style="left:0;top:0;width:${w}px;height:${h}px" width="${w}" height="${h}" data-vessel='${JSON.stringify({ cx, cy, u, level: 0.38, color: "#FF9E0A" })}'></canvas>`;
+const tabs = (x, y, size, gap) => `<div class="tabs" style="left:${x}px;top:${y}px;font-size:${size}px;gap:${gap}px">` +
+  `<span>Nested Meter</span><span>Vessel Hero</span><span class="on">Tightest First</span><span>Liquid Level</span></div>`;
+const lockWidgets = (circle, rect) =>
+  `<div class="wrow"><img src="${R("lk-circle-claude.png")}" style="width:${circle}px;height:${circle}px"><img src="${R("lk-circle-codex.png")}" style="width:${circle}px;height:${circle}px"><img src="${R("lk-rect.png")}" style="width:${rect}px;height:${circle}px"></div>`;
+function lockPhone(x, y, s) {
+  const w = 470 * s;
+  return `<div class="scr" style="left:${x}px;top:${y}px;width:${w}px;height:${1022 * s}px;border-radius:${w * 0.128}px">` +
+    `<div class="lock" style="transform:scale(${s})"><img class="stars" src="assets/brand/stars.png">` +
+    `<div class="dl"><span>Tue 13</span><img src="${R("lk-inline.png")}"></div><div class="time">9:41</div>` +
+    lockWidgets(105, 201) + `<div class="bar"></div></div></div>`;
+}
+function lockPad(x, y, s) {
+  const w = 1032 * s;
+  // The iPad status bar in these captures reads "Thu Jan 13"; the Lock Screen date matches it.
+  return `<div class="scr" style="left:${x}px;top:${y}px;width:${w}px;height:${1376 * s}px;border-radius:${w * 0.04}px">` +
+    `<div class="lockpad" style="transform:scale(${s})"><img class="stars" src="assets/brand/stars.png">` +
+    `<div class="dl"><span>Thursday, January 13</span><img src="${R("lk-inline.png")}"></div><div class="time">9:41</div>` +
+    lockWidgets(100, 192) + `<div class="bar"></div></div></div>`;
+}
+const icon = (x, y, w) => `<img class="abs" src="assets/brand/app-icon.png" style="left:${x}px;top:${y}px;width:${w}px;border-radius:${w * 0.2275}px">`;
+const url = (x, y, size) => `<div class="url" style="left:${x}px;top:${y}px;font-size:${size}px">headroom.zantos.co</div>`;
+
+const P = CAP.iphone, D = CAP.ipad;
+const FRAMES = {
+  iphone: [
+    frame("iphone", hl("How much<br>is left?", 96, 190, 132) + vessel(1320, 2868, 350, 1070, 46) +
+      `<div class="big" style="left:640px;top:820px;font-size:300px">38%</div>` + sub("left this week", 652, 1150, 52) +
+      cut(P, [0, 0, 1320, 1480], 103, 1620, 0.8439, "140px 140px 0 0")),
+    frame("iphone", hl("Every account,<br>on your iPhone.", 96, 190, 132) +
+      sub("Personal, Work and Studio, each on its own rows.<br>Synced from Headroom on your Mac.", 100, 520, 46) +
+      screen(P, P.usage, 300, 860, 1160, 0.128)),
+    frame("iphone", hl("And your<br>Lock Screen.", 96, 190, 132) +
+      sub("A line by the date, a circle or a rectangle.", 100, 520, 46) + lockPhone(150, 760, 2.17)),
+    frame("iphone", hl("Pick a<br>widget style.", 96, 190, 132) + tabs(100, 540, 32, 40) +
+      tile("iphone", "nested", 72, 760, 1.077, true) +
+      tile("iphone", "vessel", 72, 1380, 1.077, true) + tile("iphone", "tightest", 700, 1380, 1.077) +
+      tile("iphone", "liquid", 72, 2000, 1.077, true)),
+    frame("iphone", hl("Pull to<br>check now.", 96, 190, 132) +
+      sub("Headroom on your Mac checks every account<br>and sends the numbers back.", 100, 520, 46) +
+      cut(P, [0, 0, 1320, 2360], 60, 820, 0.9091, "150px 150px 0 0", "scr", P.check)),
+    frame("iphone", icon(96, 240, 220) + hl("Know your<br>limits.", 96, 560, 150) +
+      sub("Headroom for iPhone.<br>Requires Headroom for Mac.", 100, 940, 52, "color:#c9cdd4") + url(100, 1110, 52) +
+      lockPhone(150, 1400, 2.17)),
+  ],
+  ipad: [
+    frame("ipad", hl("How much<br>is left?", 150, 210, 196) + vessel(2064, 2752, 470, 1300, 54) +
+      `<div class="big" style="left:900px;top:1040px;font-size:420px">38%</div>` + sub("left this week", 916, 1500, 76) +
+      cut(D, [0, 0, 2064, 1200], 150, 1960, 0.8547, "64px 64px 0 0")),
+    frame("ipad", hl("Every account,<br>on your iPad.", 150, 210, 196) +
+      sub("Personal, Work and Studio, each on its own rows.<br>Synced from Headroom on your Mac.", 154, 690, 64) +
+      screen(D, D.usage, 380, 1060, 2000, 0.04)),
+    frame("ipad", hl("And your<br>Lock Screen.", 150, 210, 196) +
+      sub("A line by the date, a circle or a rectangle.", 154, 690, 64) + lockPad(150, 940, 1.7093)),
+    frame("ipad", hl("Pick a<br>widget style.", 150, 210, 196) + tabs(154, 690, 46, 60) +
+      tile("ipad", "nested", 389, 870, 1.7, true) +
+      tile("ipad", "vessel", 389, 1503, 1.7, true) + tile("ipad", "tightest", 1100, 1503, 1.7) +
+      tile("ipad", "liquid", 389, 2136, 1.7, true)),
+    frame("ipad", hl("Pull to<br>check now.", 150, 210, 196) +
+      sub("Headroom on your Mac checks every account<br>and sends the numbers back.", 154, 690, 64) +
+      screen(D, D.check, 150, 1020, 1764, 0.04)),
+    frame("ipad", icon(150, 230, 300) + hl("Know your<br>limits.", 150, 640, 220) +
+      sub("Headroom for iPad.<br>Requires Headroom for Mac.", 154, 1140, 76, "color:#c9cdd4") + url(154, 1380, 76) +
+      lockPad(150, 1640, 1.7093)),
+  ],
+};
+
+const params = new URLSearchParams(location.search), only = params.get("frame"), dev = params.get("device");
+if (only && dev) {
+  document.body.classList.add("export");
+  document.getElementById(dev === "ipad" ? "iphone" : "ipad").remove();
+}
+for (const device of ["iphone", "ipad"]) {
+  const host = document.getElementById(device);
+  if (!host) continue;
+  const list = only && dev ? [FRAMES[device][+only - 1]] : FRAMES[device];
+  host.innerHTML = list.map(f => `<div class="slot ${device}">${f}</div>`).join("");
+}
+document.fonts.ready.then(() => {
+  document.querySelectorAll("canvas[data-vessel]").forEach(cv => {
+    const s = JSON.parse(cv.dataset.vessel);
+    window.HRKit.vessel.draw(cv.getContext("2d"), { pose: { cx: s.cx, cy: s.cy, u: s.u }, level: s.level, phase: null, ink: () => 1, color: s.color, alpha: 1, outline: "#f5f5f7", cols: 6, rows: 12 });
+  });
+  document.body.dataset.ready = "1";
+});
+</script>
+</body>
+</html>

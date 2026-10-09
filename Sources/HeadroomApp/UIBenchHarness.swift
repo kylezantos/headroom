@@ -449,7 +449,6 @@ enum UIBenchHarness {
         case .notifications: "NotificationsSettingsPane"
         case .accounts: "AccountsSettingsPane"
         case .apiSpend: "APISpendSettingsPane"
-        case .about: "AboutSettingsPane"
         }
     }
 

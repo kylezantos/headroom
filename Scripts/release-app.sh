@@ -266,7 +266,9 @@ stamp_exported_info() {
   set_plist_string "${app_info}" SUFeedURL "${HEADROOM_SPARKLE_FEED_URL}"
   set_plist_string "${app_info}" SUPublicEDKey "${HEADROOM_SPARKLE_PUBLIC_ED_KEY}"
   set_plist_bool "${app_info}" SUEnableAutomaticChecks true
-  set_plist_bool "${app_info}" SUAllowsAutomaticUpdates false
+  set_plist_bool "${app_info}" SUAllowsAutomaticUpdates true
+  # Bundle default only; never overwrite Sparkle's saved user preference.
+  set_plist_bool "${app_info}" SUAutomaticallyUpdate false
 }
 
 resign_exported_info_mutations() {

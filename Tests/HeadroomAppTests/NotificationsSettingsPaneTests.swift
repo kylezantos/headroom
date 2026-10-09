@@ -46,8 +46,8 @@ struct NotificationsSettingsPaneTests {
     // MARK: R1
 
     @Test func paneIsTheLastDestinationInTheAppGroup() {
-        // Seven App and Sources destinations, plus About in its own group.
-        #expect(SettingsPane.allCases.count == 8)
+        // About now lives in General, leaving seven App and Sources destinations.
+        #expect(SettingsPane.allCases.count == 7)
         #expect(SettingsPane.Group.preferences.panes.last == .notifications)
         let appPanes = SettingsPane.Group.preferences.panes
         #expect(appPanes.firstIndex(of: .notifications) == appPanes.firstIndex(of: .widgets).map { $0 + 1 })

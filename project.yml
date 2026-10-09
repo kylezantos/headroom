@@ -61,7 +61,8 @@ targets:
         INFOPLIST_KEY_LSMinimumSystemVersion: "$(MACOSX_DEPLOYMENT_TARGET)"
         INFOPLIST_KEY_LSUIElement: YES
         INFOPLIST_KEY_NSHumanReadableCopyright: Personal use
-        INFOPLIST_KEY_SUAllowsAutomaticUpdates: NO
+        INFOPLIST_KEY_SUAllowsAutomaticUpdates: YES
+        INFOPLIST_KEY_SUAutomaticallyUpdate: NO
         INFOPLIST_KEY_SUEnableAutomaticChecks: YES
         INFOPLIST_KEY_SUFeedURL: "$(HEADROOM_SPARKLE_FEED_URL)"
         INFOPLIST_KEY_SUPublicEDKey: "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)"

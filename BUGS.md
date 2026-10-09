@@ -12,6 +12,16 @@ official `claude` CLI's `/usage` panel instead.
   profiles” operation. The interrupted bundle had no readable summary. Run destinations
   separately while investigating; never count that interrupted run as passing evidence.
 
+## Automatic-update installed-app acceptance (2026-10-09)
+
+- **Opt-in policy and switch consistency are fixed; real installation acceptance is pending.**
+  Packaging now permits automatic updates while defaulting them off, and Settings observes
+  Sparkle's effective preferences and capability. Before release acceptance, prove background
+  download followed by installation on quit, and the sidebar's restart action, between two
+  suitable signed builds in an isolated environment. Follow the automatic-update acceptance
+  gate in `docs/release/website-dmg-release.md`; passing preference tests does not prove an
+  installed update cycle.
+
 ## App-target test host isolation (resolved 2026-10-04)
 
 - The single-instance guard from #150 (`SingleInstance.otherRunningCopy()` in
@@ -24,6 +34,11 @@ official `claude` CLI's `/usage` panel instead.
 
 ## Loading language follow-ups (2026-10-04)
 
+- **Setup motion tests emit actor-isolation warnings (2026-10-08).** A clean
+  `HeadroomAppTests` build reports `ActorIsolatedCall` in `SetupWaitingMotionTests.swift`
+  when synchronous tests construct or call main-actor SwiftUI views. Give those tests
+  the matching actor isolation; the assertions should remain unchanged. Observed while
+  validating the Settings consolidation; deferred because it is outside that UI change.
 - **Signed-out and all-unavailable menu pills still use the decorative level.** The ghost
   flag deliberately covers only a main account awaiting its first reading. Extend the neutral
   treatment separately; `fill == nil` must not become a pending-data signal.

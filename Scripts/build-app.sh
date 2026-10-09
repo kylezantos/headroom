@@ -162,8 +162,11 @@ stamp_sparkle_info() {
     || /usr/libexec/PlistBuddy -c "Add :SUPublicEDKey string ${HEADROOM_SPARKLE_PUBLIC_ED_KEY}" "${plist}"
   /usr/libexec/PlistBuddy -c "Set :SUEnableAutomaticChecks true" "${plist}" 2>/dev/null \
     || /usr/libexec/PlistBuddy -c "Add :SUEnableAutomaticChecks bool true" "${plist}"
-  /usr/libexec/PlistBuddy -c "Set :SUAllowsAutomaticUpdates false" "${plist}" 2>/dev/null \
-    || /usr/libexec/PlistBuddy -c "Add :SUAllowsAutomaticUpdates bool false" "${plist}"
+  /usr/libexec/PlistBuddy -c "Set :SUAllowsAutomaticUpdates true" "${plist}" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Add :SUAllowsAutomaticUpdates bool true" "${plist}"
+  # Bundle default only: Sparkle preserves the user's explicit choice in UserDefaults.
+  /usr/libexec/PlistBuddy -c "Set :SUAutomaticallyUpdate false" "${plist}" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Add :SUAutomaticallyUpdate bool false" "${plist}"
 }
 
 profile_value() {

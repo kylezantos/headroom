@@ -12,9 +12,6 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
     case notifications
     case accounts
     case apiSpend
-    /// The window's last destination: updates, the tip jar, and who made the app. It sits
-    /// in its own headerless group under Sources, the way macOS apps park About at the end.
-    case about
 
     public var id: String { rawValue }
 
@@ -27,7 +24,6 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         case .notifications: "Notifications"
         case .accounts: "Accounts"
         case .apiSpend: "API Spend"
-        case .about: "About"
         }
     }
 
@@ -35,7 +31,6 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .general, .appearance, .menuBar, .widgets, .notifications: .preferences
         case .accounts, .apiSpend: .sources
-        case .about: .about
         }
     }
 
@@ -44,21 +39,16 @@ public enum SettingsPane: String, CaseIterable, Identifiable, Sendable {
     public enum Group: String, CaseIterable, Identifiable, Sendable {
         case preferences
         case sources
-        case about
 
         public var id: String { rawValue }
 
         /// R2B1: "App", not "Preferences" — the latter is the pre-Ventura word for the whole
         /// window, so it read as a section named after its own container inside "Headroom
         /// Settings". The raw value stays `preferences` so nothing persisted migrates.
-        ///
-        /// About has no header: a one-row section titled "About" over a row reading "About"
-        /// would say the same word twice.
         public var label: String? {
             switch self {
             case .preferences: "App"
             case .sources: "Sources"
-            case .about: nil
             }
         }
 

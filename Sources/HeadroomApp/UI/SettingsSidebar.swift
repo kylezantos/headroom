@@ -10,6 +10,7 @@ import HeadroomCore
 /// — the latter leaves the detail column blank on the first selection on macOS 15.
 struct SettingsSidebar: View {
     @Binding var selection: SettingsPane?
+    let softwareUpdates: SoftwareUpdateControlling
 
     /// R2M8: the window opens with the destination list focused, so arrow keys move between
     /// rooms without a mouse trip first. Nothing here animates — a keyboard-initiated pane
@@ -71,6 +72,8 @@ struct SettingsSidebar: View {
             }
             .listStyle(.sidebar)
             .focused($listFocused)
+
+            SettingsSidebarActions(softwareUpdates: softwareUpdates)
         }
         // R2M8: focus the destination list when the window opens.
         .defaultFocus($listFocused, true)
@@ -160,7 +163,6 @@ extension SettingsPane {
         case .notifications: "bell"
         case .accounts: "person"
         case .apiSpend: "key"
-        case .about: "info.circle"
         }
     }
 
@@ -172,8 +174,57 @@ extension SettingsPane {
     var symbolScale: Image.Scale {
         switch self {
         case .accounts, .apiSpend: .large
-        case .general, .appearance, .menuBar, .widgets, .notifications, .about: .medium
+        case .general, .appearance, .menuBar, .widgets, .notifications: .medium
         }
+    }
+}
+
+/// Observe update progress at the footer, without rebuilding the destination list or
+/// app scene when Sparkle changes state. Actions sit outside the selectable navigation.
+private struct SettingsSidebarActions: View {
+    let softwareUpdates: SoftwareUpdateControlling
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        VStack(spacing: SettingsMetrics.withinGroup) {
+            Divider().padding(.bottom, SettingsMetrics.labelToControl)
+
+            if softwareUpdates.canCheckForUpdates,
+               let title = softwareUpdates.presentation.availability.title {
+                Button(action: softwareUpdates.checkForUpdates) {
+                    Label(title, systemImage: softwareUpdates.presentation.availability.symbol)
+                        .font(.system(size: 12, weight: .semibold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 10)
+                        // 36pt gives the two persistent footer targets comfortable hit areas.
+                        .frame(height: 36)
+                        .foregroundStyle(colorScheme == .dark ? Color.black : Color.white)
+                        .background(Color.primary, in: RoundedRectangle(cornerRadius: 7))
+                }
+                .buttonStyle(.plain)
+                .disabled(!softwareUpdates.presentation.canCheckForUpdates)
+                .help("Open the Headroom software updater")
+            }
+
+            Link(destination: AboutLinks.tipJar.url) {
+                HStack(spacing: 9) {
+                    Label("Tip Jar", systemImage: "heart")
+                    Spacer(minLength: 0)
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .font(.system(size: 12))
+                .padding(.horizontal, 10)
+                .frame(height: 36)
+                .contentShape(Rectangle())
+                .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+            .help("Open the Headroom tip jar in your browser")
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 12)
     }
 }
 

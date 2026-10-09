@@ -143,6 +143,7 @@
 		32024093974A4B48D8AF6528 /* CompanionWireDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5C67D6F363B547DDC89B75 /* CompanionWireDate.swift */; };
 		32783EFD05EC6FA7247D109A /* CheckNowProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95F71D7456DE99AA9C47DA5B /* CheckNowProtocol.swift */; };
 		32CA36D742CB7293AE593484 /* HeadroomLockScreenWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D0D6DE0C359B8AD5139BF11 /* HeadroomLockScreenWidget.swift */; };
+		330262D249C2FE71FECD26CA /* SoftwareUpdateControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCECF18C70B7DCB5B2961DFE /* SoftwareUpdateControllerTests.swift */; };
 		335F51D0ECC1A4D0C24EB985 /* UsageHTTPClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B60C38BCE8D085D56EEC5C0A /* UsageHTTPClient.swift */; };
 		33D97E578C67DD091A65D977 /* HeadroomTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B6E320E9A4358094FFE458B /* HeadroomTheme.swift */; };
 		33F4E619E256E723243ED1B3 /* grok-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = CDC9199DC7DC96DF143A8480 /* grok-dark.svg */; };
@@ -940,6 +941,7 @@
 		BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsInteractionTests.swift; sourceTree = "<group>"; };
 		BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetNestedMeter.swift; sourceTree = "<group>"; };
 		BCCDB3DAE232C200FAA8BB2B /* HeadroomWidgetStyledBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetStyledBody.swift; sourceTree = "<group>"; };
+		BCECF18C70B7DCB5B2961DFE /* SoftwareUpdateControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoftwareUpdateControllerTests.swift; sourceTree = "<group>"; };
 		BFA82E8D5C159CB187402D4D /* UsageAnswerComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageAnswerComposer.swift; sourceTree = "<group>"; };
 		C025DD0467C17BEED8A13DCE /* SettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPane.swift; sourceTree = "<group>"; };
 		C08AE77A399A208C20733351 /* CodexAuthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAuthReader.swift; sourceTree = "<group>"; };
@@ -1071,6 +1073,7 @@
 				3ED98AE933F8E85263F6D5A5 /* RefreshReceiptTests.swift */,
 				18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */,
 				C9F7733E2584FA8F6050BC65 /* SetupWaitingMotionTests.swift */,
+				BCECF18C70B7DCB5B2961DFE /* SoftwareUpdateControllerTests.swift */,
 				29549AD7EE05B47C38BAE7D2 /* UIBenchModelTests.swift */,
 			);
 			path = HeadroomAppTests;
@@ -1951,6 +1954,7 @@
 				A0F89272E20524BCCAD65483 /* RefreshReceiptTests.swift in Sources */,
 				FE1967B59E9E2C4E27FF31DD /* SetupWaitingClockRestoreTests.swift in Sources */,
 				884748EF121113FABD54F4AD /* SetupWaitingMotionTests.swift in Sources */,
+				330262D249C2FE71FECD26CA /* SoftwareUpdateControllerTests.swift in Sources */,
 				067EC7A5ACF44B9D4679A3EE /* UIBenchModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2686,7 +2690,8 @@
 				INFOPLIST_KEY_LSMinimumSystemVersion = "$(MACOSX_DEPLOYMENT_TARGET)";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Personal use";
-				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
+				INFOPLIST_KEY_SUAllowsAutomaticUpdates = YES;
+				INFOPLIST_KEY_SUAutomaticallyUpdate = NO;
 				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
 				INFOPLIST_KEY_SUFeedURL = "$(HEADROOM_SPARKLE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)";
@@ -2786,7 +2791,8 @@
 				INFOPLIST_KEY_LSMinimumSystemVersion = "$(MACOSX_DEPLOYMENT_TARGET)";
 				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "Personal use";
-				INFOPLIST_KEY_SUAllowsAutomaticUpdates = NO;
+				INFOPLIST_KEY_SUAllowsAutomaticUpdates = YES;
+				INFOPLIST_KEY_SUAutomaticallyUpdate = NO;
 				INFOPLIST_KEY_SUEnableAutomaticChecks = YES;
 				INFOPLIST_KEY_SUFeedURL = "$(HEADROOM_SPARKLE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)";

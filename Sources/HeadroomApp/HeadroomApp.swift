@@ -488,7 +488,10 @@ struct HeadroomApp: App {
     /// Live mirror of the OS light/dark setting, so `.system` resolves to a concrete scheme
     /// (see `resolvedScheme`). Updated by the interface-theme observer on the menu bar label.
     @State private var systemIsDark: Bool
-    @StateObject private var softwareUpdates = SoftwareUpdateController()
+    // A signed demo or XCTest host must not download/install into its own app bundle.
+    @StateObject private var softwareUpdates = SoftwareUpdateController(
+        enabled: !DemoFixture.isEnabled && !AppComposition.usesNoOpWidgetExporter()
+    )
     @Environment(\.openWindow) private var openWindow
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     private let preferences: Preferences

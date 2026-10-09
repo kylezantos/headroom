@@ -20,6 +20,27 @@ enum PopoverRenderHarness {
 
         Task { @MainActor in
             var failedPaths: [String] = []
+            if CommandLine.arguments.contains("--general-only") {
+                for dark in [false, true] {
+                    for availability in SoftwareUpdatePresentation.Availability.allCases {
+                        for compact in [false, true] {
+                            let name = "settings-general-\(availability.rawValue)-\(compact ? "compact" : "regular")-\(dark ? "dark" : "light").png"
+                            let url = outDir.appendingPathComponent(name)
+                            if await renderSettings(
+                                pane: .general, percentageMode: .remaining, dark: dark,
+                                height: compact ? SettingsView.minimumWindowHeight : nil,
+                                width: compact ? SettingsView.minimumWindowWidth : nil,
+                                softwareUpdates: RenderSoftwareUpdateController(availability: availability),
+                                to: url
+                            ) {
+                                print("✓ \(url.path)")
+                            } else { failedPaths.append(url.path) }
+                        }
+                    }
+                }
+                for path in failedPaths { print("✗ Failed to render \(path)") }
+                exit(failedPaths.isEmpty ? 0 : 1)
+            }
             if CommandLine.arguments.contains("--loading-only") {
                 do {
                     try await PopoverLoadingRenderHarness.run(to: outDir)
@@ -445,6 +466,7 @@ enum PopoverRenderHarness {
         menuBarPercentages: Bool? = nil,
         menuBarShelf: Bool = false,
         notifications: NotificationsRenderState = .firstOpen,
+        softwareUpdates: SoftwareUpdateControlling = DisabledSoftwareUpdateController(),
         to url: URL
     ) async -> Bool {
         // L9A retired the per-pane window heights; the harness captures every pane at
@@ -534,6 +556,7 @@ enum PopoverRenderHarness {
         let root = SettingsView(
             store: store,
             appearancePreference: .constant(dark ? .dark : .light),
+            softwareUpdates: softwareUpdates,
             preferences: preferences,
             // The unsigned debug binary's Keychain reads raise a SecurityAgent prompt that
             // blocks the whole run; the diagnostic never needs real keys.
@@ -658,4 +681,22 @@ enum PopoverRenderHarness {
             return DemoFixture.codexSnapshot
         }
     }
+}
+
+/// Inert update fixtures for offscreen Settings captures; never starts Sparkle.
+@MainActor
+private final class RenderSoftwareUpdateController: SoftwareUpdateControlling {
+    let canCheckForUpdates = true
+    let allowsAutomaticUpdates = true
+    let presentation = SoftwareUpdatePresentation()
+    var automaticallyChecksForUpdates = true
+    var automaticallyDownloadsUpdates = true
+    let lastUpdateCheckDate: Date? = Date(timeIntervalSince1970: 1_791_478_920)
+
+    init(availability: SoftwareUpdatePresentation.Availability) {
+        presentation.availability = availability
+        presentation.canCheckForUpdates = true
+    }
+
+    func checkForUpdates() {}
 }

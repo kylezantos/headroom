@@ -58,10 +58,6 @@ struct SettingsView: View {
     @State private var showCodexSparkCountersInWidgets = false
     @State private var syncToIPhoneEnabled = false
     @State private var launchAtLogin = false
-    /// L13: mirrors Sparkle's stored preference so the Updates switch repaints on
-    /// toggle; the updater stays the source of truth and is written on change.
-    @State private var automaticUpdateChecks = false
-    @State private var automaticUpdateDownloads = false
     @State private var apiSpendPeriod: APISpendPeriod = .currentMonth
     @State private var apiKeyDrafts: [APIKeyProvider: String] = [:]
     @State private var savedKeyProviders: Set<APIKeyProvider> = []
@@ -122,7 +118,7 @@ struct SettingsView: View {
     var body: some View {
         let _ = BenchCounters.hit("SettingsView")
         NavigationSplitView {
-            SettingsSidebar(selection: sidebarBinding)
+            SettingsSidebar(selection: sidebarBinding, softwareUpdates: softwareUpdates)
                 // KTD1: the removal must sit on the sidebar column's content — applied to
                 // the split view itself it is ignored and the toggle still renders.
                 //
@@ -270,8 +266,6 @@ struct SettingsView: View {
             GeneralSettingsPane(
                 intervalMinutes: $intervalMinutes,
                 launchAtLogin: $launchAtLogin,
-                automaticUpdateChecks: $automaticUpdateChecks,
-                automaticUpdateDownloads: $automaticUpdateDownloads,
                 softwareUpdates: softwareUpdates,
                 cadenceSentence: cadenceSentence,
                 onIntervalChange: { newValue in
@@ -351,12 +345,6 @@ struct SettingsView: View {
                 onSaveKey: { key, provider in saveKey(key, for: provider) },
                 onRequestRemoval: { removalCandidate = $0 },
                 cancelMessageDismissal: { messageDismissals[$0]?.cancel() }
-            )
-        case .about:
-            AboutSettingsPane(
-                softwareUpdates: softwareUpdates,
-                automaticUpdateChecks: $automaticUpdateChecks,
-                automaticUpdateDownloads: $automaticUpdateDownloads
             )
         }
     }
@@ -474,8 +462,6 @@ struct SettingsView: View {
         syncToIPhoneEnabled = store.syncToIPhoneEnabled
         apiSpendPeriod = store.apiSpendPeriod
         launchAtLogin = launchControl.isEnabled
-        automaticUpdateChecks = softwareUpdates.automaticallyChecksForUpdates
-        automaticUpdateDownloads = softwareUpdates.automaticallyDownloadsUpdates
     }
 
     /// Presence only (never the key material): selects the configured summary or the

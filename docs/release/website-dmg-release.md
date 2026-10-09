@@ -250,10 +250,27 @@ codesign --verify --deep --strict --verbose=2 /Volumes/Headroom\ Installer/Headr
 
 ## 6. Prove the installed-app update path
 
-The website build enables Sparkle's automatic *checks*, while leaving automatic installation
-off. Users receive an update prompt and choose when to install it; this is intentional
-(`SUEnableAutomaticChecks = YES`, `SUAllowsAutomaticUpdates = NO`). Every public release must
-prove that an already-installed, older public build can take that path.
+The website build enables automatic checks and allows users to opt into automatic downloads
+and installation on quit (`SUEnableAutomaticChecks = YES`, `SUAllowsAutomaticUpdates = YES`,
+`SUAutomaticallyUpdate = NO`). Automatic installation defaults off; Sparkle's saved user
+preference takes precedence over that bundle default. Do not overwrite the saved preference
+when packaging or launching. Users who leave it off continue to choose installation in the
+native update prompt. Every public release must prove the installed-app update path below.
+
+Run `python3 Tests/ReleaseScripts/sparkle-update-policy-tests.py` alongside the release-note
+tests before packaging. It exercises both real Info.plist stamping functions with isolated
+fixtures; it does not sign, publish, or install a release.
+
+**Automatic-update acceptance:** In the same isolated environment described below, use an
+older signed public build that already supports this opt-in and a newer signed release.
+Verify a fresh preference starts off, turn it on, and confirm it persists after reopening
+Settings and relaunching. Allow a background check to download and stage the update, then
+quit normally and relaunch; verify the installed version/build, signature, and provider smoke.
+Repeat with the opt-in off to confirm installation still requires the user's choice, and
+with automatic checks off to confirm automatic downloads are suspended. Test “Restart to
+Update” on a staged update separately. Never substitute a manual “Check for Updates” download
+for proof of the background path. Record this gate as pending until the two suitable signed
+builds and an isolated environment exist; preference/delegate tests are not installation proof.
 
 Use a VM/dedicated Mac, or install into `~/Applications` in a dedicated macOS test user, so this
 does not replace a working development install. A separate user alone does not isolate the shared

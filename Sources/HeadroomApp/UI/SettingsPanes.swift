@@ -57,8 +57,6 @@ struct SettingsPaneScaffold<Content: View>: View {
 struct GeneralSettingsPane: View {
     @Binding var intervalMinutes: Int
     @Binding var launchAtLogin: Bool
-    @Binding var automaticUpdateChecks: Bool
-    @Binding var automaticUpdateDownloads: Bool
     let softwareUpdates: SoftwareUpdateControlling
     /// KTD12: names each provider whose effective interval exceeds the chosen one; nil
     /// while every promise is kept (R10).
@@ -122,12 +120,10 @@ struct GeneralSettingsPane: View {
             // (debug/CLI builds lack the Sparkle Info.plist keys). A button that can
             // never be pressed reads as broken. (R3: the removed footer's action.)
             if softwareUpdates.canCheckForUpdates {
-                SoftwareUpdatesTile(
-                    softwareUpdates: softwareUpdates,
-                    automaticChecks: $automaticUpdateChecks,
-                    automaticDownloads: $automaticUpdateDownloads
-                )
+                SoftwareUpdatesTile(softwareUpdates: softwareUpdates)
             }
+
+            AboutSettingsTile()
         }
     }
 }
@@ -137,25 +133,30 @@ struct GeneralSettingsPane: View {
 /// version lives in the sidebar stamp and About's header, so this row doesn't repeat it.
 struct SoftwareUpdatesTile: View {
     let softwareUpdates: SoftwareUpdateControlling
-    @Binding var automaticChecks: Bool
-    @Binding var automaticDownloads: Bool
+    private var automaticChecks: Binding<Bool> {
+        Binding(
+            get: { softwareUpdates.automaticallyChecksForUpdates },
+            set: { softwareUpdates.automaticallyChecksForUpdates = $0 }
+        )
+    }
+
+    private var automaticDownloads: Binding<Bool> {
+        Binding(
+            get: { softwareUpdates.automaticallyDownloadsUpdates },
+            set: { softwareUpdates.automaticallyDownloadsUpdates = $0 }
+        )
+    }
 
     var body: some View {
         SettingsTile("Updates") {
-            SettingsSwitchRow(title: "Automatically check for updates", isOn: $automaticChecks)
-                .onChange(of: automaticChecks) { _, newValue in
-                    softwareUpdates.automaticallyChecksForUpdates = newValue
-                }
+            SettingsSwitchRow(title: "Automatically check for updates", isOn: automaticChecks)
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                SettingsSwitchRow(title: "Download and install updates automatically", isOn: $automaticDownloads)
-                    .onChange(of: automaticDownloads) { _, newValue in
-                        softwareUpdates.automaticallyDownloadsUpdates = newValue
-                    }
+                SettingsSwitchRow(title: "Download and install updates automatically", isOn: automaticDownloads)
                 SettingsHelpText(text: "Installs when you quit Headroom.")
             }
             // Sparkle only downloads on its own background checks, so with those off this
             // switch could never act. Dimmed rather than hidden, so the dependency is visible.
-            .disabled(!automaticChecks)
+            .disabled(!softwareUpdates.automaticallyChecksForUpdates || !softwareUpdates.allowsAutomaticUpdates)
 
             checkRow
         }
@@ -168,6 +169,7 @@ struct SoftwareUpdatesTile: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            .disabled(!softwareUpdates.presentation.canCheckForUpdates)
             Spacer(minLength: 12)
             // Sparkle's date isn't observable, so the line re-reads it on a slow tick and
             // picks up a check made while the pane is open.
@@ -1132,87 +1134,32 @@ private struct MenuBarPreviewKey: Hashable {
 
 // MARK: - About
 
-/// Updates, the tip jar, and who made Headroom. Every row but the update check opens a
-/// browser; the URLs live in Core's `AboutLinks`.
-struct AboutSettingsPane: View {
-    let softwareUpdates: SoftwareUpdateControlling
-    @Binding var automaticUpdateChecks: Bool
-    @Binding var automaticUpdateDownloads: Bool
-
+/// The combined General pane preserves About's copy and destinations without repeating
+/// the sidebar's large app mark. Uses the same tile and link rows as the other settings.
+private struct AboutSettingsTile: View {
     var body: some View {
-        let _ = BenchCounters.hit("AboutSettingsPane")
-        SettingsPaneScaffold(SettingsPane.about.label) {
-            AboutIdentityCard()
+        SettingsTile("About Headroom", titleAccessory: {
+            Spacer(minLength: 12)
+            if let version = AppVersionLabel.plain {
+                Text("Version \(version)")
+                    .font(SettingsType.help.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+        }) {
+            SettingsHelpText(text: AboutLinks.tagline)
 
-            // Hidden in debug/CLI builds for the same reason as General's: no updater.
-            if softwareUpdates.canCheckForUpdates {
-                SoftwareUpdatesTile(
-                    softwareUpdates: softwareUpdates,
-                    automaticChecks: $automaticUpdateChecks,
-                    automaticDownloads: $automaticUpdateDownloads
-                )
+            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
+                SettingsGroupLabel("Made by \(AboutLinks.makerName)")
+                SettingsLinkList(links: AboutLinks.maker)
             }
 
-            SettingsTile("Support") {
+            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
+                SettingsGroupLabel("Support")
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     SettingsLinkList(links: [AboutLinks.tipJar])
                     SettingsHelpText(text: AboutLinks.tipJarNote)
                 }
             }
-
-            SettingsTile("Made by \(AboutLinks.makerName)") {
-                SettingsLinkList(links: AboutLinks.maker)
-            }
-        }
-    }
-}
-
-/// The pane's header: the app icon, name, version, and a one-line description, centred in one
-/// untitled tile so About opens on what the app is before the rows about it.
-private struct AboutIdentityCard: View {
-    private static let iconSize: CGFloat = 64
-    /// The sidebar's 8pt-at-28pt clip, scaled, so the two marks share one corner shape.
-    private static let iconCornerRadius: CGFloat = iconSize * 8 / 28
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        SettingsTile {
-            VStack(spacing: 0) {
-                if let image = AppIconGlyph.image {
-                    let shape = RoundedRectangle(cornerRadius: Self.iconCornerRadius, style: .continuous)
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: Self.iconSize, height: Self.iconSize)
-                        .clipShape(shape)
-                        // The sidebar mark's neutral inset outline (UI craft: image outlines).
-                        .overlay(
-                            shape.strokeBorder(
-                                (colorScheme == .dark ? Color.white : Color.black).opacity(0.10),
-                                lineWidth: 1
-                            )
-                        )
-                        .accessibilityHidden(true)
-                        .padding(.bottom, 12)
-                }
-                Text("Headroom")
-                    .font(SettingsType.paneTitle)
-                    .kerning(SettingsType.paneTitleKerning)
-                if let version = AppVersionLabel.plain {
-                    // Hidden under `swift run` (no bundle Info.plist), like the sidebar stamp.
-                    Text("Version \(version)")
-                        .font(SettingsType.help.monospaced())
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 3)
-                }
-                Text(AboutLinks.tagline)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 10)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 8)
-            .accessibilityElement(children: .combine)
         }
     }
 }

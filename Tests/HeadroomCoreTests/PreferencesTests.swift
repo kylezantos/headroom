@@ -281,6 +281,15 @@ struct PreferencesTests {
         #expect(prefs.settingsPane == .general)
     }
 
+    @Test func retiredAboutDestinationReopensGeneral() {
+        let defaults = freshDefaults()
+        defaults.set("about", forKey: "settingsPane")
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.settingsPane == .general)
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: false) == .general)
+        #expect(prefs.initialSettingsPane(hasSignedInAccount: true) == .general)
+    }
+
     @Test func firstOpenDefaultsToAccountsOnlyWhileNothingIsSignedIn() {
         // R2B1: the first open is the only one with a decision to make — and General is the
         // wrong answer on a Mac with nothing signed in, where all the work is in Accounts.
@@ -304,7 +313,7 @@ struct PreferencesTests {
 
     @Test func settingsPaneOrderAndGroupsMatchTheSidebar() {
         // R1: sidebar order and its two section headers are derived from the enum.
-        #expect(SettingsPane.allCases == [.general, .appearance, .menuBar, .widgets, .notifications, .accounts, .apiSpend, .about])
+        #expect(SettingsPane.allCases == [.general, .appearance, .menuBar, .widgets, .notifications, .accounts, .apiSpend])
         #expect(SettingsPane.allCases.map(\.label) == [
             "General",
             "Appearance",
@@ -313,18 +322,16 @@ struct PreferencesTests {
             "Notifications",
             "Accounts",
             "API Spend",
-            "About",
         ])
 
-        #expect(SettingsPane.Group.allCases == [.preferences, .sources, .about])
+        #expect(SettingsPane.Group.allCases == [.preferences, .sources])
         // R2B1: the header reads "App"; the raw value stays `preferences` so nothing that
         // persisted a group name migrates.
-        #expect(SettingsPane.Group.allCases.map(\.label) == ["App", "Sources", nil])
+        #expect(SettingsPane.Group.allCases.map(\.label) == ["App", "Sources"])
         #expect(SettingsPane.Group.preferences.rawValue == "preferences")
         // R1 (notifications plan): Notifications is the last App destination, after Widgets.
         #expect(SettingsPane.Group.preferences.panes == [.general, .appearance, .menuBar, .widgets, .notifications])
         #expect(SettingsPane.Group.sources.panes == [.accounts, .apiSpend])
-        #expect(SettingsPane.Group.about.panes == [.about])
         // The groups partition every pane without overlap.
         #expect(SettingsPane.Group.allCases.flatMap(\.panes) == SettingsPane.allCases)
     }

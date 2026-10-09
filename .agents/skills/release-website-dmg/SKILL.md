@@ -44,7 +44,8 @@ each platform runbook as a separate release lane. Report their states separately
 1. Identify the target marketing version and monotonically increasing build. Update the version
    fields together in `project.yml`, add the required non-empty
    `docs/release/sparkle/Headroom-<version>-<build>.html`, run `xcodegen generate` and
-   `swift test` plus `bash Tests/ReleaseScripts/sparkle-release-notes-tests.sh`, and merge the
+   `swift test` plus `bash Tests/ReleaseScripts/sparkle-release-notes-tests.sh` and
+   `python3 Tests/ReleaseScripts/dmg-layout-check-tests.py`, and merge the
    release bump and notes to `main` before generating public artifacts.
 2. Seed `dist/headroom.zantos.co` from the current `headroom-site/public` using the runbook's
    non-destructive staging step, then hydrate archived binaries with the Headroom website

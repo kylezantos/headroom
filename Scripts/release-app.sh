@@ -110,6 +110,137 @@ detach_dmg_mount() {
   hdiutil detach "${DMG_MOUNT_DIR}" -force >/dev/null 2>&1 || true
 }
 
+# Icon positions in the 680x440 install window; they sit either side of the background's arrow.
+DMG_APP_POSITION="196,176"
+DMG_APPLICATIONS_POSITION="484,176"
+# Dot-files are parked past the window so someone showing hidden files (⌘⇧.) still sees
+# only the two icons (a friend's 1.5 install window listed all three).
+DMG_HIDDEN_ITEMS=(".background" ".VolumeIcon.icns")
+DMG_HIDDEN_POSITION="1200,1200"
+
+stage_dmg_volume_icon() {
+  # The volume icon doubles as the window's title-bar proxy icon.
+  if [[ -f "${APP}/Contents/Resources/AppIcon.icns" ]] && command -v SetFile >/dev/null 2>&1; then
+    if cp "${APP}/Contents/Resources/AppIcon.icns" "${DMG_MOUNT_DIR}/.VolumeIcon.icns" \
+        && SetFile -a C "${DMG_MOUNT_DIR}" \
+        && SetFile -a V "${DMG_MOUNT_DIR}/.VolumeIcon.icns"; then
+      echo "  ✓ volume icon staged (title-bar proxy icon)"
+    else
+      echo "  ! volume icon staging failed — DMG will show the generic disk icon" >&2
+    fi
+  else
+    echo "  ! AppIcon.icns or SetFile unavailable — skipping volume icon" >&2
+  fi
+}
+
+# Reads the .DS_Store Finder saved and checks every icon position.
+verify_dmg_layout() {
+  local volume="$1"
+  if [[ ! -f "${volume}/.DS_Store" ]]; then
+    echo "  ✗ DMG layout: Finder saved no .DS_Store" >&2
+    return 1
+  fi
+  local hidden=() item
+  for item in "${DMG_HIDDEN_ITEMS[@]}"; do
+    if [[ -e "${volume}/${item}" ]]; then
+      hidden+=("${item}")
+    fi
+  done
+  python3 Scripts/dmg-layout-check.py "${volume}/.DS_Store" \
+    "Headroom.app=${DMG_APP_POSITION}" \
+    "Applications=${DMG_APPLICATIONS_POSITION}" \
+    --offscreen ${hidden[@]+"${hidden[@]}"}
+}
+
+style_dmg_window() {
+  osascript - "$(cd "${DMG_MOUNT_DIR}" && pwd)" "${DMG_APP_POSITION}" "${DMG_APPLICATIONS_POSITION}" \
+    "${DMG_HIDDEN_POSITION}" "${DMG_HIDDEN_ITEMS[@]}" <<'APPLESCRIPT'
+on xy(pair)
+  set AppleScript's text item delimiters to ","
+  set parts to text items of pair
+  set AppleScript's text item delimiters to ""
+  return {(item 1 of parts) as integer, (item 2 of parts) as integer}
+end xy
+
+on placeIcons(dmgFolder, argv)
+  tell application "Finder"
+    set position of item "Headroom.app" of dmgFolder to my xy(item 2 of argv)
+    set position of item "Applications" of dmgFolder to my xy(item 3 of argv)
+    repeat with i from 5 to count of argv
+      try
+        set position of item (item i of argv) of dmgFolder to my xy(item 4 of argv)
+      end try
+    end repeat
+  end tell
+end placeIcons
+
+on run argv
+  set mountPath to item 1 of argv
+  tell application "Finder"
+    activate
+    set dmgFolder to POSIX file mountPath as alias
+    set dmgWindow to make new Finder window to dmgFolder
+    delay 1
+
+    set current view of dmgWindow to icon view
+    try
+      set toolbar visible of dmgWindow to false
+    end try
+    try
+      set statusbar visible of dmgWindow to false
+    end try
+    -- 680 x 440 content area + 28px title bar = 468 tall
+    set bounds of dmgWindow to {180, 120, 860, 588}
+
+    set viewOptions to icon view options of dmgWindow
+    set arrangement of viewOptions to not arranged
+    set icon size of viewOptions to 128
+    set text size of viewOptions to 13
+    set label position of viewOptions to bottom
+
+    -- A custom Finder background is always treated as light appearance, so labels draw
+    -- black even in Dark Mode. The dark background paints a gold chip under each label
+    -- (dmg-background.html) so the black names stay legible and read as branding.
+    set background picture of viewOptions to (POSIX file (mountPath & "/.background/background.tiff") as alias)
+  end tell
+  placeIcons(dmgFolder, argv)
+
+  -- Tahoe Finder ignores the toolbar/statusbar AppleScript properties for DMG windows
+  -- and instead shows a tab bar + path bar + status bar. Their View-menu toggles are the
+  -- only working switch, and the hidden state persists into the DMG's .DS_Store (verified
+  -- across remounts). Menu items read "Hide …" only when the bar is visible, so this is
+  -- naturally idempotent. Needs Accessibility access for the calling terminal; tolerated
+  -- (with a warning) when unavailable so CI-ish runs still produce a usable DMG.
+  tell application "System Events"
+    tell process "Finder"
+      repeat with itemName in {"Hide Tab Bar", "Hide Path Bar", "Hide Status Bar"}
+        try
+          click menu item (itemName as text) of menu "View" of menu bar 1
+          delay 0.4
+        on error errMsg
+          log "  chrome toggle skipped (" & itemName & "): " & errMsg
+        end try
+      end repeat
+    end tell
+  end tell
+
+  tell application "Finder"
+    -- Re-assert the frame after the chrome collapse so the saved content area is 680x440.
+    set bounds of dmgWindow to {180, 120, 860, 588}
+  end tell
+  -- Hiding the tab/path/status bars shifts saved icon positions down by the bars' height
+  -- (1.5 build 35 saved y=221, putting the icons 45pt below the background's arrow), so
+  -- place the icons again on the final frame.
+  placeIcons(dmgFolder, argv)
+  tell application "Finder"
+    update dmgFolder without registering applications
+    delay 1
+    close dmgWindow
+  end tell
+end run
+APPLESCRIPT
+}
+
 create_drag_install_dmg() {
   rm -f "${DMG_RW_PATH}" "${DMG_PATH}"
   rm -rf "${DMG_MOUNT_DIR}"
@@ -142,92 +273,39 @@ create_drag_install_dmg() {
     -nobrowse >/dev/null
   trap detach_dmg_mount RETURN
 
-  osascript - "$(cd "${DMG_MOUNT_DIR}" && pwd)" <<'APPLESCRIPT'
-on run argv
-  set mountPath to item 1 of argv
-  tell application "Finder"
-    activate
-    set dmgFolder to POSIX file mountPath as alias
-    set dmgWindow to make new Finder window to dmgFolder
-    delay 1
+  # Staged before styling so Finder can park it off-window. Finder's background/update writes
+  # were once seen deleting a pre-staged icon, so it is checked again after styling.
+  stage_dmg_volume_icon
 
-    set current view of dmgWindow to icon view
-    try
-      set toolbar visible of dmgWindow to false
-    end try
-    try
-      set statusbar visible of dmgWindow to false
-    end try
-    -- 680 x 440 content area + 28px title bar = 468 tall
-    set bounds of dmgWindow to {180, 120, 860, 588}
-
-    set viewOptions to icon view options of dmgWindow
-    set arrangement of viewOptions to not arranged
-    set icon size of viewOptions to 128
-    set text size of viewOptions to 13
-    set label position of viewOptions to bottom
-
-    -- A custom Finder background is always treated as light appearance, so labels draw
-    -- black even in Dark Mode. The dark background paints a gold chip under each label
-    -- (dmg-background.html) so the black names stay legible and read as branding.
-    set background picture of viewOptions to (POSIX file (mountPath & "/.background/background.tiff") as alias)
-
-    set position of item "Headroom.app" of dmgFolder to {196, 176}
-    set position of item "Applications" of dmgFolder to {484, 176}
-  end tell
-
-  -- Tahoe Finder ignores the toolbar/statusbar AppleScript properties for DMG windows
-  -- and instead shows a tab bar + path bar + status bar. Their View-menu toggles are the
-  -- only working switch, and the hidden state persists into the DMG's .DS_Store (verified
-  -- across remounts). Menu items read "Hide …" only when the bar is visible, so this is
-  -- naturally idempotent. Needs Accessibility access for the calling terminal; tolerated
-  -- (with a warning) when unavailable so CI-ish runs still produce a usable DMG.
-  tell application "System Events"
-    tell process "Finder"
-      repeat with itemName in {"Hide Tab Bar", "Hide Path Bar", "Hide Status Bar"}
-        try
-          click menu item (itemName as text) of menu "View" of menu bar 1
-          delay 0.4
-        on error errMsg
-          log "  chrome toggle skipped (" & itemName & "): " & errMsg
-        end try
-      end repeat
-    end tell
-  end tell
-
-  tell application "Finder"
-    -- Re-assert the frame after the chrome collapse so the saved content area is 680x440.
-    set bounds of dmgWindow to {180, 120, 860, 588}
-    -- Hiding the tab/path/status bars shifts saved icon positions down by the bars' height
-    -- (1.5 build 35 saved y=221, putting the icons 45pt below the background's arrow), so
-    -- place the icons again on the final frame.
-    set position of item "Headroom.app" of dmgFolder to {196, 176}
-    set position of item "Applications" of dmgFolder to {484, 176}
-    update dmgFolder without registering applications
-    delay 1
-    close dmgWindow
-  end tell
-end run
-APPLESCRIPT
-
-  # Give the mounted volume the Headroom app icon — it doubles as the window's title-bar
-  # proxy icon. This must run AFTER the Finder styling pass: Finder's background/update
-  # writes were observed clobbering a pre-staged .VolumeIcon.icns (file gone after
-  # detach), while staging it last survives remounts.
-  if [[ -f "${APP}/Contents/Resources/AppIcon.icns" ]] && command -v SetFile >/dev/null 2>&1; then
-    if cp "${APP}/Contents/Resources/AppIcon.icns" "${DMG_MOUNT_DIR}/.VolumeIcon.icns" \
-        && SetFile -a C "${DMG_MOUNT_DIR}" \
-        && SetFile -a V "${DMG_MOUNT_DIR}/.VolumeIcon.icns"; then
-      echo "  ✓ volume icon staged (title-bar proxy icon)"
-    else
-      echo "  ! volume icon staging failed — DMG will show the generic disk icon" >&2
+  # Finder's saved layout is intermittent: 1.5 build 41 shipped with Finder's default icon
+  # positions although this pass saves the right ones on most runs. Read the .DS_Store back
+  # and retry rather than publish a broken install window.
+  local attempt
+  for attempt in 1 2 3; do
+    style_dmg_window
+    sleep 2
+    if verify_dmg_layout "${DMG_MOUNT_DIR}"; then
+      echo "  ✓ install window layout saved"
+      break
     fi
-  else
-    echo "  ! AppIcon.icns or SetFile unavailable — skipping volume icon" >&2
-  fi
+    if [[ "${attempt}" == 3 ]]; then
+      echo "DMG install window layout did not persist after ${attempt} attempts" >&2
+      exit 70
+    fi
+    echo "  ! install window layout not saved (attempt ${attempt}); styling again" >&2
+  done
 
+  if [[ ! -f "${DMG_MOUNT_DIR}/.VolumeIcon.icns" ]]; then
+    echo "  ! Finder styling removed the volume icon; staging it again" >&2
+    stage_dmg_volume_icon
+  fi
+  # A read-only image needs no fseventsd log, and a user showing hidden files would see it.
+  rm -rf "${DMG_MOUNT_DIR}/.fseventsd"
+  chflags hidden "${DMG_MOUNT_DIR}/.background"
+
+  # A plain detach lets the volume flush; force only if it refuses.
   sync
-  detach_dmg_mount
+  hdiutil detach "${DMG_MOUNT_DIR}" >/dev/null 2>&1 || detach_dmg_mount
   trap - RETURN
 
   echo "→ compressing installer image"
@@ -236,6 +314,20 @@ APPLESCRIPT
     -imagekey zlib-level=9 \
     -o "${DMG_PATH}" >/dev/null
   rm -f "${DMG_RW_PATH}"
+
+  # The compressed image is what ships, so check the layout it actually carries.
+  local verify_mount="${WORK_DIR}/dmg-verify"
+  rm -rf "${verify_mount}"
+  mkdir -p "${verify_mount}"
+  hdiutil attach "${DMG_PATH}" -mountpoint "${verify_mount}" -readonly -nobrowse -noverify >/dev/null
+  local verified=0
+  verify_dmg_layout "${verify_mount}" && verified=1
+  hdiutil detach "${verify_mount}" >/dev/null 2>&1 || hdiutil detach "${verify_mount}" -force >/dev/null 2>&1 || true
+  if [[ "${verified}" != 1 ]]; then
+    echo "Compressed DMG lost the install window layout" >&2
+    exit 70
+  fi
+  echo "  ✓ compressed DMG carries the install window layout"
 }
 
 set_plist_string() {
@@ -472,7 +564,7 @@ select_developer_id_signing_sha() {
   headroom_newest_identity_sha "${HEADROOM_DEVELOPER_ID_APPLICATION:-Developer ID Application:}"
 }
 
-for tool in security codesign curl ditto hdiutil xcrun plutil tiffutil; do
+for tool in security codesign curl ditto hdiutil xcrun plutil tiffutil python3; do
   require_tool "${tool}"
 done
 require_tool xcodegen

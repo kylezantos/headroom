@@ -135,7 +135,10 @@ Gatekeeper, signs the Sparkle archive, then updates these local outputs:
 The DMG styling pass drives Finder for a few seconds, and the result has been known to vary
 between runs: 1.5 (41) shipped with Finder's default icon positions. The script now reads the
 saved `.DS_Store` back (`Scripts/dmg-layout-check.py`), retries the pass up to three times,
-and checks the compressed image again. It fails the release rather than publishing a broken
+and checks the compressed image again. It styles under a unique temporary volume name and
+renames to "Headroom Installer" afterwards: Finder resolves the volume by name, so another
+"Headroom Installer" it knows about (an open earlier DMG, or a ghost left by a forced eject)
+made it list the new volume as empty and refuse every icon position. It fails the release rather than publishing a broken
 install window. Hidden items (`.background`, `.VolumeIcon.icns`) are parked outside the window
 and `.fseventsd` is removed, so people who show hidden files in Finder still see two icons.
 

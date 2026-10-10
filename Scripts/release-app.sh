@@ -199,8 +199,8 @@ on run argv
     set label position of viewOptions to bottom
 
     -- A custom Finder background is always treated as light appearance, so labels draw
-    -- black even in Dark Mode. The dark background paints a gold chip under each label
-    -- (dmg-background.html) so the black names stay legible and read as branding.
+    -- black even in Dark Mode and all but vanish on the dark ground. That is deliberate
+    -- (dmg-background.html): the icons, arrow and instruction carry the window.
     set background picture of viewOptions to (POSIX file (mountPath & "/.background/background.tiff") as alias)
   end tell
   placeIcons(dmgFolder, argv)
@@ -243,8 +243,9 @@ APPLESCRIPT
 
 create_drag_install_dmg() {
   rm -f "${DMG_RW_PATH}" "${DMG_PATH}"
-  rm -rf "${DMG_MOUNT_DIR}"
-  mkdir -p "${DMG_MOUNT_DIR}"
+  # A fresh mount path every run: Finder caches a path's contents, so a remount at a path it
+  # has seen can list the new volume as empty and refuse every icon position (-10006).
+  DMG_MOUNT_DIR="$(mktemp -d "${WORK_DIR}/dmg-mount.XXXXXX")"
 
   echo "→ staging installer window background"
   if [[ ! -f "${DMG_BACKGROUND_1X}" || ! -f "${DMG_BACKGROUND_2X}" ]]; then
@@ -256,9 +257,13 @@ create_drag_install_dmg() {
   tiffutil -cathidpicheck "${DMG_BACKGROUND_1X}" "${DMG_BACKGROUND_2X}" \
     -out "${STAGING_DIR}/.background/background.tiff" >/dev/null
 
+  # Finder addresses the volume by name, so any other "Headroom Installer" it knows (an open
+  # earlier DMG, or a ghost left by a forced eject) captures the styling pass: Finder lists
+  # the new volume as empty and refuses every position. Style under a unique name, then rename.
+  local styling_volume_name="Headroom Installer ${RANDOM}${RANDOM}"
   echo "→ creating writable installer image"
   hdiutil create \
-    -volname "Headroom Installer" \
+    -volname "${styling_volume_name}" \
     -srcfolder "${STAGING_DIR}" \
     -fs HFS+ \
     -format UDRW \
@@ -282,7 +287,9 @@ create_drag_install_dmg() {
   # and retry rather than publish a broken install window.
   local attempt
   for attempt in 1 2 3; do
-    style_dmg_window
+    if ! style_dmg_window; then
+      echo "  ! Finder styling pass failed (attempt ${attempt})" >&2
+    fi
     sleep 2
     if verify_dmg_layout "${DMG_MOUNT_DIR}"; then
       echo "  ✓ install window layout saved"
@@ -303,6 +310,8 @@ create_drag_install_dmg() {
   rm -rf "${DMG_MOUNT_DIR}/.fseventsd"
   chflags hidden "${DMG_MOUNT_DIR}/.background"
 
+  diskutil rename "${DMG_MOUNT_DIR}" "Headroom Installer" >/dev/null
+
   # A plain detach lets the volume flush; force only if it refuses.
   sync
   hdiutil detach "${DMG_MOUNT_DIR}" >/dev/null 2>&1 || detach_dmg_mount
@@ -316,13 +325,13 @@ create_drag_install_dmg() {
   rm -f "${DMG_RW_PATH}"
 
   # The compressed image is what ships, so check the layout it actually carries.
-  local verify_mount="${WORK_DIR}/dmg-verify"
-  rm -rf "${verify_mount}"
-  mkdir -p "${verify_mount}"
+  local verify_mount
+  verify_mount="$(mktemp -d "${WORK_DIR}/dmg-verify.XXXXXX")"
   hdiutil attach "${DMG_PATH}" -mountpoint "${verify_mount}" -readonly -nobrowse -noverify >/dev/null
   local verified=0
   verify_dmg_layout "${verify_mount}" && verified=1
   hdiutil detach "${verify_mount}" >/dev/null 2>&1 || hdiutil detach "${verify_mount}" -force >/dev/null 2>&1 || true
+  rmdir "${verify_mount}" "${DMG_MOUNT_DIR}" 2>/dev/null || true
   if [[ "${verified}" != 1 ]]; then
     echo "Compressed DMG lost the install window layout" >&2
     exit 70
@@ -639,7 +648,7 @@ RELEASE_NOTES_NAME="$(headroom_sparkle_release_notes_filename "${VERSION}" "${BU
 RELEASE_NOTES_URL="${HEADROOM_SPARKLE_DOWNLOAD_URL_PREFIX}${RELEASE_NOTES_NAME}"
 DMG_PATH="${DIST_DIR}/${DMG_NAME}"
 DMG_RW_PATH="${WORK_DIR}/Headroom-${VERSION}-${BUILD}-rw.dmg"
-DMG_MOUNT_DIR="${WORK_DIR}/dmg-mount"
+DMG_MOUNT_DIR="" # set per run by create_drag_install_dmg
 STAGING_DIR="${WORK_DIR}/dmg-root"
 
 mkdir -p "${WORK_DIR}" "${STAGING_DIR}" "${DIST_DIR}"

@@ -76,6 +76,32 @@ struct DemoLaunchTokenTests {
         ) == .neutral)
     }
 
+    // MARK: --account-layout
+
+    @Test func accountLayoutTokenSeedsTheDemoLayout() {
+        #expect(AppComposition.demoAccountLayout(
+            arguments: ["Headroom", "--demo", "multi-7", "--account-layout", "compact"]
+        ) == .compact)
+        #expect(AppComposition.demoAccountLayout(
+            arguments: ["Headroom", "--demo", "--account-layout", "standard"]
+        ) == .standard)
+    }
+
+    /// Like `--account-title-ink`, an absent or malformed token reseeds the default so one
+    /// capture cannot leak into the next; entry rejects the malformed ones under `--demo`.
+    @Test func absentOrMalformedAccountLayoutFallsBackToStandard() {
+        #expect(AppComposition.demoAccountLayout(arguments: ["Headroom", "--demo"]) == .standard)
+        #expect(AppComposition.demoAccountLayout(
+            arguments: ["Headroom", "--demo", "--account-layout"]
+        ) == .standard)
+        #expect(AppComposition.demoAccountLayout(
+            arguments: ["Headroom", "--demo", "--account-layout", "Compact"]
+        ) == .standard)
+        #expect(AppComposition.demoAccountLayout(
+            arguments: ["Headroom", "--demo", "--account-layout", "columns"]
+        ) == .standard)
+    }
+
     // MARK: XCTest-host widget exporter
 
     /// The app hosts its own test bundle, so a run launches it for real and its first refresh

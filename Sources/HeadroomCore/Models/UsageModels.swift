@@ -197,8 +197,8 @@ public enum UsagePercentageMode: String, CaseIterable, Identifiable, Sendable {
 /// pre-round-2 per-provider tint (`HeadroomWidgetColorValues.textAccent`) for people who
 /// want the popover colored the way they are used to (G1A, Sep 2026).
 ///
-/// Popover-only, exactly like `MeterStyle`: the widgets, the iPhone mirror, and the menu
-/// bar carry no title ink, so no projection reads this preference.
+/// The widgets and the menu bar carry no title ink; the phone's display block does
+/// (iPhone parity KTD11), so the phone can follow it under "Match my Mac".
 public enum AccountTitleInk: String, CaseIterable, Identifiable, Sendable {
     case neutral
     case brand
@@ -209,6 +209,26 @@ public enum AccountTitleInk: String, CaseIterable, Identifiable, Sendable {
         switch self {
         case .neutral: return "Neutral"
         case .brand: return "Brand"
+        }
+    }
+}
+
+/// How the macOS popover lays out accounts (popover account layout plan, R1). `.standard`
+/// keeps the provider cards; `.compact` draws one dense row per account. Both flow into a
+/// second column past the cards-height cap (KTD1, KTD2).
+///
+/// Mac-only (KTD8): it sizes the popover's window, which has no phone equivalent, so neither
+/// the phone's display block nor any widget or menu-bar projection carries it.
+public enum AccountLayout: String, CaseIterable, Identifiable, Sendable {
+    case standard
+    case compact
+
+    public var id: String { rawValue }
+
+    public var label: String {
+        switch self {
+        case .standard: return "Standard"
+        case .compact: return "Compact"
         }
     }
 }

@@ -13,6 +13,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let showMenuBarPercentage = "showMenuBarPercentage"
         static let usagePercentageMode = "usagePercentageMode"
         static let accountTitleInk = "accountTitleInk"
+        static let accountLayout = "accountLayout"
         static let meterFormat = "meterFormat"
         static let meterShape = "meterShape"
         static let meterFill = "meterFill"
@@ -74,7 +75,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.usagePercentageMode) }
     }
 
-    /// G1A: popover-only, like `meterStyle` — no widget/phone/menu-bar projection reads it.
+    /// G1A: no widget or menu-bar projection reads it; the phone's display block does (KTD11).
     public var accountTitleInk: AccountTitleInk {
         get {
             guard let raw = defaults.string(forKey: Key.accountTitleInk),
@@ -83,6 +84,17 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return ink
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.accountTitleInk) }
+    }
+
+    /// KTD8: Mac popover only; no phone, widget or menu-bar projection reads it.
+    public var accountLayout: AccountLayout {
+        get {
+            guard let raw = defaults.string(forKey: Key.accountLayout),
+                  let layout = AccountLayout(rawValue: raw)
+            else { return .standard }
+            return layout
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.accountLayout) }
     }
 
     public var meterFormat: GaugeFormat {

@@ -1111,6 +1111,37 @@ struct UsageStoreTests {
         #expect(phoneExporter.last?.display?.accountTitleInk == .neutral)
     }
 
+    /// KTD8: the account layout sizes the Mac popover only, so the store mirrors it without
+    /// reaching the widgets or the phone, and a repeat set is a no-op.
+    @Test func accountLayoutSeedsPersistsAndStaysOffEveryProjection() {
+        let preferences = freshPreferences()
+        preferences.accountLayout = .compact
+        preferences.syncToIPhoneEnabled = true
+        let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
+        let store = UsageStore(
+            providers: [
+                StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+            ],
+            preferences: preferences,
+            widgetExporter: exporter,
+            phoneSyncExporter: phoneExporter
+        )
+
+        #expect(store.accountLayout == .compact)
+
+        store.setAccountLayout(.standard)
+        #expect(store.accountLayout == .standard)
+        #expect(preferences.accountLayout == .standard)
+
+        preferences.accountLayout = .compact
+        store.setAccountLayout(.standard)
+        #expect(store.accountLayout == .standard)
+        #expect(preferences.accountLayout == .compact)
+        #expect(exporter.exports.isEmpty)
+        #expect(phoneExporter.captures.isEmpty)
+    }
+
     @Test func meterStyleSeedsPersistsAndNeverTriggersWidgetExport() {
         let preferences = freshPreferences()
         preferences.meterFormat = .full

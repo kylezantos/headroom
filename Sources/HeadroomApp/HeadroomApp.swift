@@ -102,6 +102,18 @@ enum Entry {
             ))
             exit(1)
         }
+        // `--account-layout <standard|compact>`: seeds the popover account layout for demo
+        // captures, validated like `--account-title-ink` above.
+        if DemoFixture.isEnabled,
+           let index = CommandLine.arguments.firstIndex(of: "--account-layout"),
+           (!CommandLine.arguments.indices.contains(index + 1)
+               || AccountLayout(rawValue: CommandLine.arguments[index + 1]) == nil) {
+            let valid = AccountLayout.allCases.map(\.rawValue).joined(separator: ", ")
+            FileHandle.standardError.write(Data(
+                "Invalid --account-layout. Expected one of: \(valid).\n".utf8
+            ))
+            exit(1)
+        }
         if !DemoFixture.isEnabled, let running = SingleInstance.otherRunningCopy() {
             let path = running.bundleURL?.path ?? "another location"
             FileHandle.standardError.write(Data(
@@ -966,6 +978,7 @@ enum AppComposition {
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
+        prefs.accountLayout = demoAccountLayout()
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills side by side in the menu bar
         prefs.widgetsEnabled = true
@@ -1010,6 +1023,7 @@ enum AppComposition {
         let meterStyle = demoMeterStyle()
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
+        prefs.accountLayout = demoAccountLayout()
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills in the menu bar
         // API spend surfaces are off by default, so enable exactly the ones this scenario
@@ -1137,6 +1151,16 @@ enum AppComposition {
               let ink = AccountTitleInk(rawValue: arguments[index + 1])
         else { return .neutral }
         return ink
+    }
+
+    /// `--account-layout <standard|compact>`, reseeding Standard when absent or malformed so
+    /// one capture cannot leak into the next.
+    static func demoAccountLayout(arguments: [String] = CommandLine.arguments) -> AccountLayout {
+        guard let index = arguments.firstIndex(of: "--account-layout"),
+              arguments.indices.contains(index + 1),
+              let layout = AccountLayout(rawValue: arguments[index + 1])
+        else { return .standard }
+        return layout
     }
 
     /// One provider instance per configured account, in registry order (built-in first).

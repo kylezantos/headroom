@@ -85,6 +85,19 @@ struct PreferencesTests {
         #expect(prefs.accountTitleInk == .neutral)
     }
 
+    @Test func accountLayoutDefaultsPersistsAndIgnoresUnknownValues() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.accountLayout == .standard)
+
+        prefs.accountLayout = .compact
+        #expect(prefs.accountLayout == .compact)
+        #expect(Preferences(defaults: defaults).accountLayout == .compact)
+
+        defaults.set("dense", forKey: "accountLayout")
+        #expect(prefs.accountLayout == .standard)
+    }
+
     @Test func meterStyleComponentsDefaultPersistAndIgnoreUnknownValuesIndependently() {
         let defaults = freshDefaults()
         let prefs = Preferences(defaults: defaults)

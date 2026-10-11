@@ -42,20 +42,31 @@ struct CompactAccountRow: View {
                 }
             }
             .frame(width: IdentityRowMetrics.markSlotWidth, height: IdentityRowMetrics.markSlotWidth)
-            identityText
-                .accountTitleInk(for: providerID)
-                .lineLimit(1)
-                // With an email the title leads and the address gives way; alone, a long
-                // name keeps both its ends.
-                .truncationMode(persistentEmail == nil ? .middle : .tail)
-                .layoutPriority(1)
+            CompactIdentityLayout(spacing: IdentityRowMetrics.spacing) {
+                Text(title)
+                    .font(.system(size: Self.titleSize, weight: .semibold))
+                    .kerning(IdentityRowMetrics.titleKerning)
+                    .accountTitleInk(for: providerID)
+                    .lineLimit(1)
+                    // "Account 12" → "Acc…12": the end that tells generated names apart stays.
+                    .truncationMode(.middle)
+                if let persistentEmail {
+                    Text(persistentEmail)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+            .layoutPriority(1)
             if recipe.overflowCount > 0 {
                 Text("+\(recipe.overflowCount)")
                     .foregroundStyle(.secondary)
-                    .identityCapsule(fill: IdentityCapsuleStyle.metadataFill, horizontalPadding: 5)
+                    .identityCapsule(fill: IdentityCapsuleStyle.metadataFill, horizontalPadding: 4)
                     .fixedSize()
             }
-            Spacer(minLength: IdentityRowMetrics.spacing)
+            // The stack's own 6pt on each side is the minimum gap before the cells.
+            Spacer(minLength: 0)
             cells
         }
         .frame(height: Self.height)
@@ -64,18 +75,6 @@ struct CompactAccountRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(recipe.accessibilityValue)
-    }
-
-    /// KTD11's persistent email rides the title as one line, so the two truncate together
-    /// instead of the address collapsing to a letter beside a full name.
-    private var identityText: Text {
-        let name = Text(title)
-            .font(.system(size: Self.titleSize, weight: .semibold))
-            .kerning(IdentityRowMetrics.titleKerning)
-        guard let persistentEmail else { return name }
-        return name + Text("  \(persistentEmail)")
-            .font(.system(size: 10))
-            .foregroundStyle(.tertiary)
     }
 
     private var persistentEmail: String? {
@@ -122,5 +121,46 @@ struct CompactAccountRow: View {
         if recipe.isDimmed, recipe.content == .meters { parts.append("stale") }
         if recipe.content == .skeleton { parts.append("loading") }
         return parts.joined(separator: ", ")
+    }
+}
+
+/// The Compact row's name and persistent email (KTD11). The title takes the width it needs
+/// first; the email shows only in what is left, and only when that is enough to read, so it
+/// never collapses to a letter beside the name. A dropped email stays in the row's tooltip.
+private struct CompactIdentityLayout: Layout {
+    var spacing: CGFloat
+    private static let minimumEmailWidth: CGFloat = 40
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let widths = self.widths(available: proposal.width, subviews: subviews)
+        let height = subviews.map { $0.sizeThatFits(.unspecified).height }.max() ?? 0
+        let used = widths.reduce(0, +) + (widths.count > 1 && widths[1] > 0 ? spacing : 0)
+        return CGSize(width: used, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let widths = self.widths(available: bounds.width, subviews: subviews)
+        var x = bounds.minX
+        for (index, subview) in subviews.enumerated() {
+            let width = widths[index]
+            subview.place(
+                at: CGPoint(x: x, y: bounds.midY),
+                anchor: .leading,
+                proposal: ProposedViewSize(width: width, height: bounds.height)
+            )
+            if width > 0 { x += width + spacing }
+        }
+    }
+
+    /// The title's ideal width, capped by what is available; then the email's, or zero.
+    private func widths(available: CGFloat?, subviews: Subviews) -> [CGFloat] {
+        let ideals = subviews.map { $0.sizeThatFits(.unspecified).width }
+        guard let available else { return ideals }
+        guard let title = ideals.first else { return [] }
+        let titleWidth = min(title, max(available, 0))
+        guard ideals.count > 1 else { return [titleWidth] }
+        let room = available - titleWidth - spacing
+        let emailWidth = room >= Self.minimumEmailWidth ? min(ideals[1], room) : 0
+        return [titleWidth, emailWidth]
     }
 }

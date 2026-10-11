@@ -49,6 +49,7 @@ struct SettingsView: View {
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
     @State private var accountTitleInk: AccountTitleInk = .neutral
+    @State private var accountLayout: AccountLayout = .standard
     @State private var meterStyle: MeterStyle = .default
     /// R16: the widget style Settings › Widgets & iPhone previews. View state only — widgets
     /// choose their own style in Edit Widget. `--widget-style` seeds it for the harness.
@@ -283,6 +284,7 @@ struct SettingsView: View {
                 meterStyle: $meterStyle,
                 usagePercentageMode: $usagePercentageMode,
                 accountTitleInk: $accountTitleInk,
+                accountLayout: $accountLayout,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
                 onAppearanceChange: { newValue in
                     preferences.appearancePreference = newValue
@@ -455,6 +457,7 @@ struct SettingsView: View {
         appearancePreference = preferences.appearancePreference
         usagePercentageMode = store.usagePercentageMode
         accountTitleInk = store.accountTitleInk
+        accountLayout = store.accountLayout
         meterStyle = store.meterStyle
         widgetsEnabled = store.widgetsEnabled
         showCodexSparkCountersInApp = store.showCodexSparkCountersInApp

@@ -17,14 +17,15 @@ import HeadroomCore
 ///   capability announcements *per provider*, so a preview on a synthetic account id
 ///   would still clear the real Claude entry and make the popover re-announce it.
 ///
-/// The card follows Theme (via the window's color scheme), meter style, Percentages, and
-/// the account-name ink.
+/// The card follows Theme (via the window's color scheme), meter style, Percentages, the
+/// account-name ink, and the account layout (a Compact row in Compact).
 /// The menu bar strip follows Percentages only: the menu bar projection deliberately
 /// carries no meter style, so pretending otherwise here would be a lie.
 struct AppearanceSpecimen: View {
     let meterStyle: MeterStyle
     let percentageMode: UsagePercentageMode
     let accountTitleInk: AccountTitleInk
+    var accountLayout: AccountLayout = .standard
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -107,7 +108,7 @@ struct AppearanceSpecimen: View {
     /// `resolvedShape` rather than `shape` is deliberate: Tube stays *stored* while Full is
     /// selected but renders as Chip, so keying on the raw shape would cross-fade a card
     /// into an identical copy of itself.
-    private var recipeKey: String { MeterRecipeKey.key(for: meterStyle) }
+    private var recipeKey: String { "\(MeterRecipeKey.key(for: meterStyle))|\(accountLayout.rawValue)" }
 
     /// R2C20: the specimen is drawn at the popover's own card width. Stretched to the detail
     /// column it measured 506pt against the real card's 346 — 1.46× — which put ~260pt
@@ -129,7 +130,8 @@ struct AppearanceSpecimen: View {
                 onRetrySetup: {},
                 onRetryAccount: { _ in },
                 announcesAccessibilityEvents: false,
-                loadingForAccount: { _ in .init() }
+                loadingForAccount: { _ in .init() },
+                accountLayout: accountLayout
             )
             // G1A: the specimen is the popover's card, so it reads the ink from the
             // environment the same way — set here because Settings is not the popover.

@@ -196,6 +196,7 @@ struct AppearanceSettingsPane: View {
     @Binding var meterStyle: MeterStyle
     @Binding var usagePercentageMode: UsagePercentageMode
     @Binding var accountTitleInk: AccountTitleInk
+    @Binding var accountLayout: AccountLayout
     @Binding var showCodexSparkCountersInApp: Bool
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
@@ -210,7 +211,8 @@ struct AppearanceSettingsPane: View {
             AppearanceSpecimen(
                 meterStyle: meterStyle,
                 percentageMode: usagePercentageMode,
-                accountTitleInk: accountTitleInk
+                accountTitleInk: accountTitleInk,
+                accountLayout: accountLayout
             )
 
             SettingsTile("Theme") {
@@ -241,6 +243,7 @@ struct AppearanceSettingsPane: View {
                 meterStyle: meterStyle,
                 usagePercentageMode: $usagePercentageMode,
                 accountTitleInk: $accountTitleInk,
+                accountLayout: $accountLayout,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp
             )
         }

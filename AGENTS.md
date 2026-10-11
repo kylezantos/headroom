@@ -267,6 +267,7 @@ swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-20|multi-mixed|
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi20] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
+Scripts/dialkit.sh [scenario]      # live-tune the popover with DialKit: inspector + demo with a pinned popover (HEADROOM_DIALKIT=1; values in HeadroomSharedUI/HeadroomTuning.swift, defaults = shipped literals)
 ```
 
 ## Website DMG releases

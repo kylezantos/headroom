@@ -7,16 +7,18 @@ struct UIBenchOptions: Equatable {
         case popover, scroll, settings, `switch`, counts, scene, all
     }
 
-    /// Store fixtures: the single-account demo, `multi-3`, `multi-5`, and the `multi-20`
-    /// envelope (4 provider cards, 60 account sections).
+    /// Store fixtures: the single-account demo, `multi-3`, `multi-5`, `multi-7` (7 Claude +
+    /// 1 Codex, the popover account layout plan's reported case: two columns in Standard, one
+    /// in Compact), and the `multi-20` envelope (4 provider cards, 61 account sections).
     enum Scenario: String, CaseIterable {
-        case single, multi3, multi5, multi20
+        case single, multi3, multi5, multi7, multi20
     }
 
     enum ParseError: Error, Equatable, CustomStringConvertible {
         case missingSection
         case unknownSection(String)
         case unknownScenario(String)
+        case unknownAccountLayout(String)
         case unknownPane(String)
         case invalidRuns(String)
         case missingValue(flag: String)
@@ -31,6 +33,8 @@ struct UIBenchOptions: Equatable {
                 "Unknown section '\(token)'. Valid: \(Section.allCases.map(\.rawValue).joined(separator: ", "))."
             case .unknownScenario(let token):
                 "Unknown scenario '\(token)'. Valid: \(Scenario.allCases.map(\.rawValue).joined(separator: ", "))."
+            case .unknownAccountLayout(let token):
+                "Unknown account layout '\(token)'. Valid: \(AccountLayout.allCases.map(\.rawValue).joined(separator: ", "))."
             case .unknownPane(let token):
                 "Unknown pane '\(token)'. Valid: \(SettingsPane.allCases.map(\.rawValue).joined(separator: ", "))."
             case .invalidRuns(let token):
@@ -47,12 +51,14 @@ struct UIBenchOptions: Equatable {
 
     static let usage = """
         usage: Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all>
-                        [--scenario single|multi3|multi5|multi20] [--pane <settings pane>]
-                        [--runs n] [--json <path>] [--no-animated]
+                        [--scenario single|multi3|multi5|multi7|multi20] [--pane <settings pane>]
+                        [--account-layout standard|compact] [--runs n] [--json <path>] [--no-animated]
         """
 
     var section: Section
     var scenario: Scenario?
+    /// The popover's account layout for every store the run builds. Nil seeds the default.
+    var accountLayout: AccountLayout?
     var pane: SettingsPane?
     var runs: Int?
     var jsonPath: String?
@@ -80,6 +86,10 @@ struct UIBenchOptions: Equatable {
                 guard let scenario = Scenario(rawValue: token) else { throw ParseError.unknownScenario(token) }
                 guard section != .all else { throw ParseError.notApplicable(flag: flag, section: section) }
                 options.scenario = scenario
+            case "--account-layout":
+                let token = try value(after: flag)
+                guard let layout = AccountLayout(rawValue: token) else { throw ParseError.unknownAccountLayout(token) }
+                options.accountLayout = layout
             case "--pane":
                 let token = try value(after: flag)
                 guard let pane = SettingsPane(rawValue: token) else { throw ParseError.unknownPane(token) }
@@ -109,6 +119,9 @@ struct UIBenchOptions: Equatable {
 
     /// Scroll and the scene stand-in default to `multi20`: the list only scrolls past the
     /// 640pt cap, and ML1's cost was measured at the envelope. Everything else uses `multi5`.
+    /// `multi20` is also the one fixture that still scrolls under Compact (61 rows in two
+    /// columns pass the cap; `multi7` fits one Compact column), so the scroll default holds
+    /// for both layouts.
     var resolvedScenario: Scenario {
         scenario ?? (section == .scroll || section == .scene ? .multi20 : .multi5)
     }

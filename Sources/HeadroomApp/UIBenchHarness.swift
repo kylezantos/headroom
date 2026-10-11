@@ -28,6 +28,8 @@ enum UIBenchHarness {
     private static var createdSuites: [String] = []
     private static var report: UIBenchReport?
     private static var framePassesDone = 0
+    /// `--account-layout`, seeded into every store the run builds (popover account layout plan).
+    private static var accountLayout: AccountLayout = .standard
 
     // MARK: - Entry
 
@@ -44,6 +46,7 @@ enum UIBenchHarness {
         NSApp.appearance = NSAppearance(named: .aqua)
         installCleanupOnSignals()
 
+        accountLayout = options.accountLayout ?? .standard
         Task { @MainActor in
             BenchCounters.enabled = true
             report = UIBenchReport(
@@ -54,7 +57,7 @@ enum UIBenchHarness {
                 startedAt: ISO8601DateFormatter().string(from: Date())
             )
             let runs = [.counts, .scene].contains(options.section) ? "" : " runs=\(options.resolvedRuns)"
-            say("# bench-ui \(options.section.rawValue) scenario=\(options.resolvedScenario.rawValue)\(runs) pid=\(getpid())")
+            say("# bench-ui \(options.section.rawValue) scenario=\(options.resolvedScenario.rawValue) layout=\(accountLayout.rawValue)\(runs) pid=\(getpid())")
             say("# macOS \(ProcessInfo.processInfo.operatingSystemVersionString), scale \(NSScreen.main?.backingScaleFactor ?? 0)")
             if !BenchCounters.isCompiledIn {
                 say("# body counts unavailable — build with -DHEADROOM_BENCH (swift build -c release -Xswiftc -DHEADROOM_BENCH)")
@@ -188,6 +191,19 @@ enum UIBenchHarness {
                 window.displayIfNeeded()
             }
             CATransaction.flush()
+        }
+
+        /// Resizes the window to the popover's current fitting size, the way `MenuBarExtra`
+        /// grows its window when the column plan lands a turn after the first layout and the
+        /// shell widens from one card to two. False when the size already matched.
+        @discardableResult
+        func refit() -> Bool {
+            let fit = hosting.fittingSize
+            guard fit != hosting.frame.size else { return false }
+            window.setContentSize(fit)
+            hosting.frame = NSRect(origin: .zero, size: fit)
+            renderPass()
+            return true
         }
 
         /// Runloop turns (1ms sleeps, so SwiftUI's and Core Animation's observers fire) until a
@@ -344,6 +360,7 @@ enum UIBenchHarness {
     ) async -> (UsageStore, Preferences) {
         let preferences = Preferences(defaults: benchDefaults(""))
         preferences.usagePercentageMode = .remaining
+        preferences.accountLayout = accountLayout
         preferences.setSurfaceEnabled(true, for: .anthropicAPI)
         preferences.setSurfaceEnabled(true, for: .openAIAPI)
         var providers: [any UsageProvider]
@@ -354,8 +371,13 @@ enum UIBenchHarness {
                 DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: DemoFixture.claudeSnapshot),
                 DemoUsageProvider(id: .codex, displayName: "Codex", snapshot: DemoFixture.codexSnapshot),
             ]
-        case .multi3, .multi5:
-            let fixture = DemoFixture.multiFixture(for: scenario == .multi3 ? .multiThree : .multiFive)
+        case .multi3, .multi5, .multi7:
+            let demoScenario: DemoFixture.MultiAccountScenario = switch scenario {
+            case .multi3: .multiThree
+            case .multi5: .multiFive
+            default: .multiSeven
+            }
+            let fixture = DemoFixture.multiFixture(for: demoScenario)
             providers = fixture.providers
             accounts = fixture.accounts
         case .multi20:
@@ -482,6 +504,8 @@ enum UIBenchHarness {
         var fit1Ms = 0.0, resize = 0.0
         var syncWall = 0.0, syncCpu = 0.0, postOpenCpu = 0.0, totalCpu = 0.0
         var fit0 = 0.0, fit1 = 0.0, fitFinal = 0.0
+        /// The fitted width once the post-open frames ran: 750 when the column plan chose two.
+        var widthFinal = 0.0
         var postOpenBodies = 0, rootPassFrames = 0
         var counts: [String: Int] = [:]
     }
@@ -548,7 +572,9 @@ enum UIBenchHarness {
         sample.counts = BenchCounters.counts
         sample.fit0 = fit0.height
         sample.fit1 = fit1.height
-        sample.fitFinal = hosting.fittingSize.height
+        let fitFinal = hosting.fittingSize
+        sample.fitFinal = fitFinal.height
+        sample.widthFinal = fitFinal.width
         host.teardown()
         return sample
     }
@@ -564,7 +590,7 @@ enum UIBenchHarness {
         return "construct \(f(s.construct)) fit#0 \(f(s.fit0Ms)) window \(f(s.window)) layout \(f(s.layout)) "
             + "display \(f(s.display)) flush \(f(s.flush)) fit#1 \(f(s.fit1Ms)) resize \(f(s.resize)) "
             + "| sync \(f(s.syncWall)) cpu \(f(s.syncCpu)) | post-open cpu \(f(s.postOpenCpu)) \(bodies)"
-            + "| h \(Int(s.fit0))→\(Int(s.fit1))→\(Int(s.fitFinal))"
+            + "| h \(Int(s.fit0))→\(Int(s.fit1))→\(Int(s.fitFinal)) w \(Int(s.widthFinal))"
     }
 
     private static func benchPopover(scenario: UIBenchOptions.Scenario, runs: Int) async {
@@ -611,6 +637,7 @@ enum UIBenchHarness {
         result.metrics["fittingHeightBeforeLayout"] = .single(cold.fit0)
         result.metrics["fittingHeightAfterLayout"] = .single(cold.fit1)
         result.metrics["fittingHeightFinal"] = .single(cold.fitFinal)
+        result.metrics["fittingWidthFinal"] = .single(cold.widthFinal)
         if BenchCounters.isCompiledIn {
             result.metrics["postOpenBodies"] = .coldWarm(samples.map { Double($0.postOpenBodies) })
             result.metrics["rootPassFrames"] = .coldWarm(samples.map { Double($0.rootPassFrames) })
@@ -691,6 +718,9 @@ enum UIBenchHarness {
             try? await Task.sleep(for: .milliseconds(16))
             host.framePass()
         }
+        // The column plan lands a turn after the first layout; at two columns the shell is
+        // 750pt, so the window takes that width before any step is measured.
+        if host.refit() { _ = await host.settle(maxTurns: 20) }
         try? await Task.sleep(for: .milliseconds(1200))
         host.renderPass()
         guard let scrollView = findScrollView(in: host.hosting) else {
@@ -702,9 +732,9 @@ enum UIBenchHarness {
         }
         let clip = scrollView.contentView
         let content = scrollView.documentView?.frame.height ?? 0
-        say("  viewport \(f(clip.bounds.height)) content \(f(content))")
+        say("  layout \(accountLayout.rawValue) width \(f(host.hosting.frame.width)) viewport \(f(clip.bounds.height)) content \(f(content))")
         if content <= clip.bounds.height {
-            say("  content fits the viewport; nothing scrolls at \(scenario.rawValue)")
+            say("  content fits the viewport; nothing scrolls at \(scenario.rawValue) (multi20 scrolls in both layouts)")
         }
         var stepCpu: [Double] = []
         var stepBodies: [Double] = []

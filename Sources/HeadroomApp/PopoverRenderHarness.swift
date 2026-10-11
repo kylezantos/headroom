@@ -101,6 +101,28 @@ enum PopoverRenderHarness {
                 for path in failedPaths { print("✗ Failed to render \(path)") }
                 exit(failedPaths.isEmpty ? 0 : 1)
             }
+            // U8 (popover account layout plan): one popover scenario in both appearances, so a
+            // multi-20 or multi-7 check doesn't wait on every other capture.
+            if let name = renderScenarioArgument() {
+                let scenario = MultiAccountScenario(rawValue: name)
+                let state = State(rawValue: name)
+                if scenario == nil, state == nil {
+                    let valid = State.allCases.map(\.rawValue) + MultiAccountScenario.allCases.map(\.rawValue)
+                    FileHandle.standardError.write(Data("✗ Unknown --render-scenario '\(name)'. Valid: \(valid.joined(separator: ", "))\n".utf8))
+                    exit(2)
+                }
+                for dark in [false, true] {
+                    let url = outDir.appendingPathComponent("popover-\(name)-\(dark ? "dark" : "light").png")
+                    let ok = if let scenario {
+                        await renderMulti(scenario: scenario, dark: dark, to: url)
+                    } else {
+                        await render(state: state ?? .connected, percentageMode: .remaining, dark: dark, to: url)
+                    }
+                    if ok { print("✓ \(url.path)") } else { failedPaths.append(url.path) }
+                }
+                for path in failedPaths { print("✗ Failed to render \(path)") }
+                exit(failedPaths.isEmpty ? 0 : 1)
+            }
             for state in State.allCases {
                 let modes: [UsagePercentageMode] = state == .connected ? UsagePercentageMode.allCases : [.remaining]
                 for mode in modes {
@@ -213,6 +235,14 @@ enum PopoverRenderHarness {
         }
     }
 
+    /// `--render-scenario <name>`: a `MultiAccountScenario` or onboarding `State` raw value.
+    private static func renderScenarioArgument(arguments: [String] = CommandLine.arguments) -> String? {
+        guard let index = arguments.firstIndex(of: "--render-scenario"),
+              arguments.indices.contains(index + 1)
+        else { return nil }
+        return arguments[index + 1]
+    }
+
     enum State: String, CaseIterable {
         case connect, waiting, connected
         case codexConnect, codexReconnect, codexWaiting, codexConnected
@@ -228,20 +258,55 @@ enum PopoverRenderHarness {
         DemoFixture.multiFixture(for: scenario)
     }
 
+    /// The fixture's accounts and providers for a popover capture. `multi-20`'s Claude and
+    /// Grok rows simulate a 4s probe for the live duty-cycle gate (R15); a user refresh
+    /// drains each lane one probe at a time, so 20 × 4s would keep cards as placeholders
+    /// for over a minute. The capture shows the settled envelope instead, built the way
+    /// `UIBenchHarness.makeStore` builds its `multi20`.
+    private static func popoverPairs(for scenario: MultiAccountScenario) -> [(account: ProviderAccount, provider: any UsageProvider)] {
+        guard scenario == .envelope else {
+            let fixture = multiFixture(for: scenario)
+            return Array(zip(fixture.accounts, fixture.providers))
+        }
+        let cursor = ProviderAccount(id: .primary, providerID: .cursor, label: ProviderID.cursor.displayName, isBuiltIn: true)
+        return DemoFixture.generatedAccounts(provider: .claude, count: 20)
+            + DemoFixture.generatedAccounts(provider: .codex, count: 20)
+            + DemoFixture.generatedAccounts(provider: .grok, count: 20)
+            + [(cursor, DemoUsageProvider(
+                id: .cursor, displayName: ProviderID.cursor.displayName,
+                snapshot: DemoFixture.cursorSnapshot, accountID: .primary
+            ))]
+    }
+
+    /// U8: waits for the refresh `refreshNow()` started to finish and its "Refreshing…" hold
+    /// to clear, bounded so a scenario that never settles still captures.
+    private static func awaitSettledRefresh(_ store: UsageStore, timeout: Duration = .seconds(20)) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while store.lastFullRefreshCompletedAt == nil || store.isRefreshing {
+            guard clock.now < deadline else {
+                FileHandle.standardError.write(Data("! refresh did not settle within \(timeout); capturing anyway\n".utf8))
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+    }
+
     private static func renderMulti(scenario: MultiAccountScenario, dark: Bool, to url: URL) async -> Bool {
         NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         ClaudeSetupSession.openedSetupAt = nil
         CodexSetupSession.openedSetupAt = nil
-        let fixture = multiFixture(for: scenario)
+        let pairs = popoverPairs(for: scenario)
         let preferences = renderPreferences(mode: .remaining)
         let store = UsageStore(
-            providers: fixture.providers,
+            providers: pairs.map(\.provider),
             apiSpendProviders: [],
             preferences: preferences,
-            accounts: fixture.accounts
+            accounts: pairs.map(\.account)
         )
         store.refreshNow()
         try? await Task.sleep(for: .milliseconds(700))
+        await awaitSettledRefresh(store)
         return await snapshotPopover(store: store, dark: dark, to: url)
     }
 
@@ -278,28 +343,31 @@ enum PopoverRenderHarness {
 
     /// Shared popover capture: hosts the real `PopoverView` over the desk backdrop,
     /// sizes to fit, and snapshots the compositor output.
+    ///
+    /// U8 (popover account layout plan): the canvas is the popover's own width plus the 24pt
+    /// desk margin — 432 for one column, 798 for two — not a fixed 432. The column plan is
+    /// made from measured heights and lands a main-queue turn after the first layout, so the
+    /// window is refitted once it has.
     private static func snapshotPopover(store: UsageStore, dark: Bool, to url: URL) async -> Bool {
-        let root = ZStack {
-            // Desk backdrop so the system surface has something to sample (mirrors the mockup).
-            LinearGradient(
-                colors: dark
-                    ? [Color(red: 0.137, green: 0.137, blue: 0.169), Color(red: 0.078, green: 0.078, blue: 0.102)]
-                    : [Color(red: 0.843, green: 0.827, blue: 0.800), Color(red: 0.725, green: 0.702, blue: 0.663)],
-                startPoint: .topLeading, endPoint: .bottomTrailing)
-            PopoverView(store: store, onOpenSettings: {})
-                .padding(24)
-        }
-        .frame(width: 432)
-        // Direct environment override (not the scene-level `preferredColorScheme`
-        // preference) so semantic styles resolve for the right scheme in this
-        // offscreen hosting context.
-        .environment(\.colorScheme, dark ? .dark : .light)
+        let root = PopoverView(store: store, onOpenSettings: {})
+            .padding(24)
+            .background {
+                // Desk backdrop so the system surface has something to sample (mirrors the mockup).
+                LinearGradient(
+                    colors: dark
+                        ? [Color(red: 0.137, green: 0.137, blue: 0.169), Color(red: 0.078, green: 0.078, blue: 0.102)]
+                        : [Color(red: 0.843, green: 0.827, blue: 0.800), Color(red: 0.725, green: 0.702, blue: 0.663)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing)
+            }
+            // Direct environment override (not the scene-level `preferredColorScheme`
+            // preference) so semantic styles resolve for the right scheme in this
+            // offscreen hosting context.
+            .environment(\.colorScheme, dark ? .dark : .light)
 
         let hosting = NSHostingView(rootView: root)
         hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         hosting.frame = NSRect(x: 0, y: 0, width: 432, height: 10)
-        let fitting = hosting.fittingSize
-        hosting.frame = NSRect(x: 0, y: 0, width: 432, height: max(fitting.height, 200))
+        hosting.frame = NSRect(origin: .zero, size: canvasSize(hosting.fittingSize))
 
         let window = NSWindow(
             contentRect: hosting.frame,
@@ -320,10 +388,13 @@ enum PopoverRenderHarness {
         window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
         window.orderFrontRegardless()
         window.displayIfNeeded()
+        await settle(hosting, in: window)
+        if refit(hosting, in: window) { await settle(hosting, in: window) }
         // Let the staged meter arrival (M9A beat, then `arrivalSpring`) land before
         // snapshotting, or numerals are caught mid-roll. AR1 lengthened both; 650ms covers the
         // critically damped spring's visible settle.
         try? await Task.sleep(for: HeadroomMotion.arrivalDelay + .milliseconds(650))
+        if refit(hosting, in: window) { await settle(hosting, in: window) }
 
         // Capture the compositor's actual output (correct dynamic-color resolution and
         // the real OS-selected surface) via `screencapture -l`. The offscreen `cacheDisplay` path
@@ -332,6 +403,34 @@ enum PopoverRenderHarness {
         let captured = capture(window: window, to: url)
         window.orderOut(nil)
         return captured
+    }
+
+    /// The capture canvas for a fitted popover: its own width, and at least 200pt tall as before.
+    private static func canvasSize(_ fitting: NSSize) -> NSSize {
+        NSSize(width: max(fitting.width, 1), height: max(fitting.height, 200))
+    }
+
+    /// A few main-queue turns, laid out and drawn each time, so height reports and the column
+    /// replan they complete (`PopoverPlanModel`, next main turn) can land.
+    private static func settle(_ hosting: NSView, in window: NSWindow, turns: Int = 12) async {
+        for _ in 0..<turns {
+            try? await Task.sleep(for: .milliseconds(10))
+            hosting.layoutSubtreeIfNeeded()
+            window.displayIfNeeded()
+        }
+    }
+
+    /// Resizes window and hosting view to the popover's current fitting size, as
+    /// `MenuBarExtra` grows its window when the shell widens to two columns. False when the
+    /// size already matched.
+    private static func refit(_ hosting: NSView, in window: NSWindow) -> Bool {
+        let size = canvasSize(hosting.fittingSize)
+        guard size != hosting.frame.size else { return false }
+        window.setContentSize(size)
+        hosting.frame = NSRect(origin: .zero, size: size)
+        hosting.layoutSubtreeIfNeeded()
+        window.displayIfNeeded()
+        return true
     }
 
     /// Marketing hero for headroom.zantos.co (U4): the connected, dark popover with the
@@ -624,6 +723,8 @@ enum PopoverRenderHarness {
         preferences.meterStyle = AppComposition.demoMeterStyle()
         // Same seam for `AccountTitleInk.brand`, which otherwise has no capture path.
         preferences.accountTitleInk = AppComposition.demoAccountTitleInk()
+        // And for `--account-layout <standard|compact>` (popover account layout plan, U8).
+        preferences.accountLayout = AppComposition.demoAccountLayout()
         // API spend surfaces are off by default (`isSurfaceEnabled` → `isSubscription`),
         // so the store's `apiSpendProviderOrder` is empty and the section renders nothing.
         // Enable both so the connected hero shows the API Spend section — wiring the

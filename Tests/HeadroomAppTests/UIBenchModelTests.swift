@@ -22,6 +22,24 @@ struct UIBenchModelTests {
         #expect(options.resolvedPanes == [.apiSpend])
     }
 
+    /// Popover account layout plan (U8): `multi7` is the reported two-column case, and the
+    /// account layout reaches every section so Compact can be measured too.
+    @Test func parsesTheMultiSevenScenarioAndTheAccountLayout() throws {
+        #expect(try parse("popover --scenario multi7").scenario == .multi7)
+        let compact = try parse("scroll --account-layout compact")
+        #expect(compact.accountLayout == .compact)
+        // Compact still scrolls at the envelope, so the scroll default needs no override.
+        #expect(compact.resolvedScenario == .multi20)
+        #expect(try parse("all --account-layout standard").accountLayout == .standard)
+        #expect(try parse("popover").accountLayout == nil)
+        #expect(throws: UIBenchOptions.ParseError.unknownAccountLayout("dense")) {
+            try parse("popover --account-layout dense")
+        }
+        #expect(throws: UIBenchOptions.ParseError.missingValue(flag: "--account-layout")) {
+            try parse("popover --account-layout --runs 2")
+        }
+    }
+
     @Test func sectionDefaultsMatchWhatEachMeasures() throws {
         let popover = try parse("popover")
         #expect(popover.resolvedScenario == .multi5)

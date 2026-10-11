@@ -149,6 +149,7 @@ public struct UsageBarView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.headroomTuning) private var tuning
 
     /// M1A: what the row is currently *painting*, which differs from what the window says
     /// only while a capture lands. Two reasons the paint is mirrored instead of read
@@ -166,17 +167,19 @@ public struct UsageBarView: View {
     /// one — so it checks whether it is still the current landing instead.
     @State private var landGeneration = 0
 
-    private var labelSize: CGFloat { 13 * scale }
-    private var resetSize: CGFloat { 11 * scale }
+    private var labelSize: CGFloat { tuning.labelSize * scale }
+    private var resetSize: CGFloat { tuning.resetSize * scale }
     private static let percentSize: CGFloat = 18
-    private var percentSize: CGFloat { Self.percentSize * scale }
+    private var percentSize: CGFloat { tuning.percentSize * scale }
+    private var percentWeight: Font.Weight { HeadroomTuning.weight(tuning.percentWeight) }
+    private var labelWeight: Font.Weight { HeadroomTuning.weight(tuning.labelWeight) }
     /// FS1 (Kyle, Sep 2026): Full sat its full-width gauge 5pt under the label it belongs
     /// to, which crowded the two into one band; 7 lets the bar breathe without breaking the
     /// pairing. Only Full stacks a gauge under its label now — Micro is always a single row —
     /// so this is Full's label→gauge gap.
-    private var rowSpacing: CGFloat { 7 * scale }
+    private var rowSpacing: CGFloat { tuning.fullLabelToGauge * scale }
     /// The row's HStack gaps and its spacer's floor.
-    private var gap: CGFloat { 6 * scale }
+    private var gap: CGFloat { tuning.meterGap * scale }
 
     /// Fill length and numeral — one cause, one motion (M1A). Both are `.movement`.
     private struct RowValue: Equatable {
@@ -209,7 +212,7 @@ public struct UsageBarView: View {
     /// KTD2: measured with CoreText (`HeadroomWidgetFontMetrics.textWidth`), which reports
     /// exactly what `NSString.size(withAttributes:)` did for the same face.
     private var percentColumnWidth: CGFloat {
-        ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: percentSize, weight: .semibold, mono: true))
+        ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: percentSize, weight: percentWeight, mono: true))
     }
 
     // MARK: - What the window says
@@ -316,11 +319,11 @@ public struct UsageBarView: View {
     // MARK: - Motion
 
     private var valueMovement: Animation? {
-        HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion)
+        HeadroomMotion.resolved(tuning.valueSpring, .movement, reduceMotion: reduceMotion)
     }
 
     private var valueCrossfade: Animation? {
-        HeadroomMotion.resolved(HeadroomMotion.valueSpring, .crossfade, reduceMotion: reduceMotion)
+        HeadroomMotion.resolved(tuning.valueSpring, .crossfade, reduceMotion: reduceMotion)
     }
 
     private var arrivalMovement: Animation? {
@@ -332,11 +335,11 @@ public struct UsageBarView: View {
     }
 
     private var settleCrossfade: Animation? {
-        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
+        HeadroomMotion.resolved(tuning.settle, .crossfade, reduceMotion: reduceMotion)
     }
 
     private var countdownMovement: Animation? {
-        HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion)
+        HeadroomMotion.resolved(tuning.settle, .movement, reduceMotion: reduceMotion)
     }
 
     /// One capture, one landing. The fill leads; Full's state label enters only once it has
@@ -488,7 +491,7 @@ public struct UsageBarView: View {
     private func labelCluster(short: Bool, truncatesLabel: Bool) -> some View {
         HStack(alignment: .center, spacing: gap) {
             labelText
-                .widgetCapHeightCentered(size: labelSize, weight: .medium)
+                .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
             resetLabel(fixedSize: true, short: short)
         }
         .fixedSize(horizontal: !truncatesLabel, vertical: false)
@@ -496,13 +499,13 @@ public struct UsageBarView: View {
 
     private var labelText: some View {
         Text(label)
-            .font(.system(size: labelSize, weight: .medium))
+            .font(.system(size: labelSize, weight: labelWeight))
             .foregroundStyle(ProviderStyle.meterLabelInk(scheme: scheme))
             .lineLimit(1)
             .truncationMode(.tail)
             // OA1: "Weekly" (a diagonal) against "5-hour" (a flat stem) is the widest
             // stagger in the card — 1.25pt apart at this size before the correction.
-            .widgetOpticalLeading(label, size: labelSize, weight: .medium)
+            .widgetOpticalLeading(label, size: labelSize, weight: labelWeight)
     }
 
     /// M3A′: Full has a row wide enough for the state, so it keeps the label — it fades in
@@ -549,11 +552,11 @@ public struct UsageBarView: View {
     private func numeralCluster(capCentred: Bool) -> some View {
         HStack(alignment: capCentred ? .center : .firstTextBaseline, spacing: MeterSuffixColumn.gap * scale) {
             Text(percentText)
-                .font(.system(size: percentSize, weight: .semibold).monospacedDigit())
+                .font(.system(size: percentSize, weight: percentWeight).monospacedDigit())
                 .foregroundStyle(numeralInk)
                 .contentTransition(numeralTransition)
                 .frame(minWidth: percentColumnWidth, alignment: .trailing)
-                .widgetCapHeightCentered(size: percentSize, weight: .semibold)
+                .widgetCapHeightCentered(size: percentSize, weight: percentWeight)
             // R2B2: an `.unavailable` row has no term to print, but it keeps the column —
             // otherwise its "—" and gauge slide right of the live rows stacked above it.
             MeterSuffixLabel(term: percentageMode.term, isVisible: displayedValue.pct != nil, scale: scale)

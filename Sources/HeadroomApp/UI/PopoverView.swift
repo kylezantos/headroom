@@ -14,6 +14,7 @@ import HeadroomWidgetSharedUI
 /// `TimelineView` drives a per-minute `now` so countdowns and "updated N min ago" tick
 /// without a data poll.
 struct PopoverView: View {
+    @ObservedObject private var tuning = PopoverTuningModel.shared
     var store: UsageStore
     var onOpenSettings: () -> Void
     /// Render-harness only: `ImageRenderer` can't rasterize the Liquid Glass shell, so the
@@ -84,17 +85,17 @@ struct PopoverView: View {
                     (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).windows.map(\.kind) }
                 }
             )
-            VStack(spacing: 20) {
+            VStack(spacing: tuning.values.cardGap) {
                 header(now: now)
                     // Header sits 14pt above the first card (vs the 20pt tile gap) — the
                     // title belongs to the content below it more than cards belong to
                     // each other.
-                    .padding(.bottom, -6)
+                    .padding(.bottom, tuning.values.headerGap - tuning.values.cardGap)
                 // Cards scroll once many accounts push past a comfortable popover
                 // height; below the cap the height tracks the measured stack, so the
                 // common case is untouched. Header and footer stay pinned.
                 ScrollView(.vertical) {
-                    VStack(spacing: 20) {
+                    VStack(spacing: tuning.values.cardGap) {
                         ForEach(Array(store.providerOrder.enumerated()), id: \.element) { _, id in
                             // M5A follow-up: the popover dissolves old recipe → new recipe
                             // instead of hard-cutting. The `.id` sits on the card and the
@@ -219,16 +220,17 @@ struct PopoverView: View {
             // the popover is opened dozens of times a day and any fade reads as latency.
             // 19pt inset / 20pt tile gap / 384pt overall — tuned in the onboarding HTML
             // mockup (Jul 2026); roomier than the original concentric 12pt scheme.
-            .padding(PopoverCardMetrics.shellMargin)
-            .frame(width: PopoverCardMetrics.shellWidth)
+            .padding(tuning.values.shellMargin)
+            .frame(width: tuning.values.shellWidth)
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.
-            .modifier(PopoverSurfaceModifier(cornerRadius: Self.shellCornerRadius, forceSolid: forceSolidSurface))
+            .modifier(PopoverSurfaceModifier(cornerRadius: tuning.values.shellCornerRadius, forceSolid: forceSolidSurface))
             // Capture the popover's hosting window so opening Settings can dismiss it.
             .background(WindowAccessor { configurePopoverWindow($0) })
             // G1A: the popover is the only surface with a title-ink choice, so this is the
             // one place it enters the view tree (the Settings specimen sets its own).
             .environment(\.accountTitleInk, store.accountTitleInk)
+            .environment(\.headroomTuning, tuning.values)
         }
     }
 

@@ -499,6 +499,7 @@ struct HeadroomApp: App {
 
     @MainActor
     init() {
+        PopoverTuningModel.startAgent()
         let preferences = AppComposition.launchPreferences
         let demoController = DemoFixture.isEnabled
             ? LoadingDemoController(loading: DemoFixture.scenarioRequest() == .multiAccount(.loading)) : nil
@@ -598,6 +599,7 @@ struct HeadroomApp: App {
             MenuBarStatusLabel(store: store)
                 .preferredColorScheme(resolvedScheme)
                 .task { await store.start() }
+                .task { PopoverTuningModel.shared.showPinnedPopover(store: store) }
                 // Attach to the status item's own window once the scene exists (L1A). The menu
                 // bar's appearance is not the process appearance: a light system appearance over
                 // a dark wallpaper still gets a dark menu bar, which is exactly the case the old

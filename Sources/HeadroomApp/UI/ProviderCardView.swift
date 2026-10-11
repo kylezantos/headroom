@@ -260,6 +260,7 @@ func providerCardHasTransientStaleState(_ snapshot: UsageSnapshot) -> Bool {
 /// unless a provider-local label is ambiguous, and KTD18 places plan, stale, menu-bar,
 /// and Connected state on the relevant identity row.
 struct ProviderCardView: View {
+    @Environment(\.headroomTuning) private var tuning
     let providerID: ProviderID
     let displayName: String
     let entries: [ProviderAccountEntry]
@@ -320,9 +321,9 @@ struct ProviderCardView: View {
         }
         // 13pt pad / 9pt rhythm — one step above the large widget's 10/9 to account
         // for the popover's larger type (walked down from 20/14 → 16/11 → here).
-        .padding(13)
+        .padding(tuning.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .raisedTile(cornerRadius: 10)
+        .raisedTile(cornerRadius: tuning.cardCornerRadius)
         // M4A/S2A: this scope owns the *tile* — its padding, its raised shape, the height
         // it reports to the popover stack. That is travel, so Reduce Motion snaps it; the
         // body's crossfade is a separate scope below (`singleAccountContent`) and survives.
@@ -608,7 +609,7 @@ struct ProviderCardView: View {
             //
             // CMM4 (Kyle, 2026-09-10) supersedes R2C2's 2: the title sits a touch tighter
             // than the meter step, not half of it. See `AccountSectionView`.
-            VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap) {
+            VStack(alignment: .leading, spacing: tuning.identityToMetersGap) {
                 accountIdentityRow(for: primaryEntry)
                 content
             }
@@ -656,7 +657,7 @@ struct ProviderCardView: View {
         // its identity, so row mode has no separate provider header or account counter.
         // T1A widened it 22 → 26 to hold the grouping now the title sits at `.medium` and
         // the meter rows inside a section are 2pt tighter.
-        return VStack(alignment: .leading, spacing: 26) {
+        return VStack(alignment: .leading, spacing: tuning.accountGap) {
             ForEach(entries) { entry in
                 accountSection(
                     for: entry,
@@ -844,7 +845,7 @@ struct ProviderCardView: View {
                 pendingSkeleton
                     .transition(bodyFade)
             } else {
-                VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap) {
+                VStack(alignment: .leading, spacing: tuning.identityToMetersGap) {
                     if let reason = permanentFailure {
                         actionable(reason)
                             .transition(bodyFade)
@@ -896,8 +897,8 @@ struct ProviderCardView: View {
             meterStyle: meterStyle,
             arrivalKey: meterArrivalKey
         )
-        .padding(.leading, IdentityRowMetrics.meterContentInset)
-        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
+        .padding(.leading, tuning.meterContentInset)
+        .padding(.trailing, tuning.meterContentInset)
     }
 
     /// Varied widths (audit UI-13): real content isn't two identical bars, so the
@@ -909,8 +910,8 @@ struct ProviderCardView: View {
             SkeletonMeter(labelWidth: 86, valueWidth: 36, format: meterStyle.format)
             FetchingUsageLine(readLoading: { loadingForAccount(primaryAccount.key) })
         }
-        .padding(.leading, IdentityRowMetrics.meterContentInset)
-        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
+        .padding(.leading, tuning.meterContentInset)
+        .padding(.trailing, tuning.meterContentInset)
     }
 
     /// Permanent failure the user can fix (UI-05) that is not one of the guided setup
@@ -925,7 +926,7 @@ struct ProviderCardView: View {
             )
             if let command = recoveryCommand {
                 CommandRecoveryRow(command: command)
-                    .padding(.leading, IdentityRowMetrics.meterContentInset)
+                    .padding(.leading, tuning.meterContentInset)
             }
         }
     }
@@ -1698,6 +1699,7 @@ struct UsageBarsStack: View {
     var arrivalKey: AccountKey? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.headroomTuning) private var tuning
 
     var body: some View {
         if windows.isEmpty {
@@ -1710,7 +1712,7 @@ struct UsageBarsStack: View {
             // title. FS1 (Kyle, Sep 2026): Full goes the other way, 9 → 12 — three stacked
             // label-over-gauge rows at 9 packed into a wall, and the row's own internal gap
             // grew to 7, so the gap *between* rows has to stay clearly the larger of the two.
-            VStack(spacing: meterStyle.format == .micro ? 10 : 12) {
+            VStack(spacing: meterStyle.format == .micro ? tuning.microRowGap : tuning.fullRowGap) {
                 // RI1 (2026-09-25 motion audit): rows are keyed by window kind, not position.
                 // Keyed by offset, a window appearing or leaving handed each row below it the
                 // next row's window, so "Weekly 40%" rolled into "5-hour 12%" — motion that

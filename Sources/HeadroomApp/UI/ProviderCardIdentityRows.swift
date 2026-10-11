@@ -120,6 +120,7 @@ struct AccountSectionView: View {
     var readLoading: () -> AccountLoadingState = { .init() }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.headroomTuning) private var tuning
     @State private var showsConnectedChip = false
     @State private var isRevealingBankedResets = false
     @State private var bankedRevealCount: Int?
@@ -241,7 +242,7 @@ struct AccountSectionView: View {
         if case .stale(let reason) = snapshot.freshness, reason.isPermanent {
             return IdentityRowMetrics.identityToSentenceGap
         }
-        return IdentityRowMetrics.identityToMetersGap
+        return tuning.identityToMetersGap
     }
 
     /// SL1: live and transient stale are one branch, so a live ↔ stale flip repaints the rows
@@ -277,8 +278,8 @@ struct AccountSectionView: View {
             meterStyle: meterStyle,
             arrivalKey: account.key
         )
-        .padding(.leading, IdentityRowMetrics.meterContentInset)
-        .padding(.trailing, IdentityRowMetrics.contentTrailingInset)
+        .padding(.leading, tuning.meterContentInset)
+        .padding(.trailing, tuning.meterContentInset)
     }
 
     /// Permanent failure on one account: one inked sentence on its own line (S2B — no glyph,

@@ -349,6 +349,12 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   harness does honour `--meter-style`, so `--render-popover <dir> --meter-style full.segmented.ghost`
   is the way to sanity-check the Settings swatches and specimen in a non-default style headlessly.
 
+- **DialKit tuning needs the pinned popover (Oct 2026).** The `MenuBarExtra` popover closes as
+  soon as focus moves to the DialKit inspector, so a `HEADROOM_DIALKIT` build always shows a pinned,
+  floating copy of the popover (`PopoverTuningModel.showPinnedPopover`). Keep it: every tuning session
+  depends on it, including new panels. It has no MenuBarExtra host, so it always draws the Headroom
+  shell; judge the Surface panel's **System glass** in the real menu-bar popover.
+
 - **Snappiness is measured, not eyeballed (Oct 2026).** A still render proves the settled layout,
   not motion or re-render cost. Changes that add an animation, a scroll or geometry callback, a
   timer, an `onAppear` correction, a per-row formatter, or a fast-changing store read in the

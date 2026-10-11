@@ -36,6 +36,8 @@ final class PopoverPlanModel {
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var replanScheduled = false
     @ObservationIgnored private let cap: Double
+    @ObservationIgnored private var layout: AccountLayout?
+    @ObservationIgnored private var metrics = AccountColumnsMetrics.popover
 
     init(cap: Double) {
         self.cap = cap
@@ -74,10 +76,23 @@ final class PopoverPlanModel {
         replanIfNeeded()
     }
 
-    /// A different layout draws different heights, so the old ones can't plan it.
-    func layoutDidChange() {
+    /// A different layout draws different heights and a different account gap, so the old
+    /// heights can't plan it.
+    func setLayout(_ newLayout: AccountLayout) {
+        guard newLayout != layout else { return }
+        let isFirst = layout == nil
+        layout = newLayout
+        metrics = Self.metrics(for: newLayout)
+        guard !isFirst else { return }
         generation += 1
         heights.removeAll()
+    }
+
+    /// Compact rows sit 4pt apart in a card; Standard sections 26pt.
+    static func metrics(for layout: AccountLayout) -> AccountColumnsMetrics {
+        var metrics = AccountColumnsMetrics.popover
+        if layout == .compact { metrics.accountGap = Double(CompactAccountRow.rowGap) }
+        return metrics
     }
 
     private var needsReplan: Bool {
@@ -86,7 +101,9 @@ final class PopoverPlanModel {
 
     private func replanIfNeeded() {
         guard needsReplan, let items = measuredItems() else { return }
-        let next = AccountColumnsPlanner.plan(items: items, cap: cap, generation: generation, previous: plan)
+        let next = AccountColumnsPlanner.plan(
+            items: items, cap: cap, generation: generation, previous: plan, metrics: metrics
+        )
         if next != plan { plan = next }
     }
 
@@ -98,6 +115,7 @@ final class PopoverPlanModel {
             guard var height = heights[slot.id] else { return nil }
             if let headerID = slot.headerID {
                 guard let header = heights[headerID] else { return nil }
+                // The capability card's header sits a Standard account gap above its accounts.
                 height += header + AccountColumnsMetrics.popover.accountGap
             }
             items.append(AccountColumnsItem(id: slot.id, groupID: slot.groupID, height: height, isSpend: slot.isSpend))

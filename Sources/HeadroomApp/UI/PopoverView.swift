@@ -207,6 +207,9 @@ struct PopoverView: View {
             // KTD4 / KTD5: pinned from the stored plan, never animated (R7).
             .frame(width: PopoverCardMetrics.shellWidth(columns: columnPlan.columnCount))
             .onChange(of: columnSlots, initial: true) { columns.update(slots: columnSlots) }
+            // KTD2: a layout change replans from the new layout's heights. It is made in
+            // Settings, so the popover is closed and nothing animates (KTD5).
+            .onChange(of: store.accountLayout, initial: true) { columns.setLayout(store.accountLayout) }
             // U1 spike: `MenuBarExtra` grows its window with the content but never shrinks it.
             .onChange(of: columnPlan.columnCount) { fitPopoverWindow(columns: columnPlan.columnCount) }
             // U1 spike: the popover's view state outlives a close, and a width chosen on open
@@ -266,7 +269,9 @@ struct PopoverView: View {
                         fullRefresh: store.fullRefreshInFlight)
                 },
                 fragment: fragment.accountRange,
-                onMeasureColumnItem: { [columns] id, height in columns.record(height, for: id) }
+                onMeasureColumnItem: { [columns] id, height in columns.record(height, for: id) },
+                accountLayout: store.accountLayout,
+                showsCodexSparkCounters: store.showCodexSparkCountersInApp
             )
             .id(meterRecipeKey)
             .transition(.opacity)

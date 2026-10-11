@@ -287,6 +287,11 @@ struct ProviderCardView: View {
     /// KTD3: reports each column item's content height to the popover's plan, keyed like
     /// `columnSlots`. Nil outside the popover.
     var onMeasureColumnItem: ((String, CGFloat) -> Void)? = nil
+    /// R11 / R15: Compact draws each account as one line unless its state needs the Standard
+    /// section's actions. The capability-recovery card stays Standard.
+    var accountLayout: AccountLayout = .standard
+    /// The in-app Spark switch, so a Compact row never shows a window Standard hides.
+    var showsCodexSparkCounters: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -318,6 +323,8 @@ struct ProviderCardView: View {
                 capabilityBody(presentation)
             } else if isMultiAccount {
                 multiAccountBody
+            } else if let recipe = singleAccountCompactRecipe {
+                compactRow(for: primaryEntry, recipe: recipe, isMenuBarAccount: false)
             } else {
                 singleAccountBody
             }
@@ -500,6 +507,7 @@ struct ProviderCardView: View {
                             // the second column has no header (R9), so its rows keep the mark.
                             showsMark: !isFirstFragment
                         )
+                        .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
                     }
                 }
             } else if !snapshot.windows.isEmpty {
@@ -737,15 +745,82 @@ struct ProviderCardView: View {
         // its identity, so row mode has no separate provider header or account counter.
         // T1A widened it 22 → 26 to hold the grouping now the title sits at `.medium` and
         // the meter rows inside a section are 2pt tighter.
-        return ColumnItemsStack(spacing: 26, report: onMeasureColumnItem) {
+        return ColumnItemsStack(
+            spacing: isCompact ? CompactAccountRow.rowGap : 26,
+            report: onMeasureColumnItem
+        ) {
             ForEach(inFragment(entries)) { entry in
-                accountSection(
-                    for: entry,
-                    providerAccounts: providerAccounts,
-                    showsStopWaiting: activeSetupAccount?.key == entry.account.key
-                )
+                Group {
+                    if isCompact, let recipe = compactRecipe(for: entry) {
+                        compactRow(for: entry, recipe: recipe, isMenuBarAccount: entry.id == entries.first?.id)
+                    } else {
+                        accountSection(
+                            for: entry,
+                            providerAccounts: providerAccounts,
+                            showsStopWaiting: activeSetupAccount?.key == entry.account.key
+                        )
+                        // R15: a Standard section among Compact rows keeps the full 26pt
+                        // account gap from a neighbouring section, and 15pt from a row.
+                        .padding(.vertical, isCompact ? Self.compactFallbackInset : 0)
+                    }
+                }
+                .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
             }
         }
+    }
+
+    // MARK: - Compact (R11–R15)
+
+    private static let compactFallbackInset = (26 - CompactAccountRow.rowGap) / 2
+
+    private var isCompact: Bool { accountLayout == .compact }
+
+    /// The row's recipe, or nil where the account keeps its Standard section (R15).
+    private func compactRecipe(for entry: ProviderAccountEntry) -> CompactAccountRowRecipe? {
+        let recipe = CompactAccountRowRecipe(
+            snapshot: entry.snapshot,
+            meterStyle: meterStyle,
+            percentageMode: percentageMode,
+            now: now,
+            requiresStandardSection: compactRowNeedsStandardSection(entry.account),
+            showsCodexSparkCounters: showsCodexSparkCounters
+        )
+        return recipe.fallsBackToStandard ? nil : recipe
+    }
+
+    /// The single-account card's own setup shells (Connect, Waiting, guided setup) are
+    /// actions the snapshot alone doesn't describe.
+    private var singleAccountCompactRecipe: CompactAccountRowRecipe? {
+        guard isCompact, let primaryEntry,
+              claudeSessionOwnedState == nil,
+              claudeGuidedSetupOutcome == nil,
+              snapshot.codexConnectionAction == nil
+        else { return nil }
+        return compactRecipe(for: primaryEntry)
+    }
+
+    private func compactRow(
+        for entry: ProviderAccountEntry?,
+        recipe: CompactAccountRowRecipe,
+        isMenuBarAccount: Bool
+    ) -> some View {
+        let account = entry?.account ?? primaryAccount
+        let providerAccounts = entries.map(\.account)
+        // The single-account card titles itself the way `accountIdentityRow` does.
+        let titled = isMultiAccount || anyProviderMultiAccount
+        return CompactAccountRow(
+            providerID: providerID,
+            title: titled
+                ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
+                : displayName,
+            email: entry?.snapshot.accountEmail,
+            showsPersistentEmail: titled && showsPersistentEmail(for: account, in: providerAccounts),
+            isMenuBarAccount: isMultiAccount && isMenuBarAccount,
+            recipe: recipe,
+            percentageMode: percentageMode,
+            now: now,
+            arrivalKey: announcesAccessibilityEvents ? account.key : nil
+        )
     }
 
     private func accountSection(
@@ -776,7 +851,6 @@ struct ProviderCardView: View {
             claimBankedResetReveal: claimBankedResetReveal,
             readLoading: { loadingForAccount(entry.account.key) }
         )
-        .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
     }
 
     /// Single-account reveal. Multi-account cards leave this to each `AccountSectionView`
@@ -1882,4 +1956,15 @@ private extension View {
     func columnItemHeight(_ id: String, report: ((String, CGFloat) -> Void)?) -> some View {
         onGeometryChange(for: CGFloat.self) { $0.size.height } action: { report?(id, $0) }
     }
+}
+
+/// R15: an account whose setup session or sign-in failure owns its row keeps the Standard
+/// section, which is where Stop Waiting, Try Again and the failure sentence live.
+@MainActor
+func compactRowNeedsStandardSection(_ account: ProviderAccount) -> Bool {
+    let state = SetupSessions.state(for: account)
+    return setupSessionOwnsSurface(for: state)
+        || setupSessionOffersStopWaiting(for: account)
+        || setupHandoffRefusalMessage(for: state) != nil
+        || SetupSessions.failureMessage(for: account) != nil
 }

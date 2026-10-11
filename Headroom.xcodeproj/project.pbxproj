@@ -397,6 +397,7 @@
 		9A2359D6EC37215E9460769C /* CompanionDemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */; };
 		9A2E1DD1FDAA631A97E25F20 /* Redaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF324F891EEEAD03BABA4FC /* Redaction.swift */; };
 		9A3FF49A94D30656C5C713C9 /* HeadroomWidgetConfigurationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9D406B050387CDFAE6C0F966 /* HeadroomWidgetConfigurationIntent.swift */; };
+		9AA1BDA68D2952744A2B488B /* CompactAccountRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47B4E86343C94C717E7EC99F /* CompactAccountRow.swift */; };
 		9ABD466B37A907132B00F9EA /* WidgetWindowRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D5513C2AB2C61E436AB502 /* WidgetWindowRanking.swift */; };
 		9ADF677BC558A6369291CFB0 /* CompanionPrivacyCopy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BCE90B831819668602B60AB /* CompanionPrivacyCopy.swift */; };
 		9AFB1E11450388339DFC932B /* WidgetWindowRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D5513C2AB2C61E436AB502 /* WidgetWindowRanking.swift */; };
@@ -809,6 +810,7 @@
 		445BE4D41EA2C6946532B7A1 /* UsageStorePhoneSync.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStorePhoneSync.swift; sourceTree = "<group>"; };
 		44E4D55224D293D0265BE89B /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
 		45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLabelPresentation.swift; sourceTree = "<group>"; };
+		47B4E86343C94C717E7EC99F /* CompactAccountRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactAccountRow.swift; sourceTree = "<group>"; };
 		489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardIdentityRows.swift; sourceTree = "<group>"; };
 		48C63A7205115E3F08BEDE08 /* PopoverRenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverRenderHarness.swift; sourceTree = "<group>"; };
 		4AB5C89FE07880018767F616 /* AppShortcuts.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = AppShortcuts.xcstrings; sourceTree = "<group>"; };
@@ -1404,6 +1406,7 @@
 				38D1ABBFC7400DB7B365ADAF /* AppearanceSpecimen.swift */,
 				28FECE6C7A3D1E55E26A7C55 /* ClaudeSetupViews.swift */,
 				8884B8D5664E9FA9DC416556 /* CodexSetupViews.swift */,
+				47B4E86343C94C717E7EC99F /* CompactAccountRow.swift */,
 				0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */,
 				3E76CC30F79ACF6662A80B82 /* HeadroomMotion+AppKit.swift */,
 				1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */,
@@ -2303,6 +2306,7 @@
 				03E350A0368BE20C2620C456 /* BenchCounters.swift in Sources */,
 				66CAF608E41C4A15D88CCF2E /* ClaudeSetupViews.swift in Sources */,
 				66BA4AA745FB0E91177156D3 /* CodexSetupViews.swift in Sources */,
+				9AA1BDA68D2952744A2B488B /* CompactAccountRow.swift in Sources */,
 				05084A1F94C75B3721E938C1 /* CopyFeedbackButton.swift in Sources */,
 				A732EFDCB64C894F0F173B2D /* DemoSettingsDependencies.swift in Sources */,
 				D4F61A8BD98EA67FD9E0A0E0 /* FlowingColumnsLayout.swift in Sources */,

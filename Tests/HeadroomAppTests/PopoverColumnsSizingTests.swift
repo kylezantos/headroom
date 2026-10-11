@@ -77,7 +77,8 @@ struct PopoverColumnsSizingTests {
         model.update(slots: all)
         await measure(model, all, height: 74)
         #expect(model.plan?.columnCount == 2)
-        model.layoutDidChange()
+        model.setLayout(.standard)
+        model.setLayout(.compact)
         await measure(model, all, height: 26)
         #expect(model.plan?.columnCount == 1)
     }
@@ -229,8 +230,12 @@ struct PopoverColumnsSizingTests {
         return defaults
     }
 
-    private func store(_ pairs: [(account: ProviderAccount, provider: any UsageProvider)]) async -> UsageStore {
+    private func store(
+        _ pairs: [(account: ProviderAccount, provider: any UsageProvider)],
+        layout: AccountLayout = .standard
+    ) async -> UsageStore {
         let prefs = Preferences(defaults: defaults())
+        prefs.accountLayout = layout
         for id in Set(pairs.map(\.account.providerID)) {
             if let surface = UsageSurface.subscription(for: id) { prefs.setSurfaceEnabled(true, for: surface) }
         }
@@ -286,5 +291,46 @@ struct PopoverColumnsSizingTests {
         let scroll = try! #require(hosted.scroll)
         #expect(abs(scroll.viewport - PopoverCardMetrics.cardsHeightCap) < 0.5)
         #expect(scroll.content > scroll.viewport)
+    }
+
+    // MARK: Compact (R11, R15)
+
+    @Test func sevenClaudeAndOneCodexFitOneCompactColumn() async {
+        let fixture = DemoFixture.multiFixture(for: .multiSeven)
+        let hosted = await host(await store(Array(zip(fixture.accounts, fixture.providers)), layout: .compact))
+        defer { hosted.teardown() }
+        hosted.snapshot("compact-multi-7")
+        #expect(hosted.size.width == 384)
+        let scroll = try! #require(hosted.scroll)
+        #expect(scroll.content <= scroll.viewport + 0.5)
+    }
+
+    @Test func theEnvelopeTakesTwoCompactColumns() async {
+        let pairs = DemoFixture.generatedAccounts(provider: .claude, count: 20)
+            + DemoFixture.generatedAccounts(provider: .codex, count: 20)
+            + DemoFixture.generatedAccounts(provider: .grok, count: 20)
+        let hosted = await host(await store(pairs, layout: .compact))
+        defer { hosted.teardown() }
+        hosted.snapshot("compact-multi-20")
+        #expect(hosted.size.width == 750)
+    }
+
+    /// R15: a signed-out account keeps its Standard section — and so its sign-in action — in
+    /// place among Compact rows, which makes its card taller than an all-Compact one.
+    @Test func aSignedOutAccountKeepsItsStandardSectionInCompact() async {
+        var pairs = DemoFixture.generatedAccounts(provider: .claude, count: 3)
+        let allCompact = await host(await store(pairs, layout: .compact))
+        let compactHeight = allCompact.size.height
+        allCompact.teardown()
+        let signedOut = pairs[1].account
+        pairs[1] = (signedOut, DemoUsageProvider(
+            id: .claude, displayName: "Claude",
+            snapshot: .stale(for: .claude, reason: .notLoggedIn(UsageStore.finishSignInMessage)),
+            accountID: signedOut.id
+        ))
+        let hosted = await host(await store(pairs, layout: .compact))
+        defer { hosted.teardown() }
+        hosted.snapshot("compact-signed-out")
+        #expect(hosted.size.height > compactHeight + 20)
     }
 }

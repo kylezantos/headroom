@@ -3,6 +3,7 @@ import HeadroomSharedUI
 #endif
 import SwiftUI
 import AppKit
+import os
 import HeadroomCore
 #if canImport(HeadroomWidgetSharedUI)
 import HeadroomWidgetSharedUI
@@ -225,7 +226,7 @@ struct PopoverView: View {
             // Both paths own their full background so no redundant material muddies the host.
             .modifier(PopoverSurfaceModifier(cornerRadius: Self.shellCornerRadius, forceSolid: forceSolidSurface))
             // Capture the popover's hosting window so opening Settings can dismiss it.
-            .background(WindowAccessor { configurePopoverWindow($0) })
+            .background(WindowAccessor { configurePopoverWindow($0, from: $1) })
             // G1A: the popover is the only surface with a title-ink choice, so this is the
             // one place it enters the view tree (the Settings specimen sets its own).
             .environment(\.accountTitleInk, store.accountTitleInk)
@@ -264,7 +265,7 @@ struct PopoverView: View {
         onOpenSettings()
     }
 
-    private func configurePopoverWindow(_ window: NSWindow?) {
+    private func configurePopoverWindow(_ window: NSWindow?, from anchor: NSView) {
         popoverWindow = window
         guard let window else { return }
         // HR-33: keep the custom content radius, but clear the MenuBarExtra host backing
@@ -287,6 +288,9 @@ struct PopoverView: View {
             layer.cornerRadius = Self.shellCornerRadius
             layer.cornerCurve = .continuous
             layer.masksToBounds = true
+            reshaped = true
+        }
+        if PopoverHostChrome.reshape(in: window, sparing: anchor, cornerRadius: Self.shellCornerRadius) {
             reshaped = true
         }
         if reshaped { window.invalidateShadow() }
@@ -956,16 +960,99 @@ private struct PopoverSurfaceModifier: ViewModifier {
 /// `MenuBarExtra(.window)` popover window — SwiftUI exposes no first-class dismissal for
 /// it, and matching by private class name is brittle, so we read `view.window` instead.
 private struct WindowAccessor: NSViewRepresentable {
-    let onResolve: (NSWindow?) -> Void
+    /// The window, and the accessor's own view so callers can tell their content apart from
+    /// the host's chrome.
+    let onResolve: (NSWindow?, NSView) -> Void
 
     func makeNSView(context: Context) -> NSView {
         let view = NSView()
-        DispatchQueue.main.async { onResolve(view.window) }
+        DispatchQueue.main.async { onResolve(view.window, view) }
         return view
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        DispatchQueue.main.async { onResolve(nsView.window) }
+        DispatchQueue.main.async { onResolve(nsView.window, nsView) }
+    }
+}
+
+/// PC2 (macOS 27): the MenuBarExtra host draws its own system glass behind the popover again,
+/// at the system's tighter corner radius, and `.containerBackground(.clear, for: .window)` no
+/// longer removes it, so a filled second corner showed outside the r22 shell. The host's
+/// glass and vibrancy views (everything outside the hosting view that renders `PopoverView`)
+/// are reshaped to the shell through their own public corner APIs. No layer is masked, which
+/// made the live glass flicker (BUGS.md), and our own SwiftUI glass is never touched.
+@MainActor
+private enum PopoverHostChrome {
+    private static let log = Logger(subsystem: "com.kylezantos.headroom", category: "popover-window")
+    private static var didLogHierarchy = false
+
+    /// Returns true when a view changed shape, so the caller can refresh the window shadow.
+    static func reshape(in window: NSWindow, sparing anchor: NSView, cornerRadius: CGFloat) -> Bool {
+        guard let root = window.contentView?.superview ?? window.contentView else { return false }
+        let content = hostingView(containing: anchor)
+        logHierarchyOnce(root, content: content)
+        return reshape(root, sparing: content, cornerRadius: cornerRadius)
+    }
+
+    private static func reshape(_ view: NSView, sparing content: NSView?, cornerRadius: CGFloat) -> Bool {
+        if view === content { return false }
+        var changed = false
+        if #available(macOS 26.0, *), let glass = view as? NSGlassEffectView {
+            if glass.cornerRadius != cornerRadius {
+                glass.cornerRadius = cornerRadius
+                changed = true
+            }
+        } else if let effect = view as? NSVisualEffectView, effect.maskImage?.size.width != cornerRadius * 2 + 1 {
+            effect.maskImage = roundedMask(cornerRadius: cornerRadius)
+            changed = true
+        }
+        for child in view.subviews where reshape(child, sparing: content, cornerRadius: cornerRadius) {
+            changed = true
+        }
+        return changed
+    }
+
+    /// The outermost hosting view above the accessor: SwiftUI's own glass lives inside it.
+    private static func hostingView(containing anchor: NSView) -> NSView? {
+        var found: NSView?
+        var view: NSView? = anchor.superview
+        while let current = view {
+            if String(describing: type(of: current)).contains("HostingView") { found = current }
+            view = current.superview
+        }
+        return found
+    }
+
+    /// A resizable rounded-rect mask, the documented way to shape an `NSVisualEffectView`.
+    private static func roundedMask(cornerRadius: CGFloat) -> NSImage {
+        let edge = cornerRadius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: cornerRadius, yRadius: cornerRadius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: cornerRadius, left: cornerRadius, bottom: cornerRadius, right: cornerRadius)
+        image.resizingMode = .stretch
+        return image
+    }
+
+    /// One structural dump per launch (class names, frames, corner state; no content), so a
+    /// future OS's host layout can be read with `log show --predicate 'category == "popover-window"'`.
+    private static func logHierarchyOnce(_ root: NSView, content: NSView?) {
+        guard !didLogHierarchy else { return }
+        didLogHierarchy = true
+        var lines: [String] = []
+        func visit(_ view: NSView, depth: Int) {
+            let layer = view.layer
+            let marker = view === content ? " [content]" : ""
+            lines.append(String(repeating: "  ", count: depth)
+                + "\(type(of: view)) \(NSStringFromRect(view.frame)) r=\(layer?.cornerRadius ?? -1)"
+                + " mask=\(layer?.masksToBounds ?? false) hidden=\(view.isHidden)\(marker)")
+            guard view !== content else { return }
+            view.subviews.forEach { visit($0, depth: depth + 1) }
+        }
+        visit(root, depth: 0)
+        log.notice("Popover window hierarchy:\n\(lines.joined(separator: "\n"), privacy: .public)")
     }
 }
 

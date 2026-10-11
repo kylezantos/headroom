@@ -28,6 +28,8 @@ final class PopoverTuningModel: ObservableObject {
     static let shared = PopoverTuningModel()
 
     @Published private(set) var values = HeadroomTuning()
+    /// PC2: which surface the popover draws, and its glass tint. Always `.shipping` without DialKit.
+    @Published private(set) var surface = PopoverSurfaceSettings.shipping
 
     #if HEADROOM_DIALKIT
     private weak var store: UsageStore?
@@ -49,6 +51,33 @@ final class PopoverTuningModel: ObservableObject {
             .select("fill", keyPath: \.fill, options: GaugeFill.allCases.map { DialOption($0.rawValue, label: $0.rawValue) }),
             .select("percentageMode", keyPath: \.percentageMode, label: "Show", options: [
                 DialOption("remaining", label: "Remaining"), DialOption("used", label: "Used"),
+            ]),
+        ]
+    )
+
+    private let surfacePanel = DialPanelState(
+        id: UUID(uuidString: "6F0B7C1E-4E52-4C61-9C1D-2B8F3A0D5E11")!,
+        name: "Surface",
+        initial: PopoverSurfaceState(),
+        controls: [
+            .select("surface", keyPath: \.surface, options: [
+                DialOption("headroom", label: "Headroom shell"),
+                DialOption("system", label: "System glass"),
+            ]),
+            .group("headroomShell", label: "Headroom Shell", children: [
+                .select("glass", keyPath: \.glass, options: [
+                    DialOption("regular", label: "Regular"),
+                    DialOption("clear", label: "Clear"),
+                ]),
+                .color("lightTint", keyPath: \.lightTint),
+                .slider("lightTintOpacity", keyPath: \.lightTintOpacity, range: 0...1, step: 0.01),
+                .color("darkTint", keyPath: \.darkTint),
+                .slider("darkTintOpacity", keyPath: \.darkTintOpacity, range: 0...1, step: 0.01),
+                .toggle("reshapeHostChrome", keyPath: \.reshapeHostChrome, label: "Reshape Host Chrome (PC2)"),
+            ]),
+            .group("systemGlass", label: "System Glass", children: [
+                .color("systemWash", keyPath: \.systemWash),
+                .slider("systemWashOpacity", keyPath: \.systemWashOpacity, range: 0...1, step: 0.01),
             ]),
         ]
     )
@@ -121,6 +150,10 @@ final class PopoverTuningModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] in self?.values = $0 }
             .store(in: &cancellables)
+        surfacePanel.$values
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] in self?.surface = $0.settings }
+            .store(in: &cancellables)
         livePanel.$values
             .dropFirst()
             .receive(on: DispatchQueue.main)
@@ -159,7 +192,9 @@ final class PopoverTuningModel: ObservableObject {
             fill: store.meterStyle.fill.rawValue,
             percentageMode: store.usagePercentageMode.rawValue
         )
-        let host = NSHostingController(rootView: PopoverView(store: store, onOpenSettings: {}))
+        // The pinned copy has no MenuBarExtra host, so it always draws the Headroom shell;
+        // judge "System glass" in the real menu-bar popover.
+        let host = NSHostingController(rootView: PopoverView(store: store, onOpenSettings: {}, isPinnedTuningCopy: true))
         host.sizingOptions = [.preferredContentSize]
         host.view.wantsLayer = true
         host.view.layer?.backgroundColor = .clear
@@ -184,3 +219,95 @@ final class PopoverTuningModel: ObservableObject {
     func showPinnedPopover(store: UsageStore) {}
     #endif
 }
+
+/// PC2: how the popover draws its surface — Headroom's own r22 glass shell, or the glass the
+/// MenuBarExtra host draws itself. Defaults are the shipped values.
+struct PopoverSurfaceSettings: Equatable {
+    enum Surface: String { case headroom, system }
+    enum GlassVariant: String { case regular, clear }
+
+    var surface: Surface = .headroom
+    var glass: GlassVariant = .regular
+    var lightTint: Color = .white
+    var lightTintOpacity: Double = 0.55
+    var darkTint: Color = .black
+    var darkTintOpacity: Double = 0
+    /// PC2's host-chrome reshape; off shows what the OS draws under the shell.
+    var reshapeHostChrome = true
+    /// System surface only: a flat wash over the host glass, clipped by the window's corner.
+    var systemWash: Color = .white
+    var systemWashOpacity: Double = 0
+
+    static let shipping = PopoverSurfaceSettings()
+
+    var usesHeadroomShell: Bool { surface == .headroom }
+}
+
+extension View {
+    /// The popover window's container background: cleared for the Headroom shell (PC1), left
+    /// to the host when a DialKit build switches to the system surface.
+    @ViewBuilder
+    func popoverSurfaceHost() -> some View {
+        #if HEADROOM_DIALKIT
+        modifier(PopoverSurfaceHost(tuning: PopoverTuningModel.shared))
+        #else
+        containerBackground(.clear, for: .window)
+        #endif
+    }
+}
+
+#if HEADROOM_DIALKIT
+private struct PopoverSurfaceHost: ViewModifier {
+    @ObservedObject var tuning: PopoverTuningModel
+
+    func body(content: Content) -> some View {
+        if tuning.surface.usesHeadroomShell {
+            content.containerBackground(.clear, for: .window)
+        } else {
+            content
+        }
+    }
+}
+
+/// The DialKit-side copy of `PopoverSurfaceSettings`: Codable, colors as hex.
+struct PopoverSurfaceState: Codable, Equatable {
+    var surface = "headroom"
+    var glass = "regular"
+    var lightTint = "#FFFFFF"
+    var lightTintOpacity = 0.55
+    var darkTint = "#000000"
+    var darkTintOpacity = 0.0
+    var reshapeHostChrome = true
+    var systemWash = "#FFFFFF"
+    var systemWashOpacity = 0.0
+
+    var settings: PopoverSurfaceSettings {
+        PopoverSurfaceSettings(
+            surface: .init(rawValue: surface) ?? .headroom,
+            glass: .init(rawValue: glass) ?? .regular,
+            lightTint: Self.color(lightTint),
+            lightTintOpacity: lightTintOpacity,
+            darkTint: Self.color(darkTint),
+            darkTintOpacity: darkTintOpacity,
+            reshapeHostChrome: reshapeHostChrome,
+            systemWash: Self.color(systemWash),
+            systemWashOpacity: systemWashOpacity
+        )
+    }
+
+    private static func color(_ hex: String) -> Color {
+        var digits = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        if digits.count == 3 { digits = digits.map { "\($0)\($0)" }.joined() }
+        guard digits.count == 6 || digits.count == 8, let value = UInt64(digits, radix: 16) else { return .white }
+        let hasAlpha = digits.count == 8
+        let rgb = hasAlpha ? value >> 8 : value
+        return Color(
+            .sRGB,
+            red: Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >> 8) & 0xFF) / 255,
+            blue: Double(rgb & 0xFF) / 255,
+            opacity: hasAlpha ? Double(value & 0xFF) / 255 : 1
+        )
+    }
+}
+#endif

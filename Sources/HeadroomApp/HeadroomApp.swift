@@ -582,7 +582,9 @@ struct HeadroomApp: App {
                 // owns the whole surface (`PopoverSurfaceModifier`); the scene's default
                 // container background goes. Verified in the bundled app — an unbundled
                 // `swift run` gets a different host background, handled in `PopoverView`.
-                .containerBackground(.clear, for: .window)
+                // `popoverSurfaceHost()` is exactly that clear background unless a DialKit
+                // build switches to the system surface (PC2).
+                .popoverSurfaceHost()
                 .preferredColorScheme(resolvedScheme)
                 .onChange(of: appearancePreference) { _, newValue in
                     newValue.applyToProcess()

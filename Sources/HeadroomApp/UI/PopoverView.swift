@@ -26,6 +26,8 @@ struct PopoverView: View {
     /// normally measures the scroll stack. A fixed proposal keeps the marketing render
     /// from collapsing the cards to zero height.
     var forcedCardsHeight: CGFloat? = nil
+    /// DialKit only: the pinned tuning copy has no MenuBarExtra host, so it keeps the shell.
+    var isPinnedTuningCopy: Bool = false
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -225,9 +227,15 @@ struct PopoverView: View {
             .frame(width: tuning.values.shellWidth)
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.
-            .modifier(PopoverSurfaceModifier(cornerRadius: tuning.values.shellCornerRadius, forceSolid: forceSolidSurface))
+            .modifier(PopoverSurfaceModifier(
+                cornerRadius: tuning.values.shellCornerRadius,
+                settings: surface,
+                forceSolid: forceSolidSurface
+            ))
             // Capture the popover's hosting window so opening Settings can dismiss it.
-            .background(WindowAccessor { configurePopoverWindow($0, from: $1) })
+            .background(WindowAccessor(surface: surface, cornerRadius: tuning.values.shellCornerRadius) {
+                configurePopoverWindow($0, from: $1)
+            })
             // G1A: the popover is the only surface with a title-ink choice, so this is the
             // one place it enters the view tree (the Settings specimen sets its own).
             .environment(\.accountTitleInk, store.accountTitleInk)
@@ -270,6 +278,13 @@ struct PopoverView: View {
     private func configurePopoverWindow(_ window: NSWindow?, from anchor: NSView) {
         popoverWindow = window
         guard let window else { return }
+        guard surface.usesHeadroomShell else {
+            // PC2 tuning: hand the surface back to the host exactly as it drew it.
+            if PopoverHostChrome.restore(in: window) { window.invalidateShadow() }
+            return
+        }
+        let radius = tuning.values.shellCornerRadius
+        PopoverHostChrome.rememberWindow(window)
         // HR-33: keep the custom content radius, but clear the MenuBarExtra host backing
         // so the popover has exactly one system material layer at the rounded edge.
         // Idempotent: this runs on every view update, and re-assigning window properties
@@ -286,20 +301,27 @@ struct PopoverView: View {
         var reshaped = false
         for leaf in window.contentView?.subviews ?? [] where leaf.subviews.isEmpty {
             guard let layer = leaf.layer,
-                  layer.cornerRadius != Self.shellCornerRadius || !layer.masksToBounds else { continue }
-            layer.cornerRadius = Self.shellCornerRadius
+                  layer.cornerRadius != radius || !layer.masksToBounds else { continue }
+            PopoverHostChrome.rememberLayer(layer)
+            layer.cornerRadius = radius
             layer.cornerCurve = .continuous
             layer.masksToBounds = true
             reshaped = true
         }
-        if PopoverHostChrome.reshape(in: window, sparing: anchor, cornerRadius: Self.shellCornerRadius) {
+        if surface.reshapeHostChrome {
+            if PopoverHostChrome.reshape(in: window, sparing: anchor, cornerRadius: radius) { reshaped = true }
+        } else if PopoverHostChrome.restoreChrome() {
             reshaped = true
         }
         if reshaped { window.invalidateShadow() }
     }
 
-    /// The popover shell's corner radius — the glass surface and the host background share it.
-    static let shellCornerRadius: CGFloat = 22
+    /// PC2: the surface the popover draws; the pinned DialKit copy always keeps the shell.
+    private var surface: PopoverSurfaceSettings {
+        var settings = tuning.surface
+        if isPinnedTuningCopy { settings.surface = .headroom }
+        return settings
+    }
 
     /// The page title now outweighs the 15pt card titles so hierarchy reads top-down, and
     /// the right slot carries one contextual status: the consolidated "Updated" stamp, or
@@ -929,6 +951,7 @@ private struct PopoverScrollIndicator: View {
 
 private struct PopoverSurfaceModifier: ViewModifier {
     let cornerRadius: CGFloat
+    var settings: PopoverSurfaceSettings = .shipping
     /// Render-harness only: force the solid shell (ImageRenderer can't rasterize glass).
     var forceSolid: Bool = false
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -936,7 +959,10 @@ private struct PopoverSurfaceModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        if reduceTransparency || forceSolid || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
+        if !settings.usesHeadroomShell && !forceSolid {
+            // PC2 tuning: the host's own surface, with an optional flat wash the window clips.
+            content.background(settings.systemWash.opacity(settings.systemWashOpacity).ignoresSafeArea())
+        } else if reduceTransparency || forceSolid || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
             content
                 .background(Color(nsColor: .windowBackgroundColor), in: shape)
                 .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1))
@@ -945,16 +971,21 @@ private struct PopoverSurfaceModifier: ViewModifier {
             // muddies the shell (diagnosed Jul 2026, hierarchy log ruled out a second shell);
             // the tint pins the light shell to a light identity while dark mode keeps pure
             // glass. Mirrors how system menu-bar dropdowns read as a light surface.
-            if colorScheme == .light {
-                content.glassEffect(.regular.tint(Color.white.opacity(0.55)), in: shape)
-            } else {
-                content.glassEffect(in: shape)
-            }
+            content.glassEffect(glass, in: shape)
         } else {
             content
                 .background(.regularMaterial, in: shape)
                 .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
         }
+    }
+
+    @available(macOS 26.0, *)
+    private var glass: Glass {
+        let base: Glass = settings.glass == .clear ? .clear : .regular
+        let (tint, opacity) = colorScheme == .light
+            ? (settings.lightTint, settings.lightTintOpacity)
+            : (settings.darkTint, settings.darkTintOpacity)
+        return opacity > 0 ? base.tint(tint.opacity(opacity)) : base
     }
 }
 
@@ -962,6 +993,9 @@ private struct PopoverSurfaceModifier: ViewModifier {
 /// `MenuBarExtra(.window)` popover window — SwiftUI exposes no first-class dismissal for
 /// it, and matching by private class name is brittle, so we read `view.window` instead.
 private struct WindowAccessor: NSViewRepresentable {
+    /// Unused in the body; a changed surface or radius makes SwiftUI call `updateNSView` again.
+    var surface: PopoverSurfaceSettings = .shipping
+    var cornerRadius: CGFloat = 0
     /// The window, and the accessor's own view so callers can tell their content apart from
     /// the host's chrome.
     let onResolve: (NSWindow?, NSView) -> Void
@@ -987,6 +1021,59 @@ private struct WindowAccessor: NSViewRepresentable {
 private enum PopoverHostChrome {
     private static let log = Logger(subsystem: "com.kylezantos.headroom", category: "popover-window")
     private static var didLogHierarchy = false
+    /// Host state as first seen, so a tuning build can hand the surface back (PC2).
+    private static var windowOriginals: [ObjectIdentifier: (window: NSWindow, opaque: Bool, background: NSColor)] = [:]
+    private static var layerOriginals: [ObjectIdentifier: (layer: CALayer, radius: CGFloat, masks: Bool)] = [:]
+    private static var glassOriginals: [ObjectIdentifier: (view: NSView, radius: CGFloat)] = [:]
+    private static var maskOriginals: [ObjectIdentifier: (view: NSVisualEffectView, mask: NSImage?)] = [:]
+
+    static func rememberWindow(_ window: NSWindow) {
+        let key = ObjectIdentifier(window)
+        if windowOriginals[key] == nil {
+            windowOriginals[key] = (window, window.isOpaque, window.backgroundColor)
+        }
+    }
+
+    static func rememberLayer(_ layer: CALayer) {
+        let key = ObjectIdentifier(layer)
+        if layerOriginals[key] == nil {
+            layerOriginals[key] = (layer, layer.cornerRadius, layer.masksToBounds)
+        }
+    }
+
+    /// Undoes every change this file and `configurePopoverWindow` made. True if anything moved.
+    static func restore(in window: NSWindow) -> Bool {
+        var changed = restoreChrome()
+        if let original = windowOriginals.removeValue(forKey: ObjectIdentifier(window)) {
+            window.isOpaque = original.opaque
+            window.backgroundColor = original.background
+            changed = true
+        }
+        for (_, original) in layerOriginals {
+            original.layer.cornerRadius = original.radius
+            original.layer.masksToBounds = original.masks
+            changed = true
+        }
+        layerOriginals.removeAll()
+        return changed
+    }
+
+    static func restoreChrome() -> Bool {
+        var changed = false
+        if #available(macOS 26.0, *) {
+            for (_, original) in glassOriginals {
+                (original.view as? NSGlassEffectView)?.cornerRadius = original.radius
+                changed = true
+            }
+        }
+        glassOriginals.removeAll()
+        for (_, original) in maskOriginals {
+            original.view.maskImage = original.mask
+            changed = true
+        }
+        maskOriginals.removeAll()
+        return changed
+    }
 
     /// Returns true when a view changed shape, so the caller can refresh the window shadow.
     static func reshape(in window: NSWindow, sparing anchor: NSView, cornerRadius: CGFloat) -> Bool {
@@ -1001,10 +1088,14 @@ private enum PopoverHostChrome {
         var changed = false
         if #available(macOS 26.0, *), let glass = view as? NSGlassEffectView {
             if glass.cornerRadius != cornerRadius {
+                let key = ObjectIdentifier(glass)
+                if glassOriginals[key] == nil { glassOriginals[key] = (glass, glass.cornerRadius) }
                 glass.cornerRadius = cornerRadius
                 changed = true
             }
         } else if let effect = view as? NSVisualEffectView, effect.maskImage?.size.width != cornerRadius * 2 + 1 {
+            let key = ObjectIdentifier(effect)
+            if maskOriginals[key] == nil { maskOriginals[key] = (effect, effect.maskImage) }
             effect.maskImage = roundedMask(cornerRadius: cornerRadius)
             changed = true
         }

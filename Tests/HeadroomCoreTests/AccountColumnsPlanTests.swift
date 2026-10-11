@@ -414,4 +414,60 @@ import Testing
         #expect(placement.columnHeights.count == 1)
         #expect(placement.columnHeights == [AccountColumnsPlanner.singleColumnHeight(items: other)])
     }
+
+    // MARK: Carrying a plan to a new item list
+
+    /// R6: between an account-set change and the replan that waits on the new items' heights,
+    /// the popover keeps drawing two columns rather than collapsing to one for a pass.
+    @Test func aCarriedPlanKeepsColumnOneFromItsFirstSurvivingItem() {
+        let items = accounts("claude", Array(repeating: row, count: 7)) + accounts("codex", [row]) + [spend()]
+        let kept = plan(items)
+        #expect(kept.columnCount == 2)
+        let secondColumnHead = kept.itemIDs[kept.splitIndex]
+        let added = AccountColumnsItem(id: "claude.new", groupID: "claude", height: 0)
+        let next = Array(items[..<2]) + [added] + Array(items[2...])
+        let carried = AccountColumnsPlanner.carried(kept, to: next)
+        #expect(carried.columnCount == 2)
+        #expect(carried.itemIDs == next.map(\.id))
+        #expect(carried.itemIDs[carried.splitIndex] == secondColumnHead)
+    }
+
+    @Test func aCarriedPlanIsUnchangedForTheSameItems() {
+        let items = accounts("claude", Array(repeating: row, count: 7)) + accounts("codex", [row])
+        let kept = plan(items)
+        #expect(AccountColumnsPlanner.carried(kept, to: items) == kept)
+    }
+
+    @Test func aMissingOrSingleColumnPlanCarriesAsOneColumn() {
+        let items = accounts("claude", [row, row])
+        #expect(AccountColumnsPlanner.carried(nil, to: items).columnCount == 1)
+        #expect(AccountColumnsPlanner.carried(nil, to: items).splitIndex == 2)
+        let single = plan(items)
+        let more = items + accounts("codex", [row])
+        let carried = AccountColumnsPlanner.carried(single, to: more)
+        #expect(carried.columnCount == 1)
+        #expect(carried.splitIndex == more.count)
+    }
+
+    @Test func aCarriedPlanNeverPutsSpendInColumnZeroAndFallsBackWhenColumnOneEmptied() {
+        let items = accounts("claude", Array(repeating: row, count: 7)) + accounts("codex", [row]) + [spend()]
+        let kept = plan(items)
+        // Every account that sat in column 1 is gone; spend alone still reads in column 1.
+        let survivors = Array(items[..<kept.splitIndex]) + [spend()]
+        let carried = AccountColumnsPlanner.carried(kept, to: survivors)
+        #expect(carried.columnCount == 2)
+        #expect(carried.itemIDs[carried.splitIndex] == "spend")
+        // Without spend, nothing survives in column 1: one column.
+        let noSpend = Array(items[..<kept.splitIndex])
+        #expect(AccountColumnsPlanner.carried(kept, to: noSpend).columnCount == 1)
+    }
+
+    /// A carried plan is for drawing only: it keeps the old generation but its IDs differ from
+    /// the stored plan's, so handing the stored plan to `plan` still replans once.
+    @Test func carryingDoesNotStandInForTheReplan() {
+        let items = accounts("claude", Array(repeating: row, count: 7)) + accounts("codex", [row])
+        let kept = plan(items)
+        let fewer = Array(items.dropLast(3))
+        #expect(AccountColumnsPlanner.needsReplan(previous: kept, itemIDs: fewer.map(\.id), generation: kept.generation))
+    }
 }

@@ -202,6 +202,25 @@ public enum AccountColumnsPlanner {
         return AccountColumnsPlacement(fragments: fragments, columnHeights: heights)
     }
 
+    /// R6: what to draw for `items` while the replan waits on heights the popover hasn't
+    /// measured yet (a new account has no height until it is drawn). Two columns stay two, with
+    /// column 1 starting at the first item that was already there; one column, no plan, or a
+    /// column 1 that lost every item draws as one column. Draw from it, never store it: it
+    /// carries the old generation under new IDs, so it would pass for an already-made plan.
+    public static func carried(_ plan: AccountColumnsPlan?, to items: [AccountColumnsItem]) -> AccountColumnsPlan {
+        let ids = items.map(\.id)
+        let single = AccountColumnsPlan(
+            columnCount: 1, splitIndex: ids.count, itemIDs: ids, generation: plan?.generation ?? 0
+        )
+        guard let plan, plan.columnCount == 2 else { return single }
+        if plan.itemIDs == ids { return plan }
+        let secondColumn = Set(plan.itemIDs[min(plan.splitIndex, plan.itemIDs.count)...])
+        guard let head = ids.firstIndex(where: secondColumn.contains) else { return single }
+        let split = min(head, splitCeiling(items))
+        guard split >= 1 else { return single }
+        return AccountColumnsPlan(columnCount: 2, splitIndex: split, itemIDs: ids, generation: plan.generation)
+    }
+
     /// The height today's one-column `VStack(spacing: 20)` of cards would measure.
     public static func singleColumnHeight(
         items: [AccountColumnsItem],

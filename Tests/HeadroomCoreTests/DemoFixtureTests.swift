@@ -74,6 +74,8 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .multiTwo).accounts.count == 3)   // 2 Claude + 1 Codex
         #expect(DemoFixture.multiFixture(for: .multiThree).accounts.count == 5)
         #expect(DemoFixture.multiFixture(for: .multiFive).accounts.count == 8)  // 5 Claude + 3 Codex (past the old cap for scroll)
+        #expect(DemoFixture.multiFixture(for: .multiSeven).accounts.count == 8)  // 7 Claude + 1 Codex (popover columns)
+        #expect(DemoFixture.scenarioRequest(arguments: ["Headroom", "--demo", "multi-7"]) == .multiAccount(.multiSeven))
         // R15: the tested envelope — 20 Claude, 20 Codex, 20 Grok, 1 Cursor, every key unique.
         let envelope = DemoFixture.multiFixture(for: .envelope)
         #expect(envelope.accounts.count == 61)

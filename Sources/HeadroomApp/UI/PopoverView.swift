@@ -94,14 +94,14 @@ struct PopoverView: View {
             // a gap.
             let cardLayoutSignature = PopoverCardLayoutSignature(
                 freshness: store.providerOrder.flatMap { id in
-                    (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).freshness }
+                    (entriesByProvider[id] ?? []).map(\.snapshot.freshness)
                 },
                 sessions: store.providerOrder.flatMap { id in
                     (accountsByVisibleProvider[id] ?? []).map { providerCardSessionKey(SetupSessions.state(for: $0)) }
                 },
                 // A live poll can add or age out a meter row with freshness unchanged.
                 rows: store.providerOrder.flatMap { id in
-                    (accountsByVisibleProvider[id] ?? []).map { store.appDisplaySnapshot(for: $0.key).windows.map(\.kind) }
+                    (entriesByProvider[id] ?? []).map { $0.snapshot.windows.map(\.kind) }
                 }
             )
             VStack(spacing: 20) {
@@ -129,7 +129,7 @@ struct PopoverView: View {
                                     APISpendSectionView(store: store, now: now, onOpenSettings: openSettingsDismissingPopover)
                                         // The planner counts content inside the card's 13pt padding.
                                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { [columns] in
-                                            columns.record(max($0 - 26, 0), for: PopoverColumnSlot.spendID)
+                                            columns.record(max($0 - 2 * PopoverCardMetrics.cardPadding, 0), for: PopoverColumnSlot.spendID)
                                         }
                                         // S5A: the spend tile is a sibling card, so it arrives and
                                         // leaves the same way the provider cards above it do.
@@ -829,7 +829,11 @@ enum PopoverHeaderStatusResolver {
 enum PopoverCardMetrics {
     static let shellWidth: CGFloat = 384
     static let shellMargin: CGFloat = 19
-    static let cardWidth: CGFloat = shellWidth - 2 * shellMargin
+    /// One source with the column planner, so the cards it measures and the widths it plans
+    /// can't drift apart.
+    static let cardWidth = CGFloat(AccountColumnsMetrics.popover.columnWidth)
+    static let cardPadding = CGFloat(AccountColumnsMetrics.popover.cardPadding)
+    static let accountGap = CGFloat(AccountColumnsMetrics.popover.accountGap)
     /// The card stack scrolls past this height; with two columns it caps the taller one (R8).
     static let cardsHeightCap: CGFloat = 640
 

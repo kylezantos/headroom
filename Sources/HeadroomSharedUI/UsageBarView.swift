@@ -217,8 +217,8 @@ public struct UsageBarView: View {
     /// M4A leans on it too: the roll from "0%" happens inside a frame that never resizes.
     /// KTD2: measured with CoreText (`HeadroomWidgetFontMetrics.textWidth`), which reports
     /// exactly what `NSString.size(withAttributes:)` did for the same face.
-    private var percentColumnWidth: CGFloat {
-        ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: percentSize, weight: .semibold, mono: true))
+    private func percentColumnWidth(size: CGFloat) -> CGFloat {
+        ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: size, weight: .semibold, mono: true))
     }
 
     // MARK: - What the window says
@@ -511,7 +511,7 @@ public struct UsageBarView: View {
                 .font(.system(size: compactPercentSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(numeralInk)
                 .contentTransition(numeralTransition)
-                .frame(minWidth: compactPercentColumnWidth, alignment: .trailing)
+                .frame(minWidth: percentColumnWidth(size: compactPercentSize), alignment: .trailing)
                 .widgetCapHeightCentered(size: compactPercentSize, weight: .semibold)
         }
         .fixedSize()
@@ -519,9 +519,6 @@ public struct UsageBarView: View {
 
     private var compactGap: CGFloat { 4 * scale }
     private var compactPercentSize: CGFloat { 15 * scale }
-    private var compactPercentColumnWidth: CGFloat {
-        ceil(HeadroomWidgetFontMetrics.textWidth("100%", size: compactPercentSize, weight: .semibold, mono: true))
-    }
 
     /// Micro's label + countdown. `truncatesLabel` decides whether the pair pins to its ideal
     /// width (the label never truncates) or yields to the proposed width — where the label is
@@ -594,7 +591,7 @@ public struct UsageBarView: View {
                 .font(.system(size: percentSize, weight: .semibold).monospacedDigit())
                 .foregroundStyle(numeralInk)
                 .contentTransition(numeralTransition)
-                .frame(minWidth: percentColumnWidth, alignment: .trailing)
+                .frame(minWidth: percentColumnWidth(size: percentSize), alignment: .trailing)
                 .widgetCapHeightCentered(size: percentSize, weight: .semibold)
             // R2B2: an `.unavailable` row has no term to print, but it keeps the column —
             // otherwise its "—" and gauge slide right of the live rows stacked above it.

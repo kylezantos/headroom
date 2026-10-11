@@ -493,6 +493,15 @@ extension DemoFixture {
         }
     }
 
+    /// The `multi-20` envelope without its simulated 4s probes, so one refresh lands every row
+    /// at once: what the bench and the render harness measure and capture.
+    public static func settledEnvelopePairs() -> [(account: ProviderAccount, provider: any UsageProvider)] {
+        generatedAccounts(provider: .claude, count: 20)
+            + generatedAccounts(provider: .codex, count: 20)
+            + generatedAccounts(provider: .grok, count: 20)
+            + [builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot)]
+    }
+
     /// A single built-in account posed from a ready-made snapshot — used for the
     /// billing-period providers (Grok/Cursor) whose window shape doesn't fit `demoAccount`'s
     /// fixed 5h/weekly pair.

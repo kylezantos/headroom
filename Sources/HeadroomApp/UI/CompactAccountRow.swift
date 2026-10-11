@@ -23,7 +23,6 @@ struct CompactAccountRow: View {
     /// M4A: the once-per-launch draw-in, keyed like the Standard rows so a layout switch never
     /// replays it.
     let arrivalKey: AccountKey?
-    var showsMark: Bool = true
 
     static let height: CGFloat = 26
     /// The gap between two Compact rows in one card.
@@ -34,14 +33,8 @@ struct CompactAccountRow: View {
     var body: some View {
         let _ = BenchCounters.hit("CompactAccountRow")
         HStack(spacing: IdentityRowMetrics.spacing) {
-            Group {
-                if showsMark {
-                    ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
-                } else {
-                    Color.clear
-                }
-            }
-            .frame(width: IdentityRowMetrics.markSlotWidth, height: IdentityRowMetrics.markSlotWidth)
+            ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
+                .frame(width: IdentityRowMetrics.markSlotWidth, height: IdentityRowMetrics.markSlotWidth)
             CompactIdentityLayout(spacing: IdentityRowMetrics.spacing) {
                 Text(title)
                     .font(.system(size: Self.titleSize, weight: .semibold))
@@ -107,9 +100,14 @@ struct CompactAccountRow: View {
     }
 
     private var tooltip: String {
-        var lines = [title]
-        if let email, !email.isEmpty { lines.append(email) }
-        if isMenuBarAccount { lines.append(IdentityRowText.mainAccountHelp) }
+        // The identity row's own tooltip lines (title, email, main account), then the meters'.
+        var lines = IdentityRowText.helpLines(
+            title: title,
+            titleIsTruncated: true,
+            email: email?.isEmpty == false ? email : nil,
+            isMenuBarAccount: isMenuBarAccount,
+            bankedHelp: nil
+        ).map { [$0] } ?? []
         if recipe.isDimmed, recipe.content == .meters { lines.append("Stale") }
         if !recipe.tooltip.isEmpty { lines.append(recipe.tooltip) }
         return lines.joined(separator: "\n")

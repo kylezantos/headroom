@@ -375,25 +375,15 @@ enum UIBenchHarness {
             let demoScenario: DemoFixture.MultiAccountScenario = switch scenario {
             case .multi3: .multiThree
             case .multi5: .multiFive
-            default: .multiSeven
+            case .multi7: .multiSeven
+            case .single, .multi20: preconditionFailure("handled by their own cases")
             }
             let fixture = DemoFixture.multiFixture(for: demoScenario)
             providers = fixture.providers
             accounts = fixture.accounts
         case .multi20:
-            // DemoFixture's `multi-20` account list without its simulated 4s probes, so
             // `refreshAll()` lands every row before timing starts.
-            var pairs = DemoFixture.generatedAccounts(provider: .claude, count: 20)
-                + DemoFixture.generatedAccounts(provider: .codex, count: 20)
-                + DemoFixture.generatedAccounts(provider: .grok, count: 20)
-            let cursor = ProviderAccount(id: .primary, providerID: .cursor, label: "Cursor", isBuiltIn: true)
-            pairs.append((
-                account: cursor,
-                provider: DemoUsageProvider(
-                    id: .cursor, displayName: ProviderID.cursor.displayName,
-                    snapshot: DemoFixture.cursorSnapshot, accountID: .primary
-                )
-            ))
+            let pairs = DemoFixture.settledEnvelopePairs()
             providers = pairs.map(\.provider)
             accounts = pairs.map(\.account)
         }

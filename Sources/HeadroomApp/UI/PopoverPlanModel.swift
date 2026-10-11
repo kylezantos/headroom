@@ -15,6 +15,11 @@ struct PopoverColumnSlot: Equatable {
     var isSpend: Bool { providerID == nil }
     var groupID: String { providerID?.raw ?? Self.spendID }
 
+    /// The slot as a planner item with no height: enough to carry or place a plan.
+    var placeholderItem: AccountColumnsItem {
+        AccountColumnsItem(id: id, groupID: groupID, height: 0, isSpend: isSpend)
+    }
+
     static let spend = PopoverColumnSlot(id: spendID, providerID: nil)
 }
 
@@ -34,12 +39,13 @@ final class PopoverPlanModel {
     private var drawnRevision = 0
 
     @ObservationIgnored private var slots: [PopoverColumnSlot] = []
+    @ObservationIgnored private var slotIDs: [String] = []
     @ObservationIgnored private var heights: [String: Double] = [:]
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var replanScheduled = false
     @ObservationIgnored private let cap: Double
     @ObservationIgnored private var layout: AccountLayout?
-    @ObservationIgnored private var metrics = AccountColumnsMetrics.popover
+    private var metrics: AccountColumnsMetrics { Self.metrics(for: layout ?? .standard) }
 
     init(cap: Double) {
         self.cap = cap
@@ -53,12 +59,16 @@ final class PopoverPlanModel {
     }
 
     private static func drawn(_ plan: AccountColumnsPlan?, for slots: [PopoverColumnSlot]) -> AccountColumnsPlan {
-        AccountColumnsPlanner.carried(plan, to: slots.map(placeholderItem))
+        AccountColumnsPlanner.carried(plan, to: slots.map(\.placeholderItem))
     }
 
     func update(slots newSlots: [PopoverColumnSlot]) {
         guard newSlots != slots else { return }
         slots = newSlots
+        slotIDs = newSlots.map(\.id)
+        // Removed accounts' heights would otherwise linger until the next layout change.
+        let live = Set(slotIDs + newSlots.compactMap(\.headerID))
+        heights = heights.filter { live.contains($0.key) }
         replanIfNeeded()
     }
 
@@ -69,7 +79,7 @@ final class PopoverPlanModel {
         let value = Double(height)
         if let old = heights[id], abs(old - value) <= AccountColumnsPlanner.heightTolerance { return }
         heights[id] = value
-        guard needsReplan, !replanScheduled else { return }
+        guard !replanScheduled, needsReplan else { return }
         replanScheduled = true
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
@@ -89,7 +99,6 @@ final class PopoverPlanModel {
         guard newLayout != layout else { return }
         let isFirst = layout == nil
         layout = newLayout
-        metrics = Self.metrics(for: newLayout)
         guard !isFirst else { return }
         generation += 1
         heights.removeAll()
@@ -103,7 +112,7 @@ final class PopoverPlanModel {
     }
 
     private var needsReplan: Bool {
-        AccountColumnsPlanner.needsReplan(previous: plan, itemIDs: slots.map(\.id), generation: generation)
+        AccountColumnsPlanner.needsReplan(previous: plan, itemIDs: slotIDs, generation: generation)
     }
 
     private func replanIfNeeded() {
@@ -135,10 +144,6 @@ final class PopoverPlanModel {
         }
         return items
     }
-
-    private static func placeholderItem(_ slot: PopoverColumnSlot) -> AccountColumnsItem {
-        AccountColumnsItem(id: slot.id, groupID: slot.groupID, height: 0, isSpend: slot.isSpend)
-    }
 }
 
 /// One card, or one piece of a provider card split across the two columns (KTD6).
@@ -155,18 +160,16 @@ struct PopoverCardFragment: Identifiable, Equatable {
 
     /// The fragments to draw for `plan`, in reading order (R5).
     static func fragments(slots: [PopoverColumnSlot], plan: AccountColumnsPlan) -> [PopoverCardFragment] {
-        let items = slots.map {
-            AccountColumnsItem(id: $0.id, groupID: $0.groupID, height: 0, isSpend: $0.isSpend)
-        }
         var groupStart: [String: Int] = [:]
-        for (index, slot) in slots.enumerated() where groupStart[slot.groupID] == nil {
-            groupStart[slot.groupID] = index
+        var groupCount: [String: Int] = [:]
+        for (index, slot) in slots.enumerated() {
+            if groupStart[slot.groupID] == nil { groupStart[slot.groupID] = index }
+            groupCount[slot.groupID, default: 0] += 1
         }
-        return AccountColumnsPlanner.placement(of: plan, items: items).fragments.map { fragment in
+        return AccountColumnsPlanner.placement(of: plan, items: slots.map(\.placeholderItem)).fragments.map { fragment in
             let slot = slots[fragment.itemRange.lowerBound]
             let start = groupStart[fragment.groupID] ?? 0
-            let isWholeCard = slot.isSpend || slots[fragment.itemRange].count == slots.lazy
-                .filter { $0.groupID == fragment.groupID }.count
+            let isWholeCard = slot.isSpend || fragment.itemRange.count == groupCount[fragment.groupID]
             return PopoverCardFragment(
                 id: "\(fragment.groupID)#\(fragment.isFirstFragmentOfGroup ? 0 : 1)",
                 providerID: slot.providerID,

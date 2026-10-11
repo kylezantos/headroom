@@ -324,7 +324,12 @@ struct ProviderCardView: View {
             } else if isMultiAccount {
                 multiAccountBody
             } else if let recipe = singleAccountCompactRecipe {
-                compactRow(for: primaryEntry, recipe: recipe, isMenuBarAccount: false)
+                compactRow(
+                    for: primaryEntry,
+                    recipe: recipe,
+                    isMenuBarAccount: false,
+                    providerAccounts: entries.map(\.account)
+                )
             } else {
                 singleAccountBody
             }
@@ -495,7 +500,7 @@ struct ProviderCardView: View {
             if isMultiAccount {
                 // T1A: the same 26pt account gap as `multiAccountBody` — one grouping rhythm
                 // whether or not the capability notice is showing.
-                ColumnItemsStack(spacing: 26, report: onMeasureColumnItem) {
+                ColumnItemsStack(spacing: PopoverCardMetrics.accountGap, report: onMeasureColumnItem) {
                     ForEach(inFragment(Self.drawnAccounts(entries: entries, presentation: presentation))) { entry in
                         accountSection(
                             for: entry,
@@ -746,13 +751,18 @@ struct ProviderCardView: View {
         // T1A widened it 22 → 26 to hold the grouping now the title sits at `.medium` and
         // the meter rows inside a section are 2pt tighter.
         return ColumnItemsStack(
-            spacing: isCompact ? CompactAccountRow.rowGap : 26,
+            spacing: isCompact ? CompactAccountRow.rowGap : PopoverCardMetrics.accountGap,
             report: onMeasureColumnItem
         ) {
             ForEach(inFragment(entries)) { entry in
                 Group {
                     if isCompact, let recipe = compactRecipe(for: entry) {
-                        compactRow(for: entry, recipe: recipe, isMenuBarAccount: entry.id == entries.first?.id)
+                        compactRow(
+                            for: entry,
+                            recipe: recipe,
+                            isMenuBarAccount: entry.id == entries.first?.id,
+                            providerAccounts: providerAccounts
+                        )
                     } else {
                         accountSection(
                             for: entry,
@@ -771,7 +781,7 @@ struct ProviderCardView: View {
 
     // MARK: - Compact (R11–R15)
 
-    private static let compactFallbackInset = (26 - CompactAccountRow.rowGap) / 2
+    private static let compactFallbackInset = (PopoverCardMetrics.accountGap - CompactAccountRow.rowGap) / 2
 
     private var isCompact: Bool { accountLayout == .compact }
 
@@ -802,10 +812,10 @@ struct ProviderCardView: View {
     private func compactRow(
         for entry: ProviderAccountEntry?,
         recipe: CompactAccountRowRecipe,
-        isMenuBarAccount: Bool
+        isMenuBarAccount: Bool,
+        providerAccounts: [ProviderAccount]
     ) -> some View {
         let account = entry?.account ?? primaryAccount
-        let providerAccounts = entries.map(\.account)
         // The single-account card titles itself the way `accountIdentityRow` does.
         let titled = isMultiAccount || anyProviderMultiAccount
         return CompactAccountRow(

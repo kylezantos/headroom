@@ -158,6 +158,8 @@ struct PopoverColumnsSizingTests {
         #expect(PopoverCardMetrics.shellWidth(columns: 1) == 384)
         #expect(PopoverCardMetrics.shellWidth(columns: 2) == 750)
         #expect(PopoverCardMetrics.shellWidth(columns: 1) == PopoverCardMetrics.shellWidth)
+        // The planner's card width is the shell's inner width (R2C20's specimen reads it too).
+        #expect(PopoverCardMetrics.cardWidth == PopoverCardMetrics.shellWidth - 2 * PopoverCardMetrics.shellMargin)
     }
 
     // MARK: Hosted popover (R4, R7, R8)

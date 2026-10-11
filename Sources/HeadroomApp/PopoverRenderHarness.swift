@@ -268,14 +268,7 @@ enum PopoverRenderHarness {
             let fixture = multiFixture(for: scenario)
             return Array(zip(fixture.accounts, fixture.providers))
         }
-        let cursor = ProviderAccount(id: .primary, providerID: .cursor, label: ProviderID.cursor.displayName, isBuiltIn: true)
-        return DemoFixture.generatedAccounts(provider: .claude, count: 20)
-            + DemoFixture.generatedAccounts(provider: .codex, count: 20)
-            + DemoFixture.generatedAccounts(provider: .grok, count: 20)
-            + [(cursor, DemoUsageProvider(
-                id: .cursor, displayName: ProviderID.cursor.displayName,
-                snapshot: DemoFixture.cursorSnapshot, accountID: .primary
-            ))]
+        return DemoFixture.settledEnvelopePairs()
     }
 
     /// U8: waits for the refresh `refreshNow()` started to finish and its "Refreshing…" hold

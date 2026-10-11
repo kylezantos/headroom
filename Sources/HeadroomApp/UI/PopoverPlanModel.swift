@@ -19,8 +19,9 @@ struct PopoverColumnSlot: Equatable {
 }
 
 /// KTD3 / KTD10: the popover's column plan, owned by `PopoverView`. Measured heights stay out of
-/// observation; only the resolved `Equatable` plan is observed, and it is written only when it
-/// changes, so a height report never re-runs the popover body.
+/// observation, and so does the plan itself: the body observes only `drawnRevision`, which moves
+/// when a new plan draws differently. A height report never re-runs the popover body, and nor
+/// does a first plan that draws the one column already on screen.
 ///
 /// Replan triggers (KTD2, amended by the U1 spike): the popover closing, an account-set change,
 /// and a layout preference change. The U1 spike found the popover's view state survives close
@@ -29,7 +30,8 @@ struct PopoverColumnSlot: Equatable {
 @MainActor
 @Observable
 final class PopoverPlanModel {
-    private(set) var plan: AccountColumnsPlan?
+    @ObservationIgnored private(set) var plan: AccountColumnsPlan?
+    private var drawnRevision = 0
 
     @ObservationIgnored private var slots: [PopoverColumnSlot] = []
     @ObservationIgnored private var heights: [String: Double] = [:]
@@ -46,7 +48,12 @@ final class PopoverPlanModel {
     /// What to draw for `slots`: the plan, carried across an account-set change until the new
     /// items have been measured.
     func drawnPlan(for slots: [PopoverColumnSlot]) -> AccountColumnsPlan {
-        AccountColumnsPlanner.carried(plan, to: slots.map(Self.placeholderItem))
+        _ = drawnRevision
+        return Self.drawn(plan, for: slots)
+    }
+
+    private static func drawn(_ plan: AccountColumnsPlan?, for slots: [PopoverColumnSlot]) -> AccountColumnsPlan {
+        AccountColumnsPlanner.carried(plan, to: slots.map(placeholderItem))
     }
 
     func update(slots newSlots: [PopoverColumnSlot]) {
@@ -104,7 +111,13 @@ final class PopoverPlanModel {
         let next = AccountColumnsPlanner.plan(
             items: items, cap: cap, generation: generation, previous: plan, metrics: metrics
         )
-        if next != plan { plan = next }
+        guard next != plan else { return }
+        let before = Self.drawn(plan, for: slots)
+        plan = next
+        let after = Self.drawn(next, for: slots)
+        if before.columnCount != after.columnCount || before.splitIndex != after.splitIndex {
+            drawnRevision &+= 1
+        }
     }
 
     /// Every slot's height, with a capability header folded into its provider's first item

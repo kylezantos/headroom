@@ -286,7 +286,7 @@ struct ProviderCardView: View {
     var fragment: Range<Int>? = nil
     /// KTD3: reports each column item's content height to the popover's plan, keyed like
     /// `columnSlots`. Nil outside the popover.
-    var onMeasureColumnItem: ((String, CGFloat) -> Void)? = nil
+    var onMeasureColumnItem: (@Sendable (String, CGFloat) -> Void)? = nil
     /// R11 / R15: Compact draws each account as one line unless its state needs the Standard
     /// section's actions. The capability-recovery card stays Standard.
     var accountLayout: AccountLayout = .standard
@@ -339,8 +339,9 @@ struct ProviderCardView: View {
             report: Self.splitsByAccount(entries: entries, presentation: presentation) ? nil : onMeasureColumnItem
         )
         // 13pt pad / 9pt rhythm — one step above the large widget's 10/9 to account
-        // for the popover's larger type (walked down from 20/14 → 16/11 → here).
-        .padding(13)
+        // for the popover's larger type (walked down from 20/14 → 16/11 → here). The
+        // column planner models the same pad, so it comes from `PopoverCardMetrics`.
+        .padding(PopoverCardMetrics.cardPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .raisedTile(cornerRadius: 10)
         // M4A/S2A: this scope owns the *tile* — its padding, its raised shape, the height
@@ -500,7 +501,12 @@ struct ProviderCardView: View {
             if isMultiAccount {
                 // T1A: the same 26pt account gap as `multiAccountBody` — one grouping rhythm
                 // whether or not the capability notice is showing.
-                ColumnItemsStack(spacing: PopoverCardMetrics.accountGap, report: onMeasureColumnItem) {
+                // Compact: the plan models the 4pt row gap, so each Standard section carries
+                // the rest of the 26pt as its own measured inset, as in `multiAccountBody`.
+                ColumnItemsStack(
+                    spacing: isCompact ? CompactAccountRow.rowGap : PopoverCardMetrics.accountGap,
+                    report: onMeasureColumnItem
+                ) {
                     ForEach(inFragment(Self.drawnAccounts(entries: entries, presentation: presentation))) { entry in
                         accountSection(
                             for: entry,
@@ -512,6 +518,7 @@ struct ProviderCardView: View {
                             // the second column has no header (R9), so its rows keep the mark.
                             showsMark: !isFirstFragment
                         )
+                        .padding(.vertical, isCompact ? Self.compactFallbackInset : 0)
                         .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
                     }
                 }
@@ -1963,7 +1970,7 @@ private extension View {
     /// KTD3 / KTD10: reports a popover column item's height to the plan model, which keeps
     /// heights out of observation. Always attached, so a card that starts or stops splitting
     /// keeps its view identity; it reports only while someone listens.
-    func columnItemHeight(_ id: String, report: ((String, CGFloat) -> Void)?) -> some View {
+    func columnItemHeight(_ id: String, report: (@Sendable (String, CGFloat) -> Void)?) -> some View {
         onGeometryChange(for: CGFloat.self) { $0.size.height } action: { report?(id, $0) }
     }
 }
@@ -1972,9 +1979,26 @@ private extension View {
 /// section, which is where Stop Waiting, Try Again and the failure sentence live.
 @MainActor
 func compactRowNeedsStandardSection(_ account: ProviderAccount) -> Bool {
-    let state = SetupSessions.state(for: account)
-    return setupSessionOwnsSurface(for: state)
-        || setupSessionOffersStopWaiting(for: account)
+    compactRowNeedsStandardSection(
+        state: SetupSessions.state(for: account),
+        offersStopWaiting: setupSessionOffersStopWaiting(for: account),
+        hasFailureMessage: SetupSessions.failureMessage(for: account) != nil
+    )
+}
+
+/// Pure over the session's inputs, so the fallback is provable without a coordinator.
+func compactRowNeedsStandardSection(
+    state: SetupSessionState,
+    offersStopWaiting: Bool,
+    hasFailureMessage: Bool
+) -> Bool {
+    // `.connected` is settled only by the Standard section's (or the single-account card's)
+    // Connected payoff. A Compact row runs none, so the session would stay `.connected` and
+    // the coordinator would refuse every later non-reset setup start. The section shows the
+    // brief payoff, settles the session, and the row returns to Compact.
+    state == .connected
+        || setupSessionOwnsSurface(for: state)
+        || offersStopWaiting
         || setupHandoffRefusalMessage(for: state) != nil
-        || SetupSessions.failureMessage(for: account) != nil
+        || hasFailureMessage
 }

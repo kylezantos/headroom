@@ -71,15 +71,33 @@ struct PopoverColumnsSizingTests {
         #expect(model.plan?.itemIDs == all.map(\.id))
     }
 
-    @Test func aLayoutChangeReplansFromFreshHeights() async {
+    /// The spend card reports its height only when it changes, so a layout switch that leaves it
+    /// alone must replan from the account sections' new heights without it reporting again.
+    @Test func aLayoutChangeReplansFromTheSectionsItRedraws() async {
         let model = PopoverPlanModel(cap: 640)
-        let all = slots(.claude, 7) + slots(.codex, 1)
+        let accounts = slots(.claude, 7) + slots(.codex, 1)
+        let all = accounts + [.spend]
+        model.setLayout(.standard)
         model.update(slots: all)
         await measure(model, all, height: 74)
         #expect(model.plan?.columnCount == 2)
+        model.setLayout(.compact)
+        await measure(model, accounts, height: 26)
+        #expect(model.plan?.columnCount == 1)
+    }
+
+    /// 13 rows of 26pt: Standard's 26pt gap stacks 13·26 + 12·26 + 26 = 676 (past the cap),
+    /// Compact's 4pt gap 13·26 + 12·4 + 26 = 412.
+    @Test func compactPlansWithItsOwnAccountGap() async {
+        let model = PopoverPlanModel(cap: 640)
+        let all = slots(.claude, 13)
         model.setLayout(.standard)
+        model.update(slots: all)
+        await measure(model, all, height: 26)
+        #expect(model.plan?.columnCount == 2)
         model.setLayout(.compact)
         await measure(model, all, height: 26)
+        model.popoverDidClose()
         #expect(model.plan?.columnCount == 1)
     }
 

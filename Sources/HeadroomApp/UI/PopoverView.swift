@@ -269,7 +269,10 @@ struct PopoverView: View {
                         fullRefresh: store.fullRefreshInFlight)
                 },
                 fragment: fragment.accountRange,
-                onMeasureColumnItem: { [columns] id, height in columns.record(height, for: id) },
+                // `Layout.placeSubviews` is nonisolated but SwiftUI runs layout on the main thread.
+                onMeasureColumnItem: { [columns] id, height in
+                    MainActor.assumeIsolated { columns.record(height, for: id) }
+                },
                 accountLayout: store.accountLayout,
                 showsCodexSparkCounters: store.showCodexSparkCountersInApp
             )

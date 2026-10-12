@@ -92,6 +92,11 @@ struct InAppDisplayTile: View {
                     }
                 }
             }
+            // The VoiceOver picker writes only the binding; the swatch's action is what
+            // reaches the store, so persist from the binding too (equal values are ignored).
+            .onChange(of: accountLayout) { _, newValue in
+                store.setAccountLayout(newValue)
+            }
 
             Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
                 .onChange(of: showCodexSparkCountersInApp) { _, newValue in

@@ -66,7 +66,7 @@ final class PopoverPlanModel {
         guard newSlots != slots else { return }
         slots = newSlots
         slotIDs = newSlots.map(\.id)
-        // Removed accounts' heights would otherwise linger until the next layout change.
+        // Removed accounts' heights would otherwise linger for the life of the popover.
         let live = Set(slotIDs + newSlots.compactMap(\.headerID))
         heights = heights.filter { live.contains($0.key) }
         replanIfNeeded()
@@ -93,15 +93,18 @@ final class PopoverPlanModel {
         replanIfNeeded()
     }
 
-    /// A different layout draws different heights and a different account gap, so the old
-    /// heights can't plan it.
+    /// A different layout draws different heights and a different account gap, so it opens a new
+    /// generation (KTD2). The heights stay: clearing them stranded the plan, because the spend
+    /// card and whole cards report only when their height changes, so an unchanged one never
+    /// came back. Every height the new layout changes is re-reported in its first pass (account
+    /// sections always, the others because they changed), and the replan those reports complete
+    /// runs on the next main turn, after the whole pass; the heights it leaves alone still hold.
     func setLayout(_ newLayout: AccountLayout) {
         guard newLayout != layout else { return }
         let isFirst = layout == nil
         layout = newLayout
         guard !isFirst else { return }
         generation += 1
-        heights.removeAll()
     }
 
     /// Compact rows sit 4pt apart in a card; Standard sections 26pt.

@@ -51,9 +51,9 @@ struct APISpendSectionView: View {
                 }
                 actionRow(models)
             }
-            // Padding matches the provider cards above, so sibling tiles share one
-            // padding and radius.
-            .padding(13)
+            // Padding matches the provider cards above (`PopoverCardMetrics.cardPadding`), so
+            // sibling tiles share one padding and radius.
+            .padding(PopoverCardMetrics.cardPadding)
             .raisedTile(cornerRadius: 10)
         }
     }

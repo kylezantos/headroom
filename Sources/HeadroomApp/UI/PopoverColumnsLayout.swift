@@ -79,7 +79,7 @@ struct PopoverColumn: LayoutValueKey {
 /// about 90ms per open at the 20-account envelope.
 struct ColumnItemsStack: Layout {
     var spacing: CGFloat
-    var report: ((String, CGFloat) -> Void)?
+    var report: (@Sendable (String, CGFloat) -> Void)?
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)) }

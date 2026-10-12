@@ -96,6 +96,20 @@ waiting placeholders use uniform ghosts, with outlines in monochrome rendering; 
 coordinator. All native demos keep setup, account management, credentials, duplicate detection
 and launch-at-login isolated from the user's CLI files and system services.
 
+**Popover account layout (Oct 2026).** Settings › Appearance offers **Account layout:
+Standard / Compact** (`AccountLayout`, Mac-only: it never reaches the phone, the widgets or the
+menu bar, KTD8). Both layouts share one column rule: one 384pt column until the single-column
+cards would pass the 640pt cap, then exactly two (750pt), read down then across, never three
+(`AccountColumnsPlanner` in Core). A provider whose accounts span both columns draws as two card
+fragments; only the first carries a capability-recovery header. Compact draws one line per
+account (`CompactAccountRow`, decided by Core `CompactAccountRowRecipe`) and keeps the Standard
+section for any account whose state needs an action. The plan is made when the popover closes,
+from the heights it last drew, and on an account-set change; heights never replan while it is
+open. `MenuBarExtra` grows its window with the content but never shrinks it, so `PopoverView`
+fits a narrower window itself, while it is hidden. See
+`docs/solutions/ui/popover-account-columns.md` and
+`docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
+
 The popover meter style is one global `MeterStyle`, persisted as three independent
 UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStore`. Widget and
 menu-bar projections intentionally carry no style. The phone's v4 manifest does (Oct 2026): its
@@ -263,8 +277,9 @@ swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windo
 Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
-swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope
-swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi20] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
+swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope
+swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 ```

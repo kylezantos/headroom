@@ -987,6 +987,30 @@ Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
   sidebar's identity mark renders without whatever that filter adds. Flatten the filter into the
   paths or ship a pre-rendered PDF/PNG for the sidebar.
 
+## Popover account layout follow-ups (2026-10-12)
+
+From `docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
+
+- **The first open after launch draws one column, then two.** The column plan is made as the
+  popover closes (the view survives reopening, U1 spike), but the very first open after launch
+  has no plan yet, so it lays out one column, measures, and re-renders at two. At multi-20 that
+  pass costs about +100ms main-thread CPU and ~290 extra bodies, once per launch; `--bench-ui
+  popover` builds a fresh view per open, so every one of its warm opens pays it. A fix would
+  persist the last plan (column count and split, keyed by the item IDs) and seed the model with
+  it on launch.
+- **Hosted App tests quit while the installed Headroom is running.** `HeadroomApp.main`'s
+  single-instance guard runs before the XCTest host is recognised, so `xcodebuild test` for
+  `HeadroomAppTests` exits at launch ("Headroom is already running … Quit it first") whenever
+  `/Applications/Headroom.app` is open. Exempt the XCTest host (`XCTestConfigurationFilePath`,
+  as `AppComposition.usesNoOpWidgetExporter` does).
+- **Two VoiceOver pickers in In-App Display never reach the store.** The Percentages and
+  Account names rows' `.accessibilityRepresentation` pickers write only `SettingsView`'s
+  `@State`; only the swatch buttons call `store.setUsagePercentageMode` /
+  `setAccountTitleInk`. Account layout gained an `onChange` for this (review #6); mirror it.
+- **Compact rows hide Codex banked resets and the per-account loading pill.** Both live on the
+  Standard identity row; Compact keeps them out for width. Decide at the Compact size review
+  whether either earns room.
+
 ## Popover & Settings snappiness residuals (2026-10-03 perf audit)
 
 The audit's fixes 1–6 land in #157 (feather animation scope, scroll chrome out of `PopoverView`'s

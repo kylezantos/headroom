@@ -93,6 +93,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.headroomTuning) private var tuning
     /// PB11: whether the tail truncation actually bit. Measured, not guessed — SwiftUI has
     /// no "did this Text truncate" signal, so the rendered width is compared against the
     /// string's intrinsic width in the same font.
@@ -109,7 +110,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     }
 
     private func row(email: String?) -> some View {
-        HStack(spacing: IdentityRowMetrics.spacing * scale) {
+        HStack(spacing: tuning.markGap * scale) {
             if showsMark {
                 mark(markSlot)
             } else {
@@ -204,7 +205,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         accessibilityIdentifierPrefix.map { "\($0).\(suffix)" } ?? ""
     }
 
-    private var markSlot: CGFloat { IdentityRowMetrics.markSlotWidth * scale }
+    private var markSlot: CGFloat { tuning.markSlotWidth * scale }
+    private var titleWeight: Font.Weight { HeadroomTuning.weight(tuning.titleWeight) }
 
     /// T1A sized this off Kyle's Paper mock at 15pt on the `accountTitle` ink so the name
     /// labels its meters instead of competing with the popover's own 20pt bold header. G1
@@ -213,8 +215,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// tint). Kerning is unchanged throughout.
     private var titleText: some View {
         Text(title)
-            .font(.system(size: IdentityRowMetrics.titleSize * scale, weight: .semibold))
-            .kerning(IdentityRowMetrics.titleKerning * scale)
+            .font(.system(size: tuning.titleSize * scale, weight: titleWeight))
+            .kerning(tuning.titleKerning * scale)
             .accountTitleInk(for: providerID)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -244,7 +246,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         .accessibilityIdentifier(controlIdentifier("title"))
         // OA1: "Personal" and "Work" carry side bearings 0.66pt apart at this size, so
         // without this the title column visibly jitters account to account.
-        .widgetOpticalLeading(title, size: IdentityRowMetrics.titleSize * scale, weight: .semibold)
+        .widgetOpticalLeading(title, size: tuning.titleSize * scale, weight: titleWeight)
         // PB11: the account name identifies the row; the email is a detail the tooltip
         // has always carried anyway. Outranking the email's `layoutPriority(1)` stops a
         // long address eating the name it belongs to.

@@ -511,6 +511,7 @@ struct HeadroomApp: App {
 
     @MainActor
     init() {
+        PopoverTuningModel.startAgent()
         let preferences = AppComposition.launchPreferences
         let demoController = DemoFixture.isEnabled
             ? LoadingDemoController(loading: DemoFixture.scenarioRequest() == .multiAccount(.loading)) : nil
@@ -593,7 +594,9 @@ struct HeadroomApp: App {
                 // owns the whole surface (`PopoverSurfaceModifier`); the scene's default
                 // container background goes. Verified in the bundled app — an unbundled
                 // `swift run` gets a different host background, handled in `PopoverView`.
-                .containerBackground(.clear, for: .window)
+                // `popoverSurfaceHost()` is exactly that clear background unless a DialKit
+                // build switches to the system surface (PC2).
+                .popoverSurfaceHost()
                 .preferredColorScheme(resolvedScheme)
                 .onChange(of: appearancePreference) { _, newValue in
                     newValue.applyToProcess()
@@ -610,6 +613,7 @@ struct HeadroomApp: App {
             MenuBarStatusLabel(store: store)
                 .preferredColorScheme(resolvedScheme)
                 .task { await store.start() }
+                .task { PopoverTuningModel.shared.showPinnedPopover(store: store) }
                 // Attach to the status item's own window once the scene exists (L1A). The menu
                 // bar's appearance is not the process appearance: a light system appearance over
                 // a dark wallpaper still gets a dark menu bar, which is exactly the case the old

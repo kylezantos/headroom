@@ -167,6 +167,14 @@ official `claude` CLI's `/usage` panel instead.
   made the glass flicker, so do not reach for that. When judging popover corners, use
   `./Scripts/build-app.sh` and the bundled app rather than `--demo` under `swift run`.
 
+## macOS 27 popover shows a second, tighter corner (PC2, unverified)
+
+- Reported 2026-10-09 on macOS 27 in the bundled app: a filled corner at the system's tighter
+  radius showed outside the r22 shell, as PC1 fixed on 26. `PopoverHostChrome` now reshapes the
+  host's `NSGlassEffectView`/`NSVisualEffectView` chrome to r22 through their public corner APIs.
+  Not yet seen on 27. Verify there, and if the corner remains, read the one-per-launch structure
+  dump: `log show --last 5m --predicate 'category == "popover-window"' --info`.
+
 ## Test runs leave thousands of UserDefaults suites behind
 
 - `~/Library/Preferences` holds thousands of `co.zantos.headroom.app-interactions.<UUID>` and

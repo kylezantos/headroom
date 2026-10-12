@@ -51,6 +51,7 @@ public struct MeterGauge: View {
     // darker text-tier values that clear WCAG 1.4.11's 3:1 floor. Read here at the SwiftUI
     // boundary so the Core tokens stay pure. See `HeadroomSeverityColorValues`.
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.headroomTuning) private var tuning
 
     private var increasedContrast: Bool { contrast == .increased }
 
@@ -75,8 +76,8 @@ public struct MeterGauge: View {
             }
         }
         .frame(
-            width: style.format == .micro ? microWidth : nil,
-            height: gaugeHeight
+            width: style.format == .micro ? microWidth * tuning.gaugeLengthScale : nil,
+            height: gaugeHeight * tuning.gaugeHeightScale
         )
         .frame(maxWidth: style.format == .full ? .infinity : nil)
         .accessibilityHidden(true)

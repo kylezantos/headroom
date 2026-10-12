@@ -27,6 +27,7 @@ struct RaisedTile: ViewModifier {
     var surface: RaisedTileSurface = .glass
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.headroomTuning) private var t
 
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -43,9 +44,9 @@ struct RaisedTile: ViewModifier {
                     // measured identical to bare shell at every sample, so the card had no
                     // shadow at all. Light is unchanged (211 shadow vs 225 shell, correct).
                     .shadow(
-                        color: .black.opacity(dark ? 0.6 : (surface == .opaque ? 0.09 : 0.12)),
-                        radius: dark ? 10 : 5,
-                        y: dark ? 3 : 1
+                        color: .black.opacity(dark ? t.darkShadowOpacity : (surface == .opaque ? 0.09 : t.lightShadowOpacity)),
+                        radius: dark ? t.darkShadowRadius : t.lightShadowRadius,
+                        y: dark ? t.darkShadowY : t.lightShadowY
                     )
             )
             .overlay(
@@ -58,8 +59,8 @@ struct RaisedTile: ViewModifier {
                         ? LinearGradient(colors: [Color(nsColor: .separatorColor), Color(nsColor: .separatorColor)], startPoint: .top, endPoint: .bottom)
                         : LinearGradient(
                             colors: dark
-                                ? [Color.white.opacity(0.20), Color.black.opacity(0.22)]
-                                : [Color.white.opacity(0.90), Color.black.opacity(0.07)],
+                                ? [Color.white.opacity(t.darkRimTop), Color.black.opacity(t.darkRimBottom)]
+                                : [Color.white.opacity(t.lightRimTop), Color.black.opacity(t.lightRimBottom)],
                             startPoint: .top, endPoint: .bottom),
                     lineWidth: highLegibility ? 1.2 : 1)
             )
@@ -72,13 +73,13 @@ struct RaisedTile: ViewModifier {
     private func fillColors(dark: Bool) -> [Color] {
         switch (surface, dark) {
         case (.glass, true):
-            [Color.white.opacity(0.075), Color.white.opacity(0.045)]
+            [Color.white.opacity(t.darkFillTop), Color.white.opacity(t.darkFillBottom)]
         case (.glass, false):
             // Near-opaque white (0.92/0.80 → 0.98/0.94, Jul 2026): with the light shell
             // tinted, the translucent fill let the gray bleed through and the card-vs-shell
             // step collapsed to ~6% luminance (dark mode's is ~36%). Full-white cards on
             // the gray shell is the System Settings idiom; shadows + hairline stay as-is.
-            [Color.white.opacity(0.98), Color.white.opacity(0.94)]
+            [Color.white.opacity(t.lightFillTop), Color.white.opacity(t.lightFillBottom)]
         case (.opaque, true):
             [Color.white.opacity(0.08), Color.white.opacity(0.05)]
         case (.opaque, false):

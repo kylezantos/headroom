@@ -1,5 +1,9 @@
 // swift-tools-version: 6.0
 import PackageDescription
+import Foundation
+
+// Opt-in DialKit live tuning (`Scripts/dialkit.sh`); off unless HEADROOM_DIALKIT=1.
+let dialKit = ProcessInfo.processInfo.environment["HEADROOM_DIALKIT"] == "1"
 
 // Headroom — a menu bar app that shows remaining usage for AI subscriptions.
 //
@@ -19,6 +23,7 @@ let package = Package(
         .executable(name: "Headroom", targets: ["HeadroomApp"]),
         .executable(name: "HeadroomWidgets", targets: ["HeadroomWidgets"]),
     ],
+    dependencies: dialKit ? [.package(url: "https://github.com/mikelikesdesign/dialkit-macos", revision: "cc305b46beb731e50cbdde84aed5530d83842acc")] : [],
     targets: [
         .target(name: "HeadroomCore"),
         .target(
@@ -33,12 +38,17 @@ let package = Package(
             name: "HeadroomApp",
             // L9P: Settings › Widgets & iPhone renders the real small/medium widget
             // bodies from HeadroomWidgetSharedUI rather than a hand-kept mock.
-            dependencies: ["HeadroomCore", "HeadroomWidgetSharedUI", "HeadroomSharedUI"],
+            dependencies: ["HeadroomCore", "HeadroomWidgetSharedUI", "HeadroomSharedUI"]
+                + (dialKit ? [
+                    .product(name: "DialkitmacOS", package: "dialkit-macos"),
+                    .product(name: "DialkitmacOSAgent", package: "dialkit-macos"),
+                ] : []),
             // The app icon catalog is compiled by actool in the xcodegen/xcodebuild app
             // build only; excluding it keeps `swift build`/`swift test` (a plain CLI
             // executable, no app bundle) fast and free of asset-catalog processing.
             exclude: ["HeadroomApp.entitlements", "Resources/Assets.xcassets"],
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            swiftSettings: dialKit ? [.define("HEADROOM_DIALKIT")] : []
         ),
         .executableTarget(
             name: "HeadroomWidgets",

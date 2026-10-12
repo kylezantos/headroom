@@ -282,6 +282,7 @@ swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|mult
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
+Scripts/dialkit.sh [scenario]      # live-tune the popover with DialKit: inspector + demo with a pinned popover (HEADROOM_DIALKIT=1; values in HeadroomSharedUI/HeadroomTuning.swift, defaults = shipped literals)
 ```
 
 ## Website DMG releases
@@ -362,6 +363,12 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   `BUGS.md` remain; Core recipe tests prove decisions, not SwiftUI rendering or window sizing. The
   harness does honour `--meter-style`, so `--render-popover <dir> --meter-style full.segmented.ghost`
   is the way to sanity-check the Settings swatches and specimen in a non-default style headlessly.
+
+- **DialKit tuning needs the pinned popover (Oct 2026).** The `MenuBarExtra` popover closes as
+  soon as focus moves to the DialKit inspector, so a `HEADROOM_DIALKIT` build always shows a pinned,
+  floating copy of the popover (`PopoverTuningModel.showPinnedPopover`). Keep it: every tuning session
+  depends on it, including new panels. It has no MenuBarExtra host, so it always draws the Headroom
+  shell; judge the Surface panel's **System glass** in the real menu-bar popover.
 
 - **Snappiness is measured, not eyeballed (Oct 2026).** A still render proves the settled layout,
   not motion or re-render cost. Changes that add an animation, a scroll or geometry callback, a

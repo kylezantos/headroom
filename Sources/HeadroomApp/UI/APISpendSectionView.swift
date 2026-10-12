@@ -7,6 +7,7 @@ import HeadroomCore
 
 struct APISpendSectionView: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.headroomTuning) private var tuning
     /// CMM8: which row's amount the pointer is over; the top-up glyph reveals only there.
     @State private var hoveredTopUp: ProviderID?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -51,10 +52,10 @@ struct APISpendSectionView: View {
                 }
                 actionRow(models)
             }
-            // Padding matches the provider cards above (`PopoverCardMetrics.cardPadding`), so
-            // sibling tiles share one padding and radius.
-            .padding(PopoverCardMetrics.cardPadding)
-            .raisedTile(cornerRadius: 10)
+            // Padding matches the provider cards above, so sibling tiles share one
+            // padding and radius; the column planner models the same pad.
+            .padding(tuning.cardPadding)
+            .raisedTile(cornerRadius: tuning.cardCornerRadius)
         }
     }
 

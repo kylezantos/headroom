@@ -192,9 +192,10 @@ private struct CompactIdentityLayout: Layout {
     }
 }
 
-/// The Compact card's one header line (Kyle, 2026-10-13): "% left" or "% used" on the title axis
-/// and each column's window name over its cells, in tertiary 11pt above one hairline. Fixed
-/// height, because the column planner counts it once per card piece.
+/// The Compact card's one header line (Kyle, 2026-10-13): each column's window name and the
+/// left/used term ("5h left", "wk used") right-aligned over its numbers, in tertiary 11pt above
+/// one hairline. The name column stays unlabelled, so no label sits over what it doesn't
+/// describe. Fixed height, because the column planner counts it once per card piece.
 struct CompactCardHeader: View {
     let columns: [WindowKind]
     let percentageMode: UsagePercentageMode
@@ -205,12 +206,10 @@ struct CompactCardHeader: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: IdentityRowMetrics.spacing) {
-                Color.clear.frame(width: IdentityRowMetrics.markSlotWidth, height: 1)
-                Text("% \(percentageMode.term)")
                 Spacer(minLength: 0)
                 HStack(spacing: CompactAccountRow.cellGap) {
                     ForEach(Array(columns.enumerated()), id: \.offset) { _, kind in
-                        Text(CompactAccountRowRecipe.shortLabel(for: kind))
+                        Text("\(CompactAccountRowRecipe.shortLabel(for: kind)) \(percentageMode.term)")
                             .lineLimit(1)
                             .frame(width: CompactAccountRow.cellWidth, alignment: .trailing)
                     }

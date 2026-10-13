@@ -61,12 +61,17 @@ public struct AccountColumnsItem: Sendable, Equatable {
     /// The spend card is always its own card, last in the flow, and in the last column when
     /// there are two (R5).
     public let isSpend: Bool
+    /// A header every piece of this item's card draws above its accounts, such as the Compact
+    /// layout's column labels. Unlike a capability header it repeats in each column, so the
+    /// planner adds it per fragment; the value is read from the fragment's first item.
+    public let fragmentHeader: Double
 
-    public init(id: String, groupID: String, height: Double, isSpend: Bool = false) {
+    public init(id: String, groupID: String, height: Double, isSpend: Bool = false, fragmentHeader: Double = 0) {
         self.id = id
         self.groupID = groupID
         self.height = height
         self.isSpend = isSpend
+        self.fragmentHeader = fragmentHeader
     }
 }
 
@@ -270,6 +275,7 @@ public enum AccountColumnsPlanner {
     private static func fragmentHeight(_ items: [AccountColumnsItem], _ run: Range<Int>,
                                        _ metrics: AccountColumnsMetrics) -> Double {
         2 * metrics.cardPadding
+            + max(items[run.lowerBound].fragmentHeader, 0)
             + items[run].reduce(0) { $0 + max($1.height, 0) }
             + Double(run.count - 1) * metrics.accountGap
     }

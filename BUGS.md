@@ -1011,13 +1011,9 @@ From `docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
   `HeadroomAppTests` exits at launch ("Headroom is already running … Quit it first") whenever
   `/Applications/Headroom.app` is open. Exempt the XCTest host (`XCTestConfigurationFilePath`,
   as `AppComposition.usesNoOpWidgetExporter` does).
-- **Two VoiceOver pickers in In-App Display never reach the store.** The Percentages and
-  Account names rows' `.accessibilityRepresentation` pickers write only `SettingsView`'s
-  `@State`; only the swatch buttons call `store.setUsagePercentageMode` /
-  `setAccountTitleInk`. Account layout gained an `onChange` for this (review #6); mirror it.
-- **Compact rows hide Codex banked resets and the per-account loading pill.** Both live on the
-  Standard identity row; Compact keeps them out for width. Decide at the Compact size review
-  whether either earns room.
+- **Compact rows have no per-account loading pill.** The Standard identity row's pill would
+  cost the row's width; the footer's refresh receipt carries progress instead (Kyle,
+  2026-10-13). Banked resets moved into the row's tooltip.
 
 ## Popover & Settings snappiness residuals (2026-10-03 perf audit)
 

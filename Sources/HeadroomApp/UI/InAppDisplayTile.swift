@@ -56,6 +56,8 @@ struct InAppDisplayTile: View {
                     }
                 }
             }
+            // The swatches and VoiceOver's picker both write the binding; this one write reaches the store.
+            .onChange(of: usagePercentageMode) { _, newValue in store.setUsagePercentageMode(newValue) }
 
             swatchRow(
                 "Account names",
@@ -73,6 +75,8 @@ struct InAppDisplayTile: View {
                     }
                 }
             }
+            // The swatches and VoiceOver's picker both write the binding; this one write reaches the store.
+            .onChange(of: accountTitleInk) { _, newValue in store.setAccountTitleInk(newValue) }
 
             // Popover account layout plan (R1, HD-2): a third swatch row beside the other two
             // reading choices. Both layouts add a second column only when one would scroll.
@@ -147,7 +151,6 @@ struct InAppDisplayTile: View {
             accessibilityLabel: "\(mode.label) percentages",
             action: {
                 usagePercentageMode = mode
-                store.setUsagePercentageMode(mode)
             }
         ) {
             HStack(spacing: 8) {
@@ -189,7 +192,6 @@ struct InAppDisplayTile: View {
             accessibilityLabel: "\(ink.label) account names",
             action: {
                 accountTitleInk = ink
-                store.setAccountTitleInk(ink)
             }
         ) {
             VStack(alignment: .leading, spacing: 3) {

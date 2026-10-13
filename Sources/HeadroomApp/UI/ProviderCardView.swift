@@ -325,12 +325,17 @@ struct ProviderCardView: View {
             } else if isMultiAccount {
                 multiAccountBody
             } else if let recipe = singleAccountCompactRecipe {
-                compactRow(
-                    for: primaryEntry,
-                    recipe: recipe,
-                    isMenuBarAccount: false,
-                    providerAccounts: entries.map(\.account)
-                )
+                let columns = recipe.shownWindows.map(\.window.kind)
+                VStack(alignment: .leading, spacing: 0) {
+                    CompactCardHeader(columns: columns, percentageMode: percentageMode)
+                    compactRow(
+                        for: primaryEntry,
+                        recipe: recipe,
+                        isMenuBarAccount: false,
+                        providerAccounts: entries.map(\.account),
+                        columns: columns
+                    )
+                }
             } else {
                 singleAccountBody
             }
@@ -401,19 +406,44 @@ struct ProviderCardView: View {
     static func columnSlots(
         providerID: ProviderID,
         entries: [ProviderAccountEntry],
-        capabilityStatus: ProviderCapabilityStatus?
+        capabilityStatus: ProviderCapabilityStatus?,
+        accountLayout: AccountLayout = .standard,
+        showsCodexSparkCounters: Bool = false
     ) -> [PopoverColumnSlot] {
         let presentation = capabilityPresentation(providerID: providerID, entries: entries, capabilityStatus: capabilityStatus)
         guard splitsByAccount(entries: entries, presentation: presentation) else {
             return [PopoverColumnSlot(id: wholeCardSlotID(providerID), providerID: providerID)]
         }
+        // Each piece of a split Compact card repeats its column header.
+        let compactHeader = accountLayout == .compact && presentation == nil
+            && compactColumns(entries: entries, showsCodexSparkCounters: showsCodexSparkCounters) != nil
         return drawnAccounts(entries: entries, presentation: presentation).enumerated().map { index, entry in
             PopoverColumnSlot(
                 id: entry.account.key.description,
                 providerID: providerID,
-                headerID: index == 0 && presentation != nil ? capabilityHeaderID(providerID) : nil
+                headerID: index == 0 && presentation != nil ? capabilityHeaderID(providerID) : nil,
+                fragmentHeader: compactHeader ? Double(CompactCardHeader.height) : 0
             )
         }
+    }
+
+    /// The windows a multi-account Compact card's header names, in column order: the columns
+    /// of the account showing the most, so a weekly-only account sits under "wk" beside its
+    /// neighbours. Nil when no account draws a Compact row, so the card has no header.
+    static func compactColumns(entries: [ProviderAccountEntry], showsCodexSparkCounters: Bool) -> [WindowKind]? {
+        let recipes = entries.map { entry in
+            CompactAccountRowRecipe(
+                snapshot: entry.snapshot,
+                meterStyle: .default,
+                percentageMode: .remaining,
+                now: Date(),
+                requiresStandardSection: compactRowNeedsStandardSection(entry.account),
+                showsCodexSparkCounters: showsCodexSparkCounters
+            )
+        }.filter { !$0.fallsBackToStandard }
+        guard !recipes.isEmpty else { return nil }
+        let widest = recipes.max { $0.shownWindows.count < $1.shownWindows.count }
+        return widest?.shownWindows.map(\.window.kind) ?? []
     }
 
     private static func capabilityPresentation(
@@ -758,31 +788,40 @@ struct ProviderCardView: View {
         // its identity, so row mode has no separate provider header or account counter.
         // T1A widened it 22 → 26 to hold the grouping now the title sits at `.medium` and
         // the meter rows inside a section are 2pt tighter.
-        return ColumnItemsStack(
-            spacing: isCompact ? CompactAccountRow.rowGap : tuning.accountGap,
-            report: onMeasureColumnItem
-        ) {
-            ForEach(inFragment(entries)) { entry in
-                Group {
-                    if isCompact, let recipe = compactRecipe(for: entry) {
-                        compactRow(
-                            for: entry,
-                            recipe: recipe,
-                            isMenuBarAccount: entry.id == entries.first?.id,
-                            providerAccounts: providerAccounts
-                        )
-                    } else {
-                        accountSection(
-                            for: entry,
-                            providerAccounts: providerAccounts,
-                            showsStopWaiting: activeSetupAccount?.key == entry.account.key
-                        )
-                        // R15: a Standard section among Compact rows keeps the full 26pt
-                        // account gap from a neighbouring section, and 15pt from a row.
-                        .padding(.vertical, isCompact ? Self.compactFallbackInset : 0)
+        let columns = isCompact
+            ? Self.compactColumns(entries: entries, showsCodexSparkCounters: showsCodexSparkCounters)
+            : nil
+        return VStack(alignment: .leading, spacing: 0) {
+            if let columns {
+                CompactCardHeader(columns: columns, percentageMode: percentageMode)
+            }
+            ColumnItemsStack(
+                spacing: isCompact ? CompactAccountRow.rowGap : tuning.accountGap,
+                report: onMeasureColumnItem
+            ) {
+                ForEach(inFragment(entries)) { entry in
+                    Group {
+                        if isCompact, let recipe = compactRecipe(for: entry) {
+                            compactRow(
+                                for: entry,
+                                recipe: recipe,
+                                isMenuBarAccount: entry.id == entries.first?.id,
+                                providerAccounts: providerAccounts,
+                                columns: columns ?? recipe.shownWindows.map(\.window.kind)
+                            )
+                        } else {
+                            accountSection(
+                                for: entry,
+                                providerAccounts: providerAccounts,
+                                showsStopWaiting: activeSetupAccount?.key == entry.account.key
+                            )
+                            // R15: a Standard section among Compact rows keeps the full 26pt
+                            // account gap from a neighbouring section, and 15pt from a row.
+                            .padding(.vertical, isCompact ? Self.compactFallbackInset : 0)
+                        }
                     }
+                    .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
                 }
-                .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
             }
         }
     }
@@ -821,7 +860,8 @@ struct ProviderCardView: View {
         for entry: ProviderAccountEntry?,
         recipe: CompactAccountRowRecipe,
         isMenuBarAccount: Bool,
-        providerAccounts: [ProviderAccount]
+        providerAccounts: [ProviderAccount],
+        columns: [WindowKind]
     ) -> some View {
         let account = entry?.account ?? primaryAccount
         // The single-account card titles itself the way `accountIdentityRow` does.
@@ -835,6 +875,8 @@ struct ProviderCardView: View {
             showsPersistentEmail: titled && showsPersistentEmail(for: account, in: providerAccounts),
             isMenuBarAccount: isMultiAccount && isMenuBarAccount,
             recipe: recipe,
+            columns: columns,
+            bankedResets: entry?.snapshot.bankedResets,
             percentageMode: percentageMode,
             now: now,
             arrivalKey: announcesAccessibilityEvents ? account.key : nil

@@ -11,13 +11,15 @@ struct PopoverColumnSlot: Equatable {
     let id: String
     let providerID: ProviderID?
     var headerID: String? = nil
+    /// The header each piece of this item's card repeats (the Compact column labels).
+    var fragmentHeader: Double = 0
 
     var isSpend: Bool { providerID == nil }
     var groupID: String { providerID?.raw ?? Self.spendID }
 
     /// The slot as a planner item with no height: enough to carry or place a plan.
     var placeholderItem: AccountColumnsItem {
-        AccountColumnsItem(id: id, groupID: groupID, height: 0, isSpend: isSpend)
+        AccountColumnsItem(id: id, groupID: groupID, height: 0, isSpend: isSpend, fragmentHeader: fragmentHeader)
     }
 
     static let spend = PopoverColumnSlot(id: spendID, providerID: nil)
@@ -143,7 +145,10 @@ final class PopoverPlanModel {
                 // The capability card's header sits a Standard account gap above its accounts.
                 height += header + AccountColumnsMetrics.popover.accountGap
             }
-            items.append(AccountColumnsItem(id: slot.id, groupID: slot.groupID, height: height, isSpend: slot.isSpend))
+            items.append(AccountColumnsItem(
+                id: slot.id, groupID: slot.groupID, height: height, isSpend: slot.isSpend,
+                fragmentHeader: slot.fragmentHeader
+            ))
         }
         return items
     }

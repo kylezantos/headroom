@@ -470,4 +470,22 @@ import Testing
         let fewer = Array(items.dropLast(3))
         #expect(AccountColumnsPlanner.needsReplan(previous: kept, itemIDs: fewer.map(\.id), generation: kept.generation))
     }
+
+    // MARK: Fragment headers
+
+    /// The Compact layout's column header repeats in each piece of a split card, so splitting
+    /// pays it twice; a whole card pays it once.
+    @Test func aFragmentHeaderIsCountedOncePerPiece() {
+        let header = 26.0
+        let items = (0..<4).map {
+            AccountColumnsItem(id: "c.\($0)", groupID: "claude", height: 26, fragmentHeader: header)
+        }
+        let whole = AccountColumnsPlan(columnCount: 1, splitIndex: 4, itemIDs: items.map(\.id), generation: 0)
+        #expect(AccountColumnsPlanner.placement(of: whole, items: items).contentHeight
+            == 2 * metrics.cardPadding + header + 4 * 26 + 3 * metrics.accountGap)
+        let split = AccountColumnsPlan(columnCount: 2, splitIndex: 2, itemIDs: items.map(\.id), generation: 0)
+        let placed = AccountColumnsPlanner.placement(of: split, items: items)
+        #expect(placed.columnHeights == [2 * metrics.cardPadding + header + 2 * 26 + metrics.accountGap,
+                                         2 * metrics.cardPadding + header + 2 * 26 + metrics.accountGap])
+    }
 }

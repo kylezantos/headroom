@@ -6,11 +6,14 @@ import HeadroomCore
 
 /// Popover account layout, Compact (R11–R14): one account on one 26pt line — mark, title,
 /// a "+N" for windows with no room, then up to two cells. Everything the line drops (reset
-/// times, the other windows, the main-account note) lives in its tooltip and VoiceOver value
-/// (R12, R13). What it shows is `CompactAccountRowRecipe`'s decision; this only lays it out.
+/// times, the other windows, banked resets, the main-account note) lives in its tooltip and
+/// VoiceOver value (R12, R13). What it shows is `CompactAccountRowRecipe`'s decision; this
+/// only lays it out.
 ///
-/// Sizes are the options doc's HC-D proposal (title 13 semibold, row 26, 12 between cells)
-/// and still need Kyle's live review before they ship.
+/// Kyle approved the HC-D sizes (title 13 semibold, row 26, 12 between cells) with one change
+/// (2026-10-13, `design/popover-compact-header-mockup.html`): the window names and the
+/// left/used word sit once in the card's `CompactCardHeader`, not in every cell, which gives
+/// names the room to read whole.
 struct CompactAccountRow: View {
     let providerID: ProviderID
     let title: String
@@ -18,6 +21,10 @@ struct CompactAccountRow: View {
     let showsPersistentEmail: Bool
     let isMenuBarAccount: Bool
     let recipe: CompactAccountRowRecipe
+    /// The card header's columns. Each window sits under its own kind, so an account showing
+    /// only a weekly window keeps it under "wk" beside its neighbours.
+    let columns: [WindowKind]
+    let bankedResets: Int?
     let percentageMode: UsagePercentageMode
     let now: Date
     /// M4A: the once-per-launch draw-in, keyed like the Standard rows so a layout switch never
@@ -28,7 +35,10 @@ struct CompactAccountRow: View {
     /// The gap between two Compact rows in one card.
     static let rowGap: CGFloat = 4
     private static let titleSize: CGFloat = 13
-    private static let cellGap: CGFloat = 12
+    static let cellGap: CGFloat = 12
+    /// One fixed width per cell, Segmented's 38pt gauge plus the 15pt "100%" column, so cells
+    /// and header labels line up down the card whatever each row shows.
+    static let cellWidth: CGFloat = 84
 
     var body: some View {
         let _ = BenchCounters.hit("CompactAccountRow")
@@ -76,27 +86,46 @@ struct CompactAccountRow: View {
     }
 
     @ViewBuilder private var cells: some View {
-        switch recipe.content {
-        case .meters:
-            HStack(spacing: Self.cellGap) {
-                ForEach(recipe.shownWindows, id: \.window.kind.persistentID) { shown in
-                    UsageBarView(
-                        window: shown.window,
-                        percentageMode: percentageMode,
-                        now: now,
-                        meterStyle: recipe.meterStyle,
-                        dimmed: recipe.isDimmed,
-                        arrivalKey: arrivalKey,
-                        compactLabel: shown.shortLabel
-                    )
+        HStack(spacing: Self.cellGap) {
+            switch recipe.content {
+            case .meters:
+                ForEach(Array(placedWindows.enumerated()), id: \.offset) { _, shown in
+                    if let shown {
+                        UsageBarView(
+                            window: shown.window,
+                            percentageMode: percentageMode,
+                            now: now,
+                            meterStyle: recipe.meterStyle,
+                            dimmed: recipe.isDimmed,
+                            arrivalKey: arrivalKey,
+                            compactLabel: ""
+                        )
+                        .frame(width: Self.cellWidth, alignment: .trailing)
+                    } else {
+                        Color.clear.frame(width: Self.cellWidth, height: 1)
+                    }
+                }
+            case .skeleton, .standardFallback:
+                ForEach(0..<max(columns.count, 2), id: \.self) { _ in
+                    SkeletonMeter(labelWidth: 0, valueWidth: 34, format: .micro)
+                        .frame(width: Self.cellWidth, alignment: .trailing)
                 }
             }
-        case .skeleton, .standardFallback:
-            HStack(spacing: Self.cellGap) {
-                SkeletonMeter(labelWidth: 14, valueWidth: 34, format: .micro).fixedSize()
-                SkeletonMeter(labelWidth: 14, valueWidth: 34, format: .micro).fixedSize()
-            }
         }
+    }
+
+    /// The shown windows under their header columns; a window whose kind no column names
+    /// takes the first empty one, so nothing the recipe shows is dropped.
+    private var placedWindows: [CompactAccountRowWindow?] {
+        guard !columns.isEmpty else { return recipe.shownWindows }
+        var placed: [CompactAccountRowWindow?] = columns.map { kind in
+            recipe.shownWindows.first { $0.window.kind.persistentID == kind.persistentID }
+        }
+        let used = Set(placed.compactMap { $0?.window.kind.persistentID })
+        for leftover in recipe.shownWindows where !used.contains(leftover.window.kind.persistentID) {
+            if let gap = placed.firstIndex(where: { $0 == nil }) { placed[gap] = leftover }
+        }
+        return placed
     }
 
     private var tooltip: String {
@@ -106,7 +135,7 @@ struct CompactAccountRow: View {
             titleIsTruncated: true,
             email: email?.isEmpty == false ? email : nil,
             isMenuBarAccount: isMenuBarAccount,
-            bankedHelp: nil
+            bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
         ).map { [$0] } ?? []
         if recipe.isDimmed, recipe.content == .meters { lines.append("Stale") }
         if !recipe.tooltip.isEmpty { lines.append(recipe.tooltip) }
@@ -160,5 +189,44 @@ private struct CompactIdentityLayout: Layout {
         let room = available - titleWidth - spacing
         let emailWidth = room >= Self.minimumEmailWidth ? min(ideals[1], room) : 0
         return [titleWidth, emailWidth]
+    }
+}
+
+/// The Compact card's one header line (Kyle, 2026-10-13): "% left" or "% used" on the title axis
+/// and each column's window name over its cells, in tertiary 11pt above one hairline. Fixed
+/// height, because the column planner counts it once per card piece.
+struct CompactCardHeader: View {
+    let columns: [WindowKind]
+    let percentageMode: UsagePercentageMode
+
+    /// 16pt line, 6pt to the hairline, 4pt to the first row.
+    static let height: CGFloat = 26
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: IdentityRowMetrics.spacing) {
+                Color.clear.frame(width: IdentityRowMetrics.markSlotWidth, height: 1)
+                Text("% \(percentageMode.term)")
+                Spacer(minLength: 0)
+                HStack(spacing: CompactAccountRow.cellGap) {
+                    ForEach(Array(columns.enumerated()), id: \.offset) { _, kind in
+                        Text(CompactAccountRowRecipe.shortLabel(for: kind))
+                            .lineLimit(1)
+                            .frame(width: CompactAccountRow.cellWidth, alignment: .trailing)
+                    }
+                }
+            }
+            .font(.system(size: MeterSuffixColumn.size))
+            .foregroundStyle(.tertiary)
+            .frame(height: 16)
+            .padding(.bottom, 6)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(height: Self.height)
+        // The rows' own VoiceOver values already name each window and say left or used.
+        .accessibilityHidden(true)
     }
 }

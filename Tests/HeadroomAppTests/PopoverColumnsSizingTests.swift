@@ -138,6 +138,27 @@ struct PopoverColumnsSizingTests {
         #expect(slots.allSatisfy { $0.headerID == nil })
     }
 
+    /// Kyle, 2026-10-13: a Compact card repeats its column header in each column, so a split
+    /// card's slots carry the header for the planner; Standard and a card with no Compact row
+    /// carry none.
+    @Test func compactCardSlotsCarryTheirRepeatedHeader() {
+        let compact = ProviderCardView.columnSlots(
+            providerID: .claude, entries: entries(.claude, 3), capabilityStatus: nil, accountLayout: .compact
+        )
+        #expect(compact.allSatisfy { $0.fragmentHeader == Double(CompactCardHeader.height) })
+        let standard = ProviderCardView.columnSlots(
+            providerID: .claude, entries: entries(.claude, 3), capabilityStatus: nil, accountLayout: .standard
+        )
+        #expect(standard.allSatisfy { $0.fragmentHeader == 0 })
+    }
+
+    @Test func compactColumnsFollowTheAccountShowingTheMostWindows() {
+        let columns = ProviderCardView.compactColumns(entries: entries(.claude, 2), showsCodexSparkCounters: false)
+        #expect(columns?.map(\.persistentID) == ["fiveHour", "weekly"])
+        let pendingOnly = entries(.claude, 2, pendingAfter: 0)
+        #expect(ProviderCardView.compactColumns(entries: pendingOnly, showsCodexSparkCounters: false) == [])
+    }
+
     @Test func aSingleAccountCardIsOneWholeSlot() {
         let slots = ProviderCardView.columnSlots(providerID: .codex, entries: entries(.codex, 1), capabilityStatus: nil)
         #expect(slots.map(\.id) == ["card:codex"])

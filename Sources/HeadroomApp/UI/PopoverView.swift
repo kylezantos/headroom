@@ -86,7 +86,9 @@ struct PopoverView: View {
                 ProviderCardView.columnSlots(
                     providerID: id,
                     entries: entriesByProvider[id] ?? [],
-                    capabilityStatus: store.providerCapabilities[id]
+                    capabilityStatus: store.providerCapabilities[id],
+                    accountLayout: store.accountLayout,
+                    showsCodexSparkCounters: store.showCodexSparkCountersInApp
                 )
             } + (store.apiSpendProviderOrder.isEmpty ? [] : [PopoverColumnSlot.spend])
             let columnPlan = columns.drawnPlan(for: columnSlots)

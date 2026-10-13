@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compact rows — per-cell labels vs one header per card</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 40px 48px 80px;
+    font-family: -apple-system, "SF Pro Text", system-ui, sans-serif;
+    background: #121216; color: #e9e9ee;
+  }
+  body.light { background: #d9d6d0; color: #1d1d1f; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .lede { max-width: 860px; color: #a1a1aa; font-size: 14px; line-height: 1.5; margin: 0 0 18px; }
+  body.light .lede { color: #55555c; }
+  .toggles { display: flex; gap: 8px; margin-bottom: 28px; }
+  .toggles button {
+    font: inherit; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 7px;
+    border: 0; cursor: pointer; background: rgba(255,255,255,0.08); color: inherit;
+  }
+  body.light .toggles button { background: rgba(0,0,0,0.07); }
+  .toggles button[aria-pressed="true"] { background: rgba(255,255,255,0.22); }
+  body.light .toggles button[aria-pressed="true"] { background: rgba(0,0,0,0.18); }
+
+  .row-of-pops { display: flex; gap: 48px; align-items: flex-start; flex-wrap: wrap; margin-bottom: 56px; }
+  .label { font-size: 13px; font-weight: 600; margin: 0 0 4px; }
+  .sub { font-size: 12px; color: #8e8e96; margin: 0 0 12px; max-width: 384px; line-height: 1.45; }
+
+  /* ---- popover shell: 384 wide, 19 inset (PopoverCardMetrics) ---- */
+  .pop {
+    width: 384px; padding: 19px; border-radius: 22px;
+    background: #1f1f23; box-shadow: 0 0 0 1px rgba(255,255,255,0.08), 0 20px 50px rgba(0,0,0,0.45);
+  }
+  body.light .pop { background: #f1f0ee; box-shadow: 0 0 0 1px rgba(0,0,0,0.1), 0 20px 50px rgba(0,0,0,0.18); }
+  .pop-title { font-size: 20px; font-weight: 700; margin: 0 0 14px; }
+  .card { border-radius: 10px; padding: 13px; background: rgba(255,255,255,0.05); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
+  body.light .card { background: #fff; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+  .card + .card { margin-top: 20px; }
+  .footer { display: flex; justify-content: space-between; margin-top: 14px; font-size: 12px; color: #8e8e96; }
+
+  /* ---- header (proposal): labels once per card ---- */
+  .dhead { display: flex; align-items: center; gap: 6px; height: 16px; margin-bottom: 4px; padding-bottom: 6px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.08); font-size: 11px; color: #7c7c85; }
+  body.light .dhead { box-shadow: 0 1px 0 rgba(0,0,0,0.08); color: #8a8a90; }
+  .dhead .term { margin-left: 21px; }
+  .dhead .col { width: 82px; text-align: right; flex-shrink: 0; }
+  .dhead .col + .col { margin-left: 12px; }
+
+  /* ---- rows ---- */
+  .rows { display: flex; flex-direction: column; gap: 4px; }
+  .drow { display: flex; align-items: center; gap: 6px; height: 26px; position: relative; }
+  .mark { width: 15px; height: 15px; flex-shrink: 0; display: grid; place-items: center; font-size: 14px; line-height: 1; }
+  .mark.claude { color: #d97757; }
+  .mark.codex::before { content: ""; width: 12px; height: 12px; border-radius: 4px; background: linear-gradient(135deg,#7b8cff,#4f5bd5); }
+  .name { font-size: 13px; font-weight: 600; letter-spacing: -0.1px; color: #a6a6ae;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  body.light .name { color: #6b6b72; }
+  .name.clip { max-width: var(--namew); }
+  .more { font-size: 10.5px; font-weight: 500; color: #9a9aa2; background: rgba(255,255,255,0.08);
+    border-radius: 99px; height: 18px; padding: 0 4px; display: inline-flex; align-items: center; flex-shrink: 0; }
+  body.light .more { background: rgba(0,0,0,0.06); color: #6b6b72; }
+  .sp { flex: 1; min-width: 0; }
+  .cell { display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; flex-shrink: 0; }
+  .cells { display: flex; gap: 12px; flex-shrink: 0; }
+  .cell .lab { font-size: 11px; color: #7c7c85; }
+  .num { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; min-width: 40px; text-align: right; }
+  .num.crit { color: #ff6659; }
+  .gauge { display: inline-flex; gap: 2px; width: 38px; }
+  .seg { width: 6px; height: 5px; border-radius: 1.5px; background: rgba(255,255,255,0.12); }
+  body.light .seg { background: rgba(0,0,0,0.1); }
+  .seg.on.h { background: #54c06a; } .seg.on.l { background: #f0a43a; } .seg.on.c { background: #ff6659; }
+  .seg.tip.h { background: #6fe089; }
+
+  /* tooltip illustration */
+  .tip-box {
+    position: absolute; left: 120px; top: 30px; z-index: 5; width: 250px;
+    background: #2c2c31; color: #e9e9ee; border-radius: 6px; padding: 7px 9px; font-size: 11.5px; line-height: 1.45;
+    box-shadow: 0 0 0 0.5px rgba(255,255,255,0.15), 0 8px 24px rgba(0,0,0,0.45); white-space: pre-line;
+  }
+  body.light .tip-box { background: #fafafa; color: #1d1d1f; box-shadow: 0 0 0 0.5px rgba(0,0,0,0.2), 0 8px 24px rgba(0,0,0,0.18); }
+  .tip-box b { font-weight: 600; }
+  .hover { background: rgba(255,255,255,0.05); border-radius: 6px; }
+
+  .callouts { max-width: 384px; font-size: 12.5px; line-height: 1.5; color: #b9b9c0; padding-left: 18px; margin: 14px 0 0; }
+  body.light .callouts { color: #4a4a50; }
+  .spend { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; font-weight: 600; color: #a6a6ae; height: 26px; }
+  .spend .amt { color: inherit; } .spend .amt b { color: #e9e9ee; font-size: 17px; } body.light .spend .amt b { color: #1d1d1f; }
+  .spend + .spend { margin-top: 13px; }
+  .spend .u { font-size: 11px; color: #7c7c85; font-weight: 400; margin-left: 4px; }
+</style>
+</head>
+<body>
+<h1>Compact rows: per-cell labels vs. one header per card</h1>
+<p class="lede">Left is what PR #184 ships now. Right is the proposal: the window names and the “% left” / “% used” word move into one quiet header line per card, so every row keeps only the name and the numbers. Drawn at popover scale (384pt shell, 13pt card padding, 26pt rows, 4pt apart, 13pt names, 15pt numbers), meter style Micro · Segmented. Data is the <code>multi-7</code> and <code>multi-20</code> demo fixtures.</p>
+<div class="toggles">
+  <button data-k="theme" data-v="dark" aria-pressed="true">Dark</button>
+  <button data-k="theme" data-v="light">Light</button>
+  <span style="width:12px"></span>
+  <button data-k="mode" data-v="left" aria-pressed="true">Percentages: Left</button>
+  <button data-k="mode" data-v="used">Percentages: Used</button>
+</div>
+
+<div class="row-of-pops" id="seven"></div>
+<div class="row-of-pops" id="twenty"></div>
+
+<script>
+const claude7 = [["Personal",72,38],["Work",29,12],["Studio",88,59],["Agency",53,45],["Lab",7,3],["Client",36,70],["Side",15,28]];
+const codex7 = [["Personal",91,64]];
+const claude20 = [["Personal",100,89],["Account 2",63,36],["Account 3",26,83],["Account 4",89,30],["Account 5",52,77],["Account 6",15,24],["Account 7",78,71],["Account 8",41,18],["Account 9",4,65],["Account 10",67,12],["Account 11",30,59],["Account 12",93,6],["Account 13",56,53],["Account 14",19,100],["Account 15",82,47],["Account 16",45,94],["Account 17",8,41],["Account 18",71,88],["Account 19",34,35],["Account 20",97,82]];
+let mode = "left";
+
+function gauge(left) {
+  const shown = mode === "left" ? left : 100 - left;
+  const sev = left <= 15 ? "c" : left <= 50 ? "l" : "h";
+  const n = Math.max(left > 0 ? 1 : 0, Math.round(shown / 20));
+  let s = '<span class="gauge">';
+  for (let i = 0; i < 5; i++) s += `<span class="seg ${i < n ? "on " + sev : ""}"></span>`;
+  return s + "</span>";
+}
+function num(left) {
+  const v = mode === "left" ? left : 100 - left;
+  return `<span class="num ${left <= 15 ? "crit" : ""}">${v}%</span>`;
+}
+function cell(label, left, withLabel) {
+  return `<span class="cell">${withLabel ? `<span class="lab">${label}</span>` : ""}${gauge(left)}${num(left)}</span>`;
+}
+function row(provider, [name, h5, wk], opts = {}) {
+  const nameStyle = opts.nameWidth ? `style="--namew:${opts.nameWidth}px"` : "";
+  return `<div class="drow ${opts.hover ? "hover" : ""}">
+    <span class="mark ${provider}">${provider === "claude" ? "✳" : ""}</span>
+    <span class="name ${opts.nameWidth ? "clip" : ""}" ${nameStyle}>${name}</span>
+    ${opts.more ? `<span class="more">+${opts.more}</span>` : ""}
+    <span class="sp"></span>
+    <span class="cells">${cell("5h", h5, opts.labels)}${cell("wk", wk, opts.labels)}</span>
+    ${opts.tip ? `<div class="tip-box">${opts.tip}</div>` : ""}
+  </div>`;
+}
+function header() {
+  return `<div class="dhead"><span class="term">% ${mode}</span><span class="sp"></span><span class="col">5h</span><span class="col">wk</span></div>`;
+}
+function card(provider, accounts, { labels, headerOn, nameWidth, extra = {} }) {
+  return `<div class="card">${headerOn ? header() : ""}<div class="rows">${
+    accounts.map((a, i) => row(provider, a, { labels, nameWidth, ...(extra[i] || {}) })).join("")
+  }</div></div>`;
+}
+function spendCard() {
+  return `<div class="card"><div class="spend"><span>✳ Anthropic API</span><span class="amt"><b>$142.67</b><span class="u">used</span></span></div>
+  <div class="spend"><span>OpenAI API</span><span class="amt"><b>$58.90</b><span class="u">used</span></span></div></div>`;
+}
+const codexTip = `<b>Personal</b>
+Main account — shown in the menu bar and widgets
+2 banked resets
+5-hour: 91% ${mode} · Resets in 3h 11m
+Weekly: 64% ${mode} · Resets in 3d 23h`;
+
+function popover(title, sub, inner, notes) {
+  return `<div><p class="label">${title}</p><p class="sub">${sub}</p>
+    <div class="pop"><p class="pop-title">Usage</p>${inner}
+    <div class="footer"><span>Refresh · 2 min ago</span><span>Quit</span></div></div>
+    ${notes ? `<ul class="callouts">${notes.map(n => `<li>${n}</li>`).join("")}</ul>` : ""}</div>`;
+}
+
+function render() {
+  const tip = codexTip.replaceAll("% left", `% ${mode}`).replace(/% (left|used)/g, `% ${mode}`);
+  document.getElementById("seven").innerHTML =
+    popover("Now (PR #184)", "7 Claude + 1 Codex. Each cell carries its own “5h” / “wk”; the number has no left/used word.",
+      card("claude", claude7, { labels: true }) + card("codex", codex7, { labels: true }) + spendCard()) +
+    popover("Proposed", "Same accounts. One header line per card names the columns and says left or used. Hover a row for its tooltip (banked resets added).",
+      card("claude", claude7, { headerOn: true }) +
+      card("codex", codex7, { headerOn: true, extra: { 0: { hover: true, more: 0, tip } } }) + spendCard(),
+      ["Header: 11pt, tertiary ink, one hairline — quieter than any row.",
+       "“% left” flips to “% used” with the Percentages setting (try the toggle).",
+       "Adds 26pt per card; multi-7 still fits one 384pt column.",
+       "Tooltip now lists banked resets, so Compact doesn’t lose them."]);
+  document.getElementById("twenty").innerHTML =
+    popover("Now — first column of multi-20", "Names get about 70pt beside two labelled cells, so “Account 10”–“Account 20” all shorten to “Acc…nt 1x”.",
+      card("claude", claude20, { labels: true, nameWidth: 62 })) +
+    popover("Proposed — first column of multi-20", "Dropping the per-cell labels gives names about 30pt more, so every name reads whole.",
+      card("claude", claude20, { headerOn: true }));
+  // middle-truncate clipped names the way SwiftUI's .middle does
+  document.querySelectorAll(".name.clip").forEach(el => {
+    const max = parseFloat(getComputedStyle(el).maxWidth), full = el.textContent;
+    if (el.scrollWidth <= max + 0.5) return;
+    for (let keep = full.length - 1; keep > 2; keep--) {
+      const head = Math.ceil(keep / 2), tail = keep - head;
+      el.textContent = full.slice(0, head) + "…" + full.slice(full.length - tail);
+      if (el.scrollWidth <= max + 0.5) break;
+    }
+  });
+}
+document.querySelectorAll(".toggles button").forEach(b => b.addEventListener("click", () => {
+  const k = b.dataset.k;
+  document.querySelectorAll(`.toggles button[data-k="${k}"]`).forEach(x => x.setAttribute("aria-pressed", x === b));
+  if (k === "theme") document.body.classList.toggle("light", b.dataset.v === "light");
+  else { mode = b.dataset.v; render(); }
+}));
+render();
+</script>
+</body>
+</html>

@@ -503,12 +503,15 @@ public struct UsageBarView: View {
     /// (HC-D: numeral 15) pending live review.
     private func compactCell(_ label: String) -> some View {
         HStack(alignment: .center, spacing: compactGap) {
-            Text(label)
-                .font(.system(size: MeterSuffixColumn.size * scale))
-                .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
-                .lineLimit(1)
-                .fixedSize()
-                .widgetCapHeightCentered(size: MeterSuffixColumn.size * scale, weight: .regular)
+            // An empty label draws none: the Compact card's header names the column instead.
+            if !label.isEmpty {
+                Text(label)
+                    .font(.system(size: MeterSuffixColumn.size * scale))
+                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .widgetCapHeightCentered(size: MeterSuffixColumn.size * scale, weight: .regular)
+            }
             gauge
             Text(percentText)
                 .font(.system(size: compactPercentSize, weight: .semibold).monospacedDigit())

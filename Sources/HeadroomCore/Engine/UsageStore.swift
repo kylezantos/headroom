@@ -499,6 +499,8 @@ public final class UsageStore {
     }
 
     public func setUsagePercentageMode(_ mode: UsagePercentageMode) {
+        // Settings loads its binding from the store, which echoes back through `onChange`.
+        guard usagePercentageMode != mode else { return }
         preferences.usagePercentageMode = mode
         usagePercentageMode = mode
         // KTD11: display choices reach the phone's display block, never Mac widgets.

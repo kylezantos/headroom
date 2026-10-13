@@ -327,7 +327,7 @@ struct ProviderCardView: View {
             } else if let recipe = singleAccountCompactRecipe {
                 let columns = recipe.shownWindows.map(\.window.kind)
                 VStack(alignment: .leading, spacing: 0) {
-                    CompactCardHeader(columns: columns, percentageMode: percentageMode)
+                    CompactCardHeader(providerName: displayName, columns: columns, percentageMode: percentageMode)
                     compactRow(
                         for: primaryEntry,
                         recipe: recipe,
@@ -793,7 +793,7 @@ struct ProviderCardView: View {
             : nil
         return VStack(alignment: .leading, spacing: 0) {
             if let columns {
-                CompactCardHeader(columns: columns, percentageMode: percentageMode)
+                CompactCardHeader(providerName: displayName, columns: columns, percentageMode: percentageMode)
             }
             ColumnItemsStack(
                 spacing: isCompact ? CompactAccountRow.rowGap : tuning.accountGap,

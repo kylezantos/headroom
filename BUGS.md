@@ -157,23 +157,16 @@ official `claude` CLI's `/usage` panel instead.
   Waiting and Confirming. Two 2026-10-04 runs matched all 26 decoded images. The legacy
   `connected-*` and `dualWaiting-*` path above remains outside that deterministic capture flow.
 
-## Unbundled `swift run` popover still shows a faint second rim
+## Popover second corner on macOS 27 — confirm the shadow fix there (PC3)
 
-- **Dev/QA builds only; the bundled app is fixed (PC1, 2026-09-23).** Under `swift run` the
-  MenuBarExtra host draws its background as flat leaf views that `.containerBackground(.clear,
-  for: .window)` does not remove. `configurePopoverWindow` rounds those leaves to the r22 shell,
-  which removes the filled second corner, but a thin window rim at the system's tighter radius
-  still showed on the live `swift run` popover. Masking the whole host view removed the rim and
-  made the glass flicker, so do not reach for that. When judging popover corners, use
-  `./Scripts/build-app.sh` and the bundled app rather than `--demo` under `swift run`.
-
-## macOS 27 popover shows a second, tighter corner (PC2, unverified)
-
-- Reported 2026-10-09 on macOS 27 in the bundled app: a filled corner at the system's tighter
-  radius showed outside the r22 shell, as PC1 fixed on 26. `PopoverHostChrome` now reshapes the
-  host's `NSGlassEffectView`/`NSVisualEffectView` chrome to r22 through their public corner APIs.
-  Not yet seen on 27. Verify there, and if the corner remains, read the one-per-launch structure
-  dump: `log show --last 5m --predicate 'category == "popover-window"' --info`.
+- The thin second corner outside the r22 shell (faint rim on 26, a filled corner reported on 27
+  on 2026-10-09) was the window server's shadow rim, drawn at the window's own tighter corner.
+  Proven on 26 on 2026-10-13: with every host view and layer rounded to r22 the rim stayed, and
+  turning `hasShadow` off removed it. The popover now ships without the system shadow. Still to
+  do: confirm on a macOS 27 Mac that the filled corner is gone. If it isn't, read the per-window
+  structure dump: `/usr/bin/log show --last 5m --predicate 'category == "popover-window"' --info`
+  (`/usr/bin/log`: zsh's `log` builtin shadows it). PC2's host-chrome reshape found nothing to
+  reshape on 26; remove it once 27 is confirmed without it.
 
 ## Test runs leave thousands of UserDefaults suites behind
 

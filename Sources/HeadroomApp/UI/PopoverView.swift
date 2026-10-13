@@ -375,13 +375,7 @@ struct PopoverView: View {
     private func configurePopoverWindow(_ window: NSWindow?, from anchor: NSView) {
         popoverWindow = window
         guard let window else { return }
-        guard surface.usesHeadroomShell else {
-            // PC2 tuning: hand the surface back to the host exactly as it drew it.
-            if PopoverHostChrome.restore(in: window) { window.invalidateShadow() }
-            return
-        }
         let radius = tuning.values.shellCornerRadius
-        PopoverHostChrome.rememberWindow(window)
         // HR-33: keep the custom content radius, but clear the MenuBarExtra host backing
         // so the popover has exactly one system material layer at the rounded edge.
         // Idempotent: this runs on every view update, and re-assigning window properties
@@ -399,12 +393,16 @@ struct PopoverView: View {
         for leaf in window.contentView?.subviews ?? [] where leaf.subviews.isEmpty {
             guard let layer = leaf.layer,
                   layer.cornerRadius != radius || !layer.masksToBounds else { continue }
-            PopoverHostChrome.rememberLayer(layer)
             layer.cornerRadius = radius
             layer.cornerCurve = .continuous
             layer.masksToBounds = true
             reshaped = true
         }
+        // PC3 (2026-10-13): the window server draws the window shadow, and its hairline rim, at
+        // the window's own tighter corner, which no view or layer here can reshape. That rim was
+        // the second corner outside the shell (the faint outline on 26, likely the filled corner
+        // reported on 27). Turning the shadow off removed it; the glass edge carries the outline.
+        if window.hasShadow != surface.windowShadow { window.hasShadow = surface.windowShadow }
         if surface.reshapeHostChrome {
             if PopoverHostChrome.reshape(in: window, sparing: anchor, cornerRadius: radius) { reshaped = true }
         } else if PopoverHostChrome.restoreChrome() {
@@ -1068,8 +1066,12 @@ private struct PopoverSurfaceModifier: ViewModifier {
     func body(content: Content) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if !settings.usesHeadroomShell && !forceSolid {
-            // PC2 tuning: the host's own surface, with an optional flat wash the window clips.
-            content.background(settings.systemWash.opacity(settings.systemWashOpacity).ignoresSafeArea())
+            // PC2 tuning: the host's own glass (rounded to the shell in `configurePopoverWindow`),
+            // made more opaque by a flat wash in the same shape. Nothing of ours is glass.
+            let (wash, opacity) = colorScheme == .light
+                ? (settings.lightTint, settings.lightTintOpacity)
+                : (settings.darkTint, settings.darkTintOpacity)
+            content.background(wash.opacity(opacity), in: shape)
         } else if reduceTransparency || forceSolid || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast {
             content
                 .background(Color(nsColor: .windowBackgroundColor), in: shape)
@@ -1128,43 +1130,10 @@ private struct WindowAccessor: NSViewRepresentable {
 @MainActor
 private enum PopoverHostChrome {
     private static let log = Logger(subsystem: "com.kylezantos.headroom", category: "popover-window")
-    private static var didLogHierarchy = false
-    /// Host state as first seen, so a tuning build can hand the surface back (PC2).
-    private static var windowOriginals: [ObjectIdentifier: (window: NSWindow, opaque: Bool, background: NSColor)] = [:]
-    private static var layerOriginals: [ObjectIdentifier: (layer: CALayer, radius: CGFloat, masks: Bool)] = [:]
+    private static var loggedWindows: Set<ObjectIdentifier> = []
+    /// Host corner state as first seen, so the tuning toggle can hand it back.
     private static var glassOriginals: [ObjectIdentifier: (view: NSView, radius: CGFloat)] = [:]
     private static var maskOriginals: [ObjectIdentifier: (view: NSVisualEffectView, mask: NSImage?)] = [:]
-
-    static func rememberWindow(_ window: NSWindow) {
-        let key = ObjectIdentifier(window)
-        if windowOriginals[key] == nil {
-            windowOriginals[key] = (window, window.isOpaque, window.backgroundColor)
-        }
-    }
-
-    static func rememberLayer(_ layer: CALayer) {
-        let key = ObjectIdentifier(layer)
-        if layerOriginals[key] == nil {
-            layerOriginals[key] = (layer, layer.cornerRadius, layer.masksToBounds)
-        }
-    }
-
-    /// Undoes every change this file and `configurePopoverWindow` made. True if anything moved.
-    static func restore(in window: NSWindow) -> Bool {
-        var changed = restoreChrome()
-        if let original = windowOriginals.removeValue(forKey: ObjectIdentifier(window)) {
-            window.isOpaque = original.opaque
-            window.backgroundColor = original.background
-            changed = true
-        }
-        for (_, original) in layerOriginals {
-            original.layer.cornerRadius = original.radius
-            original.layer.masksToBounds = original.masks
-            changed = true
-        }
-        layerOriginals.removeAll()
-        return changed
-    }
 
     static func restoreChrome() -> Bool {
         var changed = false
@@ -1187,7 +1156,7 @@ private enum PopoverHostChrome {
     static func reshape(in window: NSWindow, sparing anchor: NSView, cornerRadius: CGFloat) -> Bool {
         guard let root = window.contentView?.superview ?? window.contentView else { return false }
         let content = hostingView(containing: anchor)
-        logHierarchyOnce(root, content: content)
+        logHierarchyOnce(window, root: root, content: content)
         return reshape(root, sparing: content, cornerRadius: cornerRadius)
     }
 
@@ -1237,22 +1206,38 @@ private enum PopoverHostChrome {
         return image
     }
 
-    /// One structural dump per launch (class names, frames, corner state; no content), so a
-    /// future OS's host layout can be read with `log show --predicate 'category == "popover-window"'`.
-    private static func logHierarchyOnce(_ root: NSView, content: NSView?) {
-        guard !didLogHierarchy else { return }
-        didLogHierarchy = true
-        var lines: [String] = []
-        func visit(_ view: NSView, depth: Int) {
+    /// One structural dump per popover window once it has a size (class names, frames, corner
+    /// state; no content), so a future OS's host layout can be read with
+    /// `/usr/bin/log show --predicate 'category == "popover-window"'`. Views inside our hosting
+    /// view are listed a few levels deep, because the host's backdrop can sit there too (PC1).
+    private static func logHierarchyOnce(_ window: NSWindow, root: NSView, content: NSView?) {
+        guard window.frame.width > 10, loggedWindows.insert(ObjectIdentifier(window)).inserted else { return }
+        var lines = ["\(type(of: window)) \(NSStringFromRect(window.frame)) style=\(window.styleMask.rawValue)"
+            + " shadow=\(window.hasShadow) opaque=\(window.isOpaque) level=\(window.level.rawValue)"]
+        func visit(_ view: NSView, depth: Int, insideContent: Int?) {
             let layer = view.layer
             let marker = view === content ? " [content]" : ""
             lines.append(String(repeating: "  ", count: depth)
                 + "\(type(of: view)) \(NSStringFromRect(view.frame)) r=\(layer?.cornerRadius ?? -1)"
-                + " mask=\(layer?.masksToBounds ?? false) hidden=\(view.isHidden)\(marker)")
-            guard view !== content else { return }
-            view.subviews.forEach { visit($0, depth: depth + 1) }
+                + " mask=\(layer?.masksToBounds ?? false) hidden=\(view.isHidden)"
+                + " bg=\(layer?.backgroundColor != nil) filters=\(layer?.filters?.count ?? 0)\(marker)")
+            let nested = view === content ? 0 : insideContent.map { $0 + 1 }
+            if let nested, nested >= 4 { return }
+            view.subviews.forEach { visit($0, depth: depth + 1, insideContent: nested) }
         }
-        visit(root, depth: 0)
+        visit(root, depth: 0, insideContent: nil)
+        // Layers with no view of their own (a backdrop sublayer can draw the host's edge).
+        func visitLayer(_ layer: CALayer, depth: Int) {
+            guard depth < 5 else { return }
+            for sub in layer.sublayers ?? [] where !(sub.delegate is NSView) {
+                lines.append("L" + String(repeating: "  ", count: depth) + "\(type(of: sub)) \(NSStringFromRect(sub.frame))"
+                    + " r=\(sub.cornerRadius) mask=\(sub.masksToBounds) bg=\(sub.backgroundColor != nil)"
+                    + " border=\(sub.borderWidth) filters=\(sub.filters?.count ?? 0) shadow=\(sub.shadowOpacity)")
+                visitLayer(sub, depth: depth + 1)
+            }
+        }
+        if let rootLayer = root.layer { visitLayer(rootLayer, depth: 0) }
+        if let contentLayer = content?.layer { visitLayer(contentLayer, depth: 0) }
         log.notice("Popover window hierarchy:\n\(lines.joined(separator: "\n"), privacy: .public)")
     }
 }

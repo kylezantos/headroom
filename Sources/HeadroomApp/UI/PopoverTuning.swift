@@ -64,20 +64,19 @@ final class PopoverTuningModel: ObservableObject {
                 DialOption("headroom", label: "Headroom shell"),
                 DialOption("system", label: "System glass"),
             ]),
+            .group("tint", label: "Tint (both surfaces)", children: [
+                .color("lightTint", keyPath: \.lightTint),
+                .slider("lightTintOpacity", keyPath: \.lightTintOpacity, range: 0...1, step: 0.01),
+                .color("darkTint", keyPath: \.darkTint),
+                .slider("darkTintOpacity", keyPath: \.darkTintOpacity, range: 0...1, step: 0.01),
+            ]),
             .group("headroomShell", label: "Headroom Shell", children: [
                 .select("glass", keyPath: \.glass, options: [
                     DialOption("regular", label: "Regular"),
                     DialOption("clear", label: "Clear"),
                 ]),
-                .color("lightTint", keyPath: \.lightTint),
-                .slider("lightTintOpacity", keyPath: \.lightTintOpacity, range: 0...1, step: 0.01),
-                .color("darkTint", keyPath: \.darkTint),
-                .slider("darkTintOpacity", keyPath: \.darkTintOpacity, range: 0...1, step: 0.01),
                 .toggle("reshapeHostChrome", keyPath: \.reshapeHostChrome, label: "Reshape Host Chrome (PC2)"),
-            ]),
-            .group("systemGlass", label: "System Glass", children: [
-                .color("systemWash", keyPath: \.systemWash),
-                .slider("systemWashOpacity", keyPath: \.systemWashOpacity, range: 0...1, step: 0.01),
+                .toggle("windowShadow", keyPath: \.windowShadow, label: "Window Shadow"),
             ]),
         ]
     )
@@ -228,15 +227,15 @@ struct PopoverSurfaceSettings: Equatable {
 
     var surface: Surface = .headroom
     var glass: GlassVariant = .regular
+    /// Light and dark tints: the shell's glass tint, or the wash over the system glass.
     var lightTint: Color = .white
     var lightTintOpacity: Double = 0.55
     var darkTint: Color = .black
     var darkTintOpacity: Double = 0
     /// PC2's host-chrome reshape; off shows what the OS draws under the shell.
     var reshapeHostChrome = true
-    /// System surface only: a flat wash over the host glass, clipped by the window's corner.
-    var systemWash: Color = .white
-    var systemWashOpacity: Double = 0
+    /// PC3: the system window shadow draws a rim at the window's tighter corner, so it is off.
+    var windowShadow = false
 
     static let shipping = PopoverSurfaceSettings()
 
@@ -278,8 +277,7 @@ struct PopoverSurfaceState: Codable, Equatable {
     var darkTint = "#000000"
     var darkTintOpacity = 0.0
     var reshapeHostChrome = true
-    var systemWash = "#FFFFFF"
-    var systemWashOpacity = 0.0
+    var windowShadow = false
 
     var settings: PopoverSurfaceSettings {
         PopoverSurfaceSettings(
@@ -290,8 +288,7 @@ struct PopoverSurfaceState: Codable, Equatable {
             darkTint: Self.color(darkTint),
             darkTintOpacity: darkTintOpacity,
             reshapeHostChrome: reshapeHostChrome,
-            systemWash: Self.color(systemWash),
-            systemWashOpacity: systemWashOpacity
+            windowShadow: windowShadow
         )
     }
 

@@ -98,9 +98,10 @@ Already declared in the binary: `ITSAppUsesNonExemptEncryption = NO`
 
 ## Screenshots
 
-**Planned for the next iOS release; not uploaded yet.** The live listing still shows the Graphite set
-from 1.5 (`design/appstore/shots.json`). Re-run the captures if that release changes any screen
-shown here, then upload this set in place of Graphite.
+**Uploaded to the 1.5.1 draft on October 13, 2026.** All twelve Print screenshots finished
+processing and their order was verified through App Store Connect. The live 1.5 listing still
+shows Graphite (`design/appstore/shots.json`) until the new version is released. Re-run captures
+for future releases if any screen shown here changes.
 
 The **Print** set (chosen 2026-10-09). Source:
 `design/appstore/print/` (layout, captures, renders; its README covers refreshing captures).

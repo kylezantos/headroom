@@ -4,6 +4,13 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## SwiftPM tuning import warning (2026-10-13)
+
+- `RaisedTile.swift:30` uses `HeadroomTuning` through its environment value without directly
+  importing `HeadroomSharedUI`. Swift 6.4 reports a missing-module-import warning during
+  `swift test`; the build and tests pass. Add the existing `#if SWIFT_PACKAGE` import pattern
+  when addressing this warning; Xcode compiles the shared sources into the host directly.
+
 ## App Store capture script (2026-10-08)
 
 - **`Scripts/capture-appstore-shots.sh` drops frames that never settle, then fails composing.**

@@ -123,7 +123,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylezantos.headroom.ios
-        MARKETING_VERSION: 1.5
+        MARKETING_VERSION: 1.5.1
         CURRENT_PROJECT_VERSION: 42
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/HeadroomIOS/Info.plist
@@ -158,7 +158,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kylezantos.headroom.ios.widgets
-        MARKETING_VERSION: 1.5
+        MARKETING_VERSION: 1.5.1
         CURRENT_PROJECT_VERSION: 42
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Sources/HeadroomIOSWidgets/Info.plist

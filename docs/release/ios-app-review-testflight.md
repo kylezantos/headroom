@@ -226,10 +226,10 @@ Re-check if any data ever reaches a developer server or the CloudKit public data
 
 - Sign-in required: **Off**. Headroom has no login or account.
 - Review Notes: the 1.5 draft above, once approved.
-- Screenshots: the Graphite set from `Scripts/capture-appstore-shots.sh` composed in
-  `design/appstore/compositor.html` from `design/appstore/shots.json` (frame table and captions
-  await Kyle's sign-off): iPhone 6.9-inch 1320 × 2868 and iPad 13-inch 2064 × 2752, sRGB, no
-  alpha. Turn off Mac availability for the iOS app (R33).
+- Screenshots: the approved Print set in `design/appstore/print/`, exported with
+  `Scripts/export-appstore-print.sh`: six iPhone 6.9-inch 1320 × 2868 and six iPad 13-inch
+  2064 × 2752 screenshots, sRGB, no alpha. Upload order is in `appstore-listing.md`.
+  Turn off Mac availability for the iOS app (R33).
 - Support URL: `https://headroom.zantos.co`
 - Privacy URL: `https://headroom.zantos.co/privacy`
 - Export compliance: `ITSAppUsesNonExemptEncryption = NO` in host and extension.

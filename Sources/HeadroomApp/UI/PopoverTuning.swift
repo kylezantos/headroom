@@ -78,6 +78,12 @@ final class PopoverTuningModel: ObservableObject {
                 .toggle("reshapeHostChrome", keyPath: \.reshapeHostChrome, label: "Reshape Host Chrome (PC2)"),
                 .toggle("windowShadow", keyPath: \.windowShadow, label: "Window Shadow"),
             ]),
+            .group("customShadow", label: "Custom Shadow (PS1)", children: [
+                .toggle("customShadow", keyPath: \.customShadow, label: "Custom Shadow"),
+                .slider("customShadowOpacity", keyPath: \.customShadowOpacity, label: "Darkness", range: 0...1, step: 0.01),
+                .slider("customShadowRadius", keyPath: \.customShadowRadius, label: "Softness", range: 0...40, step: 0.5, unit: "pt"),
+                .slider("customShadowY", keyPath: \.customShadowY, label: "Offset Y", range: -10...30, step: 0.5, unit: "pt"),
+            ]),
         ]
     )
 
@@ -202,6 +208,8 @@ final class PopoverTuningModel: ObservableObject {
         panel.isFloatingPanel = true
         panel.level = .floating
         panel.hidesOnDeactivate = false
+        // Follows the user to whichever Space (and full-screen app) they are tuning from.
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.isMovableByWindowBackground = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
@@ -236,6 +244,11 @@ struct PopoverSurfaceSettings: Equatable {
     var reshapeHostChrome = true
     /// PC3: the system window shadow draws a rim at the window's tighter corner, so it is off.
     var windowShadow = false
+    /// PS1: a replacement shadow at the shell's corner, drawn from a child window.
+    var customShadow = true
+    var customShadowOpacity = 0.3
+    var customShadowRadius = 16.0
+    var customShadowY = 6.0
 
     static let shipping = PopoverSurfaceSettings()
 
@@ -278,6 +291,10 @@ struct PopoverSurfaceState: Codable, Equatable {
     var darkTintOpacity = 0.0
     var reshapeHostChrome = true
     var windowShadow = false
+    var customShadow = true
+    var customShadowOpacity = 0.3
+    var customShadowRadius = 16.0
+    var customShadowY = 6.0
 
     var settings: PopoverSurfaceSettings {
         PopoverSurfaceSettings(
@@ -288,7 +305,11 @@ struct PopoverSurfaceState: Codable, Equatable {
             darkTint: Self.color(darkTint),
             darkTintOpacity: darkTintOpacity,
             reshapeHostChrome: reshapeHostChrome,
-            windowShadow: windowShadow
+            windowShadow: windowShadow,
+            customShadow: customShadow,
+            customShadowOpacity: customShadowOpacity,
+            customShadowRadius: customShadowRadius,
+            customShadowY: customShadowY
         )
     }
 

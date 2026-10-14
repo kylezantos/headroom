@@ -167,6 +167,10 @@ official `claude` CLI's `/usage` panel instead.
   structure dump: `/usr/bin/log show --last 5m --predicate 'category == "popover-window"' --info`
   (`/usr/bin/log`: zsh's `log` builtin shadows it). PC2's host-chrome reshape found nothing to
   reshape on 26; remove it once 27 is confirmed without it.
+- The replacement shadow (PS1, `PopoverShadowWindow`) is a click-through child window that mirrors
+  the popover's frame, visibility and alpha. Checked on 26 in the DialKit demo for look only; still
+  to watch in daily use: it leaves with the popover on close, on the fade into Settings, and on a
+  Space switch, and it keeps up while the popover changes height.
 
 ## Test runs leave thousands of UserDefaults suites behind
 

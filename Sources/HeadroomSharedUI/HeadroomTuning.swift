@@ -10,7 +10,7 @@ public struct HeadroomTuning: Codable, Equatable, Sendable {
     public var shellCornerRadius = 22.0
     // Stack
     public var cardGap = 20.0
-    public var headerGap = 14.0
+    public var headerGap = 11.0
     // Card
     public var cardPadding = 13.0
     public var cardCornerRadius = 10.0

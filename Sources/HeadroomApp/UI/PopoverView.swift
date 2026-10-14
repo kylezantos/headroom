@@ -112,7 +112,7 @@ struct PopoverView: View {
             )
             VStack(spacing: tuning.values.cardGap) {
                 header(now: now)
-                    // Header sits 14pt above the first card (vs the 20pt tile gap) — the
+                    // Header sits 11pt above the first card (vs the 20pt tile gap) — the
                     // title belongs to the content below it more than cards belong to
                     // each other.
                     .padding(.bottom, tuning.values.headerGap - tuning.values.cardGap)
@@ -403,6 +403,7 @@ struct PopoverView: View {
         // the second corner outside the shell (the faint outline on 26, likely the filled corner
         // reported on 27). Turning the shadow off removed it; the glass edge carries the outline.
         if window.hasShadow != surface.windowShadow { window.hasShadow = surface.windowShadow }
+        PopoverShadowWindow.sync(with: window, settings: surface, cornerRadius: radius)
         if surface.reshapeHostChrome {
             if PopoverHostChrome.reshape(in: window, sparing: anchor, cornerRadius: radius) { reshaped = true }
         } else if PopoverHostChrome.restoreChrome() {
@@ -1239,6 +1240,134 @@ private enum PopoverHostChrome {
         if let rootLayer = root.layer { visitLayer(rootLayer, depth: 0) }
         if let contentLayer = content?.layer { visitLayer(contentLayer, depth: 0) }
         log.notice("Popover window hierarchy:\n\(lines.joined(separator: "\n"), privacy: .public)")
+    }
+}
+
+/// PS1 (2026-10-13): the popover's own shadow is off (PC3) because the window server draws it at
+/// the window's tighter corner. This draws a replacement at the shell's corner from a second,
+/// click-through borderless window ordered just below the popover as a child window. The shadow
+/// is cut out under the shell so it never darkens the glass. It mirrors the popover's frame,
+/// visibility and alpha (the Settings handoff fades the popover), and goes when the popover closes.
+@MainActor
+final class PopoverShadowWindow {
+    private static var byParent: [ObjectIdentifier: PopoverShadowWindow] = [:]
+
+    static func sync(with parent: NSWindow, settings: PopoverSurfaceSettings, cornerRadius: CGFloat) {
+        let key = ObjectIdentifier(parent)
+        guard settings.customShadow else {
+            byParent.removeValue(forKey: key)?.tearDown()
+            return
+        }
+        let style = Style(
+            cornerRadius: cornerRadius,
+            opacity: settings.customShadowOpacity,
+            blur: settings.customShadowRadius,
+            y: settings.customShadowY
+        )
+        if let existing = byParent[key] {
+            existing.update(style)
+        } else {
+            byParent[key] = PopoverShadowWindow(parent: parent, style: style)
+        }
+    }
+
+    struct Style: Equatable {
+        var cornerRadius: CGFloat
+        var opacity: Double
+        var blur: Double
+        var y: Double
+        /// Room around the shell for the blur and offset to fall off before the window edge.
+        var pad: CGFloat { CGFloat(blur * 2.5 + abs(y)) + 2 }
+    }
+
+    private weak var parent: NSWindow?
+    private let window: NSWindow
+    private let host: NSHostingView<PopoverShadowView>
+    private var style: Style
+    private var observers: [NSObjectProtocol] = []
+    private var kvo: [NSKeyValueObservation] = []
+
+    private init(parent: NSWindow, style: Style) {
+        self.parent = parent
+        self.style = style
+        host = NSHostingView(rootView: PopoverShadowView(style: style))
+        window = NSWindow(contentRect: .zero, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = false
+        window.ignoresMouseEvents = true
+        window.isReleasedWhenClosed = false
+        window.animationBehavior = .none
+        window.contentView = host
+        window.level = parent.level
+        window.collectionBehavior = parent.collectionBehavior.union([.transient, .ignoresCycle])
+        let center = NotificationCenter.default
+        for name in [NSWindow.didResizeNotification, NSWindow.didMoveNotification,
+                     NSWindow.didChangeOcclusionStateNotification] {
+            observers.append(center.addObserver(forName: name, object: parent, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.follow() }
+            })
+        }
+        observers.append(center.addObserver(forName: NSWindow.willCloseNotification, object: parent, queue: .main) { _ in
+            MainActor.assumeIsolated { PopoverShadowWindow.byParent.removeValue(forKey: ObjectIdentifier(parent))?.tearDown() }
+        })
+        kvo.append(parent.observe(\.isVisible) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.follow() }
+        })
+        kvo.append(parent.observe(\.alphaValue) { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.follow() }
+        })
+        follow()
+    }
+
+    private func update(_ style: Style) {
+        guard style != self.style else { return }
+        self.style = style
+        host.rootView = PopoverShadowView(style: style)
+        follow()
+    }
+
+    private func follow() {
+        guard let parent else { return tearDown() }
+        guard parent.isVisible else {
+            if window.isVisible { window.orderOut(nil) }
+            return
+        }
+        let frame = parent.frame.insetBy(dx: -style.pad, dy: -style.pad)
+        if window.frame != frame { window.setFrame(frame, display: true) }
+        if window.alphaValue != parent.alphaValue { window.alphaValue = parent.alphaValue }
+        if window.parent !== parent {
+            parent.addChildWindow(window, ordered: .below)
+        } else if !window.isVisible {
+            window.order(.below, relativeTo: parent.windowNumber)
+        }
+    }
+
+    private func tearDown() {
+        observers.forEach(NotificationCenter.default.removeObserver)
+        observers.removeAll()
+        kvo.removeAll()
+        parent?.removeChildWindow(window)
+        window.orderOut(nil)
+    }
+}
+
+struct PopoverShadowView: View {
+    let style: PopoverShadowWindow.Style
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: style.cornerRadius, style: .continuous)
+        shape
+            .fill(Color.black)
+            .shadow(color: .black.opacity(style.opacity), radius: style.blur, y: style.y)
+            .padding(style.pad)
+            // Keep only what falls outside the shell: the glass above stays untouched.
+            .mask {
+                Rectangle()
+                    .overlay(shape.padding(style.pad).blendMode(.destinationOut))
+                    .compositingGroup()
+            }
+            .allowsHitTesting(false)
     }
 }
 

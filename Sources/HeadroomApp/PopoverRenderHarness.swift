@@ -289,18 +289,38 @@ enum PopoverRenderHarness {
         NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         ClaudeSetupSession.openedSetupAt = nil
         CodexSetupSession.openedSetupAt = nil
-        let pairs = popoverPairs(for: scenario)
-        let preferences = renderPreferences(mode: .remaining)
-        let store = UsageStore(
-            providers: pairs.map(\.provider),
-            apiSpendProviders: [],
-            preferences: preferences,
-            accounts: pairs.map(\.account)
-        )
+        let store = multiStore(for: scenario)
         store.refreshNow()
         try? await Task.sleep(for: .milliseconds(700))
         await awaitSettledRefresh(store)
         return await snapshotPopover(store: store, dark: dark, to: url)
+    }
+
+    /// The store a multi-account capture draws, set up the way `AppComposition.demoMultiAccountStore`
+    /// does: every provider in the scenario gets its subscription surface (Grok and Cursor default
+    /// OFF for upgrade safety, so they would otherwise never draw), and the scenario's spend
+    /// providers are wired with their API surfaces enabled, so `spend-states`' xAI and Cursor rows
+    /// reach the card.
+    static func multiStore(for scenario: MultiAccountScenario) -> UsageStore {
+        let pairs = popoverPairs(for: scenario)
+        let preferences = renderPreferences(mode: .remaining)
+        for providerID in Set(pairs.map(\.account.providerID)) {
+            if let surface = UsageSurface.subscription(for: providerID) {
+                preferences.setSurfaceEnabled(true, for: surface)
+            }
+        }
+        let spendProviders = AppComposition.demoSpendProviders(for: scenario)
+        for provider in spendProviders {
+            if let surface = UsageSurface.api(for: provider.id) {
+                preferences.setSurfaceEnabled(true, for: surface)
+            }
+        }
+        return UsageStore(
+            providers: pairs.map(\.provider),
+            apiSpendProviders: spendProviders,
+            preferences: preferences,
+            accounts: pairs.map(\.account)
+        )
     }
 
     private static func render(state: State, percentageMode: UsagePercentageMode, dark: Bool, to url: URL) async -> Bool {

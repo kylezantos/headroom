@@ -1098,7 +1098,7 @@ enum AppComposition {
     /// a stale spend row or a `.balance` row. Cursor rides along last because it is the only
     /// spend provider with no `addCreditsURL`: its row is what proves the reserved-empty
     /// top-up slot keeps all four amounts on one right edge.
-    private static func demoSpendProviders(
+    static func demoSpendProviders(
         for scenario: DemoFixture.MultiAccountScenario
     ) -> [any APISpendProvider] {
         switch scenario {

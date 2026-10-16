@@ -544,14 +544,14 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   `--menu-bar-only` acceptance run now fails instead of using that fallback. Do not use
   general-harness fallback captures as visual acceptance. Reproduce with the full Xcode
   toolchain and use an explicitly authorized live Settings check until capture is reliable.
-- **The harness's multi-account path renders neither Grok/Cursor nor the spend card.**
-  `renderMulti` in `PopoverRenderHarness.swift` passes `apiSpendProviders: []` and
-  `renderPreferences` enables only the Anthropic/OpenAI spend surfaces, so
-  `popover-multi-4`, `popover-four-default`, `popover-spend-states`, and `popover-spend-retained`
-  come out as the plain two-provider Claude + Codex popover (the four light PNGs are
-  byte-identical). The names promise scenarios the harness never draws; anything touching the
-  Grok/Cursor cards or the spend rows has no headless visual evidence. Wire the fixture's spend
-  providers and enable the Grok/Cursor surfaces in the multi path.
+- ~~**The harness's multi-account path renders neither Grok/Cursor nor the spend card.**~~
+  Resolved 2026-10-14: `PopoverRenderHarness.multiStore(for:)` now sets up the store the way
+  `AppComposition.demoMultiAccountStore` does — every provider in the scenario gets its
+  subscription surface, and `AppComposition.demoSpendProviders(for:)` is wired with each API
+  surface enabled. `PopoverRenderHarnessStoreTests` pins it (multi-20, multi-4, four-default,
+  spend-states). Note: `popover-multi-4` and `popover-four-default` still draw the same pixels by
+  design — they differ only in account labels and emails, and a single-account card draws no
+  identity row.
 - **The harness's `connected` capture can show a Claude "Waiting for sign-in…" card.** Seen
   2026-10-03 on Kyle's machine: `popover-connected-{light,dark}.png` drew the Claude setup-waiting
   card above Codex instead of the connected Claude card. Suspected cause (unverified): the harness

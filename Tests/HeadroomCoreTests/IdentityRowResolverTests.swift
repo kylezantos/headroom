@@ -2,6 +2,36 @@ import Testing
 @testable import HeadroomCore
 
 struct IdentityRowResolverTests {
+    @Test func emailNamesReplaceTitlesWithoutRepeatingTheEmail() {
+        let identity = DesktopAccountIdentity(
+            title: "Account 15", email: "person@example.com",
+            showsPersistentEmail: true, usesEmailAsName: true
+        )
+        #expect(identity.title == "person@example.com")
+        #expect(identity.email == nil)
+        #expect(!identity.showsPersistentEmail)
+        #expect(identity.isEmailTitle)
+    }
+
+    @Test func emailNamesFallBackAndRemainReversible() {
+        for email: String? in [nil, "", "   "] {
+            let identity = DesktopAccountIdentity(
+                title: "Work", email: email,
+                showsPersistentEmail: false, usesEmailAsName: true
+            )
+            #expect(identity.title == "Work")
+            #expect(!identity.isEmailTitle)
+        }
+        let identity = DesktopAccountIdentity(
+            title: "Work", email: "person@example.com",
+            showsPersistentEmail: true, usesEmailAsName: false
+        )
+        #expect(identity.title == "Work")
+        #expect(identity.email == "person@example.com")
+        #expect(identity.showsPersistentEmail)
+        #expect(!identity.isEmailTitle)
+    }
+
     private func account(
         providerID: ProviderID = .claude,
         id: String,

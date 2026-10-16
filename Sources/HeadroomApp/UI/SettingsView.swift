@@ -551,7 +551,11 @@ private struct ClaudeDuplicateLoginScan: View {
                 // Off-main: `.claude.json` can be large (the CLI writes project history
                 // into it), so the identity reads never block the settings surface.
                 let detector = detector
-                let accounts = store.accounts(for: .claude)
+                let accounts = store.accounts(for: .claude).map { account in
+                    var displayed = account
+                    displayed.label = store.desktopAccountName(for: account)
+                    return displayed
+                }
                 let scanned = await Task.detached {
                     detector.duplicateLabels(for: accounts)
                 }.value
@@ -573,7 +577,7 @@ private struct ClaudeDuplicateLoginScan: View {
             .map { account in
                 let snapshot = store.snapshot(for: account.key)
                 let captured = snapshot.capturedAt?.timeIntervalSinceReferenceDate ?? 0
-                return "\(account.id.raw):\(account.label):\(snapshot.accountEmail ?? ""):\(captured)"
+                return "\(account.id.raw):\(store.desktopAccountName(for: account)):\(snapshot.accountEmail ?? ""):\(captured)"
             }
             .joined(separator: "|")
     }

@@ -79,11 +79,11 @@ struct InAppDisplayTile: View {
             .onChange(of: accountTitleInk) { _, newValue in store.setAccountTitleInk(newValue) }
 
             // Popover account layout plan (R1, HD-2): a third swatch row beside the other two
-            // reading choices. Both layouts add a second column only when one would scroll.
+            // reading choices. Long account lists choose their overflow direction below.
             swatchRow(
                 "Account layout",
                 selection: accountLayout,
-                help: "Compact shows each account on one line. Either layout adds a second column when your accounts would otherwise scroll."
+                help: "Compact shows each account on one line. Recommended for 5+ accounts."
             ) {
                 ForEach(AccountLayout.allCases) { layout in
                     accountLayoutSwatch(layout)
@@ -100,6 +100,24 @@ struct InAppDisplayTile: View {
             // reaches the store, so persist from the binding too (equal values are ignored).
             .onChange(of: accountLayout) { _, newValue in
                 store.setAccountLayout(newValue)
+            }
+
+            swatchRow(
+                "Long account lists",
+                selection: store.expandAccountsHorizontally,
+                help: "At the height limit, expand into a second column or keep one scrolling column. Applies to Standard and Compact."
+            ) {
+                expansionSwatch(horizontal: true)
+                expansionSwatch(horizontal: false)
+            }
+            .accessibilityRepresentation {
+                Picker("Long account lists", selection: Binding(
+                    get: { store.expandAccountsHorizontally },
+                    set: { store.setExpandAccountsHorizontally($0) }
+                )) {
+                    Text("Expand horizontally").tag(true)
+                    Text("Scroll vertically").tag(false)
+                }
             }
 
             Toggle("Show Codex Spark counters in app", isOn: $showCodexSparkCountersInApp)
@@ -248,6 +266,50 @@ struct InAppDisplayTile: View {
 
     private var swatchMicroStyle: MeterStyle {
         CompactAccountRowRecipe.microTwin(of: meterStyle)
+    }
+
+    private func expansionSwatch(horizontal: Bool) -> some View {
+        let label = horizontal ? "Expand horizontally" : "Scroll vertically"
+        return swatch(
+            label: label,
+            isSelected: store.expandAccountsHorizontally == horizontal,
+            accessibilityLabel: label,
+            action: { store.setExpandAccountsHorizontally(horizontal) }
+        ) {
+            // A 28pt miniature leaves 4pt above and below inside the shared 36pt well.
+            // Two 32pt panels and a 6pt gutter show widening; one panel and a scroller
+            // show the fixed-width alternative. The rows are schematic, not real meters.
+            let panelWidth: CGFloat = 32
+            let panelHeight: CGFloat = 28
+            let gutter: CGFloat = 6
+            let ink = ProviderStyle.secondaryText(scheme: colorScheme)
+            HStack(spacing: gutter) {
+                Canvas { context, _ in
+                    for column in 0..<(horizontal ? 2 : 1) {
+                        let x = CGFloat(column) * (panelWidth + gutter)
+                        let panel = Path(roundedRect: CGRect(x: x, y: 0, width: panelWidth, height: panelHeight), cornerRadius: 3)
+                        context.fill(panel, with: .color(ink.opacity(0.08)))
+                        context.stroke(panel, with: .color(ink.opacity(0.45)), lineWidth: 1)
+                        for row in 0..<3 {
+                            let line = Path(roundedRect: CGRect(x: x + 5, y: 6 + CGFloat(row) * 7, width: 17, height: 2), cornerRadius: 1)
+                            context.fill(line, with: .color(ink))
+                        }
+                    }
+                    if !horizontal {
+                        let track = CGRect(x: panelWidth - 6, y: 4, width: 2, height: panelHeight - 8)
+                        context.fill(Path(roundedRect: track, cornerRadius: 1), with: .color(ink.opacity(0.2)))
+                        let thumb = CGRect(x: track.minX, y: track.minY + 2, width: track.width, height: 7)
+                        context.fill(Path(roundedRect: thumb, cornerRadius: 1), with: .color(ink))
+                    }
+                }
+                .frame(width: horizontal ? panelWidth * 2 + gutter : panelWidth, height: panelHeight)
+
+                Image(systemName: horizontal ? "arrow.left.and.right" : "arrow.up.and.down")
+                    .font(SettingsType.swatchLabel)
+                    .foregroundStyle(ink)
+            }
+            .accessibilityHidden(true)
+        }
     }
 
     private func layoutMeterLine(label: String, fraction: Double) -> some View {

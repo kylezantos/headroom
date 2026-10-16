@@ -98,6 +98,21 @@ struct AccountsSettingsTile: View {
         SettingsTile {
             SettingsHelpText(text: "Track several subscriptions side by side. Every account signs in through its official CLI in Terminal — Headroom never sees your credentials.")
 
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                SettingsSwitchRow(
+                    title: "Use email addresses as account names",
+                    isOn: Binding(
+                        get: { store.useEmailAsAccountName },
+                        set: { enabled in
+                            commitPendingLabels()
+                            focusedLabel = nil
+                            store.setUseEmailAsAccountName(enabled)
+                        }
+                    )
+                )
+                SettingsHelpText(text: "Applies to every account in the Mac app. Saved names return when turned off, and are used whenever an email is unavailable.")
+            }
+
             ForEach(store.registeredProviderOrder, id: \.self) { providerID in
                 providerGroup(providerID)
             }
@@ -113,7 +128,7 @@ struct AccountsSettingsTile: View {
             // Stop-tracking is deliberately not `.destructive` — it hides the row and
             // deletes nothing, unlike extra-account removal.
             Button(
-                account.isBuiltIn ? "Stop Tracking \(account.label)" : "Remove \(account.label)",
+                account.isBuiltIn ? "Stop Tracking \(store.desktopAccountName(for: account))" : "Remove \(store.desktopAccountName(for: account))",
                 role: account.isBuiltIn ? nil : .destructive
             ) {
                 removalInProgress = account.key
@@ -407,7 +422,7 @@ struct AccountsSettingsTile: View {
                     pillBadge(
                         "Same login as \(original)",
                         help: "This row is signed in to the same Claude account as \(original). You can remove one without signing out of the other.",
-                        accessibilityLabel: "\(account.label) uses the same login as \(original)"
+                        accessibilityLabel: "\(store.desktopAccountName(for: account)) uses the same login as \(original)"
                     )
                 }
                 Spacer(minLength: 8)
@@ -482,6 +497,16 @@ struct AccountsSettingsTile: View {
         isEditingLabel: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: 1) {
+            if store.useEmailAsAccountName, let email {
+                Text(email)
+                    .font(.system(size: 13))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .frame(maxWidth: 158, alignment: .leading)
+                    .help(email)
+                    .accessibilityLabel("\(email) account name")
+            } else {
                 // Quiet at rest, but the affordance reveals on approach: a hover/focus fill
                 // marks the label as editable (impeccable audit P1 — a plain field that
                 // renders identically to static text hides the rename feature entirely).
@@ -511,7 +536,7 @@ struct AccountsSettingsTile: View {
                     }
                     .frame(maxWidth: 158, alignment: .leading)
                     .help("Click to rename this account")
-                    .accessibilityLabel("\(account.label) account name")
+                    .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
                 if let email {
                     // Under the (renameable) name, not beside it: the label is the user's
                     // word for the account and the address is what it actually resolves to,
@@ -528,6 +553,7 @@ struct AccountsSettingsTile: View {
                         .help(email)
                         .accessibilityLabel("Signed in as \(email)")
                 }
+            }
         }
     }
 
@@ -574,7 +600,7 @@ struct AccountsSettingsTile: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .accessibilityLabel("Try signing in again for \(account.label)")
+            .accessibilityLabel("Try signing in again for \(store.desktopAccountName(for: account))")
         case .outcomeRecovery:
             outcomeRecoveryButtons(
                 for: account,
@@ -619,7 +645,7 @@ struct AccountsSettingsTile: View {
             .controlSize(.small)
             .accessibilityLabel(
                 recoveryActions?.primaryAccessibilityLabel
-                    ?? "\(status == .blocked ? "Continue setup" : "Sign in") for \(account.label)"
+                    ?? "\(status == .blocked ? "Continue setup" : "Sign in") for \(store.desktopAccountName(for: account))"
             )
             if let secondaryLabel = recoveryActions?.secondaryLabel,
                let secondaryAction = recoveryActions?.secondaryAction {
@@ -636,7 +662,7 @@ struct AccountsSettingsTile: View {
                 .buttonStyle(SetupChipButtonStyle(size: .small, chrome: .resting))
                 .accessibilityLabel(
                     recoveryActions?.secondaryAccessibilityLabel
-                        ?? "\(secondaryLabel) for \(account.label)"
+                        ?? "\(secondaryLabel) for \(store.desktopAccountName(for: account))"
                 )
             }
         }
@@ -669,7 +695,7 @@ struct AccountsSettingsTile: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .accessibilityLabel("Retry removal of \(account.label)")
+                .accessibilityLabel("Retry removal of \(store.desktopAccountName(for: account))")
                 .focused($focusedRemovalAction, equals: account.key)
                 Button("Cancel") {
                     store.cancelAccountRemoval(account.key)
@@ -678,7 +704,7 @@ struct AccountsSettingsTile: View {
                 }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
-                    .accessibilityLabel("Cancel removal of \(account.label)")
+                    .accessibilityLabel("Cancel removal of \(store.desktopAccountName(for: account))")
             } else {
                 if account.isBuiltIn {
                     let builtInActions = AccountsSettingsInteractions.builtInRowActions(for: account, in: store)
@@ -693,7 +719,7 @@ struct AccountsSettingsTile: View {
                         .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
                         .foregroundStyle(.secondary)
                         .help("Sign out and set up this account again")
-                        .accessibilityLabel("Sign out and set up \(account.label) again")
+                        .accessibilityLabel("Sign out and set up \(store.desktopAccountName(for: account)) again")
                         .focused($focusedRemovalAction, equals: account.key)
                     case (.resetAndStopTracking, .primary):
                         Menu {
@@ -708,7 +734,7 @@ struct AccountsSettingsTile: View {
                         }
                         .accountActionsMenuChrome()
                         .help("Account actions")
-                        .accessibilityLabel("Actions for \(account.label)")
+                        .accessibilityLabel("Actions for \(store.desktopAccountName(for: account))")
                         .focused($focusedRemovalAction, equals: account.key)
                     case (.resetAndStopTracking, .available):
                         Menu {
@@ -725,7 +751,7 @@ struct AccountsSettingsTile: View {
                         }
                         .accountActionsMenuChrome()
                         .help("Account actions")
-                        .accessibilityLabel("Actions for \(account.label), including Make Main")
+                        .accessibilityLabel("Actions for \(store.desktopAccountName(for: account)), including Make Main")
                         .focused($focusedRemovalAction, equals: account.key)
                     case (.unavailable, _), (.resetAndStopTracking, .unavailable):
                         Color.clear
@@ -750,7 +776,7 @@ struct AccountsSettingsTile: View {
                         }
                         .accountActionsMenuChrome()
                         .help("Account actions")
-                        .accessibilityLabel("Actions for \(account.label), including Make Main")
+                        .accessibilityLabel("Actions for \(store.desktopAccountName(for: account)), including Make Main")
                         .focused($focusedRemovalAction, equals: account.key)
                     } else {
                         Button {
@@ -764,7 +790,7 @@ struct AccountsSettingsTile: View {
                         .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
                         .foregroundStyle(.secondary)
                         .help("Remove this account")
-                        .accessibilityLabel("Remove \(account.label)")
+                        .accessibilityLabel("Remove \(store.desktopAccountName(for: account))")
                         .disabled(removalState == .removing)
                         .focused($focusedRemovalAction, equals: account.key)
                     }

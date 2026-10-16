@@ -8,6 +8,65 @@ import Foundation
 struct UsageStoreTests {
     private let reset = Date(timeIntervalSince1970: 2_000_000)
 
+    @Test func horizontalExpansionSeedsPersistsAndStaysOffEveryProjection() {
+        let preferences = freshPreferences()
+        preferences.expandAccountsHorizontally = false
+        preferences.syncToIPhoneEnabled = true
+        let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
+        let store = UsageStore(
+            providers: [StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude))],
+            preferences: preferences, widgetExporter: exporter, phoneSyncExporter: phoneExporter
+        )
+        #expect(!store.expandAccountsHorizontally)
+        store.setExpandAccountsHorizontally(true)
+        #expect(store.expandAccountsHorizontally)
+        #expect(preferences.expandAccountsHorizontally)
+        preferences.expandAccountsHorizontally = false
+        store.setExpandAccountsHorizontally(true)
+        #expect(!preferences.expandAccountsHorizontally)
+        #expect(exporter.exports.isEmpty)
+        #expect(phoneExporter.captures.isEmpty)
+    }
+
+    @Test func emailAccountNamesPersistWithoutChangingLabelsOrExports() {
+        let preferences = freshPreferences()
+        preferences.useEmailAsAccountName = true
+        preferences.syncToIPhoneEnabled = true
+        let exporter = SpyWidgetExporter()
+        let phoneExporter = SpyPhoneSync()
+        let store = UsageStore(
+            providers: [ProviderID.claude, .codex, .grok, .cursor].map {
+                StubProvider(id: $0, displayName: $0.displayName, snapshot: .pending(for: $0))
+            },
+            preferences: preferences,
+            widgetExporter: exporter,
+            phoneSyncExporter: phoneExporter
+        )
+        #expect(store.useEmailAsAccountName)
+        for provider in [ProviderID.claude, .codex, .grok, .cursor] {
+            let account = ProviderAccount.builtIn(for: provider)
+            #expect(store.desktopAccountName(for: account) == account.label)
+            store.snapshots[account.key] = UsageSnapshot(
+                providerID: provider, windows: [], planLabel: nil,
+                accountEmail: "\(provider.raw)@example.com", capturedAt: reset, freshness: .live
+            )
+            #expect(store.desktopAccountName(for: account) == "\(provider.raw)@example.com")
+        }
+        store.setUseEmailAsAccountName(false)
+        #expect(!preferences.useEmailAsAccountName)
+        for provider in [ProviderID.claude, .codex, .grok, .cursor] {
+            let account = ProviderAccount.builtIn(for: provider)
+            #expect(store.desktopAccountName(for: account) == account.label)
+        }
+        preferences.useEmailAsAccountName = true
+        store.setUseEmailAsAccountName(false)
+        #expect(preferences.useEmailAsAccountName)
+        #expect(store.accounts(for: .claude).first?.label == ProviderAccount.builtInDefaultLabel)
+        #expect(exporter.exports.isEmpty)
+        #expect(phoneExporter.captures.isEmpty)
+    }
+
     @Test func refreshPopulatesAllProviders() async {
         let store = makeStore(providers: [
             StubProvider(id: .claude, displayName: "Claude",

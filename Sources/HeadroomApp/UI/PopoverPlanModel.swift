@@ -47,6 +47,7 @@ final class PopoverPlanModel {
     @ObservationIgnored private var replanScheduled = false
     @ObservationIgnored private let cap: Double
     @ObservationIgnored private var layout: AccountLayout?
+    private var allowsHorizontalExpansion = true
     private var metrics: AccountColumnsMetrics { Self.metrics(for: layout ?? .standard) }
 
     init(cap: Double) {
@@ -55,9 +56,13 @@ final class PopoverPlanModel {
 
     /// What to draw for `slots`: the plan, carried across an account-set change until the new
     /// items have been measured.
-    func drawnPlan(for slots: [PopoverColumnSlot]) -> AccountColumnsPlan {
+    func drawnPlan(
+        for slots: [PopoverColumnSlot], allowsHorizontalExpansion: Bool = true
+    ) -> AccountColumnsPlan {
         _ = drawnRevision
-        return Self.drawn(plan, for: slots)
+        // The preference can draw before onChange runs, including when new rows have
+        // not reported heights yet. Never carry a former two-column plan in vertical-only mode.
+        return Self.drawn(self.allowsHorizontalExpansion && allowsHorizontalExpansion ? plan : nil, for: slots)
     }
 
     private static func drawn(_ plan: AccountColumnsPlan?, for slots: [PopoverColumnSlot]) -> AccountColumnsPlan {
@@ -109,6 +114,13 @@ final class PopoverPlanModel {
         generation += 1
     }
 
+    func setAllowsHorizontalExpansion(_ enabled: Bool) {
+        guard allowsHorizontalExpansion != enabled else { return }
+        allowsHorizontalExpansion = enabled
+        generation += 1
+        replanIfNeeded()
+    }
+
     /// Compact rows sit 4pt apart in a card; Standard sections 26pt.
     static func metrics(for layout: AccountLayout) -> AccountColumnsMetrics {
         var metrics = AccountColumnsMetrics.popover
@@ -123,7 +135,8 @@ final class PopoverPlanModel {
     private func replanIfNeeded() {
         guard needsReplan, let items = measuredItems() else { return }
         let next = AccountColumnsPlanner.plan(
-            items: items, cap: cap, generation: generation, previous: plan, metrics: metrics
+            items: items, cap: cap, generation: generation, previous: plan,
+            allowsHorizontalExpansion: allowsHorizontalExpansion, metrics: metrics
         )
         guard next != plan else { return }
         let before = Self.drawn(plan, for: slots)

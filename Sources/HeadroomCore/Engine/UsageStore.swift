@@ -111,6 +111,8 @@ public final class UsageStore {
     public private(set) var accountTitleInk: AccountTitleInk
     /// Popover account layout, mirrored like `accountTitleInk` but Mac-only (KTD8).
     public private(set) var accountLayout: AccountLayout
+    public private(set) var expandAccountsHorizontally: Bool
+    public private(set) var useEmailAsAccountName: Bool
     public private(set) var meterStyle: MeterStyle
     public private(set) var menuBarFillSource: MenuBarFillSource
     private var savedMenuBarProviderOrder: [ProviderID]
@@ -297,6 +299,8 @@ public final class UsageStore {
         self.usagePercentageMode = preferences.usagePercentageMode
         self.accountTitleInk = preferences.accountTitleInk
         self.accountLayout = preferences.accountLayout
+        self.expandAccountsHorizontally = preferences.expandAccountsHorizontally
+        self.useEmailAsAccountName = preferences.useEmailAsAccountName
         self.meterStyle = preferences.meterStyle
         let registeredProviderIDs = providers.map(\.id).uniqued()
         self.composedProviderOrder = registeredProviderIDs
@@ -519,6 +523,25 @@ public final class UsageStore {
         guard accountLayout != layout else { return }
         preferences.accountLayout = layout
         accountLayout = layout
+    }
+
+    public func setUseEmailAsAccountName(_ enabled: Bool) {
+        guard useEmailAsAccountName != enabled else { return }
+        preferences.useEmailAsAccountName = enabled
+        useEmailAsAccountName = enabled
+    }
+
+    public func setExpandAccountsHorizontally(_ enabled: Bool) {
+        guard expandAccountsHorizontally != enabled else { return }
+        preferences.expandAccountsHorizontally = enabled
+        expandAccountsHorizontally = enabled
+    }
+
+    public func desktopAccountName(for account: ProviderAccount) -> String {
+        DesktopAccountIdentity(
+            title: account.label, email: snapshots[account.key]?.accountEmail,
+            showsPersistentEmail: false, usesEmailAsName: useEmailAsAccountName
+        ).title
     }
 
     public func setMeterStyle(_ style: MeterStyle) {
@@ -789,7 +812,7 @@ public final class UsageStore {
         let accounts = accounts(for: key.providerID)
         return RefreshReceiptPresentation.title(
             providerName: displayNames[key.providerID] ?? key.providerID.raw,
-            accountTitle: accounts.first(where: { $0.key == key })?.label,
+            accountTitle: accounts.first(where: { $0.key == key }).map { desktopAccountName(for: $0) },
             providerAccountCount: accounts.count)
     }
 

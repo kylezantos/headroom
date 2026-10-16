@@ -291,6 +291,7 @@ struct ProviderCardView: View {
     /// R11 / R15: Compact draws each account as one line unless its state needs the Standard
     /// section's actions. The capability-recovery card stays Standard.
     var accountLayout: AccountLayout = .standard
+    var useEmailAsAccountName: Bool = false
     /// The in-app Spark switch, so a Compact row never shows a window Standard hides.
     var showsCodexSparkCounters: Bool = false
 
@@ -865,14 +866,21 @@ struct ProviderCardView: View {
     ) -> some View {
         let account = entry?.account ?? primaryAccount
         // The single-account card titles itself the way `accountIdentityRow` does.
-        let titled = isMultiAccount || anyProviderMultiAccount
-        return CompactAccountRow(
-            providerID: providerID,
+        let titled = isMultiAccount || anyProviderMultiAccount || useEmailAsAccountName
+        let identity = DesktopAccountIdentity(
             title: titled
                 ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
                 : displayName,
             email: entry?.snapshot.accountEmail,
             showsPersistentEmail: titled && showsPersistentEmail(for: account, in: providerAccounts),
+            usesEmailAsName: useEmailAsAccountName
+        )
+        return CompactAccountRow(
+            providerID: providerID,
+            title: identity.title,
+            email: identity.email,
+            showsPersistentEmail: identity.showsPersistentEmail,
+            titleIsEmail: identity.isEmailTitle,
             isMenuBarAccount: isMultiAccount && isMenuBarAccount,
             recipe: recipe,
             columns: columns,
@@ -889,18 +897,18 @@ struct ProviderCardView: View {
         showsStopWaiting: Bool,
         showsMark: Bool = true
     ) -> some View {
-        AccountSectionView(
+        let identity = DesktopAccountIdentity(
+            title: rowTitle(for: entry.account, in: providerAccounts, providerDisplayName: displayName),
+            email: entry.snapshot.accountEmail,
+            showsPersistentEmail: showsPersistentEmail(for: entry.account, in: providerAccounts),
+            usesEmailAsName: useEmailAsAccountName
+        )
+        return AccountSectionView(
             entry: entry,
             providerDisplayName: displayName,
-            identityTitle: rowTitle(
-                for: entry.account,
-                in: providerAccounts,
-                providerDisplayName: displayName
-            ),
-            showsPersistentEmail: showsPersistentEmail(
-                for: entry.account,
-                in: providerAccounts
-            ),
+            identityTitle: identity.title,
+            showsPersistentEmail: identity.showsPersistentEmail,
+            identityEmail: identity.email,
             percentageMode: percentageMode,
             meterStyle: meterStyle,
             now: now,
@@ -1027,19 +1035,23 @@ struct ProviderCardView: View {
     private func accountIdentityRow(for entry: ProviderAccountEntry?) -> some View {
         let account = entry?.account ?? primaryAccount
         let providerAccounts = entries.map(\.account)
-        let rowName = anyProviderMultiAccount
+        let rowName = anyProviderMultiAccount || useEmailAsAccountName
             ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
             : displayName
         let persistentEmail = anyProviderMultiAccount
             && showsPersistentEmail(for: account, in: providerAccounts)
+        let identity = DesktopAccountIdentity(
+            title: rowName, email: entry?.snapshot.accountEmail,
+            showsPersistentEmail: persistentEmail, usesEmailAsName: useEmailAsAccountName
+        )
         return IdentityRow(
             providerID: providerID,
-            title: rowName,
+            title: identity.title,
             planLabel: entry?.snapshot.planLabel,
             isMenuBarAccount: false,
             isStale: entry.map { providerCardHasTransientStaleState($0.snapshot) } ?? false,
-            email: entry?.snapshot.accountEmail,
-            showsPersistentEmail: persistentEmail,
+            email: identity.email,
+            showsPersistentEmail: identity.showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
             bankedResets: entry?.snapshot.bankedResets,
             isCritical: entry?.snapshot.hasLiveCriticalResettableWindow ?? false,

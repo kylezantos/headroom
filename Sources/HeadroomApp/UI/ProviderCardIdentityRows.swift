@@ -106,6 +106,7 @@ struct AccountSectionView: View {
     let providerDisplayName: String
     let identityTitle: String
     let showsPersistentEmail: Bool
+    let identityEmail: String?
     let percentageMode: UsagePercentageMode
     let meterStyle: MeterStyle
     let now: Date
@@ -226,7 +227,7 @@ struct AccountSectionView: View {
             planLabel: snapshot.planLabel,
             isMenuBarAccount: isMenuBarAccount,
             isStale: providerCardHasTransientStaleState(snapshot),
-            email: snapshot.accountEmail,
+            email: identityEmail,
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark,

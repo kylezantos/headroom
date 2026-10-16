@@ -50,6 +50,23 @@ enum PopoverRenderHarness {
                     exit(1)
                 }
             }
+            // Show the full Appearance pane so its lower account-layout choices can be
+            // inspected without driving the user's Settings window or scrolling it.
+            if CommandLine.arguments.contains("--appearance-only") {
+                for dark in [false, true] {
+                    for width in [SettingsView.minimumWindowWidth, SettingsView.windowWidth] {
+                        let url = outDir.appendingPathComponent("settings-appearance-\(Int(width))-\(dark ? "dark" : "light").png")
+                        if await renderSettings(
+                            pane: .appearance, percentageMode: .remaining, dark: dark,
+                            height: 1800, width: width, to: url
+                        ) {
+                            print("✓ \(url.path)")
+                        } else { failedPaths.append(url.path) }
+                    }
+                }
+                for path in failedPaths { print("✗ Failed to render \(path)") }
+                exit(failedPaths.isEmpty ? 0 : 1)
+            }
             // Focused, offscreen acceptance for the arranger at the normal and minimum
             // window sizes, including both width treatments and the automatic entry state.
             if CommandLine.arguments.contains("--menu-bar-only") {
@@ -718,6 +735,8 @@ enum PopoverRenderHarness {
         preferences.accountTitleInk = AppComposition.demoAccountTitleInk()
         // And for `--account-layout <standard|compact>` (popover account layout plan, U8).
         preferences.accountLayout = AppComposition.demoAccountLayout()
+        preferences.useEmailAsAccountName = ProcessInfo.processInfo.arguments.contains("--email-account-names")
+        preferences.expandAccountsHorizontally = !ProcessInfo.processInfo.arguments.contains("--vertical-accounts")
         // API spend surfaces are off by default (`isSurfaceEnabled` → `isSubscription`),
         // so the store's `apiSpendProviderOrder` is empty and the section renders nothing.
         // Enable both so the connected hero shows the API Spend section — wiring the

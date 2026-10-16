@@ -14,6 +14,8 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let usagePercentageMode = "usagePercentageMode"
         static let accountTitleInk = "accountTitleInk"
         static let accountLayout = "accountLayout"
+        static let expandAccountsHorizontally = "expandAccountsHorizontally"
+        static let useEmailAsAccountName = "useEmailAsAccountName"
         static let meterFormat = "meterFormat"
         static let meterShape = "meterShape"
         static let meterFill = "meterFill"
@@ -95,6 +97,21 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return layout
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: Key.accountLayout) }
+    }
+
+    /// Desktop naming only; saved registry labels and phone/widget projections stay intact.
+    public var useEmailAsAccountName: Bool {
+        get { defaults.bool(forKey: Key.useEmailAsAccountName) }
+        nonmutating set { defaults.set(newValue, forKey: Key.useEmailAsAccountName) }
+    }
+
+    /// Mac popover only: keep existing installs' automatic second column unless opted out.
+    public var expandAccountsHorizontally: Bool {
+        get {
+            guard defaults.object(forKey: Key.expandAccountsHorizontally) != nil else { return true }
+            return defaults.bool(forKey: Key.expandAccountsHorizontally)
+        }
+        nonmutating set { defaults.set(newValue, forKey: Key.expandAccountsHorizontally) }
     }
 
     public var meterFormat: GaugeFormat {

@@ -150,9 +150,14 @@ public enum AccountColumnsPlanner {
         cap: Double,
         generation: Int,
         previous: AccountColumnsPlan?,
+        allowsHorizontalExpansion: Bool = true,
         metrics: AccountColumnsMetrics = .popover
     ) -> AccountColumnsPlan {
         let ids = items.map(\.id)
+        // An explicit vertical-only choice wins over a kept split and its hysteresis.
+        guard allowsHorizontalExpansion else {
+            return AccountColumnsPlan(columnCount: 1, splitIndex: items.count, itemIDs: ids, generation: generation)
+        }
         if let previous, !needsReplan(previous: previous, itemIDs: ids, generation: generation) {
             return previous
         }

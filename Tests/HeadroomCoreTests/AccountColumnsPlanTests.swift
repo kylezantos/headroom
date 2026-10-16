@@ -32,6 +32,34 @@ import Testing
         [Array(plan.itemIDs[..<plan.splitIndex]), Array(plan.itemIDs[plan.splitIndex...])]
     }
 
+    @Test func disablingHorizontalExpansionKeepsATallListInReadingOrder() {
+        let items = accounts("claude", Array(repeating: row, count: 20))
+            + accounts("codex", [row]) + [spend()]
+        let result = AccountColumnsPlanner.plan(
+            items: items, cap: cap, generation: 0, previous: nil,
+            allowsHorizontalExpansion: false
+        )
+        #expect(result.columnCount == 1)
+        #expect(result.splitIndex == items.count)
+        #expect(result.itemIDs == items.map(\.id))
+        let placed = AccountColumnsPlanner.placement(of: result, items: items)
+        #expect(placed.contentHeight > cap)
+        #expect(placed.columnHeights.count == 1)
+        #expect(placed.fragments.map(\.groupID) == ["claude", "codex", "spend"])
+    }
+
+    @Test func disablingHorizontalExpansionOverridesAKeptTwoColumnPlan() {
+        let items = accounts("claude", Array(repeating: row, count: 20))
+        let two = plan(items)
+        #expect(two.columnCount == 2)
+        let single = AccountColumnsPlanner.plan(
+            items: items, cap: cap, generation: two.generation, previous: two,
+            allowsHorizontalExpansion: false
+        )
+        #expect(single.columnCount == 1)
+        #expect(plan(items, generation: 1, previous: single).columnCount == 2)
+    }
+
     /// Single-account cards of `heights`, one provider each.
     private func singles(_ heights: [Double]) -> [AccountColumnsItem] {
         heights.enumerated().flatMap { accounts("p\($0.offset)", [$0.element]) }

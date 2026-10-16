@@ -91,7 +91,9 @@ struct PopoverView: View {
                     showsCodexSparkCounters: store.showCodexSparkCountersInApp
                 )
             } + (store.apiSpendProviderOrder.isEmpty ? [] : [PopoverColumnSlot.spend])
-            let columnPlan = columns.drawnPlan(for: columnSlots)
+            let columnPlan = columns.drawnPlan(
+                for: columnSlots, allowsHorizontalExpansion: store.expandAccountsHorizontally
+            )
             let fragments = PopoverCardFragment.fragments(slots: columnSlots, plan: columnPlan)
             // NB1 (2026-09-25 motion audit): what can change a card's height — each account's
             // freshness, its setup session, and its meter rows, the values the card's own
@@ -216,6 +218,9 @@ struct PopoverView: View {
             // KTD2: a layout change replans from the new layout's heights. It is made in
             // Settings, so the popover is closed and nothing animates (KTD5).
             .onChange(of: store.accountLayout, initial: true) { columns.setLayout(store.accountLayout) }
+            .onChange(of: store.expandAccountsHorizontally, initial: true) {
+                columns.setAllowsHorizontalExpansion(store.expandAccountsHorizontally)
+            }
             // U1 spike: `MenuBarExtra` grows its window with the content but never shrinks it.
             .onChange(of: columnPlan.columnCount) { fitPopoverWindow(columns: columnPlan.columnCount) }
             // U1 spike: the popover's view state outlives a close, and a width chosen on open
@@ -287,6 +292,7 @@ struct PopoverView: View {
                     MainActor.assumeIsolated { columns.record(height, for: id) }
                 },
                 accountLayout: store.accountLayout,
+                useEmailAsAccountName: store.useEmailAsAccountName,
                 showsCodexSparkCounters: store.showCodexSparkCountersInApp
             )
             .id(meterRecipeKey)

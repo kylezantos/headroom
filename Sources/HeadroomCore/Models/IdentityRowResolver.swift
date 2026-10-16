@@ -1,5 +1,23 @@
 import Foundation
 
+/// Desktop display override: saved labels remain intact, and an email used as the
+/// title is omitted from secondary text and tooltips so it never appears twice.
+public struct DesktopAccountIdentity: Equatable, Sendable {
+    public let title: String
+    public let email: String?
+    public let showsPersistentEmail: Bool
+    public let isEmailTitle: Bool
+
+    public init(title: String, email: String?, showsPersistentEmail: Bool, usesEmailAsName: Bool) {
+        let address = email?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let usesAddress = usesEmailAsName && address?.isEmpty == false
+        self.title = usesAddress ? (address ?? title) : title
+        self.email = usesAddress ? nil : email
+        self.showsPersistentEmail = !usesAddress && showsPersistentEmail
+        self.isEmailTitle = usesAddress
+    }
+}
+
 /// Whether every provider card should use account identity rows. The decision is
 /// surface-wide: one provider with multiple visible accounts flips every card (KTD9).
 public func surfaceUsesAccountRows(

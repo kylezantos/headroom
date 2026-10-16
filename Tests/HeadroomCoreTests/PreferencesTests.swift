@@ -98,6 +98,26 @@ struct PreferencesTests {
         #expect(prefs.accountLayout == .standard)
     }
 
+    @Test func emailAccountNamesAreOptInAndPersist() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(!prefs.useEmailAsAccountName)
+        prefs.useEmailAsAccountName = true
+        #expect(Preferences(defaults: defaults).useEmailAsAccountName)
+        prefs.useEmailAsAccountName = false
+        #expect(!Preferences(defaults: defaults).useEmailAsAccountName)
+    }
+
+    @Test func horizontalExpansionDefaultsOnAndPersistsAnOptOut() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        #expect(prefs.expandAccountsHorizontally)
+        prefs.expandAccountsHorizontally = false
+        #expect(!Preferences(defaults: defaults).expandAccountsHorizontally)
+        prefs.expandAccountsHorizontally = true
+        #expect(Preferences(defaults: defaults).expandAccountsHorizontally)
+    }
+
     @Test func meterStyleComponentsDefaultPersistAndIgnoreUnknownValuesIndependently() {
         let defaults = freshDefaults()
         let prefs = Preferences(defaults: defaults)

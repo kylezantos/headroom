@@ -983,6 +983,8 @@ enum AppComposition {
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
         prefs.accountLayout = demoAccountLayout()
+        prefs.useEmailAsAccountName = ProcessInfo.processInfo.arguments.contains("--email-account-names")
+        prefs.expandAccountsHorizontally = !ProcessInfo.processInfo.arguments.contains("--vertical-accounts")
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills side by side in the menu bar
         prefs.widgetsEnabled = true
@@ -1028,6 +1030,8 @@ enum AppComposition {
         prefs.meterStyle = meterStyle
         prefs.accountTitleInk = demoAccountTitleInk()
         prefs.accountLayout = demoAccountLayout()
+        prefs.useEmailAsAccountName = ProcessInfo.processInfo.arguments.contains("--email-account-names")
+        prefs.expandAccountsHorizontally = !ProcessInfo.processInfo.arguments.contains("--vertical-accounts")
         prefs.showMenuBarPercentage = true
         prefs.menuBarFillSource = .both            // show both Claude + Codex pills in the menu bar
         // API spend surfaces are off by default, so enable exactly the ones this scenario

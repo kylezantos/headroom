@@ -43,6 +43,36 @@ struct PopoverColumnsSizingTests {
         #expect(plan.itemIDs.first == "claude/0")
     }
 
+    @Test func expansionCanBeSwitchedWithoutNewHeightReports() async {
+        let model = PopoverPlanModel(cap: 640)
+        let all = slots(.claude, 20)
+        model.update(slots: all)
+        await measure(model, all, height: 74)
+        #expect(model.drawnPlan(for: all).columnCount == 2)
+        // The view can draw the preference before its onChange configures the model.
+        #expect(model.drawnPlan(for: all, allowsHorizontalExpansion: false).columnCount == 1)
+        model.setAllowsHorizontalExpansion(false)
+        #expect(model.plan?.columnCount == 1)
+        model.popoverDidClose()
+        #expect(model.drawnPlan(for: all).columnCount == 1)
+        model.setAllowsHorizontalExpansion(true)
+        #expect(model.plan?.columnCount == 2)
+    }
+
+    @Test func disablingExpansionDoesNotCarryTwoColumnsWhileANewRowIsUnmeasured() async {
+        let model = PopoverPlanModel(cap: 640)
+        var all = slots(.claude, 20)
+        model.update(slots: all)
+        await measure(model, all, height: 74)
+        all += slots(.codex, 1)
+        model.update(slots: all)
+        model.setAllowsHorizontalExpansion(false)
+        #expect(model.drawnPlan(for: all).columnCount == 1)
+        model.record(74, for: all.last!.id)
+        await afterLayout()
+        #expect(model.plan?.columnCount == 1)
+    }
+
     @Test func aHeightChangeWhileOpenKeepsThePlanUntilThePopoverCloses() async {
         let model = PopoverPlanModel(cap: 640)
         let all = slots(.claude, 5)
@@ -332,6 +362,26 @@ struct PopoverColumnsSizingTests {
         let scroll = try! #require(hosted.scroll)
         #expect(abs(scroll.viewport - PopoverCardMetrics.cardsHeightCap) < 0.5)
         #expect(scroll.content > scroll.viewport)
+    }
+
+    @Test(arguments: AccountLayout.allCases)
+    func verticalOnlyAccountsScrollAtTheCapAndCanExpandAgain(layout: AccountLayout) async {
+        let pairs = DemoFixture.generatedAccounts(provider: .claude, count: 20)
+            + DemoFixture.generatedAccounts(provider: .codex, count: 20)
+        let store = await store(pairs, layout: layout)
+        store.setExpandAccountsHorizontally(false)
+        let hosted = await host(store)
+        defer { hosted.teardown() }
+        #expect(hosted.size.width == 384)
+        let scroll = try! #require(hosted.scroll)
+        #expect(abs(scroll.viewport - PopoverCardMetrics.cardsHeightCap) < 0.5)
+        #expect(scroll.content > scroll.viewport)
+        store.setExpandAccountsHorizontally(true)
+        await hosted.settle()
+        #expect(hosted.size.width == 750)
+        store.setExpandAccountsHorizontally(false)
+        await hosted.settle()
+        #expect(hosted.size.width == 384)
     }
 
     // MARK: Compact (R11, R15)

@@ -19,6 +19,7 @@ struct CompactAccountRow: View {
     let title: String
     let email: String?
     let showsPersistentEmail: Bool
+    var titleIsEmail: Bool = false
     let isMenuBarAccount: Bool
     let recipe: CompactAccountRowRecipe
     /// The card header's columns. Each window sits under its own kind, so an account showing
@@ -51,8 +52,9 @@ struct CompactAccountRow: View {
                     .kerning(IdentityRowMetrics.titleKerning)
                     .accountTitleInk(for: providerID)
                     .lineLimit(1)
-                    // "Account 12" → "Acc…12": the end that tells generated names apart stays.
-                    .truncationMode(.middle)
+                    // Generated labels keep their ordinal; email titles keep the local
+                    // part visible instead of spending scarce width on a shared domain.
+                    .truncationMode(titleIsEmail ? .tail : .middle)
                 if let persistentEmail {
                     Text(persistentEmail)
                         .font(.system(size: 10))

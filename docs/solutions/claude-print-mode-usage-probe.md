@@ -62,11 +62,12 @@ The probe now tries this first and keeps the PTY panel as fallback. Details that
 - **Output-validated.** The print result is accepted only if `ClaudeUsageParser` finds at
   least one window. A logged-out or API-key login prints a `Total cost: $0.0000` report
   instead — parse-empty, so it falls through to the existing typed degrade paths.
-- **Plan pill.** The print report has no "· Claude Max" header; the tier now rides along as
-  a typed `planHint` from `claude auth status --json` (`subscriptionType`), with panel text
-  winning when present (keeps "Max 20x" fidelity on the PTY path).
+- **Plan pill.** Routine captures no longer launch `auth status` to obtain a tier.
+  Panel text supplies it when present; a print report without a tier omits the pill.
+  Missing metadata must not cause another credential-mutating process to start.
 - **Multi-account unchanged.** The same `CLAUDE_CONFIG_DIR` override routes print-mode runs;
-  a fresh config home still reports logged-out at the auth pre-check before any capture.
+  a print miss falls through to the PTY's recognized login/trust/unknown-screen checks.
+  Unknown screens never receive input.
 - Print mode skips the workspace-trust dialog, and `--no-session-persistence` stops the
   5-minute polls from accreting transcript files.
 
@@ -77,6 +78,12 @@ windows, boot-screen drift. Print mode has no rendering — the CLI fetches util
 and writes the finished report atomically. What remains is only the honest failure mode
 (server omits a row), which `UsageContinuityPolicy` already presents truthfully
 (see `logic-errors/claude-partial-usage-window-freshness.md`).
+
+**Session-lifecycle limit (October 2026).** Rendering completeness does not establish
+credential persistence. Controlled tests on official CLI 2.1.302 and 2.1.303 found normal
+exit could abandon an in-flight synthetic renewal even after valid cached usage. Removing
+the redundant auth-status preflight reduces one exposure; print/PTY termination remains
+subject to the upstream limitation. See `docs/qa/2026-10-20-safe-provider-session-fixes.md`.
 
 ## Prevention
 

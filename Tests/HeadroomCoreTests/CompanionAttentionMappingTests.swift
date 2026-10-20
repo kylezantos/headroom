@@ -7,7 +7,7 @@ import Testing
 /// discovery issue, SetupSessionState and SetupSessionFailure case maps through one table.
 @Suite
 struct CompanionAttentionMappingTests {
-    /// All 28 current outcomes and their reviewed base attention, written out literally.
+    /// Every current outcome and its reviewed base attention, written out literally.
     static let outcomes: [(ProviderSetupOutcome, CompanionAttention)] = [
         (.claudeCLIMissing, .cliMissing),
         (.claudeLoginRequired, .signInRequired),
@@ -21,6 +21,7 @@ struct CompanionAttentionMappingTests {
         (.codexMalformedAuth, .signInFileUnreadable),
         (.codexCredentialIO, .retrying),
         (.codexRejectedAuth, .signInAgain),
+        (.codexSessionUnverified, .retrying),
         (.codexStorageMismatch, .signInStorageMismatch),
         (.codexCallbackIncomplete, .setupFailed),
         (.grokCLIMissing, .cliMissing),
@@ -40,8 +41,8 @@ struct CompanionAttentionMappingTests {
     ]
 
     @Test func everyProviderSetupOutcomeMapsToItsReviewedAttention() {
-        #expect(Self.outcomes.count == 28)
-        #expect(Set(Self.outcomes.map(\.0)).count == 28)
+        #expect(Self.outcomes.count == 29)
+        #expect(Set(Self.outcomes.map(\.0)).count == 29)
         for (outcome, expected) in Self.outcomes {
             #expect(CompanionAttentionMapping.attention(for: outcome) == expected, "\(outcome)")
             #expect(CompanionAttentionMapping.attention(for: .providerSetup(outcome)) == expected)

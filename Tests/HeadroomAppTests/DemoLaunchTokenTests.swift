@@ -31,10 +31,17 @@ struct DemoLaunchTokenTests {
     /// Non-demo behavior stays byte-identical: the shipping app still reads and writes
     /// `.standard`, even though the hosted unit suite itself launches isolated fixtures.
     @Test func aNormalLaunchKeepsTheStandardDomain() {
-        #expect(AppComposition.resolveLaunchDefaults(arguments: ["Headroom"]) === UserDefaults.standard)
+        #expect(AppComposition.resolveLaunchDefaults(arguments: ["Headroom"], environment: [:]) === UserDefaults.standard)
         #expect(AppComposition.resolveLaunchDefaults(
-            arguments: ["Headroom", "--render-popover", "shots"]
+            arguments: ["Headroom", "--render-popover", "shots"], environment: [:]
         ) === UserDefaults.standard)
+    }
+
+    @Test func hostedLaunchWithoutDemoArgumentUsesIsolatedDefaults() {
+        #expect(AppComposition.resolveLaunchDefaults(
+            arguments: ["Headroom"],
+            environment: ["XCTestConfigurationFilePath": "/tmp/fixture.xctestconfiguration"]
+        ) !== UserDefaults.standard)
     }
 
     @Test func hostedUnitSuiteUsesIsolatedLaunchDefaults() {
@@ -45,6 +52,24 @@ struct DemoLaunchTokenTests {
         defer { AppComposition.launchDefaults.removeObject(forKey: key) }
         #expect(AppComposition.launchDefaults.bool(forKey: key))
         #expect(UserDefaults.standard.object(forKey: key) == nil)
+    }
+
+    @Test func sessionReliabilityCollectionIsAbsentFromEveryInertLaunch() {
+        let defaults = UserDefaults(suiteName: "headroom.session-composition.tests.\(UUID().uuidString)")!
+        for flag in ["--demo", "--render-popover", "--render-widgets", "--render-loading-preview", "--bench-ui"] {
+            #expect(AppComposition.makeSessionReliabilityRecord(
+                arguments: ["Headroom", flag], environment: [:], defaults: defaults
+            ) == nil)
+        }
+        #expect(AppComposition.makeSessionReliabilityRecord(
+            arguments: ["Headroom"],
+            environment: ["XCTestConfigurationFilePath": "/tmp/fixture.xctestconfiguration"],
+            defaults: defaults
+        ) == nil)
+        #expect(AppComposition.makeSessionReliabilityRecord(
+            arguments: ["Headroom"], environment: [:], defaults: defaults
+        ) != nil)
+        #expect(defaults.dictionaryRepresentation()["sessionReliability.v1"] == nil)
     }
 
     // MARK: --account-title-ink

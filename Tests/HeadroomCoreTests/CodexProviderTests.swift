@@ -2,6 +2,33 @@ import Testing
 import Foundation
 @testable import HeadroomCore
 
+private final class SequencedCodexReader: CodexAuthReading, @unchecked Sendable {
+    private let lock = NSLock()
+    private var tokens: [String]
+    private let reloadFailure: CredentialError?
+    private var reads = 0
+
+    init(tokens: [String], reloadFailure: CredentialError? = nil) {
+        self.tokens = tokens
+        self.reloadFailure = reloadFailure
+    }
+
+    var readCount: Int { lock.withLock { reads } }
+
+    func readCodexCredential() throws -> CodexCredential {
+        try lock.withLock {
+            reads += 1
+            if reads > 1, let reloadFailure { throw reloadFailure }
+            let token = tokens[0]
+            if tokens.count > 1 { tokens.removeFirst() }
+            return CodexCredential(
+                accessToken: token, refreshToken: nil, accountID: "fixture", lastRefresh: nil,
+                email: "\(token)@example.invalid"
+            )
+        }
+    }
+}
+
 /// U5 test scenarios: Codex decode, unknown plan_type (#709 guard), additional
 /// rate limits → `.other`, missing token, 401→reauth, network error.
 struct CodexProviderTests {
@@ -104,10 +131,102 @@ struct CodexProviderTests {
         #expect(reason.isPermanent)
     }
 
-    @Test func unauthorizedSaysRunCodex() async {
+    @Test func unchangedUnauthorizedSessionRemainsRetryableWithManualSignInAvailable() async {
         let snap = await provider(MockFetcher([.success(HTTPResult(status: 401, body: Data()))])).fetchSnapshot()
         guard case .stale(let reason) = snap.freshness else { Issue.record("expected stale"); return }
-        #expect(reason.providerSetupOutcome == .codexRejectedAuth)
+        #expect(reason.providerSetupOutcome == .codexSessionUnverified)
+        #expect(!reason.isPermanent)
+        #expect(reason.providerSetupOutcome?.recoveryPresentation.primaryAction == .checkNow)
+        #expect(reason.providerSetupOutcome?.recoveryPresentation.secondaryAction == .reconnectCodex)
+    }
+
+    @Test func unauthorizedReloadsSessionRenewedByOfficialClientBeforeRequestingSignIn() async {
+        let reader = SequencedCodexReader(tokens: ["expired", "renewed"])
+        let fetcher = MockFetcher([
+            .success(HTTPResult(status: 401, body: Data())),
+            .success(HTTPResult(status: 200, body: Data(#"{"rate_limit":{"primary_window":{"used_percent":10,"limit_window_seconds":18000,"reset_after_seconds":3600}}}"#.utf8))),
+        ])
+        let provider = CodexProvider(credentials: CredentialStore(codexReader: reader), http: fetcher)
+
+        let snapshot = await provider.fetchSnapshot()
+
+        #expect(snapshot.freshness == .live)
+        #expect(snapshot.accountEmail == "renewed@example.invalid")
+        #expect(fetcher.requestCount == 2)
+        #expect(fetcher.lastHeaders["Authorization"] == "Bearer renewed")
+    }
+
+    @Test func unauthorizedDoesNotRetryUnchangedSessionOrLoopOnAnotherRejection() async {
+        for tokens in [["expired", "expired"], ["expired", "renewed", "third"]] {
+            let fetcher = MockFetcher([.success(HTTPResult(status: 401, body: Data()))])
+            let provider = CodexProvider(
+                credentials: CredentialStore(codexReader: SequencedCodexReader(tokens: tokens)),
+                http: fetcher
+            )
+
+            let snapshot = await provider.fetchSnapshot()
+
+            let expected: ProviderSetupOutcome = tokens[1] == tokens[0] ? .codexSessionUnverified : .codexRejectedAuth
+            #expect(snapshot.freshness == .stale(.providerSetup(expected)))
+            #expect(fetcher.requestCount == (tokens[1] == tokens[0] ? 1 : 2))
+        }
+    }
+
+    @Test func unauthorizedReloadPreservesCredentialFailureInsteadOfClaimingRevocation() async {
+        let cases: [(CredentialError, ProviderSetupOutcome)] = [
+            (.permissionDenied, .codexPermissionDenied),
+            (.unsafePermissions, .codexUnsafePermissions),
+            (.malformed, .codexMalformedAuth),
+            (.ioFailure, .codexCredentialIO),
+            (.notLoggedIn, .codexAuthAbsent),
+        ]
+        for (error, expected) in cases {
+            let reader = SequencedCodexReader(tokens: ["expired"], reloadFailure: error)
+            let fetcher = MockFetcher(status: 401, body: "{}")
+            let provider = CodexProvider(credentials: CredentialStore(codexReader: reader), http: fetcher)
+
+            let snapshot = await provider.fetchSnapshot()
+
+            #expect(snapshot.freshness == .stale(.providerSetup(expected)))
+            #expect(fetcher.requestCount == 1)
+            #expect(reader.readCount == 2)
+        }
+    }
+
+    @Test func failureAfterReloadRetainsItsMeaningAndDoesNotReadOrRetryAgain() async {
+        let cases: [Result<HTTPResult, FailureReason>] = [
+            .failure(.transient("Network unavailable")),
+            .success(HTTPResult(status: 429, body: Data())),
+            .success(HTTPResult(status: 503, body: Data())),
+            .success(HTTPResult(status: 200, body: Data("not JSON".utf8))),
+        ]
+        for response in cases {
+            let reader = SequencedCodexReader(tokens: ["expired", "renewed", "third"])
+            let fetcher = MockFetcher([.success(HTTPResult(status: 401, body: Data())), response])
+            let provider = CodexProvider(credentials: CredentialStore(codexReader: reader), http: fetcher)
+            // The ordinary path is the semantic oracle for the same final result.
+            let baseline = await self.provider(MockFetcher([response])).fetchSnapshot()
+
+            let snapshot = await provider.fetchSnapshot()
+
+            #expect(snapshot.freshness == baseline.freshness)
+            #expect(fetcher.requestCount == 2)
+            #expect(reader.readCount == 2)
+            #expect(fetcher.lastHeaders["Authorization"] == "Bearer renewed")
+        }
+    }
+
+    @Test func successfulAndNonUnauthorizedRequestsDoNotTriggerCredentialReload() async {
+        for status in [200, 403, 429, 503] {
+            let reader = SequencedCodexReader(tokens: ["current", "unused"])
+            let fetcher = MockFetcher(status: status, body: "{}")
+            let provider = CodexProvider(credentials: CredentialStore(codexReader: reader), http: fetcher)
+
+            _ = await provider.fetchSnapshot()
+
+            #expect(fetcher.requestCount == 1)
+            #expect(reader.readCount == 1)
+        }
     }
 
     @Test func networkErrorIsTransient() async {
@@ -225,10 +344,11 @@ struct CodexProviderTests {
         #expect(UsageSnapshot.stale(for: .codex, reason: .transient("x")).bankedResets == nil)
     }
 
-    @Test func rejectedAuthCarriesNoCount() async {
+    @Test func unverifiedSessionCarriesNoCount() async {
         let snap = await provider(MockFetcher([.success(HTTPResult(status: 401, body: Data()))])).fetchSnapshot()
         guard case .stale(let reason) = snap.freshness else { Issue.record("expected stale"); return }
-        #expect(reason.providerSetupOutcome == .codexRejectedAuth)
+        #expect(reason.providerSetupOutcome == .codexSessionUnverified)
+        #expect(!reason.isPermanent)
         #expect(snap.bankedResets == nil)
     }
 

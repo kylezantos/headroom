@@ -387,6 +387,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   model as a paid prompt, so older CLIs use the PTY panel path unchanged. Any print miss
   (timeout, cost-report shape, unparseable output) also falls back to the PTY. Don't remove
   the PTY path, and don't lower the version floor without verifying against that binary.
+  Routine capture must not launch `auth status` as a preflight or to fill the plan pill:
+  that short-lived command can abandon renewal. Use a plan label in the captured text or
+  omit it. This reduction does not resolve the upstream print/PTY shutdown limitation.
 - **`ClaudeUsageParser` is pinned to the current `/usage` layouts.** It keys on stable shapes
   ("Current session", "Current week (…)", "N% used", "Resets …"), not line positions, and
   fails safe (empty → transient stale). It reads both the interactive panel (label line, then

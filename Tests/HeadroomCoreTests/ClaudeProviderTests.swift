@@ -308,15 +308,6 @@ struct ClaudeProviderTests {
         #expect(ClaudeUsageCLIProbe.signInSupport(versionOutput: "2.1") == .unreadable)
     }
 
-    @Test func subscriptionPlanHintMapsKnownTiers() {
-        #expect(ClaudeUsageCLIProbe.subscriptionPlanHint(Data(#"{"subscriptionType":"max"}"#.utf8)) == "Max")
-        #expect(ClaudeUsageCLIProbe.subscriptionPlanHint(Data(#"{"subscriptionType":"pro"}"#.utf8)) == "Pro")
-        // Unknown tiers and malformed JSON fail safe to no pill.
-        #expect(ClaudeUsageCLIProbe.subscriptionPlanHint(Data(#"{"subscriptionType":"mystery"}"#.utf8)) == nil)
-        #expect(ClaudeUsageCLIProbe.subscriptionPlanHint(Data("garbage".utf8)) == nil)
-        #expect(ClaudeUsageCLIProbe.subscriptionPlanHint(Data(#"{"loggedIn":true}"#.utf8)) == nil)
-    }
-
     @Test func confirmedCLIMissIsProviderCapabilityRatherThanAccountSetup() async {
         let result = await provider(.cliNotFound).fetchResult()
         #expect(result.capability == .confirmedAbsent)
@@ -351,7 +342,7 @@ struct ClaudeProviderTests {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let replacement = directory.appendingPathComponent("claude")
-        try Data("#!/bin/zsh\nprint '{\"loggedIn\":false}'\n".utf8).write(to: replacement)
+        try Data("#!/bin/zsh\nprint 'Select login method'\n".utf8).write(to: replacement)
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: replacement.path)
 
         let missing = directory.appendingPathComponent("moved-claude").path
@@ -375,6 +366,124 @@ struct ClaudeProviderTests {
 
         #expect(result == .loginRequired)
         #expect(await searches.count == 2)
+    }
+
+    @Test func directUsageDoesNotLaunchAuthStatusForEitherConfigHome() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-claude-direct-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("claude")
+        let trace = directory.appendingPathComponent("trace")
+        try """
+        #!/bin/zsh
+        print -r -- "$*|${CLAUDE_CONFIG_DIR:-built-in}" >> "$HEADROOM_FIXTURE_TRACE"
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.302 (Claude Code)'
+        elif [[ "$1" == "-p" && "$2" == "/usage" ]]; then
+          print 'Current session: 10% used'
+          print 'Current week (all models): 20% used'
+        else
+          print '{"loggedIn":false}'
+        fi
+        """.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let locator = CLIExecutableLocator(
+            executableName: "claude", fallbackPaths: [executable.path],
+            hintStore: ProbeHintStore(), shellSearch: { .completed(candidates: [executable.path]) },
+            validate: { _ in .executable }
+        )
+        for home in [nil, directory.appendingPathComponent("extra").path] as [String?] {
+            var overrides = ["HEADROOM_FIXTURE_TRACE": trace.path]
+            overrides["CLAUDE_CONFIG_DIR"] = home
+            let result = await ClaudeUsageCLIProbe(
+                locator: locator, workingDirectory: directory.path,
+                environmentOverrides: overrides
+            ).capturePanel()
+            guard case .panel(let text, let hint) = result else {
+                Issue.record("expected direct usage report"); continue
+            }
+            #expect(ClaudeUsageParser.parse(text).count == 2)
+            #expect(hint == nil)
+        }
+        let commands = try String(contentsOf: trace, encoding: .utf8)
+        #expect(!commands.contains("auth status"))
+        #expect(commands.contains("-p /usage --no-session-persistence|built-in"))
+        #expect(commands.contains("-p /usage --no-session-persistence|\(directory.path)/extra"))
+    }
+
+    @Test(arguments: [
+        ("Select login method", ClaudePanelResult.loginRequired),
+        ("Quick safety check: trust this folder?", ClaudePanelResult.workspaceTrustRequired),
+        ("Unrecognized new onboarding screen", ClaudePanelResult.unknownUI),
+        ("Claude Code v2.1.302\n❯ Try \"edit a file\"\nNot logged in · Run /login", ClaudePanelResult.loginRequired),
+        ("Claude Code\n? for shortcuts\nNot logged in · Please run /login", ClaudePanelResult.loginRequired),
+    ])
+    func directUsageFallbackNeverTypesIntoSetupScreens(boot: String, expected: ClaudePanelResult) async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-claude-boot-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("claude")
+        let input = directory.appendingPathComponent("input")
+        try """
+        #!/bin/zsh
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.216 (Claude Code)'
+          exit 0
+        fi
+        print -r -- "$HEADROOM_FIXTURE_BOOT"
+        if read -r -t 8 captured; then
+          print -r -- "$captured" > "$HEADROOM_FIXTURE_INPUT"
+        fi
+        """.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let locator = CLIExecutableLocator(
+            executableName: "claude", fallbackPaths: [executable.path],
+            hintStore: ProbeHintStore(), shellSearch: { .completed(candidates: [executable.path]) },
+            validate: { _ in .executable }
+        )
+        let result = await ClaudeUsageCLIProbe(
+            locator: locator, workingDirectory: directory.path,
+            environmentOverrides: ["HEADROOM_FIXTURE_BOOT": boot, "HEADROOM_FIXTURE_INPUT": input.path],
+            bootTimeout: 4, panelTimeout: 4
+        ).capturePanel()
+        #expect(result == expected)
+        let received = (try? String(contentsOf: input, encoding: .utf8)) ?? ""
+        #expect(!received.contains("/usage"))
+    }
+
+    @Test func signedOutPrintReportReturnsLoginRequiredWithoutOpeningPTY() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-claude-signed-out-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let executable = directory.appendingPathComponent("claude")
+        let trace = directory.appendingPathComponent("trace")
+        try """
+        #!/bin/zsh
+        print -r -- "$*" >> "$HEADROOM_FIXTURE_TRACE"
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.302 (Claude Code)'
+        else
+          print 'Not logged in · Please run /login'
+        fi
+        """.write(to: executable, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
+        let locator = CLIExecutableLocator(
+            executableName: "claude", fallbackPaths: [executable.path],
+            hintStore: ProbeHintStore(), shellSearch: { .completed(candidates: [executable.path]) },
+            validate: { _ in .executable }
+        )
+        let result = await ClaudeUsageCLIProbe(
+            locator: locator, workingDirectory: directory.path,
+            environmentOverrides: ["HEADROOM_FIXTURE_TRACE": trace.path],
+            bootTimeout: 1, panelTimeout: 1
+        ).capturePanel()
+        #expect(result == .loginRequired)
+        let commands = try String(contentsOf: trace, encoding: .utf8)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+        #expect(commands == ["--version", "-p /usage --no-session-persistence", ""])
     }
 
     @Test func loggedOutPanelAsksToLogIn() async {
@@ -453,12 +562,6 @@ struct ClaudeProviderTests {
         A brand new onboarding step we do not recognize
         ❯ Set up now
         """) == .unknown)
-    }
-
-    @Test func authStatusClassifierIsTypedAndFailsClosed() {
-        #expect(ClaudeUsageCLIProbe.classifyAuthStatus(Data(#"{"loggedIn":true}"#.utf8)) == .loggedIn)
-        #expect(ClaudeUsageCLIProbe.classifyAuthStatus(Data(#"{"loggedIn":false}"#.utf8)) == .loggedOut)
-        #expect(ClaudeUsageCLIProbe.classifyAuthStatus(Data("unsupported".utf8)) == .unsupported)
     }
 
     @Test func builtInProbeCannotInheritAnotherClaudeHome() {

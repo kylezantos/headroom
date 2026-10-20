@@ -1,8 +1,9 @@
 import Foundation
 
 /// Codex/ChatGPT usage provider (U5). Reads `~/.codex/auth.json` via `CredentialStore`
-/// and calls the `wham/usage` endpoint. Does not attempt OpenAI's refresh — on 401 it
-/// degrades to the official CLI login handoff (KTD3). Never throws (KTD7 isolation).
+/// and calls the `wham/usage` endpoint. On 401, rereads a session the official client
+/// may have renewed while the request was in flight (session-reliability KTD4).
+/// Never rotates credentials itself. Never throws (KTD7 isolation).
 public struct CodexProvider: UsageProvider {
     public let id = ProviderID.codex
     public let accountID: AccountID
@@ -31,18 +32,34 @@ public struct CodexProvider: UsageProvider {
         case .failure(let reason):
             return stale(reason)
         case .success(let session):
-            switch await http.get(url: Self.endpoint, headers: ["Authorization": "Bearer \(session.accessToken)"]) {
-            case .failure(let reason):
-                return stale(reason)
-            case .success(let result):
-                switch result.status {
-                case 200:
-                    return decode(result.body, accountEmail: session.accountEmail)
-                case 401:
-                    return stale(.providerSetup(.codexRejectedAuth))
-                default:
-                    return stale(UsageWindowBuilder.genericFailure(for: result.status))
+            return await fetch(session: session, mayReload: true)
+        }
+    }
+
+    private func fetch(session: CodexSession, mayReload: Bool) async -> UsageSnapshot {
+        switch await http.get(url: Self.endpoint, headers: ["Authorization": "Bearer \(session.accessToken)"]) {
+        case .failure(let reason):
+            return stale(reason)
+        case .success(let result):
+            switch result.status {
+            case 200:
+                return decode(result.body, accountEmail: session.accountEmail)
+            case 401:
+                if mayReload {
+                    switch await credentials.codexSession() {
+                    case .success(let current) where current.accessToken != session.accessToken:
+                        return await fetch(session: current, mayReload: false)
+                    case .failure(let reason):
+                        return stale(reason)
+                    default:
+                        // KTD6: an unchanged expired session is not evidence that
+                        // the login was revoked. Keep retry and manual recovery.
+                        return stale(.providerSetup(.codexSessionUnverified))
+                    }
                 }
+                return stale(.providerSetup(.codexRejectedAuth))
+            default:
+                return stale(UsageWindowBuilder.genericFailure(for: result.status))
             }
         }
     }

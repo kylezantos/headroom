@@ -138,6 +138,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     case codexMalformedAuth
     case codexCredentialIO
     case codexRejectedAuth
+    case codexSessionUnverified
     case codexStorageMismatch
     case codexCallbackIncomplete
     case grokCLIMissing
@@ -183,6 +184,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         // R2C6: the canonical re-auth state, so it carries the re-auth sentence verbatim;
         // the two diagnostic siblings above keep their cause and take only the new tail.
         case .codexRejectedAuth: ProviderSignInCopy.status(for: .codex, again: true)
+        case .codexSessionUnverified: "Couldn’t verify the Codex session"
         case .codexStorageMismatch: "Codex saved this login where Headroom can’t\u{00A0}read\u{00A0}it"
         case .codexCallbackIncomplete: "Codex sign-in did not finish"
         case .grokCLIMissing: ProviderSignInCopy.cliMissing(for: .grok)
@@ -204,7 +206,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
 
     public var isPermanent: Bool {
         switch self {
-        case .claudeUnknownUI, .claudeTransientCapture, .codexCredentialIO,
+        case .claudeUnknownUI, .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified,
              .grokCredentialIO, .grokTransientCapture, .cursorUnknownUI,
              .cursorTransientCapture:
             false
@@ -272,6 +274,9 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .codexCredentialIO:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
+        case .codexSessionUnverified:
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
+                  secondaryLabel: ProviderSignInCopy.buttonAgain, secondaryAction: .reconnectCodex)
         case .codexStorageMismatch:
             .init(status: message, primaryLabel: "Resolve Storage", primaryAction: .resolveCodexStorage,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)

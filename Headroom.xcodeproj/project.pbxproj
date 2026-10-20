@@ -195,6 +195,7 @@
 		43471DE07600069C5C5D69EF /* NotificationCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A175138AFA123994C3292DC0 /* NotificationCoordinator.swift */; };
 		4375EEB0084C85DE3AE6F854 /* HeadroomMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304EFF5E1F665A9C8A8FD6FB /* HeadroomMotion.swift */; };
 		437880CC0024DB0734C4D8E9 /* CompanionPhoneSnapshotSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 234C84CD80D9C60D9F90CABF /* CompanionPhoneSnapshotSource.swift */; };
+		44D111D20702AB931FFEAE19 /* SessionReliabilityRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61109A4CD2AA6730B095FD79 /* SessionReliabilityRecord.swift */; };
 		4510B2FC96F1AF3A5BB93FED /* PhoneDisplayPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C771C4F2DBA0F0D63474BDB /* PhoneDisplayPreferences.swift */; };
 		4510C79B52B86297FA9A707C /* HalftoneVesselView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1DD9B783BF0C5BF905D129C /* HalftoneVesselView.swift */; };
 		4590C3DC405F2F052A5EE7C8 /* ProviderSetup.swift in Sources */ = {isa = PBXBuildFile; fileRef = F42AEA52BDB76CEB404D7C9A /* ProviderSetup.swift */; };
@@ -246,6 +247,7 @@
 		580AB8BAD476B2611A8DF611 /* CompanionWireDate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B5C67D6F363B547DDC89B75 /* CompanionWireDate.swift */; };
 		58580515356612177BE67936 /* CompanionTimelineSchedule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 161D52D76A1311ECFB01ABA7 /* CompanionTimelineSchedule.swift */; };
 		587E36A44D8D636B4D686DD3 /* HeadroomMotion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 304EFF5E1F665A9C8A8FD6FB /* HeadroomMotion.swift */; };
+		58899AE9549DDBFAA315A8DE /* SessionReliabilityRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61109A4CD2AA6730B095FD79 /* SessionReliabilityRecord.swift */; };
 		58B697E5F3CC2FEF4A241748 /* ProviderCardIdentityRowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */; };
 		592A3A05A7431A95FCC2189E /* CompanionDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E66E67262C892788840900 /* CompanionDemoData.swift */; };
 		5932DCA0009D30C7F439EEC0 /* MeterStyleTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C641BB6DB069704433171B8 /* MeterStyleTile.swift */; };
@@ -455,6 +457,7 @@
 		ADEFB16F5E7CF386F72C58D8 /* HoverButtonStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F1D113EA821D9280207C071 /* HoverButtonStyle.swift */; };
 		ADFC8AC3DA7A164554421F54 /* CompanionAccountScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5493786BF2891E1B61D670A /* CompanionAccountScope.swift */; };
 		AE5CCFEE830D55259FE63D46 /* APISpendRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A8D7ADC6788BF978502FDD /* APISpendRow.swift */; };
+		AE66818AEB1925E9CCC2C349 /* SessionReliabilityRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61109A4CD2AA6730B095FD79 /* SessionReliabilityRecord.swift */; };
 		AF8D92D2E50538EC7D2B00B2 /* CompanionDemoModeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */; };
 		B01E80F0528982EB957D345F /* CompactFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ED61F310D5AFE4BC1148BDC /* CompactFallbackTests.swift */; };
 		B07D78FADBF33B095E43091F /* MiniPillPreviewHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BC98FEFB1B6841B9079A75 /* MiniPillPreviewHarness.swift */; };
@@ -846,6 +849,7 @@
 		5D7E9C365CC8B08666DEB89F /* CompanionAttentionCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAttentionCopy.swift; sourceTree = "<group>"; };
 		5FEB25E9FBA89838F5A59960 /* ClaudeAccountEmailReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeAccountEmailReader.swift; sourceTree = "<group>"; };
 		60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreAccountLifecycle.swift; sourceTree = "<group>"; };
+		61109A4CD2AA6730B095FD79 /* SessionReliabilityRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionReliabilityRecord.swift; sourceTree = "<group>"; };
 		61976BDA86182356251A6D79 /* PlanCapsule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCapsule.swift; sourceTree = "<group>"; };
 		628E11DE7E09C84361854B74 /* DemoAccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoAccountStorage.swift; sourceTree = "<group>"; };
 		6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenBody.swift; sourceTree = "<group>"; };
@@ -1152,6 +1156,7 @@
 				3C771C4F2DBA0F0D63474BDB /* PhoneDisplayPreferences.swift */,
 				598AABEACCA6416D2117F1DA /* PhoneSettingsPresentation.swift */,
 				D3E94962CE286BEB04CB86DC /* Preferences.swift */,
+				61109A4CD2AA6730B095FD79 /* SessionReliabilityRecord.swift */,
 				C025DD0467C17BEED8A13DCE /* SettingsPane.swift */,
 				6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */,
 			);
@@ -2110,6 +2115,7 @@
 				27C2267E0215E977176A5651 /* ReprintRecipe.swift in Sources */,
 				0E2138255AC8C4AFA83B1EFC /* ResetClockFormatter.swift in Sources */,
 				DD58BD0566EB21FFEDDC5996 /* ResetSchedule.swift in Sources */,
+				44D111D20702AB931FFEAE19 /* SessionReliabilityRecord.swift in Sources */,
 				E29E2B87772530D886E3F94F /* SettingsPane.swift in Sources */,
 				61AEE4C12CA5652095E6559A /* SetupCompletionCommand.swift in Sources */,
 				14182E2447CA2AB862746800 /* SetupMotion.swift in Sources */,
@@ -2263,6 +2269,7 @@
 				EB61787A8DEC9D82564BBB68 /* RefreshReceiptPresentation.swift in Sources */,
 				47C132C34D579CB86A265270 /* ResetClockFormatter.swift in Sources */,
 				1B540F4332DC3E721D094854 /* ResetSchedule.swift in Sources */,
+				58899AE9549DDBFAA315A8DE /* SessionReliabilityRecord.swift in Sources */,
 				358659CB575E777134FC0560 /* SettingsPane.swift in Sources */,
 				65650A0A50C2BD289CA688EB /* SharedBenchCounters.swift in Sources */,
 				7DD30EA30A65040739EC9E84 /* SignOutRecord.swift in Sources */,
@@ -2574,6 +2581,7 @@
 				B4B6FABEF2B4FF3C81E0575D /* RefreshReceiptPresentation.swift in Sources */,
 				E15F2271E06DA32E106CDA05 /* ResetClockFormatter.swift in Sources */,
 				8D37A27F8FB8A9F3A5200078 /* ResetSchedule.swift in Sources */,
+				AE66818AEB1925E9CCC2C349 /* SessionReliabilityRecord.swift in Sources */,
 				E719F9C33EB149B0EB2A6C63 /* SettingsPane.swift in Sources */,
 				4C74D9785A50808312C82760 /* SettingsSheetView.swift in Sources */,
 				60BFA46DFA435206D9E4991B /* SharedBenchCounters.swift in Sources */,

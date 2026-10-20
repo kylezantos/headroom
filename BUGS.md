@@ -247,6 +247,30 @@ official `claude` CLI's `/usage` panel instead.
 
 ## Claude CLI probe
 
+- **Provider session renewal remains incomplete (2026-10-20).** This PR reduces
+  unnecessary Claude authentication commands and rereads Codex credentials once after
+  a 401. Automatic Codex renewal remains unshipped: a stalled official-client request
+  has no established finite safe settlement bound. Real persisted-renewal acceptance
+  and production lifecycle integration are still required. Claude can exit before a
+  pending renewal saves its replacement; the authorized reproduction is posted at
+  https://github.com/anthropics/claude-code/issues/102265#issuecomment-6259274517.
+  Eight-hour successful usage observation establishes continuity, not a rotation or
+  a measured reduction in sign-outs. See `docs/qa/2026-10-20-safe-provider-session-fixes.md`.
+
+- **Session diagnostic and attention follow-ups (2026-10-20 review).** Codex's
+  unchanged-token 401 keeps Check Now and manual Sign In Again available on the Mac;
+  phone attention remains retrying, and widgets do not escalate it to a confirmed
+  sign-out. Any future attention escalation must preserve the distinction between an
+  HTTP rejection and revoked login. Sampled account-seconds deliberately exclude gaps
+  beyond twice the chosen interval, including scheduler backoff; compare rates only
+  with comparable coverage. Collector cost at multi-20 has not been measured.
+
+- **An external Claude CLI account switch can retain a model row from the prior login.**
+  The continuity merger retains missing model rows without comparing upstream identity.
+  Headroom's explicit reset clears continuity; an external login switch does not.
+  Follow up with identity-aware continuity and a regression fixture.
+
+
 - **Resolved upstream on 2026-07-20: the per-model weekly row ("Weekly (Fable)") returned in
   Claude Code 2.1.216.** Headroom's signed live probe parsed it again without a parser change.
   The prior source-side disappearance remains documented here because it can recur: on 2026-07-16
@@ -377,16 +401,20 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   signed in, `/usage` has no windows, and the outcome is "Couldn't read Claude usage — will
   retry" with `isPermanent == false`. The `auth status` JSON carries `authMethod` and
   `subscriptionType`, which could type this state.
-- **The usage probe runs `claude auth status` on every poll with no version gate.** Below CLI
-  2.1.41 an older CLI could take it as a model prompt. Staging now refuses those versions for
-  sign-in and reset, but the probe itself is ungated.
+- **Resolved, 2026-10-20: the usage probe ran `claude auth status` on every poll without
+  a version gate.** Routine capture no longer launches that command. Existing version
+  gating applies to print usage, and signed-out footers are classified without auth preflight.
 - **Marker liveness trusts a bare PID.** `setupHandoffIsActive` treats `kill(pid, 0) == 0` as
   alive with no start-time check, so a recycled PID can pin a handoff as open.
 - **The header waiting clock follows built-in accounts only** (`headerWaitingAccount`), so an
   extra account's handoff never shows "Waiting 31s".
 - **`CLIExecutableLocatorTests.staleGenerationCompletionJoinsReplacementWithoutStartingThirdSearch`
-  failed once** in a full `swift test` run on 2026-09-19, then passed in isolation and in every
-  later full run. Timing-sensitive; not touched by the sign-in work.
+  has an intermittent scheduling failure.** It recurred on 2026-10-20 during the safe
+  provider-session checks. The test assumes 20 `Task.yield()` calls let the old completion
+  join the replacement before that replacement finishes. If it runs later, it can return
+  the same path from `.memoryHint` instead of `.loginShell`. The test and assertion remain
+  unchanged. Add deterministic synchronization in a focused follow-up; do not weaken the
+  expected result merely to turn the suite green.
 - **Code review residuals (ce-code-review run `20260919-164120-47f26bfe`, deferred, none blocking):**
   - `ProviderCardView.swift` is ~1,250 lines and carries pure, non-View routing types
     (`SetupRowRecovery`, `SetupRowChip`, `setupRowChips`, `setupSessionOwnsSurface`,

@@ -13,9 +13,8 @@ public protocol ClaudeUsageSource: Sendable {
 /// transient read failure so it can show the right degrade message.
 public enum ClaudePanelResult: Sendable, Equatable {
     /// `text` is the captured usage report (interactive panel or print-mode report).
-    /// `planHint` is the subscription tier from `claude auth status --json` — the
-    /// print-mode report omits the "· Claude Max" header the panel carries, so the
-    /// provider falls back to this when the text yields no tier.
+    /// `planHint` is optional metadata supplied by a source. Routine CLI captures
+    /// omit it rather than launching an additional auth command for a plan label.
     case panel(text: String, planHint: String?)
     /// The CLI booted into a first-run screen (theme picker / login-method selector) —
     /// this config home has no signed-in account. Typed here, at the layer that saw
@@ -38,6 +37,7 @@ public enum ClaudeBootState: Sendable, Equatable {
     case noOutput
 }
 
+/// Retained for source compatibility; routine capture no longer probes auth status.
 public enum ClaudeAuthStatus: Sendable, Equatable {
     case loggedIn
     case loggedOut
@@ -114,24 +114,8 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         // Run the blocking process and pty work off the cooperative pool.
         return await withCheckedContinuation { continuation in
             Thread.detachNewThread { [environmentOverrides] in
-                let authResult = Self.runAuthCheck(
-                    claudePath: claudePath,
-                    environmentOverrides: environmentOverrides
-                )
-                guard case .status(let auth) = authResult else {
-                    continuation.resume(returning: .launchNotFound)
-                    return
-                }
-                switch auth.status {
-                case .loggedOut:
-                    continuation.resume(returning: .result(.loginRequired))
-                    return
-                case .unsupported:
-                    continuation.resume(returning: .result(.unknownUI))
-                    return
-                case .loggedIn:
-                    break
-                }
+                // Session-reliability KTD2: auth status can start renewal and exit
+                // before persisting it. Usage itself supplies the recognized state.
                 // Print-first capture: `claude -p "/usage"` writes the settled report
                 // in one shot — no TUI repaints to garble labels and no partial paint
                 // for the separately fetched model rows, which is the failure class
@@ -143,7 +127,10 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
                     environmentOverrides: environmentOverrides
                 ) {
                 case .report(let report):
-                    continuation.resume(returning: .result(.panel(text: report, planHint: auth.planHint)))
+                    continuation.resume(returning: .result(.panel(text: report, planHint: nil)))
+                    return
+                case .loginRequired:
+                    continuation.resume(returning: .result(.loginRequired))
                     return
                 case .launchNotFound:
                     continuation.resume(returning: .launchNotFound)
@@ -156,8 +143,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
                     workingDirectory: workingDirectory,
                     environmentOverrides: environmentOverrides,
                     boot: bootTimeout,
-                    panel: panelTimeout,
-                    planHint: auth.planHint
+                    panel: panelTimeout
                 )
                 continuation.resume(returning: result)
             }
@@ -171,49 +157,14 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         return CLIExecutableResolver.resolveLoginPath(fallback: fallback)
     }
 
-    /// Decode only the stable boolean from `claude auth status --json`. Unknown output
-    /// never falls through to the interactive probe, because doing so could type into a
-    /// new first-run surface.
-    static func classifyAuthStatus(_ data: Data) -> ClaudeAuthStatus {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let loggedIn = object["loggedIn"] as? Bool
-        else { return .unsupported }
-        return loggedIn ? .loggedIn : .loggedOut
-    }
-
-    /// The subscription tier from `auth status --json` ("max" → "Max"), mapped
-    /// through an allowlist so an unknown future value never becomes a garbled pill.
-    static func subscriptionPlanHint(_ data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = object["subscriptionType"] as? String
-        else { return nil }
-        switch type.lowercased() {
-        case "max": return "Max"
-        case "pro": return "Pro"
-        case "free": return "Free"
-        case "team": return "Team"
-        case "enterprise": return "Enterprise"
-        default: return nil
-        }
-    }
-
-    struct AuthCheck: Sendable {
-        let status: ClaudeAuthStatus
-        let planHint: String?
-    }
-
     private enum ExecutableCaptureResult: Sendable {
         case result(ClaudePanelResult)
         case launchNotFound
     }
 
-    private enum AuthCheckResult: Sendable {
-        case status(AuthCheck)
-        case launchNotFound
-    }
-
     private enum PrintUsageResult: Sendable {
         case report(String)
+        case loginRequired
         case unavailable
         case launchNotFound
     }
@@ -222,28 +173,6 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         case data(Data)
         case failed
         case launchNotFound
-    }
-
-    private static func runAuthCheck(
-        claudePath: String,
-        environmentOverrides: [String: String]
-    ) -> AuthCheckResult {
-        switch runForOutput(
-            claudePath: claudePath,
-            arguments: ["auth", "status", "--json"],
-            environmentOverrides: environmentOverrides,
-            deadline: 5
-        ) {
-        case .launchNotFound:
-            return .launchNotFound
-        case .failed:
-            return .status(AuthCheck(status: .unsupported, planHint: nil))
-        case .data(let data):
-            return .status(AuthCheck(
-                status: classifyAuthStatus(data),
-                planHint: subscriptionPlanHint(data)
-            ))
-        }
     }
 
     /// Gate for the print-first capture. 2.1.217 is the oldest CLI verified to run
@@ -258,8 +187,8 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     /// KTD4 (2026-09-19 sign-in plan): the sign-in handoff's own floor, separate from
     /// `ClaudeCLIVersionBand` because that enum is printed by the redaction-safe
     /// diagnostic. A readable version below 2.1.41 blocks the handoff (R6) — those CLIs
-    /// could sign in and never be confirmed, since every usage check reads `auth
-    /// status` — while an unreadable one keeps today's interactive launch, so a change
+    /// have not passed the supported sign-in contract — while an unreadable one
+    /// keeps today's interactive launch, so a change
     /// to the CLI's version format cannot lock every user out of sign-in. Pure over the
     /// already-captured `--version` string: probing by running the subcommand risks an
     /// older CLI taking `auth login` as a paid model prompt.
@@ -353,6 +282,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         case .data(let value): data = value
         }
         let text = ANSI.strip(String(decoding: data, as: UTF8.self))
+        if isSignedOutOutput(text) { return .loginRequired }
         return ClaudeUsageParser.parse(text).isEmpty ? .unavailable : .report(text)
     }
 
@@ -415,8 +345,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         workingDirectory: String,
         environmentOverrides: [String: String],
         boot: TimeInterval,
-        panel: TimeInterval,
-        planHint: String? = nil
+        panel: TimeInterval
     ) -> ExecutableCaptureResult {
         var master: Int32 = -1
         var slave: Int32 = -1
@@ -529,8 +458,9 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         teardown()
 
         let captured = ANSI.strip(String(decoding: buffer, as: UTF8.self))
+        if isSignedOutOutput(captured) { return .result(.loginRequired) }
         return .result(
-            captured.isEmpty ? .transientCapture : .panel(text: captured, planHint: planHint)
+            captured.isEmpty ? .transientCapture : .panel(text: captured, planHint: nil)
         )
     }
 
@@ -548,6 +478,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     static func classifyBootText(_ strippedText: String) -> ClaudeBootState {
         let text = strippedText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return .noOutput }
+        if isSignedOutOutput(text) { return .loginRequired }
         if text.localizedCaseInsensitiveContains("Quick safety check")
             || text.localizedCaseInsensitiveContains("trust this folder") {
             return .trustRequired
@@ -583,6 +514,13 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
             return .ready
         }
         return .unknown
+    }
+
+    /// Returning users keep a normal REPL after sign-out. Its explicit login footer
+    /// must win over ready-prompt markers (session review #1).
+    private static func isSignedOutOutput(_ text: String) -> Bool {
+        text.localizedCaseInsensitiveContains("Not logged in")
+            && text.localizedCaseInsensitiveContains("run /login")
     }
 
     static func environment(

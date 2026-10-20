@@ -203,6 +203,7 @@ public final class UsageStore {
     /// sign-outs. Optional so the render harness, demo stores, and tests that don't
     /// care compose without it.
     let signOutRecord: SignOutRecord?
+    let sessionReliabilityRecord: SessionReliabilityRecord?
     /// Per-account banked-reset announcements. Optional so tests and the demo
     /// store compose without it; the shipping store always has one (KTD6).
     let bankedResetAcknowledgements: BankedResetAcknowledgements?
@@ -246,6 +247,7 @@ public final class UsageStore {
         providerFactory: (@MainActor (ProviderAccount) -> any UsageProvider)? = nil,
         continuityCache: (any UsageContinuityCaching)? = nil,
         signOutRecord: SignOutRecord? = nil,
+        sessionReliabilityRecord: SessionReliabilityRecord? = nil,
         bankedResetAcknowledgements: BankedResetAcknowledgements? = nil,
         notificationCoordinator: NotificationCoordinator? = nil,
         now: @escaping @Sendable () -> Date = { Date() },
@@ -260,6 +262,7 @@ public final class UsageStore {
         self.providerFactory = providerFactory
         self.continuityCache = continuityCache
         self.signOutRecord = signOutRecord
+        self.sessionReliabilityRecord = sessionReliabilityRecord
         self.bankedResetAcknowledgements = bankedResetAcknowledgements
         self.notificationCoordinator = notificationCoordinator
         self.now = now
@@ -1087,6 +1090,10 @@ public final class UsageStore {
         // resumed, reusing the key — while its fetch was in flight. A late result from
         // a detached instance must not resurrect or overwrite the row.
         guard acceptsResult(for: key, attachmentGeneration: attachmentGeneration) else { return false }
+        sessionReliabilityRecord?.note(
+            fresh, for: key, expectedInterval: schedulerChosenInterval,
+            trackedAccounts: providers.map(\.accountKey)
+        )
         let next = UsageContinuityPolicy.mergedSnapshot(
             fresh,
             with: snapshots[key],

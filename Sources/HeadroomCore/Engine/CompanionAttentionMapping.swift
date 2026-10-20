@@ -36,7 +36,7 @@ public enum CompanionAttentionMapping {
         case .claudeUnknownUI, .cursorUnknownUI:
             .setupScreenUnknown
         // Credential IO is retryable, never proof the credentials were rejected.
-        case .claudeTransientCapture, .codexCredentialIO, .grokCredentialIO,
+        case .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified, .grokCredentialIO,
             .grokTransientCapture, .cursorTransientCapture:
             .retrying
         case .codexPermissionDenied, .grokPermissionDenied:

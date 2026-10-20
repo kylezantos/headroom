@@ -39,6 +39,14 @@ enum Entry {
             runPhoneSyncDump()
             return
         }
+        if CommandLine.arguments.contains("--dump-session-reliability") {
+            MainActor.assumeIsolated {
+                print("bundle id: \(Bundle.main.bundleIdentifier ?? "none — unbundled diagnostics are not the installed app's state")")
+                SessionReliabilityRecord(defaults: AppComposition.launchDefaults)
+                    .diagnosticLines().forEach { print($0) }
+            }
+            return
+        }
         if let index = CommandLine.arguments.firstIndex(of: "--render-loading-preview") {
             let outDir = CommandLine.arguments.indices.contains(index + 1)
                 ? CommandLine.arguments[index + 1] : "loading-preview"
@@ -905,9 +913,12 @@ enum AppComposition {
 
     /// `arguments` is injected so the demo isolation can be tested from a process that was
     /// not itself launched with `--demo`.
-    static func resolveLaunchDefaults(arguments: [String] = CommandLine.arguments) -> UserDefaults {
+    static func resolveLaunchDefaults(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> UserDefaults {
         let request = DemoFixture.scenarioRequest(arguments: arguments)
-        guard request != .notRequested else { return .standard }
+        guard request != .notRequested || usesNoOpWidgetExporter(environment: environment) else { return .standard }
         // `--demo <scenario>` gets a fresh per-launch suite (the live multi-account preview
         // must not inherit a previous run); a bare `--demo` keeps the stable screenshot
         // suite the marketing pipeline's repeated captures rely on.
@@ -959,6 +970,7 @@ enum AppComposition {
             providerFactory: { account in provider(for: account, credentials: credentials) },
             continuityCache: UsageContinuityCache(),
             signOutRecord: signOutRecord,
+            sessionReliabilityRecord: makeSessionReliabilityRecord(),
             bankedResetAcknowledgements: bankedResetAcknowledgements,
             notificationCoordinator: NotificationCoordinator(
                 poster: notificationClient,
@@ -1366,6 +1378,16 @@ enum AppComposition {
             || arguments.contains("--render-loading-preview")
             || arguments.contains("--bench-ui")
             || usesNoOpWidgetExporter(environment: environment)
+    }
+
+    @MainActor
+    static func makeSessionReliabilityRecord(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        defaults: UserDefaults = launchDefaults
+    ) -> SessionReliabilityRecord? {
+        guard !usesInertPhoneSync(arguments: arguments, environment: environment) else { return nil }
+        return SessionReliabilityRecord(defaults: defaults)
     }
 
     /// KTD8: the one coalesced v3 + v4 publisher per launch.

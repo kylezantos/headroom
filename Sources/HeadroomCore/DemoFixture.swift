@@ -10,8 +10,11 @@ import Foundation
 /// may not have. Demo mode swaps the providers for fixed snapshots; every surface
 /// still renders the real UI.
 public enum DemoFixture {
-    /// True when the app (macOS or iOS) was launched with `--demo`.
-    public static var isEnabled: Bool { CommandLine.arguments.contains("--demo") }
+    /// Hosted tests must remain inert even when Xcode omits scheme launch arguments.
+    public static var isEnabled: Bool {
+        CommandLine.arguments.contains("--demo")
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 
     /// Fixed-anchor loading captures never inherit wall-clock reset or capture dates.
     public static func loadingSnapshot(for id: ProviderID, at date: Date) -> UsageSnapshot {

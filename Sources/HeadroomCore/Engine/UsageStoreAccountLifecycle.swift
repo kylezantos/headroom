@@ -34,6 +34,7 @@ extension UsageStore {
         // coordinator's session purpose, which Stop Waiting and a settled failure both
         // erase — makes the exclusion hold however that session ends.
         signOutRecord?.clearLastKnownSignedIn(for: key)
+        sessionReliabilityRecord?.endObservation(for: key)
         bankedResetAcknowledgements?.purge(for: key)
         notificationCoordinator?.purge(for: key)
         snapshots[key] = .pending(for: key.providerID)
@@ -202,6 +203,7 @@ extension UsageStore {
         // detached row's flag must not survive to make the resumed row's first signed-out
         // reading look like a sign-out Headroom observed.
         signOutRecord?.clearLastKnownSignedIn(for: key)
+        sessionReliabilityRecord?.endObservation(for: key)
         bankedResetAcknowledgements?.purge(for: key)
         notificationCoordinator?.purge(for: key)
         providers.removeAll { $0.accountKey == key }

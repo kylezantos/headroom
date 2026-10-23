@@ -67,7 +67,8 @@ struct ClaudeCapabilityDiagnosticTests {
                 events: [], trace: ClaudeCaptureTrace(print: stage)
             )
             #expect(output.contains("print-stage=\(stage.rawValue)"))
-            #expect(output.contains("failed-stage=print-\(stage.rawValue)"))
+            let readUsage = stage == .report || stage == .timedOutAfterReport
+            #expect(output.contains("failed-stage=print-\(stage.rawValue)") == !readUsage)
         }
         for boot in ClaudePTYBootStage.allCases {
             let output = ClaudeCapabilityDiagnostic.lines(
@@ -78,6 +79,18 @@ struct ClaudeCapabilityDiagnosticTests {
             #expect(output.contains("pty-boot=\(boot.rawValue)"))
             #expect(output.contains("pty-remote-control-opt-out=applied"))
             #expect(output.contains(boot == .ready ? "failed-stage=pty-panel" : "failed-stage=pty-boot-\(boot.rawValue)"))
+        }
+    }
+
+    @Test func unparseablePTYPanelIsNamedEvenWhenTheResultCountsAsAvailable() {
+        for panel in ClaudePTYPanelStage.allCases {
+            let output = ClaudeCapabilityDiagnostic.lines(
+                account: .builtIn, versionBand: .ptyFallback, outcome: .available, events: [],
+                trace: ClaudeCaptureTrace(print: .versionBelowFloor, ptyBoot: .ready, ptyPanel: panel)
+            )
+            #expect(output.contains("pty-panel=\(panel.rawValue)"))
+            #expect(output.contains("failed-stage=pty-panel-\(panel.rawValue)") == (panel != .parsed))
+            #expect(output.contains { $0.hasPrefix("failed-stage=") } == (panel != .parsed))
         }
     }
 
@@ -94,8 +107,13 @@ struct ClaudeCapabilityDiagnosticTests {
     @Test func bootFingerprintCarriesMarkersAndAHashButNoText() {
         let screen = """
          [<u [>1u [>4;2m
-        Something new: sign the 2026 terms, account person@example.com
-        Claude Code v2.1.400 · /rc
+        ╭──────────────────────────────────────╮
+        │ ✻ Welcome back, Person Example!      │
+        ╰──────────────────────────────────────╯
+        Claude Code v2.1.400 · Fable 5 · Person Example
+        Signed in as person@example.com
+        ~/Library/Application Support/Headroom/ClaudeProbe
+        Something new: sign the 2026 terms /rc
         ❯ Accept
         """
         let fingerprint = ClaudeBootFingerprint(rawByteCount: 512, strippedText: screen)
@@ -104,15 +122,20 @@ struct ClaudeCapabilityDiagnosticTests {
         #expect(!fingerprint.hasTryPlaceholder)
         #expect(fingerprint.hasBanner)
         #expect(fingerprint.hasRemoteControlText)
-        // The escape residue line holds no word, so the hash describes the real first line,
-        // and the same screen repainted with other spacing hashes the same.
+        // Residue, borders, the welcome line, the banner, the email line and the path line
+        // are all skipped: the hash is of the first line that describes the screen.
+        let expected = String(CompanionSyncCodec.digest(Data("Something new: sign the 2026 terms /rc".utf8)).prefix(8))
+        #expect(fingerprint.firstLineDigest == expected)
+        // The same screen repainted with other spacing hashes the same.
         let repainted = ClaudeBootFingerprint(
             rawByteCount: 512,
-            strippedText: "Something   new: sign the 2026 terms,\taccount person@example.com\r❯ Accept"
+            strippedText: "Claude Code v2.1.400\rSomething   new: sign the 2026\tterms /rc\r❯ Accept"
         )
         #expect(fingerprint.firstLineDigest == repainted.firstLineDigest)
-        #expect(fingerprint.firstLineDigest?.count == 8)
-        #expect(ClaudeBootFingerprint(rawByteCount: 3, strippedText: "  \n [>1u ").firstLineDigest == nil)
+        #expect(ClaudeBootFingerprint(rawByteCount: 3, strippedText: "  \n [>1u \n╭────╮").firstLineDigest == nil)
+        #expect(ClaudeBootFingerprint(
+            rawByteCount: 3, strippedText: "Welcome to Claude Code\nperson@example.com"
+        ).firstLineDigest == nil)
 
         let output = ClaudeCapabilityDiagnostic.lines(
             account: .builtIn, versionBand: .printSupported, outcome: .unknownSurface, events: [],
@@ -124,8 +147,17 @@ struct ClaudeCapabilityDiagnosticTests {
                 + " remote-control-text=present first-line-sha256=\(fingerprint.firstLineDigest ?? "")"
         ))
         #expect(output.contains("failed-stage=pty-boot-unrecognized"))
-        for forbidden in ["Something", "terms", "person@example.com", "Accept", "v2.1.400"] {
+        for forbidden in ["Something", "terms", "person@example.com", "Person Example", "Accept", "v2.1.400"] {
             #expect(!output.contains(forbidden))
+        }
+    }
+
+    @Test func remoteControlMarkerIgnoresPathSegments() {
+        for text in ["/rc connecting…", "status: /rc", "Remote Control is on"] {
+            #expect(ClaudeBootFingerprint(rawByteCount: 1, strippedText: text).hasRemoteControlText)
+        }
+        for text in ["~/src/rc/config", "/etc/rc.local", "open /rcfile", "Claude Code"] {
+            #expect(!ClaudeBootFingerprint(rawByteCount: 1, strippedText: text).hasRemoteControlText)
         }
     }
 

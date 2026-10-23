@@ -90,7 +90,7 @@ subject to the upstream limitation. See `docs/qa/2026-10-20-safe-provider-sessio
 With Remote Control auto-connect on (CLI `/config` "Enable Remote Control for all
 sessions", the Desktop app's "Connect new sessions to Remote Control", or VS Code's
 toggle), **every interactive `claude` process registers a session at claude.ai/code**. A
-user on 1.0.9 (PTY-only) collected about 50 stray "<hostname>-<adjective>-<noun>" sessions
+user on Headroom 1.0.9 (PTY-only) collected about 50 stray "<hostname>-<adjective>-<noun>" sessions
 overnight. Print mode is not interactive and the docs tie auto-connect to interactive
 processes, so only the PTY fallback was exposed; the owner's own 2.1.218 boot capture in
 `ClaudeProviderTests` even shows `/rc connecting…`.
@@ -115,10 +115,14 @@ Two layers, both session- or workspace-scoped, never touching the user's setting
 The PTY also sets `CLAUDE_CODE_SKIP_PROMPT_HISTORY=1` (documented in the Claude Code
 environment-variable reference), the interactive counterpart of `--no-session-persistence`.
 
-**Deliberately not changed: the print path.** It is every user's hot path. Real 2.1.303
+**The print path's arguments are unchanged.** It is every user's hot path. Real 2.1.303
 accepted `--settings` under `-p` and still printed a parseable report, but no evidence says
 `-p` registers sessions, and an older or future CLI that rejected the flag would stop all
-Claude polling. Never use `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` for this: it also turns
+Claude polling. **Its inputs did change, though:** `claude -p` runs in the same workspace,
+so it now also reads the workspace's `.claude/settings.local.json` with
+`remoteControlAtStartup: false`. One real 2.1.303 print run in a folder holding that file
+exited 0 with a parseable report and no stderr; a recheck in the real workspace is tracked
+in `BUGS.md`. Never use `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` for this: it also turns
 off feature-flag fetching, which can change `/usage` itself.
 
 ## Telling the failures apart (October 2026)
@@ -128,18 +132,30 @@ returning `.unknown` (the `auth status` preflight that also produced it was remo
 `ClaudeUsageCLIProbe.captureWithTrace()` records which stage decided the result, and
 `--probe-claude` prints it through `ClaudeCapabilityDiagnostic`:
 
-- `print-stage=` `report | signedOut | versionUnavailable | versionUnreadable |
-  versionBelowFloor | timedOut | launchFailed | unparseable`, plus `print-retry-stage=`;
-- `pty-remote-control-opt-out=applied|omitted`, `pty-boot=`;
+- `print-stage=` `report | timedOutAfterReport | signedOut | versionUnavailable |
+  versionUnreadable | versionBelowFloor | timedOut | launchFailed | unparseable`, plus
+  `print-retry-stage=`;
+- `pty-remote-control-opt-out=applied|omitted`, `pty-boot=`, and after a ready prompt
+  `pty-panel=parsed|unparseable|empty|signedOut`;
 - for an unrecognized screen, `pty-boot-fingerprint bytes=… prompt-marker=… try-placeholder=…
-  banner=… remote-control-text=… first-line-sha256=<8 hex>`, never the text;
-- `failed-stage=` naming the deciding stage when the capture failed.
+  banner=… remote-control-text=… first-line-sha256=<8 hex>`, never the text. The hashed line
+  skips escape residue, border rows, the "Claude Code" banner, welcome lines and lines with
+  an "@" or a path, which can carry a name, email or home folder;
+- `failed-stage=` naming the stage that kept usage from being read. It is decided from the
+  trace, so an unparseable PTY panel is named even though the result still reaches the
+  provider as panel text (and becomes its transient stale state there).
 
-A print run that **times out** is retried once with a 40 s deadline before the PTY: a cold
-start would slow the PTY too, and the retry avoids an interactive session. Unparseable output
-is not retried. The worst-case lane hold grows from about 81 s to about 121 s (5 s version +
-20 s + 40 s print + 30 s boot + 26 s panel), only on a print timeout; the duty-cycle gate
-measures it like any other probe.
+**Timeouts keep what was already printed.** Some CLIs print the whole report and then hang
+on shutdown (hooks, MCP servers, the exit limitation above). On a deadline the probe kills
+the process, reads whatever stdout is already in the pipe without waiting for EOF (a hook
+or MCP process can still hold the write end), and classifies it like normal output. A usable
+report is accepted as `timedOutAfterReport`, with no retry and no PTY. Only when nothing
+usable was printed is `-p` retried once with a 40 s deadline before the PTY: a cold start
+would slow the PTY too, and the retry avoids an interactive session. Unparseable output is
+not retried. The worst-case lane hold grows from about 81 s to about 121 s (5 s version +
+20 s + 40 s print + 30 s boot + 26 s panel), only when print produced nothing; the
+duty-cycle gate measures it like any other probe. The same non-blocking read now serves a
+normal exit, which previously waited for EOF and could hang behind such a process.
 
 ## Prevention
 

@@ -93,6 +93,8 @@ struct ClaudeUsageCLIProbeTests {
         #expect(trace.ptyRemoteControlOptOut == true)
         #expect(trace.ptyBoot == .ready)
         #expect(trace.ptyBootFingerprint == nil)
+        #expect(trace.ptyPanel == .parsed)
+        #expect(trace.failedStage == nil)
         let lines = try fixture.traceLines()
         #expect(lines.contains("argv:--settings \(ClaudeUsageCLIProbe.remoteControlOptOutSettings)"))
         #expect(lines.contains("history:1"))
@@ -188,6 +190,114 @@ struct ClaudeUsageCLIProbeTests {
         let lines = try fixture.traceLines()
         #expect(lines.filter { $0 == "argv:-p /usage --no-session-persistence" }.count == 2)
         #expect(!lines.contains { $0.hasPrefix("argv:--settings") || $0 == "argv:" })
+    }
+
+    @Test func reportPrintedBeforeAShutdownHangIsUsedWithoutARetry() async throws {
+        // `sleep` keeps the pipe's write end open after the CLI is killed, so this also
+        // proves the read after a timeout cannot block on EOF.
+        let fixture = try FakeClaude(script: """
+        #!/bin/zsh
+        print -r -- "argv:$*" >> "$HEADROOM_FIXTURE_TRACE"
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.302 (Claude Code)'
+          exit 0
+        fi
+        if [[ "$1" == "-p" ]]; then
+          print 'Current session: 10% used'
+          print 'Current week (all models): 20% used'
+          sleep 3
+          exit 0
+        fi
+        print 'unexpected interactive launch'
+        """)
+        defer { fixture.remove() }
+
+        let (result, trace) = await fixture.probe(printTimeout: 1, printRetryTimeout: 10).captureWithTrace()
+
+        guard case .panel(let text, _) = result else {
+            Issue.record("expected the report printed before the hang, got \(result)"); return
+        }
+        #expect(ClaudeUsageParser.parse(text).count == 2)
+        #expect(trace.print == .timedOutAfterReport)
+        #expect(trace.printRetry == nil)
+        #expect(trace.ptyBoot == nil)
+        #expect(trace.failedStage == nil)
+        let lines = try fixture.traceLines()
+        #expect(lines.filter { $0.hasPrefix("argv:-p") }.count == 1)
+        #expect(!lines.contains { $0.hasPrefix("argv:--settings") || $0 == "argv:" })
+    }
+
+    @Test func pipeDrainReturnsBufferedOutputWhileTheWriteEndIsStillOpen() throws {
+        let pipe = Pipe()
+        defer { try? pipe.fileHandleForWriting.close() }
+        try pipe.fileHandleForWriting.write(contentsOf: Data("Current session: 10% used\n".utf8))
+        // The write end stays open, as when a hook or MCP server outlives the CLI. A
+        // read-to-EOF would wait forever here.
+        let drained = ClaudeUsageCLIProbe.drainWithoutBlocking(pipe.fileHandleForReading)
+        #expect(String(decoding: drained, as: UTF8.self) == "Current session: 10% used\n")
+        #expect(ClaudeUsageCLIProbe.drainWithoutBlocking(pipe.fileHandleForReading).isEmpty)
+    }
+
+    @Test func retryThatAlsoTimesOutFallsThroughToThePTY() async throws {
+        let fixture = try FakeClaude(script: """
+        #!/bin/zsh
+        print -r -- "argv:$*" >> "$HEADROOM_FIXTURE_TRACE"
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.302 (Claude Code)'
+          exit 0
+        fi
+        if [[ "$1" == "-p" ]]; then
+          sleep 3
+          exit 0
+        fi
+        print 'Claude Code v2.1.302'
+        print '❯ Try "fix lint errors"'
+        if read -r -t 8 captured; then
+          print 'Current session'
+          print '12% used'
+        fi
+        """)
+        defer { fixture.remove() }
+
+        let (result, trace) = await fixture.probe(printTimeout: 1, printRetryTimeout: 1).captureWithTrace()
+
+        guard case .panel(let text, _) = result else {
+            Issue.record("expected the PTY panel, got \(result)"); return
+        }
+        #expect(ClaudeUsageParser.parse(text).count == 1)
+        #expect(trace.print == .timedOut)
+        #expect(trace.printRetry == .timedOut)
+        #expect(trace.ptyRemoteControlOptOut == true)
+        #expect(trace.ptyBoot == .ready)
+        #expect(trace.ptyPanel == .parsed)
+        let lines = try fixture.traceLines()
+        #expect(lines.filter { $0.hasPrefix("argv:-p") }.count == 2)
+        #expect(lines.contains("argv:--settings \(ClaudeUsageCLIProbe.remoteControlOptOutSettings)"))
+    }
+
+    @Test func unparseablePTYPanelIsNamedInTheTraceButStillReachesTheProvider() async throws {
+        let fixture = try FakeClaude(script: """
+        #!/bin/zsh
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.216 (Claude Code)'
+          exit 0
+        fi
+        print 'Claude Code v2.1.216'
+        print '❯ Try "fix lint errors"'
+        if read -r -t 8 captured; then
+          print 'A redesigned usage panel the parser does not know'
+        fi
+        """)
+        defer { fixture.remove() }
+
+        let (result, trace) = await fixture.probe().captureWithTrace()
+
+        guard case .panel = result else {
+            Issue.record("expected the panel text to pass through, got \(result)"); return
+        }
+        #expect(trace.ptyBoot == .ready)
+        #expect(trace.ptyPanel == .unparseable)
+        #expect(trace.failedStage == "pty-panel-unparseable")
     }
 }
 

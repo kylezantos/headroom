@@ -22,9 +22,12 @@ public enum ClaudeCapabilityDiagnosticOutcome: String, Sendable, Equatable, Case
 }
 
 /// How the print-mode (`claude -p "/usage"`) attempt ended. Every value except
-/// `report` and `signedOut` sends the probe on to the PTY fallback.
+/// `report`, `timedOutAfterReport` and `signedOut` sends the probe on to the PTY fallback.
 public enum ClaudePrintStage: String, Sendable, Equatable, CaseIterable {
     case report
+    /// The report was complete in stdout, but the process then hung until its deadline.
+    /// The report is used; nothing is retried.
+    case timedOutAfterReport
     case signedOut
     /// `--version` failed to run or hit its deadline.
     case versionUnavailable
@@ -49,6 +52,16 @@ public enum ClaudePTYBootStage: String, Sendable, Equatable, CaseIterable {
     case spawnFailed
 }
 
+/// What the PTY captured after typing `/usage` into a ready prompt. `unparseable` still
+/// reaches the provider as panel text (and from there its transient stale state); the
+/// trace exists so `--probe-claude` can name it.
+public enum ClaudePTYPanelStage: String, Sendable, Equatable, CaseIterable {
+    case parsed
+    case unparseable
+    case empty
+    case signedOut
+}
+
 /// Redaction-safe description of a boot screen the classifier did not recognize
 /// (Brief 02). Counts, marker booleans and a truncated hash only, so two reports can be
 /// compared without either carrying the screen's text.
@@ -58,10 +71,12 @@ public struct ClaudeBootFingerprint: Sendable, Equatable {
     public let hasTryPlaceholder: Bool
     public let hasBanner: Bool
     public let hasRemoteControlText: Bool
-    /// First 8 hex digits of the SHA-256 of the first line that holds a word, with its
-    /// whitespace collapsed. Nil when no line has one. Leading lines of terminal-mode
-    /// residue ("[<u [>1u") are skipped so the hash describes the screen, not the
-    /// escape preamble every boot shares.
+    /// First 8 hex digits of the SHA-256 of the first line that describes the screen,
+    /// with its whitespace collapsed. Nil when no line qualifies. Skipped, so the hash
+    /// cannot stand for anything personal or shared by every boot: terminal-mode residue
+    /// and border rows (no run of three letters), the "Claude Code vX" banner and welcome
+    /// lines (they can carry the user's name), and lines with an "@" or a path (email
+    /// addresses, home folders).
     public let firstLineDigest: String?
 
     public init(rawByteCount: Int, strippedText: String) {
@@ -69,16 +84,25 @@ public struct ClaudeBootFingerprint: Sendable, Equatable {
         hasPromptMarker = strippedText.contains("❯")
         hasTryPlaceholder = strippedText.localizedCaseInsensitiveContains("Try \"")
         hasBanner = strippedText.localizedCaseInsensitiveContains("Claude Code")
+        // `/rc` only as its own token (the TUI's "/rc connecting…"), never a path segment.
         hasRemoteControlText = strippedText.localizedCaseInsensitiveContains("Remote Control")
-            || strippedText.contains("/rc")
+            || strippedText.contains(/(?:^|\s)\/rc(?:\s|$)/)
         let firstLine = strippedText
             .components(separatedBy: .newlines)
             .lazy
             .map { $0.split(whereSeparator: \.isWhitespace).joined(separator: " ") }
-            .first { $0.contains(/\p{L}{3}/) }
+            .first(where: Self.describesScreen)
         firstLineDigest = firstLine.map { line in
             String(CompanionSyncCodec.digest(Data(line.utf8)).prefix(8))
         }
+    }
+
+    private static func describesScreen(_ line: String) -> Bool {
+        guard line.contains(/\p{L}{3}/) else { return false }
+        for personal in ["Claude Code", "Welcome"] where line.localizedCaseInsensitiveContains(personal) {
+            return false
+        }
+        return !line.contains("@") && !line.contains("~/") && !line.contains("/Users/")
     }
 }
 
@@ -94,29 +118,40 @@ public struct ClaudeCaptureTrace: Sendable, Equatable {
     public var ptyRemoteControlOptOut: Bool?
     public var ptyBoot: ClaudePTYBootStage?
     public var ptyBootFingerprint: ClaudeBootFingerprint?
+    /// Set only after a ready boot screen, when `/usage` was typed.
+    public var ptyPanel: ClaudePTYPanelStage?
 
     public init(
         print: ClaudePrintStage? = nil,
         printRetry: ClaudePrintStage? = nil,
         ptyRemoteControlOptOut: Bool? = nil,
         ptyBoot: ClaudePTYBootStage? = nil,
-        ptyBootFingerprint: ClaudeBootFingerprint? = nil
+        ptyBootFingerprint: ClaudeBootFingerprint? = nil,
+        ptyPanel: ClaudePTYPanelStage? = nil
     ) {
         self.print = print
         self.printRetry = printRetry
         self.ptyRemoteControlOptOut = ptyRemoteControlOptOut
         self.ptyBoot = ptyBoot
         self.ptyBootFingerprint = ptyBootFingerprint
+        self.ptyPanel = ptyPanel
     }
 
-    /// The stage that decided a failed capture, e.g. `print-timedOut` or
-    /// `pty-boot-unrecognized`. Nil when nothing ran (CLI discovery failed first).
+    /// The stage that kept the capture from producing usage, e.g. `print-timedOut`,
+    /// `pty-boot-unrecognized` or `pty-panel-unparseable`. Decided from the trace
+    /// alone, so an unparseable PTY panel is named even though it reaches the provider
+    /// as panel text. Nil when usage was read, or when nothing ran.
     public var failedStage: String? {
         if let ptyBoot {
-            return ptyBoot == .ready ? "pty-panel" : "pty-boot-\(ptyBoot.rawValue)"
+            guard ptyBoot == .ready else { return "pty-boot-\(ptyBoot.rawValue)" }
+            guard let ptyPanel else { return "pty-panel" }
+            return ptyPanel == .parsed ? nil : "pty-panel-\(ptyPanel.rawValue)"
         }
         guard let stage = printRetry ?? print else { return nil }
-        return "print-\(stage.rawValue)"
+        switch stage {
+        case .report, .timedOutAfterReport: return nil
+        default: return "print-\(stage.rawValue)"
+        }
     }
 }
 
@@ -143,7 +178,7 @@ public enum ClaudeCapabilityDiagnostic {
             "capability-outcome=\(outcome.rawValue)",
         ]
         if let trace {
-            lines += traceLines(trace, outcome: outcome)
+            lines += traceLines(trace)
         }
         lines += events.suffix(8).map { event in
             let age = max(0, Int(now.timeIntervalSince(event.observedAt)))
@@ -153,10 +188,7 @@ public enum ClaudeCapabilityDiagnostic {
         return lines
     }
 
-    private static func traceLines(
-        _ trace: ClaudeCaptureTrace,
-        outcome: ClaudeCapabilityDiagnosticOutcome
-    ) -> [String] {
+    private static func traceLines(_ trace: ClaudeCaptureTrace) -> [String] {
         var lines: [String] = []
         if let stage = trace.print { lines.append("print-stage=\(stage.rawValue)") }
         if let stage = trace.printRetry { lines.append("print-retry-stage=\(stage.rawValue)") }
@@ -174,7 +206,8 @@ public enum ClaudeCapabilityDiagnostic {
                     + " first-line-sha256=\(fingerprint.firstLineDigest ?? "none")"
             )
         }
-        if outcome != .available, let failed = trace.failedStage {
+        if let panel = trace.ptyPanel { lines.append("pty-panel=\(panel.rawValue)") }
+        if let failed = trace.failedStage {
             lines.append("failed-stage=\(failed)")
         }
         return lines

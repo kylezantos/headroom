@@ -275,7 +275,10 @@ official `claude` CLI's `/usage` panel instead.
   Remote Control"), forced-PTY probes create zero sessions at claude.ai/code; (2) the
   interactive boot paint with `disableRemoteControl` still classifies `.ready` (a notice line
   is tolerated, a modal would not be); (3) whether the local settings file is read before
-  workspace trust. Also open, for Kyle: Brief 02 §5.4 proposed dropping the PTY fallback for
+  workspace trust; (4) print mode now reads the workspace's `.claude/settings.local.json`
+  too. One real 2.1.303 `claude -p "/usage"` run in a scratch folder holding that file
+  exited 0 with a parseable report and no stderr (2026-10-23); recheck it in the real
+  `ClaudeProbe` workspace on the next live probe. Also open, for Kyle: Brief 02 §5.4 proposed dropping the PTY fallback for
   CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version` timeout is not
   retried and still sends the probe to the PTY.
 

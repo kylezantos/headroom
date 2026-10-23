@@ -177,6 +177,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
                 )
                 trace.ptyBoot = boot.stage
                 trace.ptyBootFingerprint = boot.fingerprint
+                trace.ptyPanel = boot.panel
                 continuation.resume(returning: (result, trace))
             }
         }
@@ -213,12 +214,15 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     private struct BootOutcome: Sendable {
         var stage: ClaudePTYBootStage
         var fingerprint: ClaudeBootFingerprint? = nil
+        var panel: ClaudePTYPanelStage? = nil
     }
 
     private enum ProcessOutputResult: Sendable {
         case data(Data)
         case failed
-        case timedOut
+        /// The deadline passed and the process was killed. Carries whatever stdout it
+        /// had already written: some CLIs print the whole report, then hang on shutdown.
+        case timedOut(partial: Data)
         case launchNotFound
     }
 
@@ -385,19 +389,33 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         ) {
         case .launchNotFound: return (.launchNotFound, .launchFailed)
         case .failed: return (.unavailable, .launchFailed)
-        case .timedOut: return (.unavailable, .timedOut)
+        case .timedOut(let partial):
+            // A CLI that printed the whole report and then hung on shutdown (hooks, MCP,
+            // the upstream exit limitation) needs no retry and no PTY: every extra
+            // launch is one more process that can be killed mid-renewal.
+            switch classifyPrintOutput(partial) {
+            case .report(let text): return (.report(text), .timedOutAfterReport)
+            case .loginRequired: return (.loginRequired, .signedOut)
+            default: return (.unavailable, .timedOut)
+            }
         case .data(let value): data = value
         }
+        switch classifyPrintOutput(data) {
+        case .report(let text): return (.report(text), .report)
+        case .loginRequired: return (.loginRequired, .signedOut)
+        default: return (.unavailable, .unparseable)
+        }
+    }
+
+    private static func classifyPrintOutput(_ data: Data) -> PrintUsageResult {
         let text = ANSI.strip(String(decoding: data, as: UTF8.self))
-        if isSignedOutOutput(text) { return (.loginRequired, .signedOut) }
-        return ClaudeUsageParser.parse(text).isEmpty
-            ? (.unavailable, .unparseable)
-            : (.report(text), .report)
+        if isSignedOutOutput(text) { return .loginRequired }
+        return ClaudeUsageParser.parse(text).isEmpty ? .unavailable : .report(text)
     }
 
     /// Spawn `claude` with pipes (no pty), enforce a hard deadline, and return stdout.
-    /// A timeout returns nil rather than partial output — callers treat that as "this
-    /// surface is unavailable" and degrade. Output is read after exit, which is safe
+    /// A timeout returns what the process had already written, tagged as such, so the
+    /// caller decides whether it is usable. Output is read after exit, which is safe
     /// for these small reports; a pathological giant write would stall the child into
     /// the deadline kill and degrade the same way.
     private static func runForOutput(
@@ -441,10 +459,33 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
             while process.isRunning, Date() < terminationDeadline { usleep(20_000) }
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             process.waitUntilExit()
-            return .timedOut
+            return .timedOut(partial: drainWithoutBlocking(output.fileHandleForReading))
         }
         process.waitUntilExit()
-        return .data(output.fileHandleForReading.readDataToEndOfFile())
+        return .data(drainWithoutBlocking(output.fileHandleForReading))
+    }
+
+    /// Everything already in the pipe, without waiting for EOF. A process the CLI started
+    /// (a hook, an MCP server) can outlive it and keep the write end open, which would
+    /// block `readDataToEndOfFile()` past every deadline. Once the CLI has exited, all
+    /// of its own output is already buffered, so stopping at "would block" loses none.
+    static func drainWithoutBlocking(_ handle: FileHandle) -> Data {
+        let descriptor = handle.fileDescriptor
+        let flags = fcntl(descriptor, F_GETFL)
+        guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { return Data() }
+        var data = Data()
+        var chunk = [UInt8](repeating: 0, count: 65536)
+        while true {
+            let count = read(descriptor, &chunk, chunk.count)
+            if count > 0 {
+                data.append(contentsOf: chunk[0..<count])
+            } else if count < 0, errno == EINTR {
+                continue
+            } else {
+                break // EOF, or EAGAIN while another process holds the write end
+            }
+        }
+        return data
     }
 
     // MARK: pty mechanics
@@ -573,11 +614,18 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         teardown()
 
         let captured = ANSI.strip(String(decoding: buffer, as: UTF8.self))
-        let ready = BootOutcome(stage: .ready)
-        if isSignedOutOutput(captured) { return (.result(.loginRequired), ready) }
+        if isSignedOutOutput(captured) {
+            return (.result(.loginRequired), BootOutcome(stage: .ready, panel: .signedOut))
+        }
+        guard !captured.isEmpty else {
+            return (.result(.transientCapture), BootOutcome(stage: .ready, panel: .empty))
+        }
+        // The result is unchanged either way (the provider types an unparseable panel as
+        // a transient capture); the stage only lets the trace name the failure.
+        let panelStage: ClaudePTYPanelStage = ClaudeUsageParser.parse(captured).isEmpty ? .unparseable : .parsed
         return (
-            .result(captured.isEmpty ? .transientCapture : .panel(text: captured, planHint: nil)),
-            ready
+            .result(.panel(text: captured, planHint: nil)),
+            BootOutcome(stage: .ready, panel: panelStage)
         )
     }
 

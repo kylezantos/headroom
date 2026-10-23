@@ -413,6 +413,7 @@ struct PopoverView: View {
         guard let window else { return }
         if fitsMenuBarWindowHeight, heightFitter.window !== window {
             heightFitter.window = window
+            heightFitter.anchor = anchor
             heightFitter.scheduleFit()
         }
         let radius = tuning.values.shellCornerRadius
@@ -1228,13 +1229,7 @@ private enum PopoverHostChrome {
 
     /// The outermost hosting view above the accessor: SwiftUI's own glass lives inside it.
     private static func hostingView(containing anchor: NSView) -> NSView? {
-        var found: NSView?
-        var view: NSView? = anchor.superview
-        while let current = view {
-            if String(describing: type(of: current)).contains("HostingView") { found = current }
-            view = current.superview
-        }
-        return found
+        PopoverWindowHeightFitter.outermostHostingView(containing: anchor)
     }
 
     /// A resizable rounded-rect mask, the documented way to shape an `NSVisualEffectView`.

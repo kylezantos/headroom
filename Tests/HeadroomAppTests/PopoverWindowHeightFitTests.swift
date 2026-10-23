@@ -166,8 +166,12 @@ struct PopoverWindowHeightFitTests {
     }
 
     /// The macOS 15 path, forced on: the fitter shrinks a too-tall window to the content and
-    /// grows a too-short one back on the next open, its top edge staying under the status item.
-    @Test func theFitterSizesTheWindowToTheContentWithItsTopKept() async throws {
+    /// grows a too-short one back on the next open, its top edge kept.
+    ///
+    /// This proves the fitter's own wiring against a plain test window only. It says nothing
+    /// about whether a real macOS 15 `MenuBarExtra` window accepts the frame and keeps it; that
+    /// is a device check (BUGS.md).
+    @Test func theForcedFitterResizesAPlainTestWindowWithItsTopKept() async throws {
         PopoverWindowHeightFitter.debugOverride = true
         defer { PopoverWindowHeightFitter.debugOverride = nil }
         let store = await singleClaude()
@@ -231,6 +235,31 @@ struct PopoverWindowHeightFitTests {
         #expect(limited.maxY == current.maxY)
         #expect(limited.minY == 50)
         #expect(PopoverWindowHeightFitter.fittedFrame(current: current, targetHeight: 900, bottomLimit: 400) == nil)
+    }
+
+    /// A window that keeps 28pt above its hosting view (a title bar or top inset) needs those
+    /// 28pt on top of the content, or every fit leaves the popover 28pt short.
+    @Test func theTargetCountsWhatTheWindowKeepsOutsideTheHostingView() {
+        #expect(PopoverWindowHeightFitter.windowHeight(forContent: 440, windowHeight: 300, hostHeight: 300) == 440)
+        #expect(PopoverWindowHeightFitter.windowHeight(forContent: 440, windowHeight: 328, hostHeight: 300) == 468)
+        #expect(PopoverWindowHeightFitter.windowHeight(
+            forContent: 440, windowHeight: 300, hostHeight: 300, hostSafeArea: 28
+        ) == 468)
+        // A hosting view taller than its window adds nothing.
+        #expect(PopoverWindowHeightFitter.windowHeight(forContent: 440, windowHeight: 300, hostHeight: 320) == 440)
+    }
+
+    /// Two displays, the second stacked below the menu-bar one. A popover hanging from the top
+    /// display stops at that display's visible bottom even when most of it overlaps the lower one.
+    @Test func theBottomLimitComesFromTheScreenHoldingTheTopEdge() {
+        let top = (frame: NSRect(x: 0, y: 0, width: 1440, height: 900), visible: NSRect(x: 0, y: 70, width: 1440, height: 805))
+        let below = (frame: NSRect(x: 0, y: -1080, width: 1920, height: 1080), visible: NSRect(x: 0, y: -1080, width: 1920, height: 1080))
+        let window = NSRect(x: 600, y: -700, width: 384, height: 800)
+        #expect(PopoverWindowHeightFitter.visibleBottom(under: window, screens: [below, top], fallback: below.visible) == 70)
+        // A top edge on no screen falls back to the window's own screen.
+        let lost = NSRect(x: 5000, y: 0, width: 384, height: 300)
+        #expect(PopoverWindowHeightFitter.visibleBottom(under: lost, screens: [below, top], fallback: below.visible) == -1080)
+        #expect(PopoverWindowHeightFitter.visibleBottom(under: lost, screens: [top], fallback: nil) == nil)
     }
 
     // MARK: Root layout sizing (pure)

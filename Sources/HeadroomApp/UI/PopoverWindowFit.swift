@@ -52,6 +52,9 @@ struct PopoverTopPinnedLayout: Layout {
 @MainActor
 final class PopoverWindowHeightFitter {
     weak var window: NSWindow?
+    /// A view inside the popover's hosting view (the window accessor), so the fit can count
+    /// whatever the window wraps around that hosting view.
+    weak var anchor: NSView?
     private var idealHeight: CGFloat?
     private var fitScheduled = false
 
@@ -76,14 +79,57 @@ final class PopoverWindowHeightFitter {
 
     private func fit() {
         guard let window, let idealHeight else { return }
-        let bottomLimit = window.screen?.visibleFrame.minY
-        guard let frame = Self.fittedFrame(current: window.frame, targetHeight: idealHeight, bottomLimit: bottomLimit)
+        let host = anchor.flatMap(Self.outermostHostingView(containing:)) ?? window.contentView
+        let target = Self.windowHeight(
+            forContent: idealHeight,
+            windowHeight: window.frame.height,
+            hostHeight: host?.bounds.height ?? window.frame.height,
+            hostSafeArea: host.map { $0.safeAreaInsets.top + $0.safeAreaInsets.bottom } ?? 0
+        )
+        let bottomLimit = Self.visibleBottom(
+            under: window.frame,
+            screens: NSScreen.screens.map { (frame: $0.frame, visible: $0.visibleFrame) },
+            fallback: window.screen?.visibleFrame
+        )
+        guard let frame = Self.fittedFrame(current: window.frame, targetHeight: target, bottomLimit: bottomLimit)
         else { return }
         window.setFrame(frame, display: window.isVisible)
         window.invalidateShadow()
     }
 
     nonisolated static let tolerance: CGFloat = 0.5
+
+    /// The window height that gives the popover `content` points: the content plus whatever the
+    /// window keeps outside the hosting view (a title bar or top inset, the brief's H2) and any
+    /// safe area the hosting view keeps the content out of. A host taller than its window adds
+    /// nothing.
+    nonisolated static func windowHeight(
+        forContent content: CGFloat, windowHeight: CGFloat, hostHeight: CGFloat, hostSafeArea: CGFloat = 0
+    ) -> CGFloat {
+        content + max(windowHeight - hostHeight, 0) + max(hostSafeArea, 0)
+    }
+
+    /// The visible bottom of the screen the popover hangs from: the one holding the window's
+    /// top-centre point (just inside it), not `NSWindow.screen`, which picks the screen with the
+    /// largest overlap and so, with a display stacked below the menu-bar display, can be the
+    /// lower one. `fallback` (the window's own screen) covers a top edge on no screen.
+    nonisolated static func visibleBottom(
+        under frame: NSRect, screens: [(frame: NSRect, visible: NSRect)], fallback: NSRect?
+    ) -> CGFloat? {
+        let topCentre = NSPoint(x: frame.midX, y: frame.maxY - 1)
+        return (screens.first { $0.frame.contains(topCentre) }?.visible ?? fallback)?.minY
+    }
+
+    /// The outermost hosting view above `anchor`: the one the host sized for the popover.
+    static func outermostHostingView(containing anchor: NSView) -> NSView? {
+        var found: NSView?
+        var view: NSView? = anchor.superview
+        while let current = view {
+            if String(describing: type(of: current)).contains("HostingView") { found = current }
+            view = current.superview
+        }
+        return found
+    }
 
     /// `current` with its height changed to `targetHeight` and its top edge where it was, or nil
     /// when it is already within half a point. `bottomLimit` (the screen's visible bottom)

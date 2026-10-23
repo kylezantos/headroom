@@ -14,6 +14,14 @@ official `claude` CLI's `/usage` panel instead.
   fitted frame and keeps it (it may reset the height after the fit), that the top edge stays under
   the status item, whether the host reserves a top inset (brief H2), and whether the extra corners
   remain after 1.5.1's chrome changes. The `popover-window` hierarchy log answers the last two.
+- **Widening from one column to two is unprotected on macOS 15.** The height fitter keeps the
+  window's current width, and `fitPopoverWindow(columns:)` only narrows; growing to 750pt relies
+  on `MenuBarExtra` widening the window itself, which is verified on 26 only. Device check: grow
+  past the cap (or turn horizontal expansion on) and confirm the window widens with its left edge
+  on the status item.
+- **Live check on 26:** add an account while the popover is open and watch for a scroll-indicator
+  flash. The card list can now give up height, so a frame where the window still has the old
+  height lays the list out short (the bench saw two extra indicator bodies on open).
 
 ## SwiftPM tuning import warning (2026-10-13)
 

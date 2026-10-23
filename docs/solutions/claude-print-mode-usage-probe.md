@@ -12,7 +12,7 @@ symptoms:
 root_cause: fragile_capture_surface
 resolution_type: capture_path_change
 severity: medium
-tags: [claude, fable, probe, print-mode, pty, reliability]
+tags: [claude, fable, probe, print-mode, pty, reliability, remote-control, diagnostics]
 ---
 
 # Claude usage capture is print-first — `claude -p "/usage"` beats the PTY panel
@@ -84,6 +84,62 @@ credential persistence. Controlled tests on official CLI 2.1.302 and 2.1.303 fou
 exit could abandon an in-flight synthetic renewal even after valid cached usage. Removing
 the redundant auth-status preflight reduces one exposure; print/PTY termination remains
 subject to the upstream limitation. See `docs/qa/2026-10-20-safe-provider-session-fixes.md`.
+
+## The PTY fallback opts out of Remote Control (October 2026)
+
+With Remote Control auto-connect on (CLI `/config` "Enable Remote Control for all
+sessions", the Desktop app's "Connect new sessions to Remote Control", or VS Code's
+toggle), **every interactive `claude` process registers a session at claude.ai/code**. A
+user on 1.0.9 (PTY-only) collected about 50 stray "<hostname>-<adjective>-<noun>" sessions
+overnight. Print mode is not interactive and the docs tie auto-connect to interactive
+processes, so only the PTY fallback was exposed; the owner's own 2.1.218 boot capture in
+`ClaudeProviderTests` even shows `/rc connecting…`.
+
+Two layers, both session- or workspace-scoped, never touching the user's settings:
+
+1. **Per launch:** `interactiveArguments(claudePath:versionOutput:)` adds
+   `--settings '{"disableRemoteControl":true,"remoteControlAtStartup":false}'`.
+   `disableRemoteControl` refuses auto-start whatever enabled it. In 2.1.303,
+   `remoteControlAtStartup` resolves project/local `false` first, then policy, flag and
+   user settings in that order, so the flag value beats a user-scope `true` but not a
+   managed one. Inline-JSON `--settings` exists in 1.0.90, 1.0.128, 2.0.77, 2.1.216 and
+   2.1.303, and all of them keep unknown settings keys (passthrough schema); 1.0.50 has no
+   such flag. A readable version below 1.0.90 launches bare. An unreadable one keeps the
+   flag, because it is almost always a slow or reformatted current CLI.
+2. **Per workspace:** `ClaudeUsageWorkspace.ensureDirectory(at:)` writes
+   `.claude/settings.local.json` with `remoteControlAtStartup: false` (0600, directory 0700,
+   other keys kept, a non-object file left alone, best effort). A local `false` outranks
+   every source, managed settings included. It may not be read before workspace trust,
+   which is why it is the second layer.
+
+The PTY also sets `CLAUDE_CODE_SKIP_PROMPT_HISTORY=1` (documented in the Claude Code
+environment-variable reference), the interactive counterpart of `--no-session-persistence`.
+
+**Deliberately not changed: the print path.** It is every user's hot path. Real 2.1.303
+accepted `--settings` under `-p` and still printed a parseable report, but no evidence says
+`-p` registers sessions, and an older or future CLI that rejected the flag would stop all
+Claude polling. Never use `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` for this: it also turns
+off feature-flag fetching, which can change `/usage` itself.
+
+## Telling the failures apart (October 2026)
+
+"Claude opened an unrecognized setup screen" now has one producer: the PTY boot classifier
+returning `.unknown` (the `auth status` preflight that also produced it was removed in #192).
+`ClaudeUsageCLIProbe.captureWithTrace()` records which stage decided the result, and
+`--probe-claude` prints it through `ClaudeCapabilityDiagnostic`:
+
+- `print-stage=` `report | signedOut | versionUnavailable | versionUnreadable |
+  versionBelowFloor | timedOut | launchFailed | unparseable`, plus `print-retry-stage=`;
+- `pty-remote-control-opt-out=applied|omitted`, `pty-boot=`;
+- for an unrecognized screen, `pty-boot-fingerprint bytes=… prompt-marker=… try-placeholder=…
+  banner=… remote-control-text=… first-line-sha256=<8 hex>`, never the text;
+- `failed-stage=` naming the deciding stage when the capture failed.
+
+A print run that **times out** is retried once with a 40 s deadline before the PTY: a cold
+start would slow the PTY too, and the retry avoids an interactive session. Unparseable output
+is not retried. The worst-case lane hold grows from about 81 s to about 121 s (5 s version +
+20 s + 40 s print + 30 s boot + 26 s panel), only on a print timeout; the duty-cycle gate
+measures it like any other probe.
 
 ## Prevention
 

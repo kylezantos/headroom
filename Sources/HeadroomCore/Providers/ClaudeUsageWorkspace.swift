@@ -29,17 +29,58 @@ public enum ClaudeUsageWorkspace {
             guard isDirectory.boolValue else {
                 throw CocoaError(.fileWriteFileExists)
             }
-            return url
+        } else {
+            try FileManager.default.createDirectory(
+                at: url,
+                withIntermediateDirectories: true,
+                attributes: [.posixPermissions: 0o700]
+            )
+            try FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: url.path
+            )
         }
-        try FileManager.default.createDirectory(
-            at: url,
-            withIntermediateDirectories: true,
-            attributes: [.posixPermissions: 0o700]
-        )
-        try FileManager.default.setAttributes(
-            [.posixPermissions: 0o700],
-            ofItemAtPath: url.path
-        )
+        // Best effort: the per-launch `--settings` opt-out is the primary guard, so a
+        // file-system hiccup here must not make the account unprobeable.
+        try? ensureRemoteControlOptOut(in: url)
         return url
+    }
+
+    /// Second Remote Control layer (Brief 03): Claude Code honors a project or local
+    /// `remoteControlAtStartup: false` over every other source, managed settings
+    /// included, so interactive launches in this folder never auto-connect. Only this
+    /// key is written; other keys survive, and a file that is not a JSON object is left
+    /// alone rather than overwritten. Whether the CLI reads it before the workspace is
+    /// trusted is unverified, which is why it is the second layer.
+    public static func ensureRemoteControlOptOut(in workspace: URL) throws {
+        let fileManager = FileManager.default
+        let directory = workspace.appendingPathComponent(".claude", isDirectory: true)
+        let file = directory.appendingPathComponent("settings.local.json")
+        if !fileManager.fileExists(atPath: directory.path) {
+            try fileManager.createDirectory(
+                at: directory,
+                withIntermediateDirectories: false,
+                attributes: [.posixPermissions: 0o700]
+            )
+        }
+        var settings: [String: Any] = [:]
+        if fileManager.fileExists(atPath: file.path) {
+            let data = try Data(contentsOf: file)
+            if !data.isEmpty {
+                guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    return
+                }
+                settings = object
+            }
+        }
+        if settings["remoteControlAtStartup"] as? Bool != false {
+            settings["remoteControlAtStartup"] = false
+            let data = try JSONSerialization.data(
+                withJSONObject: settings,
+                options: [.prettyPrinted, .sortedKeys]
+            )
+            try data.write(to: file, options: .atomic)
+        }
+        try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
     }
 }

@@ -265,6 +265,20 @@ official `claude` CLI's `/usage` panel instead.
   beyond twice the chosen interval, including scheduler backoff; compare rates only
   with comparable coverage. Collector cost at multi-20 has not been measured.
 
+- **Remote Control opt-out and boot fingerprint need a live acceptance (2026-10-23).** The
+  PTY fallback now launches with `--settings
+  '{"disableRemoteControl":true,"remoteControlAtStartup":false}'` (versions ≥ 1.0.90 or
+  unreadable) plus `CLAUDE_CODE_SKIP_PROMPT_HISTORY=1`, and every Claude workspace carries
+  `.claude/settings.local.json` with `remoteControlAtStartup: false`. Only `--help`,
+  `--version` and two print runs were exercised against real CLIs. Still unverified: (1) with
+  auto-connect on (CLI `/config`, and separately the Desktop app's "Connect new sessions to
+  Remote Control"), forced-PTY probes create zero sessions at claude.ai/code; (2) the
+  interactive boot paint with `disableRemoteControl` still classifies `.ready` (a notice line
+  is tolerated, a modal would not be); (3) whether the local settings file is read before
+  workspace trust. Also open, for Kyle: Brief 02 §5.4 proposed dropping the PTY fallback for
+  CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version` timeout is not
+  retried and still sends the probe to the PTY.
+
 - **An external Claude CLI account switch can retain a model row from the prior login.**
   The continuity merger retains missing model rows without comparing upstream identity.
   Headroom's explicit reset clears continuity; an external login switch does not.

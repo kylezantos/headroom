@@ -4,6 +4,17 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## macOS 15 popover header clipping: device check outstanding (2026-10-23)
+
+- The 1.5 report from macOS 15.0 ("the header 'Usage' is clipped", "other corners underneath")
+  got an OS-independent fix: `PopoverTopPinnedLayout` keeps the header at the window's top when
+  the window is shorter than the popover, and `PopoverWindowHeightFitter` fits the window height
+  before macOS 26. Both are proven only by offscreen hosting tests on macOS 26 (the fitter forced
+  on in DEBUG). Still unverified on a real macOS 15: that the `MenuBarExtra` window takes the
+  fitted frame and keeps it (it may reset the height after the fit), that the top edge stays under
+  the status item, whether the host reserves a top inset (brief H2), and whether the extra corners
+  remain after 1.5.1's chrome changes. The `popover-window` hierarchy log answers the last two.
+
 ## SwiftPM tuning import warning (2026-10-13)
 
 - `RaisedTile.swift:30` uses `HeadroomTuning` through its environment value without directly

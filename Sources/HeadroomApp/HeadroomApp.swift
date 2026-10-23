@@ -593,9 +593,7 @@ struct HeadroomApp: App {
     // Mirror a change to what this body reads or builds into the stand-in before measuring it.
     var body: some Scene {
         MenuBarExtra {
-            PopoverView(store: store) {
-                openSettings()
-            }
+            PopoverView(store: store, onOpenSettings: { openSettings() }, fitsMenuBarWindowHeight: true)
                 // PC1 (Kyle, 2026-09-23): on Tahoe the MenuBarExtra window draws its own
                 // Liquid Glass background behind the popover at the system's smaller corner
                 // radius, so a second corner and rim showed outside the r22 shell. The shell

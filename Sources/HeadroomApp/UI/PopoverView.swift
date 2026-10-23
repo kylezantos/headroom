@@ -28,6 +28,10 @@ struct PopoverView: View {
     var forcedCardsHeight: CGFloat? = nil
     /// DialKit only: the pinned tuning copy has no MenuBarExtra host, so it keeps the shell.
     var isPinnedTuningCopy: Bool = false
+    /// SQ1: set by the `MenuBarExtra` scene only, so harness windows (which pad and size the
+    /// popover themselves) are never refitted. Acts only where `PopoverWindowHeightFitter` is
+    /// enabled: before macOS 26.
+    var fitsMenuBarWindowHeight: Bool = false
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,12 +54,29 @@ struct PopoverView: View {
     /// open. The popover's own `TimelineView` ticks per minute, which is right for "Updated
     /// N min ago" and useless for "Waiting 45s".
     @State private var waitingClockNow: Date = .now
+    /// SQ1: fits the window's height on macOS 15; inert on 26.
+    @State private var heightFitter = PopoverWindowHeightFitter()
 
     private static let titleFont = NSFont.systemFont(ofSize: 20, weight: .bold)
     private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
     var body: some View {
         let _ = BenchCounters.hit("PopoverView")
+        // SQ1: a window shorter than the popover clips the card list, never the header.
+        PopoverTopPinnedLayout(reportIdealHeight: idealHeightReport) { timeline }
+    }
+
+    /// SQ1: the fitter hears the content's ideal height only where it acts. Nil elsewhere keeps
+    /// the root layout free of a closure, so it compares equal across body passes.
+    private var idealHeightReport: (@Sendable (CGFloat) -> Void)? {
+        guard fitsMenuBarWindowHeight, PopoverWindowHeightFitter.isEnabled else { return nil }
+        return { [heightFitter] height in
+            // `Layout.placeSubviews` is nonisolated but SwiftUI runs layout on the main thread.
+            MainActor.assumeIsolated { heightFitter.report(height) }
+        }
+    }
+
+    private var timeline: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = pinnedDate ?? context.date
             let _ = BenchCounters.hit("PopoverView.timeline")
@@ -203,7 +224,14 @@ struct PopoverView: View {
                 // Applied outside the mask so the indicator never feathers at the ends,
                 // and outside the feather animations so its position tracks the scroll 1:1.
                 .overlay(alignment: .topTrailing) { PopoverScrollIndicator(model: scroll) }
-                .frame(height: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap))
+                // SQ1: the measured height is both ideal and ceiling, but the list may give up
+                // height when the window is shorter than the popover (`PopoverTopPinnedLayout`), so
+                // the header and footer stay whole. At its ideal height nothing changes.
+                .frame(
+                    minHeight: forcedCardsHeight ?? 0,
+                    idealHeight: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap),
+                    maxHeight: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap)
+                )
                 footer(now: now)
             }
             // M9C (Sep 2026): no entrance motion at all, not even on the first open. Kyle
@@ -230,6 +258,8 @@ struct PopoverView: View {
                 columns.popoverDidClose()
                 fitPopoverWindow(columns: columns.drawnPlan(for: columnSlots).columnCount)
             }
+            // SQ1: each open refits the reused window to the last ideal height (macOS 15 only).
+            .onAppear { if fitsMenuBarWindowHeight { heightFitter.scheduleFit() } }
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.
             .modifier(PopoverSurfaceModifier(
@@ -381,6 +411,10 @@ struct PopoverView: View {
     private func configurePopoverWindow(_ window: NSWindow?, from anchor: NSView) {
         popoverWindow = window
         guard let window else { return }
+        if fitsMenuBarWindowHeight, heightFitter.window !== window {
+            heightFitter.window = window
+            heightFitter.scheduleFit()
+        }
         let radius = tuning.values.shellCornerRadius
         // HR-33: keep the custom content radius, but clear the MenuBarExtra host backing
         // so the popover has exactly one system material layer at the rounded edge.
@@ -442,6 +476,9 @@ struct PopoverView: View {
             Text("Usage")
                 .font(.system(size: 20, weight: .bold))
                 .kerning(-0.2)
+                // SQ1: the hosting test reads where the title landed. SwiftUI builds no
+                // accessibility tree without an assistive client, so an identifier can't be found.
+                .anchorPreference(key: PopoverHeaderTitleAnchorKey.self, value: .bounds) { $0 }
             Spacer(minLength: 8)
             headerStatusSlot(now: now, baselineOffset: statusBaselineOffset)
             // Native glass control. Its circular boundary sits flush at the content margin —

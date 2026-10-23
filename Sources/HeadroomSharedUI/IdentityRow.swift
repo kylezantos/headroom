@@ -278,9 +278,10 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     }
 
     /// Raw ids (`prolite`, `SuperGrok`) never reach the badge — Core owns the humanizing
-    /// so the lenient provider models keep their verbatim value (#709).
+    /// so the lenient provider models keep their verbatim value (#709). The provider picks
+    /// its own id table: Codex `team` reads "Business" while Claude's Team stays "Team".
     private var planDisplayName: String? {
-        PlanLabelPresentation.displayName(planLabel)
+        PlanLabelPresentation.displayName(planLabel, provider: providerID)
     }
 
     /// S2B removed the status glyphs and left severity to the sentence's ink — but a

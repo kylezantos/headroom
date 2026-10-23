@@ -4,6 +4,17 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Plan names on already-installed phones (2026-10-23)
+
+- **Phones and iOS widgets on builds before the human-plan-names fix still show raw ids.** The
+  Mac publishes the provider's verbatim `planLabel` (v3 `planLabel`, v4 `planName`); the fix
+  humanizes it at render time, provider-aware, in `IdentityRow` and the widget identity row.
+  An older phone build renders that raw value through its own, older formatter, so a Codex
+  `self_serve_business_prolite` reads "Self_serve_business_prolite" there (and older widget
+  extensions print the bare id) until the phone updates. Humanizing on the Mac before publish
+  would fix old phones too, but changes the wire content and its digests; decide before the
+  next phone release whether that is worth it.
+
 ## SwiftPM tuning import warning (2026-10-13)
 
 - `RaisedTile.swift:30` uses `HeadroomTuning` through its environment value without directly

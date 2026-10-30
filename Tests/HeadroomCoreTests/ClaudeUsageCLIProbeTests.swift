@@ -60,7 +60,86 @@ struct ClaudeUsageCLIProbeTests {
         """) == .unknown)
     }
 
+    /// CLI 2.1.312's Chrome onboarding, painted with cursor moves (`ESC[nG`) between
+    /// words, as the PTY sees it before `ANSI.strip`.
+    static let chromeDialogRaw = "\u{1B}[2J\u{1B}[1;1HClaude \u{1B}[8Gin \u{1B}[11GChrome \u{1B}[18Gextension \u{1B}[28Gdetected\r\n"
+        + "Claude will use your Chrome browser by default \u{2014} navigating sites, filling forms, and capturing screenshots in your existing session.\r\n"
+        + "This session is in Auto mode, which checks routine browser actions \u{2014} you are only prompted when it is unsure. Turn browser tools off for future sessions with /chrome.\r\n"
+        + "\u{1B}[1m\u{276F}\u{1B}[0m\u{1B}[3GNo, \u{1B}[7Gkeep \u{1B}[12Gbrowser \u{1B}[20Gtools \u{1B}[26Goff\r\n"
+        + "\u{1B}[3GYes, \u{1B}[8Guse \u{1B}[12Gmy \u{1B}[15Gbrowser\r\n"
+        + "Enter to confirm \u{00B7} Esc to keep browser tools off\r\n"
+
+    @Test func chromeOnboardingIsAStartupQuestionAfterStripping() {
+        let stripped = ANSI.strip(Self.chromeDialogRaw)
+        // The stripped paint really does carry irregular whitespace inside the heading.
+        #expect(stripped.contains("Claude  in  Chrome  extension  detected"))
+        #expect(!stripped.contains("Claude in Chrome extension detected"))
+        #expect(stripped.contains("\u{276F}"))
+        #expect(ClaudeUsageCLIProbe.classifyBootText(stripped) == .startupQuestion)
+        // Either option alone completes the match; the heading alone never does.
+        #expect(ClaudeUsageCLIProbe.classifyBootText(
+            "Claude  in  Chrome  extension  detected\n  Yes,  use  my  browser") == .startupQuestion)
+        #expect(ClaudeUsageCLIProbe.classifyBootText(
+            "CLAUDE IN CHROME EXTENSION DETECTED\n\u{276F} No, keep browser tools off") == .startupQuestion)
+        #expect(ClaudeUsageCLIProbe.classifyBootText("Claude in Chrome extension detected") == .unknown)
+    }
+
+    @Test func aReadyPromptThatMentionsChromeIsStillReady() {
+        #expect(ClaudeUsageCLIProbe.classifyBootText("""
+        Claude Code v2.1.312
+        Fable 5 with high effort \u{00B7} Claude Max
+        \u{26A0} Claude in Chrome is connected \u{00B7} /chrome
+        \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+        \u{276F} Try "open my browser and check the build"
+        \u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}\u{2500}
+        \u{23F8} manual mode on
+        """) == .ready)
+    }
+
+    @Test func loginAndTrustScreensStillWinOverTheChromeQuestion() {
+        let dialog = ANSI.strip(Self.chromeDialogRaw)
+        #expect(ClaudeUsageCLIProbe.classifyBootText(dialog + "\nNot logged in \u{00B7} Run /login")
+            == .loginRequired)
+        #expect(ClaudeUsageCLIProbe.classifyBootText("Quick safety check: trust this folder?\n" + dialog)
+            == .trustRequired)
+        #expect(ClaudeUsageCLIProbe.classifyBootText("Select login method\n" + dialog) == .loginRequired)
+    }
+
     // MARK: fake CLI integration
+
+    @Test func chromeOnboardingAfterAnUnparseablePrintReportIsAStartupQuestion() async throws {
+        let fixture = try FakeClaude(script: """
+        #!/bin/zsh
+        print -r -- "argv:$*" >> "$HEADROOM_FIXTURE_TRACE"
+        if [[ "$1" == "--version" ]]; then
+          print '2.1.312 (Claude Code)'
+          exit 0
+        fi
+        if [[ "$1" == "-p" ]]; then
+          print 'A report shape this parser has never seen'
+          exit 0
+        fi
+        printf '%s' "$HEADROOM_FIXTURE_BOOT"
+        if read -r -t 8 captured; then
+          print -r -- "input:$captured" >> "$HEADROOM_FIXTURE_TRACE"
+        fi
+        """)
+        defer { fixture.remove() }
+
+        let (result, trace) = await fixture.probe(
+            extraEnvironment: ["HEADROOM_FIXTURE_BOOT": Self.chromeDialogRaw]
+        ).captureWithTrace()
+
+        #expect(result == .startupQuestion)
+        #expect(trace.print == .unparseable)
+        #expect(trace.ptyBoot == .startupQuestion)
+        #expect(trace.ptyBootFingerprint == nil)
+        #expect(trace.ptyPanel == nil)
+        #expect(trace.failedStage == "pty-boot-startupQuestion")
+        let lines = try fixture.traceLines()
+        // Headroom never answers the question: nothing at all was typed into the screen.
+        #expect(!lines.contains { $0.hasPrefix("input:") })
+    }
 
     @Test func ptyFallbackLaunchesWithTheOptOutAndSkipsPromptHistory() async throws {
         let fixture = try FakeClaude(script: """
@@ -317,7 +396,11 @@ private struct FakeClaude {
         try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: executable.path)
     }
 
-    func probe(printTimeout: TimeInterval = 20, printRetryTimeout: TimeInterval = 40) -> ClaudeUsageCLIProbe {
+    func probe(
+        printTimeout: TimeInterval = 20,
+        printRetryTimeout: TimeInterval = 40,
+        extraEnvironment: [String: String] = [:]
+    ) -> ClaudeUsageCLIProbe {
         let locator = CLIExecutableLocator(
             executableName: "claude", fallbackPaths: [executable.path],
             hintStore: FakeClaudeHintStore(), shellSearch: { [executable] in .completed(candidates: [executable.path]) },
@@ -326,7 +409,8 @@ private struct FakeClaude {
         return ClaudeUsageCLIProbe(
             locator: locator,
             workingDirectory: directory.path,
-            environmentOverrides: ["HEADROOM_FIXTURE_TRACE": trace.path],
+            environmentOverrides: ["HEADROOM_FIXTURE_TRACE": trace.path]
+                .merging(extraEnvironment) { current, _ in current },
             bootTimeout: 4,
             panelTimeout: 4,
             printTimeout: printTimeout,

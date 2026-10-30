@@ -221,6 +221,11 @@ public final class UsageStore {
     /// Test seam for the per-account setup-session overlay (KTD10). Nil reads the
     /// attached coordinator.
     @ObservationIgnored var companionSessionLookup: (@MainActor (AccountKey) -> CompanionSessionInput?)?
+    /// The app-owned interactive-launch reason for an account's session. The coordinator
+    /// knows the purpose but not the reason (it is chosen at staging, in the app), and the
+    /// phone overlay needs it to tell a startup question from a workspace approval.
+    @ObservationIgnored public var companionInteractiveReasonLookup:
+        (@MainActor (AccountKey) -> ClaudeInteractiveLaunchReason?)?
     private(set) var engine: PollingEngine?
     private var isStarting = false
     @ObservationIgnored var removingAccounts: Set<AccountKey> = []

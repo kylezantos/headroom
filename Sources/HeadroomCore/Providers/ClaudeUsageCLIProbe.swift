@@ -21,6 +21,10 @@ public enum ClaudePanelResult: Sendable, Equatable {
     /// the screen, so the provider never re-derives it from marker strings.
     case loginRequired
     case workspaceTrustRequired
+    /// Claude booted into a recognized one-time startup question (the Chrome onboarding)
+    /// before its prompt. Like `unknownUI` the probe sends no input; unlike it, the
+    /// screen is named so the card can say what is waiting.
+    case startupQuestion
     /// Claude presented a surface Headroom does not positively recognize. The probe
     /// fails closed and sends no input.
     case unknownUI
@@ -33,6 +37,7 @@ public enum ClaudeBootState: Sendable, Equatable {
     case ready
     case loginRequired
     case trustRequired
+    case startupQuestion
     case unknown
     case noOutput
 }
@@ -588,6 +593,9 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         case .trustRequired:
             teardown()
             return (.result(.workspaceTrustRequired), BootOutcome(stage: .trustRequired))
+        case .startupQuestion:
+            teardown()
+            return (.result(.startupQuestion), BootOutcome(stage: .startupQuestion))
         case .unknown:
             teardown()
             let fingerprint = ClaudeBootFingerprint(rawByteCount: buffer.count, strippedText: bootText)
@@ -649,6 +657,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
             return .trustRequired
         }
         if isFirstRunScreen(text) { return .loginRequired }
+        if isStartupQuestion(text) { return .startupQuestion }
         // Pre-2.1.218 CLIs painted a "? for shortcuts" hint on the ready prompt.
         if text.localizedCaseInsensitiveContains("? for shortcuts") { return .ready }
         // CLI 2.1.218 (Jul 2026) redesigned the boot paint: it dropped BOTH the
@@ -679,6 +688,20 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
             return .ready
         }
         return .unknown
+    }
+
+    /// CLI 2.1.312 (Oct 2026) stops a config whose global state (`.claude.json`, not
+    /// settings, so no `--settings` flag skips it) lacks `hasCompletedClaudeInChromeOnboarding`
+    /// on a "Claude in Chrome extension detected" question before the prompt. Recognized
+    /// only so the card can name it; it stays a no-input state, because either answer
+    /// changes the user's Claude settings. Both a heading and an option must match, so this
+    /// stays a positive allowlist. The paint positions words with cursor moves that
+    /// `ANSI.strip` turns into spaces, so the match runs on whitespace-collapsed text.
+    static func isStartupQuestion(_ strippedText: String) -> Bool {
+        let text = strippedText.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return text.localizedCaseInsensitiveContains("Claude in Chrome extension detected")
+            && (text.localizedCaseInsensitiveContains("keep browser tools off")
+                || text.localizedCaseInsensitiveContains("use my browser"))
     }
 
     /// Returning users keep a normal REPL after sign-out. Its explicit login footer

@@ -135,6 +135,13 @@ enum SetupSessions {
     /// waiting surface can tell the `/login` case (R6) from a never-onboarded extra config
     /// (AE7) without re-reading the CLI version from a view.
     private static var handoffInteractiveReasons: [AccountKey: ClaudeInteractiveLaunchReason] = [:]
+    /// Why the account's latest `.trust` launch was asked for: `.startupQuestion` when it
+    /// came from **Open Claude Code**, absent for **Open Claude Workspace**. Both share the
+    /// interactive launch, so this is the only thing that tells staging, the waiting and
+    /// timeout copy, Try Again and the phone overlay which one the user is in. It outlives
+    /// the handoff on purpose: the confirming copy and a Try Again after Terminal closes
+    /// both need it once `handoffInteractiveReasons` has been cleared.
+    private static var requestedTrustReasons: [AccountKey: ClaudeInteractiveLaunchReason] = [:]
     /// Review #1 (2026-09-19 sign-in review): the purpose of a staging that was *refused*
     /// before any handoff opened. `SetupSessionCoordinator.invalidateWork` clears
     /// `sessionPurposes` for a terminal failure with no open handoff — deliberately, so a
@@ -177,6 +184,7 @@ enum SetupSessions {
             activeScripts.removeValue(forKey: key)
             handoffTerminalApps.removeValue(forKey: key)
             handoffInteractiveReasons.removeValue(forKey: key)
+            requestedTrustReasons.removeValue(forKey: key)
             refusedHandoffPurposes.removeValue(forKey: key)
             SetupSessionActivity.shared.set(nil, for: key)
             SetupSessionActivity.shared.endWaiting(for: key)
@@ -234,6 +242,48 @@ enum SetupSessions {
         handoffInteractiveReasons[key] = reason
     }
 
+    /// Records why the account's next `.trust` launch is being opened. Written just before
+    /// the coordinator is asked to begin it and read on the main actor before staging, so the
+    /// reason lands in the prepared script and the durable handoff record.
+    static func noteRequestedTrustReason(
+        _ reason: ClaudeInteractiveLaunchReason?,
+        for key: AccountKey
+    ) {
+        requestedTrustReasons[key] = reason
+    }
+
+    static func requestedTrustReason(for key: AccountKey) -> ClaudeInteractiveLaunchReason? {
+        requestedTrustReasons[key]
+    }
+
+    /// The reason the account's interactive launch carries. An open handoff answers from its
+    /// own staged record; otherwise (still preparing, or Terminal has closed) a `.trust`
+    /// session answers from the request that started it.
+    static func interactiveReason(for account: ProviderAccount) -> ClaudeInteractiveLaunchReason? {
+        interactiveReason(for: account.key)
+    }
+
+    static func interactiveReason(for key: AccountKey) -> ClaudeInteractiveLaunchReason? {
+        let handoffIsOpen = coordinator?.hasActiveHandoff(for: key)
+            ?? (SetupSessionActivity.shared.openedAt(for: key) != nil)
+        if handoffIsOpen { return handoffInteractiveReasons[key] }
+        return coordinator?.sessionPurpose(for: key) == .trust ? requestedTrustReasons[key] : nil
+    }
+
+    /// The `.trust` launch's reason, from the recovery action that asked for it. Only
+    /// **Open Claude Code** carries one; every other workspace launch is an approval.
+    static func trustLaunchReason(for action: SetupRecoveryAction) -> ClaudeInteractiveLaunchReason? {
+        action == .answerClaudeQuestion ? .startupQuestion : nil
+    }
+
+    /// The inverse, for Try Again: a timed-out startup-question launch restarts as one, and
+    /// an ordinary approval stays an approval.
+    static func workspaceTrustRecoveryAction(
+        for reason: ClaudeInteractiveLaunchReason?
+    ) -> SetupRecoveryAction {
+        reason == .startupQuestion ? .answerClaudeQuestion : .openClaudeWorkspace
+    }
+
     /// KTD13: the only AppKit call Show Terminal makes, replaceable so tests never front a
     /// real app. Returns whether a running instance was activated.
     static var activateApplication: @MainActor (String) -> Bool = activateRunningApplication(bundleIdentifier:)
@@ -288,6 +338,9 @@ enum SetupSessions {
         )
         self.coordinator = coordinator
         store.attachSetupCoordinator(coordinator)
+        // The phone overlay tells a startup question from an approval by this reason, which
+        // only the app knows; the coordinator carries the purpose alone.
+        store.companionInteractiveReasonLookup = { key in interactiveReason(for: key) }
         for providerID in store.providerOrder {
             for account in store.accounts(for: providerID) {
                 let marker = completionMarker(
@@ -309,6 +362,9 @@ enum SetupSessions {
                     )
                     noteHandoffTerminalApp(record?.terminalBundleIdentifier, for: account.key)
                     noteHandoffInteractiveReason(record?.claudeInteractiveReason, for: account.key)
+                    if AccountStorage.setupHandoffPurpose(marker: marker) == .trust {
+                        noteRequestedTrustReason(record?.claudeInteractiveReason, for: account.key)
+                    }
                     restoreWaitingStart(for: account.key, marker: marker)
                     monitorCompletion(marker, for: account.key)
                 } else {
@@ -400,6 +456,7 @@ enum SetupSessions {
             openSetup(for: account, onRetry: onRetry)
         case .workspaceTrust:
             noteHandoffBegan(for: account)
+            noteRequestedTrustReason(trustLaunchReason(for: action), for: account.key)
             coordinator?.beginWorkspaceTrust(for: account)
         case .cursorTools:
             noteHandoffBegan(for: account)
@@ -443,7 +500,9 @@ enum SetupSessions {
             .documentation(URL(string: "https://x.ai/news/grok-build")!)
         case .installCursorAgent:
             .documentation(URL(string: "https://docs.cursor.com/en/cli/installation")!)
-        case .openClaudeWorkspace, .openCursorWorkspace:
+        // A startup question is answered in the same interactive launch an approval uses;
+        // `performRecovery` records the reason that tells them apart.
+        case .openClaudeWorkspace, .answerClaudeQuestion, .openCursorWorkspace:
             .workspaceTrust
         case .reviewCursorTools:
             .cursorTools
@@ -505,7 +564,7 @@ enum SetupSessions {
             hasActiveHandoff: hasActiveHandoff(for: account),
             purpose: purpose(for: account),
             mode: mode(for: account),
-            interactiveReason: handoffInteractiveReasons[account.key],
+            interactiveReason: interactiveReason(for: account),
             reportedCompletion: finalVerificationCompletion(for: account)
         )
     }
@@ -556,7 +615,11 @@ enum SetupSessions {
             showTerminal(for: account)
             resumeWaiting(for: account)
         case .startWorkspaceTrust:
-            performRecovery(.openClaudeWorkspace, for: account, onRetry: onRetry)
+            performRecovery(
+                workspaceTrustRecoveryAction(for: requestedTrustReasons[account.key]),
+                for: account,
+                onRetry: onRetry
+            )
         case .startReset:
             // Review #1: the sign-out is the point. Starting an ordinary sign-in here would
             // meet an account that is still signed in, so the script's guard would exit
@@ -608,17 +671,21 @@ enum SetupSessions {
         return failureMessage(
             for: failure,
             account: account,
-            purpose: coordinator?.sessionPurpose(for: account.key)
+            purpose: coordinator?.sessionPurpose(for: account.key),
+            interactiveReason: interactiveReason(for: account)
         )
     }
 
     /// Pure over the typed failure, so the copy for a staging refusal is testable without
     /// an open session. KTD7 (2026-09-19 sign-in plan): the timeout's sentence follows the
-    /// handoff purpose, which is why the purpose is a parameter rather than read inside.
+    /// handoff purpose, which is why the purpose is a parameter rather than read inside. The
+    /// interactive reason is one for the same reason: a startup-question launch shares the
+    /// approval purpose but asked the user for something else.
     static func failureMessage(
         for failure: SetupSessionFailure,
         account: ProviderAccount,
-        purpose: SetupHandoffPurpose? = nil
+        purpose: SetupHandoffPurpose? = nil,
+        interactiveReason: ClaudeInteractiveLaunchReason? = nil
     ) -> String {
         switch failure {
         case .executableMissing:
@@ -640,9 +707,10 @@ enum SetupSessions {
         case .waitingTimedOut:
             // R8/KTD12: this state offers Try Again and Stop Waiting only, so the sentence
             // names no button — unlike `.retryExhausted`, which still points at Check Now.
-            return purpose == .trust
-                ? "Approval wasn’t confirmed."
-                : "Sign-in wasn’t confirmed."
+            guard purpose == .trust else { return "Sign-in wasn’t confirmed." }
+            return interactiveReason == .startupQuestion
+                ? "Claude Code wasn’t ready yet."
+                : "Approval wasn’t confirmed."
         case .closedBeforeSignIn:
             // R11: the window is gone and the account is still signed out. The status the
             // wrapper recorded is unobservable for an abandoned sign-in, so it says nothing.
@@ -791,6 +859,7 @@ enum SetupSessions {
         completionTasks.removeValue(forKey: account.key)?.cancel()
         handoffTerminalApps.removeValue(forKey: account.key)
         handoffInteractiveReasons.removeValue(forKey: account.key)
+        requestedTrustReasons.removeValue(forKey: account.key)
         // Review #1: the user abandoned this attempt, so its refusal describes nothing.
         refusedHandoffPurposes.removeValue(forKey: account.key)
         let prepared = preparedScripts.removeValue(forKey: account.key)
@@ -838,6 +907,9 @@ enum SetupSessions {
             for: account,
             builtInClaudeWorkspace: builtInClaudeWorkspace
         )
+        // Read on the main actor, before the detached staging task: the reason belongs to the
+        // request that started this `.trust` launch and is not Sendable state to reach for.
+        let trustReason = purpose == .trust ? requestedTrustReasons[account.key] : nil
         let preparation = await Task.detached(priority: .userInitiated) { () -> Result<PreparedScript, SetupSessionFailure> in
             do {
                 if !account.isBuiltIn {
@@ -886,6 +958,7 @@ enum SetupSessions {
                     let kind = await claudeScriptKind(
                         for: account,
                         purpose: purpose,
+                        trustReason: trustReason,
                         executablePath: executable,
                         configDirectory: configuration.claudeConfigDirectory?.path,
                         readVersion: claudeVersionReader
@@ -1029,6 +1102,7 @@ enum SetupSessions {
     private static func claudeScriptKind(
         for account: ProviderAccount,
         purpose: SetupHandoffPurpose,
+        trustReason: ClaudeInteractiveLaunchReason?,
         executablePath: String,
         configDirectory: String?,
         readVersion: ClaudeVersionReading
@@ -1036,8 +1110,9 @@ enum SetupSessions {
         // The approval prompt appears only in the interactive CLI, and the sign-in script's
         // status guard would exit before it on an account that is already signed in (AE3).
         // No version gates it: refusing would leave an approvable account with nothing to
-        // click.
-        guard purpose == .setup || purpose == .reset else { return .stage(.interactive, nil) }
+        // click. A startup question rides the same launch; its reason is carried through so
+        // the waiting copy and the durable record can tell it from an approval.
+        guard purpose == .setup || purpose == .reset else { return .stage(.interactive, trustReason) }
 
         let versionOutput = await readVersion(
             executablePath,

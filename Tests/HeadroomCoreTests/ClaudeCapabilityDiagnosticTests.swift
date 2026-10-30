@@ -82,6 +82,20 @@ struct ClaudeCapabilityDiagnosticTests {
         }
     }
 
+    /// The Chrome onboarding question is named as its own boot stage and outcome, never
+    /// folded into the unrecognized-screen stage or fingerprinted.
+    @Test func aStartupQuestionIsItsOwnBootStage() {
+        let output = ClaudeCapabilityDiagnostic.lines(
+            account: .builtIn, versionBand: .printSupported, outcome: .startupQuestion, events: [],
+            trace: ClaudeCaptureTrace(print: .unparseable, ptyRemoteControlOptOut: true, ptyBoot: .startupQuestion)
+        )
+        #expect(output.contains("capability-outcome=startupQuestion"))
+        #expect(output.contains("pty-boot=startupQuestion"))
+        #expect(output.contains("failed-stage=pty-boot-startupQuestion"))
+        #expect(!output.contains { $0.hasPrefix("pty-boot-fingerprint") })
+        #expect(ClaudeCaptureTrace(ptyBoot: .startupQuestion).failedStage == "pty-boot-startupQuestion")
+    }
+
     @Test func unparseablePTYPanelIsNamedEvenWhenTheResultCountsAsAvailable() {
         for panel in ClaudePTYPanelStage.allCases {
             let output = ClaudeCapabilityDiagnostic.lines(

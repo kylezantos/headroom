@@ -251,6 +251,32 @@ struct PhoneExportTriggerTests {
         #expect(accounts(f.phone.last).first?.attention == nil)
     }
 
+    /// The coordinator knows a session's purpose but not its interactive reason, which the
+    /// app chooses at staging. Without the app's lookup a startup-question launch would read
+    /// on the phone as a workspace approval, because both are the `.trust` launch.
+    @Test func theAppsInteractiveReasonTellsAStartupQuestionFromAnApproval() async throws {
+        let (f, extras) = fixture()
+        await f.store.refreshAll()
+        let coordinator = SetupSessionCoordinator(
+            scheduler: PhoneTriggerIgnoringScheduler(),
+            prepare: { account, mode in .success(PreparedSetupHandoff(accountKey: account.key, mode: mode)) },
+            open: { _ in .success(()) },
+            accountExists: { _ in true },
+            requestRefresh: { _ in }
+        )
+        f.store.attachSetupCoordinator(coordinator)
+        coordinator.restoreActiveHandoff(extras[0].key, purpose: .trust)
+
+        f.store.setUsagePercentageMode(.used)
+        #expect(accounts(f.phone.last).last?.attention == .workspaceApproval)
+
+        f.store.companionInteractiveReasonLookup = { key in
+            key == extras[0].key ? .startupQuestion : nil
+        }
+        f.store.setUsagePercentageMode(.remaining)
+        #expect(accounts(f.phone.last).last?.attention == .setupScreenUnknown)
+    }
+
     /// The facade stamps a strictly increasing, persisted generation on the main actor.
     @Test func theFacadeStampsIncreasingPersistedGenerations() async throws {
         let defaults = freshDefaults()
@@ -261,5 +287,19 @@ struct PhoneExportTriggerTests {
         let first = lineage.nextGeneration()
         let second = CompanionLineage(defaults: defaults).nextGeneration()
         #expect(second == first + 1)
+    }
+}
+
+@MainActor
+private final class PhoneTriggerIgnoringScheduler: SetupRetryScheduling {
+    private final class Cancellation: SetupRetryCancellation {
+        func cancel() {}
+    }
+
+    func schedule(
+        after _: Duration,
+        operation _: @escaping @MainActor @Sendable () -> Void
+    ) -> any SetupRetryCancellation {
+        Cancellation()
     }
 }

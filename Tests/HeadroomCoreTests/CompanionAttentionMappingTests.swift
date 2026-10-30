@@ -13,6 +13,8 @@ struct CompanionAttentionMappingTests {
         (.claudeLoginRequired, .signInRequired),
         (.claudeTrustRequired, .workspaceApproval),
         (.claudeUnknownUI, .setupScreenUnknown),
+        // No wire value names a startup question; the schema is unchanged.
+        (.claudeStartupQuestion, .setupScreenUnknown),
         (.claudeTransientCapture, .retrying),
         (.codexCLIMissing, .cliMissing),
         (.codexAuthAbsent, .signInRequired),
@@ -41,8 +43,8 @@ struct CompanionAttentionMappingTests {
     ]
 
     @Test func everyProviderSetupOutcomeMapsToItsReviewedAttention() {
-        #expect(Self.outcomes.count == 29)
-        #expect(Set(Self.outcomes.map(\.0)).count == 29)
+        #expect(Self.outcomes.count == 30)
+        #expect(Set(Self.outcomes.map(\.0)).count == 30)
         for (outcome, expected) in Self.outcomes {
             #expect(CompanionAttentionMapping.attention(for: outcome) == expected, "\(outcome)")
             #expect(CompanionAttentionMapping.attention(for: .providerSetup(outcome)) == expected)
@@ -121,6 +123,12 @@ struct CompanionAttentionMappingTests {
             (.init(state: .waiting(attempt: 1), purpose: .setup, interactiveReason: .neverOnboardedExtraAccount), .finishingSignIn),
             (.init(state: .waiting(attempt: 1), purpose: .trust), .workspaceApproval),
             (.init(state: .verifying, purpose: .trust), .workspaceApproval),
+            // The startup question rides the `.trust` launch but is not an approval.
+            (.init(state: .waiting(attempt: 1), purpose: .trust, interactiveReason: .startupQuestion), .setupScreenUnknown),
+            (.init(state: .verifying, purpose: .trust, interactiveReason: .startupQuestion), .setupScreenUnknown),
+            (.init(state: .preparing, purpose: .trust, interactiveReason: .startupQuestion), .setupInProgress),
+            // The reason only reaches the overlay on the `.trust` launch.
+            (.init(state: .waiting(attempt: 1), purpose: .setup, interactiveReason: .startupQuestion), .finishingSignIn),
             (.init(state: .waiting(attempt: 1), purpose: .approval), .externalToolsApproval),
             (.init(state: .verifying, purpose: .approval), .externalToolsApproval),
             (.init(state: .blockedByOpenHandoff), .setupBlocked),

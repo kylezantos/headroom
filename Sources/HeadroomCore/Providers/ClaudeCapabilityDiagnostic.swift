@@ -15,6 +15,7 @@ public enum ClaudeCapabilityDiagnosticOutcome: String, Sendable, Equatable, Case
     case available
     case loginRequired
     case trustRequired
+    case startupQuestion
     case confirmedAbsent
     case discoveryInconclusive
     case captureFailed
@@ -46,6 +47,8 @@ public enum ClaudePTYBootStage: String, Sendable, Equatable, CaseIterable {
     case ready
     case loginRequired
     case trustRequired
+    /// A recognized one-time question before the prompt (the Chrome onboarding).
+    case startupQuestion
     /// The only producer of "Claude opened an unrecognized setup screen".
     case unrecognized
     case noOutput

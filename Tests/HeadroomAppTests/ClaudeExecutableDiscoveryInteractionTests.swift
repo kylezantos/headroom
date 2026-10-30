@@ -577,6 +577,74 @@ import HeadroomCore
         }
     }
 
+    /// A startup question opens the same interactive launch an approval does, and the reason
+    /// recorded when **Open Claude Code** was pressed lands in the prepared script (and from
+    /// there the durable record). A plain approval keeps no reason, and a sign-in never
+    /// borrows one left over from an earlier startup-question launch.
+    @MainActor @Test func aStartupQuestionStagesTheInteractiveLaunchWithItsReason() async throws {
+        let account = ProviderAccount.builtIn(for: .claude)
+        defer { SetupSessions.noteRequestedTrustReason(nil, for: account.key) }
+
+        for (requested, purpose, expectedKind, expectedReason) in [
+            (ClaudeInteractiveLaunchReason.startupQuestion, SetupHandoffPurpose.trust,
+             ClaudeSetupScriptKind.interactive, ClaudeInteractiveLaunchReason?.some(.startupQuestion)),
+            (nil, .trust, .interactive, nil),
+            (.startupQuestion, .setup, .signIn, nil),
+        ] {
+            let workspace = temporaryWorkspace()
+            defer { try? FileManager.default.removeItem(at: workspace) }
+            SetupSessions.noteRequestedTrustReason(requested, for: account.key)
+
+            let staging = await stageClaudeHandoff(
+                for: account,
+                purpose: purpose,
+                workspace: workspace,
+                versions: ClaudeVersionReaderSpy("2.1.312 (Claude Code)")
+            )
+
+            #expect(staging.handoff?.claudeScriptKind == expectedKind)
+            #expect(staging.staged?.claudeInteractiveReason == expectedReason)
+            let script = try #require(staging.script)
+            #expect(script.contains("auth login") == (expectedKind == .signIn))
+            await staging.discard()
+        }
+    }
+
+    /// **Open Claude Code** routes to the approval's launch; only the reason it records sets
+    /// it apart. Try Again maps that reason back to the action that started it, so a timed-out
+    /// startup question restarts as one and a plain approval stays an approval.
+    @MainActor @Test func openClaudeCodeSharesTheTrustLaunchAndTryAgainKeepsItsReason() {
+        #expect(SetupSessions.recoveryRoute(for: .answerClaudeQuestion) == .workspaceTrust)
+        #expect(SetupSessions.trustLaunchReason(for: .answerClaudeQuestion) == .startupQuestion)
+        for action in [SetupRecoveryAction.openClaudeWorkspace, .openCursorWorkspace] {
+            #expect(SetupSessions.trustLaunchReason(for: action) == nil)
+        }
+        #expect(SetupSessions.workspaceTrustRecoveryAction(for: .startupQuestion) == .answerClaudeQuestion)
+        #expect(SetupSessions.workspaceTrustRecoveryAction(for: nil) == .openClaudeWorkspace)
+
+        let account = ProviderAccount(
+            id: AccountID("claude-startup-question"), providerID: .claude, label: "Work", isBuiltIn: false
+        )
+        defer { SetupSessions.noteRequestedTrustReason(nil, for: account.key) }
+        SetupSessions.noteRequestedTrustReason(.startupQuestion, for: account.key)
+        let route = SetupSessions.tryAgainRoute(hasActiveHandoff: false, purpose: .trust)
+        #expect(SetupSessions.tryAgainAction(for: route) == .startWorkspaceTrust)
+        let retried = SetupSessions.workspaceTrustRecoveryAction(
+            for: SetupSessions.requestedTrustReason(for: account.key)
+        )
+        #expect(retried == .answerClaudeQuestion)
+        #expect(SetupSessions.trustLaunchReason(for: retried) == .startupQuestion)
+
+        // The plain approval flow is unchanged: no reason, and Try Again reopens the workspace.
+        SetupSessions.noteRequestedTrustReason(
+            SetupSessions.trustLaunchReason(for: .openClaudeWorkspace), for: account.key
+        )
+        #expect(SetupSessions.requestedTrustReason(for: account.key) == nil)
+        #expect(SetupSessions.workspaceTrustRecoveryAction(
+            for: SetupSessions.requestedTrustReason(for: account.key)
+        ) == .openClaudeWorkspace)
+    }
+
     /// KTD5 of the 2026-08-12 plan: an unresolved executable still fails with the typed
     /// capability state and stages nothing, and the version gate never runs — there is no
     /// validated binary to ask.
@@ -741,6 +809,24 @@ import HeadroomCore
 
         #expect(signIn == "Sign-in wasn’t confirmed.")
         #expect(approval == "Approval wasn’t confirmed.")
+        // A startup question rides the approval's purpose but asked for something else.
+        let startupQuestion = SetupSessions.failureMessage(
+            for: .waitingTimedOut,
+            account: account,
+            purpose: .trust,
+            interactiveReason: .startupQuestion
+        )
+        #expect(startupQuestion == "Claude Code wasn’t ready yet.")
+        // The reason means nothing outside the `.trust` launch.
+        #expect(SetupSessions.failureMessage(
+            for: .waitingTimedOut, account: account, purpose: .setup, interactiveReason: .startupQuestion
+        ) == signIn)
+        for reason in [ClaudeInteractiveLaunchReason.versionUnreadable, .neverOnboardedExtraAccount] {
+            #expect(SetupSessions.failureMessage(
+                for: .waitingTimedOut, account: account, purpose: .trust, interactiveReason: reason
+            ) == approval)
+        }
+        #expect(!startupQuestion.contains("Check Now"))
         #expect(SetupSessions.failureMessage(for: .waitingTimedOut, account: account, purpose: .reset)
             == signIn)
         for message in [signIn, approval] {

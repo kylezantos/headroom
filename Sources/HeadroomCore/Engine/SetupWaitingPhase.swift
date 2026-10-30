@@ -60,7 +60,11 @@ public enum SetupWaitingPhase: Sendable, Equatable {
         mode: SetupHandoffMode,
         interactiveReason: ClaudeInteractiveLaunchReason?
     ) -> SetupWaitingPrompt {
-        if purpose == .trust { return .workspaceApproval }
+        if purpose == .trust {
+            // A startup question reuses the approval launch; only the reason recorded at
+            // staging tells the two apart, so neither borrows the other's sentence.
+            return interactiveReason == .startupQuestion ? .startupQuestion : .workspaceApproval
+        }
         if mode == .deviceCode { return .deviceCode }
         guard purpose == .setup, interactiveReason == .versionUnreadable else { return .signIn }
         return .signInNeedsLoginCommand
@@ -103,6 +107,12 @@ public enum SetupWaitingPhase: Sendable, Equatable {
                 body: "Choose the option below in Terminal. Headroom continues as soon as you approve.",
                 token: .init(text: "“Yes, I trust this folder”", isCommand: false)
             )
+        case .startupQuestion:
+            // No token: Headroom never answers the question, so it names no option to pick.
+            .init(
+                title: "Waiting for Claude Code…",
+                body: "Answer Claude Code’s question in Terminal. Headroom continues as soon as Claude Code is ready."
+            )
         case .deviceCode:
             .init(
                 title: "Waiting for device code…",
@@ -124,6 +134,17 @@ public enum SetupWaitingPhase: Sendable, Equatable {
                 : .init(
                     title: "Checking approval…",
                     body: "Terminal closed. Headroom is checking whether the approval finished."
+                )
+        }
+        if prompt == .startupQuestion {
+            return reportedFinished
+                ? .init(
+                    title: "Confirming…",
+                    body: "Terminal closed. Headroom is reading your usage."
+                )
+                : .init(
+                    title: "Checking Claude Code…",
+                    body: "Terminal closed. Headroom is checking whether Claude Code is ready."
                 )
         }
         return reportedFinished

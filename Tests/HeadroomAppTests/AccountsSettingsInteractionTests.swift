@@ -357,6 +357,8 @@ struct AccountsSettingsInteractionTests {
             // KTD5 (2026-09-19 sign-in plan): Claude's approval handoff shares Cursor's
             // trust route; only Sign In still routes to `.setup(.standard)`.
             (.openClaudeWorkspace, .workspaceTrust),
+            // A startup question is answered in the same interactive launch.
+            (.answerClaudeQuestion, .workspaceTrust),
             (.openCursorWorkspace, .workspaceTrust),
             (.reviewCursorTools, .cursorTools),
             (.showPrivacyGuidance, .privacyGuidance(URL(string: "https://support.apple.com/guide/mac-help/control-access-to-files-and-folders-on-mac-mchld5a35146/mac")!)),
@@ -1915,11 +1917,14 @@ private final class GrokDeviceCodeSetupHarness {
         for account in accounts {
             for failure in failures {
                 for purpose in [SetupHandoffPurpose.setup, .reset, .trust, .approval] {
-                    strings.append(SetupSessions.failureMessage(
-                        for: failure,
-                        account: account,
-                        purpose: purpose
-                    ))
+                    for reason in ClaudeInteractiveLaunchReason.allCases.map(Optional.some) + [nil] {
+                        strings.append(SetupSessions.failureMessage(
+                            for: failure,
+                            account: account,
+                            purpose: purpose,
+                            interactiveReason: reason
+                        ))
+                    }
                 }
                 if let detail = SetupSessions.failureDetail(for: failure) {
                     strings.append(detail)
@@ -1965,11 +1970,13 @@ private final class GrokDeviceCodeSetupHarness {
         ).map(\.label) + ["Stop Waiting"])
         let absent = ["Check Now", "Sign In", "Sign In Again", "Show Terminal",
                       "Continue Setup", "Open Claude Workspace"]
-        for purpose in [SetupHandoffPurpose.setup, .reset, .trust] {
+        for (purpose, reason) in [(SetupHandoffPurpose.setup, ClaudeInteractiveLaunchReason?.none),
+                                  (.reset, nil), (.trust, nil), (.trust, .startupQuestion)] {
             let message = SetupSessions.failureMessage(
                 for: .waitingTimedOut,
                 account: account,
-                purpose: purpose
+                purpose: purpose,
+                interactiveReason: reason
             )
             let detail = SetupSessions.failureDetail(for: .waitingTimedOut) ?? ""
             for label in absent {

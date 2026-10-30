@@ -116,7 +116,11 @@ extension UsageStore {
         guard let setupCoordinator else { return nil }
         let state = setupCoordinator.state(for: key)
         guard state != .idle else { return nil }
-        return CompanionSessionInput(state: state, purpose: setupCoordinator.sessionPurpose(for: key))
+        return CompanionSessionInput(
+            state: state,
+            purpose: setupCoordinator.sessionPurpose(for: key),
+            interactiveReason: companionInteractiveReasonLookup?(key)
+        )
     }
 
     /// KTD19: a read-only summary of the Notifications pane. The phone channel switch

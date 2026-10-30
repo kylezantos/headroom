@@ -214,6 +214,32 @@ import Testing
         #expect(mode.intValue & 0o077 == 0)
     }
 
+    /// KTD11: every interactive-launch reason, the startup question included, survives a
+    /// relaunch beside the generation, so a restored `.trust` handoff keeps its own copy.
+    @Test func handoffRecordRoundTripsEveryInteractiveReason() throws {
+        for reason in ClaudeInteractiveLaunchReason.allCases.map(Optional.some) + [nil] {
+            let (marker, directory) = try makeMarker()
+            defer { try? FileManager.default.removeItem(at: directory) }
+            let generation = try AccountStorage.prepareSetupCompletionMarker(marker, purpose: .trust)
+
+            try AccountStorage.writeSetupHandoffRecord(
+                SetupHandoffRecord(
+                    waitingPolicy: .polled,
+                    terminalBundleIdentifier: "com.apple.Terminal",
+                    claudeInteractiveReason: reason
+                ),
+                marker: marker,
+                generation: generation
+            )
+
+            let record = try #require(AccountStorage.setupHandoffRecord(marker: marker))
+            #expect(record.claudeInteractiveReason == reason)
+            #expect(record.waitingPolicy == .polled)
+            #expect(AccountStorage.setupHandoffPurpose(marker: marker) == .trust)
+        }
+        #expect(ClaudeInteractiveLaunchReason(rawValue: "startupQuestion") == .startupQuestion)
+    }
+
     @Test func handoffRecordKeepsThePolicyWhenNoTerminalWasResolved() throws {
         let (marker, directory) = try makeMarker()
         defer { try? FileManager.default.removeItem(at: directory) }

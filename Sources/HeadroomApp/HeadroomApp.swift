@@ -182,6 +182,8 @@ enum Entry {
                 print("RESULT: login required (first-run screen — no account signed into this config home)")
             case .workspaceTrustRequired:
                 print("RESULT: workspace trust required")
+            case .startupQuestion:
+                print("RESULT: Claude startup question before the prompt (no input sent)")
             case .unknownUI:
                 print("RESULT: unrecognized Claude surface (no input sent)")
             case .panel(let text, let planHint):
@@ -211,6 +213,7 @@ enum Entry {
         case .panel: .available
         case .loginRequired: .loginRequired
         case .workspaceTrustRequired: .trustRequired
+        case .startupQuestion: .startupQuestion
         case .cliNotFound: .confirmedAbsent
         case .cliInconclusive: .discoveryInconclusive
         case .transientCapture: .captureFailed

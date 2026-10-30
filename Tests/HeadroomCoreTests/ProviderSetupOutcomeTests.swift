@@ -40,7 +40,8 @@ import Testing
             (.claudeCLIMissing, .installClaudeCLI, .checkNow, .none),
             (.claudeLoginRequired, .openClaudeSetup, .checkNow, .boundedChecksAfterHandoff),
             (.claudeTrustRequired, .openClaudeWorkspace, .checkNow, .boundedChecksAfterHandoff),
-            (.claudeUnknownUI, .checkNow, .openClaudeSetup, .none),
+            (.claudeUnknownUI, .checkNow, .answerClaudeQuestion, .none),
+            (.claudeStartupQuestion, .answerClaudeQuestion, .checkNow, .boundedChecksAfterHandoff),
             (.claudeTransientCapture, .checkNow, .openClaudeSetup, .none),
             (.codexCLIMissing, .installCodexCLI, nil, .none),
             (.codexAuthAbsent, .connectCodex, .connectCodexDeviceCode, .boundedChecksAfterHandoff),
@@ -352,6 +353,102 @@ import Testing
         )?.copy.title == "Checking approval…")
     }
 
+    /// A startup question waits on the user, not on Headroom, and its recovery opens the
+    /// interactive launch where the question is visible. Guided Setup's sign-in script exits
+    /// on a signed-in account before the question can appear, so it is never offered.
+    @Test func aStartupQuestionOpensClaudeCodeForTheUser() {
+        let outcome = ProviderSetupOutcome.claudeStartupQuestion
+        #expect(outcome.message == "Claude Code is waiting on a one-time question")
+        #expect(outcome.isPermanent)
+        #expect(FailureReason.providerSetup(outcome).isPermanent)
+        #expect(!outcome.isNeverSignedIn)
+        let presentation = outcome.recoveryPresentation
+        #expect(presentation.status == outcome.message)
+        #expect(presentation.primaryLabel == "Open Claude Code")
+        #expect(presentation.primaryAction == .answerClaudeQuestion)
+        #expect(presentation.secondaryLabel == "Check Now")
+        #expect(presentation.secondaryAction == .checkNow)
+        #expect(presentation.automaticPolicy == .boundedChecksAfterHandoff)
+    }
+
+    /// The unrecognized screen keeps its copy and Check Now, but its secondary no longer
+    /// runs the sign-in script that could never show the screen. Transient capture, which
+    /// shared that arm, keeps Guided Setup.
+    @Test func anUnrecognizedScreenOffersClaudeCodeInsteadOfGuidedSetup() {
+        let unknown = ProviderSetupOutcome.claudeUnknownUI.recoveryPresentation
+        #expect(unknown.status == "Claude opened an unrecognized setup screen")
+        #expect(unknown.primaryLabel == "Check Now")
+        #expect(unknown.primaryAction == .checkNow)
+        #expect(unknown.secondaryLabel == "Open Claude Code")
+        #expect(unknown.secondaryAction == .answerClaudeQuestion)
+        #expect(unknown.automaticPolicy == .none)
+
+        let transient = ProviderSetupOutcome.claudeTransientCapture.recoveryPresentation
+        #expect(transient.primaryLabel == "Check Now")
+        #expect(transient.primaryAction == .checkNow)
+        #expect(transient.secondaryLabel == "Open Guided Setup")
+        #expect(transient.secondaryAction == .openClaudeSetup)
+        #expect(transient.automaticPolicy == .none)
+    }
+
+    /// The startup question rides the `.trust` launch; only its staged reason gives it its
+    /// own waiting and confirming copy. It names no option, because Headroom never answers.
+    @Test func aStartupQuestionLaunchHasItsOwnWaitingCopy() {
+        let waiting = SetupWaitingPhase.resolve(
+            state: .waiting(attempt: 0),
+            hasActiveHandoff: true,
+            purpose: .trust,
+            interactiveReason: .startupQuestion
+        )
+        #expect(waiting == .waitingForUser(.startupQuestion))
+        #expect(waiting?.copy.title == "Waiting for Claude Code…")
+        #expect(waiting?.copy.body
+            == "Answer Claude Code’s question in Terminal. Headroom continues as soon as Claude Code is ready.")
+        #expect(waiting?.copy.token == nil)
+
+        let finished = SetupWaitingPhase.resolve(
+            state: .verifying,
+            hasActiveHandoff: false,
+            purpose: .trust,
+            interactiveReason: .startupQuestion,
+            reportedCompletion: .succeeded
+        )
+        #expect(finished == .confirming(.startupQuestion, reportedFinished: true))
+        #expect(finished?.copy.title == "Confirming…")
+        #expect(finished?.copy.body == "Terminal closed. Headroom is reading your usage.")
+
+        for completion in [SetupHandoffCompletion.unknown, .failed] {
+            let unknown = SetupWaitingPhase.resolve(
+                state: .verifying,
+                hasActiveHandoff: false,
+                purpose: .trust,
+                interactiveReason: .startupQuestion,
+                reportedCompletion: completion
+            )
+            #expect(unknown == .confirming(.startupQuestion, reportedFinished: false))
+            #expect(unknown?.copy.title == "Checking Claude Code…")
+            #expect(unknown?.copy.body
+                == "Terminal closed. Headroom is checking whether Claude Code is ready.")
+        }
+
+        // The reason only means something on the `.trust` launch: a sign-in never borrows it.
+        #expect(SetupWaitingPhase.resolve(
+            state: .waiting(attempt: 0),
+            hasActiveHandoff: true,
+            purpose: .setup,
+            interactiveReason: .startupQuestion
+        ) == .waitingForUser(.signIn))
+        // And a plain approval keeps its own prompt and literal option.
+        let approval = SetupWaitingPhase.resolve(
+            state: .waiting(attempt: 0),
+            hasActiveHandoff: true,
+            purpose: .trust
+        )
+        #expect(approval == .waitingForUser(.workspaceApproval))
+        #expect(approval?.copy.token
+            == SetupWaitingToken(text: "“Yes, I trust this folder”", isCommand: false))
+    }
+
     /// The device-code handoffs Codex and Grok already offer keep their own line.
     @Test func aDeviceCodeHandoffKeepsItsOwnPrompt() {
         let phase = SetupWaitingPhase.resolve(
@@ -446,7 +543,7 @@ private var allWaitingPhaseStrings: [String] {
 /// the enum having to become `CaseIterable` in shipping code.
 private let allSetupOutcomes: [ProviderSetupOutcome] = [
     .claudeCLIMissing, .claudeLoginRequired, .claudeTrustRequired, .claudeUnknownUI,
-    .claudeTransientCapture,
+    .claudeStartupQuestion, .claudeTransientCapture,
     .codexCLIMissing, .codexAuthAbsent, .codexPermissionDenied, .codexUnsafePermissions,
     .codexMalformedAuth, .codexCredentialIO, .codexRejectedAuth, .codexSessionUnverified, .codexStorageMismatch,
     .codexCallbackIncomplete,

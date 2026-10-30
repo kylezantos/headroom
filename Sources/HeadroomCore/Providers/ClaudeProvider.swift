@@ -44,6 +44,8 @@ public struct ClaudeProvider: UsageProvider {
             return accountResult(stale(.providerSetup(.claudeLoginRequired)))
         case .workspaceTrustRequired:
             return accountResult(stale(.providerSetup(.claudeTrustRequired)))
+        case .startupQuestion:
+            return accountResult(stale(.providerSetup(.claudeStartupQuestion)))
         case .unknownUI:
             return accountResult(stale(.providerSetup(.claudeUnknownUI)))
         case .transientCapture:

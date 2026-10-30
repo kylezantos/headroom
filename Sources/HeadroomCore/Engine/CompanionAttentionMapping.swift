@@ -33,7 +33,9 @@ public enum CompanionAttentionMapping {
             .signInRequired
         case .claudeTrustRequired, .cursorTrustRequired:
             .workspaceApproval
-        case .claudeUnknownUI, .cursorUnknownUI:
+        // No wire value names a startup question; the phone's unknown-setup-screen copy is
+        // the honest nearest one, and the sync schema stays unchanged.
+        case .claudeUnknownUI, .claudeStartupQuestion, .cursorUnknownUI:
             .setupScreenUnknown
         // Credential IO is retryable, never proof the credentials were rejected.
         case .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified, .grokCredentialIO,
@@ -119,7 +121,10 @@ public enum CompanionAttentionMapping {
                 ? .neverOnboarded : .setupInProgress
         case .waiting, .verifying:
             switch input.purpose {
-            case .trust: return .workspaceApproval
+            // The startup question rides the approval launch; it is not an approval.
+            case .trust:
+                return input.interactiveReason == .startupQuestion
+                    ? .setupScreenUnknown : .workspaceApproval
             case .approval: return .externalToolsApproval
             // An unreadable version is not an update requirement; the prompt decides.
             case .setup, .reset, nil: return .finishingSignIn

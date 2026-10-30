@@ -416,6 +416,8 @@ struct ClaudeProviderTests {
         ("Select login method", ClaudePanelResult.loginRequired),
         ("Quick safety check: trust this folder?", ClaudePanelResult.workspaceTrustRequired),
         ("Unrecognized new onboarding screen", ClaudePanelResult.unknownUI),
+        ("Claude  in  Chrome  extension  detected\n❯  No,  keep  browser  tools  off\n  Yes,  use  my  browser",
+         ClaudePanelResult.startupQuestion),
         ("Claude Code v2.1.302\n❯ Try \"edit a file\"\nNot logged in · Run /login", ClaudePanelResult.loginRequired),
         ("Claude Code\n? for shortcuts\nNot logged in · Please run /login", ClaudePanelResult.loginRequired),
     ])
@@ -591,6 +593,14 @@ struct ClaudeProviderTests {
         let snap = await provider(.workspaceTrustRequired).fetchSnapshot()
         guard case .stale(let reason) = snap.freshness else { Issue.record("expected stale"); return }
         #expect(reason.providerSetupOutcome == .claudeTrustRequired)
+    }
+
+    @Test func startupQuestionAsksUserToOpenClaudeCode() async {
+        let snap = await provider(.startupQuestion).fetchSnapshot()
+        guard case .stale(let reason) = snap.freshness else { Issue.record("expected stale"); return }
+        #expect(reason.providerSetupOutcome == .claudeStartupQuestion)
+        #expect(reason.isPermanent)
+        #expect(reason.providerSetupOutcome?.recoveryPresentation.primaryAction == .answerClaudeQuestion)
     }
 
     @Test func unknownInteractiveSurfaceNeverMasqueradesAsLoginOrTrust() async {

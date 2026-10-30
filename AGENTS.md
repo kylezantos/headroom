@@ -441,6 +441,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   guard reads the `loggedIn` JSON field, never the status command's exit code, which was verified
   on one CLI version only. Script and manual command share one exported-subshell routing: a
   one-command env prefix would send an extra account's `auth login` to the default login.
+  Startup questions (CLI 2.1.312's Chrome onboarding, and the unrecognized-screen fallback)
+  reuse the `.trust` interactive launch, distinguished by
+  `ClaudeInteractiveLaunchReason.startupQuestion`; never add a purpose or answer them for the user.
 - **Codex setup must remain a CLI handoff.** Keep `CodexCLI.loginCommand`, provider recovery
   copy, Terminal execution, and clipboard fallback on `codex login`. Resolve the executable
   through `CLIExecutableResolver` so Finder launches still support Homebrew/NVM/asdf/mise

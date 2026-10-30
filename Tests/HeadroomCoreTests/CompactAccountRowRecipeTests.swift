@@ -238,11 +238,12 @@ struct CompactAccountRowRecipeTests {
     }
 
     @Test func recoveryOutcomesFallBackEvenWhenTransient() {
-        // The single-account card renders Check Now / Open Guided Setup for these
+        // The single-account card renders Check Now plus a recovery action for these
         // (ProviderCardView `providerSetupOutcome` branch), so Compact must not hide them.
         let reasons: [FailureReason] = [
             .providerSetup(.claudeTransientCapture),
             .providerSetup(.claudeUnknownUI),
+            .providerSetup(.claudeStartupQuestion),
             .providerSetup(.codexCredentialIO),
             .providerSetup(.codexPermissionDenied),
             .providerSetup(.codexStorageMismatch),

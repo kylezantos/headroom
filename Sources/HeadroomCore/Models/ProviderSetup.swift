@@ -80,6 +80,11 @@ public enum ProviderSignInCopy {
 public enum ClaudeInteractiveLaunchReason: String, Sendable, Equatable, CaseIterable {
     case versionUnreadable
     case neverOnboardedExtraAccount
+    /// Claude Code stopped on a one-time startup question before its prompt (CLI 2.1.312's
+    /// Chrome onboarding). The launch is the ordinary `.trust` interactive one; only the
+    /// waiting, confirming, timeout and phone copy change, so this reason is what tells
+    /// them apart from a workspace approval.
+    case startupQuestion
 }
 
 /// KTD11: what an open handoff is asking the user for. It is the one dimension the waiting
@@ -91,6 +96,9 @@ public enum SetupWaitingPrompt: Sendable, Equatable, CaseIterable {
     /// CLI shows its own screen and the user has to type `/login` there.
     case signInNeedsLoginCommand
     case workspaceApproval
+    /// The interactive launch opened so the user can answer a startup question Claude Code
+    /// asks before its prompt. Headroom never answers it, so the copy names no option.
+    case startupQuestion
     case deviceCode
 }
 
@@ -130,6 +138,9 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     case claudeLoginRequired
     case claudeTrustRequired
     case claudeUnknownUI
+    /// Claude Code is stopped on a recognized one-time question before its prompt (the Chrome
+    /// onboarding). Answering it changes the user's Claude settings, so only the user can.
+    case claudeStartupQuestion
     case claudeTransientCapture
     case codexCLIMissing
     case codexAuthAbsent
@@ -174,6 +185,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .claudeLoginRequired: ProviderSignInCopy.status(for: .claude)
         case .claudeTrustRequired: "Approve Headroom’s workspace in\u{00A0}the\u{00A0}Claude\u{00A0}CLI"
         case .claudeUnknownUI: "Claude opened an unrecognized setup screen"
+        case .claudeStartupQuestion: "Claude Code is waiting on a one-time question"
         case .claudeTransientCapture: "Couldn’t read Claude usage\u{00A0}—\u{00A0}will retry"
         case .codexCLIMissing: ProviderSignInCopy.cliMissing(for: .codex)
         case .codexAuthAbsent: ProviderSignInCopy.status(for: .codex)
@@ -256,7 +268,20 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
             .init(status: message, primaryLabel: "Open Claude Workspace", primaryAction: .openClaudeWorkspace,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
-        case .claudeUnknownUI, .claudeTransientCapture:
+        case .claudeStartupQuestion:
+            // The question sits in front of the prompt only in an interactive launch, so the
+            // recovery opens one for the user to answer. Guided Setup runs the sign-in
+            // script, which exits on a signed-in account before the question can appear.
+            .init(status: message, primaryLabel: "Open Claude Code", primaryAction: .answerClaudeQuestion,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  automaticPolicy: .boundedChecksAfterHandoff)
+        case .claudeUnknownUI:
+            // An unrecognized screen is almost always another startup question. The old
+            // "Open Guided Setup" secondary ran the sign-in script, which can never show it,
+            // so it was a dead end; the interactive launch lets the user see the screen.
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
+                  secondaryLabel: "Open Claude Code", secondaryAction: .answerClaudeQuestion)
+        case .claudeTransientCapture:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
                   secondaryLabel: "Open Guided Setup", secondaryAction: .openClaudeSetup)
         case .codexCLIMissing:
@@ -333,6 +358,10 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case installCursorAgent
     case connectCursor
     case openClaudeWorkspace
+    /// Opens interactive Claude Code in the account's workspace so the user can answer a
+    /// startup question (or see an unrecognized screen). Same launch as
+    /// `.openClaudeWorkspace`, recorded with `ClaudeInteractiveLaunchReason.startupQuestion`.
+    case answerClaudeQuestion
     case openCursorWorkspace
     case reviewCursorTools
     case showPrivacyGuidance

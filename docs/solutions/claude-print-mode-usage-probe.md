@@ -157,6 +157,33 @@ not retried. The worst-case lane hold grows from about 81 s to about 121 s (5 s 
 duty-cycle gate measures it like any other probe. The same non-blocking read now serves a
 normal exit, which previously waited for EOF and could hang behind such a process.
 
+## Startup questions before the prompt (October 2026)
+
+CLI 2.1.312 boots a config whose global state lacks `hasCompletedClaudeInChromeOnboarding`
+straight into a "Claude in Chrome extension detected" question ("No, keep browser tools
+off" / "Yes, use my browser") before the REPL. Only the PTY fallback sees it, because print
+mode never shows it. The flag lives in the CLI's global config (`.claude.json`), not in
+settings, so no `--settings` value can skip it. Its paint positions words with cursor moves,
+so the stripped text has irregular gaps ("Claude  in  Chrome  extension  detected"); the
+classifier matches whitespace-collapsed text and needs the heading plus one of the two
+options.
+
+Headroom never answers it: either answer changes the user's Claude settings. The boot
+classifier returns `.startupQuestion` (after the signed-out, trust and first-run login checks,
+before the ready checks), sends no input, and the provider shows
+`.claudeStartupQuestion`: "Claude Code is waiting on a one-time question" with **Open Claude
+Code** and Check Now. The trace reads `pty-boot=startupQuestion`.
+
+**Open Claude Code** (`SetupRecoveryAction.answerClaudeQuestion`) reuses the `.trust`
+interactive launch in the account's workspace and config dir. It is told apart from
+**Open Claude Workspace** only by `ClaudeInteractiveLaunchReason.startupQuestion`, recorded
+just before the coordinator begins the launch, staged into the script and the durable handoff
+record, and read by the waiting and confirming copy, the timeout sentence, Try Again and the
+phone overlay (which shows the unknown-setup-screen attention; the sync schema is unchanged).
+The unrecognized-screen outcome now offers the same launch as its secondary instead of Guided
+Setup: the sign-in script exits on a signed-in account before any startup screen can appear,
+so Guided Setup was a dead end for both.
+
 ## Prevention
 
 - When scraping a TUI proves flaky, check whether the same CLI exposes the command

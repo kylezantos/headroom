@@ -57,5 +57,83 @@ struct PlanLabelPresentationTests {
     @Test func demoFixturesRenderHumanized() {
         #expect(DemoFixture.codexSnapshot.planLabel == "Prolite")
         #expect(PlanLabelPresentation.displayName(DemoFixture.codexSnapshot.planLabel) == "Pro Lite")
+        #expect(PlanLabelPresentation.displayName(DemoFixture.codexSnapshot.planLabel, provider: .codex) == "Pro Lite")
+    }
+
+    /// Every Codex `plan_type` OpenAI's client knows (codex-rs `PlanType`), aliases included.
+    @Test(arguments: [
+        ("free", "Free"), ("go", "Go"), ("plus", "Plus"),
+        // DECISION D1
+        ("pro", "Pro"), ("prolite", "Pro Lite"), ("promax", "Pro Max"),
+        // DECISION D2
+        ("team", "Business"), ("business", "Business"),
+        // DECISION D3
+        ("self_serve_business_prolite", "Business"), ("self_serve_business_usage_based", "Business"),
+        ("enterprise", "Enterprise"), ("hc", "Enterprise"), ("ent26", "Enterprise"),
+        ("enterprise_cbp_usage_based", "Enterprise"), ("enterprise_cbp_automation", "Enterprise"),
+        ("edu", "Edu"), ("education", "Edu"), ("edu_plus", "Edu Plus"), ("edu_pro", "Edu Pro"),
+        ("free_workspace", "Free"), ("guest", "Guest"), ("k12", "K-12"),
+        ("unknown", nil), ("quorum", nil),
+    ] as [(String, String?)])
+    func mapsEveryCodexPlanType(_ raw: String, _ expected: String?) {
+        #expect(PlanLabelPresentation.displayName(raw, provider: .codex) == expected)
+    }
+
+    /// The reported pill, and the same id with no provider: still readable, never raw.
+    @Test func selfServeBusinessReadsAsBusiness() {
+        #expect(PlanLabelPresentation.displayName("self_serve_business_prolite", provider: .codex) == "Business")
+        #expect(PlanLabelPresentation.displayName("Self_serve_business_prolite", provider: .codex) == "Business")
+        #expect(PlanLabelPresentation.displayName("self_serve_business_prolite") == "Business Pro Lite")
+    }
+
+    /// DECISION D2 is Codex-only: Claude also sells a Team plan, and the other providers
+    /// keep the generic path.
+    @Test func teamStaysTeamOutsideCodex() {
+        #expect(PlanLabelPresentation.displayName("Team", provider: .claude) == "Team")
+        #expect(PlanLabelPresentation.displayName("team", provider: .claude) == "Team")
+        #expect(PlanLabelPresentation.displayName("Max 20x", provider: .claude) == "Max 20x")
+        #expect(PlanLabelPresentation.displayName("Pro+", provider: .cursor) == "Pro+")
+        #expect(PlanLabelPresentation.displayName("Start", provider: .cursor) == "Start")
+        #expect(PlanLabelPresentation.displayName("Business", provider: .cursor) == "Business")
+        #expect(PlanLabelPresentation.displayName("SuperGrok", provider: .grok) == "SuperGrok")
+        #expect(PlanLabelPresentation.displayName("supergrokheavy", provider: .grok) == "SuperGrok Heavy")
+    }
+
+    @Test func humanizesUnknownIdentifiers() {
+        #expect(PlanLabelPresentation.displayName("SUPER_GROK_HEAVY") == "SuperGrok Heavy")
+        #expect(PlanLabelPresentation.displayName("x_premium_plus") == "X Premium Plus")
+        #expect(PlanLabelPresentation.displayName("X_PREMIUM_PLUS") == "X Premium Plus")
+        #expect(PlanLabelPresentation.displayName("ULTRA") == "Ultra")
+        #expect(PlanLabelPresentation.displayName("new_tier_k12", provider: .codex) == "New K-12")
+        #expect(PlanLabelPresentation.displayName("self_serve") == nil)
+        #expect(PlanLabelPresentation.displayName("_") == nil)
+    }
+
+    /// Invariant: no input, for any provider, yields a pill containing `_`.
+    @Test func neverReturnsAnUnderscore() {
+        var generator = SplitMix64(seed: 0x5EED_0414)
+        let alphabet = Array("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_ -")
+        let providers: [ProviderID?] = [nil, .claude, .codex, .grok, .cursor]
+        for _ in 0..<500 {
+            let length = Int.random(in: 1...24, using: &generator)
+            let raw = String((0..<length).map { _ in alphabet.randomElement(using: &generator)! })
+            for provider in providers {
+                let shown = PlanLabelPresentation.displayName(raw, provider: provider)
+                #expect(shown?.contains("_") != true, "\(raw) → \(shown ?? "nil")")
+            }
+        }
+    }
+}
+
+/// Deterministic generator so the property test replays the same 500 inputs every run.
+private struct SplitMix64: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
     }
 }

@@ -630,4 +630,94 @@ import Testing
         let permissions = try #require(attributes[.posixPermissions] as? NSNumber)
         #expect(permissions.intValue & 0o777 == 0o755)
     }
+
+    // Brief 03 step 2: the workspace's local settings turn Remote Control auto-connect off.
+
+    @Test func provisioningWritesOwnerOnlyRemoteControlOptOut() throws {
+        let parent = temporaryParent("rc-optout")
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let workspace = parent.appendingPathComponent("ClaudeProbe", isDirectory: true)
+
+        try ClaudeUsageWorkspace.ensureDirectory(at: workspace)
+
+        let settings = localSettingsURL(workspace)
+        #expect(try permissions(of: settings) == 0o600)
+        #expect(try permissions(of: settings.deletingLastPathComponent()) == 0o700)
+        let object = try readObject(settings)
+        #expect(object["remoteControlAtStartup"] as? Bool == false)
+        #expect(object.count == 1)
+    }
+
+    @Test func optOutMergesIntoExistingSettingsAndFlipsATrue() throws {
+        let parent = temporaryParent("rc-merge")
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let workspace = parent.appendingPathComponent("ClaudeProbe", isDirectory: true)
+        let settings = localSettingsURL(workspace)
+        try FileManager.default.createDirectory(
+            at: settings.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        try Data(#"{"permissions":{"allow":["Bash(ls)"]},"remoteControlAtStartup":true}"#.utf8)
+            .write(to: settings)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: settings.path)
+
+        try ClaudeUsageWorkspace.ensureDirectory(at: workspace)
+
+        let object = try readObject(settings)
+        #expect(object["remoteControlAtStartup"] as? Bool == false)
+        let permissionsBlock = object["permissions"] as? [String: Any]
+        #expect(permissionsBlock?["allow"] as? [String] == ["Bash(ls)"])
+        #expect(try permissions(of: settings) == 0o600)
+    }
+
+    @Test func optOutIsIdempotent() throws {
+        let parent = temporaryParent("rc-idempotent")
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let workspace = parent.appendingPathComponent("ClaudeProbe", isDirectory: true)
+        try ClaudeUsageWorkspace.ensureDirectory(at: workspace)
+        let settings = localSettingsURL(workspace)
+        let first = try Data(contentsOf: settings)
+        let firstModified = try FileManager.default.attributesOfItem(atPath: settings.path)[.modificationDate] as? Date
+
+        try ClaudeUsageWorkspace.ensureDirectory(at: workspace)
+        try ClaudeUsageWorkspace.ensureRemoteControlOptOut(in: workspace)
+
+        #expect(try Data(contentsOf: settings) == first)
+        let secondModified = try FileManager.default.attributesOfItem(atPath: settings.path)[.modificationDate] as? Date
+        #expect(firstModified == secondModified)
+    }
+
+    @Test func optOutLeavesANonObjectSettingsFileAlone() throws {
+        let parent = temporaryParent("rc-invalid")
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let workspace = parent.appendingPathComponent("ClaudeProbe", isDirectory: true)
+        let settings = localSettingsURL(workspace)
+        try FileManager.default.createDirectory(
+            at: settings.deletingLastPathComponent(), withIntermediateDirectories: true
+        )
+        let original = Data("{ not json".utf8)
+        try original.write(to: settings)
+
+        // Provisioning still succeeds; the opt-out is best effort.
+        #expect(try ClaudeUsageWorkspace.ensureDirectory(at: workspace) == workspace)
+        #expect(try Data(contentsOf: settings) == original)
+    }
+
+    private func temporaryParent(_ name: String) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-\(name)-\(UUID().uuidString)", isDirectory: true)
+    }
+
+    private func localSettingsURL(_ workspace: URL) -> URL {
+        workspace.appendingPathComponent(".claude", isDirectory: true)
+            .appendingPathComponent("settings.local.json")
+    }
+
+    private func permissions(of url: URL) throws -> Int {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        return try #require(attributes[.posixPermissions] as? NSNumber).intValue & 0o777
+    }
+
+    private func readObject(_ url: URL) throws -> [String: Any] {
+        try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+    }
 }

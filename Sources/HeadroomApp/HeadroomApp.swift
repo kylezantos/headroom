@@ -156,17 +156,18 @@ enum Entry {
             } else {
                 ClaudeCLIVersionBand.unknown
             }
-            let result = await ClaudeUsageCLIProbe(
+            let (result, trace) = await ClaudeUsageCLIProbe(
                 locator: AppComposition.claudeExecutableLocator,
                 workingDirectory: claudeWorkingDirectory(),
                 environmentOverrides: overrides
-            ).capturePanel()
+            ).captureWithTrace()
             let events = await AppComposition.claudeExecutableLocator.recentDiagnosticEvents()
             ClaudeCapabilityDiagnostic.lines(
                 account: accountCategory,
                 versionBand: versionBand,
                 outcome: diagnosticOutcome(for: result),
                 events: events,
+                trace: trace,
                 signOutEvents: AppComposition.signOutRecord.events
             ).forEach { print($0) }
 

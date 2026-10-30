@@ -390,6 +390,11 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   Routine capture must not launch `auth status` as a preflight or to fill the plan pill:
   that short-lived command can abandon renewal. Use a plan label in the captured text or
   omit it. This reduction does not resolve the upstream print/PTY shutdown limitation.
+  **The PTY launch must carry the Remote Control opt-out** (`interactiveArguments`: inline
+  `--settings` with `disableRemoteControl`/`remoteControlAtStartup:false`, plus the workspace's
+  `.claude/settings.local.json`): with auto-connect on, every bare interactive `claude`
+  registers a claude.ai session. Keep the print path's argv unchanged. See
+  `docs/solutions/claude-print-mode-usage-probe.md`.
 - **`ClaudeUsageParser` is pinned to the current `/usage` layouts.** It keys on stable shapes
   ("Current session", "Current week (…)", "N% used", "Resets …"), not line positions, and
   fails safe (empty → transient stale). It reads both the interactive panel (label line, then

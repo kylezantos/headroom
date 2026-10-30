@@ -72,80 +72,113 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     public let environmentOverrides: [String: String]
     public let bootTimeout: TimeInterval
     public let panelTimeout: TimeInterval
+    /// Deadline for `claude -p "/usage"`. A run that hits it is retried once with
+    /// `printRetryTimeout` before the PTY fallback (see `runPrintUsage`).
+    public let printTimeout: TimeInterval
+    public let printRetryTimeout: TimeInterval
 
     public init(
         locator: any CLIExecutableLocating = CLIExecutableLocator.claude(),
         workingDirectory: String = FileManager.default.currentDirectoryPath,
         environmentOverrides: [String: String] = [:],
         bootTimeout: TimeInterval = 30,
-        panelTimeout: TimeInterval = 26
+        panelTimeout: TimeInterval = 26,
+        printTimeout: TimeInterval = 20,
+        printRetryTimeout: TimeInterval = 40
     ) {
         self.locator = locator
         self.workingDirectory = workingDirectory
         self.environmentOverrides = environmentOverrides
         self.bootTimeout = bootTimeout
         self.panelTimeout = panelTimeout
+        self.printTimeout = printTimeout
+        self.printRetryTimeout = printRetryTimeout
     }
 
     public func capturePanel() async -> ClaudePanelResult {
+        await captureWithTrace().result
+    }
+
+    /// The capture plus a redaction-safe record of which stage decided it, for
+    /// `--probe-claude`. One stale message used to cover several different failures
+    /// (Brief 02); the trace names the stage without carrying any CLI output.
+    public func captureWithTrace() async -> (result: ClaudePanelResult, trace: ClaudeCaptureTrace) {
+        var trace = ClaudeCaptureTrace()
         for attempt in 0...1 {
             let location = await locator.locate()
             switch location {
             case .confirmedAbsent:
-                return .cliNotFound
+                return (.cliNotFound, trace)
             case .inconclusive(let issue):
-                return .cliInconclusive(issue)
+                return (.cliInconclusive(issue), trace)
             case .available(let claudePath, _):
-                let result = await capture(at: claudePath)
+                let (result, attemptTrace) = await capture(at: claudePath)
+                trace = attemptTrace
                 switch result {
                 case .result(let panel):
-                    return panel
+                    return (panel, trace)
                 case .launchNotFound where attempt == 0:
                     await locator.invalidate(path: claudePath, reason: .launchNotFound)
                 case .launchNotFound:
-                    return .cliInconclusive(.launchRace)
+                    return (.cliInconclusive(.launchRace), trace)
                 }
             }
         }
-        return .cliInconclusive(.launchRace)
+        return (.cliInconclusive(.launchRace), trace)
     }
 
-    private func capture(at claudePath: String) async -> ExecutableCaptureResult {
+    private func capture(at claudePath: String) async -> (ExecutableCaptureResult, ClaudeCaptureTrace) {
         // Run the blocking process and pty work off the cooperative pool.
         return await withCheckedContinuation { continuation in
-            Thread.detachNewThread { [environmentOverrides] in
+            Thread.detachNewThread { [environmentOverrides, printTimeout, printRetryTimeout] in
+                var trace = ClaudeCaptureTrace()
                 // Session-reliability KTD2: auth status can start renewal and exit
                 // before persisting it. Usage itself supplies the recognized state.
                 // Print-first capture: `claude -p "/usage"` writes the settled report
                 // in one shot — no TUI repaints to garble labels and no partial paint
                 // for the separately fetched model rows, which is the failure class
                 // that intermittently dropped "Weekly (Fable)". Any miss (old CLI,
-                // unparseable output, timeout) falls back to the PTY panel unchanged.
-                switch Self.runPrintUsage(
+                // unparseable output, a timeout after its one retry) falls back to the
+                // PTY panel, which carries the Remote Control opt-out.
+                let print = Self.runPrintUsage(
                     claudePath: claudePath,
                     workingDirectory: workingDirectory,
-                    environmentOverrides: environmentOverrides
-                ) {
+                    environmentOverrides: environmentOverrides,
+                    deadline: printTimeout,
+                    retryDeadline: printRetryTimeout
+                )
+                trace.print = print.stage
+                trace.printRetry = print.retryStage
+                switch print.result {
                 case .report(let report):
-                    continuation.resume(returning: .result(.panel(text: report, planHint: nil)))
+                    continuation.resume(returning: (.result(.panel(text: report, planHint: nil)), trace))
                     return
                 case .loginRequired:
-                    continuation.resume(returning: .result(.loginRequired))
+                    continuation.resume(returning: (.result(.loginRequired), trace))
                     return
                 case .launchNotFound:
-                    continuation.resume(returning: .launchNotFound)
+                    continuation.resume(returning: (.launchNotFound, trace))
                     return
                 case .unavailable:
                     break
                 }
-                let result = Self.runBlocking(
+                let arguments = Self.interactiveArguments(
                     claudePath: claudePath,
+                    versionOutput: print.versionOutput
+                )
+                trace.ptyRemoteControlOptOut = arguments.contains("--settings")
+                let (result, boot) = Self.runBlocking(
+                    claudePath: claudePath,
+                    arguments: arguments,
                     workingDirectory: workingDirectory,
                     environmentOverrides: environmentOverrides,
                     boot: bootTimeout,
                     panel: panelTimeout
                 )
-                continuation.resume(returning: result)
+                trace.ptyBoot = boot.stage
+                trace.ptyBootFingerprint = boot.fingerprint
+                trace.ptyPanel = boot.panel
+                continuation.resume(returning: (result, trace))
             }
         }
     }
@@ -169,9 +202,27 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         case launchNotFound
     }
 
+    private struct PrintAttempt: Sendable {
+        var result: PrintUsageResult
+        var stage: ClaudePrintStage
+        var retryStage: ClaudePrintStage? = nil
+        /// Raw `--version` text, kept in memory only to choose the PTY's flags. It
+        /// never reaches the trace.
+        var versionOutput: String? = nil
+    }
+
+    private struct BootOutcome: Sendable {
+        var stage: ClaudePTYBootStage
+        var fingerprint: ClaudeBootFingerprint? = nil
+        var panel: ClaudePTYPanelStage? = nil
+    }
+
     private enum ProcessOutputResult: Sendable {
         case data(Data)
         case failed
+        /// The deadline passed and the process was killed. Carries whatever stdout it
+        /// had already written: some CLIs print the whole report, then hang on shutdown.
+        case timedOut(partial: Data)
         case launchNotFound
     }
 
@@ -212,7 +263,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
                 environmentOverrides: environmentOverrides,
                 deadline: 5
             ) {
-            case .launchNotFound, .failed:
+            case .launchNotFound, .failed, .timedOut:
                 return nil
             case .data(let data):
                 return String(decoding: data, as: UTF8.self)
@@ -245,50 +296,126 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         return (major, minor, patch)
     }
 
+    /// The print-mode invocation. Deliberately left without the Remote Control opt-out:
+    /// it is every user's hot path, the docs tie auto-connect to interactive processes,
+    /// and a CLI that rejected an extra flag here would stop all Claude polling.
+    static let printUsageArguments = ["-p", "/usage", "--no-session-persistence"]
+
+    /// Per-launch opt-out for the PTY fallback (Brief 03). With Remote Control
+    /// auto-connect on, every interactive `claude` registers a session at claude.ai/code,
+    /// so each fallback probe used to leave a stray one. `--settings` applies to that
+    /// process only and writes no file. `disableRemoteControl` refuses auto-start
+    /// whatever turned it on; `remoteControlAtStartup: false` outranks a user-scope `true`.
+    static let remoteControlOptOutSettings = #"{"disableRemoteControl":true,"remoteControlAtStartup":false}"#
+
+    /// The interactive launch's argv. Inline-JSON `--settings` was verified in CLI 1.0.90,
+    /// 1.0.128, 2.0.77, 2.1.216 and 2.1.303, whose settings schemas all keep unknown keys
+    /// (passthrough); 1.0.50 has no such flag and would exit on it. A readable version
+    /// below 1.0.90 therefore launches bare. An unreadable version keeps the opt-out: in
+    /// practice that is a slow or reformatted current CLI, the kind that can auto-connect.
+    public static func interactiveArguments(claudePath: String, versionOutput: String?) -> [String] {
+        if let versionOutput, let version = parsedVersion(versionOutput), version < (1, 0, 90) {
+            return [claudePath]
+        }
+        return [claudePath, "--settings", remoteControlOptOutSettings]
+    }
+
     /// One-shot non-interactive capture: `claude -p "/usage"` prints the full settled
     /// usage report (same compliant principle — the official client makes the request,
     /// this reads its stdout). Returns nil unless the output parses into at least one
     /// usage window, so a cost report, an error, or model chatter can never be
     /// mistaken for the panel.
+    ///
+    /// A run that hits its deadline gets one retry with a longer one before the PTY. The
+    /// usual cause is a cold start (just updated, slow network), which the interactive
+    /// fallback would meet too, only slower and as an interactive session. Unparseable
+    /// output is not retried: the same CLI would print the same thing.
     private static func runPrintUsage(
         claudePath: String,
         workingDirectory: String,
-        environmentOverrides: [String: String]
-    ) -> PrintUsageResult {
-        let versionData: Data
+        environmentOverrides: [String: String],
+        deadline: TimeInterval,
+        retryDeadline: TimeInterval
+    ) -> PrintAttempt {
+        let versionText: String
         switch runForOutput(
             claudePath: claudePath,
             arguments: ["--version"],
             environmentOverrides: environmentOverrides,
             deadline: 5
         ) {
-        case .launchNotFound: return .launchNotFound
-        case .failed: return .unavailable
-        case .data(let data): versionData = data
+        case .launchNotFound: return PrintAttempt(result: .launchNotFound, stage: .launchFailed)
+        case .failed, .timedOut: return PrintAttempt(result: .unavailable, stage: .versionUnavailable)
+        case .data(let data): versionText = String(decoding: data, as: UTF8.self)
         }
-        guard printUsageSupported(versionOutput: String(decoding: versionData, as: UTF8.self)) else {
-            return .unavailable
+        guard parsedVersion(versionText) != nil else {
+            return PrintAttempt(result: .unavailable, stage: .versionUnreadable, versionOutput: versionText)
         }
+        guard printUsageSupported(versionOutput: versionText) else {
+            return PrintAttempt(result: .unavailable, stage: .versionBelowFloor, versionOutput: versionText)
+        }
+        let first = runPrintReport(
+            claudePath: claudePath,
+            workingDirectory: workingDirectory,
+            environmentOverrides: environmentOverrides,
+            deadline: deadline
+        )
+        var attempt = PrintAttempt(result: first.result, stage: first.stage, versionOutput: versionText)
+        guard first.stage == .timedOut else { return attempt }
+        let retry = runPrintReport(
+            claudePath: claudePath,
+            workingDirectory: workingDirectory,
+            environmentOverrides: environmentOverrides,
+            deadline: retryDeadline
+        )
+        attempt.result = retry.result
+        attempt.retryStage = retry.stage
+        return attempt
+    }
+
+    private static func runPrintReport(
+        claudePath: String,
+        workingDirectory: String,
+        environmentOverrides: [String: String],
+        deadline: TimeInterval
+    ) -> (result: PrintUsageResult, stage: ClaudePrintStage) {
         let data: Data
         switch runForOutput(
             claudePath: claudePath,
-            arguments: ["-p", "/usage", "--no-session-persistence"],
+            arguments: printUsageArguments,
             environmentOverrides: environmentOverrides,
             workingDirectory: workingDirectory,
-            deadline: 20
+            deadline: deadline
         ) {
-        case .launchNotFound: return .launchNotFound
-        case .failed: return .unavailable
+        case .launchNotFound: return (.launchNotFound, .launchFailed)
+        case .failed: return (.unavailable, .launchFailed)
+        case .timedOut(let partial):
+            // A CLI that printed the whole report and then hung on shutdown (hooks, MCP,
+            // the upstream exit limitation) needs no retry and no PTY: every extra
+            // launch is one more process that can be killed mid-renewal.
+            switch classifyPrintOutput(partial) {
+            case .report(let text): return (.report(text), .timedOutAfterReport)
+            case .loginRequired: return (.loginRequired, .signedOut)
+            default: return (.unavailable, .timedOut)
+            }
         case .data(let value): data = value
         }
+        switch classifyPrintOutput(data) {
+        case .report(let text): return (.report(text), .report)
+        case .loginRequired: return (.loginRequired, .signedOut)
+        default: return (.unavailable, .unparseable)
+        }
+    }
+
+    private static func classifyPrintOutput(_ data: Data) -> PrintUsageResult {
         let text = ANSI.strip(String(decoding: data, as: UTF8.self))
         if isSignedOutOutput(text) { return .loginRequired }
         return ClaudeUsageParser.parse(text).isEmpty ? .unavailable : .report(text)
     }
 
     /// Spawn `claude` with pipes (no pty), enforce a hard deadline, and return stdout.
-    /// A timeout returns nil rather than partial output — callers treat that as "this
-    /// surface is unavailable" and degrade. Output is read after exit, which is safe
+    /// A timeout returns what the process had already written, tagged as such, so the
+    /// caller decides whether it is usable. Output is read after exit, which is safe
     /// for these small reports; a pathological giant write would stall the child into
     /// the deadline kill and degrade the same way.
     private static func runForOutput(
@@ -332,26 +459,50 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
             while process.isRunning, Date() < terminationDeadline { usleep(20_000) }
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
             process.waitUntilExit()
-            return .failed
+            return .timedOut(partial: drainWithoutBlocking(output.fileHandleForReading))
         }
         process.waitUntilExit()
-        return .data(output.fileHandleForReading.readDataToEndOfFile())
+        return .data(drainWithoutBlocking(output.fileHandleForReading))
+    }
+
+    /// Everything already in the pipe, without waiting for EOF. A process the CLI started
+    /// (a hook, an MCP server) can outlive it and keep the write end open, which would
+    /// block `readDataToEndOfFile()` past every deadline. Once the CLI has exited, all
+    /// of its own output is already buffered, so stopping at "would block" loses none.
+    static func drainWithoutBlocking(_ handle: FileHandle) -> Data {
+        let descriptor = handle.fileDescriptor
+        let flags = fcntl(descriptor, F_GETFL)
+        guard flags >= 0, fcntl(descriptor, F_SETFL, flags | O_NONBLOCK) == 0 else { return Data() }
+        var data = Data()
+        var chunk = [UInt8](repeating: 0, count: 65536)
+        while true {
+            let count = read(descriptor, &chunk, chunk.count)
+            if count > 0 {
+                data.append(contentsOf: chunk[0..<count])
+            } else if count < 0, errno == EINTR {
+                continue
+            } else {
+                break // EOF, or EAGAIN while another process holds the write end
+            }
+        }
+        return data
     }
 
     // MARK: pty mechanics
 
     private static func runBlocking(
         claudePath: String,
+        arguments argv: [String],
         workingDirectory: String,
         environmentOverrides: [String: String],
         boot: TimeInterval,
         panel: TimeInterval
-    ) -> ExecutableCaptureResult {
+    ) -> (ExecutableCaptureResult, BootOutcome) {
         var master: Int32 = -1
         var slave: Int32 = -1
         var win = winsize(ws_row: 45, ws_col: 140, ws_xpixel: 0, ws_ypixel: 0)
         guard openpty(&master, &slave, nil, nil, &win) == 0 else {
-            return .result(.transientCapture)
+            return (.result(.transientCapture), BootOutcome(stage: .spawnFailed))
         }
 
         var fileActions = posix_spawn_file_actions_t(bitPattern: 0)
@@ -387,9 +538,12 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         envDict["TERM"] = "xterm-256color"
         envDict["COLUMNS"] = "140"
         envDict["LINES"] = "45"
+        // The interactive counterpart of `--no-session-persistence` (documented in the
+        // Claude Code environment-variable reference): probe launches add nothing to the
+        // user's prompt history or `--resume` list. Unknown to older CLIs, and harmless.
+        envDict["CLAUDE_CODE_SKIP_PROMPT_HISTORY"] = "1"
         let env = envDict.map { "\($0.key)=\($0.value)" }
         var pid: pid_t = 0
-        let argv = [claudePath]
         let cEnv = env.map { strdup($0) } + [nil]
         let cArgv = argv.map { strdup($0) } + [nil]
         defer {
@@ -403,7 +557,8 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         close(slave)
         guard spawnResult == 0 else {
             close(master)
-            return spawnResult == ENOENT ? .launchNotFound : .result(.transientCapture)
+            let outcome = BootOutcome(stage: .spawnFailed)
+            return (spawnResult == ENOENT ? .launchNotFound : .result(.transientCapture), outcome)
         }
 
         // Guaranteed teardown regardless of how we leave.
@@ -423,22 +578,23 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
 
         var buffer = Data()
         drain(master: master, maxSeconds: boot, quiet: 2.5, into: &buffer) // boot + prompt
-        let bootText = String(decoding: buffer, as: UTF8.self)
-        switch classifyBootText(ANSI.strip(bootText)) {
+        let bootText = ANSI.strip(String(decoding: buffer, as: UTF8.self))
+        switch classifyBootText(bootText) {
         case .ready:
             break
         case .loginRequired:
             teardown()
-            return .result(.loginRequired)
+            return (.result(.loginRequired), BootOutcome(stage: .loginRequired))
         case .trustRequired:
             teardown()
-            return .result(.workspaceTrustRequired)
+            return (.result(.workspaceTrustRequired), BootOutcome(stage: .trustRequired))
         case .unknown:
             teardown()
-            return .result(.unknownUI)
+            let fingerprint = ClaudeBootFingerprint(rawByteCount: buffer.count, strippedText: bootText)
+            return (.result(.unknownUI), BootOutcome(stage: .unrecognized, fingerprint: fingerprint))
         case .noOutput:
             teardown()
-            return .result(.transientCapture)
+            return (.result(.transientCapture), BootOutcome(stage: .noOutput))
         }
         usleep(800_000) // let the input box settle before typing
         _ = "/usage".withCString { write(master, $0, strlen($0)) }
@@ -458,9 +614,18 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         teardown()
 
         let captured = ANSI.strip(String(decoding: buffer, as: UTF8.self))
-        if isSignedOutOutput(captured) { return .result(.loginRequired) }
-        return .result(
-            captured.isEmpty ? .transientCapture : .panel(text: captured, planHint: nil)
+        if isSignedOutOutput(captured) {
+            return (.result(.loginRequired), BootOutcome(stage: .ready, panel: .signedOut))
+        }
+        guard !captured.isEmpty else {
+            return (.result(.transientCapture), BootOutcome(stage: .ready, panel: .empty))
+        }
+        // The result is unchanged either way (the provider types an unparseable panel as
+        // a transient capture); the stage only lets the trace name the failure.
+        let panelStage: ClaudePTYPanelStage = ClaudeUsageParser.parse(captured).isEmpty ? .unparseable : .parsed
+        return (
+            .result(.panel(text: captured, planHint: nil)),
+            BootOutcome(stage: .ready, panel: panelStage)
         )
     }
 

@@ -205,11 +205,17 @@ public struct HeadroomWidgetIdentityRow<Mark: View>: View {
 
     public var body: some View {
         ViewThatFits(in: .horizontal) {
-            if showsPlan, provider.summary.planLabel != nil {
+            if showsPlan, planText != nil {
                 row(plan: true)
             }
             row(plan: false)
         }
+    }
+
+    /// The envelope carries the provider's verbatim id (#709); the capsule shows the same
+    /// humanized name as the popover, so `self_serve_business_prolite` reads "Business".
+    private var planText: String? {
+        PlanLabelPresentation.displayName(provider.summary.planLabel, provider: ProviderID(provider.id))
     }
 
     private func row(plan: Bool) -> some View {
@@ -225,7 +231,7 @@ public struct HeadroomWidgetIdentityRow<Mark: View>: View {
                 .truncationMode(.tail)
                 .fixedSize(horizontal: plan, vertical: false)
                 .widgetCapHeightCentered(size: size, weight: .semibold)
-            if plan, let label = provider.summary.planLabel {
+            if plan, let label = planText {
                 HeadroomWidgetPlanCapsule(label: label)
                     .widgetCapHeightCentered(size: size, weight: .semibold)
             }

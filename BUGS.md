@@ -4,6 +4,17 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Plan names on already-installed phones (2026-10-23)
+
+- **Phones and iOS widgets on builds before the human-plan-names fix still show raw ids.** The
+  Mac publishes the provider's verbatim `planLabel` (v3 `planLabel`, v4 `planName`); the fix
+  humanizes it at render time, provider-aware, in `IdentityRow` and the widget identity row.
+  An older phone build renders that raw value through its own, older formatter, so a Codex
+  `self_serve_business_prolite` reads "Self_serve_business_prolite" there (and older widget
+  extensions print the bare id) until the phone updates. Humanizing on the Mac before publish
+  would fix old phones too, but changes the wire content and its digests; decide before the
+  next phone release whether that is worth it.
+
 ## macOS 15 popover header clipping: device check outstanding (2026-10-23)
 
 - The 1.5 report from macOS 15.0 ("the header 'Usage' is clipped", "other corners underneath")
@@ -283,6 +294,23 @@ official `claude` CLI's `/usage` panel instead.
   HTTP rejection and revoked login. Sampled account-seconds deliberately exclude gaps
   beyond twice the chosen interval, including scheduler backoff; compare rates only
   with comparable coverage. Collector cost at multi-20 has not been measured.
+
+- **Remote Control opt-out and boot fingerprint need a live acceptance (2026-10-23).** The
+  PTY fallback now launches with `--settings
+  '{"disableRemoteControl":true,"remoteControlAtStartup":false}'` (versions ≥ 1.0.90 or
+  unreadable) plus `CLAUDE_CODE_SKIP_PROMPT_HISTORY=1`, and every Claude workspace carries
+  `.claude/settings.local.json` with `remoteControlAtStartup: false`. Only `--help`,
+  `--version` and two print runs were exercised against real CLIs. Still unverified: (1) with
+  auto-connect on (CLI `/config`, and separately the Desktop app's "Connect new sessions to
+  Remote Control"), forced-PTY probes create zero sessions at claude.ai/code; (2) the
+  interactive boot paint with `disableRemoteControl` still classifies `.ready` (a notice line
+  is tolerated, a modal would not be); (3) whether the local settings file is read before
+  workspace trust; (4) print mode now reads the workspace's `.claude/settings.local.json`
+  too. One real 2.1.303 `claude -p "/usage"` run in a scratch folder holding that file
+  exited 0 with a parseable report and no stderr (2026-10-23); recheck it in the real
+  `ClaudeProbe` workspace on the next live probe. Also open, for Kyle: Brief 02 §5.4 proposed dropping the PTY fallback for
+  CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version` timeout is not
+  retried and still sends the probe to the PTY.
 
 - **An external Claude CLI account switch can retain a model row from the prior login.**
   The continuity merger retains missing model rows without comparing upstream identity.

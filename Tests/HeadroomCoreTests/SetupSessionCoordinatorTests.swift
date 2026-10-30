@@ -47,6 +47,39 @@ import Testing
         ])
         #expect(harness.refreshCalls == [account.key, account.key])
     }
+    /// `acceptsNewStart` is the same rule `start` applies, so the app can record a launch's
+    /// reason only for a start that will actually run and never over a running session.
+    @Test func acceptsNewStartMatchesWhatStartDoes() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount.builtIn(for: .claude)
+        harness.existingAccounts.insert(account.key)
+
+        #expect(coordinator.acceptsNewStart(for: account.key, purpose: .trust))
+        coordinator.beginWorkspaceTrust(for: account)
+        #expect(coordinator.state(for: account.key) == .preparing)
+
+        // Already preparing: refused, and nothing new is staged.
+        #expect(!coordinator.acceptsNewStart(for: account.key, purpose: .trust))
+        coordinator.beginWorkspaceTrust(for: account)
+        await settleTasks()
+        #expect(harness.prepareCalls.count == 1)
+
+        // An open handoff: a second start only becomes `.blockedByOpenHandoff`.
+        #expect(coordinator.hasActiveHandoff(for: account.key))
+        #expect(!coordinator.acceptsNewStart(for: account.key, purpose: .trust))
+        coordinator.beginWorkspaceTrust(for: account)
+        #expect(coordinator.state(for: account.key) == .blockedByOpenHandoff)
+        #expect(harness.prepareCalls.count == 1)
+
+        // Connected: only a reset may start again.
+        coordinator.handoffDidEnd(account.key, completion: .succeeded, purpose: .trust)
+        coordinator.receive(.live(.claude, windows: []), for: account.key)
+        #expect(coordinator.state(for: account.key) == .connected)
+        #expect(!coordinator.acceptsNewStart(for: account.key, purpose: .trust))
+        #expect(coordinator.acceptsNewStart(for: account.key, purpose: .reset))
+    }
+
     @Test func cursorMCPApprovalHandoffRequiresUserDecisionThenRetries() async {
         let harness = SetupCoordinatorHarness()
         let coordinator = harness.makeCoordinator()

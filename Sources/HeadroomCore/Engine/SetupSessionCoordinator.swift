@@ -337,6 +337,29 @@ public final class SetupSessionCoordinator {
         activeHandoffs.contains(key)
     }
 
+    /// Whether a fresh begin of `purpose` would start a new session for `key`, rather than
+    /// being refused (a session already in progress, settled or removed) or turned into
+    /// `.blockedByOpenHandoff`. `start` decides with the same rule, so a caller that records
+    /// app state for the new session (the Claude interactive-launch reason) never writes
+    /// over the session that is still running.
+    public func acceptsNewStart(for key: AccountKey, purpose: SetupHandoffPurpose) -> Bool {
+        !activeHandoffs.contains(key)
+            && Self.stateAcceptsStart(state(for: key), intent: .begin(purpose))
+    }
+
+    private static func stateAcceptsStart(_ state: SetupSessionState, intent: StartIntent) -> Bool {
+        switch state {
+        case .connected where intent.purpose == .reset:
+            true
+        case .preparing, .waiting, .verifying, .connected, .removing, .removed:
+            false
+        case .blockedByProviderLogin where !intent.allowsBlocked:
+            false
+        default:
+            true
+        }
+    }
+
     /// KTD6/KTD11: what this session is waiting on, so a surface can say whether Headroom
     /// is checking or waiting for the Terminal window to close. Like `hasActiveHandoff`,
     /// this reads unobserved storage — every phase change it describes coincides with a
@@ -394,16 +417,7 @@ public final class SetupSessionCoordinator {
             states[key] = .blockedByOpenHandoff
             return
         }
-        switch state(for: key) {
-        case .connected where intent.purpose == .reset:
-            break
-        case .preparing, .waiting, .verifying, .connected, .removing, .removed:
-            return
-        case .blockedByProviderLogin where !intent.allowsBlocked:
-            return
-        default:
-            break
-        }
+        guard Self.stateAcceptsStart(state(for: key), intent: intent) else { return }
         if Self.requiresExclusiveLoginSlot(account.providerID),
            let activeLogin = activeLogins[account.providerID],
            activeLogin != key {

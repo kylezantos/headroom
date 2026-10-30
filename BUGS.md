@@ -4,6 +4,17 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Setup-session overlays reach the phone late (2026-10-30)
+
+- **A setup session's phone attention only publishes on the next unrelated export.**
+  `UsageStore.companionSession(for:)` reads the coordinator (and, since the Claude
+  startup-question fix, the app's `companionInteractiveReasonLookup`) whenever a capture is
+  built, but `SetupSessionCoordinator` state changes never call `exportPhoneSyncSnapshot()`.
+  So "Finishing sign-in", "Approve the workspace" and the startup question's unknown-screen
+  attention appear on the phone only when a merge, a setting or the heartbeat triggers the next
+  capture, and can clear late the same way. Fix by exporting on coordinator state changes (the
+  publisher already coalesces), with a `PhoneExportTriggerTests` case.
+
 ## Plan names on already-installed phones (2026-10-23)
 
 - **Phones and iOS widgets on builds before the human-plan-names fix still show raw ids.** The

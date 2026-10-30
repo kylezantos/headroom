@@ -362,24 +362,57 @@ enum SetupSessions {
                     )
                     noteHandoffTerminalApp(record?.terminalBundleIdentifier, for: account.key)
                     noteHandoffInteractiveReason(record?.claudeInteractiveReason, for: account.key)
-                    if AccountStorage.setupHandoffPurpose(marker: marker) == .trust {
-                        noteRequestedTrustReason(record?.claudeInteractiveReason, for: account.key)
-                    }
+                    restoreTrustReason(from: marker, for: account.key)
                     restoreWaitingStart(for: account.key, marker: marker)
                     monitorCompletion(marker, for: account.key)
                 } else {
-                    let completion = AccountStorage.setupHandoffCompletion(marker: marker)
-                    if completion != .unknown {
-                        coordinator.handoffDidEnd(
-                            account.key,
-                            completion: completion,
-                            purpose: AccountStorage.setupHandoffPurpose(marker: marker) ?? .setup
-                        )
-                    }
-                    AccountStorage.clearFinishedSetupCompletionMarkers(marker)
+                    settleFinishedHandoff(marker, for: account.key, coordinator: coordinator)
                 }
             }
         }
+    }
+
+    /// A handoff whose Terminal closed while Headroom was quit. Its startup-question reason
+    /// is read from the record before the markers (record included) are consumed, so the
+    /// verifying card keeps its own confirming copy instead of the approval's.
+    static func settleFinishedHandoff(
+        _ marker: SetupCompletionMarker,
+        for key: AccountKey,
+        coordinator: SetupSessionCoordinator
+    ) {
+        let completion = AccountStorage.setupHandoffCompletion(marker: marker)
+        if completion != .unknown {
+            restoreTrustReason(from: marker, for: key)
+            coordinator.handoffDidEnd(
+                key,
+                completion: completion,
+                purpose: AccountStorage.setupHandoffPurpose(marker: marker) ?? .setup
+            )
+        }
+        AccountStorage.clearFinishedSetupCompletionMarkers(marker)
+    }
+
+    /// A `.trust` handoff's reason, from the record it saved when it opened. Only `.trust`
+    /// reads it back: the other purposes' reasons describe the launch, not a request.
+    private static func restoreTrustReason(from marker: SetupCompletionMarker, for key: AccountKey) {
+        guard AccountStorage.setupHandoffPurpose(marker: marker) == .trust else { return }
+        noteRequestedTrustReason(
+            AccountStorage.setupHandoffRecord(marker: marker)?.claudeInteractiveReason,
+            for: key
+        )
+    }
+
+    /// Test seam: runs a synchronous `body` with `standIn` as the configured coordinator and
+    /// restores the previous one, so a test can drive the real routing without the live
+    /// coordinator (which stages real handoffs) in the app test host.
+    static func withCoordinator<T>(
+        _ standIn: SetupSessionCoordinator,
+        _ body: () throws -> T
+    ) rethrows -> T {
+        let previous = coordinator
+        coordinator = standIn
+        defer { coordinator = previous }
+        return try body()
     }
 
     static func openSetup(for account: ProviderAccount, onRetry: @escaping () -> Void) {
@@ -456,7 +489,11 @@ enum SetupSessions {
             openSetup(for: account, onRetry: onRetry)
         case .workspaceTrust:
             noteHandoffBegan(for: account)
-            noteRequestedTrustReason(trustLaunchReason(for: action), for: account.key)
+            // Only a start the coordinator will accept gets a new reason; a refused second
+            // click must not rewrite the reason of the session still running.
+            if coordinator?.acceptsNewStart(for: account.key, purpose: .trust) ?? true {
+                noteRequestedTrustReason(trustLaunchReason(for: action), for: account.key)
+            }
             coordinator?.beginWorkspaceTrust(for: account)
         case .cursorTools:
             noteHandoffBegan(for: account)

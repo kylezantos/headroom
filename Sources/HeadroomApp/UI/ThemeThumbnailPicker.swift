@@ -15,13 +15,20 @@ struct ThemeThumbnailPicker: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        // The row is a `LazyVGrid`, matching `MeterStyleTile`'s swatch rows, and that is
-        // load-bearing rather than stylistic: with these fixed-size thumbnails in a plain
-        // `HStack`, AppKit raised inside `-[NSWindow _postWindowNeedsUpdateConstraints]`
-        // — an exception thrown *during* the window's layout pass, so the app terminated —
-        // every time a sibling tile resized, e.g. switching Meter style Format between
-        // Micro and Full. Bisected against the live demo window: identical thumbnails in
-        // a grid, no crash.
+        // The row is a `LazyVGrid`, matching `MeterStyleTile`'s swatch rows. With these
+        // fixed-size thumbnails in a plain `HStack`, AppKit raised inside
+        // `-[NSWindow _postWindowNeedsUpdateConstraints]` (an exception thrown during the
+        // window's layout pass, so the app terminated) every time a sibling tile resized,
+        // e.g. switching Meter style Format between Micro and Full. Bisected against the live
+        // demo window: identical thumbnails in a grid, no crash.
+        //
+        // SP1 (2026-10-30): the grid was not the whole story. On macOS 15 the same exception
+        // still fired on the first Theme, Shape, Fill, Left/Used or Pills click, because the
+        // selection plate slid with `matchedGeometryEffect`; Format survived only because its
+        // specimen resize kept every frame on the main-thread layout path. The plate is now
+        // framed from the selected swatch's layout anchor (`SettingsSelectionGroup`), verified
+        // in a macOS 15.7.7 VM and guarded by `SettingsSelectionPlateTests`. See
+        // `docs/solutions/ui/settings-matched-geometry-crash-macos15.md`.
         LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 8) {
             ForEach(AppearancePreference.allCases) { preference in
                 thumbnail(preference)

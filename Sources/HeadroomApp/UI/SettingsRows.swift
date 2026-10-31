@@ -344,38 +344,94 @@ struct SettingsSwatchButtonStyle: ButtonStyle {
     }
 }
 
-/// SM1: the namespace a swatch row's selection plate travels in. Set by
-/// `settingsSelectionGroup(value:)`; nil outside a group or under Reduce Motion, where the
-/// chrome falls back to cross-fading the ring in place.
-private struct SettingsSelectionNamespaceKey: EnvironmentKey {
-    static let defaultValue: Namespace.ID? = nil
+/// SM1: whether a swatch row's selection plate travels. Set by `settingsSelectionGroup(value:)`;
+/// false outside a group or under Reduce Motion, where the chrome falls back to cross-fading
+/// the ring in place.
+private struct SettingsSelectionTravelsKey: EnvironmentKey {
+    static let defaultValue = false
 }
 
 private extension EnvironmentValues {
-    var settingsSelectionNamespace: Namespace.ID? {
-        get { self[SettingsSelectionNamespaceKey.self] }
-        set { self[SettingsSelectionNamespaceKey.self] = newValue }
+    var settingsSelectionPlateTravels: Bool {
+        get { self[SettingsSelectionTravelsKey.self] }
+        set { self[SettingsSelectionTravelsKey.self] = newValue }
     }
 }
 
-/// SM1: one picker row whose selection plate travels. Each row owns its own namespace, so
+/// SP1: what the selected swatch tells its row's plate: where it is, and whether the pointer
+/// is over it (R2M6's deeper hover fill).
+struct SettingsSelectionPlateAnchor {
+    let bounds: Anchor<CGRect>
+    let hovering: Bool
+}
+
+/// SP1: the selected swatch's anchor, read once by the row that owns the plate.
+struct SettingsSelectionPlateKey: PreferenceKey {
+    static var defaultValue: SettingsSelectionPlateAnchor? { nil }
+
+    static func reduce(value: inout SettingsSelectionPlateAnchor?, nextValue: () -> SettingsSelectionPlateAnchor?) {
+        value = value ?? nextValue()
+    }
+}
+
+/// SM1: one picker row whose selection plate travels. Each row draws its own plate, so
 /// Format, Shape, and Fill never trade plates with each other.
+///
+/// SP1 (2026-10-30): the plate is one view in the row's background, framed from the selected
+/// swatch's anchor, not a `matchedGeometryEffect` hop between swatches. On macOS 15 the
+/// matched plate's slide terminated the app. By the backtrace, SwiftUI rendered it
+/// asynchronously, and the Settings window's root `NSHostingView` then cancelled that render
+/// and re-marked its constraints on every Update Constraints pass until AppKit threw
+/// (`_postWindowNeedsUpdateConstraints`, "more Update Constraints in Window passes than there
+/// are views in the window"). A frame read off a layout anchor only resolves in a main-thread
+/// layout pass, the path Format always took because its specimen changes height. macOS 26
+/// never crashed. Bisected in a macOS 15.7.7 VM; see
+/// `docs/solutions/ui/settings-matched-geometry-crash-macos15.md`. Don't bring
+/// `matchedGeometryEffect` back to Settings without re-running that matrix.
 private struct SettingsSelectionGroup<Value: Equatable>: ViewModifier {
     let value: Value
 
-    @Namespace private var namespace
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {
+        let travels = !reduceMotion
         content
-            .environment(\.settingsSelectionNamespace, reduceMotion ? nil : namespace)
-            // The row-level scope is what puts the outgoing and incoming plate in one
-            // animated transaction; each swatch's own `isSelected` scope below carries the
-            // same spring, so the two can never disagree.
+            .environment(\.settingsSelectionPlateTravels, travels)
+            // Behind every swatch, so the plate sits under each swatch's content as the
+            // per-swatch plate did; the selected swatch's own layer is clear (see the chrome).
+            .backgroundPreferenceValue(SettingsSelectionPlateKey.self) { plate in
+                if travels, let plate {
+                    GeometryReader { proxy in
+                        let rect = proxy[plate.bounds]
+                        SettingsSelectionPlate(hovering: plate.hovering)
+                            .frame(width: rect.width, height: rect.height)
+                            .offset(x: rect.minX, y: rect.minY)
+                    }
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                }
+            }
+            // The anchor stops at its own row.
+            .transformPreference(SettingsSelectionPlateKey.self) { $0 = nil }
+            // The row-level scope is what animates the plate's frame from the old swatch to the
+            // new one; each swatch's own `isSelected` scope below carries the same spring, so
+            // the two can never disagree.
             .animation(
                 HeadroomMotion.resolved(HeadroomMotion.selectionTravel, .movement, reduceMotion: reduceMotion),
                 value: value
             )
+    }
+}
+
+/// SM1: the travelling plate: an accent fill under a 2pt accent ring.
+private struct SettingsSelectionPlate: View {
+    let hovering: Bool
+
+    var body: some View {
+        let shape = SettingsSelectionChrome.shape
+        shape
+            .fill(SettingsSelectionChrome.plateFill(hovering: hovering))
+            .overlay { shape.strokeBorder(Color.accentColor, lineWidth: 2) }
     }
 }
 
@@ -387,40 +443,43 @@ private struct SettingsSelectionGroup<Value: Equatable>: ViewModifier {
 /// SM1 (2026-09-22): inside a `settingsSelectionGroup`, the accent ring and fill are one
 /// plate that slides from the old swatch to the new one, the way a segmented control's
 /// thumb does, instead of one ring fading out while another fades in two swatches away.
-/// Every swatch keeps its own hairline and hover fill underneath the plate.
+/// Every unselected swatch keeps its own hairline and hover fill; the plate passes under them.
 private struct SettingsSelectionChrome: ViewModifier {
     let isSelected: Bool
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.settingsSwatchHovering) private var hovering
-    @Environment(\.settingsSelectionNamespace) private var namespace
+    @Environment(\.settingsSelectionPlateTravels) private var travels
 
     /// R2B3: 11, concentric with the r6 well the swatch body draws inside 5pt of padding.
     /// At r8 the ring was less round than the well it framed — the loudest "feels off"
     /// there is — and fixing it here fixes all three pickers at once.
-    private static let cornerRadius: CGFloat = 11
+    static let cornerRadius: CGFloat = 11
 
-    private var shape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+    static var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
     }
+
+    private var shape: RoundedRectangle { Self.shape }
 
     /// R2M6: a selected swatch *deepens* its own accent fill rather than stacking a neutral
     /// hover wash on top of it, so hover reads as one surface responding, not two.
-    private var plateFill: Color {
+    static func plateFill(hovering: Bool) -> Color {
         Color.accentColor.opacity(hovering ? 0.12 : 0.08)
     }
 
     /// The per-swatch layer. With a travelling plate, a selected swatch's own layer goes
-    /// quiet (clear fill, hairline) because the plate above it draws the selected state.
+    /// quiet (clear fill, no hairline) because the row's plate under it draws the selected
+    /// state; a hairline on top would cut into the plate's ring.
     private var fillColor: Color {
-        if isSelected { return namespace == nil ? plateFill : .clear }
+        if isSelected { return travels ? .clear : Self.plateFill(hovering: hovering) }
         return hovering ? Color.primary.opacity(0.05) : .clear
     }
 
     private var borderColor: Color {
-        if isSelected && namespace == nil { return .accentColor }
-        return hovering && !isSelected
+        if isSelected { return travels ? .clear : .accentColor }
+        return hovering
             ? Color.primary.opacity(0.14)
             : ClaudeSetupStyle.hairline(dark: colorScheme == .dark)
     }
@@ -430,24 +489,26 @@ private struct SettingsSelectionChrome: ViewModifier {
         // press curve belongs to the press that caused it, which the style above owns.
         // S2A: the in-place ring is colour work, so Reduce Motion keeps the cross-fade;
         // the travelling plate only exists when motion is allowed.
-        namespace == nil
-            ? HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
-            : HeadroomMotion.selectionTravel
+        travels
+            ? HeadroomMotion.selectionTravel
+            : HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)
     }
 
     func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity)
             .contentShape(shape)
-            // Later backgrounds draw *behind* earlier ones: the plate sits over the swatch's
-            // own layer, and both sit under the content (which keeps 5pt clear of the edge).
-            .background { travellingPlate }
             .background {
                 shape
                     .fill(fillColor)
                     .overlay {
-                        shape.strokeBorder(borderColor, lineWidth: isSelected && namespace == nil ? 2 : 1)
+                        shape.strokeBorder(borderColor, lineWidth: isSelected && !travels ? 2 : 1)
                     }
+            }
+            // SP1: inside the button label, so the anchor carries the press scale and the
+            // plate presses with its swatch, as it did when each swatch drew its own.
+            .anchorPreference(key: SettingsSelectionPlateKey.self, value: .bounds) { bounds in
+                isSelected && travels ? SettingsSelectionPlateAnchor(bounds: bounds, hovering: hovering) : nil
             }
             .animation(selectionAnimation, value: isSelected)
             // S3A: hover in fast, out slow — the fill is there when the pointer arrives and
@@ -460,15 +521,6 @@ private struct SettingsSelectionChrome: ViewModifier {
                 ),
                 value: hovering
             )
-    }
-
-    @ViewBuilder private var travellingPlate: some View {
-        if isSelected, let namespace {
-            shape
-                .fill(plateFill)
-                .overlay { shape.strokeBorder(Color.accentColor, lineWidth: 2) }
-                .matchedGeometryEffect(id: "selectionPlate", in: namespace)
-        }
     }
 }
 

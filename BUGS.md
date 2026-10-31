@@ -36,6 +36,13 @@ official `claude` CLI's `/usage` panel instead.
   fitted frame and keeps it (it may reset the height after the fit), that the top edge stays under
   the status item, whether the host reserves a top inset (brief H2), and whether the extra corners
   remain after 1.5.1's chrome changes. The `popover-window` hierarchy log answers the last two.
+- **VM result (macOS 15.7.7, 2026-10-30):** the vertical clipping did not reproduce; the window
+  matched the content on 1.5.1 and `main`, and no extra corners showed in 4x edge crops. The real
+  defect was horizontal: PC1 rounded the header's own hosting-view leaves (title, status line,
+  gear) at r22, drawing "Jsage", a trimmed status line and a diamond gear. Fixed by rounding only
+  leaves that span the content (`PopoverHostBackdrop`, SQ2); see
+  `docs/solutions/ui/popover-host-chrome-rounding-clipped-macos15-header.md`. Still unchecked:
+  15.0 itself (the reporter's release) and the one-to-two-column widening below.
 - **Widening from one column to two is unprotected on macOS 15.** The height fitter keeps the
   window's current width, and `fitPopoverWindow(columns:)` only narrows; growing to 750pt relies
   on `MenuBarExtra` widening the window itself, which is verified on 26 only. Device check: grow

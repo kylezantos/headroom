@@ -204,6 +204,42 @@ struct PopoverWindowHeightFitTests {
         #expect(title.minY >= PopoverCardMetrics.shellMargin - 1)
     }
 
+    // MARK: Host chrome rounding (SQ2)
+
+    /// Hosted as the window's content view, the way `MenuBarExtra` hosts it, the popover's
+    /// window chrome (PC1) rounds only leaves that span the content. On macOS 15.7.7 the header's
+    /// title, status line and gear were such leaves and drew pill-clipped. On macOS 26 the leaves
+    /// here are small `KeyViewProxy` views that draw nothing; before SQ2 they were rounded too,
+    /// which is what this test catches on a 26 host.
+    @Test(arguments: [false, true])
+    func theHostChromeRoundsOnlyLeavesSpanningTheContent(multiAccount: Bool) async throws {
+        let store = multiAccount ? await multiSeven() : await singleClaude()
+        let hosting = NSHostingView(rootView: AnyView(
+            PopoverView(store: store, onOpenSettings: {}, fitsMenuBarWindowHeight: false)
+        ))
+        let window = NSWindow(
+            contentRect: NSRect(origin: Self.parkedOrigin, size: NSSize(width: 384, height: 600)),
+            styleMask: [.borderless], backing: .buffered, defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
+        window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
+        window.contentView = hosting
+        window.orderFrontRegardless()
+        let hosted = Hosted(hosting: hosting, window: window, title: TitleProbe())
+        defer { hosted.teardown() }
+        await hosted.settle()
+
+        let bounds = hosting.bounds
+        #expect(bounds.height > 100)
+        let radius = HeadroomTuning().shellCornerRadius
+        for leaf in hosting.subviews where leaf.subviews.isEmpty {
+            guard !PopoverHostBackdrop.spansContent(leaf.frame, bounds: bounds, cornerRadius: radius),
+                  let layer = leaf.layer else { continue }
+            #expect(!(layer.masksToBounds && layer.cornerRadius == radius), "\(type(of: leaf)) \(leaf.frame)")
+        }
+    }
+
     // MARK: Frame math (pure)
 
     private let current = NSRect(x: 100, y: 400, width: 384, height: 300)

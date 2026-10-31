@@ -428,12 +428,19 @@ struct PopoverView: View {
         // leaf views spanning the window (a backdrop, a grey fill, a vibrancy layer), clipped
         // only by the window's smaller corner, so a filled second corner showed outside the
         // r22 shell. Those leaves are rounded to the shell's radius. Not the host view itself:
-        // masking a parent that holds the live glass made the popover flicker. The bundled
-        // app has no such leaves, so this loop finds nothing there.
+        // masking a parent that holds the live glass made the popover flicker.
+        // SQ2 (macOS 15.7.7 VM, 2026-10-30): on macOS 15 the hosting view also keeps the
+        // header's own drawing as direct leaves (the title's 60×21 text view, the status line,
+        // the 16pt gear), and rounding those at r22 cut "Usage" to "Jsage", trimmed both ends
+        // of the status line and drew the gear as a diamond. (On 26 the small leaves are
+        // `KeyViewProxy` views that draw nothing.) Only leaves that span the content qualify.
         var reshaped = false
+        let contentBounds = window.contentView?.bounds ?? .zero
         for leaf in window.contentView?.subviews ?? [] where leaf.subviews.isEmpty {
             guard let layer = leaf.layer,
-                  layer.cornerRadius != radius || !layer.masksToBounds else { continue }
+                  layer.cornerRadius != radius || !layer.masksToBounds,
+                  PopoverHostBackdrop.spansContent(leaf.frame, bounds: contentBounds, cornerRadius: radius)
+            else { continue }
             layer.cornerRadius = radius
             layer.cornerCurve = .continuous
             layer.masksToBounds = true
@@ -1166,6 +1173,25 @@ private struct WindowAccessor: NSViewRepresentable {
     }
 }
 
+/// SQ2: which leaf views of the popover's content view PC1 may round to the shell's corner.
+/// A host backdrop spans the content; the macOS 15 hosting view also keeps small drawing
+/// leaves there (header text, the gear, focus rings), which a 22pt corner clips into pills.
+enum PopoverHostBackdrop {
+    /// Edges may sit this far off the content bounds (fractional backing scales, a resize pass).
+    nonisolated static let tolerance: CGFloat = 1
+
+    /// True when `frame` (in the content view's coordinates) covers `bounds` edge to edge, and
+    /// the content is big enough to carry the corner at all, so a zero-size first pass never
+    /// qualifies a small view.
+    nonisolated static func spansContent(_ frame: NSRect, bounds: NSRect, cornerRadius: CGFloat) -> Bool {
+        guard bounds.width >= cornerRadius * 2, bounds.height >= cornerRadius * 2 else { return false }
+        return abs(frame.minX - bounds.minX) <= tolerance
+            && abs(frame.minY - bounds.minY) <= tolerance
+            && abs(frame.maxX - bounds.maxX) <= tolerance
+            && abs(frame.maxY - bounds.maxY) <= tolerance
+    }
+}
+
 /// PC2 (macOS 27): the MenuBarExtra host draws its own system glass behind the popover again,
 /// at the system's tighter corner radius, and `.containerBackground(.clear, for: .window)` no
 /// longer removes it, so a filled second corner showed outside the r22 shell. The host's
@@ -1277,7 +1303,27 @@ private enum PopoverHostChrome {
         }
         if let rootLayer = root.layer { visitLayer(rootLayer, depth: 0) }
         if let contentLayer = content?.layer { visitLayer(contentLayer, depth: 0) }
-        log.notice("Popover window hierarchy:\n\(lines.joined(separator: "\n"), privacy: .public)")
+        // The unified log truncates a message at about 1 KB, which cut the 15.7.7 dump off
+        // before the views that mattered; each chunk stays under that.
+        let chunks = logChunks(lines, limit: 900)
+        for (index, chunk) in chunks.enumerated() {
+            log.notice("Popover window hierarchy (\(index + 1)/\(chunks.count)):\n\(chunk, privacy: .public)")
+        }
+    }
+
+    /// Whole lines joined into chunks of at most `limit` UTF-8 bytes (a longer line is its own chunk).
+    nonisolated static func logChunks(_ lines: [String], limit: Int) -> [String] {
+        var chunks: [String] = []
+        var current = ""
+        for line in lines {
+            if !current.isEmpty, current.utf8.count + 1 + line.utf8.count > limit {
+                chunks.append(current)
+                current = ""
+            }
+            current += current.isEmpty ? line : "\n" + line
+        }
+        if !current.isEmpty { chunks.append(current) }
+        return chunks
     }
 }
 

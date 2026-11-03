@@ -231,10 +231,6 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
              .grokCredentialIO, .grokTransientCapture, .cursorUnknownUI,
              .cursorTransientCapture, .copilotLogsUnreadable:
             false
-        // Stated rather than left to the default: both wait on the user, while an unreadable
-        // log can clear on the next poll.
-        case .copilotCLIMissing, .copilotSignedOut:
-            true
         default:
             true
         }

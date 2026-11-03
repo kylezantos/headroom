@@ -55,17 +55,14 @@ public struct CopilotProvider: UsageProvider {
         // Logs carry no login, so after a change nothing older is known to be this
         // account's. A change in an earlier month is behind this month's reset already.
         let notBefore = loginChangedAt.flatMap { month.contains($0) ? $0 : nil }
-        let fromLogs = await ledger.read(CopilotLedgerInput(
-            tokenBasedBilling: status.tokenBasedBilling,
-            evidenceNotBefore: notBefore
-        ))
+        func input(anchor: CopilotUsageAnchor?) -> CopilotLedgerInput {
+            CopilotLedgerInput(tokenBasedBilling: status.tokenBasedBilling, anchor: anchor, evidenceNotBefore: notBefore)
+        }
+
+        let fromLogs = await ledger.read(input(anchor: nil))
         guard case .reading(let logs) = fromLogs,
               let anchor = serverAnchor(for: status, now: now, month: month),
-              case .reading(let withServer) = await ledger.read(CopilotLedgerInput(
-                  tokenBasedBilling: status.tokenBasedBilling,
-                  anchor: anchor,
-                  evidenceNotBefore: notBefore
-              )),
+              case .reading(let withServer) = await ledger.read(input(anchor: anchor)),
               let raised = withServer.usedCredits,
               raised > (logs.usedCredits ?? 0)
         else { return fromLogs }

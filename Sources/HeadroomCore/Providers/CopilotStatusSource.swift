@@ -108,7 +108,6 @@ public actor CopilotStatusSource: CopilotStatusSourcing {
         case .signedIn, .signedOut:
             cached = CachedReading(result: result, readAt: now())
         case .cliMissing, .failure:
-            // Retried on the next poll, so a timer sees recovery without a user action.
             cached = nil
         }
         return result

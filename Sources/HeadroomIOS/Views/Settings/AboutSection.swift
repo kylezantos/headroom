@@ -21,11 +21,11 @@ struct AboutSection: View {
                 .accessibilityIdentifier("headroom.about.mac")
             feedbackRow
                 .accessibilityIdentifier("headroom.about.feedback")
-        }
-        .alert("Email copied", isPresented: $showsCopiedAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("No mail app opened, so the email is on your clipboard. Paste it into a message to \(FeedbackEmail.address).")
+                .alert("Email copied", isPresented: $showsCopiedAlert) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text("No mail app opened, so the email is on your clipboard. Paste it into a message to \(FeedbackEmail.address).")
+                }
         }
 
         Section("Made by \(AboutLinks.makerName)") {

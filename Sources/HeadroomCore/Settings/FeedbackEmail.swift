@@ -176,7 +176,7 @@ public struct FeedbackEmail: Sendable, Equatable {
     /// KTD2: some mail apps truncate or refuse longer `mailto:` URLs.
     static let maximumURLLength = 1_800
     static let diagnosticsHeading = "--- Diagnostics (you can edit or delete this) ---"
-    static let trimmedNote = "(Some diagnostics were left out to fit. Use Copy for the full report.)"
+    static let trimmedNote = "(Some diagnostics were left out to fit. Copy in Headroom’s Send Feedback has the full report.)"
 
     public let subject: String
     /// The full body, for the preview and Copy.

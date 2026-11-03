@@ -30,7 +30,10 @@ struct SettingsSheetView: View {
                 let shown = shownSnapshot(now: context.date)
                 let manifestRows = PhoneSettingsManifestRows(snapshot: shown)
                 List {
-                    AboutSection()
+                    AboutSection(
+                        syncStatus: isDemoMode
+                            ? "Demo data"
+                            : PhoneSyncStatus(snapshot: shown, now: context.date).state)
                     AppearanceSection(
                         appearance: $appearance, macDisplay: shown?.content?.display,
                         macNeedsUpdate: shown?.content?.notice == .updateMac)

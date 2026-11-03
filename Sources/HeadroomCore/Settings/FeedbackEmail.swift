@@ -193,7 +193,7 @@ public struct FeedbackEmail: Sendable, Equatable {
         // header lines go last, since they say which build and OS the report came from.
         var kept = fullLines
         var url = Self.mailto(subject: subject, body: body)
-        while url.absoluteString.count > Self.maximumURLLength, !kept.isEmpty {
+        while url.absoluteString.utf8.count > Self.maximumURLLength, !kept.isEmpty {
             kept.removeLast()
             url = Self.mailto(subject: subject, body: Self.body(prompts: prompts, diagnostics: kept, trimmed: true))
         }

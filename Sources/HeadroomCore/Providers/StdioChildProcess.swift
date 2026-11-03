@@ -95,6 +95,23 @@ struct StdioChildProcess {
         return true
     }
 
+    /// The leader's exit code once it exits within `seconds`, reaping it; nil if it is still
+    /// running or was killed by a signal. `terminate()` stays safe to call afterwards.
+    func exitCode(within seconds: TimeInterval) -> Int32? {
+        var status: Int32 = 0
+        let deadline = Date().addingTimeInterval(seconds)
+        repeat {
+            let result = waitpid(pid, &status, WNOHANG)
+            if result == pid {
+                // WIFEXITED / WEXITSTATUS, which Swift doesn't import.
+                return status & 0x7f == 0 ? (status >> 8) & 0xff : nil
+            }
+            if result == -1 { return nil }
+            usleep(10_000)
+        } while Date() < deadline
+        return nil
+    }
+
     func terminate() {
         close(stdin)
         close(stdout)

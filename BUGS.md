@@ -17,6 +17,14 @@ official `claude` CLI's `/usage` panel instead.
 - **Daily triage routine.** A scheduled pass that labels Triage issues, flags likely
   duplicates and notes missing details, never closing or merging. Only once report volume
   justifies it.
+- **Fake-CLI tests flake under the parallel suite.** `CopilotStatusSourceTests.nonRespondingCLIHitsTheDeadlineAndItsProcessGroupIsKilled`
+  still fails about one full `swift test` run in five after its deadline went from 1 s to 3 s
+  (2026-11-03), so slowness was not the cause. Likely cause: the test writes its fake `copilot`
+  script and runs it while other tests spawn processes that inherit the open file, which
+  can make the launch fail with "text file busy" (ETXTBSY). The feedback version-reader
+  tests hit the same race and moved to system binaries (`/usr/bin/git`, `/usr/bin/yes`). Fix
+  the Copilot (and any other) fake-CLI tests by writing their scripts once before the suite
+  runs, or spawning `/bin/sh` with the script as an argument.
 - **Overlap with the troubleshooting sheet.** The deferred in-app troubleshooting sheet
   should reuse `FeedbackDiagnosticsCollector` rather than read state a second way.
 

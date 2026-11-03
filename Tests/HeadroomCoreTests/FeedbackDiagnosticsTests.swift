@@ -78,7 +78,11 @@ struct CLIVersionReaderTests {
     @Test func everyProviderIsListedInOrderIncludingCopilot() async {
         let versions = await CLIVersionReader.versions(
             resolve: { $0 == .grok ? nil : "/fake/\($0.raw)" },
-            run: { path in path.hasSuffix("cursor") ? nil : "\(path.split(separator: "/").last!) 1.2.3" }
+            loginPath: { "/login/bin" },
+            run: { path, loginPath in
+                #expect(loginPath == "/login/bin")
+                return path.hasSuffix("cursor") ? nil : "\(path.split(separator: "/").last!) 1.2.3"
+            }
         )
         #expect(versions.map(\.providerID) == [.claude, .codex, .grok, .cursor, .copilot])
         #expect(versions.map(\.version) == [
@@ -86,35 +90,32 @@ struct CLIVersionReaderTests {
         ])
     }
 
-    @Test func aVersionThatTimesOutIsNil() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("headroom-version-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let slow = directory.appendingPathComponent("slow")
-        try "#!/bin/sh\nsleep 5\necho 9.9.9\n".write(to: slow, atomically: true, encoding: .utf8)
-        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: slow.path)
-
-        #expect(CLIVersionReader.runVersion(executablePath: slow.path, loginPath: "/usr/bin:/bin", deadline: 0.5) == nil)
+    @Test func nothingInstalledSkipsTheLoginShellAndEveryRun() async {
+        let versions = await CLIVersionReader.versions(
+            resolve: { _ in nil },
+            loginPath: { Issue.record("login PATH looked up with no CLI installed"); return "" },
+            run: { _, _ in Issue.record("ran a CLI that isn't installed"); return nil }
+        )
+        #expect(versions.allSatisfy { $0.version == .notInstalled })
     }
 
-    @Test func aRealVersionPrintIsReadAndANonZeroExitIsNil() throws {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("headroom-version-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        let good = directory.appendingPathComponent("good")
-        let bad = directory.appendingPathComponent("bad")
-        try "#!/bin/sh\necho \"tool 4.5.6\"\n".write(to: good, atomically: true, encoding: .utf8)
-        try "#!/bin/sh\necho \"tool 4.5.6\"\nexit 3\n".write(to: bad, atomically: true, encoding: .utf8)
-        for file in [good, bad] {
-            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: file.path)
-        }
+    /// `yes --version` prints forever and never exits, so this is the deadline path, and
+    /// its endless output also exercises the 4 KB read cap.
+    @Test func aCLIThatNeverExitsIsNilByTheDeadline() {
+        let start = Date()
+        #expect(CLIVersionReader.runVersion(executablePath: "/usr/bin/yes", loginPath: "/usr/bin:/bin", deadline: 0.5) == nil)
+        #expect(Date().timeIntervalSince(start) < 3)
+    }
 
-        let output = CLIVersionReader.runVersion(executablePath: good.path, loginPath: "/usr/bin:/bin", deadline: 3)
-        #expect(FeedbackCLIVersion(versionOutput: output) == .version("4.5.6"))
-        #expect(CLIVersionReader.runVersion(executablePath: bad.path, loginPath: "/usr/bin:/bin", deadline: 3) == nil)
-        #expect(CLIVersionReader.runVersion(executablePath: directory.appendingPathComponent("missing").path,
-                                            loginPath: "/usr/bin:/bin", deadline: 3) == nil)
+    /// System binaries rather than a script written here: running a just-written script
+    /// while other tests spawn processes can fail with "text file busy".
+    @Test func aRealVersionPrintIsReadAndANonZeroExitIsNil() {
+        let output = CLIVersionReader.runVersion(executablePath: "/usr/bin/git", loginPath: "/usr/bin:/bin", deadline: 5)
+        guard case .version = FeedbackCLIVersion(versionOutput: output) else {
+            Issue.record("git --version read as \(String(reflecting: output))")
+            return
+        }
+        #expect(CLIVersionReader.runVersion(executablePath: "/usr/bin/false", loginPath: "/usr/bin:/bin", deadline: 5) == nil)
+        #expect(CLIVersionReader.runVersion(executablePath: "/nonexistent/headroom-cli", loginPath: "/usr/bin:/bin", deadline: 5) == nil)
     }
 }

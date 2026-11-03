@@ -1167,10 +1167,8 @@ private struct AboutSettingsTile: View {
                         SettingsOutboundRow(
                             title: "Send Feedback",
                             destination: "Email",
-                            symbol: "ellipsis",
                             help: FeedbackEmail.address,
-                            accessibilityHint: "Shows the email before it opens in your mail app",
-                            isLink: false,
+                            role: .action(hint: "Shows the email before it opens in your mail app"),
                             action: onSendFeedback
                         )
                         Divider()
@@ -1207,10 +1205,8 @@ private struct SettingsLinkRow: View {
         SettingsOutboundRow(
             title: link.title,
             destination: link.destination,
-            symbol: "arrow.up.right",
             help: link.url.absoluteString,
-            accessibilityHint: "Opens in your browser",
-            isLink: true
+            role: .link
         ) {
             NSWorkspace.shared.open(link.url)
         }
@@ -1221,13 +1217,33 @@ private struct SettingsLinkRow: View {
 /// the trailing edge, brightening on hover. Links open the browser; an action row runs
 /// its closure.
 private struct SettingsOutboundRow: View {
+    enum Role {
+        /// Opens a web page: trailing arrow, link trait.
+        case link
+        /// Runs in the app (a sheet): trailing ellipsis, button trait.
+        case action(hint: String)
+    }
+
     let title: String
     let destination: String
-    let symbol: String
     let help: String
-    let accessibilityHint: String
-    let isLink: Bool
+    let role: Role
     let action: () -> Void
+
+    private var symbol: String {
+        if case .link = role { "arrow.up.right" } else { "ellipsis" }
+    }
+
+    private var accessibilityHint: String {
+        switch role {
+        case .link: "Opens in your browser"
+        case .action(let hint): hint
+        }
+    }
+
+    private var isLink: Bool {
+        if case .link = role { true } else { false }
+    }
 
     @State private var isHovered = false
 

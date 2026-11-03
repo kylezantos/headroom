@@ -32,6 +32,26 @@ struct StdioChildProcessTests {
         #expect(await hasExited(worker))
     }
 
+    @Test func exitCodeReportsTheLeadersStatusAndNilWhileItRuns() throws {
+        func spawn(_ script: String) throws -> StdioChildProcess {
+            try #require(StdioChildProcess.spawn(
+                path: "/bin/sh", arguments: ["sh", "-c", script],
+                environment: ["PATH": "/usr/bin:/bin"], workingDirectory: NSTemporaryDirectory()
+            ))
+        }
+        let ok = try spawn("exit 0")
+        defer { ok.terminate() }
+        #expect(ok.exitCode(within: 3) == 0)
+
+        let failing = try spawn("exit 3")
+        defer { failing.terminate() }
+        #expect(failing.exitCode(within: 3) == 3)
+
+        let running = try spawn("sleep 5")
+        defer { running.terminate() }
+        #expect(running.exitCode(within: 0.2) == nil)
+    }
+
     private func hasExited(_ pid: pid_t) async -> Bool {
         for _ in 0..<150 {
             if kill(pid, 0) == -1 && errno == ESRCH { return true }

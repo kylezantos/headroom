@@ -10,8 +10,9 @@ import HeadroomCore
 /// hands the email to their own mail app. Headroom sends nothing itself.
 struct FeedbackView: View {
     let store: UsageStore
-    /// R8: demos and harnesses read no CLI and open no mail app.
-    let isInert: Bool
+    let readCLIVersions: @Sendable () async -> [FeedbackDiagnostics.CLI]
+    /// R8: demos and harnesses open no mail app.
+    let opensMail: Bool
 
     @Environment(\.dismiss) private var dismiss
     @State private var includesDiagnostics = true
@@ -103,9 +104,7 @@ struct FeedbackView: View {
     }
 
     private func readDiagnostics() async {
-        let versions: [FeedbackDiagnostics.CLI] = isInert
-            ? CLIVersionReader.providers.map { .init(providerID: $0, version: .version("1.0.0")) }
-            : await CLIVersionReader.versions()
+        let versions = await readCLIVersions()
         diagnostics = FeedbackDiagnosticsCollector.diagnostics(
             store: store,
             platform: .current(appVersion: AppVersionLabel.plain),
@@ -120,7 +119,7 @@ struct FeedbackView: View {
     }
 
     private func openInMail() {
-        guard !isInert else {
+        guard opensMail else {
             notice = .demo
             return
         }
@@ -130,5 +129,21 @@ struct FeedbackView: View {
             copy()
             notice = .noMailApp
         }
+    }
+}
+
+extension FeedbackView {
+    /// R8: the same launches that never touch iCloud read no CLI and open no mail app; they
+    /// show fixture versions instead.
+    init(store: UsageStore, isInert: Bool) {
+        self.init(
+            store: store,
+            readCLIVersions: isInert ? Self.fixtureVersions : { await CLIVersionReader.versions() },
+            opensMail: !isInert
+        )
+    }
+
+    private static let fixtureVersions: @Sendable () async -> [FeedbackDiagnostics.CLI] = {
+        CLIVersionReader.providers.map { .init(providerID: $0, version: .version("1.0.0")) }
     }
 }

@@ -44,6 +44,17 @@ struct LockScreenWidgetRecipeTests {
         }
     }
 
+    @Test func pinnedCopilotWithNoSyncedCopilotShowsOff() throws {
+        for family in LockScreenWidgetFamily.allCases {
+            let r = recipe(.liquidLevel, family, [F.claude(), F.codex()], choice: .copilot)
+            let slot = try #require(r.slots.first)
+            #expect(r.slots.count == 1)
+            #expect(slot.providerID == "copilot")
+            #expect(slot.primary.state == .off)
+            #expect(r.inlineTextCandidates.first == "Copilot · Off")
+        }
+    }
+
     @Test func unavailableWeeklyRemainsPrimary() throws {
         let claude = F.provider("claude", "Claude", [
             F.window(.fiveHour, label: "5h", percent: 72),

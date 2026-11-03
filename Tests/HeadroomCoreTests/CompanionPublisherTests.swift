@@ -700,6 +700,9 @@ struct CompanionPublisherTests {
 
     /// The multi-20 envelope with a 2-minute interval: 61 accounts, one merge every two
     /// seconds, numbers changing on most merges, for 30 simulated minutes.
+    /// KTD12 (Copilot plan): five provider keys, the manifest and v3 make seven in one flush,
+    /// so a single minute can hold one seven-key flush; the per-minute average stays at six
+    /// or under.
     @Test func multiTwentyAtATwoMinuteIntervalStaysAtOrUnderSixWritesPerMinute() async throws {
         let h = Harness()
         await h.bindHeartbeat()
@@ -722,6 +725,7 @@ struct CompanionPublisherTests {
                 return Self.provider(id, main: accounts[0], extras: Array(accounts.dropFirst()))
             }
             providers.append(Self.provider("cursor", main: Self.account(captured: t)))
+            providers.append(Self.provider("copilot", main: Self.account(captured: t)))
             return Self.capture(at: t, providers: providers)
         }
         await h.submit(state(at: 0))
@@ -759,9 +763,9 @@ struct CompanionPublisherTests {
         }
         let average = Double(h.store.setCount) / 30
         print("U5-WRITE-RATE total=\(h.store.setCount) average=\(average) max=\(setsPerMinute.max() ?? 0) maxFlush=\(flushSizes.max() ?? 0)")
-        #expect(flushSizes.allSatisfy { $0 <= 6 })
+        #expect(flushSizes.allSatisfy { $0 <= 7 })
         #expect(average <= 6)
-        #expect((setsPerMinute.max() ?? 0) <= 6)
+        #expect((setsPerMinute.max() ?? 0) <= 7)
     }
 }
 

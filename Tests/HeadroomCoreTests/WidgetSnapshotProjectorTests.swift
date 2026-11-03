@@ -811,7 +811,7 @@ struct CompanionPhoneProjectionTests {
             .map { String(decoding: $0, as: UTF8.self) }.joined()
         for banned in [
             "@", "example.com", "/Users/", ".claude", ".codex", "CLAUDE_CONFIG_DIR", "CODEX_HOME",
-            "GROK_HOME", "Application Support", "accountUuid", "oauthAccount", "auth.json", "email",
+            "GROK_HOME", "COPILOT_HOME", ".copilot", "Application Support", "accountUuid", "oauthAccount", "auth.json", "email",
         ] {
             #expect(!encoded.contains(banned), "\(banned)")
         }

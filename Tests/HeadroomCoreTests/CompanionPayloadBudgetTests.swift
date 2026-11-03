@@ -76,6 +76,14 @@ struct CompanionPayloadBudgetTests {
                         row(.billingPeriod, "Other Models", 1, duration: 2_592_000),
                     ]),
                 apiSpend: try spend("cursor")))
+        // Copilot is single-account and has no spend or plan label (U5, Copilot plan).
+        payloads.append(
+            try CompanionProviderPayload(
+                sourceID: F.macA, providerID: "copilot", payloadGeneration: 4_000_000_004,
+                mode: .subscription,
+                mainAccount: try CompanionAccountSummary(
+                    id: "primary", title: "Personal", capturedAt: F.date(),
+                    windows: [row(.billingPeriod, "Monthly", 0, duration: 2_592_000)])))
         return payloads
     }
 
@@ -132,7 +140,7 @@ struct CompanionPayloadBudgetTests {
     /// V9 and the KTD7 stop condition: at the envelope every account reaches the phone.
     @Test func multiTwentyWithSparkRowsFitsWithoutCappingAnyAccount() throws {
         let payloads = try Self.envelopeFixture()
-        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1])
+        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1])
         let protocolValues = try Self.protocolValues(devices: 5)
         var levels: [Int: CompanionBudgetMeasurement] = [:]
         for level in 0...1 {
@@ -140,7 +148,7 @@ struct CompanionPayloadBudgetTests {
                 payloads: payloads, protocolValues: protocolValues, minimumLevel: level,
                 manifest: Self.manifest)
             levels[fit.ladderLevel] = fit.measurement
-            #expect(fit.payloads.map(\.allAccounts.count) == [20, 20, 20, 1])
+            #expect(fit.payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1])
             #expect(fit.payloads.allSatisfy { $0.omittedAccountCount == 0 })
             for (key, bytes) in fit.measurement.valueBytes.sorted(by: { $0.key < $1.key }) {
                 print("U4-BUDGET level=\(fit.ladderLevel) key=\(key) bytes=\(bytes)")
@@ -164,7 +172,7 @@ struct CompanionPayloadBudgetTests {
             payloads: payloads, protocolValues: try Self.protocolValues(devices: 5), manifest: Self.manifest)
         #expect(fit.ladderLevel == 2)
         #expect(fit.payloads.prefix(3).allSatisfy { $0.allAccounts.count == 20 && $0.omittedAccountCount == 100 })
-        #expect(fit.payloads.last?.allAccounts.count == 1)
+        #expect(fit.payloads.suffix(2).allSatisfy { $0.allAccounts.count == 1 })
     }
 
     /// Decision 3: protocol overflow stops the write; it never caps accounts at or below 20.
@@ -205,7 +213,7 @@ struct CompanionPayloadBudgetTests {
             .map { String(decoding: $0, as: UTF8.self) }.joined()
         for banned in [
             "@", "example.com", "/Users/", ".claude", ".codex", ".grok", "CLAUDE_CONFIG_DIR",
-            "CODEX_HOME", "GROK_HOME", "Application Support", "accountUuid", "oauthAccount",
+            "CODEX_HOME", "GROK_HOME", "COPILOT_HOME", ".copilot", "Application Support", "accountUuid", "oauthAccount",
             "access_token", "refresh_token", "auth.json", "Claude Code-credentials", "Authorization",
             "x-api-key", "email",
         ] {

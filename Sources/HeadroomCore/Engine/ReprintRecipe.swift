@@ -23,7 +23,7 @@ public struct ReprintRecipe: Sendable, Equatable {
     public let phase: Phase
     public let pills: [LoadingPillState]
     public var isEnabled: Bool { phase == .rest }
-    public var usesSlimGeometry: Bool { pills.count == 4 }
+    public var usesSlimGeometry: Bool { pills.count >= 4 }
     public var needsTimeline: Bool {
         phase == .hold || pills.contains { $0.isSloshing || $0.ink.isTransitioning }
     }

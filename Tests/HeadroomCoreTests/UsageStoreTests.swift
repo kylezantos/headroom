@@ -2363,6 +2363,22 @@ struct UsageStoreTests {
         #expect(store.providerOrder == [.grok])
     }
 
+    /// U5 (Copilot plan): Copilot is off for existing installs and polls once turned on.
+    @Test func copilotDefaultsOffAndPollsOnceTurnedOn() async {
+        let preferences = freshPreferences()
+        let copilot = CountingProvider(id: .copilot, displayName: "Copilot")
+        let store = UsageStore(providers: [copilot], preferences: preferences)
+
+        #expect(!store.isSurfaceEnabled(.copilotSubscription))
+        await store.refreshAll()
+        #expect(copilot.fetchCount == 0)
+
+        store.setSurfaceEnabled(true, for: .copilotSubscription)
+        #expect(store.providerOrder == [.copilot])
+        await store.refreshAll()
+        #expect(copilot.fetchCount == 1)
+    }
+
     @Test func apiSpendOnlyRefreshDoesNotFetchSubscriptions() async {
         let suite = "headroom.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

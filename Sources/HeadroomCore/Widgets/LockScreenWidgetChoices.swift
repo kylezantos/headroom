@@ -9,7 +9,7 @@ public enum LockScreenWidgetFamily: String, CaseIterable, Sendable, Codable {
 /// R7/KTD2: identifiers persist with placed widgets. A pinned choice never falls
 /// back to another provider when that provider is absent from the envelope.
 public enum LockScreenProviderChoice: String, CaseIterable, Sendable, Codable {
-    case automatic, claude, codex, grok, cursor
+    case automatic, claude, codex, grok, cursor, copilot
 
     public init(storedValue: String?) {
         self = storedValue.flatMap(Self.init(rawValue:)) ?? .automatic
@@ -22,6 +22,7 @@ public enum LockScreenProviderChoice: String, CaseIterable, Sendable, Codable {
         case .codex: .codex
         case .grok: .grok
         case .cursor: .cursor
+        case .copilot: .copilot
         }
     }
 }

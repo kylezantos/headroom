@@ -4,6 +4,26 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Copilot provider follow-ups (2026-11-02)
+
+- Live acceptance has not run. The plan's gates still need a signed Headroom.app with a real
+  `copilot login` through the Terminal handoff, then one `-p` run and one interactive run,
+  checking that the meter moves after each and that session and log counts match what those
+  runs created. The R4 check (shown value within 5% of the account's own usage page, under
+  `PATH=/usr/bin:/bin`) and the day-long flat session count also remain.
+- The five-provider menu bar, Settings pill shelf and popover Refresh row were checked in
+  offscreen renders only. Judge them on the live `MenuBarExtra` with `--demo five-providers`
+  in both appearances before release.
+- Use from VS Code or github.com is missing until a quota snapshot or a server reading
+  includes it, so the meter can show more room left than the account has. The README says so;
+  the row itself does not.
+- Annual legacy plans billed in premium requests have no defined meter and no test account.
+- GitHub publishes `GET /users/{username}/settings/billing/ai_credit/usage` for self-purchased
+  plans (organization seats excluded). It is unevaluated: the local `gh` login lacks the
+  `user` scope, so its data and lag are unmeasured.
+- The updated privacy policy (`docs/release/privacy-policy.md`) must be published through
+  `headroom-site` before any release that contains Copilot.
+
 ## Setup-session overlays reach the phone late (2026-10-30)
 
 - **A setup session's phone attention only publishes on the next unrelated export.**

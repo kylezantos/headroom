@@ -22,6 +22,7 @@ struct BrandColorValuesTests {
 
         #expect(HeadroomBrandColorValues.grok == HeadroomRGBColor(red: 0.36, green: 0.40, blue: 0.46))
         #expect(HeadroomBrandColorValues.cursor == HeadroomRGBColor(red: 0.33, green: 0.34, blue: 0.38))
+        #expect(HeadroomBrandColorValues.copilot == HeadroomRGBColor(red: 0.34, green: 0.37, blue: 0.43))
     }
 
     /// R2C18: every Claude/Codex brand value is a stop on one constant-hue ramp — accent,
@@ -211,12 +212,26 @@ struct BrandColorValuesTests {
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.grok.raw, dark: true) == HeadroomRGBColor(red: 0.78, green: 0.80, blue: 0.84))
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.cursor.raw, dark: false) == HeadroomRGBColor(red: 0.17, green: 0.17, blue: 0.18))
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.cursor.raw, dark: true) == HeadroomRGBColor(red: 0.81, green: 0.81, blue: 0.83))
+        #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.copilot.raw, dark: false) == HeadroomRGBColor(red: 0.18, green: 0.20, blue: 0.24))
+        #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.copilot.raw, dark: true) == HeadroomRGBColor(red: 0.79, green: 0.81, blue: 0.86))
+    }
+
+    /// U6 (Copilot plan): the Copilot title accent clears WCAG AA small text on both raised
+    /// tile stops and both widget container stops, in each scheme.
+    @Test func copilotTextAccentClearsSmallTextContrastOnEverySurface() throws {
+        for dark in [true, false] {
+            let accent = try #require(HeadroomWidgetColorValues.textAccent(for: ProviderID.copilot.raw, dark: dark))
+            for surface in raisedTileFillColors(dark: dark) + widgetContainerColors(dark: dark) {
+                let measured = contrastRatio(accent, surface)
+                #expect(measured >= 4.5, "copilot accent dark=\(dark): \(measured):1")
+            }
+        }
     }
 
     /// Guards the P1 "grey-identity default arm" class of bug: every registered provider
     /// must resolve a real title accent (both schemes), not fall through to `.secondary`.
     @Test func everyRegisteredProviderHasABrandTextAccent() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot] {
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: false) != nil, "\(id.raw) light")
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: true) != nil, "\(id.raw) dark")
         }
@@ -239,7 +254,7 @@ struct BrandColorValuesTests {
     @Test func everyProviderRendersItsInkAtThirteenFifteenthsOfTheSlotTimesItsMassCorrection() {
         #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
         let corrections: [(ProviderID, Double)] = [
-            (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03),
+            (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03), (.copilot, 1.00),
         ]
         for (id, correction) in corrections {
             #expect(HeadroomBrandMark.massCorrection(for: id.raw) == correction, "\(id.raw) mass")
@@ -253,7 +268,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw) > 1)
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw) < 1)
         // Grok is the sparsest mark, Codex the densest, so they bound the table.
-        for id in [ProviderID.claude, .codex, .cursor] {
+        for id in [ProviderID.claude, .codex, .cursor, .copilot] {
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw)
                 >= HeadroomBrandMark.massCorrection(for: id.raw))
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw)
@@ -268,7 +283,7 @@ struct BrandColorValuesTests {
     /// 15pt slot, the aspect is preserved rather than padded back to square, and the shorter
     /// dimension is what shrinks (Grok's slash vertically, Cursor's cube horizontally).
     @Test func markSizeFitsTheLargerInkDimensionAndKeepsAspect() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot] {
             let mark = HeadroomBrandMark.markSize(for: id.raw, slot: 15)
             let box = 13 * HeadroomBrandMark.massCorrection(for: id.raw)
             #expect(abs(max(mark.width, mark.height) - box) < 0.0001, "\(id.raw) larger dimension")
@@ -1009,6 +1024,10 @@ private let monochromeMarkFiles: [(URL, Bool)] = {
         (catalog.appendingPathComponent("GrokBrandIcon.imageset/grok-light.svg"), false),
         (catalog.appendingPathComponent("CursorBrandIcon.imageset/cursor-dark.svg"), true),
         (catalog.appendingPathComponent("CursorBrandIcon.imageset/cursor-light.svg"), false),
+        (appIcons.appendingPathComponent("copilot-dark.svg"), true),
+        (appIcons.appendingPathComponent("copilot-light.svg"), false),
+        (catalog.appendingPathComponent("CopilotBrandIcon.imageset/copilot-dark.svg"), true),
+        (catalog.appendingPathComponent("CopilotBrandIcon.imageset/copilot-light.svg"), false),
     ]
 }()
 

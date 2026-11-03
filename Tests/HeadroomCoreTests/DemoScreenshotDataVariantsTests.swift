@@ -253,8 +253,9 @@ struct DemoScreenshotDataVariantsTests {
         let content = CompanionDemoData.snapshot(variant, now: now).content
         for account in content?.providers.flatMap(\.accounts) ?? [] {
             let plan = account.planName
-            // U8's never-signed-in account has no plan to report; every other account does.
-            if account.attention != .neverOnboarded { #expect(plan != nil) }
+            // U8's never-signed-in account has no plan to report, and Copilot's CLI reports
+            // none (Copilot plan parity exception); every other account does.
+            if account.attention != .neverOnboarded, account.title != "Copilot" { #expect(plan != nil) }
             #expect(PlanLabelPresentation.displayName(plan) == plan)
         }
     }
@@ -288,6 +289,20 @@ struct DemoScreenshotDataVariantsTests {
         let cursor = try #require(try provider("cursor", in: content).mainAccount)
         #expect(cursor.windows.map(\.summary.label) == ["Cursor Models", "Other Models"])
         #expect(cursor.windows.map(\.summary.roundedPercentRemaining) == [69, 37])
+    }
+
+    /// Copilot plan U7: the five-provider moment adds Copilot's single monthly pool, with no
+    /// plan name and no spend row.
+    @Test func fiveProvidersAddsCopilotsMonthlyPool() throws {
+        let content = try content(.fiveProviders)
+        #expect(content.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
+        let copilot = try provider("copilot", in: content)
+        #expect(copilot.accounts.count == 1)
+        #expect(copilot.mainAccount?.planName == nil)
+        #expect(copilot.mainAccount?.windows.map(\.summary.label) == ["Monthly"])
+        #expect(copilot.mainAccount?.windows.map(\.summary.roundedPercentRemaining) == [76])
+        #expect(content.apiSpend.map(\.id) == ["claude", "codex"])
+        #expect(CompanionDemoVariant.resolving("five-providers") == .fiveProviders)
     }
 
     /// U8 (V12, V13): a never-signed-in extra, a shared long name with its " · 2" twin,
@@ -367,7 +382,7 @@ struct DemoScreenshotDataVariantsTests {
     @Test func multi20CarriesEveryAccountWithSparkRowsWithinBudget() throws {
         let publication = try CompanionDemoData.publication(.multi20, now: now)
         let content = try content(.multi20)
-        #expect(content.providers.map { $0.accounts.count } == [20, 20, 20, 1])
+        #expect(content.providers.map { $0.accounts.count } == [20, 20, 20, 1, 1])
         #expect(content.providers.allSatisfy { $0.omittedAccountCount == 0 })
         #expect(content.display?.appSparkEnabled == true)
         #expect(try provider("codex", in: content).mainAccount?.windows.contains(where: \.isSpark) == true)
@@ -386,8 +401,8 @@ struct DemoScreenshotDataVariantsTests {
         let content = try content(.aboveEnvelope)
         #expect(content.ladder == .accountCap)
         let omitted = CompanionDemoData.aboveEnvelopeCount - CompanionSyncBudget.accountEnvelope
-        #expect(content.providers.map(\.omittedAccountCount) == [omitted, omitted, omitted, 0])
-        #expect(content.providers.map { $0.accounts.count } == [20, 20, 20, 1])
+        #expect(content.providers.map(\.omittedAccountCount) == [omitted, omitted, omitted, 0, 0])
+        #expect(content.providers.map { $0.accounts.count } == [20, 20, 20, 1, 1])
     }
 
     @Test func oldMacShowsMainAccountsOnlyWithTheUpdateLine() throws {

@@ -354,6 +354,8 @@ struct AccountsSettingsInteractionTests {
             (.reconnectGrok, .setup(.standard)),
             (.installCursorAgent, .documentation(URL(string: "https://docs.cursor.com/en/cli/installation")!)),
             (.connectCursor, .setup(.standard)),
+            (.installCopilotCLI, .documentation(CopilotCLI.installationURL)),
+            (.connectCopilot, .setup(.standard)),
             // KTD5 (2026-09-19 sign-in plan): Claude's approval handoff shares Cursor's
             // trust route; only Sign In still routes to `.setup(.standard)`.
             (.openClaudeWorkspace, .workspaceTrust),

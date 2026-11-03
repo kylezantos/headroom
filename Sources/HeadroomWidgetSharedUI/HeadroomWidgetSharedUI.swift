@@ -13,6 +13,7 @@ public enum HeadroomWidgetStyle {
         // adapts per scheme natively — no separate light/dark lookup needed here.
         case ProviderID.grok.raw: "GrokBrandIcon"
         case ProviderID.cursor.raw: "CursorBrandIcon"
+        case ProviderID.copilot.raw: "CopilotBrandIcon"
         default: nil
         }
     }
@@ -23,6 +24,7 @@ public enum HeadroomWidgetStyle {
         case ProviderID.codex.raw: return Color(widgetInk: HeadroomBrandColorValues.codex)
         case ProviderID.grok.raw: return Color(widgetInk: HeadroomBrandColorValues.grok)
         case ProviderID.cursor.raw: return Color(widgetInk: HeadroomBrandColorValues.cursor)
+        case ProviderID.copilot.raw: return Color(widgetInk: HeadroomBrandColorValues.copilot)
         default: return .secondary
         }
     }
@@ -39,6 +41,7 @@ public enum HeadroomWidgetStyle {
         case ProviderID.codex.raw: "chevron.left.forwardslash.chevron.right"
         case ProviderID.grok.raw: "atom"
         case ProviderID.cursor.raw: "cursorarrow"
+        case ProviderID.copilot.raw: "person.2"
         default: "circle.dashed"
         }
     }

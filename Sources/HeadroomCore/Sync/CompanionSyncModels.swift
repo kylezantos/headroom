@@ -751,7 +751,8 @@ public struct CompanionLastLanded: Codable, Equatable, Sendable {
     public let live: Bool
 
     public init(providerID: String, accountID: String, live: Bool) throws {
-        guard ["claude", "codex", "grok", "cursor"].contains(providerID), !accountID.isEmpty else {
+        // KTD13 (Copilot plan): one provider list, so a new provider cannot be dropped here.
+        guard CompanionSyncKeys.isKnownProvider(providerID), !accountID.isEmpty else {
             throw CompanionSyncValidationError.identity
         }
         self.providerID = providerID
@@ -928,7 +929,7 @@ public enum CompanionSyncKeys {
     /// `namespace` so no v4 prefix sweep, sync-off cleanup or launch scan ever removes it.
     public static let scopeMarker = "headroom.scope.v1"
     /// Contract: known providers; unknown IDs may sit in ordering metadata but are skipped.
-    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor"]
+    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor", "copilot"]
 
     public static func isKnownProvider(_ id: String) -> Bool { knownProviderIDs.contains(id) }
 

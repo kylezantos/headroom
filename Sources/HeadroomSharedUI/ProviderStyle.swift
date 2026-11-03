@@ -17,6 +17,7 @@ public enum ProviderStyle {
         case .codex: return "codex-color"
         case .grok: return scheme == .dark ? "grok-dark" : "grok-light"
         case .cursor: return scheme == .dark ? "cursor-dark" : "cursor-light"
+        case .copilot: return scheme == .dark ? "copilot-dark" : "copilot-light"
         default: return nil
         }
     }
@@ -27,6 +28,7 @@ public enum ProviderStyle {
         case .codex: return Color(HeadroomBrandColorValues.codex)
         case .grok: return Color(HeadroomBrandColorValues.grok)
         case .cursor: return Color(HeadroomBrandColorValues.cursor)
+        case .copilot: return Color(HeadroomBrandColorValues.copilot)
         default: return .secondary
         }
     }
@@ -283,6 +285,7 @@ public enum ProviderStyle {
         case .codex: return "chevron.left.forwardslash.chevron.right"
         case .grok: return "atom"
         case .cursor: return "cursorarrow"
+        case .copilot: return "person.2"
         default: return "circle.dashed"
         }
     }

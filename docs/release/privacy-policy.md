@@ -3,7 +3,7 @@
 Source for `headroom.zantos.co/privacy` (`app/headroom/privacy/page.tsx` in `headroom-site`).
 The 1.5 sync disclosure was published through headroom-site PR #10.
 
-**Effective October 6, 2026**
+**Effective November 2, 2026**
 
 Headroom shows how much of your AI-subscription usage remains. The Mac and iPhone apps have **no analytics or telemetry**. This policy explains
 how they read and sync usage data, and what this website measures.
@@ -14,10 +14,16 @@ how they read and sync usage data, and what this website measures.
   no advertising, and no third-party SDKs. We never see your usage, your identity,
   or your device.
 - **Usage data is read locally, on your Mac.** For each supported tool (Claude, Codex,
-  Cursor, and Grok), the Mac app reads usage locally, either by driving the tool's
+  Cursor, Grok, and GitHub Copilot), the Mac app reads usage locally, either by driving the tool's
   official command-line tool or by reading its local sign-in file, then queries that
   tool's provider with your own credentials. Requests go directly from your Mac to the
   provider. They never pass through us.
+- GitHub Copilot usage comes from files on your Mac. If you turn Copilot on, Headroom
+  scans the session logs the official Copilot command-line tool writes on your Mac, and
+  asks that tool, on your Mac, for your monthly allowance. Those logs also hold your
+  prompts and the output of the tools Copilot ran. Headroom decodes only the usage records
+  in them and keeps no prompt or tool content. Nothing from the logs leaves your Mac except
+  the resulting usage figure, which reaches your iPhone only if iPhone sync is on.
 - **API spend is optional and off by default.** If you enable it, the reporting
   keys you enter are stored in the macOS Keychain on your Mac and used only to call
   the providers' official cost endpoints directly.

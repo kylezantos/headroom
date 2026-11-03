@@ -349,10 +349,15 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .cursorUnknownUI, .cursorTransientCapture:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
                   secondaryLabel: ProviderSignInCopy.buttonAgain, secondaryAction: .connectCursor)
-        // Copilot has no install or Terminal sign-in action yet, so CLI missing and signed
-        // out offer only a fresh check until that handoff exists. An unreadable log is never
-        // a sign-in problem, so it never gets one.
-        case .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable:
+        case .copilotCLIMissing:
+            .init(status: message, primaryLabel: "Install Copilot CLI", primaryAction: .installCopilotCLI)
+        case .copilotSignedOut:
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectCopilot,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  automaticPolicy: .boundedChecksAfterHandoff)
+        // An unreadable log is never a sign-in problem, so it gets a fresh read and no
+        // Terminal sign-in.
+        case .copilotLogsUnreadable:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         }
     }
@@ -371,6 +376,8 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case reconnectGrok
     case installCursorAgent
     case connectCursor
+    case installCopilotCLI
+    case connectCopilot
     case openClaudeWorkspace
     /// Opens interactive Claude Code in the account's workspace so the user can answer a
     /// startup question (or see an unrecognized screen). Same launch as

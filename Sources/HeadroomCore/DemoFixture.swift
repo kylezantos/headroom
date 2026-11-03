@@ -118,6 +118,46 @@ public enum DemoFixture {
         )
     }
 
+    /// Copilot bills one monthly credit pool that resets on the first of the UTC month, and
+    /// the CLI reports no plan name, so the row carries none (U7, Copilot plan).
+    public static var copilotSnapshot: UsageSnapshot {
+        UsageSnapshot(
+            providerID: .copilot,
+            windows: [
+                UsageWindow(
+                    kind: BillingPeriodWindowClassifier.kind(periodType: "monthly", durationSeconds: nil),
+                    utilization: 24,
+                    resetsAt: soon(days: 18, minutes: 30),
+                    resetLabel: "Resets Dec 1"
+                ),
+            ],
+            planLabel: nil,
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live
+        )
+    }
+
+    /// A signed-in Copilot account with no usage reading yet: live, with one unavailable
+    /// row, exactly what `CopilotProvider` returns before the first quota snapshot. The row
+    /// keeps its label and must never print a number (0 used would read as 100 left).
+    public static var copilotNoReadingSnapshot: UsageSnapshot {
+        let monthStart = Calendar(identifier: .gregorian).dateInterval(of: .month, for: Date())?.start ?? Date()
+        return UsageSnapshot(
+            providerID: .copilot,
+            windows: [
+                UsageWindow(
+                    kind: BillingPeriodWindowClassifier.kind(periodType: "monthly", durationSeconds: nil),
+                    utilization: 0,
+                    resetSchedule: .unresolved(.absent),
+                    freshness: .unavailable(since: monthStart)
+                ),
+            ],
+            planLabel: nil,
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live
+        )
+    }
+
     // MARK: Settings Appearance specimen (U3 / KTD4)
 
     /// Synthetic account behind the Settings > Appearance specimen card. Its id is
@@ -305,6 +345,7 @@ public enum DemoFixture {
         case .codex: return day(month: 7, day: 15)
         case .grok: return day(month: 8, day: 4)
         case .cursor: return day(month: 9, day: 1)
+        case .copilot: return day(month: 12, day: 1)
         default: return nil
         }
     }
@@ -387,12 +428,18 @@ extension DemoFixture {
         /// Codex banked resets: a long healthy title with two credits, one Critical account
         /// with one credit, a reported-zero Codex row, and a Claude row with no count.
         case bankedResets = "banked-resets"
+        /// Copilot plan U7: every registered provider, one built-in account each. `multi-5`
+        /// already means five accounts, so the name says providers.
+        case fiveProviders = "five-providers"
+        /// Copilot plan U7: a signed-in Copilot account before its first usage reading, beside
+        /// a live Claude account. The Copilot row shows its label and no number.
+        case copilotNoReading = "copilot-no-reading"
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
     /// Parity checks derive their expected provider list from this instead of hardcoding a
     /// Claude/Codex literal (KTD9 switch-site inventory).
-    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor]
+    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot]
 
     /// One scenario resolved to its accounts + one fixture provider per account.
     public struct MultiAccountFixture: Sendable {
@@ -502,7 +549,8 @@ extension DemoFixture {
         generatedAccounts(provider: .claude, count: 20)
             + generatedAccounts(provider: .codex, count: 20)
             + generatedAccounts(provider: .grok, count: 20)
-            + [builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot)]
+            + [builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+               builtInProviderPair(provider: .copilot, snapshot: copilotSnapshot)]
     }
 
     /// A single built-in account posed from a ready-made snapshot — used for the
@@ -599,7 +647,8 @@ extension DemoFixture {
             pairs = generatedAccounts(provider: .claude, count: 20, probeDuration: 4)
                 + generatedAccounts(provider: .codex, count: 20)
                 + generatedAccounts(provider: .grok, count: 20, probeDuration: 4)
-                + [builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot)]
+                + [builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+                   builtInProviderPair(provider: .copilot, snapshot: copilotSnapshot)]
         case .multiMixed:
             pairs = [
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
@@ -636,6 +685,19 @@ extension DemoFixture {
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
                 builtInProviderPair(provider: .grok, snapshot: grokSnapshot),
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+            ]
+        case .fiveProviders:
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
+                builtInProviderPair(provider: .grok, snapshot: grokSnapshot),
+                builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+                builtInProviderPair(provider: .copilot, snapshot: copilotSnapshot),
+            ]
+        case .copilotNoReading:
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                builtInProviderPair(provider: .copilot, snapshot: copilotNoReadingSnapshot),
             ]
         case .windowUnavailable:
             pairs = [
@@ -804,9 +866,9 @@ public struct DemoUsageProvider: UsageProvider {
     /// product does not have: Cursor is deliberately single-account (no config-home
     /// isolation equivalent to `CLAUDE_CONFIG_DIR`), which is why `CursorProvider` pins
     /// `accountCapacity` to 1. `--demo multi-4` was rendering it as "1 of 5" with an
-    /// "Add Account…" button.
+    /// "Add Account…" button. Copilot is single-account for the same reason.
     public var accountCapacity: Int {
-        id == .cursor ? 1 : AccountRegistry.testedEnvelope
+        id == .cursor || id == .copilot ? 1 : AccountRegistry.testedEnvelope
     }
 
     public init(

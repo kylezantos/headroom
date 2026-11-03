@@ -437,8 +437,8 @@ private extension WidgetRenderHarness {
             case .fixture(let name):
                 DemoScreenshotData.lockScreenFixture(name, now: now).map(IOSWidgetSnapshotState.content)
             case .demo:
-                // KTD10: Lock Screen demo always reads the four-provider envelope.
-                .demo(DemoScreenshotData.envelope(for: "fourProviders"))
+                // KTD10: Lock Screen demo always reads the every-provider envelope.
+                .demo(DemoScreenshotData.envelope(for: "fiveProviders"))
             case .status(let name):
                 switch name {
                 case "disabled": .disabled

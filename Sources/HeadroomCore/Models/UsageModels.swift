@@ -588,6 +588,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
     case codexSubscription
     case grokSubscription
     case cursorSubscription
+    case copilotSubscription
     case anthropicAPI
     case openAIAPI
     case xaiAPI
@@ -599,6 +600,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .codexSubscription, .openAIAPI: return .codex
         case .grokSubscription, .xaiAPI: return .grok
         case .cursorSubscription, .cursorAPI: return .cursor
+        case .copilotSubscription: return .copilot
         }
     }
 
@@ -608,6 +610,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .codexSubscription: return "Codex subscription"
         case .grokSubscription: return "Grok subscription"
         case .cursorSubscription: return "Cursor subscription"
+        case .copilotSubscription: return "Copilot subscription"
         case .anthropicAPI: return "Anthropic API spend"
         case .openAIAPI: return "OpenAI API spend"
         case .xaiAPI: return "xAI API spend"
@@ -617,7 +620,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
 
     public var isSubscription: Bool {
         switch self {
-        case .claudeSubscription, .codexSubscription, .grokSubscription, .cursorSubscription:
+        case .claudeSubscription, .codexSubscription, .grokSubscription, .cursorSubscription, .copilotSubscription:
             return true
         case .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
             return false
@@ -628,7 +631,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         switch self {
         case .claudeSubscription, .codexSubscription:
             return true
-        case .grokSubscription, .cursorSubscription, .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
+        case .grokSubscription, .cursorSubscription, .copilotSubscription, .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
             return false
         }
     }

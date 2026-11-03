@@ -105,7 +105,8 @@ struct CompanionCheckNowModelsTests {
     }
 
     @Test func landedRequiresKnownProviderAccountAndExplicitLiveBool() throws {
-        for provider in ["claude", "codex", "grok", "cursor"] {
+        // KTD13 (Copilot plan): Copilot rows must land too.
+        for provider in ["claude", "codex", "grok", "cursor", "copilot"] {
             let landed = try CompanionLastLanded(
                 providerID: provider, accountID: "primary", live: false)
             try roundtrip(landed)

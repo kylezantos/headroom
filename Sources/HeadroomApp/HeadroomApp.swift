@@ -1008,6 +1008,9 @@ enum AppComposition {
             SubscriptionProviderRegistration(id: .grok, accountCapacity: AccountRegistry.testedEnvelope, factory: makeGrokProvider),
             // Cursor has no config-home isolation, so it stays single-account (matches `CursorProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .cursor, accountCapacity: 1, factory: makeCursorProvider),
+            // A Headroom-owned COPILOT_HOME never receives the session logs the meter reads, so
+            // Copilot stays single-account (matches `CopilotProvider.accountCapacity`).
+            SubscriptionProviderRegistration(id: .copilot, accountCapacity: 1, factory: makeCopilotProvider),
         ]
     }
 
@@ -1353,6 +1356,27 @@ enum AppComposition {
     ) -> any UsageProvider {
         guard account.isBuiltIn else { return UnavailableAccountProvider(account: account) }
         return CursorProvider(source: cursorUsageSource, emailSource: CursorStatusEmailProbe())
+    }
+
+    /// One ledger for the launch: its per-file memo is what keeps polls from rereading
+    /// unchanged session logs (KTD10).
+    private static let copilotLedger = CopilotUsageLedger(
+        copilotHome: FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".copilot", isDirectory: true)
+    )
+    private static let copilotStatusSource = CopilotStatusSource()
+
+    @MainActor
+    private static func makeCopilotProvider(
+        account: ProviderAccount,
+        credentials _: CredentialStore,
+        builtInClaudeWorkspace _: URL
+    ) -> any UsageProvider {
+        guard account.isBuiltIn else { return UnavailableAccountProvider(account: account) }
+        return CopilotProvider(
+            statusSource: copilotStatusSource,
+            ledger: copilotLedger,
+            loginMemory: UserDefaultsCopilotLoginMemory(defaults: launchDefaults)
+        )
     }
 
     private static func apiSpendProviders(credentials: CredentialStore) -> [any APISpendProvider] {

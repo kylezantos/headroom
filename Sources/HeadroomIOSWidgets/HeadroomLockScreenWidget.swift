@@ -32,12 +32,12 @@ enum HeadroomLockScreenStyleOption: String, AppEnum {
 }
 
 enum HeadroomLockScreenProviderOption: String, AppEnum {
-    case automatic, claude, codex, grok, cursor
+    case automatic, claude, codex, grok, cursor, copilot
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Provider"
     static let caseDisplayRepresentations: [Self: DisplayRepresentation] = [
         .automatic: "Automatic", .claude: "Claude", .codex: "Codex",
-        .grok: "Grok", .cursor: "Cursor",
+        .grok: "Grok", .cursor: "Cursor", .copilot: "Copilot",
     ]
 
     var providerChoice: LockScreenProviderChoice {
@@ -47,6 +47,7 @@ enum HeadroomLockScreenProviderOption: String, AppEnum {
         case .codex: .codex
         case .grok: .grok
         case .cursor: .cursor
+        case .copilot: .copilot
         }
     }
 
@@ -57,6 +58,7 @@ enum HeadroomLockScreenProviderOption: String, AppEnum {
         case .codex: self = .codex
         case .grok: self = .grok
         case .cursor: self = .cursor
+        case .copilot: self = .copilot
         }
     }
 }

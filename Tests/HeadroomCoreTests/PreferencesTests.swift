@@ -276,6 +276,7 @@ struct PreferencesTests {
         #expect(prefs.isSurfaceEnabled(.codexSubscription))
         #expect(!prefs.isSurfaceEnabled(.grokSubscription))
         #expect(!prefs.isSurfaceEnabled(.cursorSubscription))
+        #expect(!prefs.isSurfaceEnabled(.copilotSubscription))
         #expect(!prefs.isSurfaceEnabled(.anthropicAPI))
         #expect(!prefs.isSurfaceEnabled(.openAIAPI))
         #expect(!prefs.isSurfaceEnabled(.xaiAPI))
@@ -293,6 +294,7 @@ struct PreferencesTests {
             "codexSubscription",
             "grokSubscription",
             "cursorSubscription",
+            "copilotSubscription",
             "anthropicAPI",
             "openAIAPI",
             "xaiAPI",

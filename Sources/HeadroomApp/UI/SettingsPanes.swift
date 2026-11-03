@@ -1184,6 +1184,11 @@ private struct AboutSettingsTile: View {
                                 feedbackStatus = nil
                             }
                         }
+                        // Webmail users have no mail app to open; the address is selectable so
+                        // they can copy it.
+                        SettingsHelpText(text: "Opens your default email app. Or email \(FeedbackEmail.address).")
+                            .textSelection(.enabled)
+                            .padding(.bottom, 8)
                         Divider()
                         SettingsLinkRow(link: AboutLinks.tipJar)
                     }

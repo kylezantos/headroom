@@ -313,22 +313,25 @@ official `claude` CLI's `/usage` panel instead.
   beyond twice the chosen interval, including scheduler backoff; compare rates only
   with comparable coverage. Collector cost at multi-20 has not been measured.
 
-- **Remote Control opt-out and boot fingerprint need a live acceptance (2026-10-23).** The
-  PTY fallback now launches with `--settings
+- **Remote Control opt-out: live acceptance mostly done (2026-10-23, checked 2026-11-02).** The
+  PTY fallback launches with `--settings
   '{"disableRemoteControl":true,"remoteControlAtStartup":false}'` (versions ≥ 1.0.90 or
   unreadable) plus `CLAUDE_CODE_SKIP_PROMPT_HISTORY=1`, and every Claude workspace carries
-  `.claude/settings.local.json` with `remoteControlAtStartup: false`. Only `--help`,
-  `--version` and two print runs were exercised against real CLIs. Still unverified: (1) with
-  auto-connect on (CLI `/config`, and separately the Desktop app's "Connect new sessions to
-  Remote Control"), forced-PTY probes create zero sessions at claude.ai/code; (2) the
-  interactive boot paint with `disableRemoteControl` still classifies `.ready` (a notice line
-  is tolerated, a modal would not be); (3) whether the local settings file is read before
-  workspace trust; (4) print mode now reads the workspace's `.claude/settings.local.json`
-  too. One real 2.1.303 `claude -p "/usage"` run in a scratch folder holding that file
-  exited 0 with a parseable report and no stderr (2026-10-23); recheck it in the real
-  `ClaudeProbe` workspace on the next live probe. Also open, for Kyle: Brief 02 §5.4 proposed dropping the PTY fallback for
-  CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version` timeout is not
-  retried and still sends the probe to the PTY.
+  `.claude/settings.local.json` with `remoteControlAtStartup: false`. Live check on CLI 2.1.312
+  (Kyle's Mac, Desktop "Connect new sessions to Remote Control" on; offscreen PTY launches in
+  the real `ClaudeProbe` workspace, judged by the CLI's own `--debug-file` log):
+  - A launch forced to auto-connect (`--settings '{"remoteControlAtStartup":true}'`, local file
+    moved aside) logged `[remote-bridge] Created session`, so the signal works.
+  - Headroom's `--settings` opt-out alone: no session. The local file alone, even against that
+    forced `true`: no session. Each layer blocks on its own.
+  - A bare launch with only the Desktop toggle on created no session on 2.1.312.
+  - With the opt-out the boot paint classified ready (no notice line, no modal).
+  - Print mode in the real workspace with the local file present: exit 0, parseable report.
+  Still unverified: a managed (organization) `remoteControlAtStartup: true`, and whether the
+  local file is read before workspace trust (the probe workspace was already trusted); the
+  `--settings` flag covers both. Also open, for Kyle: Brief 02 §5.4 proposed dropping the PTY
+  fallback for CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version`
+  timeout is not retried and still sends the probe to the PTY.
 
 - **An external Claude CLI account switch can retain a model row from the prior login.**
   The continuity merger retains missing model rows without comparing upstream identity.

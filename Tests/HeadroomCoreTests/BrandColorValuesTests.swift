@@ -254,7 +254,7 @@ struct BrandColorValuesTests {
     @Test func everyProviderRendersItsInkAtThirteenFifteenthsOfTheSlotTimesItsMassCorrection() {
         #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
         let corrections: [(ProviderID, Double)] = [
-            (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03), (.copilot, 1.14),
+            (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03), (.copilot, 1.00),
         ]
         for (id, correction) in corrections {
             #expect(HeadroomBrandMark.massCorrection(for: id.raw) == correction, "\(id.raw) mass")

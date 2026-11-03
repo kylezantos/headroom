@@ -779,10 +779,11 @@ public enum HeadroomBrandMark {
         case ProviderID.codex.raw: 0.92
         case ProviderID.grok.raw: 1.20
         case ProviderID.cursor.raw: 1.03
-        // Copilot 1.14 (U6, Copilot plan): coverage 0.38 in a box 1.20 wide, so its height
-        // is the short side. By the same optical score the others were tuned on, 1.14 puts it
-        // at 10.6, inside the 10.3 to 10.9 band the four existing marks measure.
-        case ProviderID.copilot.raw: 1.14
+        // Copilot 1.14 → 1.00 (Nov 2026): its box is 1.20 wide, so at 1.14 the ink spanned
+        // 14.8pt of the 15pt slot and sat ~2pt nearer its title than the other marks, which
+        // read as a cramped gap in the live five-provider popover. At 1.00 it is 13pt wide,
+        // Claude's width, and the gap matches theirs.
+        case ProviderID.copilot.raw: 1.00
         default: 1.0
         }
     }

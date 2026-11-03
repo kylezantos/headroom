@@ -46,6 +46,7 @@ struct SettingsView: View {
     /// KB1: whether the latest pane switch came from the keyboard.
     @State private var paneSwitchIsInstant = false
     @State private var hasVisitedAccounts = false
+    @State private var isShowingFeedback = false
     @State private var intervalMinutes: Int = Preferences.defaultIntervalMinutes
     @State private var usagePercentageMode: UsagePercentageMode = .remaining
     @State private var accountTitleInk: AccountTitleInk = .neutral
@@ -192,6 +193,9 @@ struct SettingsView: View {
             preferences.settingsPane = newValue
             if newValue == .accounts { hasVisitedAccounts = true }
         }
+        .sheet(isPresented: $isShowingFeedback) {
+            FeedbackView(store: store, isInert: AppComposition.usesInertFeedback())
+        }
         .confirmationDialog(
             "Remove this admin key?",
             isPresented: removalDialogPresented,
@@ -275,7 +279,8 @@ struct SettingsView: View {
                 },
                 onLaunchAtLoginChange: { newValue in
                     try? launchControl.setEnabled(newValue)
-                }
+                },
+                onSendFeedback: { isShowingFeedback = true }
             )
         case .appearance:
             AppearanceSettingsPane(

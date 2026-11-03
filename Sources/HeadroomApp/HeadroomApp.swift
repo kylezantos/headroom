@@ -1465,6 +1465,15 @@ enum AppComposition {
             || usesNoOpWidgetExporter(environment: environment)
     }
 
+    /// Feedback plan R8: the same launches that never touch iCloud also never read CLI
+    /// versions for, or open a mail app from, the feedback sheet.
+    static func usesInertFeedback(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        usesInertPhoneSync(arguments: arguments, environment: environment)
+    }
+
     @MainActor
     static func makeSessionReliabilityRecord(
         arguments: [String] = CommandLine.arguments,

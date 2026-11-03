@@ -63,6 +63,7 @@ struct GeneralSettingsPane: View {
     let cadenceSentence: String?
     let onIntervalChange: (Int) -> Void
     let onLaunchAtLoginChange: (Bool) -> Void
+    let onSendFeedback: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -123,7 +124,7 @@ struct GeneralSettingsPane: View {
                 SoftwareUpdatesTile(softwareUpdates: softwareUpdates)
             }
 
-            AboutSettingsTile()
+            AboutSettingsTile(onSendFeedback: onSendFeedback)
         }
     }
 }
@@ -1140,6 +1141,8 @@ private struct MenuBarPreviewKey: Hashable {
 /// The combined General pane preserves About's copy and destinations without repeating
 /// the sidebar's large app mark. Uses the same tile and link rows as the other settings.
 private struct AboutSettingsTile: View {
+    let onSendFeedback: () -> Void
+
     var body: some View {
         SettingsTile("About Headroom", titleAccessory: {
             Spacer(minLength: 12)
@@ -1159,7 +1162,20 @@ private struct AboutSettingsTile: View {
             VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
                 SettingsGroupLabel("Support")
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                    SettingsLinkList(links: [AboutLinks.tipJar])
+                    VStack(alignment: .leading, spacing: 0) {
+                        // Feedback plan R1: opens a preview sheet, then the user's mail app.
+                        SettingsOutboundRow(
+                            title: "Send Feedback",
+                            destination: "Email",
+                            symbol: "ellipsis",
+                            help: FeedbackEmail.address,
+                            accessibilityHint: "Shows the email before it opens in your mail app",
+                            isLink: false,
+                            action: onSendFeedback
+                        )
+                        Divider()
+                        SettingsLinkRow(link: AboutLinks.tipJar)
+                    }
                     SettingsHelpText(text: AboutLinks.tipJarNote)
                 }
             }
@@ -1187,19 +1203,43 @@ struct SettingsLinkList: View {
 private struct SettingsLinkRow: View {
     let link: AboutLink
 
+    var body: some View {
+        SettingsOutboundRow(
+            title: link.title,
+            destination: link.destination,
+            symbol: "arrow.up.right",
+            help: link.url.absoluteString,
+            accessibilityHint: "Opens in your browser",
+            isLink: true
+        ) {
+            NSWorkspace.shared.open(link.url)
+        }
+    }
+}
+
+/// The About rows' one look: title on the leading edge, destination and a small symbol on
+/// the trailing edge, brightening on hover. Links open the browser; an action row runs
+/// its closure.
+private struct SettingsOutboundRow: View {
+    let title: String
+    let destination: String
+    let symbol: String
+    let help: String
+    let accessibilityHint: String
+    let isLink: Bool
+    let action: () -> Void
+
     @State private var isHovered = false
 
     var body: some View {
-        Button {
-            NSWorkspace.shared.open(link.url)
-        } label: {
+        Button(action: action) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(link.title)
+                Text(title)
                     .foregroundStyle(.primary)
                 Spacer(minLength: 12)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(link.destination)
-                    Image(systemName: "arrow.up.right")
+                    Text(destination)
+                    Image(systemName: symbol)
                         .font(.system(size: 10, weight: .semibold))
                         .accessibilityHidden(true)
                 }
@@ -1211,10 +1251,10 @@ private struct SettingsLinkRow: View {
         }
         .buttonStyle(.plain)
         .onHover { isHovered = $0 }
-        .help(link.url.absoluteString)
+        .help(help)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(link.title), \(link.destination)")
-        .accessibilityHint("Opens in your browser")
-        .accessibilityAddTraits(.isLink)
+        .accessibilityLabel("\(title), \(destination)")
+        .accessibilityHint(accessibilityHint)
+        .accessibilityAddTraits(isLink ? .isLink : .isButton)
     }
 }

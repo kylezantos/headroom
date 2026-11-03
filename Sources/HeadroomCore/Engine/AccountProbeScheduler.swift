@@ -1,5 +1,12 @@
 import Foundation
 
+/// Whether the running probe answers a user action. `UsageProvider.fetchResult()` takes no
+/// arguments, so a provider that rate-limits an expensive read learns here when it must read
+/// anyway: a timer can wait, but someone who pressed Check Now or finished a sign-in cannot.
+public enum UserRequestedProbeContext {
+    @TaskLocal public static var isUserRequested = false
+}
+
 /// What the scheduler needs from the store. Kept as a protocol so the scheduler holds no
 /// snapshot, provider, or export logic of its own (2026-09-19 polling plan, KTD1).
 @MainActor
@@ -394,8 +401,13 @@ final class AccountProbeScheduler {
         inFlightAttachment[key] = attachment
         host.schedulerProbeDidStart(key)
 
+        // User-pending, not `isPriority`: a full refresh marks accounts due without queueing
+        // them, while a timer pass or popover open reaching a user-pending key still serves it.
+        let isUserRequested = userPending.contains(key)
         let result = await CLIExecutableRefreshContext.$generation.withValue(locatorGeneration) {
-            await provider.fetchResult()
+            await UserRequestedProbeContext.$isUserRequested.withValue(isUserRequested) {
+                await provider.fetchResult()
+            }
         }
 
         inFlightAttachment.removeValue(forKey: key)

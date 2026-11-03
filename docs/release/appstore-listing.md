@@ -87,6 +87,11 @@ claude,codex,chatgpt,anthropic,openai,usage,quota,limit,tracker,widget,ai,cli,de
 device-to-device through the user's own iCloud Key-Value Store; the developer
 never receives any data. No analytics or third-party SDKs.)
 
+Send Feedback (Nov 2026) keeps this answer: the row opens a `mailto:` in the user's own
+mail app and the app transmits nothing. Whatever the user chooses to email arrives
+through their mail provider, not the app. Kyle confirms against Apple's App Privacy
+definitions when he next edits the answers.
+
 ## Age Rating
 
 All questionnaire answers: **None** → rating 4+.

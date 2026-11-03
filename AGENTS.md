@@ -618,6 +618,18 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   match a `headroom.sync.v4.` prefix sweep, sync-off cleanup or launch scan. Phone processes
   write it only when absent and the Mac never does; never write a remembered value from memory or
   the sidecar, or a marker could carry one account's scope into another's store.
+- **Feedback is an email the user sends, never a request Headroom makes (Nov 2026).**
+  Settings › About › Send Feedback on the Mac (`FeedbackView`, a sheet in `SettingsView`) and
+  the iPhone About row open a pre-filled `mailto:` to `support@zantos.co`, which Google
+  Workspace forwards into Linear's email intake. Core `FeedbackEmail` builds every email from
+  closed enums and shape-checked CLI versions (`FeedbackCLIVersion`, `CLIVersionReader`,
+  `FeedbackDiagnosticsCollector`); it never takes a `UsageSnapshot`, so emails, account
+  names, plan names and `FailureReason` messages cannot reach it. Keep it that way, and keep
+  the `mailto:` under 1,800 characters (the full text stays on Copy). Demos and harnesses
+  read no CLI and open no mail app (`AppComposition.usesInertFeedback`);
+  `--render-popover <dir> --feedback-only` renders the sheet. Don't add an in-app sender, an
+  endpoint or analytics without a new plan: the privacy policy promises Headroom sends
+  nothing itself. See `docs/plans/2026-11-03-1400-feat-feedback-by-email-plan.md`.
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

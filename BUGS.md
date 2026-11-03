@@ -4,6 +4,22 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Feedback by email follow-ups (2026-11-03)
+
+- **Live acceptance outstanding.** Send one report from a built, signed Mac app and one from
+  the iPhone, and confirm both land in Linear Triage with no account names or emails in the
+  diagnostics. Waiting on `support@zantos.co` → Linear intake (Kyle's setup).
+- **iPhone row untested in a simulator.** This Mac's CoreSimulator was older than Xcode's
+  (1174.9.2 vs 1174.21.0), so U4 was verified with a device-SDK build only.
+- **headroom-site (U6).** Footer "Feedback" link, a `/feedback` redirect to the `mailto:`
+  with a `[Headroom Web]` subject, and the privacy page section, published before a release
+  that ships the Mac sheet.
+- **Daily triage routine.** A scheduled pass that labels Triage issues, flags likely
+  duplicates and notes missing details, never closing or merging. Only once report volume
+  justifies it.
+- **Overlap with the troubleshooting sheet.** The deferred in-app troubleshooting sheet
+  should reuse `FeedbackDiagnosticsCollector` rather than read state a second way.
+
 ## Copilot provider follow-ups (2026-11-02)
 
 - Live acceptance has not run. The plan's gates still need a signed Headroom.app with a real

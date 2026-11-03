@@ -39,6 +39,14 @@ how they read and sync usage data, and what this website measures.
   the standard Sparkle framework. This is an ordinary HTTPS request for a version
   file; no personal information or system profile is sent.
 
+- **Feedback you email us.** "Send Feedback" in the Mac and iPhone apps opens an email in
+  your own mail app, addressed to support@zantos.co. Headroom sends nothing itself. You see
+  the whole email first and can change or delete any of it, including the optional
+  diagnostics: app, operating system and command-line tool versions, and each account's
+  status, never your email, account names or sign-in details. When you send it, we receive
+  what you wrote and your email address. Reports are kept in Linear, our issue tracker, and
+  AI tools may help us sort them. To have a report deleted, email the same address.
+
 ## Your choices
 
 - **Everything is a switch.** Widget sharing and iPhone sync are opt-in switches in

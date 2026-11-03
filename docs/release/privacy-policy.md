@@ -1,9 +1,9 @@
 # Headroom Privacy Policy
 
 Source for `headroom.zantos.co/privacy` (`app/headroom/privacy/page.tsx` in `headroom-site`).
-The 1.5 sync disclosure was published through headroom-site PR #10.
+The 1.5 sync disclosure was published through headroom-site PR #10; the Copilot and feedback disclosures through headroom-site PR #19.
 
-**Effective November 2, 2026**
+**Effective November 3, 2026**
 
 Headroom shows how much of your AI-subscription usage remains. The Mac and iPhone apps have **no analytics or telemetry**. This policy explains
 how they read and sync usage data, and what this website measures.
@@ -64,7 +64,7 @@ how they read and sync usage data, and what this website measures.
 
 ## Contact
 
-Questions about this policy: **kylezantos@gmail.com**
+Questions about this policy: **kyle@zantos.co**
 
 We will update this page if the app's behavior ever changes, and the effective date
 above will change with it.

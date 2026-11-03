@@ -139,6 +139,27 @@ struct AccountProbeSchedulerTests {
         #expect(extraFlags.values == [true])
     }
 
+    @Test(arguments: [true, false])
+    func userRequestDuringATimerProbeGetsAFreshProbeOnlyFromACachingProvider(reusesCache: Bool) async {
+        let recorder = UserRequestFlagRecorder()
+        let probe = LaneProbe(
+            id: .claude, accountID: .primary, lane: .serial("claude-cli"), order: ProbeOrder(),
+            reusesCachedStatusOnTimerProbes: reusesCache,
+            onFetch: { recorder.record(UserRequestedProbeContext.isUserRequested) },
+            result: { .init(snapshot: self.liveSnapshot(.claude)) }
+        )
+        probe.suspendNextFetch()
+        let store = UsageStore(providers: [probe], preferences: preferences(), accounts: [.builtIn(for: .claude)])
+
+        store.dispatchDueNow()
+        await probe.waitUntilStarted()
+        store.refreshAccountNow(probe.accountKey, origin: .accountAction)
+        probe.release()
+        await settle { !store.isRefreshing }
+
+        #expect(recorder.values == (reusesCache ? [false, true] : [false]))
+    }
+
     nonisolated private func flagRecordingProbe(
         _ recorder: UserRequestFlagRecorder,
         clock: MutableDateSource? = nil
@@ -744,6 +765,7 @@ final class LaneProbe: UsageProvider, @unchecked Sendable {
     let displayName: String
     let pollingLane: ProviderPollingLane
     let reportsProviderCapability: Bool
+    let reusesCachedStatusOnTimerProbes: Bool
     private let result: @Sendable () -> UsageProviderFetchResult
     private let onFetch: @Sendable () -> Void
     private let order: ProbeOrder
@@ -757,6 +779,7 @@ final class LaneProbe: UsageProvider, @unchecked Sendable {
         lane: ProviderPollingLane,
         order: ProbeOrder,
         reportsProviderCapability: Bool = false,
+        reusesCachedStatusOnTimerProbes: Bool = false,
         onFetch: @escaping @Sendable () -> Void = {},
         result: @escaping @Sendable () -> UsageProviderFetchResult
     ) {
@@ -766,6 +789,7 @@ final class LaneProbe: UsageProvider, @unchecked Sendable {
         self.pollingLane = lane
         self.order = order
         self.reportsProviderCapability = reportsProviderCapability
+        self.reusesCachedStatusOnTimerProbes = reusesCachedStatusOnTimerProbes
         self.onFetch = onFetch
         self.result = result
     }

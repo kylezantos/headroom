@@ -11,6 +11,8 @@ public struct CopilotProvider: UsageProvider {
     /// A Headroom-owned `COPILOT_HOME` never receives the session logs this meter reads,
     /// so an extra account would stay unavailable forever.
     public let accountCapacity = 1
+    /// `CopilotStatusSource` serves timer probes from its hour-long cache.
+    public let reusesCachedStatusOnTimerProbes = true
 
     static let window = BillingPeriodWindowClassifier.kind(periodType: "monthly", durationSeconds: nil)
 

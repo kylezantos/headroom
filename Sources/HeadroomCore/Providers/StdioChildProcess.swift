@@ -101,25 +101,26 @@ struct StdioChildProcess {
         Self.terminateProcessGroup(pid)
     }
 
+    /// The group is signalled even when the leader has already exited, because a worker it
+    /// started can outlive it. Signalling before reaping keeps the group ID from being
+    /// reused, since an unreaped leader still holds its pid.
     private static func terminateProcessGroup(_ pid: pid_t) {
         guard pid > 0 else { return }
-        var status: Int32 = 0
-        let initial = waitpid(pid, &status, WNOHANG)
-        if initial == pid || (initial == -1 && errno == ECHILD) { return }
-
         kill(-pid, SIGTERM)
-        let deadline = Date().addingTimeInterval(0.5)
-        while Date() < deadline {
-            let result = waitpid(pid, &status, WNOHANG)
-            if result == pid || (result == -1 && errno == ECHILD) { return }
-            usleep(20_000)
-        }
+        if reapLeader(pid, within: 0.5), kill(-pid, 0) != 0 { return }
         kill(-pid, SIGKILL)
-        let killDeadline = Date().addingTimeInterval(0.5)
-        while Date() < killDeadline {
+        _ = reapLeader(pid, within: 0.5)
+    }
+
+    /// True once the leader is reaped, or was already reaped elsewhere.
+    private static func reapLeader(_ pid: pid_t, within seconds: TimeInterval) -> Bool {
+        var status: Int32 = 0
+        let deadline = Date().addingTimeInterval(seconds)
+        repeat {
             let result = waitpid(pid, &status, WNOHANG)
-            if result == pid || (result == -1 && errno == ECHILD) { return }
+            if result == pid || (result == -1 && errno == ECHILD) { return true }
             usleep(20_000)
-        }
+        } while Date() < deadline
+        return false
     }
 }

@@ -75,6 +75,8 @@ final class AccountProbeScheduler {
     /// The attachment generation each in-flight probe started under. A request that
     /// arrives after a reset or handoff boundary cannot be answered by that probe.
     private var inFlightAttachment: [AccountKey: UInt64] = [:]
+    /// In-flight probes that started under `UserRequestedProbeContext`.
+    private var inFlightUserRequested: Set<AccountKey> = []
     private var lanes: [ProviderPollingLane: LaneState] = [:]
     /// Accounts a user action marked due and that have not merged yet (KTD2).
     private var userPending: Set<AccountKey> = []
@@ -404,6 +406,7 @@ final class AccountProbeScheduler {
         // User-pending, not `isPriority`: a full refresh marks accounts due without queueing
         // them, while a timer pass or popover open reaching a user-pending key still serves it.
         let isUserRequested = userPending.contains(key)
+        if isUserRequested { inFlightUserRequested.insert(key) }
         let result = await CLIExecutableRefreshContext.$generation.withValue(locatorGeneration) {
             await UserRequestedProbeContext.$isUserRequested.withValue(isUserRequested) {
                 await provider.fetchResult()
@@ -411,6 +414,7 @@ final class AccountProbeScheduler {
         }
 
         inFlightAttachment.removeValue(forKey: key)
+        inFlightUserRequested.remove(key)
         // The store may have gone away while the probe ran; nothing left to merge into.
         guard let liveHost = self.host else { return }
         let end = liveHost.schedulerNow
@@ -464,10 +468,15 @@ final class AccountProbeScheduler {
     }
 
     /// Whether the probe running for `key` started under the store's current attachment
-    /// generation, so its result will be accepted and can answer a user request.
+    /// generation, so its result will be accepted and can answer a user request. A timer
+    /// probe for a provider that serves cached status to timer probes cannot: the user asked
+    /// for a fresh read, which only a probe started as user-requested makes.
     private func inFlightAnswers(_ key: AccountKey) -> Bool {
-        guard let host, let started = inFlightAttachment[key] else { return false }
-        return started == host.schedulerAttachmentGeneration(for: key)
+        guard let host, let started = inFlightAttachment[key],
+              started == host.schedulerAttachmentGeneration(for: key)
+        else { return false }
+        if inFlightUserRequested.contains(key) { return true }
+        return host.schedulerProvider(for: key)?.reusesCachedStatusOnTimerProbes != true
     }
 
     private func enqueuePriority(_ key: AccountKey, locatorGeneration: UUID? = nil) {

@@ -56,6 +56,9 @@ public protocol UsageProvider: Sendable {
     /// override the registry-wide default with `1`.
     var accountCapacity: Int { get }
     var reportsProviderCapability: Bool { get }
+    /// True when a probe outside `UserRequestedProbeContext` may answer from a cached
+    /// status, so a user request arriving mid-probe needs its own follow-up probe.
+    var reusesCachedStatusOnTimerProbes: Bool { get }
     func fetchSnapshot() async -> UsageSnapshot
     func fetchResult() async -> UsageProviderFetchResult
 }
@@ -66,6 +69,7 @@ public extension UsageProvider {
     var pollingLane: ProviderPollingLane { .concurrent }
     var accountCapacity: Int { AccountRegistry.testedEnvelope }
     var reportsProviderCapability: Bool { false }
+    var reusesCachedStatusOnTimerProbes: Bool { false }
     func fetchResult() async -> UsageProviderFetchResult {
         UsageProviderFetchResult(snapshot: await fetchSnapshot())
     }

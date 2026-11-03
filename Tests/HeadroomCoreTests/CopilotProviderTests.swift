@@ -198,6 +198,18 @@ import Testing
         }
     }
 
+    @Test func aServerReadingAloneShowsItsLeastProvenUseAsOfTheReading() async throws {
+        try await withHome { home in
+            let readAt = copilotMoment("2026-11-02T02:14:00.000Z")
+            let status = account(reportedUsed: 300, reportedResetDate: readAt)
+
+            let window = try #require(await provider(home, status: .signedIn(status)).fetchSnapshot().windows.first)
+
+            #expect(window.utilization == 250.0 / 20_000 * 100)
+            #expect(window.freshness == .stale(observedAt: readAt))
+        }
+    }
+
     @Test func aZeroServerReadingIsNotEvidence() async throws {
         try await withHome { home in
             let status = account(reportedUsed: 0, reportedResetDate: Self.now.addingTimeInterval(-5 * 60))

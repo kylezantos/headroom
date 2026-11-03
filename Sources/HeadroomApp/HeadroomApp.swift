@@ -368,15 +368,6 @@ enum Entry {
         semaphore.wait()
     }
 
-    /// `--probe-spend <openai|anthropic|xai>` verifies a real key-based API-spend path (U8
-    /// acceptance): the three admin/management-key providers share one shape (key → vendor
-    /// billing/cost API → typed spend or balance row), so one probe covers all of them. It
-    /// prints only the typed, redacted outcome. The key read is off any leak-prone channel:
-    /// pass `--key-file <path>` and the key is read from that file (never an argument or env
-    /// var, so it can't surface in `ps`/shell history), never echoed, and never persisted.
-    /// With no file flag it reads the app-saved Keychain key instead. The API calls are
-    /// read-only status fetches. For xAI, compare the printed balance against console.x.ai to
-    /// confirm the documented negative-liability sign convention holds against a real response.
     /// Parsed values only: never the login, a raw log line or a server reply. The status
     /// source caches its reading, so the provider reuses the one spawn made here.
     private static func runCopilotProbe() {
@@ -432,6 +423,15 @@ enum Entry {
         semaphore.wait()
     }
 
+    /// `--probe-spend <openai|anthropic|xai>` verifies a real key-based API-spend path (U8
+    /// acceptance): the three admin/management-key providers share one shape (key → vendor
+    /// billing/cost API → typed spend or balance row), so one probe covers all of them. It
+    /// prints only the typed, redacted outcome. The key read is off any leak-prone channel:
+    /// pass `--key-file <path>` and the key is read from that file (never an argument or env
+    /// var, so it can't surface in `ps`/shell history), never echoed, and never persisted.
+    /// With no file flag it reads the app-saved Keychain key instead. The API calls are
+    /// read-only status fetches. For xAI, compare the printed balance against console.x.ai to
+    /// confirm the documented negative-liability sign convention holds against a real response.
     private static func runSpendProbe() {
         let valid = ["openai", "anthropic", "xai"]
         guard let index = CommandLine.arguments.firstIndex(of: "--probe-spend"),

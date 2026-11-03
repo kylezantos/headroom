@@ -146,4 +146,11 @@ struct MenuBarPillArrangerTests {
         #expect(PillShelfModel.cardWidth(forWidth: 600, count: 4) == PillShelfModel.maximumCardWidth)
         #expect(PillShelfModel.cardWidth(forWidth: 0, count: 4) == PillShelfModel.minimumCardWidth)
     }
+
+    /// U6 (Copilot plan): five cards share one row at the same 436pt floor.
+    @Test func fiveCardsFitOneRowAtTheWindowFloor() {
+        let width = PillShelfModel.cardWidth(forWidth: 436, count: 5)
+        #expect(width == 77)
+        #expect(2 * PillShelfModel.wellPadding + 5 * width + 4 * PillShelfModel.spacing <= 436)
+    }
 }

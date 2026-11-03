@@ -442,6 +442,7 @@
 		A5FCE548B6D6C0FB61AFF971 /* HeadroomWidgetNestedMeter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */; };
 		A60D076A272E45CCFCC05E74 /* IOSWidgetTimelineMapping.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604EE1523C858F595C5C118 /* IOSWidgetTimelineMapping.swift */; };
 		A65C1BD8461C779B760D9685 /* PhoneRefreshPillRecipe.swift in Sources */ = {isa = PBXBuildFile; fileRef = B955B2ECFF3179BCB6716FDB /* PhoneRefreshPillRecipe.swift */; };
+		A6BCED5F8DDFDB6FE9798F2C /* copilot-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = F660BA21EAC97057E34379DB /* copilot-dark.svg */; };
 		A6C16B14124470F91F66F7DF /* WidgetLayoutStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA59F148939EB6AC45B4BD65 /* WidgetLayoutStyle.swift */; };
 		A732EFDCB64C894F0F173B2D /* DemoSettingsDependencies.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0B0C4298873C9CDC3EA867B /* DemoSettingsDependencies.swift */; };
 		A7C05AAD6D89D05EE7AE3899 /* PhoneSpendCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EAC8682BF1F21248D8770E3 /* PhoneSpendCard.swift */; };
@@ -500,6 +501,7 @@
 		BFA127F2CA73F4E1B66834E6 /* WidgetsGallerySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63F64121B635592107146CA3 /* WidgetsGallerySection.swift */; };
 		C000604822EDE36CCB99D307 /* ProviderCapabilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */; };
 		C0B3AA69105160B108C76467 /* HeadroomAppShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = A0E0A8ACC16402469E129F6E /* HeadroomAppShortcuts.swift */; };
+		C118BF55DB1C9329C93D5889 /* copilot-light.svg in Resources */ = {isa = PBXBuildFile; fileRef = 22C636D54D2F67944D37DB3D /* copilot-light.svg */; };
 		C1587C8D5DC36D40FDED00CE /* SharedBenchCounters.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA9D3B9CD5BB0E04AE76ABB /* SharedBenchCounters.swift */; };
 		C1CEC6FD61BF7C4DA8CC3C9D /* PlanCapsulePresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57D5D1B66560A107D0339933 /* PlanCapsulePresentation.swift */; };
 		C28D2C6192617E958AF0332C /* ThemeThumbnailPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A998E0D58F87CB9EB42118 /* ThemeThumbnailPicker.swift */; };
@@ -774,6 +776,7 @@
 		20D0BF529D940EBAFE539D47 /* SkeletonMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkeletonMeter.swift; sourceTree = "<group>"; };
 		214817D383333A120DF2E306 /* HeadroomTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomTuning.swift; sourceTree = "<group>"; };
 		21DE6A53BF9F70EB068EA592 /* cursor-light.svg */ = {isa = PBXFileReference; path = "cursor-light.svg"; sourceTree = "<group>"; };
+		22C636D54D2F67944D37DB3D /* copilot-light.svg */ = {isa = PBXFileReference; path = "copilot-light.svg"; sourceTree = "<group>"; };
 		234C84CD80D9C60D9F90CABF /* CompanionPhoneSnapshotSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionPhoneSnapshotSource.swift; sourceTree = "<group>"; };
 		2373CA31089F62FECDF85D07 /* StatusSentence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusSentence.swift; sourceTree = "<group>"; };
 		2581B169C4378C1874F324DF /* LoadingClockEnvironment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingClockEnvironment.swift; sourceTree = "<group>"; };
@@ -1059,6 +1062,7 @@
 		F550600E287E34F7124E73AA /* Elevation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Elevation.swift; sourceTree = "<group>"; };
 		F557E9EE034E97BD9A9F27DC /* HeadroomMotion+Phone.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "HeadroomMotion+Phone.swift"; sourceTree = "<group>"; };
 		F624981937860322BEFB6D9A /* HeadroomWidgetContainerBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetContainerBackground.swift; sourceTree = "<group>"; };
+		F660BA21EAC97057E34379DB /* copilot-dark.svg */ = {isa = PBXFileReference; path = "copilot-dark.svg"; sourceTree = "<group>"; };
 		F7339860B2F91C83B1108CED /* AccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountStorage.swift; sourceTree = "<group>"; };
 		F767701AEE449C92A62002E4 /* CodexProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexProvider.swift; sourceTree = "<group>"; };
 		F79F757570AB27C93700E341 /* IOSCompanionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSCompanionView.swift; sourceTree = "<group>"; };
@@ -1553,6 +1557,8 @@
 			children = (
 				3D242FD4C2496701C8997F9A /* claude-color.svg */,
 				88E5257FBAB9CE287E59153B /* codex-color.svg */,
+				F660BA21EAC97057E34379DB /* copilot-dark.svg */,
+				22C636D54D2F67944D37DB3D /* copilot-light.svg */,
 				1CF869B3DC05316C71518F2A /* cursor-dark.svg */,
 				21DE6A53BF9F70EB068EA592 /* cursor-light.svg */,
 				CDC9199DC7DC96DF143A8480 /* grok-dark.svg */,
@@ -1965,6 +1971,8 @@
 				3B642DC39FBAB7604199175E /* SOURCES.md in Resources */,
 				E888F6381D1EF5EEE508FC15 /* claude-color.svg in Resources */,
 				3CF30E86D1DEBD401B0D6CA3 /* codex-color.svg in Resources */,
+				A6BCED5F8DDFDB6FE9798F2C /* copilot-dark.svg in Resources */,
+				C118BF55DB1C9329C93D5889 /* copilot-light.svg in Resources */,
 				77EF37E2C9BE4D5FFD98E462 /* cursor-dark.svg in Resources */,
 				CA1A83C2FCF419EBC2ABECC1 /* cursor-light.svg in Resources */,
 				33F4E619E256E723243ED1B3 /* grok-dark.svg in Resources */,

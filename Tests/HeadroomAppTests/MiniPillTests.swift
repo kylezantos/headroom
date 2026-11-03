@@ -35,15 +35,22 @@ struct MiniPillTests {
     }
 
     @Test func allRowCountsFitAndKeepTheirInputOrder() {
-        for count in 1...4 {
+        for count in 1...5 {
             let layout = HalftonePillRow.Layout(count: count)
             #expect(layout.origins.count == count)
             #expect(layout.origins == layout.origins.sorted())
             #expect(layout.origins.first! >= 0)
             #expect(layout.origins.last! + layout.pillWidth <= layout.width)
             #expect(abs(layout.origins.first! - (layout.width - layout.origins.last! - layout.pillWidth)) < 0.001)
-            #expect(layout.columns == (count == 4 ? 3 : 4))
+            #expect(layout.columns == (count >= 4 ? 3 : 4))
+            if count >= 4 { #expect(layout.gap > 0) }
         }
+    }
+
+    /// U6 (Copilot plan): five pills draw five, and none is dropped.
+    @Test func fivePillsDrawFiveAndDropNone() {
+        #expect(HalftonePillRow.Layout(count: 5).origins.count == 5)
+        #expect(HalftonePillRow.Layout(count: 6).origins.count == HalftonePillRow.Layout.maximumCount)
     }
 
     @Test nonisolated func timelinePausesWhenStillPinnedOrAfterItsTail() {

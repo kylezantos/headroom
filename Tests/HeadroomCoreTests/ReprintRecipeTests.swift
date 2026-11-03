@@ -3,7 +3,7 @@ import Testing
 @testable import HeadroomCore
 
 struct ReprintRecipeTests {
-    private let ids: [ProviderID] = [.claude, .codex, .grok, .cursor]
+    private let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot]
     private func date(_ seconds: Double) -> Date { Date(timeIntervalSince1970: seconds) }
     private func key(_ id: ProviderID, _ account: AccountID = .primary) -> AccountKey {
         AccountKey(providerID: id, accountID: account)
@@ -68,12 +68,13 @@ struct ReprintRecipeTests {
         #expect(printing.coverage(at: 0.8) == 1)
     }
 
-    @Test func oneToFourPillsKeepMenuBarOrderAndFourAreSlim() {
-        for count in 1...4 {
+    /// U6 (Copilot plan): five providers draw five pills, and four or five are slim.
+    @Test func oneToFivePillsKeepMenuBarOrderAndFourOrMoreAreSlim() {
+        for count in 1...5 {
             let selected = Array(ids.reversed().prefix(count))
             let result = recipe([key(.cursor): entry()], at: 0.3, selected: selected)
             #expect(result.pills.map(\.id) == selected.map(\.raw))
-            #expect(result.usesSlimGeometry == (count == 4))
+            #expect(result.usesSlimGeometry == (count >= 4))
             #expect(result.pills.map(\.level) == meters(selected).map { $0.fill! })
         }
     }

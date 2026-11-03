@@ -143,6 +143,9 @@ public enum HeadroomBrandColorValues {
     // both schemes. First-pass identity values — Phase 2 owns visual density.
     public static let grok = HeadroomRGBColor(red: 0.36, green: 0.40, blue: 0.46)
     public static let cursor = HeadroomRGBColor(red: 0.33, green: 0.34, blue: 0.38)
+    /// GitHub draws the Copilot mark in black or white only, so it is a monochrome brand
+    /// too, given a cooler neutral than Cursor's so the two read apart (U6, Copilot plan).
+    public static let copilot = HeadroomRGBColor(red: 0.34, green: 0.37, blue: 0.43)
 
     /// R2C13: the value ceiling for the two monochrome marks. Their artwork shipped at the
     /// numeral's own value (`#F5F5F7` dark / `#0D0D0F` light), which put Cursor's solid cube
@@ -252,6 +255,8 @@ public enum HeadroomWidgetColorValues {
         case (ProviderID.grok.raw, true): HeadroomRGBColor(red: 0.78, green: 0.80, blue: 0.84)
         case (ProviderID.cursor.raw, false): HeadroomRGBColor(red: 0.17, green: 0.17, blue: 0.18)
         case (ProviderID.cursor.raw, true): HeadroomRGBColor(red: 0.81, green: 0.81, blue: 0.83)
+        case (ProviderID.copilot.raw, false): HeadroomRGBColor(red: 0.18, green: 0.20, blue: 0.24)
+        case (ProviderID.copilot.raw, true): HeadroomRGBColor(red: 0.79, green: 0.81, blue: 0.86)
         default: nil
         }
     }
@@ -774,6 +779,10 @@ public enum HeadroomBrandMark {
         case ProviderID.codex.raw: 0.92
         case ProviderID.grok.raw: 1.20
         case ProviderID.cursor.raw: 1.03
+        // Copilot 1.14 (U6, Copilot plan): coverage 0.38 in a box 1.20 wide, so its height
+        // is the short side. By the same optical score the others were tuned on, 1.14 puts it
+        // at 10.6, inside the 10.3 to 10.9 band the four existing marks measure.
+        case ProviderID.copilot.raw: 1.14
         default: 1.0
         }
     }
@@ -797,6 +806,8 @@ public enum HeadroomBrandMark {
         // Neither is padded back to square — the slot's leftover splits either side.
         case ProviderID.grok.raw: 24.0 / 23.0332
         case ProviderID.cursor.raw: 21.0586 / 24.0
+        // Copilot's head is wider than it is tall.
+        case ProviderID.copilot.raw: 24.0 / 20.03
         default: 1.0
         }
     }

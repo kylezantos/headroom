@@ -32,11 +32,12 @@ enum PillShelfModel {
     static let wellPadding: CGFloat = 9
     static let spacing: CGFloat = 8
     static let maximumCardWidth: CGFloat = 100
-    /// Below this the name, value, and arrows stop fitting a card. At the Settings window's
-    /// 720pt floor four cards still get 98pt, so this only bites on a fifth provider.
-    static let minimumCardWidth: CGFloat = 84
+    /// The narrowest card. At the Settings window's 720pt floor four cards get 98pt and five
+    /// get 77pt, so the floor sits at 77 for five providers to share one row (U6, Copilot
+    /// plan; it was 84 for four). The name and value truncate below the old floor.
+    static let minimumCardWidth: CGFloat = 77
 
-    /// Every card shares one width so a card keeps its size across both rows, and four cards
+    /// Every card shares one width so a card keeps its size across both rows, and five cards
     /// fit one row at the window's minimum width instead of scrolling.
     static func cardWidth(forWidth width: CGFloat, count: Int) -> CGFloat {
         guard count > 0 else { return maximumCardWidth }

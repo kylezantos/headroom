@@ -13,13 +13,23 @@ public struct HalftonePillRow: View {
         public let origins: [Double]
         public let width: Double
 
+        /// Five providers can be selected, so the row holds five (U6, Copilot plan).
+        public static let maximumCount = 5
+
         public init(count: Int, labelWidth: Double = 44) {
-            let count = min(4, max(0, count))
+            let count = min(Self.maximumCount, max(0, count))
             width = labelWidth
-            let pillWidth = count == 4 ? 8.6 : 10.0
-            self.pillWidth = pillWidth // U3: four slim 3×8; otherwise 4×8.
-            columns = count == 4 ? 3 : 4
-            let gap = count == 4 ? (labelWidth - 4 * pillWidth) / 3 : (labelWidth - 3 * pillWidth) / 2
+            // U3: four slim 3×8; five slimmer still at 3×8 so all five share the slot.
+            let pillWidth = switch count {
+            case 5: 7.2
+            case 4: 8.6
+            default: 10.0
+            }
+            self.pillWidth = pillWidth
+            columns = count >= 4 ? 3 : 4
+            let gap = count >= 4
+                ? (labelWidth - Double(count) * pillWidth) / Double(count - 1)
+                : (labelWidth - 3 * pillWidth) / 2
             // Approved 12d: one/two retain the three-pill spacing in its 44pt slot.
             self.gap = gap
             let span = Double(count) * pillWidth + Double(max(0, count - 1)) * gap
@@ -35,7 +45,7 @@ public struct HalftonePillRow: View {
 
     public init(pills: [LoadingPillState] = LoadingPillState.ghostRow(), labelWidth: Double = 44,
                 sloshEndedAt: Date? = nil) {
-        self.pills = Array(pills.prefix(4))
+        self.pills = Array(pills.prefix(Layout.maximumCount))
         self.labelWidth = labelWidth
         self.sloshEndedAt = sloshEndedAt
     }

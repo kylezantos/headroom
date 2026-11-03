@@ -12,6 +12,9 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
     case multiAccount
     /// One account of each provider, with Grok and Cursor's billing pools (`--demo multi-4`).
     case fourProviders
+    /// Every registered provider, one account each: the four above plus Copilot's monthly
+    /// credit pool (`--demo five-providers`).
+    case fiveProviders
     /// Codex banked resets: two, one on a Critical account, and a reported zero
     /// (`--demo banked-resets`).
     case bankedResets
@@ -27,7 +30,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
     case paused
     /// Nothing published yet.
     case waiting
-    /// The tested envelope: 20 Claude, 20 Codex with Spark rows, 20 Grok, 1 Cursor
+    /// The tested envelope: 20 Claude, 20 Codex with Spark rows, 20 Grok, 1 Cursor, 1 Copilot
     /// (`--demo multi-20`).
     case multi20
     /// Above the envelope: the drop ladder caps extra accounts with "N more on your Mac"
@@ -49,6 +52,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
     static let macScenarioAliases: [String: Self] = [
         "multi-3": .multiAccount,
         "multi-4": .fourProviders,
+        "five-providers": .fiveProviders,
         "banked-resets": .bankedResets,
         "multi-20": .multi20,
     ]
@@ -71,6 +75,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
         switch self {
         case .multiAccount: "Multiple accounts"
         case .fourProviders: "Four providers"
+        case .fiveProviders: "Five providers"
         case .bankedResets: "Banked resets"
         case .displayChoices: "Display choices"
         case .dimmed: "No recent update"
@@ -278,16 +283,11 @@ public enum CompanionDemoData {
         case .multiAccount:
             return try multiAccountState(clock: clock, generation: g)
         case .fourProviders:
-            return MacState(
-                providers: [
-                    try payload("claude", g, main: claudePersonal(clock), spend: anthropicSpend(clock)),
-                    try payload("codex", g, main: codexAccount(clock, id: "primary", title: "Personal",
-                                                               plan: "Pro Lite", fiveHour: 9, weekly: 36),
-                                spend: openAISpend(clock)),
-                    try payload("grok", g, main: grokAccount(clock, id: "primary", title: "Grok")),
-                    try payload("cursor", g, main: cursorAccount(clock)),
-                ],
-                spendOrder: ["claude", "codex"])
+            return try fourProvidersState(clock: clock, generation: g)
+        case .fiveProviders:
+            var state = try fourProvidersState(clock: clock, generation: g)
+            state.providers.append(try payload("copilot", g, main: copilotAccount(clock)))
+            return state
         case .bankedResets:
             return MacState(providers: [
                 try payload("claude", g, main: claudePersonal(clock)),
@@ -341,6 +341,19 @@ public enum CompanionDemoData {
         case .oldMac, .paused, .waiting:
             throw CompanionSyncValidationError.state
         }
+    }
+
+    static func fourProvidersState(clock: DemoClock, generation g: Int64) throws -> MacState {
+        MacState(
+            providers: [
+                try payload("claude", g, main: claudePersonal(clock), spend: anthropicSpend(clock)),
+                try payload("codex", g, main: codexAccount(clock, id: "primary", title: "Personal",
+                                                           plan: "Pro Lite", fiveHour: 9, weekly: 36),
+                            spend: openAISpend(clock)),
+                try payload("grok", g, main: grokAccount(clock, id: "primary", title: "Grok")),
+                try payload("cursor", g, main: cursorAccount(clock)),
+            ],
+            spendOrder: ["claude", "codex"])
     }
 
     /// U8: see `CompanionDemoVariant.accountStates`. Numbers reuse the multi-account moment.
@@ -424,6 +437,7 @@ public enum CompanionDemoData {
                 try payload("codex", g, main: codex[0], extras: Array(codex.dropFirst())),
                 try payload("grok", g, main: grok[0], extras: Array(grok.dropFirst())),
                 try payload("cursor", g, main: cursorAccount(clock)),
+                try payload("copilot", g, main: copilotAccount(clock)),
             ],
             // The phone shows Spark rows only when the Mac's in-app switch is on (KTD11).
             display: CompanionDisplayBlock(appSparkEnabled: true))
@@ -509,6 +523,16 @@ public enum CompanionDemoData {
                        resetIn: 12 * day, clock),
                 window(.billingPeriod, name: "Other Models", period: 30 * day, utilization: 63,
                        resetIn: 12 * day, clock),
+            ])
+    }
+
+    /// `DemoFixture.copilotSnapshot`: one monthly credit pool, no plan name, no spend.
+    static func copilotAccount(_ clock: DemoClock) throws -> CompanionAccountSummary {
+        try CompanionAccountSummary(
+            id: "primary", title: "Copilot", capturedAt: clock.captured,
+            windows: [
+                window(.billingPeriod, name: "Monthly", period: 30 * day, utilization: 24,
+                       resetIn: 18 * day + 30 * minute, clock),
             ])
     }
 

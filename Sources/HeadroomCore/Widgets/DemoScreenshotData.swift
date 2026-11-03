@@ -41,6 +41,8 @@ public enum DemoScreenshotData {
             return attentionEnvelope
         case "fourProviders":
             return fourProvidersEnvelope
+        case "fiveProviders":
+            return fiveProvidersEnvelope
         default:
             // U7: a v4 variant chosen in Explore Demo reaches build-33 hosts as its
             // main-account projection (KTD13) until they adopt the resolved snapshot.
@@ -359,6 +361,35 @@ public enum DemoScreenshotData {
         )
     }
 
+    /// `fiveProviders`: the four-provider moment plus Copilot's monthly credit pool, which
+    /// carries no plan label (Copilot plan U7). Numbers mirror `DemoFixture.copilotSnapshot`.
+    private static var fiveProvidersEnvelope: WidgetSnapshotEnvelope {
+        let four = fourProvidersEnvelope
+        let copilot = WidgetProviderSummary(
+            id: ProviderID.copilot.raw,
+            displayName: "Copilot",
+            planLabel: nil,
+            freshness: .live,
+            windows: [
+                window(
+                    .other("Monthly"),
+                    label: "Monthly",
+                    percent: 76,
+                    reset: "Resets Dec 1",
+                    severity: .healthy,
+                    billingPeriodDuration: 30 * 24 * 60 * 60
+                ),
+            ],
+            renewalDate: day(month: 12, day: 1)
+        )
+        return WidgetSnapshotEnvelope(
+            generatedAt: four.generatedAt,
+            status: four.status,
+            providers: four.providers + [copilot],
+            apiSpendProviders: four.apiSpendProviders
+        )
+    }
+
     // MARK: - Settings preview
 
     /// L9P: the frozen envelope behind the Settings › Widgets & iPhone preview strip.
@@ -426,7 +457,7 @@ public enum DemoScreenshotData {
     public static let styleFixtureNames = [
         "claudeCodex", "claudeGrok", "codexCursor", "grokCursor", "tightClaudeCursor",
         "sparkOn", "staleUnavailable", "pending", "firstPending", "pendingAll", "pendingPools", "pendingCodex", "pendingCursor",
-        "signedOut", "cursorOnly", "spend",
+        "signedOut", "cursorOnly", "spend", "claudeCopilot", "copilotNoReading",
     ]
 
     public static func styleFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
@@ -476,6 +507,13 @@ public enum DemoScreenshotData {
                 w(.other("Other Models"), "Other Models", b, resetIn: resetIn, pool: 30 * day),
             ], renewalDate: nil)
         }
+        // Copilot plan U7: one monthly pool, no plan label. Before the first quota snapshot the
+        // row is unavailable: it keeps its label and prints no number.
+        func copilot(_ a: Double, freshness: WidgetWindowFreshness = .live) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: ProviderID.copilot.raw, displayName: "Copilot", planLabel: nil, freshness: .live, windows: [
+                w(.other("Monthly"), "Monthly", a, resetIn: 18.2 * day, freshness: freshness, pool: 30 * day),
+            ], renewalDate: nil)
+        }
         func spendRow(_ id: ProviderID, _ name: String, _ amount: Double) -> WidgetAPISpendSummary {
             WidgetAPISpendSummary(id: id.raw, displayName: name, amount: amount, currency: "usd",
                                   periodLabel: "Current month", capturedAt: now, freshness: .live)
@@ -519,6 +557,9 @@ public enum DemoScreenshotData {
         case "spend":
             return envelope([claude(72, 38, 54), codex(41, 64)],
                             spend: [spendRow(.claude, "Anthropic API", 142.67), spendRow(.codex, "OpenAI API", 58.90)])
+        case "claudeCopilot": return envelope([claude(72, 38, 54), copilot(76)])
+        case "copilotNoReading":
+            return envelope([claude(72, 38, 54), copilot(100, freshness: .unavailable(since: now.addingTimeInterval(-day)))])
         default: return nil
         }
     }
@@ -548,7 +589,7 @@ public enum DemoScreenshotData {
         }
         switch name {
         case "full", "empty":
-            return envelope(["claude", "codex", "grok", "cursor"].map { id in
+            return envelope(["claude", "codex", "grok", "cursor", "copilot"].map { id in
                 WidgetProviderSummary(id: id, displayName: id.capitalized, planLabel: nil,
                     freshness: .live, windows: [WidgetWindowSummary(kind: .weekly, label: "Weekly",
                         percentRemaining: name == "full" ? 100 : 0,

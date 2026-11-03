@@ -36,13 +36,20 @@ struct DemoScenarioParityTests {
         } == true)
     }
 
-    /// U12: the four-provider demo envelope's provider list is derived from — and equals —
-    /// the registry order, so a screenshot/QA scenario exercises every registered provider
-    /// rather than a Claude/Codex literal.
-    @Test func fourProviderDemoEnvelopeCoversTheRegistry() {
-        let envelope = DemoScreenshotData.envelope(for: "fourProviders")
+    /// U12, Copilot plan U7: the five-provider demo envelope's provider list equals the
+    /// registry order, so a screenshot/QA scenario exercises every registered provider rather
+    /// than a literal. The four-provider envelope stays the registry without Copilot.
+    @Test func fiveProviderDemoEnvelopeCoversTheRegistry() {
+        let envelope = DemoScreenshotData.envelope(for: "fiveProviders")
         #expect(envelope.status == .enabled)
         #expect(envelope.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
+        #expect(DemoScreenshotData.envelope(for: "fourProviders").providers.map(\.id)
+            == DemoFixture.registeredProviderOrder.filter { $0 != .copilot }.map(\.raw))
+        let copilot = envelope.providers.first { $0.id == ProviderID.copilot.raw }
+        #expect(copilot?.planLabel == nil)
+        #expect(copilot?.windows.map(\.label) == ["Monthly"])
+        #expect(copilot?.windows.first?.isBillingPeriod == true)
+        #expect(copilot?.windows.first?.displayPercentRemaining == 76)
         // Grok/Cursor bill as period pools, which project to `.other` widget windows.
         let grok = envelope.providers.first { $0.id == ProviderID.grok.raw }
         let cursor = envelope.providers.first { $0.id == ProviderID.cursor.raw }
@@ -78,6 +85,7 @@ struct DemoScenarioParityTests {
     private static let macScenarios: [(CompanionDemoVariant, DemoFixture.MultiAccountScenario)] = [
         (.multiAccount, .multiThree),
         (.fourProviders, .multiProviders),
+        (.fiveProviders, .fiveProviders),
         (.bankedResets, .bankedResets),
         (.multi20, .envelope),
     ]

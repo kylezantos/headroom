@@ -8,7 +8,14 @@ import HeadroomCore
 struct PopoverRenderHarnessStoreTests {
     @Test func envelopeShowsEveryProviderInTheFixture() {
         let store = PopoverRenderHarness.multiStore(for: .envelope)
-        #expect(store.providerOrder == [.claude, .codex, .grok, .cursor])
+        #expect(store.providerOrder == [.claude, .codex, .grok, .cursor, .copilot])
+    }
+
+    /// Copilot plan U7: Copilot defaults OFF like Grok and Cursor, so the five-provider
+    /// capture must enable it or the card never draws.
+    @Test func fiveProviderScenarioShowsEveryRegisteredProvider() {
+        let store = PopoverRenderHarness.multiStore(for: .fiveProviders)
+        #expect(store.providerOrder == DemoFixture.registeredProviderOrder)
     }
 
     @Test func fourProviderScenariosShowGrokAndCursor() {

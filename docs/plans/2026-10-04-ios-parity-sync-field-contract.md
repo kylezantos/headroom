@@ -8,7 +8,7 @@ Reviewed against existing models/projectors by the U4 preflight agent and the im
 
 - JSON object coding keys below are exact wire names. Logical properties use descriptive Swift names. Encode sorted object keys; preserve explicitly ordered arrays. Dates are signed integer Unix seconds (floor, shared by both phone exports), generations nonnegative `Int64`, counts nonnegative `Int`, UUIDs canonical lowercase strings, finite percentages normalized to one decimal using nearest-or-away-from-zero after clamping to 0–100. Reject wrong primitive types and nonfinite numbers; do not coerce strings to numbers.
 - Unknown fields are ignored. Missing required structural fields make that object unusable, never generate a fabricated account ID, generation or date. Structural corruption may fall back to a checked same-scope cache/v3 under resolver rules; unknown presentation enums use the explicit fallback below. Preserve raw provider bytes for SHA-256; never hash a re-encoding.
-- Known provider IDs are `claude`, `codex`, `grok`, `cursor`. Unknown provider IDs may remain in the manifest's ordering metadata but are skipped by this reader. Account IDs are Headroom local IDs (`primary` or registry-generated IDs), never upstream IDs. Account title is resolved on the Mac without the email-disambiguation path.
+- Known provider IDs are `claude`, `codex`, `grok`, `cursor`, `copilot` (Copilot added 2026-11-02; a phone build that predates it skips the key as unknown). Unknown provider IDs may remain in the manifest's ordering metadata but are skipped by this reader. Account IDs are Headroom local IDs (`primary` or registry-generated IDs), never upstream IDs. Account title is resolved on the Mac without the email-disambiguation path.
 - A main account carries its complete window set; extra accounts use the same compact window shape and may lose model rows only through KTD7's ladder. “Full windows” means the full set, not `WidgetWindowSummary`'s verbose JSON layout. No repeated main account inside extras, no encoded window ID/severity/label/resetLabel/resetTimeZoneIdentifier. `kindName` is the semantic name associated with `.other` or `.billingPeriod`, from which the label and ID derive.
 - Preserve exact canonical utilization in a separate optional field: rounded remaining is insufficient to reconstruct it. Source `UsageWindow` precision and reset provenance remain intact. U5 canonicalizes non-visible `resetLabel` and `resetTimeZoneIdentifier` to nil in both v3 and v4-derived projections, with full-envelope parity tests. Main/extra derived labels must still equal `WindowKind.shortLabel`; verify that with all demo variants.
 - No account scope/token, email, host/device name, config path, credential, source raw error, raw CLI output or API response can enter these types. User-chosen titles may themselves resemble email addresses; privacy copy explicitly says “account names you chose.”
@@ -307,6 +307,9 @@ The table writes NBSP as `\u00a0` visibly to specify exact Swift text escaping i
 | cursorMCPApprovalRequired | externalToolsApproval |
 | cursorUnknownUI | setupScreenUnknown |
 | cursorTransientCapture | retrying |
+| copilotCLIMissing | cliMissing |
+| copilotSignedOut | signInRequired |
+| copilotLogsUnreadable | retrying |
 
 `UnsafePermissions` maps to sign-in-again recovery, matching current source recovery; do not export permission bits/path. Malformed data remains a separate typed unreadable category. Credential IO is retryable, never proof credentials are rejected. CallbackIncomplete maps setupFailed, not falsely “currently finishing sign-in” without an active typed session.
 

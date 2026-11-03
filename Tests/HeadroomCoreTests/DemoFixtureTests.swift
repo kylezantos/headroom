@@ -76,13 +76,16 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .multiFive).accounts.count == 8)  // 5 Claude + 3 Codex (past the old cap for scroll)
         #expect(DemoFixture.multiFixture(for: .multiSeven).accounts.count == 8)  // 7 Claude + 1 Codex (popover columns)
         #expect(DemoFixture.scenarioRequest(arguments: ["Headroom", "--demo", "multi-7"]) == .multiAccount(.multiSeven))
-        // R15: the tested envelope — 20 Claude, 20 Codex, 20 Grok, 1 Cursor, every key unique.
+        // R15: the tested envelope — 20 Claude, 20 Codex, 20 Grok, 1 Cursor, 1 Copilot, every
+        // key unique.
         let envelope = DemoFixture.multiFixture(for: .envelope)
-        #expect(envelope.accounts.count == 61)
-        #expect(Set(envelope.accounts.map(\.key)).count == 61)
+        #expect(envelope.accounts.count == 62)
+        #expect(Set(envelope.accounts.map(\.key)).count == 62)
         #expect(envelope.accounts.filter { $0.providerID == .claude }.count == AccountRegistry.testedEnvelope)
         #expect(envelope.accounts.filter { $0.providerID == .cursor }.count == 1)
-        #expect(envelope.accounts.filter(\.isBuiltIn).count == 4)
+        #expect(envelope.accounts.filter { $0.providerID == .copilot }.count == 1)
+        #expect(envelope.accounts.filter(\.isBuiltIn).count == 5)
+        #expect(DemoFixture.settledEnvelopePairs().map(\.account.key) == envelope.accounts.map(\.key))
         // The generator's five-row shape matches the hand-authored scenario's fields.
         let generated = DemoFixture.generatedAccounts(provider: .claude, count: 5)
         #expect(generated.count == 5)
@@ -99,6 +102,8 @@ struct DemoFixtureTests {
         // R2B2: one Claude account posing the partial capture, one Codex account beside it.
         #expect(DemoFixture.multiFixture(for: .windowUnavailable).accounts.count == 2)
         #expect(DemoFixture.multiFixture(for: .bankedResets).accounts.count == 4)
+        #expect(DemoFixture.multiFixture(for: .fiveProviders).accounts.count == 5)
+        #expect(DemoFixture.multiFixture(for: .copilotNoReading).accounts.count == 2)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)
@@ -188,20 +193,59 @@ struct DemoFixtureTests {
         }
     }
 
-    /// U12 parity: the four-provider scenario's provider list is derived from — and equals —
-    /// the registry order, rather than a Claude/Codex literal.
-    @Test func fourProviderScenarioMatchesRegistryOrder() {
-        let fixture = DemoFixture.multiFixture(for: .multiProviders)
+    /// U12 parity, Copilot plan U7: the five-provider scenario's provider list equals the
+    /// registry order. `multi-4` keeps the four providers before Copilot, because its spend
+    /// variants pose four API rows and `multi-5` already means five accounts.
+    @Test func fiveProviderScenarioMatchesRegistryOrder() async {
+        let fixture = DemoFixture.multiFixture(for: .fiveProviders)
         #expect(fixture.accounts.map(\.providerID) == DemoFixture.registeredProviderOrder)
         #expect(fixture.providers.map(\.id) == DemoFixture.registeredProviderOrder)
-        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor])
+        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .copilot])
+        #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.map(\.providerID)
+            == DemoFixture.registeredProviderOrder.filter { $0 != .copilot })
+        // Single-account like Cursor: the demo must not offer "Add Account…" for Copilot.
+        let copilot = fixture.providers.first { $0.id == .copilot }
+        #expect(copilot?.accountCapacity == 1)
+        #expect(await copilot?.fetchSnapshot().planLabel == nil)
+    }
+
+    /// Copilot plan U7: before the first usage reading the row is unavailable. It keeps its
+    /// label and never prints a number: 0 used must not read as 100 left anywhere.
+    @Test func copilotNoReadingRowShowsUnavailableWithoutANumber() async throws {
+        let fixture = DemoFixture.multiFixture(for: .copilotNoReading)
+        #expect(fixture.accounts.map(\.providerID) == [.claude, .copilot])
+        let provider = try #require(fixture.providers.first { $0.id == .copilot })
+        let snapshot = await provider.fetchSnapshot()
+        #expect(snapshot.freshness == .live)
+        let window = try #require(snapshot.windows.first)
+        #expect(snapshot.windows.count == 1)
+        #expect(window.freshness.isUnavailable)
+        #expect(window.kind.shortLabel == "Monthly")
+        #expect(MeterRecipe.fillRecipe(fill: .solid, severity: window.severity, freshness: window.freshness) == .none)
+
+        let projected = WidgetSnapshotProjector.project(
+            snapshots: [.copilot: snapshot], providerOrder: [.copilot], displayNames: [.copilot: "Copilot"],
+            renewalDate: { _ in nil }, widgetsEnabled: true)
+        let summary = try #require(projected.providers.first?.windows.first)
+        #expect(summary.label == "Monthly")
+        #expect(summary.displayPercentRemaining == nil)
+        #expect(WidgetWindowText.percent(summary) == "—")
+        let spoken = WidgetWindowText.accessibilityValue(summary, providerIsLive: true, now: Date())
+        #expect(!spoken.contains("100"))
+        #expect(spoken.contains("unavailable"))
+
+        // The widget style fixture poses the same state for the render sweep.
+        let fixtureRow = try #require(DemoScreenshotData.styleFixture("copilotNoReading", now: Date())?
+            .providers.first { $0.id == ProviderID.copilot.raw }?.windows.first)
+        #expect(fixtureRow.displayPercentRemaining == nil)
+        #expect(WidgetWindowText.percent(fixtureRow) == "—")
     }
 
     @Test func fourDefaultScenarioKeepsStoredDefaultLabels() {
         let fixture = DemoFixture.multiFixture(for: .fourDefault)
         let accountsByProvider = Dictionary(grouping: fixture.accounts, by: \.providerID)
 
-        #expect(fixture.accounts.map(\.providerID) == DemoFixture.registeredProviderOrder)
+        #expect(fixture.accounts.map(\.providerID) == [.claude, .codex, .grok, .cursor])
         #expect(fixture.accounts.map(\.label) == ["Main", "Main", "Main", "Main"])
         #expect(fixture.accounts.allSatisfy { $0.isBuiltIn })
         #expect(!surfaceUsesAccountRows(accountsByProvider: accountsByProvider))

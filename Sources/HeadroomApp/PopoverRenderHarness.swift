@@ -609,9 +609,10 @@ enum PopoverRenderHarness {
         if pane == .menuBar {
             preferences.setSurfaceEnabled(true, for: .grokSubscription)
             preferences.setSurfaceEnabled(true, for: .cursorSubscription)
+            preferences.setSurfaceEnabled(true, for: .copilotSubscription)
             if let menuBarPercentages {
                 preferences.showMenuBarPercentage = menuBarPercentages
-                preferences.menuBarFillSource = .providers([.claude, .codex, .grok, .cursor])
+                preferences.menuBarFillSource = .providers(Set(DemoFixture.registeredProviderOrder))
             }
             if menuBarShelf {
                 preferences.menuBarFillSource = .providers([.claude, .codex])
@@ -672,6 +673,7 @@ enum PopoverRenderHarness {
                 ] + (pane == .menuBar ? [
                     DemoUsageProvider(id: .grok, displayName: "Grok", snapshot: DemoFixture.grokSnapshot),
                     DemoUsageProvider(id: .cursor, displayName: "Cursor", snapshot: DemoFixture.cursorSnapshot),
+                    DemoUsageProvider(id: .copilot, displayName: "Copilot", snapshot: DemoFixture.copilotSnapshot),
                 ] : []),
                 apiSpendProviders: [
                     DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),

@@ -2,7 +2,8 @@
 
 A macOS menu bar app that shows how much of your AI-subscription usage remains — the
 5-hour and weekly windows, when each resets, and a manually-entered monthly renewal
-date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, and **Cursor**, side by side.
+date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, **Cursor**, and **GitHub Copilot**,
+side by side.
 It can also show optional API dollar spend in a separate section for users who use
 metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium, and large
 glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +
@@ -41,6 +42,16 @@ Existing download, appcast, privacy, and release-note URLs stay unchanged.
 - **Cursor** — drives the official `cursor-agent` `/usage` panel in a pseudo-terminal and
   parses its included-usage period. Headroom does not read Cursor's app database or reuse
   private dashboard sessions.
+- GitHub Copilot: off by default; turn it on in Settings → Accounts. Shows one monthly
+  AI credit meter for the account signed in to the official `copilot` CLI. Headroom asks the
+  CLI's local server for the monthly allowance (no prompt, no session, no credits spent) and
+  scans the CLI's session logs under `~/.copilot/session-state/` on your Mac for usage
+  records. Those logs also hold your prompts and tool output: Headroom decodes only the usage
+  records and keeps no prompt or tool content. It never reads a Copilot or `gh` token. The
+  logs advance only when the CLI runs, so a reading more than 15 minutes old shows as last
+  known with its age, and use from VS Code or github.com appears only once the CLI next
+  records a quota snapshot or its server count catches up; until then the meter can show more
+  room left than you have. Before the first reading the row shows its label with no number.
 
 > **First launch:** macOS asks "Headroom would like to access data from other apps" —
 > that's Headroom reading CLI-owned files and driving the official status surfaces. Click
@@ -62,7 +73,9 @@ owner-only config homes selected with `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or `GRO
 and sign in through the same official CLIs in Terminal; Headroom never copies one account's
 credentials into another home. Codex and Grok also offer device-code sign-in for each
 account. Cursor is deliberately single-account because Cursor Agent has no equivalent
-isolated config-home mechanism.
+isolated config-home mechanism. Copilot is single-account too: its usage comes from the
+session logs of the CLI's default home, which a separate Headroom-owned home would never
+receive.
 
 Add, rename, or remove accounts in **Settings → Accounts**. Removing an additional account
 deletes only that Headroom-owned local CLI home; it does not touch the subscription, built-in
@@ -94,6 +107,7 @@ isolated home; running a plain command yourself targets the built-in account.
 | Codex | [Install Codex CLI](https://developers.openai.com/codex/cli/). Standard: `codex login`. Device code: `codex -c cli_auth_credentials_store=file login --device-auth` (Headroom also uses file-backed CLI auth for standard sign-in). | `CODEX_HOME` | `swift run Headroom --probe-codex` |
 | Grok | [Install Grok Build](https://x.ai/news/grok-build). Standard: `grok login`. Device code: `grok login --device-auth`. | `GROK_HOME` | `swift run Headroom --probe-grok` |
 | Cursor | [Install Cursor Agent](https://docs.cursor.com/en/cli/installation). Run `cursor-agent login`. Device-code and additional-account flows are unavailable. | None; one account only | `swift run Headroom --probe-cursor` |
+| Copilot | [Install Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli). Run `copilot login`; Headroom's Terminal handoff clears `COPILOT_HOME`, `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` and `GITHUB_TOKEN` first so it signs in to the default home it reads. "Couldn't read Copilot session logs" retries on its own; choose Check Now after fixing file access. A row with no number means no usage is recorded yet this month: run the CLI once. | None; one account only | `swift run Headroom --probe-copilot` |
 
 ### Where Headroom looks for the Claude CLI
 
@@ -402,7 +416,7 @@ HEADROOM_IOS_UPLOAD=1 \
 
 ## Status
 
-Working end-to-end: live Claude, Codex, Grok, and Cursor subscription usage through their
+Working end-to-end: live Claude, Codex, Grok, Cursor, and Copilot subscription usage through their
 documented provider paths, optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
 launch-at-login, the adaptive macOS popover,
 widget cache export, app icon, the bundled macOS widget extension, and the iPhone

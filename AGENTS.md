@@ -16,7 +16,7 @@ Glass; Sequoia uses a native material popover surface.
   reliably, and solidly as possible.** A growing number of people rely on Headroom to manage
   their usage; reliability and honesty of the numbers come before new surface area.
 - **Provider parity by default.** Any feature, enhancement, or behavior change applies to all
-  providers (Claude, Codex, Grok, Cursor) and to every account of each, unless a provider's
+  providers (Claude, Codex, Grok, Cursor, Copilot) and to every account of each, unless a provider's
   transport or official-client boundary genuinely prevents it. When parity is not possible,
   say so explicitly in the plan, PR, or reply, with the reason, rather than silently scoping
   the change to one provider. "Cheap for this provider" is never a reason to leave it out.
@@ -135,7 +135,7 @@ Widgets & iPhone previews the styles but never sets them. Plan:
 `HeadroomIOSLockScreenWidget` with its own `HeadroomLockScreenConfigurationIntent`, offers circle,
 rectangle and inline sizes on the iPhone and iPad Lock Screens. Edit Widget offers **Style** (the
 same four names, default **Liquid Level**) and **Provider** (Automatic, Claude, Codex, Grok,
-Cursor); there is no Color. Each style draws one approved design per size
+Cursor, Copilot); there is no Color. Each style draws one approved design per size
 (`design/lock-screen-widget-ideas.html`). Every decision — which provider (circle: home R6 pick;
 rectangle and inline: the two widget providers; Tightest First on Automatic: every synced provider),
 the R8 state order, captions, Cursor pool names, demo labels, status forms, inline text candidates
@@ -198,13 +198,14 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
   once per chosen interval; status, account set, main account, titles, display block, intervals
   and widget selection force an immediate flush. Change detection ignores timestamps, but a key is
   rewritten once any observation in it advances by a chosen interval, so "Updated" stays honest.
-  The publisher test at multi-20 on a 2-minute interval averages about 4.9 key writes a minute
-  (target ≤ 6); real iCloud throttling is unmeasured until the check-now spike runs.
+  The publisher test at multi-20 on a 2-minute interval averages about 5.4 key writes a minute
+  (target ≤ 6, no single minute above 7, KTD12 of the Copilot plan); real iCloud throttling is
+  unmeasured until the check-now spike runs.
 - **Budget ladder (KTD7).** `CompanionPayloadBudget` measures the whole v4 namespace before
   every write (requests and receipt included): 15,000 bytes per provider key, 64,000 for the set.
   Level 1 drops extra accounts' model rows; level 2 caps extras only above 20 per provider. Over
   budget after that, the publisher writes nothing and keeps the last good content. Multi-20 with
-  Spark rows measures 27,508 bytes at level 0.
+  Spark rows and the single Copilot account measures 27,878 bytes at level 0.
 - **Sync off sweeps.** The disabled v3 envelope, then a two-field manifest tombstone, then every
   other key under the namespace. The sweep repeats on every launch while sync is off, which also
   repairs keys a downgraded 1.4.1 Mac cannot delete. Diagnostics (key names and sizes, ladder
@@ -220,7 +221,9 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
 Claude, Codex, and Grok each carry any number of signed-in accounts up to a **tested
 envelope** of 20 (`AccountRegistry.testedEnvelope`, Sep 2026 — the bound the suites and the
 `multi-20` demo exercise, not an advertised limit); Cursor is deliberately
-single-account because its CLI exposes no isolated config-home mechanism. Snapshots are keyed
+single-account because its CLI exposes no isolated config-home mechanism, and Copilot is
+single-account because a Headroom-owned `COPILOT_HOME` would never receive the session logs
+its meter reads. Snapshots are keyed
 by `AccountKey` (provider + account); one `UsageProvider` instance exists per account. The
 **built-in** `.primary` account reads the CLI's default config (`~/.claude`, `~/.codex`,
 `~/.grok`) exactly as before — zero migration for existing installs. **Extra** accounts get
@@ -278,7 +281,7 @@ Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
 swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width
-swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|copilot-no-reading]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
@@ -462,7 +465,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   poll aggressively. **Polling is per account, not per sweep (Sep 2026).** Every account has
   its own due time (last attempt + the chosen interval, with growing backoff after transient
   failures and a four-interval wait for never-signed-in extras); each CLI lane (Claude, Grok,
-  Cursor) drains one probe at a time, primary first then most overdue, behind a **measured
+  Cursor, Copilot) drains one probe at a time, primary first then most overdue, behind a **measured
   duty-cycle gate** — timer probes start only while the lane has been busy for at most half of
   the trailing window of twice the chosen interval. Codex's HTTP lane fetches its due accounts
   concurrently and is not gated. User actions (Refresh, Check Now, Try Again, Make Main, setup
@@ -548,8 +551,36 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   `ColorScheme` (`ProviderStyle.svgResourceName(for:scheme:)` → `grok-light`/`grok-dark`,
   `cursor-*`), and the `BrandIcons.xcassets` imagesets carry a `luminosity` dark appearance
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
-  first-pass identity (Phase 2 owns visual density). The four-provider demo is
-  `--demo multi-4` (popover) / the `fourProviders` `DemoScreenshotData` variant (iOS widget).
+  first-pass identity (Phase 2 owns visual density). The every-provider demo is
+  `--demo five-providers` (popover) / the `fiveProviders` `DemoScreenshotData` variant (iOS
+  widget and the Lock Screen demo); `multi-4` and `fourProviders` keep the four providers before
+  Copilot. `multi-5` means five accounts, not five providers.
+- Copilot reads the official CLI's own output and never sends a prompt (Nov 2026).
+  `CopilotProvider` combines two things the official `copilot` CLI produces: the
+  `session.usage_record` and `quotaSnapshots` events in its session logs under
+  `~/.copilot/session-state/` (`CopilotUsageLedger`), and `ping`, `auth.getStatus` and
+  `account.getQuota` on its local stdio server (`CopilotStatusSource`, hour-long cache). The
+  shown figure is the newest dated count plus every credit recorded after it; a server reading
+  is only a lower bound (it is rounded to 0.5% and cached upstream), and a cached 0 never counts.
+  Those logs also hold prompts and tool output: the ledger decodes only usage records and keeps
+  no prompt or tool content, and the privacy policy says so. Never call `copilot -p` or open a
+  session to refresh usage (that spends credits), never read a Copilot or `gh` token, and never
+  call GitHub's private `copilot_internal` endpoints. The server and the sign-in handoff clear
+  `COPILOT_HOME`, `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` and `GITHUB_TOKEN` so they read the same
+  default login. No reading yet (fresh sign-in, no logs this month, zero or unlimited
+  entitlement) is a `.live` snapshot with one `.unavailable(since: monthStart)` row, so setup
+  completes and the row prints no number; `--demo copilot-no-reading` poses it. Sign-in is
+  `copilot login` in Terminal through `SetupSessionCoordinator` (`CopilotCLI`). Re-diagnose
+  with `--probe-copilot`; see `docs/solutions/copilot-cli-usage-feasibility.md`.
+  Parity exceptions, each forced by the CLI boundary:
+  - Single account: a Headroom-owned `COPILOT_HOME` never receives the session logs.
+  - No API spend row: Copilot bills credits inside the subscription, and GitHub's published
+    user billing endpoint needs a `gh` scope Headroom does not ask for and is unevaluated.
+  - No plan label: the CLI reports an entitlement, not a plan name.
+  - Use-it-up reminders fire only near a fresh reading: the row turns last known 15 minutes
+    after the newest log or server evidence, and reminders never evaluate stale rows.
+  - Use from other clients (VS Code, github.com) is missing until a quota snapshot or a server
+    reading includes it, so the meter can overstate the room left.
 - **The menu bar sloshes and prints its first live reading (Oct 2026).** A pill's liquid surface travels
   while its provider's main account is being probed, timer polls included
   (`UsageStore.menuBarUpdatingProviders` → `MenuBarSlosh` → `VesselGlyph` wave frames). The

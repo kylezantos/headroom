@@ -6,11 +6,11 @@ product
 
 ## Users
 
-Headroom is for AI-heavy Mac and iPhone users who need a quick, low-friction read on Claude and Codex subscription headroom while working. They are usually checking usage in passing, from the menu bar, a desktop widget, the iPhone companion app, or an iPhone widget, and need trustworthy glanceability more than exploration.
+Headroom is for AI-heavy Mac and iPhone users who need a quick, low-friction read on their AI subscription headroom (Claude, Codex, Grok, Cursor and GitHub Copilot) while working. They are usually checking usage in passing, from the menu bar, a desktop widget, the iPhone companion app, or an iPhone widget, and need trustworthy glanceability more than exploration.
 
 ## Product Purpose
 
-Headroom shows remaining AI-subscription usage, reset timing, renewal context, and optional API spend without exposing credentials or making users open provider dashboards. Success means the user can answer "how much room do I have left?" in a few seconds, with Claude and Codex presented as peers across Mac and iPhone surfaces.
+Headroom shows remaining AI-subscription usage, reset timing, renewal context, and optional API spend without exposing credentials or making users open provider dashboards. Success means the user can answer "how much room do I have left?" in a few seconds, with every provider presented as a peer across Mac and iPhone surfaces.
 
 ## Brand Personality
 

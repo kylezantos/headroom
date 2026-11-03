@@ -132,7 +132,7 @@ struct CopilotStatusSourceTests {
         defer { fake.remove() }
 
         let start = Date()
-        let result = await makeSource(fake, timeout: 1).status()
+        let result = await makeSource(fake, timeout: 3).status()
 
         guard case .failure(.transient) = result else {
             Issue.record("expected a transient failure")

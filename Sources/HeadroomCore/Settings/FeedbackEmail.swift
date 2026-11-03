@@ -169,17 +169,17 @@ public struct FeedbackDiagnostics: Sendable, Equatable {
     }
 }
 
-/// The finished email: what the preview shows, what Copy puts on the clipboard, and the
-/// `mailto:` URL that opens the user's mail app.
+/// The finished email: the `mailto:` URL that opens the user's mail app, and the full text
+/// the Mac copies when no mail app takes the link.
 public struct FeedbackEmail: Sendable, Equatable {
     public static let address = "support@zantos.co"
     /// KTD2: some mail apps truncate or refuse longer `mailto:` URLs.
     static let maximumURLLength = 1_800
     static let diagnosticsHeading = "--- Diagnostics (you can edit or delete this) ---"
-    static let trimmedNote = "(Some diagnostics were left out to fit. Copy in Headroom’s Send Feedback has the full report.)"
+    static let trimmedNote = "(Some diagnostics were left out to fit.)"
 
     public let subject: String
-    /// The full body, for the preview and Copy.
+    /// The full body; the `mailto:` may carry a trimmed copy (KTD2).
     public let body: String
     public let mailtoURL: URL
 

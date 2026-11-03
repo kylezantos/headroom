@@ -63,7 +63,7 @@ struct GeneralSettingsPane: View {
     let cadenceSentence: String?
     let onIntervalChange: (Int) -> Void
     let onLaunchAtLoginChange: (Bool) -> Void
-    let onSendFeedback: () -> Void
+    let onSendFeedback: () async -> FeedbackMail.Outcome
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -1141,7 +1141,10 @@ private struct MenuBarPreviewKey: Hashable {
 /// The combined General pane preserves About's copy and destinations without repeating
 /// the sidebar's large app mark. Uses the same tile and link rows as the other settings.
 private struct AboutSettingsTile: View {
-    let onSendFeedback: () -> Void
+    let onSendFeedback: () async -> FeedbackMail.Outcome
+
+    /// The feedback row's trailing text while its email is being prepared or was copied.
+    @State private var feedbackStatus: String?
 
     var body: some View {
         SettingsTile("About Headroom", titleAccessory: {
@@ -1163,14 +1166,24 @@ private struct AboutSettingsTile: View {
                 SettingsGroupLabel("Support")
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     VStack(alignment: .leading, spacing: 0) {
-                        // Feedback plan R1: opens a preview sheet, then the user's mail app.
+                        // Feedback plan R1: reading CLI versions takes a second or two, so the
+                        // row says so; a webmail user gets the email on the clipboard instead.
                         SettingsOutboundRow(
                             title: "Send Feedback",
-                            destination: "Email",
+                            destination: feedbackStatus ?? "Email",
                             help: FeedbackEmail.address,
-                            role: .action(hint: "Shows the email before it opens in your mail app"),
-                            action: onSendFeedback
-                        )
+                            accessibilityHint: "Opens an email in your mail app"
+                        ) {
+                            guard feedbackStatus == nil else { return }
+                            feedbackStatus = "Opening…"
+                            Task {
+                                let outcome = await onSendFeedback()
+                                feedbackStatus = outcome == .copied ? "Email copied" : nil
+                                guard outcome == .copied else { return }
+                                try? await Task.sleep(for: .seconds(4))
+                                feedbackStatus = nil
+                            }
+                        }
                         Divider()
                         SettingsLinkRow(link: AboutLinks.tipJar)
                     }
@@ -1206,44 +1219,22 @@ private struct SettingsLinkRow: View {
             title: link.title,
             destination: link.destination,
             help: link.url.absoluteString,
-            role: .link
+            accessibilityHint: "Opens in your browser"
         ) {
             NSWorkspace.shared.open(link.url)
         }
     }
 }
 
-/// The About rows' one look: title on the leading edge, destination and a small symbol on
-/// the trailing edge, brightening on hover. Links open the browser; an action row runs
-/// its closure.
+/// The About rows' one look: title on the leading edge, destination and an outbound arrow on
+/// the trailing edge, brightening on hover. Every row leaves Headroom, for the browser or the
+/// user's mail app.
 private struct SettingsOutboundRow: View {
-    enum Role {
-        /// Opens a web page: trailing arrow, link trait.
-        case link
-        /// Runs in the app (a sheet): trailing ellipsis, button trait.
-        case action(hint: String)
-    }
-
     let title: String
     let destination: String
     let help: String
-    let role: Role
+    let accessibilityHint: String
     let action: () -> Void
-
-    private var symbol: String {
-        if case .link = role { "arrow.up.right" } else { "ellipsis" }
-    }
-
-    private var accessibilityHint: String {
-        switch role {
-        case .link: "Opens in your browser"
-        case .action(let hint): hint
-        }
-    }
-
-    private var isLink: Bool {
-        if case .link = role { true } else { false }
-    }
 
     @State private var isHovered = false
 
@@ -1255,7 +1246,7 @@ private struct SettingsOutboundRow: View {
                 Spacer(minLength: 12)
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(destination)
-                    Image(systemName: symbol)
+                    Image(systemName: "arrow.up.right")
                         .font(.system(size: 10, weight: .semibold))
                         .accessibilityHidden(true)
                 }
@@ -1271,6 +1262,6 @@ private struct SettingsOutboundRow: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(title), \(destination)")
         .accessibilityHint(accessibilityHint)
-        .accessibilityAddTraits(isLink ? .isLink : .isButton)
+        .accessibilityAddTraits(.isLink)
     }
 }

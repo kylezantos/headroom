@@ -40,9 +40,9 @@ Reports arrive scattered across X DMs and email, with no record and no diagnosti
 **The email**
 - R4. Diagnostics hold only: app version and build, OS version, CPU architecture, the version of each installed provider CLI (Claude, Codex, Grok, Cursor, Copilot), which providers are on, and each account's typed status named by provider and position ("Claude #2: notLoggedIn"). Never tokens, emails, account names or IDs, plan names, file paths or raw CLI output.
 - R5. The subject starts with a tag Linear can sort on: `[Headroom Mac]`, `[Headroom iPhone]` or `[Headroom Web]`. The body has short prompts ("What happened?", "What did you expect?") above the diagnostics block.
-- R6. On the Mac, the action first shows a small sheet with the exact email text, an "Include diagnostics" switch (default on), and two buttons: Open in Mail and Copy. Copy puts the subject, body and address on the clipboard, for people who use webmail. The sheet names the address in plain text.
+- R6. On the Mac, the row reads "Send Feedback · Email ↗" like the other About links and opens the email straight in the user's mail app, where they see and edit every line before sending (user-directed 2026-11-03: uniform with the other rows, no preview sheet). If no mail app takes the link, the full email goes on the clipboard and the row says "Email copied". While diagnostics are read (about a second), the row says "Opening…".
 - R7. The iPhone row opens the email directly (Mail compose through `mailto:`), with app version, iOS version and sync status; no CLI data exists on the phone. If no mail app can open it, the row copies the address and says so.
-- R8. Demo mode and the render and bench harnesses open nothing and copy nothing real; the demo sheet shows fixture diagnostics.
+- R8. Demo mode and the render and bench harnesses open nothing and copy nothing real.
 
 **Privacy**
 - R9. The privacy policy and App Store listing copy say: Headroom sends nothing itself; if you email feedback, Kyle receives what you send, it is stored in Linear, and AI tools may help sort it. Deletion: email the same address.
@@ -76,10 +76,9 @@ Reports arrive scattered across X DMs and email, with no record and no diagnosti
 
 - KTD1. **One pure Core recipe builds every email.** `FeedbackEmail` in `Sources/HeadroomCore/Settings/` takes a value-type input of closed enums and version strings and returns subject, body and a `mailto:` URL. It never takes a `UsageSnapshot`, so forbidden fields cannot reach it. Both iOS targets compile it under the whole-folder rule.
 - KTD2. **The `mailto:` URL stays under 1,800 characters.** Long bodies get cut at a line boundary with "(diagnostics trimmed; use Copy for the full report)". Copy always carries the full text.
-- KTD3. **CLI versions are read when the sheet opens, off the main actor,** through `CLIExecutableResolver` with a 5-second deadline. Claude reuses the version read the probe already does. A version passes a shape allow-list (digits, dots, short suffix) or becomes "unknown"; a missing CLI is "not installed".
+- KTD3. **CLI versions are read when the user clicks Send Feedback, off the main actor,** through `CLIExecutableResolver` with a 5-second deadline. Claude reuses the version read the probe already does. A version passes a shape allow-list (digits, dots, short suffix) or becomes "unknown"; a missing CLI is "not installed".
 - KTD4. **The address and URLs live in `AboutLinks`,** pinned by `AboutLinksTests` like the other literals.
-- KTD5. **The Mac sheet is its own small `Window` scene,** opened like Settings, because the popover closes when focus moves.
-
+- KTD5. **No Mac sheet or window.** The About row runs `FeedbackMail.send`, which reads diagnostics off the main actor and opens the `mailto:` (revised 2026-11-03, see R6).
 ---
 
 ## Implementation Units
@@ -92,9 +91,9 @@ Reports arrive scattered across X DMs and email, with no record and no diagnosti
 - Files: `Sources/HeadroomCore/Engine/FeedbackDiagnosticsCollector.swift`, `Sources/HeadroomCore/Providers/CLIVersionReader.swift`, tests beside them.
 - Tests: a fixture with sentinel email, plan and account-title values never surfaces them; missing CLI → "not installed"; timeout → "unknown"; every provider, Copilot included, appears.
 
-### U3. Mac feedback sheet and entry point
-- Files: `Sources/HeadroomApp/UI/FeedbackView.swift`, `Sources/HeadroomApp/HeadroomApp.swift` (`Window(id: "feedback")`), `Sources/HeadroomApp/UI/SettingsPanes.swift` (Support group row), `Tests/HeadroomAppTests/FeedbackViewTests.swift`.
-- Behaviour: preview text, diagnostics switch, Open in Mail, Copy with a "Copied" confirmation. Kyle approves all copy (`better-writing`, DESIGN.md).
+### U3. Mac entry point
+- Files: `Sources/HeadroomApp/UI/FeedbackMail.swift`, `Sources/HeadroomApp/UI/SettingsPanes.swift` (Support group row), `Sources/HeadroomApp/UI/SettingsView.swift`, `Tests/HeadroomAppTests/FeedbackCompositionTests.swift`.
+- Behaviour: one click opens the email; "Opening…" while diagnostics are read; clipboard fallback with "Email copied". Kyle approves all copy (`better-writing`, DESIGN.md).
 - Tests: the preview equals the email body; turning diagnostics off removes the block from both; demo mode opens nothing.
 
 ### U4. iPhone row

@@ -41,18 +41,6 @@ enum PopoverRenderHarness {
                 for path in failedPaths { print("✗ Failed to render \(path)") }
                 exit(failedPaths.isEmpty ? 0 : 1)
             }
-            // Feedback plan U3: the Send Feedback sheet in both appearances, inert (fixture
-            // CLI versions, no mail app), for copy review without opening Settings.
-            if CommandLine.arguments.contains("--feedback-only") {
-                for dark in [false, true] {
-                    let url = outDir.appendingPathComponent("feedback-sheet-\(dark ? "dark" : "light").png")
-                    if await renderFeedback(dark: dark, to: url) {
-                        print("✓ \(url.path)")
-                    } else { failedPaths.append(url.path) }
-                }
-                for path in failedPaths { print("✗ Failed to render \(path)") }
-                exit(failedPaths.isEmpty ? 0 : 1)
-            }
             if CommandLine.arguments.contains("--loading-only") {
                 do {
                     try await PopoverLoadingRenderHarness.run(to: outDir)
@@ -733,37 +721,6 @@ enum PopoverRenderHarness {
         let captured = isFocusedAcceptance
             ? captureWindow(number: window.windowNumber, to: url)
             : capture(window: window, to: url)
-        window.orderOut(nil)
-        return captured
-    }
-
-    @MainActor
-    private static func renderFeedback(dark: Bool, to url: URL) async -> Bool {
-        let store = UsageStore(
-            providers: [
-                DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: DemoFixture.claudeSnapshot),
-                DemoUsageProvider(id: .codex, displayName: "Codex", snapshot: DemoFixture.codexSnapshot),
-                DemoUsageProvider(id: .copilot, displayName: "Copilot", snapshot: DemoFixture.copilotSnapshot),
-            ],
-            preferences: renderPreferences(mode: .remaining)
-        )
-        await store.refreshAll()
-        let root = FeedbackView(store: store, isInert: true)
-            .background(.windowBackground)
-            .environment(\.colorScheme, dark ? .dark : .light)
-        let hosting = NSHostingView(rootView: root)
-        hosting.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        hosting.frame = NSRect(origin: .zero, size: hosting.fittingSize)
-        let window = NSWindow(contentRect: hosting.frame, styleMask: [.borderless], backing: .buffered, defer: false)
-        window.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
-        window.contentView = hosting
-        // Below the wallpaper, as `renderSettings` does: captured, never seen.
-        window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
-        window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
-        window.orderFrontRegardless()
-        window.displayIfNeeded()
-        try? await Task.sleep(for: .milliseconds(500))
-        let captured = capture(window: window, to: url)
         window.orderOut(nil)
         return captured
     }

@@ -19,6 +19,42 @@ import Testing
         #expect(harness.prepareCalls == [.init(key: account.key, mode: .standard)])
     }
 
+    /// U4 (Copilot plan): a signed-in account with no evidence yet is a `.live` snapshot
+    /// with one unavailable row (KTD7), so it completes setup like any live reading.
+    @Test func copilotLoginRefreshesIntoLiveUsageEvenWithNoReadingYet() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount.builtIn(for: .copilot)
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key, completion: .succeeded)
+        #expect(harness.refreshCalls == [account.key])
+        let noReading = UsageSnapshot(
+            providerID: .copilot,
+            windows: [UsageWindow(
+                kind: CopilotProvider.window, utilization: 0, resetSchedule: .unresolved(.absent),
+                freshness: .unavailable(since: Date(timeIntervalSince1970: 0)))],
+            planLabel: nil, capturedAt: Date(), freshness: .live)
+        coordinator.receive(noReading, for: account.key)
+
+        #expect(coordinator.state(for: account.key) == .connected)
+        #expect(harness.prepareCalls == [.init(key: account.key, mode: .standard)])
+    }
+
+    @Test func copilotMissingCLIEndsTheHandoffWithItsOwnOutcome() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount.builtIn(for: .copilot)
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key, completion: .succeeded)
+        coordinator.receive(.stale(for: .copilot, reason: .providerSetup(.copilotCLIMissing)), for: account.key)
+
+        #expect(coordinator.state(for: account.key) == .failed(.provider(.copilotCLIMissing)))
+    }
+
     @Test func cursorLoginThenWorkspaceTrustRefreshesIntoLiveUsage() async {
         let harness = SetupCoordinatorHarness()
         let coordinator = harness.makeCoordinator()

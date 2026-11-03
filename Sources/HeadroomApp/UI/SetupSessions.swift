@@ -428,6 +428,7 @@ enum SetupSessions {
         case .codex: CodexSetupSession.openSetup(for: account, onRetry: onRetry)
         case .grok: assertionFailure("Grok setup requires the configured coordinator")
         case .cursor: assertionFailure("Cursor setup requires the configured coordinator")
+        case .copilot: assertionFailure("Copilot setup requires the configured coordinator")
         default: assertionFailure("No setup session registered for \(account.providerID)")
         }
     }
@@ -527,7 +528,7 @@ enum SetupSessions {
             // R8: Anthropic's current official installation guide.
             .documentation(URL(string: "https://code.claude.com/docs/en/installation")!)
         case .openClaudeSetup, .connectCodex, .reconnectCodex, .resolveCodexStorage,
-             .connectGrok, .reconnectGrok, .connectCursor:
+             .connectGrok, .reconnectGrok, .connectCursor, .connectCopilot:
             .setup(.standard)
         case .installCodexCLI:
             .documentation(URL(string: "https://developers.openai.com/codex/cli/")!)
@@ -537,6 +538,8 @@ enum SetupSessions {
             .documentation(URL(string: "https://x.ai/news/grok-build")!)
         case .installCursorAgent:
             .documentation(URL(string: "https://docs.cursor.com/en/cli/installation")!)
+        case .installCopilotCLI:
+            .documentation(CopilotCLI.installationURL)
         // A startup question is answered in the same interactive launch an approval uses;
         // `performRecovery` records the reason that tells them apart.
         case .openClaudeWorkspace, .answerClaudeQuestion, .openCursorWorkspace:
@@ -780,6 +783,7 @@ enum SetupSessions {
         case .codex: "Codex"
         case .grok: "Grok Build"
         case .cursor: "Cursor Agent"
+        case .copilot: "GitHub Copilot CLI"
         default: account.providerID.raw.capitalized
         }
     }
@@ -1089,6 +1093,17 @@ enum SetupSessions {
                         )
                         manualCommand = CursorCLI.manualLoginCommand(executablePath: executable)
                     }
+                case .copilot:
+                    // Copilot is single-account with no home routing and no device-code flow:
+                    // the handoff always signs in the CLI's default home, which the meter reads.
+                    guard let executable = CopilotCLI.resolveExecutable() else {
+                        return .failure(.executableMissing)
+                    }
+                    script = CopilotCLI.loginScript(
+                        executablePath: executable,
+                        completionMarker: completionMarker
+                    )
+                    manualCommand = CopilotCLI.manualLoginCommand(executablePath: executable)
                 default:
                     return .failure(.stagingFailed)
                 }

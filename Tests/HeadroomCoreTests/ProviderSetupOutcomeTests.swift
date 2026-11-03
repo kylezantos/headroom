@@ -67,8 +67,8 @@ import Testing
             (.cursorMCPApprovalRequired, .reviewCursorTools, .checkNow, .boundedChecksAfterHandoff),
             (.cursorUnknownUI, .checkNow, .connectCursor, .none),
             (.cursorTransientCapture, .checkNow, .connectCursor, .none),
-            (.copilotCLIMissing, .checkNow, nil, .none),
-            (.copilotSignedOut, .checkNow, nil, .none),
+            (.copilotCLIMissing, .installCopilotCLI, nil, .none),
+            (.copilotSignedOut, .connectCopilot, .checkNow, .boundedChecksAfterHandoff),
             (.copilotLogsUnreadable, .checkNow, nil, .none),
         ]
 

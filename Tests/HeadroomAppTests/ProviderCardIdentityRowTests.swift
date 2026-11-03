@@ -541,11 +541,11 @@ struct CardRowActionTests {
     @Test func terminalHandoffsWebPagesAndRereadsEachGetTheirOwnGlyph() {
         for action in [SetupRecoveryAction.openClaudeSetup, .connectCodex, .reconnectCodex, .connectGrok,
                        .reconnectGrok, .connectCursor, .openClaudeWorkspace, .openCursorWorkspace,
-                       .reviewCursorTools, .resolveCodexStorage] {
+                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "apple.terminal")
         }
         for action in [SetupRecoveryAction.installClaudeCLI, .installCodexCLI, .installGrokCLI,
-                       .installCursorAgent, .showPrivacyGuidance] {
+                       .installCursorAgent, .installCopilotCLI, .showPrivacyGuidance] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "globe")
         }
         // Device code is the alternative beside a Terminal sign-in, so it can't share its glyph.

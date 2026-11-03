@@ -1158,11 +1158,6 @@ private struct AboutSettingsTile: View {
             SettingsHelpText(text: AboutLinks.tagline)
 
             VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
-                SettingsGroupLabel("Made by \(AboutLinks.makerName)")
-                SettingsLinkList(links: AboutLinks.maker)
-            }
-
-            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
                 SettingsGroupLabel("Support")
                 VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -1194,6 +1189,11 @@ private struct AboutSettingsTile: View {
                     }
                     SettingsHelpText(text: AboutLinks.tipJarNote)
                 }
+            }
+
+            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
+                SettingsGroupLabel("Made by \(AboutLinks.makerName)")
+                SettingsLinkList(links: AboutLinks.maker)
             }
         }
     }

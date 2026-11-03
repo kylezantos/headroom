@@ -40,11 +40,14 @@ struct CompanionAttentionMappingTests {
         (.cursorMCPApprovalRequired, .externalToolsApproval),
         (.cursorUnknownUI, .setupScreenUnknown),
         (.cursorTransientCapture, .retrying),
+        (.copilotCLIMissing, .cliMissing),
+        (.copilotSignedOut, .signInRequired),
+        (.copilotLogsUnreadable, .retrying),
     ]
 
     @Test func everyProviderSetupOutcomeMapsToItsReviewedAttention() {
-        #expect(Self.outcomes.count == 30)
-        #expect(Set(Self.outcomes.map(\.0)).count == 30)
+        #expect(Self.outcomes.count == 33)
+        #expect(Set(Self.outcomes.map(\.0)).count == 33)
         for (outcome, expected) in Self.outcomes {
             #expect(CompanionAttentionMapping.attention(for: outcome) == expected, "\(outcome)")
             #expect(CompanionAttentionMapping.attention(for: .providerSetup(outcome)) == expected)

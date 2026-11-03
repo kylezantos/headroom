@@ -397,6 +397,48 @@ struct UsageContinuityCacheTests {
         return Data(json.utf8)
     }
 
+    @Test func aFailedCopilotPollHidesLastMonthsReadingInTheNewMonth() throws {
+        let observedAt = try #require(DateParsing.iso8601("2026-10-31T23:00:00Z"))
+        let monthEnd = try #require(DateParsing.iso8601("2026-11-01T00:00:00Z"))
+        let prior = UsageSnapshot.live(.copilot, windows: [copilotOctoberWindow], at: observedAt)
+        let failed = UsageSnapshot.stale(for: .copilot, reason: .transient("Couldn’t read Copilot status"))
+
+        let sameMonth = UsageContinuityPolicy.mergedSnapshot(failed, with: prior, at: observedAt.addingTimeInterval(30 * 60))
+        let nextMonth = UsageContinuityPolicy.mergedSnapshot(failed, with: prior, at: monthEnd.addingTimeInterval(30 * 60))
+
+        #expect(sameMonth.windows.first?.freshness == .stale(observedAt: observedAt))
+        #expect(nextMonth.windows.first?.freshness == .unavailable(since: monthEnd))
+    }
+
+    @Test func aCopilotLaunchRestoreHidesLastMonthsReadingInTheNewMonth() throws {
+        let defaults = freshDefaults()
+        let key = AccountKey(providerID: .copilot, accountID: .primary)
+        let observedAt = try #require(DateParsing.iso8601("2026-10-31T23:00:00Z"))
+        let monthEnd = try #require(DateParsing.iso8601("2026-11-01T00:00:00Z"))
+        UsageContinuityCache(defaults: defaults).save(
+            .live(.copilot, windows: [copilotOctoberWindow], at: observedAt),
+            for: key
+        )
+
+        let restored = UsageContinuityPolicy.restoredSnapshot(
+            UsageContinuityCache(defaults: defaults).load()[key],
+            for: .copilot,
+            at: monthEnd.addingTimeInterval(24 * 60 * 60)
+        )
+
+        let window = try #require(restored.windows.first)
+        #expect(window.freshness == .unavailable(since: monthEnd))
+        #expect(UsagePercentageMode.remaining.displayedPercentage(for: window) == nil)
+    }
+
+    private var copilotOctoberWindow: UsageWindow {
+        UsageWindow(
+            kind: .billingPeriod(label: "Monthly", duration: 30 * 24 * 60 * 60),
+            utilization: 40,
+            resetSchedule: .unresolved(.absent)
+        )
+    }
+
     private func freshDefaults() -> UserDefaults {
         let suite = "headroom.continuity-cache.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

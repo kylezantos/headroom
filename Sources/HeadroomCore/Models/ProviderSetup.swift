@@ -19,6 +19,7 @@ public enum ProviderSignInCopy {
         case .codex: "Codex CLI"
         case .grok: "Grok Build CLI"
         case .cursor: "Cursor Agent CLI"
+        case .copilot: "GitHub Copilot CLI"
         default: "\(providerID.displayName) CLI"
         }
     }
@@ -166,6 +167,11 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     case cursorMCPApprovalRequired
     case cursorUnknownUI
     case cursorTransientCapture
+    case copilotCLIMissing
+    case copilotSignedOut
+    /// A session log under `~/.copilot` exists but could not be read. A partial sum would
+    /// look like a real, lower number, so nothing is shown until every log reads.
+    case copilotLogsUnreadable
 
     // W2A: these render in the popover's 295pt recovery line and again, wrapping freely
     // since S2B, in a ≈197pt account state row. The `\u{00A0}` runs glue tails that would otherwise
@@ -213,6 +219,9 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .cursorMCPApprovalRequired: "Review Cursor Agent’s external tools"
         case .cursorUnknownUI: "Cursor Agent opened an unrecognized screen"
         case .cursorTransientCapture: "Couldn’t read Cursor usage\u{00A0}—\u{00A0}will retry"
+        case .copilotCLIMissing: ProviderSignInCopy.cliMissing(for: .copilot)
+        case .copilotSignedOut: ProviderSignInCopy.status(for: .copilot)
+        case .copilotLogsUnreadable: "Couldn’t read Copilot session logs\u{00A0}—\u{00A0}will retry"
         }
     }
 
@@ -220,8 +229,12 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         switch self {
         case .claudeUnknownUI, .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified,
              .grokCredentialIO, .grokTransientCapture, .cursorUnknownUI,
-             .cursorTransientCapture:
+             .cursorTransientCapture, .copilotLogsUnreadable:
             false
+        // Stated rather than left to the default: both wait on the user, while an unreadable
+        // log can clear on the next poll.
+        case .copilotCLIMissing, .copilotSignedOut:
+            true
         default:
             true
         }
@@ -231,7 +244,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// Timer backoff keys off this typed state rather than enumerating providers.
     public var isNeverSignedIn: Bool {
         switch self {
-        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent:
+        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut:
             true
         default:
             false
@@ -340,6 +353,11 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .cursorUnknownUI, .cursorTransientCapture:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow,
                   secondaryLabel: ProviderSignInCopy.buttonAgain, secondaryAction: .connectCursor)
+        // Copilot has no install or Terminal sign-in action yet, so CLI missing and signed
+        // out offer only a fresh check until that handoff exists. An unreadable log is never
+        // a sign-in problem, so it never gets one.
+        case .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable:
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         }
     }
 }

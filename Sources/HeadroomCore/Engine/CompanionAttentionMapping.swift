@@ -27,9 +27,9 @@ public struct CompanionSessionInput: Equatable, Sendable {
 public enum CompanionAttentionMapping {
     public static func attention(for outcome: ProviderSetupOutcome) -> CompanionAttention {
         switch outcome {
-        case .claudeCLIMissing, .codexCLIMissing, .grokCLIMissing, .cursorCLIMissing:
+        case .claudeCLIMissing, .codexCLIMissing, .grokCLIMissing, .cursorCLIMissing, .copilotCLIMissing:
             .cliMissing
-        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent:
+        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut:
             .signInRequired
         case .claudeTrustRequired, .cursorTrustRequired:
             .workspaceApproval
@@ -39,7 +39,7 @@ public enum CompanionAttentionMapping {
             .setupScreenUnknown
         // Credential IO is retryable, never proof the credentials were rejected.
         case .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified, .grokCredentialIO,
-            .grokTransientCapture, .cursorTransientCapture:
+            .grokTransientCapture, .cursorTransientCapture, .copilotLogsUnreadable:
             .retrying
         case .codexPermissionDenied, .grokPermissionDenied:
             .allowSignInFile

@@ -60,6 +60,15 @@ public actor CopilotUsageLedger {
         return .reading(CopilotLedgerCalculator.reading(logs: logs, input: input, now: now, period: period))
     }
 
+    /// This month's usage records summed alone, with no quota snapshot or server count, so
+    /// `--probe-copilot` can set the bare sum beside the anchored value. Nil when a log could
+    /// not be read.
+    public func recordedCredits() -> Double? {
+        let period = CopilotLedgerCalculator.utcMonth(containing: now())
+        guard let logs = sessionLogs(changedSince: period.lowerBound) else { return nil }
+        return CopilotLedgerCalculator.recordedCredits(logs: logs, period: period)
+    }
+
     /// Nil when anything that exists could not be read: a partial sum would look like a
     /// real, lower number. A missing directory is an account with no sessions yet.
     private func sessionLogs(changedSince periodStart: Date) -> [CopilotSessionLog]? {
@@ -263,6 +272,12 @@ enum CopilotLedgerCalculator {
             resetsAt: resetsAt,
             newestEvidenceAt: [anchor?.observedAt, newestRecordAt].compactMap { $0 }.max()
         )
+    }
+
+    static func recordedCredits(logs: [CopilotSessionLog], period: Range<Date>) -> Double {
+        uniqueRecords(in: logs)
+            .filter { period.contains($0.recordedAt) }
+            .reduce(0.0) { $0 + Double($1.nanoAIU) } / nanoAIUPerCredit
     }
 
     /// Keeps a repeated ID's earliest copy, so the result does not depend on the order the

@@ -144,7 +144,7 @@ public final class SessionReliabilityRecord {
         case .live: return .live
         case .stale(let reason):
             switch reason.providerSetupOutcome {
-            case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent:
+            case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut:
                 return .signedOut
             case .codexRejectedAuth, .codexSessionUnverified, .grokRejectedAuth:
                 return .rejected

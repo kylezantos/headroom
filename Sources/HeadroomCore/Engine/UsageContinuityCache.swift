@@ -409,12 +409,19 @@ enum UsageContinuityPolicy {
 
     private static func continuityExpiryDate(
         for window: UsageWindow,
+        providerID: ProviderID,
         capturedAt: Date
     ) -> Date {
         switch window.resetSchedule {
         case .scheduled(let deadline):
             return deadline
         case .unresolved:
+            // Copilot's allowance resets at the start of each UTC month even when no reading
+            // said so. The generic 30-day lifetime would keep last month's number on screen
+            // for most of this one after a failed poll.
+            if providerID == .copilot {
+                return CopilotLedgerCalculator.utcMonth(containing: capturedAt).upperBound
+            }
             return capturedAt.addingTimeInterval(ResetSchedulePolicy.fallbackLifetime(for: window.kind))
         }
     }
@@ -436,6 +443,7 @@ enum UsageContinuityPolicy {
         }
         let expiredAt = continuityExpiryDate(
             for: window,
+            providerID: providerID,
             capturedAt: observedAt
         )
         if expiredAt > restorationDate {
@@ -478,6 +486,7 @@ enum UsageContinuityPolicy {
             }
             let expiredAt = continuityExpiryDate(
                 for: window,
+                providerID: fresh.providerID,
                 capturedAt: observedAt
             )
             if expiredAt > capturedAt {

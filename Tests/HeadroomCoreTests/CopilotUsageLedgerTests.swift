@@ -163,6 +163,19 @@ import Testing
         }
     }
 
+    @Test func recordedCreditsSumsThisMonthsRecordsWithoutAnySnapshot() async throws {
+        try await withCopilotHome { home in
+            try home.writeSession("interactive", lines: Self.snapshotBetweenRecords + [
+                usageRecord(id: "between", credits: 7, at: "2026-11-02T12:00:00.000Z"),
+                usageRecord(id: "october", credits: 40, at: "2026-10-31T23:00:00.000Z"),
+            ])
+
+            let ledger = CopilotUsageLedger(copilotHome: home.url, now: { Self.now })
+
+            #expect(await ledger.recordedCredits() == 18)
+        }
+    }
+
     // MARK: Login change
 
     @Test func evidenceFloorWithholdsUsedUntilAnAnchorAfterIt() async throws {

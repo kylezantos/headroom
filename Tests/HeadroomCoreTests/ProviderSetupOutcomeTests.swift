@@ -67,6 +67,9 @@ import Testing
             (.cursorMCPApprovalRequired, .reviewCursorTools, .checkNow, .boundedChecksAfterHandoff),
             (.cursorUnknownUI, .checkNow, .connectCursor, .none),
             (.cursorTransientCapture, .checkNow, .connectCursor, .none),
+            (.copilotCLIMissing, .checkNow, nil, .none),
+            (.copilotSignedOut, .checkNow, nil, .none),
+            (.copilotLogsUnreadable, .checkNow, nil, .none),
         ]
 
         for (outcome, primaryAction, secondaryAction, automaticPolicy) in expectations {
@@ -107,6 +110,9 @@ import Testing
         #expect(!FailureReason.providerSetup(.cursorTransientCapture).isPermanent)
         #expect(FailureReason.providerSetup(.cursorAuthAbsent).isPermanent)
         #expect(FailureReason.providerSetup(.cursorTrustRequired).isPermanent)
+        #expect(FailureReason.providerSetup(.copilotCLIMissing).isPermanent)
+        #expect(FailureReason.providerSetup(.copilotSignedOut).isPermanent)
+        #expect(!FailureReason.providerSetup(.copilotLogsUnreadable).isPermanent)
     }
 
     /// PA11: one label per action. `.checkNow` used to read "Check Again" in a primary slot
@@ -153,6 +159,7 @@ import Testing
         #expect(ProviderSetupOutcome.codexAuthAbsent.message == "Sign in with the official Codex CLI")
         #expect(ProviderSetupOutcome.grokAuthAbsent.message == "Sign in with the official Grok Build CLI")
         #expect(ProviderSetupOutcome.cursorAuthAbsent.message == "Sign in with the official Cursor Agent CLI")
+        #expect(ProviderSetupOutcome.copilotSignedOut.message == "Sign in with the official GitHub Copilot CLI")
         #expect(ProviderSetupOutcome.codexRejectedAuth.message == "Sign in again with the official Codex CLI")
         #expect(ProviderSetupOutcome.grokRejectedAuth.message == "Sign in again with the official Grok Build CLI")
 
@@ -202,6 +209,7 @@ import Testing
         #expect(ProviderSetupOutcome.codexCLIMissing.message == "Codex CLI isn’t installed on this Mac")
         #expect(ProviderSetupOutcome.grokCLIMissing.message == "Grok Build CLI isn’t installed on this Mac")
         #expect(ProviderSetupOutcome.cursorCLIMissing.message == "Cursor Agent CLI isn’t installed on this Mac")
+        #expect(ProviderSetupOutcome.copilotCLIMissing.message == "GitHub Copilot CLI isn’t installed on this Mac")
         for outcome in [ProviderSetupOutcome.claudeCLIMissing, .codexCLIMissing,
                         .grokCLIMissing, .cursorCLIMissing] {
             #expect(outcome.message != outcome.recoveryPresentation.primaryLabel)
@@ -497,6 +505,8 @@ import Testing
         #expect(ProviderSetupOutcome.codexAuthAbsent.isNeverSignedIn)
         #expect(ProviderSetupOutcome.grokAuthAbsent.isNeverSignedIn)
         #expect(ProviderSetupOutcome.cursorAuthAbsent.isNeverSignedIn)
+        #expect(ProviderSetupOutcome.copilotSignedOut.isNeverSignedIn)
+        #expect(!ProviderSetupOutcome.copilotLogsUnreadable.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.claudeCLIMissing.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
@@ -551,4 +561,5 @@ private let allSetupOutcomes: [ProviderSetupOutcome] = [
     .grokMalformedAuth, .grokCredentialIO, .grokRejectedAuth, .grokTransientCapture,
     .cursorCLIMissing, .cursorAuthAbsent, .cursorTrustRequired, .cursorMCPApprovalRequired,
     .cursorUnknownUI, .cursorTransientCapture,
+    .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable,
 ]

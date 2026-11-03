@@ -109,6 +109,7 @@
 		24A57AC0B145F32FD13881BC /* HeadroomWidgetLockScreenPrimitives.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7EE68EB182952B7A902EDF5 /* HeadroomWidgetLockScreenPrimitives.swift */; };
 		24BF6A2DD1946A7AA6E78F09 /* AboutLinks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19C87AA93B0F97F2D0379897 /* AboutLinks.swift */; };
 		258D60A36D7318D7FCEE3D37 /* DemoScreenshotData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77A8213B7FFB5B4995CB983C /* DemoScreenshotData.swift */; };
+		25D84B29FAE8610599D3A909 /* CopilotProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D325566BDFBDB8F14797DBE /* CopilotProvider.swift */; };
 		26582D7A22DFB43BD436FCFE /* PhoneControlStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAB314CDD981F0FAD719A848 /* PhoneControlStyle.swift */; };
 		26694A6035B5631AA476C3B8 /* WidgetSnapshotCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA1963EC7952EDA22A6546BF /* WidgetSnapshotCache.swift */; };
 		26A70E96DCC281DF9BDD869A /* IdentityRowResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917F596AFC993E54C063DBA9 /* IdentityRowResolver.swift */; };
@@ -400,6 +401,7 @@
 		9743E330418DC4B3CEF0D166 /* WidgetWindowRanking.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D5513C2AB2C61E436AB502 /* WidgetWindowRanking.swift */; };
 		97577F3BA2867600F9A2ACD6 /* HeadroomWidgetFooter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 925D38A1B5F4B62C12EFECF2 /* HeadroomWidgetFooter.swift */; };
 		989DAF72E7D6FC04490EDEF4 /* LockScreenInlineVesselArt.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79538F403F4CE237DF73606E /* LockScreenInlineVesselArt.swift */; };
+		99A2154B533E0623284A87CD /* CopilotStatusSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19F898187A3C4AE448486317 /* CopilotStatusSource.swift */; };
 		99A555061BE9F0B37D39BA46 /* HeadroomWidgetVesselHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F70A32BED298DB58AE62BC /* HeadroomWidgetVesselHero.swift */; };
 		9A2359D6EC37215E9460769C /* CompanionDemoLaunchOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */; };
 		9A2E1DD1FDAA631A97E25F20 /* Redaction.swift in Sources */ = {isa = PBXBuildFile; fileRef = DAF324F891EEEAD03BABA4FC /* Redaction.swift */; };
@@ -631,6 +633,7 @@
 		FA12FAB798F3E875BEF00193 /* UseItUpLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */; };
 		FA256131A1D700E56D1E6A51 /* StatusScreenUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE8B3DBA33A071AE12D833AA /* StatusScreenUITests.swift */; };
 		FAA5259A307EA26BD5D296A2 /* PhoneDisplayPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C771C4F2DBA0F0D63474BDB /* PhoneDisplayPreferences.swift */; };
+		FB1CA2298D35D8B2D39E33D4 /* CopilotUsageLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D60E69FE155394DE9BF8B2 /* CopilotUsageLedger.swift */; };
 		FB691B1472F1760604B183E4 /* HeadroomWidgets.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 5B3D491D8D8B855C6182DF43 /* HeadroomWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		FCC1EC4F444F6383D5212A30 /* ProviderCapabilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */; };
 		FD0CC7BF97DBEC9E4B41D725 /* PopoverWindowFit.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABBBCFF9635135A1297AE9D6 /* PopoverWindowFit.swift */; };
@@ -751,6 +754,7 @@
 		18D66650911A201573B1A5A8 /* SetupWaitingClockRestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupWaitingClockRestoreTests.swift; sourceTree = "<group>"; };
 		194C63E8131AF50BE4E59CB2 /* CompanionFreshnessRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionFreshnessRule.swift; sourceTree = "<group>"; };
 		19C87AA93B0F97F2D0379897 /* AboutLinks.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AboutLinks.swift; sourceTree = "<group>"; };
+		19F898187A3C4AE448486317 /* CopilotStatusSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotStatusSource.swift; sourceTree = "<group>"; };
 		1A6667933EF10EE0AC374701 /* HeadroomTimelineProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomTimelineProvider.swift; sourceTree = "<group>"; };
 		1BCE90B831819668602B60AB /* CompanionPrivacyCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionPrivacyCopy.swift; sourceTree = "<group>"; };
 		1BF3BE4D0A01C73D7CB724E6 /* MirrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MirrorView.swift; sourceTree = "<group>"; };
@@ -915,6 +919,7 @@
 		8AD9777C14EEBA0E245CF768 /* WidgetStyleRecipes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStyleRecipes.swift; sourceTree = "<group>"; };
 		8C92D56436BD44ECDEAB64B6 /* PopoverColumnsSizingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverColumnsSizingTests.swift; sourceTree = "<group>"; };
 		8CE67ED9AC9F588F9A8541D7 /* WidgetStyleTokens.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStyleTokens.swift; sourceTree = "<group>"; };
+		8D325566BDFBDB8F14797DBE /* CopilotProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotProvider.swift; sourceTree = "<group>"; };
 		8D789AFCDF38FE25123D4E79 /* MenuBarPrioritySelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarPrioritySelectionTests.swift; sourceTree = "<group>"; };
 		8DD11E6B43A134A8D62849D7 /* FlowingColumnsExpectation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowingColumnsExpectation.swift; sourceTree = "<group>"; };
 		8EADBB0798A07C04BBF7F6BC /* HeadroomIOSWidgets.appex */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = "wrapper.app-extension"; path = HeadroomIOSWidgets.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -984,6 +989,7 @@
 		C08AE77A399A208C20733351 /* CodexAuthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAuthReader.swift; sourceTree = "<group>"; };
 		C12CBFA7FEC91C71F1F13E4A /* CredentialModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialModels.swift; sourceTree = "<group>"; };
 		C164E052923C8290A6B7C208 /* DemoLaunchTokenTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoLaunchTokenTests.swift; sourceTree = "<group>"; };
+		C1D60E69FE155394DE9BF8B2 /* CopilotUsageLedger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopilotUsageLedger.swift; sourceTree = "<group>"; };
 		C21C54F0CE85AEC7C48005B1 /* vessel-app-icon.svg */ = {isa = PBXFileReference; path = "vessel-app-icon.svg"; sourceTree = "<group>"; };
 		C40B2D2A8F7E2BCA4823C279 /* SetupSessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupSessionCoordinator.swift; sourceTree = "<group>"; };
 		C480BDF363144C652E09039D /* WidgetFreshnessTreatment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetFreshnessTreatment.swift; sourceTree = "<group>"; };
@@ -1683,6 +1689,9 @@
 				29EA356CD55A5493E55D8F86 /* CLIExecutableResolver.swift */,
 				87CC53FEEE716121A11701F1 /* CodexConnection.swift */,
 				F767701AEE449C92A62002E4 /* CodexProvider.swift */,
+				8D325566BDFBDB8F14797DBE /* CopilotProvider.swift */,
+				19F898187A3C4AE448486317 /* CopilotStatusSource.swift */,
+				C1D60E69FE155394DE9BF8B2 /* CopilotUsageLedger.swift */,
 				C9BCC5DAE24A255072D6B1B0 /* CursorAccountEmailReader.swift */,
 				4E183F0455865C4FBEE66030 /* CursorConnection.swift */,
 				B1D6A674D86360BC89246A09 /* CursorProvider.swift */,
@@ -2077,6 +2086,9 @@
 				53B8344B4676C85D48CFC6EF /* CompanionTimelineSchedule.swift in Sources */,
 				953E0E5F573391DC79FD06A0 /* CompanionWidgetLoad.swift in Sources */,
 				32024093974A4B48D8AF6528 /* CompanionWireDate.swift in Sources */,
+				25D84B29FAE8610599D3A909 /* CopilotProvider.swift in Sources */,
+				99A2154B533E0623284A87CD /* CopilotStatusSource.swift in Sources */,
+				FB1CA2298D35D8B2D39E33D4 /* CopilotUsageLedger.swift in Sources */,
 				6E6624A86EDE896EC644B1A0 /* Countdown.swift in Sources */,
 				8B60C92EF3B9A4F66886E2F7 /* CredentialModels.swift in Sources */,
 				F774EA8D4BD1E7D73A49AF80 /* CredentialStore.swift in Sources */,

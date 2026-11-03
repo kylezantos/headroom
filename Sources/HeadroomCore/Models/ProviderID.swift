@@ -8,6 +8,7 @@ public struct ProviderID: Hashable, Sendable, Codable, CustomStringConvertible {
     public static let codex = ProviderID("codex")
     public static let grok = ProviderID("grok")
     public static let cursor = ProviderID("cursor")
+    public static let copilot = ProviderID("copilot")
 
     /// Human-facing provider name. Registry-backed so display strings never reach for a
     /// Claude-or-Codex ternary (KTD9 switch-site inventory). An unknown id falls back to a
@@ -18,6 +19,7 @@ public struct ProviderID: Hashable, Sendable, Codable, CustomStringConvertible {
         case .codex: "Codex"
         case .grok: "Grok"
         case .cursor: "Cursor"
+        case .copilot: "Copilot"
         default: raw.capitalized
         }
     }

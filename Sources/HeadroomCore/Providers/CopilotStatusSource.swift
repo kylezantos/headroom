@@ -139,7 +139,7 @@ public actor CopilotStatusSource: CopilotStatusSourcing {
     /// home `~/.copilot`.
     static func environment(inherited: [String: String], loginPath: String) -> [String: String] {
         var result = inherited
-        for name in ["COPILOT_HOME", "COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"] {
+        for name in CopilotCLI.clearedVariables {
             result.removeValue(forKey: name)
         }
         result["PATH"] = loginPath

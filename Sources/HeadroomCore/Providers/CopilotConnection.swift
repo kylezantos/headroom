@@ -9,7 +9,7 @@ public enum CopilotCLI {
 
     /// These variables override the stored login (`copilot help environment`), and an
     /// inherited `COPILOT_HOME` would sign in somewhere the meter never reads, so the
-    /// handoff clears all of them, exactly as `CopilotStatusSource` does for its server.
+    /// handoff clears all of them. `CopilotStatusSource` clears this same list for its server.
     static let clearedVariables = ["COPILOT_HOME", "COPILOT_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN"]
 
     public static func resolveExecutable() -> String? {

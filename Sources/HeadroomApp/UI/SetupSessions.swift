@@ -783,7 +783,7 @@ enum SetupSessions {
         case .codex: "Codex"
         case .grok: "Grok Build"
         case .cursor: "Cursor Agent"
-        case .copilot: "GitHub Copilot CLI"
+        case .copilot: "GitHub Copilot"
         default: account.providerID.raw.capitalized
         }
     }

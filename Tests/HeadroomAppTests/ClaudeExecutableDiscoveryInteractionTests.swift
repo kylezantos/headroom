@@ -791,6 +791,15 @@ import HeadroomCore
             == "Update Claude Code, then try again.")
     }
 
+    /// The missing-CLI sentence appends " CLI" itself, so Copilot's product name must not.
+    @MainActor @Test func copilotMissingCopyNamesTheCLIOnce() {
+        let account = ProviderAccount.builtIn(for: .copilot)
+        #expect(SetupSessions.failureMessage(for: .executableMissing, account: account)
+            == "GitHub Copilot CLI wasn’t found. Install or update it, then try again.")
+        #expect(SetupSessions.failureMessage(for: .updateRequired, account: account)
+            == "Update GitHub Copilot, then try again.")
+    }
+
     /// R8/KTD7: the timeout state offers Try Again and Stop Waiting only, so its sentence
     /// names no button — unlike `.retryExhausted`, which still points at Check Now. The
     /// wording follows the handoff purpose.

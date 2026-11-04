@@ -96,6 +96,20 @@ official `claude` CLI's `/usage` panel instead.
   flash. The card list can now give up height, so a frame where the window still has the old
   height lays the list out short (the bench saw two extra indicator bodies on open).
 
+## macOS 15 five-provider popover on a short display (2026-11-03)
+
+- Signed/notarized 1.6 (44), macOS 15.7.7 (24G720), Tart guest at 1152×720 points:
+  `--demo five-providers` opens a 384×741-point native popover. The “Usage” header and gear
+  remain intact, but the bottom spend rows and Refresh/Quit footer extend below the screen.
+  Reproduces after a fresh app launch at that resolution, as well as after changing resolution.
+  A scroll in the card stack does not reveal the footer; its native clip remains 620 points tall.
+- At 1920×1200 points the whole five-provider popover fits. Native format, shape, fill and
+  dark-theme changes completed without a crash. This is a short-display sizing gap, not evidence
+  about macOS 15.0 itself. No sizing code was changed during release packaging.
+- Evidence: `/tmp/headroom-16-vm-short-fresh.png`, `/tmp/headroom-16-vm-short-before.png`,
+  `/tmp/headroom-16-vm-short-after.png`, `/tmp/headroom-16-vm-window.log`. Follow up by fitting
+  the entire native window to the visible screen height and giving the cards the remaining room.
+
 ## SwiftPM tuning import warning (2026-10-13)
 
 - `RaisedTile.swift:30` uses `HeadroomTuning` through its environment value without directly

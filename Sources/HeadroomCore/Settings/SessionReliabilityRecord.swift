@@ -168,8 +168,8 @@ public final class SessionReliabilityRecord {
         let start = calendar.startOfDay(for: date)
         let cutoff = start.addingTimeInterval(-Double(Self.retentionDays - 1) * 86_400)
         return Stored(
-            days: stored.days.filter { $0.startedAt >= cutoff && $0.startedAt <= start },
-            observations: stored.observations.filter { $0.at >= cutoff && $0.at <= date }
+            days: stored.days.filter { !($0.startedAt < cutoff) && !($0.startedAt > start) },
+            observations: stored.observations.filter { !($0.at < cutoff) && !($0.at > date) }
         )
     }
 

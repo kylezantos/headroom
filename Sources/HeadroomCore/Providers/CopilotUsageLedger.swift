@@ -93,7 +93,7 @@ public actor CopilotUsageLedger {
             case .unreadable:
                 allReadable = false
             case .present(let stamp):
-                guard stamp.modifiedAt >= periodStart else { continue }
+                guard !(stamp.modifiedAt < periodStart) else { continue }
                 if let known = memo[path], known.stamp == stamp {
                     nextMemo[path] = known
                     logs.append(known.log)
@@ -285,7 +285,7 @@ enum CopilotLedgerCalculator {
     private static func uniqueRecords(in logs: [CopilotSessionLog]) -> [CopilotSessionLog.UsageRecord] {
         var byID: [String: CopilotSessionLog.UsageRecord] = [:]
         for record in logs.flatMap(\.records) {
-            if let known = byID[record.usageID], known.recordedAt <= record.recordedAt { continue }
+            if let known = byID[record.usageID], !(known.recordedAt > record.recordedAt) { continue }
             byID[record.usageID] = record
         }
         return Array(byID.values)

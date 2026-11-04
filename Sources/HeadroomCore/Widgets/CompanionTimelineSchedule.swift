@@ -26,7 +26,7 @@ public enum CompanionTimelineSchedule {
         now: Date
     ) -> CompanionTimeline {
         var dates = Set(WidgetTimelineSchedule.entryDates(for: envelope, now: now))
-        for crossing in pastResetCrossings(envelope) where crossing >= now {
+        for crossing in pastResetCrossings(envelope) where !(crossing < now) {
             dates.insert(crossing)
         }
 
@@ -49,7 +49,7 @@ public enum CompanionTimelineSchedule {
         guard let envelope else { return [] }
         return envelope.widgetProviders.flatMap(\.windows).compactMap { window in
             guard window.hasDisplayValue, let deadline = window.resetSchedule.deadline else { return nil }
-            if let observed = window.observedAt ?? window.freshness.observedAt, observed >= deadline { return nil }
+            if let observed = window.observedAt ?? window.freshness.observedAt, !(observed < deadline) { return nil }
             return deadline.addingTimeInterval(CompanionFreshnessRule.pastResetGrace)
         }
     }

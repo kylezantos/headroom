@@ -458,6 +458,11 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   not advance. Never treat process success as token refresh. Revisit only with an account old
   enough to clear the CLI's actual threshold and require the auth timestamp to advance before
   adding warning or scheduler UI; see `BUGS.md`.
+- **Compare `Date`s with `<` and `>` only (Nov 2026).** The macOS 27.2 SDK back-deploys
+  concrete `Date <=`/`>=` behind a runtime "macOS ≥ 27.2" check; pre-release 27.2 build
+  26B5086k passes the check but its Foundation lacks the symbols, so 1.6 (44) segfaulted
+  ~4s after launch. Write `!(a > b)` / `!(a < b)`. `headroom_verify_macos_bundle` fails a
+  build whose binaries import those operators.
 - **ANSI stripping uses ICU escapes (`\x1B`), not Swift's `\u{1B}`** — the latter silently
   fails inside `.regularExpression`.
 - Each Claude poll spawns a full `claude` process (print path ~3–5s including the auth and

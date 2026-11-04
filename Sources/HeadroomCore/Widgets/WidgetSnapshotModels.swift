@@ -617,7 +617,7 @@ public enum WidgetTimelineSchedule {
                 deadline.addingTimeInterval(-60),
                 deadline,
                 deadline.addingTimeInterval(61),
-            ] where transition >= now && transition < horizon {
+            ] where !(transition < now) && transition < horizon {
                 dates.insert(transition)
             }
         }

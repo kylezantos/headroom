@@ -361,7 +361,7 @@ public enum AccountStorage {
     ) -> Date? {
         guard case .active = parseGenerationState(marker: marker),
               let startedAt = parseGenerationStart(marker: marker),
-              startedAt <= now
+              !(startedAt > now)
         else { return nil }
         return startedAt
     }

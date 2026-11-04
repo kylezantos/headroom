@@ -89,7 +89,7 @@ public struct CopilotProvider: UsageProvider {
     ) -> CopilotUsageAnchor? {
         guard let reported = status.reportedUsed, let entitlement = status.entitlement,
               let observedAt = status.reportedResetDate,
-              observedAt <= now, month.contains(observedAt)
+              !(observedAt > now), month.contains(observedAt)
         else { return nil }
         let leastUse = reported - entitlement * 0.0025
         guard leastUse > 0 else { return nil }

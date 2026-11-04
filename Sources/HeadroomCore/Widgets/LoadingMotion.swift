@@ -29,7 +29,7 @@ public enum LoadingMotionClock {
     public static func isSloshing(active: Bool, endedAt: Date?, now: Date, reduceMotion: Bool = false) -> Bool {
         guard !reduceMotion else { return false }
         if active { return true }
-        guard let endedAt, endedAt <= now else { return false }
+        guard let endedAt, !(endedAt > now) else { return false }
         let cycle = LoadingMotionConstants.sloshCycle
         let wrap = (floor(endedAt.timeIntervalSince1970 / cycle) + 1) * cycle
         return now.timeIntervalSince1970 < wrap

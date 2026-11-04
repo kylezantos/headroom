@@ -105,6 +105,32 @@ headroom_verify_binary_compatibility() {
       return 65
     fi
   done <<< "${minimums}"
+
+  headroom_verify_no_back_deployed_date_comparisons "${binary}" "${label}"
+}
+
+# The macOS 27.2 SDK adds concrete `Date <=` and `>=` operators back-deployed behind a runtime
+# "macOS >= 27.2" check. macOS 27.2 pre-release build 26B5086k passes that check but its
+# Foundation does not export the symbols, so the weak import binds to null and the app
+# segfaults on the first concrete `Date` `<=`/`>=` (Headroom 1.6 (44) crashed ~4s after launch).
+# Write `!(a > b)` / `!(a < b)` for `Date` instead; this check keeps the symbols out of releases.
+headroom_verify_no_back_deployed_date_comparisons() {
+  local binary="$1"
+  local label="$2"
+  local imports
+
+  command -v nm >/dev/null 2>&1 || {
+    echo "nm is required to verify ${label}." >&2
+    return 69
+  }
+  imports="$(nm -m "${binary}" 2>/dev/null \
+    | grep -E 'external _\$s10Foundation4DateV2(le|ge)oiySbAC_ACtFZ' || true)"
+  if [[ -n "${imports}" ]]; then
+    echo "${label} imports back-deployed Foundation Date <= / >= operators, which crash on" >&2
+    echo "macOS 27.2 pre-release builds. Use !(a > b) / !(a < b) for Date comparisons:" >&2
+    echo "${imports}" >&2
+    return 65
+  fi
 }
 
 headroom_verify_macos_bundle() {

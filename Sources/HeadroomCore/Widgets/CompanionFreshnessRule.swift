@@ -91,7 +91,7 @@ public enum CompanionFreshnessRule {
     public static func isDimmed(
         _ inputs: CompanionFreshnessInputs, surface: CompanionFreshnessSurface, at now: Date
     ) -> Bool {
-        now >= dimsAt(inputs, surface: surface)
+        !(now < dimsAt(inputs, surface: surface))
     }
 
     /// The time in "No update from your Mac since <time>": the Mac's publish time, never
@@ -110,8 +110,8 @@ public enum CompanionFreshnessRule {
     public static func pastResetTime(_ window: WidgetWindowSummary, at now: Date) -> Date? {
         guard case .scheduled(let deadline) = window.resetSchedule else { return nil }
         let observed = window.observedAt ?? window.freshness.observedAt
-        if let observed, observed >= deadline { return nil }
-        return now >= deadline.addingTimeInterval(pastResetGrace) ? deadline : nil
+        if let observed, !(observed < deadline) { return nil }
+        return !(now < deadline.addingTimeInterval(pastResetGrace)) ? deadline : nil
     }
 
     /// The number a surface may show: hidden while unavailable or past reset (R11).

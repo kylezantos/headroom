@@ -235,7 +235,7 @@ private struct Composer {
         var text = "\(spoken.value!)% left in \(UsageAnswerCopy.windowName(spoken.window))"
         if let deadline = spoken.window.resetSchedule.deadline {
             // KTD13/KTD19: resets are named by clock time through the shared formatter.
-            text += deadline <= now
+            text += !(deadline > now)
                 ? ", resetting now"
                 : ", resetting \(ResetClockFormatter.phrase(for: deadline, now: now, timeZone: context.timeZone, locale: context.locale))"
         }

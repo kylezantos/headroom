@@ -45,7 +45,7 @@ public struct ReprintRecipe: Sendable, Equatable {
         let pending = entries.values.contains { Self.hasNotLanded($0, at: now) }
         if visibleWork.isInFlight {
             phase = pending ? .spinner : .spendTail
-        } else if let clearedAt, clearedAt <= now,
+        } else if let clearedAt, !(clearedAt > now),
                   now < clearedAt.addingTimeInterval(LoadingMotionConstants.endHoldDuration) {
             phase = .hold
         } else {
@@ -93,7 +93,7 @@ public struct ReprintRecipe: Sendable, Equatable {
     }
 
     private static func ink(entries: [UserRefreshEntry], now: Date, reduceMotion: Bool) -> LoadingInk {
-        let entries = entries.filter { $0.requestedAt <= now && $0.outcome != .dropped }
+        let entries = entries.filter { !($0.requestedAt > now) && $0.outcome != .dropped }
         guard !entries.isEmpty else { return .full } // KTD19: a new, unrequested main never prints.
         let pending = entries.filter { hasNotLanded($0, at: now) }
         if !pending.isEmpty {

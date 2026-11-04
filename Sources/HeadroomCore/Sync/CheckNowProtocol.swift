@@ -237,7 +237,7 @@ public enum CheckNowMachine {
             return now.timeIntervalSince(state.askedAt) >= CheckNowTiming.acknowledgementTimeout
                 ? .noAnswer : .asking
         }
-        if now >= finishDeadline(acknowledgedAt: acknowledgedAt, state: state) { return .notFinished }
+        if !(now < finishDeadline(acknowledgedAt: acknowledgedAt, state: state)) { return .notFinished }
         return .checking(total: state.total, completed: state.completed, lastLanded: state.lastLanded)
     }
 

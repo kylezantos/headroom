@@ -34,7 +34,7 @@ public struct LoadingTimeline<Content: View>: View {
     }
 
     nonisolated public static func isPaused(active: Bool, until: Date?, now: Date, pinned: Bool) -> Bool {
-        pinned || (!active && (until.map { $0 <= now } ?? true))
+        pinned || (!active && (until.map { !($0 > now) } ?? true))
     }
 
     nonisolated public static func frameDate(pinned: Date?, paused: Bool, now: Date, scheduled: Date) -> Date {

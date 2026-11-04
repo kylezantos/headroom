@@ -159,7 +159,7 @@ public enum LaneSchedule {
         chosen: TimeInterval,
         effective: TimeInterval
     ) -> Bool {
-        nextDue(for: record, chosen: chosen, effective: effective) <= now
+        !(nextDue(for: record, chosen: chosen, effective: effective) > now)
     }
 
     /// KTD6 / KTD7 ordering for a lane that serves one account at a time: a priority

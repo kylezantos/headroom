@@ -57,9 +57,9 @@ public enum RefreshReceiptPresentation {
     public static func line(run: UserRefreshRun?, isResting: Bool, now: Date,
                             title: (AccountKey) -> String) -> Line? {
         guard !isResting, let run else { return nil }
-        let entries = run.entries.filter { $0.value.origin != .setupCheck && $0.value.requestedAt <= now }
+        let entries = run.entries.filter { $0.value.origin != .setupCheck && !($0.value.requestedAt > now) }
         guard !entries.isEmpty else { return nil }
-        let arrived = entries.filter { $0.value.outcome != nil && $0.value.landedAt.map { $0 <= now } == true }
+        let arrived = entries.filter { $0.value.outcome != nil && $0.value.landedAt.map { !($0 > now) } == true }
         let latest = arrived.max {
             if $0.value.landedAt != $1.value.landedAt { return $0.value.landedAt! < $1.value.landedAt! }
             // Pinned fixtures may land together; a dictionary's iteration order is not a receipt order.

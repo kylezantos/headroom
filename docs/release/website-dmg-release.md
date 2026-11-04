@@ -228,13 +228,56 @@ manifest mappings and release assets. Use the hydration command above whenever l
 needs older installers. If publication fails, leave the current website live and fix the failure;
 do not bypass verification or overwrite an existing versioned archive asset.
 
-Open a PR to `headroom-site/main`, wait for the Vercel preview check, then merge it. Promote the
+### Required website content audit
+
+Every release includes the website. The releasing agent owns these checks and updates; do not
+wait for the user to notice stale copy. Use the canonical Sparkle HTML for all release notes.
+
+- Confirm `/release-notes` includes the target version/build, notes and Pacific release date;
+  the homepage version, date, size and download links must derive from `latest.json`.
+- Audit homepage copy, supported providers, interactive demo, metadata, requirements, setup,
+  feedback/support links and iPhone availability claims against the shipped behavior. Include
+  warranted changes in the same website PR. Keep the privacy policy unchanged unless a policy
+  change is separately required and authorized. Preserve chosen subsets such as menu-bar pills.
+- From the Headroom checkout, run `python3 Scripts/check-release-sync.py --site
+  /absolute/path/to/headroom-site`. This blocks version/build, canonical-note, feed, demo-provider
+  and metadata-provider drift. Run the release-script tests, website tests, lint, storage tests
+  and build. Inspect desktop/mobile in headless dev-browser when content affects the demo.
+- Record the audited surfaces and intentional exceptions in the release record. After promotion,
+  verify the live homepage and `/release-notes#v<version>`, not just the raw feed/downloads.
+
+Open a PR to `headroom-site/main`, wait for the Vercel preview check, then merge it. Obtain explicit
+user approval for the concrete tested commit before production promotion. Promote the
 Headroom website through its documented production path, never by pushing directly to its
 `production` branch:
 
 ```bash
 pnpm ship
 ```
+
+### GitHub releases and changelog
+
+After macOS publication, create the source release and replace the archive's generic description
+with the same readable canonical notes. Do not hand-write a second changelog. From Headroom:
+
+```bash
+python3 Tests/ReleaseScripts/github-release-tests.py
+# Render for review first. Use the exact merged commit that built the signed app, not later docs.
+python3 Scripts/github-release.py <version> <build> --source-commit <artifact-source-sha>
+python3 Scripts/github-release.py <version> <build> --source-commit <artifact-source-sha> --publish
+```
+
+This creates/updates `kylezantos/headroom` release `v<version>` at that commit and updates
+`kylezantos/headroom-downloads` release `headroom-<version>-<build>`. It refuses conflicting
+existing source tags and reads both descriptions back. It never uploads/replaces assets or
+changes repository visibility. The source repository stays private; the archive remains public.
+The website changelog and Sparkle keep consuming the same canonical HTML. If a newer note format
+is unsupported, extend and test the renderer before publishing; never drop content silently.
+
+Verify the source tag resolves to the artifact source SHA and both GitHub bodies match the rendered
+output. Record both release URLs. Keep TestFlight and App Store state separate in release evidence;
+a GitHub/macOS release does not imply iOS App Store availability. A partial GitHub update is a
+pending gate: rerun safely with the same commit and record the failure until both read-backs pass.
 
 ## 5. Verify production from the public URL
 

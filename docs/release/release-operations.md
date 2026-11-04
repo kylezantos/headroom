@@ -187,9 +187,18 @@ records this.
 
 ## Phase 4 — closeout
 
+Website content and GitHub releases are required parts of every release, owned by the releasing
+agent. Follow the website runbook's content audit and cross-repository sync gate before the
+website PR, then publish both GitHub descriptions from the canonical Sparkle notes with
+`Scripts/github-release.py` at the exact artifact source commit. Verify the live changelog,
+homepage and both GitHub releases. Website production promotion still requires explicit approval;
+GitHub publication never implies App Store publication.
+
 Update the release evidence with exact facts and timestamps:
 
 - merged Headroom and Headroom website commits;
+- website content audit, live changelog/version/date checks, source GitHub tag/commit and both
+  source/archive release URLs with matching canonical notes;
 - notarization results, public checksum, appcast version/build, and Sparkle acceptance result;
 - TestFlight upload, processing, group assignment, clean-install acceptance, and App Review state;
 - every explicitly accepted residual, including the environment that was unavailable;

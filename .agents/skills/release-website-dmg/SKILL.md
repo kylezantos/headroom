@@ -61,11 +61,20 @@ each platform runbook as a separate release lane. Report their states separately
    manifest, and copies only small website metadata. Never copy DMGs or deltas into `public/`.
    Preserve every existing versioned archive asset and mapping. Build, preview, merge,
    then use the Headroom website's documented `pnpm ship` path.
+   Website content is part of every release: audit the changelog, version/date, provider demo,
+   metadata, requirements, setup and feedback copy. Run `Scripts/check-release-sync.py --site
+   <website-checkout>` from Headroom before the website PR. Include warranted content changes in
+   that PR; never leave this audit to the user. Obtain explicit approval before production promotion.
 6. Validate the live manifest, appcast, stable-DMG checksum, mounted DMG signature, and public
    diagnostic. Then run the runbook's installed-app update test from an older public release in
    its isolated installation. Confirm the update prompt visibly renders the target notes before
    accepting the update. The release is not complete until Sparkle upgrades it to the new
    version/build.
+
+7. Run the runbook's `Scripts/github-release.py` command with the exact artifact source commit.
+   Publish readable canonical notes to both the private source release and the public binary
+   archive. Verify both bodies and the source tag; preserve all existing asset bytes and tags.
+   Record website-content checks and both GitHub release URLs in the release evidence.
 
 ## Status discipline
 

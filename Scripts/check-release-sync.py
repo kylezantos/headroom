@@ -13,7 +13,11 @@ def check(source, site):
     latest = json.loads((site / "public/latest.json").read_text())
     version, build = str(latest["version"]), str(latest["build"])
     project = (source / "project.yml").read_text()
-    versions = re.findall(r'MARKETING_VERSION:\s*["\']?([\d.]+)', project)
+    # A macOS-only release (1.5.2, 1.6.1) leaves the iOS marketing version alone while every
+    # target shares the build number, so only the macOS targets must match the website's version.
+    targets = re.split(r"^  (?=\w+:\s*$)", project, flags=re.M)
+    mac = [block for block in targets if re.search(r"^\s+platform:\s*macOS\s*$", block, re.M)]
+    versions = re.findall(r'MARKETING_VERSION:\s*["\']?([\d.]+)', "".join(mac) or project)
     builds = re.findall(r'CURRENT_PROJECT_VERSION:\s*["\']?(\d+)', project)
     if not versions or set(versions) != {version} or not builds or set(builds) != {build}:
         raise ValueError("App versions and website latest.json disagree")

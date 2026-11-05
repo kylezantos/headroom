@@ -55,6 +55,16 @@ class ReleaseNotesTests(unittest.TestCase):
             (site / "lib/headroom-demo/usage-model.ts").write_text('export const PROVIDER_ORDER = ["claude", "codex", "grok", "cursor", "copilot"]')
             (site / "lib/site-metadata.ts").write_text('export const SITE_DESCRIPTION = "Claude Codex Grok Cursor Copilot"')
             gate.check(source, site)
+            (source / "project.yml").write_text(
+                'targets:\n  Headroom:\n    platform: macOS\n    MARKETING_VERSION: 1.6\n    CURRENT_PROJECT_VERSION: 44\n'
+                '  HeadroomIOS:\n    platform: iOS\n    MARKETING_VERSION: 1.5.1\n    CURRENT_PROJECT_VERSION: 44\n')
+            gate.check(source, site)
+            (source / "project.yml").write_text(
+                'targets:\n  Headroom:\n    platform: macOS\n    MARKETING_VERSION: 1.5.2\n    CURRENT_PROJECT_VERSION: 44\n'
+                '  HeadroomIOS:\n    platform: iOS\n    MARKETING_VERSION: 1.6\n    CURRENT_PROJECT_VERSION: 44\n')
+            with self.assertRaisesRegex(ValueError, "App versions"):
+                gate.check(source, site)
+            (source / "project.yml").write_text('MARKETING_VERSION: "1.6"\nCURRENT_PROJECT_VERSION: "44"\n')
             (site / "public/Headroom-1.6-44.html").write_text("different notes")
             with self.assertRaisesRegex(ValueError, "canonical"):
                 gate.check(source, site)

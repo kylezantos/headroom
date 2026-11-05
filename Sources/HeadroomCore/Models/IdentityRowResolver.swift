@@ -43,15 +43,30 @@ public func rowTitle(
     return providerDisplayName
 }
 
-/// Label-only eligibility for a persistent email. The view remains responsible for
-/// suppressing both email and tooltip when its snapshot carries no address (KTD11).
+/// Eligibility for a persistent email. The view remains responsible for suppressing
+/// both email and tooltip when its snapshot carries no address (KTD11).
+///
+/// `emailsByKey` carries each visible account's captured address. When two rows of one
+/// provider report the same address, both show it: a custom label names a config home,
+/// not a login, so an external switcher (or a re-login) can move the built-in row onto
+/// the same account as another row while its label still reads as the old one. Showing
+/// the address is the only on-screen tell in the popover; the Settings duplicate badge
+/// is not visible there.
 public func showsPersistentEmail(
     for account: ProviderAccount,
-    in providerAccounts: [ProviderAccount]
+    in providerAccounts: [ProviderAccount],
+    emailsByKey: [AccountKey: String] = [:]
 ) -> Bool {
     let visibleAccounts = providerAccounts.lazy.filter { $0.providerID == account.providerID }
     if visibleAccounts.prefix(2).count > 1,
        ProviderAccount.isDefaultLabel(account.label) {
+        return true
+    }
+    if let email = AccountEmail.normalized(emailsByKey[account.key]),
+       visibleAccounts.contains(where: { candidate in
+           candidate.key != account.key
+               && AccountEmail.normalized(emailsByKey[candidate.key]) == email
+       }) {
         return true
     }
     return visibleAccounts.contains { candidate in

@@ -131,4 +131,47 @@ struct IdentityRowResolverTests {
         #expect(snapshotWithoutEmail.accountEmail == nil)
         #expect(showsPersistentEmail(for: first, in: [first, second]))
     }
+
+    @Test func customLabelsShowTheEmailWhenTwoRowsShareOneLogin() {
+        // An external account switcher moved the built-in row onto the same login as an
+        // extra row; its saved label still names the old account.
+        let builtIn = account(id: "main", label: "Esper Labs", builtIn: true)
+        let extra = account(id: "extra", label: "Personal")
+        let accounts = [builtIn, extra]
+        let shared: [AccountKey: String] = [
+            builtIn.key: "Person@Example.com ",
+            extra.key: "person@example.com",
+        ]
+        #expect(showsPersistentEmail(for: builtIn, in: accounts, emailsByKey: shared))
+        #expect(showsPersistentEmail(for: extra, in: accounts, emailsByKey: shared))
+    }
+
+    @Test func customLabelsKeepTheEmailHiddenForDistinctOrMissingLogins() {
+        let builtIn = account(id: "main", label: "Work", builtIn: true)
+        let extra = account(id: "extra", label: "Personal")
+        let accounts = [builtIn, extra]
+        let distinct: [AccountKey: String] = [
+            builtIn.key: "work@example.com",
+            extra.key: "person@example.com",
+        ]
+        #expect(!showsPersistentEmail(for: builtIn, in: accounts, emailsByKey: distinct))
+        #expect(!showsPersistentEmail(for: extra, in: accounts, emailsByKey: distinct))
+        #expect(!showsPersistentEmail(for: builtIn, in: accounts, emailsByKey: [:]))
+        #expect(!showsPersistentEmail(
+            for: builtIn, in: accounts, emailsByKey: [builtIn.key: "   ", extra.key: "   "]
+        ))
+    }
+
+    @Test func sharedEmailsAcrossProvidersDoNotCount() {
+        let claude = account(id: "main", label: "Work", builtIn: true)
+        let claudeExtra = account(id: "extra", label: "Personal")
+        let codex = account(providerID: .codex, id: "codex", label: "Codex Work")
+        let accounts = [claude, claudeExtra, codex]
+        let emails: [AccountKey: String] = [
+            claude.key: "person@example.com",
+            claudeExtra.key: "other@example.com",
+            codex.key: "person@example.com",
+        ]
+        #expect(!showsPersistentEmail(for: claude, in: accounts, emailsByKey: emails))
+    }
 }

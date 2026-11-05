@@ -872,7 +872,9 @@ struct ProviderCardView: View {
                 ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
                 : displayName,
             email: entry?.snapshot.accountEmail,
-            showsPersistentEmail: titled && showsPersistentEmail(for: account, in: providerAccounts),
+            showsPersistentEmail: titled && showsPersistentEmail(
+                for: account, in: providerAccounts, emailsByKey: capturedEmailsByKey
+            ),
             usesEmailAsName: useEmailAsAccountName
         )
         return CompactAccountRow(
@@ -900,7 +902,9 @@ struct ProviderCardView: View {
         let identity = DesktopAccountIdentity(
             title: rowTitle(for: entry.account, in: providerAccounts, providerDisplayName: displayName),
             email: entry.snapshot.accountEmail,
-            showsPersistentEmail: showsPersistentEmail(for: entry.account, in: providerAccounts),
+            showsPersistentEmail: showsPersistentEmail(
+                for: entry.account, in: providerAccounts, emailsByKey: capturedEmailsByKey
+            ),
             usesEmailAsName: useEmailAsAccountName
         )
         return AccountSectionView(
@@ -1032,6 +1036,16 @@ struct ProviderCardView: View {
         }
     }
 
+    /// Each drawn account's captured address, so rows signed in to the same login show
+    /// it even under custom labels (`showsPersistentEmail(for:in:emailsByKey:)`).
+    private var capturedEmailsByKey: [AccountKey: String] {
+        var emails: [AccountKey: String] = [:]
+        for entry in entries {
+            if let email = entry.snapshot.accountEmail { emails[entry.account.key] = email }
+        }
+        return emails
+    }
+
     private func accountIdentityRow(for entry: ProviderAccountEntry?) -> some View {
         let account = entry?.account ?? primaryAccount
         let providerAccounts = entries.map(\.account)
@@ -1039,7 +1053,7 @@ struct ProviderCardView: View {
             ? rowTitle(for: account, in: providerAccounts, providerDisplayName: displayName)
             : displayName
         let persistentEmail = anyProviderMultiAccount
-            && showsPersistentEmail(for: account, in: providerAccounts)
+            && showsPersistentEmail(for: account, in: providerAccounts, emailsByKey: capturedEmailsByKey)
         let identity = DesktopAccountIdentity(
             title: rowName, email: entry?.snapshot.accountEmail,
             showsPersistentEmail: persistentEmail, usesEmailAsName: useEmailAsAccountName

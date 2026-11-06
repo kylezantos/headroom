@@ -76,6 +76,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
+        isActiveLogin: Bool = false,
         loadingAccessory: (() -> AccountLoadingState)? = nil
     ) {
         self.init(
@@ -91,6 +92,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
             bankedResets: bankedResets,
             isCritical: isCritical,
             isRevealing: isRevealing,
+            isActiveLogin: isActiveLogin,
             mark: { ProviderLogoView(providerID: providerID, size: $0) },
             accessory: { IdentityLoadingAccessory(readLoading: loadingAccessory) }
         )
@@ -118,6 +120,7 @@ struct AccountSectionView: View {
     let onRetry: () -> Void
     /// R2C22: false for the account rows nested under a capability card's own provider row.
     var showsMark: Bool = true
+    var isActiveLogin: Bool = false
     var claimBankedResetReveal: ((AccountKey, Int?) -> Bool)? = nil
     var readLoading: () -> AccountLoadingState = { .init() }
 
@@ -235,6 +238,7 @@ struct AccountSectionView: View {
             bankedResets: snapshot.bankedResets,
             isCritical: snapshot.hasLiveCriticalResettableWindow,
             isRevealing: isRevealingBankedResets,
+            isActiveLogin: isActiveLogin,
             loadingAccessory: readLoading
         )
     }

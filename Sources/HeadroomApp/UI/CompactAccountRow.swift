@@ -21,6 +21,9 @@ struct CompactAccountRow: View {
     let showsPersistentEmail: Bool
     var titleIsEmail: Bool = false
     let isMenuBarAccount: Bool
+    /// `ActiveLoginCollapse`: the CLI's default login is this account. The one-line row has
+    /// no room for a chip, so it reads in the tooltip and VoiceOver.
+    var isActiveLogin: Bool = false
     let recipe: CompactAccountRowRecipe
     /// The card header's columns. Each window sits under its own kind, so an account showing
     /// only a weekly window keeps it under "wk" beside its neighbours.
@@ -139,6 +142,7 @@ struct CompactAccountRow: View {
             isMenuBarAccount: isMenuBarAccount,
             bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
         ).map { [$0] } ?? []
+        if isActiveLogin { lines.append("Active: the CLI's current login") }
         if recipe.isDimmed, recipe.content == .meters { lines.append("Stale") }
         if !recipe.tooltip.isEmpty { lines.append(recipe.tooltip) }
         return lines.joined(separator: "\n")
@@ -147,6 +151,7 @@ struct CompactAccountRow: View {
     private var accessibilityLabel: String {
         var parts = ["\(title) account"]
         if isMenuBarAccount { parts.append("main account") }
+        if isActiveLogin { parts.append("active login in the CLI") }
         if recipe.isDimmed, recipe.content == .meters { parts.append("stale") }
         if recipe.content == .skeleton { parts.append("loading") }
         return parts.joined(separator: ", ")

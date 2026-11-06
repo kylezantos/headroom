@@ -410,6 +410,10 @@ extension DemoFixture {
         /// Default labels plus a case-insensitive renamed collision, with distinct
         /// addresses so the persistent-email treatment visibly disambiguates every row.
         case duplicateLabels = "dup-labels"
+        /// `ActiveLoginCollapse`: an account switcher (ccswap and similar) has moved each
+        /// provider's default login onto an account that also has its own row. The built-in
+        /// row folds into that row, which wears the Active chip, for Claude and Codex.
+        case switcher
         /// S5A: the same four provider cards as `multi-4`, but the API spend card poses the
         /// states no other scenario reaches — a rejected key holding a retained total, a
         /// plain live row, and xAI's prepaid balance. Every shipped spend fixture is `.live`
@@ -760,6 +764,22 @@ extension DemoFixture {
                     weekly: 48,
                     bankedResets: 0
                 ),
+            ]
+        case .switcher:
+            pairs = [
+                // The built-in row's label still names the account it read before the switch.
+                demoAccount(provider: .claude, id: "main", label: "Work", plan: "Max", fiveHour: 31, weekly: 69,
+                            email: "person@gmail.example", builtIn: true),
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 31, weekly: 69,
+                            email: "person@gmail.example"),
+                demoAccount(provider: .claude, id: "work", label: "Work", plan: "Max", fiveHour: 8, weekly: 90,
+                            email: "person@work.example"),
+                demoAccount(provider: .codex, id: "codex-main", label: "Main", plan: "Pro", fiveHour: 12, weekly: 39,
+                            email: "person@work.example", builtIn: true),
+                demoAccount(provider: .codex, id: "codex-personal", label: "Personal", plan: "Plus", fiveHour: 44, weekly: 61,
+                            email: "person@gmail.example"),
+                demoAccount(provider: .codex, id: "codex-work", label: "Work", plan: "Pro", fiveHour: 12, weekly: 39,
+                            email: "person@work.example"),
             ]
         case .duplicateLabels:
             pairs = [

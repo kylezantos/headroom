@@ -294,6 +294,12 @@ struct ProviderCardView: View {
     var useEmailAsAccountName: Bool = false
     /// The in-app Spark switch, so a Compact row never shows a window Standard hides.
     var showsCodexSparkCounters: Bool = false
+    /// `ActiveLoginCollapse`: the extra row the CLI's default login is on, after the popover
+    /// folded the built-in row into it. Carries the Active chip.
+    var activeLoginKey: AccountKey? = nil
+    /// When the folded built-in row was the main account, the menu bar still shows it, which
+    /// is now this row's login, so this row wears the menu-bar mark. Nil uses the first row.
+    var menuBarAccountKey: AccountKey? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -806,7 +812,7 @@ struct ProviderCardView: View {
                             compactRow(
                                 for: entry,
                                 recipe: recipe,
-                                isMenuBarAccount: entry.id == entries.first?.id,
+                                isMenuBarAccount: isMenuBarEntry(entry),
                                 providerAccounts: providerAccounts,
                                 columns: columns ?? recipe.shownWindows.map(\.window.kind)
                             )
@@ -825,6 +831,11 @@ struct ProviderCardView: View {
                 }
             }
         }
+    }
+
+    private func isMenuBarEntry(_ entry: ProviderAccountEntry) -> Bool {
+        if let menuBarAccountKey { return entry.account.key == menuBarAccountKey }
+        return entry.id == entries.first?.id
     }
 
     // MARK: - Compact (R11–R15)
@@ -884,6 +895,7 @@ struct ProviderCardView: View {
             showsPersistentEmail: identity.showsPersistentEmail,
             titleIsEmail: identity.isEmailTitle,
             isMenuBarAccount: isMultiAccount && isMenuBarAccount,
+            isActiveLogin: entry.map { $0.account.key == activeLoginKey } ?? false,
             recipe: recipe,
             columns: columns,
             bankedResets: entry?.snapshot.bankedResets,
@@ -916,10 +928,11 @@ struct ProviderCardView: View {
             percentageMode: percentageMode,
             meterStyle: meterStyle,
             now: now,
-            isMenuBarAccount: isMultiAccount && entry.id == entries.first?.id,
+            isMenuBarAccount: isMultiAccount && isMenuBarEntry(entry),
             showsStopWaiting: showsStopWaiting,
             onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) },
             showsMark: showsMark,
+            isActiveLogin: entry.account.key == activeLoginKey,
             claimBankedResetReveal: claimBankedResetReveal,
             readLoading: { loadingForAccount(entry.account.key) }
         )

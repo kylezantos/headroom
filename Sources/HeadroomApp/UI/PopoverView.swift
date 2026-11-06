@@ -80,11 +80,27 @@ struct PopoverView: View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = pinnedDate ?? context.date
             let _ = BenchCounters.hit("PopoverView.timeline")
-            let accountsByVisibleProvider = store.providerOrder.reduce(
-                into: [ProviderID: [ProviderAccount]]()
-            ) { accounts, providerID in
-                accounts[providerID] = store.accounts(for: providerID)
+            // An account switcher (ccswap and similar) rotates the CLI's default login across
+            // accounts that also have their own rows. The built-in row then reads the same
+            // login as one of them, so it folds into that row, which carries the Active chip.
+            let collapses = store.providerOrder.reduce(
+                into: [ProviderID: ActiveLoginCollapse]()
+            ) { collapses, providerID in
+                let accounts = store.accounts(for: providerID)
+                var emails: [AccountKey: String] = [:]
+                var plans: [AccountKey: String] = [:]
+                if accounts.count > 1 {
+                    for account in accounts {
+                        let snapshot = store.appDisplaySnapshot(for: account.key)
+                        if let email = snapshot.accountEmail { emails[account.key] = email }
+                        if let plan = snapshot.planLabel { plans[account.key] = plan }
+                    }
+                }
+                collapses[providerID] = ActiveLoginCollapse.resolve(
+                    accounts: accounts, emailsByKey: emails, planLabelsByKey: plans
+                )
             }
+            let accountsByVisibleProvider = collapses.mapValues(\.accounts)
             let anyProviderMultiAccount = surfaceUsesAccountRows(
                 accountsByProvider: accountsByVisibleProvider
             )
@@ -152,6 +168,7 @@ struct PopoverView: View {
                                         providerID: id,
                                         entries: entriesByProvider[id] ?? [],
                                         anyProviderMultiAccount: anyProviderMultiAccount,
+                                        collapse: collapses[id],
                                         now: now
                                     )
                                 } else {
@@ -284,6 +301,7 @@ struct PopoverView: View {
         providerID id: ProviderID,
         entries: [ProviderAccountEntry],
         anyProviderMultiAccount: Bool,
+        collapse: ActiveLoginCollapse?,
         now: Date
     ) -> some View {
         // M5A follow-up: the popover dissolves old recipe → new recipe instead of
@@ -323,7 +341,11 @@ struct PopoverView: View {
                 },
                 accountLayout: store.accountLayout,
                 useEmailAsAccountName: store.useEmailAsAccountName,
-                showsCodexSparkCounters: store.showCodexSparkCountersInApp
+                showsCodexSparkCounters: store.showCodexSparkCountersInApp,
+                activeLoginKey: collapse?.activeKey,
+                menuBarAccountKey: collapse?.hiddenKey != nil
+                    && collapse?.hiddenKey == store.primaryAccount(for: id)?.key
+                    ? collapse?.activeKey : nil
             )
             .id(meterRecipeKey)
             .transition(.opacity)

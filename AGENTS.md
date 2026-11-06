@@ -264,7 +264,13 @@ only be *stop-tracked* (Aug 2026): a persisted registry tombstone hides the row 
 the CLI's own config or login, allowed only while another account exists, undone via "Show CLI
 Account" in the provider header. Claude rows signed in to the same upstream login (matched by
 `oauthAccount.accountUuid`, metadata only) get a detection-only "Same login as X" badge —
-never auto-merged.
+never auto-merged in the registry or Settings. **Account switchers (Nov 2026).** Tools like
+ccswap rotate the CLI's default login across accounts the user also tracks as extra rows. The
+popover alone folds the built-in row into the extra row with the same captured email
+(`ActiveLoginCollapse`, every multi-account provider), and that row wears an **Active** chip and,
+when the built-in row was main, the menu-bar mark. It folds only on one unambiguous match with no
+plan disagreement, and only when two or more rows remain; Settings, the menu bar, widgets and
+the phone are unchanged. `--demo switcher` poses it.
 
 ## Commands
 

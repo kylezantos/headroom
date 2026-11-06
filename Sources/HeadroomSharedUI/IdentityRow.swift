@@ -29,6 +29,9 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     public var bankedResets: Int? = nil
     public var isCritical: Bool = false
     public var isRevealing: Bool = false
+    /// The CLI's default login is currently this account, so the built-in row was folded
+    /// into it (`ActiveLoginCollapse`). An account switcher moves the chip between rows.
+    public var isActiveLogin: Bool = false
     /// KTD3: the phone's one Dynamic Type unit over the popover ramp; the Mac passes 1.
     public var scale: CGFloat = 1
     /// U3: where a host shows the full account name once the title has truncated. The Mac
@@ -63,6 +66,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
+        isActiveLogin: Bool = false,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
         onPlanCapsuleTap: (() -> Void)? = nil,
@@ -83,6 +87,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         self.bankedResets = bankedResets
         self.isCritical = isCritical
         self.isRevealing = isRevealing
+        self.isActiveLogin = isActiveLogin
         self.scale = scale
         self.onTruncatedTitle = onTruncatedTitle
         self.onPlanCapsuleTap = onPlanCapsuleTap
@@ -131,6 +136,11 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
                     // its fade under Reduce Motion on its own.
                     .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
                     // U8: in a containing row the title already says "Stale".
+                    .accessibilityHidden(containsControls)
+            }
+            if isActiveLogin {
+                activeLoginTag
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
                     .accessibilityHidden(containsControls)
             }
             if showsConnectedChip {
@@ -303,6 +313,21 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             )
     }
 
+    /// Same neutral state-chip chrome as "Stale": it names which account the CLI is using,
+    /// it isn't a warning or a tier.
+    private var activeLoginTag: some View {
+        Text("Active")
+            .kerning(IdentityRowMetrics.capsuleLabelKerning * scale)
+            .foregroundStyle(.secondary)
+            .identityCapsule(
+                fill: IdentityCapsuleStyle.staleFill,
+                horizontalPadding: 5,
+                border: IdentityCapsuleStyle.stateBorder,
+                scale: scale
+            )
+            .help("The CLI's current login. The built-in row is folded into this one.")
+    }
+
     private func accessibilityDetail(email: String?) -> String {
         IdentityRowText.accessibilityDetail(
             planDisplayName: planDisplayName,
@@ -315,7 +340,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     }
 
     private func accessibilityIdentity(email: String?) -> String {
-        IdentityRowText.accessibilityParts(
+        let parts = IdentityRowText.accessibilityParts(
             title: title,
             planDisplayName: planDisplayName,
             isMenuBarAccount: isMenuBarAccount,
@@ -324,6 +349,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             showsConnectedChip: showsConnectedChip,
             bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
         )
+        return isActiveLogin ? "\(parts), active login in the CLI" : parts
     }
 }
 

@@ -610,6 +610,16 @@ struct HeadroomApp: App {
                 // Requests queued before now, and the launch scan's finds, join the launch
                 // refresh: the store's one-full-refresh guard makes it one pass either way.
                 checkNow?.start()
+                // ccswap users get a row per saved account with no second sign-in. Real
+                // launches only: demos and harnesses never read the user's tools.
+                if !AppComposition.usesInertPhoneSync() {
+                    Task { @MainActor in
+                        let emails = await CCSwapAccounts.discoverEmails(
+                            locator: AppComposition.ccswapExecutableLocator
+                        )
+                        store.adoptCCSwapAccounts(emails: emails)
+                    }
+                }
             }
         }
         #if HEADROOM_BENCH
@@ -949,6 +959,7 @@ enum AppComposition {
 
     private static let cursorUsageSource = CursorUsageCaptureCache(source: CursorUsageCLIProbe())
     static let claudeExecutableLocator = CLIExecutableLocator.claude()
+    static let ccswapExecutableLocator = CCSwapAccounts.locator()
 
     /// The one UserDefaults domain a launch may read or write. `.standard` in the shipping
     /// app; an isolated suite under `--demo`, because the App shell and the store have to
@@ -1309,6 +1320,19 @@ enum AppComposition {
                 locator: claudeExecutableLocator,
                 workingDirectory: workspace.path
             ))
+        }
+        // A ccswap row: ccswap execs the official CLI as that account, so the row needs no
+        // Headroom-owned login and never touches ccswap's credentials.
+        if let email = CCSwapAccounts.email(for: account.id) {
+            return ClaudeProvider(
+                source: ClaudeUsageCLIProbe(
+                    locator: ccswapExecutableLocator,
+                    workingDirectory: workspace.path,
+                    launchPrefix: CCSwapAccounts.launchPrefix(email: email)
+                ),
+                accountID: account.id,
+                emailSource: FixedClaudeAccountEmail(email)
+            )
         }
         guard let configDirectory = configuration.claudeConfigDirectory else {
             return UnavailableAccountProvider(account: account)

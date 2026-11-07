@@ -1730,3 +1730,51 @@ private final class IgnoringSetupScheduler: SetupRetryScheduling {
         #expect(accounts[0].isBuiltIn)
     }
 }
+
+@Suite struct CCSwapAdoptionTests {
+    @MainActor private func store(defaults: UserDefaults) -> UsageStore {
+        let store = UsageStore(
+            providers: [
+                AccountStubProvider(id: .claude, accountID: .primary, displayName: "Claude",
+                                    snapshot: .live(.claude, windows: [window(.weekly, used: 30)])),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: AccountRegistry(defaults: defaults),
+            accountStorage: NoopAccountStorage(),
+            providerFactory: { account in
+                AccountStubProvider(id: account.providerID, accountID: account.id, displayName: "Claude",
+                                    snapshot: .live(.claude, windows: [window(.weekly, used: 50)]))
+            }
+        )
+        store.ccswapDismissals = CCSwapDismissedAccounts(defaults: defaults)
+        return store
+    }
+
+    @Test @MainActor func adoptsEachCCSwapAccountOnceWithAStableID() {
+        let store = store(defaults: freshDefaults())
+        let added = store.adoptCCSwapAccounts(emails: ["person@gmail.example", "person@work.example"])
+        #expect(added.map(\.id.raw) == ["ccswap-person@gmail.example", "ccswap-person@work.example"])
+        #expect(added.map(\.label) == ["person@gmail.example", "person@work.example"])
+        #expect(store.accounts(for: .claude).count == 3)
+        // The next launch's discovery finds them already tracked.
+        #expect(store.adoptCCSwapAccounts(emails: ["Person@Gmail.example", "person@work.example"]).isEmpty)
+        #expect(store.accounts(for: .claude).count == 3)
+    }
+
+    @Test @MainActor func aRemovedCCSwapRowIsNotAddedBack() async {
+        let defaults = freshDefaults()
+        let store = store(defaults: defaults)
+        let added = store.adoptCCSwapAccounts(emails: ["person@gmail.example"])
+        #expect(await store.removeAccount(added[0].key) == .removed)
+        #expect(store.adoptCCSwapAccounts(emails: ["person@gmail.example"]).isEmpty)
+        #expect(store.accounts(for: .claude).count == 1)
+        #expect(CCSwapDismissedAccounts(defaults: defaults).contains("PERSON@gmail.example"))
+    }
+
+    @Test func registryRefusesADuplicateCallerChosenID() {
+        let registry = AccountRegistry(defaults: freshDefaults())
+        let id = AccountID("ccswap-person@gmail.example")
+        #expect(registry.addAccount(for: .claude, label: "a", id: id)?.id == id)
+        #expect(registry.addAccount(for: .claude, label: "b", id: id) == nil)
+    }
+}

@@ -75,6 +75,10 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     /// route the CLI at their own config home (`CLAUDE_CONFIG_DIR`). Empty for the
     /// built-in account, which uses the user's default `~/.claude` login.
     public let environmentOverrides: [String: String]
+    /// Arguments placed before the CLI's own on every launch, for a wrapper that execs the
+    /// official CLI as one account (`CCSwapAccounts`: `ccswap run <email> --`). Non-empty
+    /// means print-mode only: the PTY fallback spawns the CLI's argv directly.
+    public let launchPrefix: [String]
     public let bootTimeout: TimeInterval
     public let panelTimeout: TimeInterval
     /// Deadline for `claude -p "/usage"`. A run that hits it is retried once with
@@ -86,6 +90,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         locator: any CLIExecutableLocating = CLIExecutableLocator.claude(),
         workingDirectory: String = FileManager.default.currentDirectoryPath,
         environmentOverrides: [String: String] = [:],
+        launchPrefix: [String] = [],
         bootTimeout: TimeInterval = 30,
         panelTimeout: TimeInterval = 26,
         printTimeout: TimeInterval = 20,
@@ -94,6 +99,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         self.locator = locator
         self.workingDirectory = workingDirectory
         self.environmentOverrides = environmentOverrides
+        self.launchPrefix = launchPrefix
         self.bootTimeout = bootTimeout
         self.panelTimeout = panelTimeout
         self.printTimeout = printTimeout
@@ -135,7 +141,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     private func capture(at claudePath: String) async -> (ExecutableCaptureResult, ClaudeCaptureTrace) {
         // Run the blocking process and pty work off the cooperative pool.
         return await withCheckedContinuation { continuation in
-            Thread.detachNewThread { [environmentOverrides, printTimeout, printRetryTimeout] in
+            Thread.detachNewThread { [environmentOverrides, launchPrefix, printTimeout, printRetryTimeout] in
                 var trace = ClaudeCaptureTrace()
                 // Session-reliability KTD2: auth status can start renewal and exit
                 // before persisting it. Usage itself supplies the recognized state.
@@ -147,6 +153,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
                 // PTY panel, which carries the Remote Control opt-out.
                 let print = Self.runPrintUsage(
                     claudePath: claudePath,
+                    launchPrefix: launchPrefix,
                     workingDirectory: workingDirectory,
                     environmentOverrides: environmentOverrides,
                     deadline: printTimeout,
@@ -166,6 +173,10 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
                     return
                 case .unavailable:
                     break
+                }
+                guard launchPrefix.isEmpty else {
+                    continuation.resume(returning: (.result(.transientCapture), trace))
+                    return
                 }
                 let arguments = Self.interactiveArguments(
                     claudePath: claudePath,
@@ -337,6 +348,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
     /// output is not retried: the same CLI would print the same thing.
     private static func runPrintUsage(
         claudePath: String,
+        launchPrefix: [String],
         workingDirectory: String,
         environmentOverrides: [String: String],
         deadline: TimeInterval,
@@ -345,7 +357,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         let versionText: String
         switch runForOutput(
             claudePath: claudePath,
-            arguments: ["--version"],
+            arguments: launchPrefix + ["--version"],
             environmentOverrides: environmentOverrides,
             deadline: 5
         ) {
@@ -361,6 +373,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         }
         let first = runPrintReport(
             claudePath: claudePath,
+            launchPrefix: launchPrefix,
             workingDirectory: workingDirectory,
             environmentOverrides: environmentOverrides,
             deadline: deadline
@@ -369,6 +382,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         guard first.stage == .timedOut else { return attempt }
         let retry = runPrintReport(
             claudePath: claudePath,
+            launchPrefix: launchPrefix,
             workingDirectory: workingDirectory,
             environmentOverrides: environmentOverrides,
             deadline: retryDeadline
@@ -380,6 +394,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
 
     private static func runPrintReport(
         claudePath: String,
+        launchPrefix: [String],
         workingDirectory: String,
         environmentOverrides: [String: String],
         deadline: TimeInterval
@@ -387,7 +402,7 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         let data: Data
         switch runForOutput(
             claudePath: claudePath,
-            arguments: printUsageArguments,
+            arguments: launchPrefix + printUsageArguments,
             environmentOverrides: environmentOverrides,
             workingDirectory: workingDirectory,
             deadline: deadline
@@ -721,6 +736,12 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         // The built-in account always means the CLI default. A custom value inherited
         // from a Terminal launch must not silently select another account.
         if overrides["CLAUDE_CONFIG_DIR"] == nil { result.removeValue(forKey: "CLAUDE_CONFIG_DIR") }
+        // `/usage` reports the subscription only when the CLI authenticates with it. An API
+        // key or bearer token in the environment (often set machine-wide via launchctl)
+        // takes precedence over the OAuth login and turns `/usage` into a cost report, so
+        // the row never reads. Headroom reads subscription usage, never API billing.
+        result.removeValue(forKey: "ANTHROPIC_API_KEY")
+        result.removeValue(forKey: "ANTHROPIC_AUTH_TOKEN")
         result["LANG"] = result["LANG"] ?? "en_US.UTF-8"
         result["PATH"] = loginPath
         result["PWD"] = workingDirectory

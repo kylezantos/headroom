@@ -270,7 +270,15 @@ popover alone folds the built-in row into the extra row with the same captured e
 (`ActiveLoginCollapse`, every multi-account provider), and that row wears an **Active** chip and,
 when the built-in row was main, the menu-bar mark. It folds only on one unambiguous match with no
 plan disagreement, and only when two or more rows remain; Settings, the menu bar, widgets and
-the phone are unchanged. `--demo switcher` poses it.
+the phone are unchanged. `--demo switcher` poses it. **ccswap accounts (Nov 2026).** When `ccswap` is
+installed, a real launch reads `ccswap list --json --provider claude` for emails only (never its
+usage numbers, which come from the OAuth endpoint) and adds one Claude row per account, id
+`ccswap-<email>` (`CCSwapAccounts`, `UsageStore.adoptCCSwapAccounts`). Each row probes with
+`ccswap run <email> -- -p /usage …`: ccswap prepares that account's profile and execs the official
+CLI, so Headroom never reads ccswap's credentials or points `CLAUDE_CONFIG_DIR` at its profiles
+(a CLI refreshing there would spend token grants ccswap still holds). Print mode only; a removed
+row is remembered and not re-added. The probe also strips `ANTHROPIC_API_KEY` and
+`ANTHROPIC_AUTH_TOKEN`: either outranks the OAuth login and turns `/usage` into a cost report.
 
 ## Commands
 

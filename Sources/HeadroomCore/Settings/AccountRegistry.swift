@@ -90,12 +90,15 @@ public struct AccountRegistry: @unchecked Sendable { // UserDefaults is thread-s
     public func addAccount(
         for providerID: ProviderID,
         capacity: Int = AccountRegistry.testedEnvelope,
-        label: String? = nil
+        label: String? = nil,
+        id: AccountID? = nil
     ) -> ProviderAccount? {
         let visible = accounts(for: providerID, capacity: capacity)
         guard countIncludingHidden(visible, for: providerID) < capacity else { return nil }
+        // A caller-chosen id (a ccswap row's email-derived id) is added at most once.
+        if let id, allWithSeeds(for: providerID).contains(where: { $0.id == id }) { return nil }
         let account = ProviderAccount(
-            id: AccountID(UUID().uuidString.lowercased()),
+            id: id ?? AccountID(UUID().uuidString.lowercased()),
             providerID: providerID,
             label: normalizedLabel(label) ?? defaultLabel(existing: visible)
         )

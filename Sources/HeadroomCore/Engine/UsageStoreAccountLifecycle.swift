@@ -63,11 +63,15 @@ extension UsageStore {
     }
 
     @discardableResult
-    public func addAccount(for providerID: ProviderID, label: String? = nil) -> ProviderAccount? {
+    public func addAccount(
+        for providerID: ProviderID,
+        label: String? = nil,
+        id: AccountID? = nil
+    ) -> ProviderAccount? {
         guard canAddAccount(for: providerID),
               let accountRegistry, let providerFactory,
               let account = accountRegistry.addAccount(
-                  for: providerID, capacity: accountCapacity(for: providerID), label: label
+                  for: providerID, capacity: accountCapacity(for: providerID), label: label, id: id
               )
         else { return nil }
         guard case .success = accountStorage.ensureDirectories(for: account) else {
@@ -85,6 +89,23 @@ extension UsageStore {
         // R17: a new account reaches the phone without waiting for a refresh.
         exportPhoneSyncSnapshot()
         return account
+    }
+
+    /// Adds a row for each ccswap account not yet tracked (and not removed by the user),
+    /// then reads it. Rows read through `ccswap run`, so no second sign-in is needed.
+    @discardableResult
+    public func adoptCCSwapAccounts(emails: [String]) -> [ProviderAccount] {
+        var added: [ProviderAccount] = []
+        for email in emails {
+            guard let id = CCSwapAccounts.accountID(email: email),
+                  !ccswapDismissals.contains(email),
+                  !accounts(for: .claude).contains(where: { $0.id == id }),
+                  let account = addAccount(for: .claude, label: email, id: id)
+            else { continue }
+            added.append(account)
+            refreshAccountNow(account.key)
+        }
+        return added
     }
 
     public func renameAccount(_ key: AccountKey, to label: String) {
@@ -146,6 +167,10 @@ extension UsageStore {
             return .failed
         }
         accountRegistry.removeAccount(key)
+        // A removed ccswap row stays removed; discovery would otherwise add it back.
+        if let email = CCSwapAccounts.email(for: key.accountID) {
+            ccswapDismissals.dismiss(email)
+        }
         // KTD14: the account's history goes with its config home.
         signOutRecord?.purgeEvents(for: key)
         detachAccount(key)

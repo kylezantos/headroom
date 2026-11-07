@@ -198,6 +198,8 @@ public final class UsageStore {
     private let preferences: Preferences
     let accountRegistry: AccountRegistry?
     let accountStorage: any AccountStorageManaging
+    /// ccswap rows the user removed (`adoptCCSwapAccounts`). Injectable for tests.
+    @ObservationIgnored var ccswapDismissals = CCSwapDismissedAccounts()
     let continuityCache: (any UsageContinuityCaching)?
     /// KTD14 (2026-09-19 sign-in plan): diagnostics-only record of observed Claude
     /// sign-outs. Optional so the render harness, demo stores, and tests that don't

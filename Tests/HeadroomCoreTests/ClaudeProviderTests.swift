@@ -583,6 +583,23 @@ struct ClaudeProviderTests {
         #expect(extra["CLAUDE_CONFIG_DIR"] == "/exact")
     }
 
+    /// A machine-wide API key outranks the subscription login and turns `/usage` into a
+    /// cost report, so no account's probe passes one to the CLI.
+    @Test func probeNeverPassesAnAPIKeyThatWouldReplaceTheSubscriptionLogin() {
+        let inherited = ["ANTHROPIC_API_KEY": "sk-test", "ANTHROPIC_AUTH_TOKEN": "t", "HOME": "/Users/x"]
+        for overrides in [[:], ["CLAUDE_CONFIG_DIR": "/exact"]] {
+            let env = ClaudeUsageCLIProbe.environment(
+                inherited: inherited,
+                overrides: overrides,
+                loginPath: "/resolved/bin",
+                workingDirectory: "/workspace"
+            )
+            #expect(env["ANTHROPIC_API_KEY"] == nil)
+            #expect(env["ANTHROPIC_AUTH_TOKEN"] == nil)
+            #expect(env["HOME"] == "/Users/x")
+        }
+    }
+
     @Test func loginMethodSelectorReadsAsNeedsSignIn() async {
         let snap = await provider(.loginRequired).fetchSnapshot()
         guard case .stale(let reason) = snap.freshness else { Issue.record("expected stale"); return }

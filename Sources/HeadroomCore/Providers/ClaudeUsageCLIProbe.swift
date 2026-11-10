@@ -721,6 +721,12 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         // The built-in account always means the CLI default. A custom value inherited
         // from a Terminal launch must not silently select another account.
         if overrides["CLAUDE_CONFIG_DIR"] == nil { result.removeValue(forKey: "CLAUDE_CONFIG_DIR") }
+        // An API key or bearer token in the environment (often set machine-wide through
+        // launchctl) outranks the account's subscription login and turns `/usage` into a
+        // cost report, so the row never reads. Headroom reads the subscription only; the
+        // Cursor and Copilot probes drop their equivalents the same way.
+        result.removeValue(forKey: "ANTHROPIC_API_KEY")
+        result.removeValue(forKey: "ANTHROPIC_AUTH_TOKEN")
         result["LANG"] = result["LANG"] ?? "en_US.UTF-8"
         result["PATH"] = loginPath
         result["PWD"] = workingDirectory

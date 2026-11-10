@@ -4,6 +4,22 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Credential environment variables in probes (2026-11-09)
+
+The Claude probe now drops `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` (reported by Matt
+Van Horn, PR #216). Left out, each for a stated reason:
+
+- **`CLAUDE_CODE_OAUTH_TOKEN` is not dropped.** A long-lived token from `claude setup-token`
+  would make every Claude row read that token's account instead of its own config home's
+  login. Unverified: whether `/usage` works under it at all, and whether anyone relies on it
+  as Headroom's only login today. Test with a real setup token before dropping it.
+- **Grok is unchecked.** Whether an inherited `XAI_API_KEY` (or similar) changes what
+  `grok agent stdio` billing reports is unknown. Cursor and Copilot already drop theirs;
+  Codex reads over HTTP and has no CLI environment.
+- **Claude's sign-in handoff scripts keep the user's environment.** A key exported in the
+  user's shell profile can still outrank the login inside the Terminal handoff. Cursor's
+  scripts `unset` theirs.
+
 ## Feedback by email follow-ups (2026-11-03)
 
 - **Live acceptance outstanding.** Send one report from a built, signed Mac app and one from

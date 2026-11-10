@@ -36,7 +36,15 @@ extension UsageStore {
         var mainAttention: [ProviderID: CompanionAttention] = [:]
         for id in subscription {
             let visible = accounts(for: id)
-            let titles = CompanionPhoneProjection.titles(storedOrder: storedOrderAccounts(for: id))
+            let stored = storedOrderAccounts(for: id)
+            // The Mac's displayed name (KTD9 amended): the same snapshot email
+            // `desktopAccountName(for:)` reads.
+            let titles = CompanionPhoneProjection.titles(
+                storedOrder: stored,
+                emails: stored.reduce(into: [:]) { emails, account in
+                    emails[account.id] = snapshots[account.key]?.accountEmail
+                },
+                usesEmailAsName: useEmailAsAccountName)
             let keys = visible.map(\.key)
             var main: CompanionAccountSummary?
             var extras: [CompanionAccountSummary] = []

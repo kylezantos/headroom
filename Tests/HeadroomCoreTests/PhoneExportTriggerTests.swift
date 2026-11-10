@@ -18,11 +18,13 @@ struct PhoneExportTriggerTests {
         return defaults
     }
 
-    private func live(_ id: ProviderID, used: Double, at: Date = Date(timeIntervalSince1970: 2_000_000)) -> UsageSnapshot {
+    private func live(
+        _ id: ProviderID, used: Double, at: Date = Date(timeIntervalSince1970: 2_000_000), email: String? = nil
+    ) -> UsageSnapshot {
         UsageSnapshot(
             providerID: id,
             windows: [UsageWindow(kind: .weekly, utilization: used, resetsAt: reset)],
-            planLabel: "Max", capturedAt: at, freshness: .live)
+            planLabel: "Max", accountEmail: email, capturedAt: at, freshness: .live)
     }
 
     private struct Fixture {
@@ -174,6 +176,55 @@ struct PhoneExportTriggerTests {
         #expect(f.phone.last?.widgetSparkEnabled == true)
     }
 
+    /// KTD9 amended (Nov 2026): "Use email as account name" changes the phone's titles, so
+    /// toggling it exports, and the changed titles are a structural change that forces the
+    /// publisher's immediate flush (KTD8). A newly captured email reaches the phone the same
+    /// way while the setting is on.
+    @Test func useEmailAsAccountNameExportsAndForcesAnImmediateFlush() async throws {
+        let defaults = freshDefaults()
+        let registry = AccountRegistry(defaults: defaults)
+        let work = try #require(registry.addAccount(for: .claude, label: "Work"))
+        let preferences = Preferences(defaults: defaults)
+        preferences.syncToIPhoneEnabled = true
+        let phone = SpyPhoneSync()
+        let main = EmailMutableProvider(accountID: .primary, snapshot: live(.claude, used: 30))
+        let extra = EmailMutableProvider(accountID: work.id, snapshot: live(.claude, used: 50))
+        let store = UsageStore(
+            providers: [main, extra], preferences: preferences, accountRegistry: registry,
+            accountStorage: DemoAccountStorage(), widgetExporter: SpyWidgetExporter(), phoneSyncExporter: phone)
+        main.set(live(.claude, used: 30, email: "main@example.com"))
+        await store.refreshAll()
+        let off = try #require(phone.last)
+        #expect(accounts(off).map(\.title) == ["Main", "Work"])
+
+        var count = phone.captures.count
+        store.setUseEmailAsAccountName(true)
+        #expect(phone.captures.count == count + 1)
+        let on = try #require(phone.last)
+        // The extra has no captured email yet, so it keeps its label, as on the Mac.
+        #expect(accounts(on).map(\.title) == ["main@example.com", "Work"])
+        #expect(on.structure != off.structure)
+
+        // A setter echo is not a change.
+        count = phone.captures.count
+        store.setUseEmailAsAccountName(true)
+        #expect(phone.captures.count == count)
+
+        // A newly captured email reaches the phone as the title, structurally.
+        extra.set(live(.claude, used: 50, email: "work@example.com"))
+        await store.refreshAccount(work.key)
+        let captured = try #require(phone.last)
+        #expect(accounts(captured).map(\.title) == ["main@example.com", "work@example.com"])
+        #expect(captured.structure != on.structure)
+
+        count = phone.captures.count
+        store.setUseEmailAsAccountName(false)
+        #expect(phone.captures.count == count + 1)
+        let back = try #require(phone.last)
+        #expect(accounts(back).map(\.title) == ["Main", "Work"])
+        #expect(back.structure != captured.structure)
+    }
+
     @Test func intervalProviderSwitchAndReminderChangesExport() async throws {
         let (f, _) = fixture()
         await f.store.refreshAll()
@@ -302,4 +353,22 @@ private final class PhoneTriggerIgnoringScheduler: SetupRetryScheduling {
     ) -> any SetupRetryCancellation {
         Cancellation()
     }
+}
+
+/// A Claude account double whose snapshot (and so its captured email) can change between
+/// refreshes.
+private final class EmailMutableProvider: UsageProvider, @unchecked Sendable {
+    let id: ProviderID = .claude
+    let accountID: AccountID
+    let displayName = "Claude"
+    private let lock = NSLock()
+    private var snapshot: UsageSnapshot
+
+    init(accountID: AccountID, snapshot: UsageSnapshot) {
+        self.accountID = accountID
+        self.snapshot = snapshot
+    }
+
+    func set(_ snapshot: UsageSnapshot) { lock.withLock { self.snapshot = snapshot } }
+    func fetchSnapshot() async -> UsageSnapshot { lock.withLock { snapshot } }
 }

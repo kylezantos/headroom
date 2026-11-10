@@ -385,13 +385,26 @@ public enum CompanionPhoneProjection {
             freshness: freshness, attention: attention, needsAttention: needsAttention)
     }
 
-    /// KTD9: the user's label or the default name, never a value from the Mac's email
-    /// disambiguation path. Duplicates compare case-insensitively and take " · N" in
-    /// stored registry order, so Make Main never moves a suffix, and a generated suffix
-    /// skips any title already taken, including a user's literal "Work · 2".
-    public static func titles(storedOrder accounts: [ProviderAccount]) -> [AccountID: String] {
+    /// KTD9, amended Nov 2026: the phone shows the name the Mac shows, so people who
+    /// tell accounts apart by email see the same name on both. With "Use email as account
+    /// name" on, an account with a captured email is titled with that email
+    /// (`DesktopAccountIdentity`, the Mac's own rule); otherwise the title is the user's
+    /// label or the default name. An email reaches the phone only as this displayed title,
+    /// never as its own field or an ID, and never when the setting is off. Copilot captures
+    /// no email, so its titles are always labels. Duplicates compare case-insensitively and
+    /// take " · N" in stored registry order, so Make Main never moves a suffix, and a
+    /// generated suffix skips any title already taken, including a user's literal "Work · 2".
+    public static func titles(
+        storedOrder accounts: [ProviderAccount],
+        emails: [AccountID: String],
+        usesEmailAsName: Bool
+    ) -> [AccountID: String] {
         func fold(_ title: String) -> String { title.folding(options: [.caseInsensitive], locale: nil) }
         let bases = accounts.map { account -> String in
+            let identity = DesktopAccountIdentity(
+                title: account.label, email: emails[account.id],
+                showsPersistentEmail: false, usesEmailAsName: usesEmailAsName)
+            if identity.isEmailTitle { return identity.title }
             let trimmed = account.label.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.isEmpty else { return trimmed }
             return account.isBuiltIn ? ProviderAccount.builtInDefaultLabel : "Account"

@@ -104,7 +104,7 @@ public enum PhoneSettingsCopy {
     /// KTD22's what-syncs list, as the shipped build sends it. Reminder text joins when U16's
     /// CloudKit reminders ship (KTD19), and not before.
     public static let whatSyncs = [
-        "Account names you chose",
+        "Account names, as your Mac shows them",
         "Plan names",
         "Usage and reset times",
         "API spend",
@@ -115,7 +115,8 @@ public enum PhoneSettingsCopy {
         "A random ID that tells this app which iCloud account its saved data belongs to",
     ]
     public static let whatSyncsFooter =
-        "Sign-ins, emails and API keys never leave your Mac. iCloud key-value data isn’t end-to-end encrypted."
+        "If you use an email address as an account name, that address syncs as the name. "
+        + "Sign-ins, passwords and API keys never leave your Mac. iCloud key-value data isn’t end-to-end encrypted."
     /// What the phone can't change. The July 2026 audit cut renewal dates from every surface.
     public static let managedOnMac =
         "Accounts, the refresh interval, API keys and the API spend period are set in Headroom on your Mac."

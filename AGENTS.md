@@ -171,7 +171,9 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
   (`…manifest`: lineage, generation, status, provider order, per-provider generation + SHA-256
   digest + effective interval, display block, widget selection, reminder summary, answered
   check-now IDs, ladder level), one key per provider (`…provider.<id>`: every account in Make Main
-  order with Mac-resolved titles, typed attention, banked resets, flagged Spark rows, API spend),
+  order with Mac-resolved titles (the name the Mac shows, so a captured email when "Use email as
+  account name" is on; never an email in any other field), typed attention, banked resets,
+  flagged Spark rows, API spend),
   one store-wide `…receipt` and one `…request.<deviceUUID>` per phone install. It keeps writing
   the primary-only schema-3 key `headroom.syncedWidgetSnapshot` alongside, with the same
   `generatedAt` plus `companionSourceID`/`companionGeneration`, so build-33 phones keep working.
@@ -487,7 +489,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   full refresh exports once at its end. The publisher coalesces, so this is never a write per merge.
 - **Every `UsageStore` change the phone can see must call `exportPhoneSyncSnapshot()`.** Account
   add/rename/remove/Make Main, the display setters, `reschedulePolling`, widget selection, the
-  Spark, provider and reminder switches all do; nothing calls it for you. `PhoneExportTriggerTests`
+  Spark, provider and reminder switches and "Use email as account name" all do; nothing calls it for you. `PhoneExportTriggerTests`
   covers them, so add a case there with any new phone-visible setting.
 - **Per-account isolation is env-var based and verified**: a fresh `CLAUDE_CONFIG_DIR`
   reports "Not logged in · Please run /login" and a fresh `CODEX_HOME` reports "Not

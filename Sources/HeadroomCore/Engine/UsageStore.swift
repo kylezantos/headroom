@@ -537,6 +537,9 @@ public final class UsageStore {
         guard useEmailAsAccountName != enabled else { return }
         preferences.useEmailAsAccountName = enabled
         useEmailAsAccountName = enabled
+        // KTD9 amended: the phone's titles follow the Mac's displayed name, so this changes
+        // them; a title change forces the publisher's immediate flush (KTD8).
+        exportPhoneSyncSnapshot()
     }
 
     public func setExpandAccountsHorizontally(_ enabled: Bool) {

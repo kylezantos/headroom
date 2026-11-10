@@ -40,7 +40,8 @@ struct PhoneCardContext {
     let onTruncatedTitle: (DisclosedTitle) -> Void
 }
 
-/// The full resolved title handed to the disclosure sheet (U3 step 6). Never an email.
+/// The full resolved title handed to the disclosure sheet (U3 step 6): the Mac's
+/// displayed name, an email only when the Mac names the account by email (KTD9).
 struct DisclosedTitle: Identifiable, Equatable {
     let providerID: String
     let providerName: String

@@ -12,7 +12,9 @@ struct CompanionPayloadBudgetTests {
     /// Deterministic, deliberately heavy: lowercase-UUID account IDs, long user labels,
     /// source-precision utilization on every row, two Claude model rows, two Codex Spark
     /// rows, banked resets, stale retained rows and API spend on every provider.
-    static func envelopeFixture(accountsPerProvider: Int = 20) throws -> [CompanionProviderPayload] {
+    static func envelopeFixture(
+        accountsPerProvider: Int = 20, title: ((_ provider: String, _ index: Int) -> String)? = nil
+    ) throws -> [CompanionProviderPayload] {
         func id(_ provider: Int, _ index: Int) -> String {
             String(format: "%08x-4f2b-4c1d-9a7e-%012x", provider * 1_000 + index, index * 7_919)
         }
@@ -53,7 +55,8 @@ struct CompanionPayloadBudgetTests {
                     windows = [row(.billingPeriod, "Weekly", i, duration: 604_800)]
                 }
                 return try CompanionAccountSummary(
-                    id: i == 0 ? "primary" : id(p, i), title: label(i), planName: "Prolite Plus",
+                    id: i == 0 ? "primary" : id(p, i), title: title?(provider, i) ?? label(i),
+                    planName: "Prolite Plus",
                     capturedAt: F.date(-Int64(i) * 13), bankedResets: provider == "codex" ? i % 4 : nil,
                     windows: windows)
             }
@@ -70,7 +73,7 @@ struct CompanionPayloadBudgetTests {
                 sourceID: F.macA, providerID: "cursor", payloadGeneration: 4_000_000_003,
                 mode: .subscription,
                 mainAccount: try CompanionAccountSummary(
-                    id: "primary", title: "Personal", planName: "Pro", capturedAt: F.date(),
+                    id: "primary", title: title?("cursor", 0) ?? "Personal", planName: "Pro", capturedAt: F.date(),
                     windows: [
                         row(.billingPeriod, "Cursor Models", 0, duration: 2_592_000),
                         row(.billingPeriod, "Other Models", 1, duration: 2_592_000),
@@ -164,6 +167,31 @@ struct CompanionPayloadBudgetTests {
         // Step 1 only ever shrinks: extras lose model rows, the main keeps all of its rows.
         let trimmed = try #require(levels[1])
         #expect(trimmed.totalBytes < full.totalBytes)
+    }
+
+    /// KTD9 amended (Nov 2026): with "Use email as account name" on, every title can be an
+    /// email. At the envelope, with realistic-length addresses on every Claude, Codex, Grok
+    /// and Cursor account (Copilot captures none), the whole set still fits at level 0.
+    @Test func multiTwentyWithEmailTitlesStillFitsAtLevelZero() throws {
+        func email(_ provider: String, _ index: Int) -> String {
+            "alexandra.rivera-\(provider)\(index + 1)@northwind-research.example.com"
+        }
+        let payloads = try Self.envelopeFixture(title: email)
+        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1])
+        #expect(payloads[0].allAccounts.allSatisfy { $0.title.count >= 50 })
+        let fit = try CompanionPayloadBudget.fit(
+            payloads: payloads, protocolValues: try Self.protocolValues(devices: 5), manifest: Self.manifest)
+        for (key, bytes) in fit.measurement.valueBytes.sorted(by: { $0.key < $1.key }) {
+            print("EMAIL-TITLE-BUDGET level=\(fit.ladderLevel) key=\(key) bytes=\(bytes)")
+        }
+        print("EMAIL-TITLE-BUDGET level=\(fit.ladderLevel) total=\(fit.measurement.totalBytes)")
+        #expect(fit.ladderLevel == 0)
+        #expect(fit.measurement.fits)
+        #expect(fit.payloads.allSatisfy { $0.omittedAccountCount == 0 })
+        for id in CompanionSyncKeys.knownProviderIDs {
+            #expect(try #require(fit.measurement.valueBytes[CompanionSyncKeys.provider(id)!]) <= 15_000)
+        }
+        #expect(fit.measurement.totalBytes <= 64_000)
     }
 
     @Test func overTheEnvelopeTheLadderCapsOnlyAboveTwentyAndReportsTheCount() throws {

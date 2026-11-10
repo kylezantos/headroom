@@ -110,7 +110,7 @@ struct AccountsSettingsTile: View {
                         }
                     )
                 )
-                SettingsHelpText(text: "Applies to every account in the Mac app. Saved names return when turned off, and are used whenever an email is unavailable.")
+                SettingsHelpText(text: "Applies to every account, in the Mac app and on a synced iPhone or iPad. Saved names return when turned off, and are used whenever an email is unavailable.")
             }
 
             ForEach(store.registeredProviderOrder, id: \.self) { providerID in

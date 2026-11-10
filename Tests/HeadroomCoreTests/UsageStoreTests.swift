@@ -29,7 +29,9 @@ struct UsageStoreTests {
         #expect(phoneExporter.captures.isEmpty)
     }
 
-    @Test func emailAccountNamesPersistWithoutChangingLabelsOrExports() {
+    /// KTD9 amended (Nov 2026): the switch never changes labels or Mac widget exports, but
+    /// it changes the phone's titles, so each real toggle hands the phone one capture.
+    @Test func emailAccountNamesPersistWithoutChangingLabelsAndExportOnlyToThePhone() {
         let preferences = freshPreferences()
         preferences.useEmailAsAccountName = true
         preferences.syncToIPhoneEnabled = true
@@ -53,18 +55,21 @@ struct UsageStoreTests {
             )
             #expect(store.desktopAccountName(for: account) == "\(provider.raw)@example.com")
         }
+        #expect(phoneExporter.captures.isEmpty)
         store.setUseEmailAsAccountName(false)
         #expect(!preferences.useEmailAsAccountName)
         for provider in [ProviderID.claude, .codex, .grok, .cursor] {
             let account = ProviderAccount.builtIn(for: provider)
             #expect(store.desktopAccountName(for: account) == account.label)
         }
+        #expect(phoneExporter.captures.count == 1)
         preferences.useEmailAsAccountName = true
         store.setUseEmailAsAccountName(false)
         #expect(preferences.useEmailAsAccountName)
         #expect(store.accounts(for: .claude).first?.label == ProviderAccount.builtInDefaultLabel)
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.captures.isEmpty)
+        // A setter echo is not a change, so it sends nothing more.
+        #expect(phoneExporter.captures.count == 1)
     }
 
     @Test func refreshPopulatesAllProviders() async {

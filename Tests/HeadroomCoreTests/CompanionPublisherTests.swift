@@ -775,13 +775,16 @@ struct CompanionPrivacyCopyTests {
     @Test func whatSyncsNamesEveryWireCategoryAndClaimsNoEncryption() {
         let copy = CompanionPrivacyCopy.whatSyncs
         for phrase in [
-            "account names you chose", "plan names", "usage", "reset times", "API spend",
+            "account names", "plan names", "usage", "reset times", "API spend",
             "display choices", "check-now requests", "random IDs for this Mac",
-            "each iPhone or iPad", "your iCloud account’s sync", "Sign-ins, emails and API keys never sync",
-            "isn’t end-to-end encrypted",
+            "each iPhone or iPad", "your iCloud account’s sync",
+            "If you use an email address as an account name, that address syncs as the name.",
+            "Sign-ins, passwords and API keys never sync", "isn’t end-to-end encrypted",
         ] {
             #expect(copy.contains(phrase), "\(phrase)")
         }
+        // KTD9 amended: an email can sync as a name, so the copy must not promise otherwise.
+        #expect(!copy.contains("emails and API keys never sync"))
         // R2C6: curly apostrophes only, no "connect".
         #expect(!copy.contains("'") && !copy.localizedCaseInsensitiveContains("connect"))
     }

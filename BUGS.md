@@ -28,6 +28,22 @@ official `claude` CLI's `/usage` panel instead.
 - **Overlap with the troubleshooting sheet.** The deferred in-app troubleshooting sheet
   should reuse `FeedbackDiagnosticsCollector` rather than read state a second way.
 
+## Account names on the phone follow-ups (2026-11-10)
+
+The phone now shows the account name the Mac shows, so an email used as a name syncs as
+that name. Still to do:
+
+- **headroom-site privacy page.** It needs the same wording as the app: "If you use an
+  email address as an account name, that address syncs as the name. Sign-ins, passwords
+  and API keys never sync." Separate repository; publish with the release that ships this.
+- **App Store listing unchecked.** If the live description or privacy answers say emails
+  never sync, they need the same change. The label itself should stand, since Headroom
+  cannot read the user's iCloud data, but that is unconfirmed.
+- **Two rows on one email read differently.** The phone shows "x" and "x · 2"; the Mac
+  popover shows the bare email on both rows.
+- **Long email titles end-truncate on phone cards.** The design docs recommend middle
+  truncation for emails.
+
 ## Copilot provider follow-ups (2026-11-02)
 
 - Live acceptance has not run. The plan's gates still need a signed Headroom.app with a real

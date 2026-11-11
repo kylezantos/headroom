@@ -213,7 +213,16 @@ public final class SetupSessionCoordinator {
     /// Terminal exited, without blanking a healthy snapshot the way a reset does.
     public typealias HandoffBoundary = @MainActor @Sendable (AccountKey) -> Void
 
-    private var states: [AccountKey: SetupSessionState] = [:]
+    private var states: [AccountKey: SetupSessionState] = [:] {
+        didSet {
+            guard let onStatesChange else { return }
+            let changed = Set(oldValue.keys).union(states.keys).filter { oldValue[$0] != states[$0] }
+            if !changed.isEmpty { onStatesChange(Set(changed.map(\.providerID))) }
+        }
+    }
+    /// Default-login plan U10 (KTD11): the store's hook for setup states, which gate the
+    /// one-row merge. Called in the same turn as the change, with the providers it touched.
+    @ObservationIgnored public var onStatesChange: (@MainActor (Set<ProviderID>) -> Void)?
     private var generations: [AccountKey: Int] = [:]
     @ObservationIgnored private var preparationTasks: [AccountKey: Task<Void, Never>] = [:]
     @ObservationIgnored private var retryTasks: [AccountKey: any SetupRetryCancellation] = [:]

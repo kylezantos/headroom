@@ -203,6 +203,54 @@ struct DemoScenarioParityTests {
         #expect(claude[2].windows.allSatisfy { $0.hasSuffix("unavailable —") })
     }
 
+    /// Default-login U10 (R20: Claude and Codex both get the one-row merge): the `merged`
+    /// scenario poses the same moment for each, so a render of one provider stands for the
+    /// other, and nothing about the hidden built-in reaches a surface or the phone.
+    @MainActor
+    @Test func mergedScenarioPosesClaudeAndCodexAlike() async throws {
+        let fixture = DemoFixture.multiFixture(for: .merged)
+        let suite = "headroom.demo-parity.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let preferences = Preferences(defaults: defaults)
+        preferences.syncToIPhoneEnabled = true
+        let store = UsageStore(
+            providers: fixture.providers,
+            preferences: preferences,
+            accounts: fixture.accounts,
+            defaultLoginRecords: fixture.makeDefaultLoginRecordStore()
+        )
+        await store.refreshAll()
+
+        func signature(_ providerID: ProviderID) -> [RememberedRowSignature] {
+            store.displayAccounts(for: providerID).map { row in
+                RememberedRowSignature(
+                    label: row.label,
+                    kind: row.kind,
+                    windows: store.snapshot(for: row.key).windows.map { window in
+                        let state = window.freshness.isLive ? "live" : "stale"
+                        let number = UsagePercentageMode.remaining.roundedPercentage(for: window)
+                        return "\(window.kind.shortLabel) \(state) \(number)"
+                    }
+                )
+            }
+        }
+        let claude = signature(.claude)
+        #expect(claude == signature(.codex))
+        #expect(claude.map(\.kind) == [.engine, .remembered])
+        #expect(claude[0].windows.allSatisfy { $0.contains(" live ") })
+        #expect(claude[1].windows.allSatisfy { $0.contains(" stale ") })
+
+        // The phone carries one account for each pair, under "Account 2"'s id and title.
+        let capture = store.companionCapture()
+        for providerID in ["claude", "codex"] {
+            let provider = try #require(capture.providers.first { $0.providerID == providerID })
+            #expect(provider.mainAccount?.id == "\(providerID)-account-2")
+            #expect(provider.mainAccount?.title == "Account 2")
+            #expect(provider.extraAccounts.map(\.title) == ["Esper Labs"])
+        }
+    }
+
     private func isFable(_ window: WidgetWindowSummary) -> Bool { window.kind == .other("Weekly (Fable)") }
 
     /// KTD9: the phone title is the user's label; a built-in Grok/Cursor row carries the

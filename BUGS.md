@@ -16,11 +16,16 @@ built for Codex.
   rows behave as before, and the Claude model-row entry under "Claude CLI probe" stays open.
   The continuity policy already refuses to retain a model row across two identities, so
   wiring the reader is what closes it.
-- **Phase 3 is not built.** The default login and a matching extra still show as two rows
-  (U10).
-- **Gates V2 and V3 have no result.** V2: whether Codex `account_id` is shared by members of
-  one workspace (before U10). V3: one real rotation of the Phase 2 build on a switcher setup;
-  Phase 2 is not accepted until it has one.
+- **Phase 3 (one row for the default login and a matching extra) is built for Codex.**
+- **Gate V1 passed for `claude auth login` only (2026-11-11).** See
+  `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and a
+  switcher that swaps the Keychain credential. A switcher that leaves `.claude.json` alone
+  would put readings under the wrong account; get a before-and-after `.claude.json` from a
+  ccswap setup before a release says it follows one.
+- **Gate V2 was not run; the risk is accepted (Kyle, 2026-11-11).** The one-row merge trusts
+  that one Codex `account_id` is one account. Two teammates sharing an id would show as one
+  row. Kyle's two logins have different ids.
+- **Gate V3 has no result.** One real rotation on a switcher setup, before a public release.
 - **Phase 2 has no live or device look.** The remembered rows were checked in `--render-popover`
   renders (Standard and Compact, light and dark). The Settings row, the iPhone row and the Micro
   meter style's reset line are covered by tests and builds only.

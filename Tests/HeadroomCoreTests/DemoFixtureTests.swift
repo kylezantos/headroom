@@ -107,6 +107,8 @@ struct DemoFixtureTests {
         // Default-login U11: the engine holds only each provider's live default; the two
         // remembered rows per provider come from the record store.
         #expect(DemoFixture.multiFixture(for: .remembered).accounts.count == 2)
+        // U10: each provider's built-in and "Account 2"; the built-in is merged away.
+        #expect(DemoFixture.multiFixture(for: .merged).accounts.count == 4)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)
@@ -346,10 +348,42 @@ struct DemoFixtureTests {
         #expect(store.displayAccounts(for: .claude).first?.key == AccountKey(providerID: .claude, accountID: .primary))
     }
 
+    /// U10: `--demo merged` is mock scenario B, step 2 (AE4), for Claude and Codex alike:
+    /// "Account 2" shows once and live with the gmail account's reading, and "Esper Labs" is
+    /// dimmed with the work account's. The built-in is still an engine row, hidden by the
+    /// merge, and every main-account surface follows "Account 2".
+    @MainActor
+    @Test func mergedScenarioBuildsTheExpectedDisplayList() async throws {
+        let (store, _) = demoStore(.merged)
+        await store.refreshAll()
+
+        #expect(store.providerOrder == [.claude, .codex])
+        for providerID in [ProviderID.claude, .codex] {
+            let extra = AccountKey(providerID: providerID, accountID: AccountID("\(providerID.raw)-account-2"))
+            let rows = store.displayAccounts(for: providerID)
+            #expect(rows.map(\.label) == ["Account 2", "Esper Labs"], "\(providerID)")
+            #expect(rows.map(\.kind) == [.engine, .remembered], "\(providerID)")
+            #expect(rows[0].key == extra)
+            #expect(store.accounts(for: providerID).map(\.label) == ["Main", "Account 2"], "\(providerID)")
+            #expect(store.displayProjection(for: providerID).mergeMap
+                == [AccountKey(providerID: providerID, accountID: .primary): extra])
+            #expect(store.displayPrimaryKey(for: providerID) == extra)
+
+            let live = store.snapshot(for: extra)
+            #expect(live.freshness == .live)
+            #expect(live.windows.map { UsagePercentageMode.remaining.roundedPercentage(for: $0) } == [96, 69])
+
+            let esper = store.snapshot(for: rows[1].key)
+            #expect(esper.windows.allSatisfy { $0.freshness.observedAt != nil }, "\(providerID) Esper Labs is dimmed")
+            #expect(esper.windows.map { UsagePercentageMode.remaining.roundedPercentage(for: $0) } == [22, 10])
+            #expect(esper.planLabel == "Team")
+        }
+    }
+
     /// R15: no other scenario carries a record, so each display list is its engine list.
     @MainActor
     @Test func otherScenariosShowNoRememberedRows() async {
-        for scenario in DemoFixture.MultiAccountScenario.allCases where scenario != .remembered {
+        for scenario in DemoFixture.MultiAccountScenario.allCases where scenario != .remembered && scenario != .merged {
             #expect(DemoFixture.multiFixture(for: scenario).defaultLoginRecords == nil, "\(scenario)")
             // multi-20 simulates 4s probes; its display list is fixed before any refresh.
             let (store, _) = demoStore(scenario)

@@ -214,6 +214,11 @@ public final class UsageStore {
     /// popover opens and when the rows change, so no view body ages it. Keyed by the
     /// row's local id, which never collides with an engine key.
     var rememberedDisplaySnapshots: [AccountKey: UsageSnapshot] = [:]
+    /// Default-login plan U10 (KTD11): per provider, the built-in key hidden by the
+    /// one-row merge to the extra that shows it. Recomputed in the same turn as any gate
+    /// change (`refreshDisplayMerge`) and reassigned only when it changes, so no view body
+    /// rebuilds it. Empty for a setup with no merge.
+    var displayMergeMaps: [ProviderID: [AccountKey: AccountKey]] = [:]
     /// U7: above zero while a caller that exports the phone capture itself (a merge, a
     /// detach, a reset) is changing the records, so a remembered-row change inside it
     /// does not export a second time.
@@ -360,6 +365,9 @@ public final class UsageStore {
         // KTD8: heartbeats and forced republishes capture fresh state on the main actor.
         phoneSyncExporter?.bind { [weak self] in self?.companionCapture() }
         prepareDefaultLogin(cached: cachedSnapshots)
+        // U10: a relaunch while merged comes back merged before the first frame, from the
+        // restored records and readings; the launch refresh exports, so this does not.
+        for id in registeredProviderOrder { refreshDisplayMerge(for: id, exports: false) }
     }
 
     private static func restoredSnapshot(
@@ -852,9 +860,11 @@ public final class UsageStore {
     public func refreshReceiptTitle(for key: AccountKey) -> String {
         // KTD8: titled the way the popover titles its rows, remembered rows included.
         let accounts = displayAccounts(for: key.providerID).map(\.account)
+        // U10: a merged built-in's probe lands under the row that shows it.
+        let shown = displayMergeMaps[key.providerID]?[key] ?? key
         return RefreshReceiptPresentation.title(
             providerName: displayNames[key.providerID] ?? key.providerID.raw,
-            accountTitle: accounts.first(where: { $0.key == key }).map { desktopAccountName(for: $0) },
+            accountTitle: accounts.first(where: { $0.key == shown }).map { desktopAccountName(for: $0) },
             providerAccountCount: accounts.count)
     }
 
@@ -1147,13 +1157,19 @@ public final class UsageStore {
             at: now()
         )
         recordSignOutEdge(next, for: key)
-        if next.freshness == .live {
-            bankedResetAcknowledgements?.lower(for: key, currentCount: next.bankedResets)
-            evaluateNotifications(next, for: key)
-        }
         // Skip the assignment when nothing changed so an unchanging state (e.g. a
         // provider that stays logged-out) doesn't invalidate observers every cycle.
         if snapshots[key] != next { snapshots[key] = next }
+        // U10: this reading may bind, rebind or lapse a row, or make E readable or not, so
+        // the one-row merge is settled before anything below asks whether the row shows.
+        // The caller exports (`schedulerMerge`, or a full refresh at its end).
+        refreshDisplayMerge(for: key.providerID, exports: false)
+        // KTD11: a merged built-in's reading is E's account, so E alone reminds and
+        // acknowledges banked resets; the pair fires one reminder, not two.
+        if next.freshness == .live, !isMergedAway(key) {
+            bankedResetAcknowledgements?.lower(for: key, currentCount: next.bankedResets)
+            evaluateNotifications(next, for: key)
+        }
         updateContinuityCache(next, for: key)
         if notifiesSetup { setupCoordinator?.receive(next, for: key) }
         return true
@@ -1270,7 +1286,7 @@ public final class UsageStore {
         guard acceptsResult(for: key, attachmentGeneration: attachmentGenerations[key, default: 0]) else {
             return false
         }
-        guard snapshot(for: key).freshness == .live else { return false }
+        guard snapshot(for: key).freshness == .live, !isMergedAway(key) else { return false }
         return bankedResetAcknowledgements?.claimReveal(for: key, currentCount: currentCount) ?? false
     }
 
@@ -1537,15 +1553,20 @@ extension UsageStore: AccountProbeSchedulerHost {
 
     func schedulerMerge(key: AccountKey, result: UsageProviderFetchResult, attachmentGeneration: UInt64) -> Bool {
         let notifiesSetup = result.capability == nil || result.capability == .available
+        let primaryBefore = primaryKey(for: key.providerID)
         let accepted = mergeResult(
             key: key, result: result, notifiesSetup: notifiesSetup, attachmentGeneration: attachmentGeneration
         )
         // KTD9 / R19: Mac widgets mirror the primary, so its merge exports at once instead
         // of waiting for every extra in the lane. iPhone parity KTD8 amends AE7: an extra's
         // merge now marks the phone path dirty too, but never reloads Mac WidgetKit
-        // timelines. A full refresh exports once at its end instead.
+        // timelines. A full refresh exports once at its end instead. U10: a reading that
+        // merges or unmerges the main account moves the display primary, so it reloads the
+        // widget once too.
         if accepted, fullRefreshDepth == 0 {
-            if primaryKey(for: key.providerID) == key { exportWidgetSnapshot() }
+            if primaryKey(for: key.providerID) == key || primaryKey(for: key.providerID) != primaryBefore {
+                exportWidgetSnapshot()
+            }
             exportPhoneSyncSnapshot()
         }
         return accepted

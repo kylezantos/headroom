@@ -28,8 +28,74 @@ extension UsageStore {
         DisplayAccountsResolver.resolve(
             providerID: providerID,
             engine: accounts(for: providerID),
-            remembered: rememberedAccountRows[providerID] ?? []
+            remembered: rememberedAccountRows[providerID] ?? [],
+            mergeMap: displayMergeMaps[providerID] ?? [:]
         )
+    }
+
+    // MARK: One account, one row (default-login plan U10, KTD11)
+
+    /// True for an engine row the one-row merge hides: a built-in whose account an extra
+    /// row reads. It is still probed; it never reminds and never shows (KTD11).
+    func isMergedAway(_ key: AccountKey) -> Bool {
+        displayMergeMaps[key.providerID]?[key] != nil
+    }
+
+    /// Settles the one-row merge for a provider from its current gates. Called in the same
+    /// turn as every gate change: a merged reading, a setup state, a removal, a reset, a
+    /// detach or a resume. Returns whether the map changed. With `exports`, a change
+    /// reaches the widgets and the phone once each; callers that export anyway pass false.
+    @discardableResult
+    func refreshDisplayMerge(for providerID: ProviderID, exports: Bool) -> Bool {
+        let map = computeDisplayMerge(for: providerID)
+        guard map != (displayMergeMaps[providerID] ?? [:]) else { return false }
+        if map.isEmpty {
+            displayMergeMaps.removeValue(forKey: providerID)
+        } else {
+            displayMergeMaps[providerID] = map
+        }
+        if exports {
+            exportWidgetSnapshot()
+            exportPhoneSyncSnapshot()
+        }
+        return true
+    }
+
+    /// The gate inputs, read only once the built-in holds a strong Known identity: for a
+    /// setup with no merge that is one slot lookup per provider (R15).
+    private func computeDisplayMerge(for providerID: ProviderID) -> [AccountKey: AccountKey] {
+        guard let state = defaultLoginState else { return [:] }
+        let engine = accounts(for: providerID)
+        guard let builtIn = engine.first(where: \.isBuiltIn),
+              let identity = knownIdentity(state.slot(for: builtIn.key)),
+              identity.strength == .strong
+        else { return [:] }
+        return DisplayMergePlanner.mergeMap(engine.map { account in
+            DisplayMergeInput(
+                key: account.key,
+                isBuiltIn: account.isBuiltIn,
+                identity: account.key == builtIn.key ? identity : knownIdentity(state.slot(for: account.key)),
+                freshness: snapshots[account.key]?.freshness,
+                isInSetup: isInSetupForDisplayMerge(account.key)
+            )
+        })
+    }
+
+    /// A slot's identity is Known while readings name its bound account (phase attached).
+    private func knownIdentity(_ slot: SlotRecord?) -> AccountIdentity? {
+        guard let slot, slot.phase == .attached else { return nil }
+        return slot.binding
+    }
+
+    private func isInSetupForDisplayMerge(_ key: AccountKey) -> Bool {
+        removingAccounts.contains(key) || setupCoordinator?.state(for: key).holdsDisplayMerge == true
+    }
+
+    /// KTD11: a setup state began or ended on some row; the merge follows in the same turn.
+    func setupStatesDidChange(_ providerIDs: Set<ProviderID>) {
+        for id in registeredProviderOrder where providerIDs.contains(id) {
+            refreshDisplayMerge(for: id, exports: true)
+        }
     }
 
     public func displayAccounts(for providerID: ProviderID) -> [DisplayAccount] {
@@ -43,7 +109,13 @@ extension UsageStore {
     }
 
     public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator?) {
+        if setupCoordinator !== coordinator { setupCoordinator?.onStatesChange = nil }
         setupCoordinator = coordinator
+        // U10: setup states are a merge gate (KTD11), so the store hears every change.
+        coordinator?.onStatesChange = { [weak self] providerIDs in
+            self?.setupStatesDidChange(providerIDs)
+        }
+        setupStatesDidChange(Set(registeredProviderOrder))
     }
 
     /// An isolated demo/capture owner releases its sources before awaiting scheduler teardown.
@@ -66,6 +138,8 @@ extension UsageStore {
         snapshots[key] = .pending(for: key.providerID)
         continuityCache?.remove(for: key)
         deferringRememberedRowExport { defaultLoginDidClear(key) }
+        // U10: the reset clears the row's binding, so a merged built-in shows again here.
+        refreshDisplayMerge(for: key.providerID, exports: false)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }
@@ -192,10 +266,14 @@ extension UsageStore {
         if let blocked = await setupHandoffBlock(for: account) { return blocked }
         removingAccounts.insert(key)
         accountRemovalStates[key] = .removing
+        // U10 (KTD11): a row being removed holds no merge, so a built-in merged into it
+        // shows, with its own reading, before the row goes; no frame shows neither.
+        refreshDisplayMerge(for: key.providerID, exports: true)
         setupCoordinator?.markRemoving(key)
         let removal = await accountStorage.removeDirectories(for: account)
         guard case .success = removal else {
             removingAccounts.remove(key)
+            refreshDisplayMerge(for: key.providerID, exports: true)
             if case .failure(.setupActive) = removal {
                 accountRemovalStates[key] = .setupActive
                 setupCoordinator?.markRemovalFailed(key)
@@ -246,6 +324,7 @@ extension UsageStore {
         else { return nil }
         attachBuiltInProvider(account)
         accountsByProvider[providerID] = accountRegistry.accounts(for: providerID, capacity: accountCapacity(for: providerID))
+        refreshDisplayMerge(for: providerID, exports: false)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
         return account
@@ -278,6 +357,8 @@ extension UsageStore {
         removingAccounts.remove(key)
         accountRemovalStates.removeValue(forKey: key)
         setupCoordinator?.markRemoved(key)
+        // U10: the detached row leaves the merge in the same turn; the exports follow.
+        refreshDisplayMerge(for: key.providerID, exports: false)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }

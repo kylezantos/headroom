@@ -441,6 +441,13 @@ extension DemoFixture {
         /// so it shows none. The remembered rows come from an in-memory record store seeded
         /// by `defaultLoginRecords`; nothing is read from a CLI file or the user's defaults.
         case remembered
+        /// Default-login plan U10 (mock scenario B, step 2; AE4): the default login moved
+        /// to the account "Account 2" already reads with its own sign-in, so Claude and Codex
+        /// each show "Account 2" once, live, and "Esper Labs" dimmed with the work account's
+        /// last reading. The built-in row is still read but hidden. The bindings come from an
+        /// in-memory record store seeded by `defaultLoginRecords`; Claude's is posed from
+        /// fixture data only, since Claude identity waits on gate V1.
+        case merged
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
@@ -456,8 +463,8 @@ extension DemoFixture {
         /// failures intentionally withhold account snapshots, exactly like production.
         public let continuitySnapshots: [AccountKey: UsageSnapshot]
         /// Default-login plan U11: the encoded record envelope the scenario starts from.
-        /// Nil for every scenario but `remembered`, which leaves each display list equal to
-        /// its engine list (R15).
+        /// Nil for every scenario but `remembered` and `merged`, which leaves each other
+        /// display list equal to its engine list (R15).
         public let defaultLoginRecords: Data?
 
         /// The inert record store every demo, render and bench host composes with: a fresh
@@ -724,6 +731,18 @@ extension DemoFixture {
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 4, weekly: 31, builtIn: true),
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 4, weekly: 31, builtIn: true),
             ]
+        case .merged:
+            // Mock scenario B, step 2: gmail is 96% and 69% left, the same on the built-in
+            // and on Account 2, since both read it.
+            for providerID in [ProviderID.claude, .codex] {
+                let prefix = providerID.raw
+                pairs += [
+                    demoAccount(provider: providerID, id: "\(prefix)-main", label: "Main", plan: "Max",
+                                fiveHour: 4, weekly: 31, email: "m.example@gmail.example", builtIn: true),
+                    demoAccount(provider: providerID, id: "\(prefix)-account-2", label: "Account 2", plan: "Max",
+                                fiveHour: 4, weekly: 31, email: "m.example@gmail.example"),
+                ]
+            }
         case .windowUnavailable:
             pairs = [
                 builtInProviderPair(provider: .claude, snapshot: claudePartialCaptureSnapshot, label: "Personal"),
@@ -832,12 +851,67 @@ extension DemoFixture {
         } else {
             [:]
         }
+        let records: Data? = switch scenario {
+        case .remembered: rememberedRecords(at: Date())
+        case .merged: mergedRecords(at: Date())
+        default: nil
+        }
         return MultiAccountFixture(
             accounts: pairs.map(\.account),
             providers: pairs.map(\.provider),
             continuitySnapshots: continuitySnapshots,
-            defaultLoginRecords: scenario == .remembered ? rememberedRecords(at: Date()) : nil
+            defaultLoginRecords: records
         )
+    }
+
+    /// U10: the `merged` scenario's record envelope. Each provider's built-in slot and its
+    /// "Account 2" slot are bound to one strong identity, the gmail account, so the one-row
+    /// merge shows "Account 2" alone; "Esper Labs" is the remembered work account, read two
+    /// minutes ago (AE4). Fixture readings carry no identity, so no read changes the records.
+    /// Placeholder digests only; Claude's is posed, never read from a CLI file (gate V1).
+    static func mergedRecords(at now: Date) -> Data? {
+        var state = DefaultLoginRecordsState()
+        for providerID in [ProviderID.claude, .codex] {
+            let prefix = providerID.raw
+            let gmail = AccountIdentity(
+                providerID: providerID, strength: .strong,
+                digest: "demo-\(prefix)-gmail", digestVersion: AccountIdentity.currentDigestVersion
+            )
+            for accountID in [AccountID.primary, AccountID("\(prefix)-account-2")] {
+                var slot = SlotRecord(key: AccountKey(providerID: providerID, accountID: accountID))
+                slot.binding = gmail
+                // The demo has no continuity record, and this build did not remove one by
+                // accident: nothing to repair at launch (KTD6).
+                slot.continuityRemoved = true
+                state.slots.append(slot)
+            }
+            let readAt = now.addingTimeInterval(-120)
+            var esper = RememberedAccount(
+                id: AccountID("merged-\(prefix)-esper"),
+                providerID: providerID,
+                identity: AccountIdentity(
+                    providerID: providerID, strength: .strong,
+                    digest: "demo-\(prefix)-work", digestVersion: AccountIdentity.currentDigestVersion
+                ),
+                label: "Esper Labs",
+                email: "m.example@work.example",
+                lastReadAt: readAt
+            )
+            // Mock scenario B: 22% and 10% left, resets in 1h 08m and 2d 4h.
+            esper.snapshot = StoredSnapshot(key: esper.key, snapshot: UsageSnapshot(
+                providerID: providerID,
+                windows: [
+                    UsageWindow(kind: .fiveHour, utilization: 78, resetsAt: now.addingTimeInterval(68 * 60 + 30)),
+                    UsageWindow(kind: .weekly, utilization: 90, resetsAt: now.addingTimeInterval(2 * 86_400 + 4 * 3_600 + 30 * 60)),
+                ],
+                planLabel: "Team",
+                accountEmail: "m.example@work.example",
+                capturedAt: readAt,
+                freshness: .live
+            ))
+            state.remembered.append(esper)
+        }
+        return DefaultLoginRecordsCodec.encode(state)
     }
 
     /// U11: the `remembered` scenario's record envelope, relative to `now` like every other

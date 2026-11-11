@@ -641,9 +641,10 @@ struct PopoverView: View {
         // retained row keeps its own *source* observation anchor across stale and unavailable
         // transitions — the honest answer to "when was this last checked" (R2M5).
         // Engine rows only (U7): a remembered row's last reading is not a check this Mac
-        // made, so it never moves the header's "Updated" stamp.
+        // made, so it never moves the header's "Updated" stamp. U10: nor does a built-in the
+        // one-row merge hides; the row that shows it carries the stamp.
         let anchors = FreshnessStamp.Anchors(snapshots: store.providerOrder.lazy.flatMap { id in
-            store.accounts(for: id).map { store.snapshot(for: $0.key) }
+            store.displayAccounts(for: id).filter { $0.kind == .engine }.map { store.snapshot(for: $0.key) }
         })
         return PopoverHeaderStatusResolver.Input(
             setupText: setupText,

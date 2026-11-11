@@ -43,7 +43,7 @@ public struct DisplayAccountsProjection: Equatable, Sendable {
     /// the main account (R12). Nil only when the provider has no engine row.
     public let primaryKey: AccountKey?
     /// KTD11: a merged engine key (hidden from `rows`) to the display row that shows its
-    /// reading. Empty until the one-row merge (U10) lands.
+    /// reading. Decided by `DisplayMergePlanner`; empty for a setup with no merge.
     public let mergeMap: [AccountKey: AccountKey]
 
     public var accounts: [ProviderAccount] { rows.map(\.account) }
@@ -97,5 +97,84 @@ public enum DisplayAccountsResolver {
             primaryKey: primaryKey,
             mergeMap: mergeMap
         )
+    }
+}
+
+// MARK: - One account, one row (default-login plan U10, KTD11)
+
+/// What the one-row merge reads about one engine row of a provider.
+public struct DisplayMergeInput: Equatable, Sendable {
+    public let key: AccountKey
+    public let isBuiltIn: Bool
+    /// The account the row's slot is bound to while its readings name it. Nil while the
+    /// row has no binding, its login lapsed, or its identity is unreadable for now (R4):
+    /// none of those is a Known identity.
+    public let identity: AccountIdentity?
+    /// The row's latest snapshot; nil when it has none.
+    public let freshness: Freshness?
+    /// A setup or recovery is in progress on the row (`SetupSessionState.holdsDisplayMerge`,
+    /// or a removal under way).
+    public let isInSetup: Bool
+
+    public init(
+        key: AccountKey,
+        isBuiltIn: Bool,
+        identity: AccountIdentity?,
+        freshness: Freshness?,
+        isInSetup: Bool
+    ) {
+        self.key = key
+        self.isBuiltIn = isBuiltIn
+        self.identity = identity
+        self.freshness = freshness
+        self.isInSetup = isInSetup
+    }
+}
+
+/// KTD11's pure decision: whether the built-in row (the default login) shows through an
+/// extra row that reads the same account. Display-only; both rows keep being read.
+public enum DisplayMergePlanner {
+    /// The built-in merges into extra E only when:
+    /// - both identities are Known and equal, and the identity is strong (Codex today;
+    ///   Grok, Cursor and Copilot are weak and never merge, Claude reports none, KTD13);
+    /// - exactly one extra matches (R14);
+    /// - E's latest snapshot is live or transient-stale;
+    /// - neither row is in a setup state.
+    /// Any other case returns an empty map and both rows show, as before (R15).
+    public static func mergeMap(_ rows: [DisplayMergeInput]) -> [AccountKey: AccountKey] {
+        guard let builtIn = rows.first(where: \.isBuiltIn),
+              let identity = builtIn.identity, identity.strength == .strong,
+              !builtIn.isInSetup
+        else { return [:] }
+        let matches = rows.filter { !$0.isBuiltIn && $0.identity == identity }
+        guard matches.count == 1, let extra = matches.first, !extra.isInSetup,
+              isReadable(extra.freshness)
+        else { return [:] }
+        return [builtIn.key: extra.key]
+    }
+
+    /// Live, or a transient failure that keeps the row's numbers. A permanent failure (a
+    /// lapsed login, a setup the user must finish) or no reading yet is not readable.
+    static func isReadable(_ freshness: Freshness?) -> Bool {
+        switch freshness {
+        case .live: true
+        case .stale(let reason): !reason.isPermanent
+        case .pending, nil: false
+        }
+    }
+}
+
+extension SetupSessionState {
+    /// KTD11: the states during which a row is being set up or recovered, so the one-row
+    /// merge stands aside and both rows show. Settled states (`idle`, `failed`,
+    /// `cancelled`, `removalFailed`, `removed`) do not hold it.
+    public var holdsDisplayMerge: Bool {
+        switch self {
+        case .preparing, .waiting, .verifying, .blockedByOpenHandoff, .blockedByProviderLogin,
+             .connected, .removing:
+            true
+        case .idle, .failed, .cancelled, .removalFailed, .removed:
+            false
+        }
     }
 }

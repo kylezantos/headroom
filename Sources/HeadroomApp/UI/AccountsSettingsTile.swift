@@ -258,6 +258,7 @@ struct AccountsSettingsTile: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
+                mergedBuiltInMenu(for: providerID)
                 if presentation.showsAddAction {
                     // L11A: an off group dims as one unit, Add included. Both the enabled
                     // and disabled reasons come from `ProviderGroupPresentation` so the
@@ -354,6 +355,35 @@ struct AccountsSettingsTile: View {
         }
         .onChange(of: capabilityState) {
             SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
+        }
+    }
+
+    /// Default-login U10 (KTD11): while the default login shows through the extra row that
+    /// reads the same account, the list draws that one row with its own actions, and the
+    /// built-in's "Sign Out & Set Up Again" and stop-tracking live here. Nothing is drawn
+    /// for a provider with no merge, so its header is unchanged (R15). No row is marked as
+    /// the default login (R16).
+    @ViewBuilder private func mergedBuiltInMenu(for providerID: ProviderID) -> some View {
+        let actions = AccountsSettingsInteractions.mergedBuiltInActions(for: providerID, in: store)
+        if actions != .unavailable,
+           let builtIn = AccountsSettingsInteractions.mergedBuiltIn(for: providerID, in: store) {
+            Menu {
+                Section("CLI login") {
+                    Button("Sign Out & Set Up Again") { requestReset(builtIn) }
+                    if actions == .resetAndStopTracking {
+                        Button("Stop Tracking") {
+                            removalOrigin = builtIn.key
+                            removalCandidate = DisplayAccount(account: builtIn, kind: .engine)
+                        }
+                    }
+                }
+            } label: {
+                AccountActionsMenuGlyph()
+            }
+            .accountActionsMenuChrome()
+            .help("CLI login actions")
+            .accessibilityLabel("Actions for the \(store.displayNames[providerID] ?? providerID.raw) CLI login")
+            .focused($focusedRemovalAction, equals: builtIn.key)
         }
     }
 

@@ -429,6 +429,23 @@ enum AccountsSettingsInteractions {
             : .resetOnly
     }
 
+    // MARK: One account, one row (default-login plan U10)
+
+    /// KTD11: the built-in row the one-row merge hides, if any. Its row shows through the
+    /// extra that reads the same account, so its own actions move to the provider header.
+    static func mergedBuiltIn(for providerID: ProviderID, in store: UsageStore) -> ProviderAccount? {
+        let merged = store.displayProjection(for: providerID).mergeMap.keys
+        guard !merged.isEmpty else { return nil }
+        return store.accounts(for: providerID).first { $0.isBuiltIn && merged.contains($0.key) }
+    }
+
+    /// U10: what the provider header offers for a merged built-in. `.unavailable` when
+    /// nothing is merged, so a setup with no merge draws the header as before (R15).
+    static func mergedBuiltInActions(for providerID: ProviderID, in store: UsageStore) -> BuiltInRowActions {
+        guard let builtIn = mergedBuiltIn(for: providerID, in: store) else { return .unavailable }
+        return builtInRowActions(for: builtIn, in: store)
+    }
+
     @discardableResult
     static func resetBuiltIn(
         _ account: ProviderAccount,

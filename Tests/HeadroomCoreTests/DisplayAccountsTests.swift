@@ -274,6 +274,321 @@ struct DisplayAccountsTests {
         #expect(rig.store.snapshot(for: work).freshness != .pending)
     }
 
+    // MARK: One account, one row: pure planner (U10, KTD11)
+
+    private func input(
+        _ id: AccountID, builtIn: Bool = false, identity: AccountIdentity?,
+        freshness: Freshness? = .live, setup: Bool = false
+    ) -> DisplayMergeInput {
+        DisplayMergeInput(
+            key: AccountKey(providerID: identity?.providerID ?? .codex, accountID: id),
+            isBuiltIn: builtIn, identity: identity, freshness: freshness, isInSetup: setup
+        )
+    }
+
+    private var gmail: AccountIdentity { DefaultLoginRig.identity("gmail") }
+
+    @Test func theBuiltInMergesIntoTheOneExtraWithItsStrongIdentity() {
+        let rows = [input(.primary, builtIn: true, identity: gmail), input(AccountID("e"), identity: gmail)]
+        #expect(DisplayMergePlanner.mergeMap(rows) == [rows[0].key: rows[1].key])
+    }
+
+    @Test func twoMatchingExtrasDoNotMerge() {
+        let rows = [
+            input(.primary, builtIn: true, identity: gmail),
+            input(AccountID("e"), identity: gmail),
+            input(AccountID("f"), identity: gmail),
+        ]
+        #expect(DisplayMergePlanner.mergeMap(rows).isEmpty)
+    }
+
+    @Test func anExtraThatIsNotReadableDoesNotMerge() {
+        let builtIn = input(.primary, builtIn: true, identity: gmail)
+        for freshness: Freshness? in [.stale(.providerSetup(.codexAuthAbsent)), .pending, nil] {
+            let rows = [builtIn, input(AccountID("e"), identity: gmail, freshness: freshness)]
+            #expect(DisplayMergePlanner.mergeMap(rows).isEmpty, "\(String(describing: freshness))")
+        }
+        // A transient failure keeps the row's numbers, so the merge holds through it.
+        let blip = [builtIn, input(AccountID("e"), identity: gmail, freshness: .stale(.transient("blip")))]
+        #expect(DisplayMergePlanner.mergeMap(blip).count == 1)
+    }
+
+    @Test func aSetupOnEitherRowHoldsTheMerge() {
+        let onExtra = [input(.primary, builtIn: true, identity: gmail), input(AccountID("e"), identity: gmail, setup: true)]
+        let onBuiltIn = [input(.primary, builtIn: true, identity: gmail, setup: true), input(AccountID("e"), identity: gmail)]
+        #expect(DisplayMergePlanner.mergeMap(onExtra).isEmpty)
+        #expect(DisplayMergePlanner.mergeMap(onBuiltIn).isEmpty)
+    }
+
+    @Test func aWeakOrUnknownIdentityNeverMerges() {
+        let grok = AccountIdentity.grok(email: "one@example.com")!
+        #expect(DisplayMergePlanner.mergeMap([
+            input(.primary, builtIn: true, identity: grok), input(AccountID("e"), identity: grok),
+        ]).isEmpty)
+        #expect(DisplayMergePlanner.mergeMap([
+            input(.primary, builtIn: true, identity: nil), input(AccountID("e"), identity: nil),
+        ]).isEmpty)
+        // A different account on the extra is not a match.
+        #expect(DisplayMergePlanner.mergeMap([
+            input(.primary, builtIn: true, identity: gmail), input(AccountID("e"), identity: DefaultLoginRig.identity("work")),
+        ]).isEmpty)
+    }
+
+    @Test func theSetupStatesThatHoldTheMergeAreKTD11s() {
+        let held: [SetupSessionState] = [
+            .preparing, .waiting(attempt: 1), .verifying, .blockedByOpenHandoff,
+            .blockedByProviderLogin(providerID: .codex, active: AccountKey(providerID: .codex, accountID: .primary)),
+            .connected, .removing,
+        ]
+        let settled: [SetupSessionState] = [.idle, .failed(.stagingFailed), .cancelled, .removalFailed, .removed]
+        #expect(held.allSatisfy { $0.holdsDisplayMerge })
+        #expect(!settled.contains { $0.holdsDisplayMerge })
+    }
+
+    // MARK: One account, one row: store (U10)
+
+    private var extraKey: AccountKey { AccountKey(providerID: .codex, accountID: AccountID("account 2")) }
+
+    /// Mock scenario B, steps 1 and 2 (AE4): the built-in "Esper Labs" reads the work
+    /// account, "Account 2" has its own sign-in to gmail, then the default login moves to
+    /// gmail. The built-in's gmail reading is 32% used and E's 31%, so a test can tell
+    /// whose reading a surface shows.
+    private func mergedRig(countsPhoneExports: Bool = false) async -> DefaultLoginRig {
+        let rig = DefaultLoginRig(extraLabels: ["Account 2"], countsPhoneExports: countsPhoneExports)
+        rig.extras[0].set(rig.reading("gmail", weeklyUsed: 31))
+        await rig.read(rig.reading("work", weeklyUsed: 90))
+        rig.store.renameAccount(rig.key, to: "Esper Labs")
+        rig.advance(120)
+        await rig.read(rig.reading("gmail", weeklyUsed: 32))
+        return rig
+    }
+
+    /// Covers AE4.
+    @Test func theDefaultLoginAndAMatchingExtraShowAsOneRow() async {
+        let rig = await mergedRig()
+        let rows = rig.store.displayAccounts(for: .codex)
+        #expect(rows.map(\.label) == ["Account 2", "Esper Labs"])
+        #expect(rows.map(\.kind) == [.engine, .remembered])
+        #expect(rows[0].key == extraKey)
+        #expect(rig.store.snapshot(for: rows[0].key).freshness == .live)
+        #expect(rig.store.snapshot(for: rows[0].key).windows.last?.utilization == 31)
+        // Esper Labs holds the work account's last reading, dimmed.
+        #expect(rig.store.snapshot(for: rows[1].key).windows.last?.utilization == 90)
+        #expect(rig.store.snapshot(for: rows[1].key).freshness != .live)
+        // Display-only: the built-in is still an engine row and is still read (KTD11).
+        #expect(rig.store.accounts(for: .codex).map(\.key) == [rig.key, extraKey])
+        #expect(rig.store.schedulerIsEligible(rig.key))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+    }
+
+    @Test func aPermanentlyStaleExtraShowsBothRows() async {
+        let rig = await mergedRig()
+        rig.extras[0].set(rig.signedOut)
+        await rig.read(rig.reading("gmail", weeklyUsed: 32))
+        #expect(rig.store.displayAccounts(for: .codex).map(\.key).prefix(2) == [rig.key, extraKey])
+        #expect(rig.store.displayProjection(for: .codex).mergeMap.isEmpty)
+        // A transient failure on E keeps the merge, since E keeps its numbers.
+        rig.extras[0].set(rig.reading("gmail", weeklyUsed: 31))
+        await rig.read(rig.reading("gmail", weeklyUsed: 32))
+        rig.extras[0].set(rig.blip)
+        await rig.read(rig.reading("gmail", weeklyUsed: 32))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+    }
+
+    @Test func aSetupOnEitherRowShowsBothRowsAndItsEndMergesWithOneExport() async throws {
+        let rig = await mergedRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        let setup = SuspendedSetup()
+        rig.store.attachSetupCoordinator(setup.coordinator)
+        #expect(rig.store.displayAccounts(for: .codex).count == 2)
+
+        for key in [extraKey, rig.key] {
+            let account = try #require(rig.store.accounts(for: .codex).first { $0.key == key })
+            setup.coordinator.begin(for: account)
+            #expect(setup.coordinator.state(for: key) == .preparing)
+            #expect(rig.store.displayAccounts(for: .codex).map(\.key).prefix(2) == [rig.key, extraKey], "\(key)")
+
+            let (captures, widgets) = (phone.captures.count, rig.widgets.exports.count)
+            setup.coordinator.cancel(key)
+            #expect(rig.store.displayAccounts(for: .codex).map(\.key) .first == extraKey, "\(key)")
+            #expect(phone.captures.count == captures + 1, "\(key)")
+            #expect(rig.widgets.exports.count == widgets + 1, "\(key)")
+            setup.release()
+            await Task.yield()
+        }
+    }
+
+    @Test func removingTheExtraWhileMergedShowsTheBuiltInInTheSameTurn() async throws {
+        let rig = await mergedRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        let before = phone.captures.count
+        #expect(await rig.store.removeAccount(extraKey) == .removed)
+
+        let rows = rig.store.displayAccounts(for: .codex)
+        #expect(rows.map(\.key).first == rig.key)
+        #expect(rows.first?.kind == .engine)
+        #expect(rig.store.snapshot(for: rig.key).freshness == .live)
+        #expect(rig.store.snapshot(for: rig.key).windows.last?.utilization == 32)
+        // No capture during the removal lacked a Codex main account.
+        let during = phone.captures.dropFirst(before)
+        #expect(!during.isEmpty)
+        #expect(during.allSatisfy { capture in
+            capture.providers.first { $0.providerID == "codex" }?.mainAccount != nil
+        })
+        #expect(rig.store.snapshot(for: .codex).windows.last?.utilization == 32)
+    }
+
+    @Test func theDefaultLoginLeavingEsAccountUnmergesAndRemembersNothingForIt() async {
+        let rig = await mergedRig()
+        rig.advance(120)
+        await rig.read(rig.reading("c", weeklyUsed: 5))
+
+        let rows = rig.store.displayAccounts(for: .codex)
+        #expect(rows.map(\.key).prefix(2) == [rig.key, extraKey])
+        #expect(rows.map(\.label) == ["Main", "Account 2", "Esper Labs"])
+        #expect(rig.store.snapshot(for: rig.key).windows.last?.utilization == 5)
+        // gmail is still read by Account 2, so it gets no remembered row (KTD9).
+        #expect(!rig.rows.contains { $0.identity == DefaultLoginRig.identity("gmail") })
+        #expect(rig.store.rememberedAccounts(for: .codex).map(\.label) == ["Esper Labs"])
+    }
+
+    @Test func theDefaultLoginSigningOutWhileMergedShowsTheBuiltInsSignInState() async {
+        let rig = await mergedRig()
+        await rig.read(rig.signedOut)
+        let rows = rig.store.displayAccounts(for: .codex)
+        #expect(rows.map(\.key).prefix(2) == [rig.key, extraKey])
+        guard case .stale(let reason) = rig.store.snapshot(for: rig.key).freshness else {
+            Issue.record("the built-in should show its sign-in state")
+            return
+        }
+        #expect(reason.isPermanent)
+        #expect(rig.store.snapshot(for: extraKey).freshness == .live)
+        #expect(rig.store.snapshot(for: extraKey).windows.last?.utilization == 31)
+    }
+
+    @Test func aWeakIdentityNeverMergesInTheStore() async throws {
+        let suite = "headroom.display-merge.grok.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let builtIn = ScriptedAccountProvider(id: .grok)
+        let extra = ScriptedAccountProvider(id: .grok, accountID: AccountID("side"))
+        let identity = AccountIdentity.grok(email: "one@example.com")!
+        let start = DefaultLoginRig.start
+        for provider in [builtIn, extra] {
+            provider.set(UsageSnapshot(
+                providerID: .grok,
+                windows: [UsageWindow(kind: .weekly, utilization: 10, resetsAt: DefaultLoginRig.start.addingTimeInterval(86_400))],
+                planLabel: nil, accountEmail: "one@example.com", capturedAt: DefaultLoginRig.start, freshness: .live,
+                identity: .known(identity)
+            ))
+        }
+        let preferences = Preferences(defaults: defaults)
+        preferences.setSurfaceEnabled(true, for: UsageSurface.subscription(for: .grok)!)
+        let store = UsageStore(
+            providers: [builtIn, extra],
+            preferences: preferences,
+            accounts: [.builtIn(for: .grok), ProviderAccount(id: AccountID("side"), providerID: .grok, label: "Side")],
+            defaultLoginRecords: DefaultLoginRecordStore(defaults: defaults),
+            now: { start }
+        )
+        await store.refreshAll()
+        #expect(store.defaultLoginState?.slot(for: AccountKey(providerID: .grok, accountID: .primary))?.binding == identity)
+        #expect(store.displayAccounts(for: .grok).count == 2)
+        #expect(store.displayProjection(for: .grok).mergeMap.isEmpty)
+    }
+
+    @Test func whileMergedEveryMainSurfaceShowsTheExtra() async throws {
+        let rig = await mergedRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        #expect(rig.store.displayPrimaryKey(for: .codex) == extraKey)
+        #expect(rig.store.providerMenuBarMeter(for: .codex).sourceAccountKey == extraKey)
+        #expect(rig.store.snapshot(for: .codex).windows.last?.utilization == 31)
+        let widget = try #require(rig.widgets.exports.last?.providers.first { $0.id == "codex" })
+        #expect(widget.windows.last?.roundedPercentRemaining == 69)
+        let capture = try #require(phone.last)
+        #expect(capture.v3.providers.first { $0.id == "codex" }?.windows.last?.roundedPercentRemaining == 69)
+        #expect(capture.providers.first { $0.providerID == "codex" }?.mainAccount?.id == "account 2")
+
+        // E's own merge reloads the Mac widget, as the main account's merge does.
+        let widgets = rig.widgets.exports.count
+        await rig.store.refreshAccount(extraKey)
+        #expect(rig.widgets.exports.count == widgets + 1)
+        // The built-in's merge does not: it shows nowhere.
+        let afterExtra = rig.widgets.exports.count
+        await rig.store.refreshAccount(rig.key)
+        #expect(rig.widgets.exports.count == afterExtra)
+    }
+
+    @Test func theMergedRowCarriesTheMainBadgeAndIsNotOfferedMakeMain() async {
+        let rig = await mergedRig()
+        #expect(rig.store.displayPrimaryKey(for: .codex) == extraKey)
+        #expect(rig.store.canPromoteAccount(extraKey) == false)
+        #expect(rig.store.promoteAccount(extraKey) == false)
+        // Both engine rows keep the primary lane priority (U7).
+        #expect(rig.store.schedulerIsPrimary(rig.key))
+        #expect(rig.store.schedulerIsPrimary(extraKey))
+    }
+
+    @Test func aMergedPairFiresOneReminder() async {
+        let rig = await mergedRig()
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.poster.posted.count == 1)
+        // It names the row that shows, not the hidden built-in.
+        #expect(rig.poster.posted.contains { ($0.title + $0.body).contains("Account 2") })
+    }
+
+    @Test func aMergedBuiltInsProbeDoesNotSloshTheMenuBar() async {
+        let rig = await mergedRig()
+        rig.store.schedulerProbeDidStart(rig.key)
+        #expect(rig.store.menuBarUpdatingProviders.isEmpty)
+        rig.store.schedulerProbeDidEnd(rig.key)
+        rig.store.schedulerProbeDidStart(extraKey)
+        #expect(rig.store.menuBarUpdatingProviders == [.codex])
+        rig.store.schedulerProbeDidEnd(extraKey)
+    }
+
+    /// Covers AE5 and R15: two accounts kept separate on purpose never merge.
+    @Test func withNoIdentityMatchNothingMerges() async {
+        let rig = DefaultLoginRig(extraLabels: ["Work"])
+        rig.extras[0].set(rig.reading("work"))
+        await rig.read(rig.reading("personal"))
+        rig.advance(600)
+        await rig.read(rig.reading("personal"))
+        #expect(rig.store.displayMergeMaps.isEmpty)
+        #expect(rig.store.displayAccounts(for: .codex).map(\.account) == rig.store.accounts(for: .codex))
+        #expect(rig.store.displayPrimaryKey(for: .codex) == rig.key)
+    }
+
+    @Test func aRelaunchWhileMergedComesBackMergedWithNoExport() async throws {
+        let rig = await mergedRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        let (captures, widgets) = (phone.captures.count, rig.widgets.exports.count)
+        rig.launch()
+        #expect(rig.store.displayAccounts(for: .codex).map(\.label) == ["Account 2", "Esper Labs"])
+        #expect(rig.store.displayPrimaryKey(for: .codex) == extraKey)
+        #expect(phone.captures.count == captures)
+        #expect(rig.widgets.exports.count == widgets)
+    }
+
+    @Test func thePhoneCarriesOneAccountForTheMergedPairWithNoIdentity() async throws {
+        let rig = await mergedRig(countsPhoneExports: true)
+        let capture = try #require(rig.phone?.last)
+        let codex = try #require(capture.providers.first { $0.providerID == "codex" })
+        let main = try #require(codex.mainAccount)
+        #expect(main.id == "account 2")
+        #expect(main.title == "Account 2")
+        #expect(codex.extraAccounts.map(\.title) == ["Esper Labs"])
+        #expect(codex.extraAccounts.allSatisfy { $0.isRemembered })
+        let accounts = [main] + codex.extraAccounts
+        #expect(!accounts.contains { $0.id == AccountID.primary.raw })
+        let json = String(decoding: try JSONEncoder().encode(accounts), as: UTF8.self)
+        for account in ["gmail", "work"] {
+            #expect(!json.contains(DefaultLoginRig.identity(account).digest))
+        }
+    }
+
     @Test func aRelaunchAgesTheRememberedRowsBeforeAnyRead() async throws {
         let rig = DefaultLoginRig()
         await rig.read(rig.reading(a, weeklyUsed: 90))
@@ -284,5 +599,30 @@ struct DisplayAccountsTests {
         let work = try #require(rig.store.rememberedAccounts(for: .codex).first).key
         let fiveHour = try #require(rig.store.snapshot(for: work).windows.first { $0.kind == .fiveHour })
         #expect(fiveHour.freshness.isUnavailable)
+    }
+}
+
+/// A setup coordinator whose preparation waits until the test releases it, so a session
+/// sits in `.preparing` for as long as a test needs it to.
+@MainActor
+final class SuspendedSetup {
+    private var waiting: [CheckedContinuation<SetupPreparationResult, Never>] = []
+
+    private(set) lazy var coordinator = SetupSessionCoordinator(
+        prepare: { [weak self] _, _, _ in
+            await withCheckedContinuation { continuation in
+                guard let self else { return continuation.resume(returning: .failure(.stagingFailed)) }
+                self.waiting.append(continuation)
+            }
+        },
+        open: { _ in .success(()) },
+        accountExists: { _ in true },
+        requestRefresh: { _ in }
+    )
+
+    func release() {
+        let pending = waiting
+        waiting = []
+        for continuation in pending { continuation.resume(returning: .failure(.stagingFailed)) }
     }
 }

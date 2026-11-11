@@ -2281,3 +2281,127 @@ struct RememberedRowInteractionTests {
         #expect(row.kind.offersRetry == false)
     }
 }
+
+// MARK: - One account, one row (default-login plan U10)
+
+private final class MergedRowTestProvider: UsageProvider, @unchecked Sendable {
+    let id: ProviderID = .codex
+    let accountID: AccountID
+    let displayName = "Codex"
+    private let lock = NSLock()
+    private var snapshot: UsageSnapshot = .pending(for: .codex)
+
+    init(accountID: AccountID) { self.accountID = accountID }
+
+    func set(_ snapshot: UsageSnapshot) { lock.withLock { self.snapshot = snapshot } }
+    func fetchSnapshot() async -> UsageSnapshot { lock.withLock { snapshot } }
+}
+
+/// Mock scenario B: the Codex built-in "Esper Labs" reads the work account, "Account 2"
+/// has its own sign-in to gmail, and the default login then moves to gmail.
+@MainActor
+private struct MergedRowFixture {
+    static let work = "aaaaaaaa-0000-4000-8000-000000000001"
+    static let gmail = "bbbbbbbb-0000-4000-8000-000000000002"
+
+    let builtIn = MergedRowTestProvider(accountID: .primary)
+    let extra: MergedRowTestProvider
+    let extraAccount: ProviderAccount
+    let store: UsageStore
+
+    init() {
+        let suite = "headroom.merged-rows.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let registry = AccountRegistry(defaults: defaults)
+        let extraAccount = registry.addAccount(for: .codex, label: "Account 2")!
+        self.extraAccount = extraAccount
+        let extra = MergedRowTestProvider(accountID: extraAccount.id)
+        self.extra = extra
+        let builtIn = self.builtIn
+        store = UsageStore(
+            providers: [builtIn, extra],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: DemoAccountStorage(),
+            providerFactory: { account in account.isBuiltIn ? builtIn : extra },
+            defaultLoginRecords: DefaultLoginRecordStore(defaults: defaults)
+        )
+    }
+
+    static func reading(_ account: String, used: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: used, resetsAt: Date().addingTimeInterval(5 * 86_400))],
+            planLabel: "plus", accountEmail: "\(account)@example.com",
+            capturedAt: Date(), freshness: .live,
+            identity: .known(AccountIdentity.codex(accountID: account)!)
+        )
+    }
+
+    func merge() async {
+        extra.set(Self.reading(Self.gmail, used: 31))
+        builtIn.set(Self.reading(Self.work, used: 90))
+        await store.refreshAll()
+        store.renameAccount(AccountKey(providerID: .codex, accountID: .primary), to: "Esper Labs")
+        builtIn.set(Self.reading(Self.gmail, used: 31))
+        await store.refreshAll()
+    }
+}
+
+@MainActor
+@Suite(.serialized)
+struct MergedRowInteractionTests {
+    private let builtInKey = AccountKey(providerID: .codex, accountID: .primary)
+
+    /// U10: Settings lists the merged pair as one row, "Account 2", with its own actions:
+    /// it carries the Main badge and is not offered Make Main.
+    @Test func theMergedPairIsOneRowWithTheExtrasActions() async {
+        let fixture = MergedRowFixture()
+        await fixture.merge()
+        let rows = fixture.store.displayAccounts(for: .codex)
+        #expect(rows.map(\.label) == ["Account 2", "Esper Labs"])
+        let merged = rows[0]
+        #expect(merged.key == fixture.extraAccount.key)
+        #expect(merged.account.isBuiltIn == false)
+        #expect(AccountsSettingsInteractions.promotionState(for: merged, in: fixture.store) == .primary)
+        #expect(AccountsSettingsInteractions.makeMain(merged.account, in: fixture.store) == nil)
+        // The popover card draws the same rows.
+        #expect(PopoverView.accountEntries(for: .codex, in: fixture.store).map(\.account.key) == rows.map(\.key))
+    }
+
+    /// U10: the built-in's Sign Out & Set Up Again and stop-tracking stay reachable from the
+    /// provider header while its row is merged away, and starting the reset shows the row.
+    @Test func theProviderHeaderOffersTheMergedBuiltInsActions() async throws {
+        let fixture = MergedRowFixture()
+        #expect(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store) == nil)
+        #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .unavailable)
+
+        await fixture.merge()
+        let builtIn = try #require(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store))
+        #expect(builtIn.key == builtInKey)
+        #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .resetAndStopTracking)
+
+        var reset: ProviderAccount?
+        let started = AccountsSettingsInteractions.resetBuiltIn(builtIn, in: fixture.store, beginReset: { reset = $0 })
+        #expect(started)
+        #expect(reset?.key == builtInKey)
+
+        #expect(await AccountsSettingsInteractions.removeAccount(
+            DisplayAccount(account: builtIn, kind: .engine), from: fixture.store
+        ) == .removed)
+        #expect(fixture.store.isBuiltInTrackingStopped(for: .codex))
+        #expect(fixture.store.displayAccounts(for: .codex).map(\.label) == ["Account 2", "Esper Labs"])
+        #expect(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store) == nil)
+    }
+
+    /// Covers AE5: two accounts kept apart on purpose draw as before, with no header menu.
+    @Test func twoSeparateAccountsDrawAsBefore() async {
+        let fixture = MergedRowFixture()
+        fixture.extra.set(MergedRowFixture.reading(MergedRowFixture.gmail, used: 31))
+        fixture.builtIn.set(MergedRowFixture.reading(MergedRowFixture.work, used: 90))
+        await fixture.store.refreshAll()
+        #expect(fixture.store.displayAccounts(for: .codex).map(\.account) == fixture.store.accounts(for: .codex))
+        #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .unavailable)
+    }
+}

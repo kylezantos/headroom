@@ -523,6 +523,35 @@ struct PhoneExportTriggerTests {
         let second = CompanionLineage(defaults: defaults).nextGeneration()
         #expect(second == first + 1)
     }
+
+    /// Default-login U10: the one-row merge and its end each reach the widgets and the
+    /// phone once. Both come from the built-in's own reading outside a full refresh, which
+    /// moves the display primary: to "Account 2" on the merge, back to the built-in on the
+    /// unmerge.
+    @Test func theOneRowMergeAndItsEndExportOnceEach() async throws {
+        let rig = DefaultLoginRig(extraLabels: ["Account 2"], countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        let extra = AccountKey(providerID: .codex, accountID: AccountID("account 2"))
+        rig.extras[0].set(rig.reading("gmail"))
+        await rig.read(rig.reading("work"))
+        #expect(rig.store.displayPrimaryKey(for: .codex) == rig.key)
+
+        rig.advance(120)
+        rig.primary.set(rig.reading("gmail"))
+        var (captures, widgets) = (phone.captures.count, rig.widgets.exports.count)
+        await rig.store.refreshAccount(rig.key)
+        #expect(rig.store.displayPrimaryKey(for: .codex) == extra)
+        #expect(phone.captures.count == captures + 1)
+        #expect(rig.widgets.exports.count == widgets + 1)
+
+        rig.advance(120)
+        rig.primary.set(rig.reading("c"))
+        (captures, widgets) = (phone.captures.count, rig.widgets.exports.count)
+        await rig.store.refreshAccount(rig.key)
+        #expect(rig.store.displayPrimaryKey(for: .codex) == rig.key)
+        #expect(phone.captures.count == captures + 1)
+        #expect(rig.widgets.exports.count == widgets + 1)
+    }
 }
 
 @MainActor

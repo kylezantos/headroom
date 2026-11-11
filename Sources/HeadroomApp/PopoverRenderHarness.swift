@@ -336,7 +336,10 @@ enum PopoverRenderHarness {
             providers: pairs.map(\.provider),
             apiSpendProviders: spendProviders,
             preferences: preferences,
-            accounts: pairs.map(\.account)
+            accounts: pairs.map(\.account),
+            // Default-login U11: the fixture's in-memory records (`remembered` poses its
+            // remembered rows from them); never the user's `defaultLoginRecords.v1`.
+            defaultLoginRecords: multiFixture(for: scenario).makeDefaultLoginRecordStore()
         )
     }
 

@@ -1033,7 +1033,7 @@ enum AppComposition {
             accountRegistry: registry,
             providerFactory: { account in provider(for: account, credentials: credentials) },
             continuityCache: UsageContinuityCache(),
-            defaultLoginRecords: DefaultLoginRecordStore(defaults: launchDefaults),
+            defaultLoginRecords: makeDefaultLoginRecordStore(isDemo: DemoFixture.isEnabled),
             signOutRecord: signOutRecord,
             sessionReliabilityRecord: makeSessionReliabilityRecord(),
             bankedResetAcknowledgements: bankedResetAcknowledgements,
@@ -1080,6 +1080,7 @@ enum AppComposition {
                 DemoSpendProvider(id: .codex, displayName: "OpenAI API", snapshot: DemoFixture.openAISpend),
             ],
             preferences: prefs,
+            defaultLoginRecords: DemoDefaultLoginRecordStore(),
             widgetExporter: widgetExporter()
         )
     }
@@ -1168,6 +1169,9 @@ enum AppComposition {
             accountStorage: controller?.accountStorage ?? DemoAccountStorage(),
             providerFactory: factory,
             continuityCache: continuityCache,
+            // Default-login U11: in memory, seeded from the fixture; never the user's
+            // `defaultLoginRecords.v1`. Fixture providers carry no identity, so no reader runs.
+            defaultLoginRecords: fixture.makeDefaultLoginRecordStore(),
             bankedResetAcknowledgements: BankedResetAcknowledgements(defaults: prefsDefaults),
             now: { [clock = controller?.clock] in clock?.now() ?? Date() }
         )

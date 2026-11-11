@@ -23,15 +23,10 @@ Codex, Grok, Cursor and Copilot.
 - **Unmeasured: how often a reading is refused.** The CLI can rewrite its account file while
   Headroom reads it. `AccountProbeScheduler.identityRefusalTotals` counts refusals per account
   in memory; no diagnostic prints it yet.
-- **Open decision: a Grok `auth.json` Headroom cannot read turns a live row stale.** KTD2 of
-  the plan refuses a reading whose identity file is present but unreadable, and after two
-  refusals merges a transient failure. Grok's ACP path reads its login itself, so it can
-  return good usage while Headroom's reader rejects the file (loosened permissions, malformed
-  JSON). Before this work that row showed live numbers with no email; now it shows last-known
-  numbers, which is at odds with R15 for that setup. The CLI writes the file `0600`, so this
-  should be rare. Option to weigh: treat a file unreadable on both sides as "no account
-  named" (the row stays live under the default name) and keep refusing only a one-sided
-  failure or a disagreement. Found by the 2026-11-10 review; left as planned.
+- **A Grok `auth.json` Headroom cannot read keeps the row live under no account's name.**
+  Decided 2026-11-10 (Kyle), amending the plan's KTD2: a file unreadable on both sides of the
+  usage read counts as "no account named", and only a one-sided failure or a disagreement is
+  refused. A row that was bound to an account shows under "Main" until the file is readable.
 - **Every accepted reading with an identity rewrites `defaultLoginRecords.v1`.** The slot's
   capture time must stay current for KTD6 attribution. Correct, cost unmeasured; measure at
   `multi20` with remembered snapshots before Phase 2 adds rows that read this state.

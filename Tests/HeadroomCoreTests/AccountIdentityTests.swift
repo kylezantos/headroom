@@ -64,6 +64,9 @@ struct AccountIdentityTests {
         #expect(AccountIdentityOutcome.bracketing(before: .identity(a, email: nil), after: .absent) == .unreadable)
         #expect(AccountIdentityOutcome.bracketing(before: .absent, after: .identity(a, email: nil)) == .unreadable)
         #expect(AccountIdentityOutcome.bracketing(before: .unreadable, after: .identity(a, email: nil)) == .unreadable)
+        #expect(AccountIdentityOutcome.bracketing(before: .unreadable, after: .absent) == .unreadable)
+        // Unreadable on both sides is a steady state, not a change in progress.
+        #expect(AccountIdentityOutcome.bracketing(before: .unreadable, after: .unreadable) == .absent)
     }
 
     // MARK: Readers (U1)
@@ -206,6 +209,13 @@ struct AccountIdentityTests {
     @Test func grokUnreadableFileOnOneSideIsRefusedAndAMissingOneIsAbsent() async {
         #expect(await grokProvider([.unreadable, grokRead("a@example.com")]).fetchResult().discard == .identityUnreadable)
         #expect(await grokProvider([grokRead("a@example.com"), .unreadable]).fetchResult().discard == .identityUnreadable)
+        // A file Headroom cannot read at all, while the CLI still returns usage: the
+        // reading is kept, under no account's name, instead of going stale.
+        let steady = await grokProvider([.unreadable, .unreadable]).fetchResult()
+        #expect(steady.discard == nil)
+        #expect(steady.snapshot.freshness == .live)
+        #expect(steady.snapshot.identity == .absent)
+        #expect(steady.snapshot.accountEmail == nil)
         let absent = await grokProvider([.absent, .absent]).fetchResult()
         #expect(absent.discard == nil)
         #expect(absent.snapshot.identity == .absent)

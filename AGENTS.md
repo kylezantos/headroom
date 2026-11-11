@@ -255,10 +255,11 @@ Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
 `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Codex, Grok, Cursor and
 Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
 digest of the CLI's own metadata, never the upstream id). Codex and Grok read their account file
-before and after the usage read; if the two reads disagree or one fails, the reading is refused
+before and after the usage read; if the two reads disagree or exactly one fails, the reading is refused
 on `UsageProviderFetchResult.discard` and read again at the lane's next turn, with no backoff
 and no dimmed row. After two refusals in a row the next one merges as an ordinary transient
-failure. A row is a slot bound to one identity (`SlotRecord` in `Engine/DefaultLoginRecords.swift`,
+failure. A file unreadable on both sides is a steady state, so that reading is kept under no
+account's name. A row is a slot bound to one identity (`SlotRecord` in `Engine/DefaultLoginRecords.swift`,
 stored under `defaultLoginRecords.v1`). When the built-in row's default login becomes a different
 account, the row takes that account's name, or "Main", and none of the previous account's
 history or reminder state; the previous account's label, last reading and reminder state are

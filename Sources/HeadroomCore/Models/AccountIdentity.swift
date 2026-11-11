@@ -119,6 +119,12 @@ public enum AccountIdentityOutcome: Sendable, Equatable {
             return first == second ? .known(first) : .unreadable
         case (.absent, .absent):
             return .absent
+        case (.unreadable, .unreadable):
+            // A file unreadable on both sides is steadily unreadable, not a login in
+            // flux: a rewrite lasts milliseconds and the reads are seconds apart. Grok's
+            // own ACP path can still return good usage then, so the reading is kept under
+            // no account's name (R4) rather than refused until the row goes stale (R15).
+            return .absent
         default:
             return .unreadable
         }

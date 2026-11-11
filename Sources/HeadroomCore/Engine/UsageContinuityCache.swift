@@ -116,7 +116,7 @@ private struct StoredEnvelope: Codable {
     }
 }
 
-private struct StoredSnapshot: Codable {
+struct StoredSnapshot: Codable, Equatable {
     let key: AccountKey
     let windows: [StoredWindow]
     let planLabel: String?
@@ -127,6 +127,13 @@ private struct StoredSnapshot: Codable {
     /// a missing key is nil, and a later build's unknown keys are ignored on rollback (KTD2).
     let bankedResets: Int?
     let capturedAt: Date?
+    /// Whose reading this is (default-login plan, KTD6): the digest of the account that
+    /// produced it, never the upstream id. Optional, same schema: a record written by an
+    /// earlier build has none, and an earlier build drops it when it rewrites the record,
+    /// which is how the next launch knows another build wrote it.
+    let identityDigest: String?
+    let identityDigestVersion: Int?
+    let identityStrength: AccountIdentity.Strength?
 
     init(key: AccountKey, snapshot: UsageSnapshot) {
         self.key = key
@@ -135,9 +142,23 @@ private struct StoredSnapshot: Codable {
         self.accountEmail = snapshot.accountEmail
         self.bankedResets = snapshot.bankedResets
         self.capturedAt = snapshot.capturedAt
+        let identity = snapshot.identity?.identity
+        self.identityDigest = identity?.digest
+        self.identityDigestVersion = identity?.digestVersion
+        self.identityStrength = identity?.strength
     }
 
-    init(_ legacy: LegacyStoredSnapshot) {
+    private var identity: AccountIdentityOutcome? {
+        guard let identityDigest, let identityDigestVersion, let identityStrength else { return nil }
+        return .known(AccountIdentity(
+            providerID: key.providerID,
+            strength: identityStrength,
+            digest: identityDigest,
+            digestVersion: identityDigestVersion
+        ))
+    }
+
+    fileprivate init(_ legacy: LegacyStoredSnapshot) {
         self.key = legacy.key
         self.windows = legacy.windows.map {
             StoredWindow($0, providerID: legacy.key.providerID, capturedAt: legacy.capturedAt)
@@ -146,6 +167,9 @@ private struct StoredSnapshot: Codable {
         self.accountEmail = legacy.accountEmail
         self.bankedResets = nil
         self.capturedAt = legacy.capturedAt
+        self.identityDigest = nil
+        self.identityDigestVersion = nil
+        self.identityStrength = nil
     }
 
     var snapshot: UsageSnapshot? {
@@ -158,19 +182,20 @@ private struct StoredSnapshot: Codable {
             accountEmail: accountEmail,
             bankedResets: bankedResets,
             capturedAt: capturedAt,
-            freshness: .stale(.transient("Last known usage — refreshing"))
+            freshness: .stale(.transient("Last known usage — refreshing")),
+            identity: identity
         )
     }
 }
 
-private enum StoredWindowKind: String, Codable {
+enum StoredWindowKind: String, Codable {
     case fiveHour
     case weekly
     case billingPeriod
     case other
 }
 
-private struct StoredWindow: Codable {
+struct StoredWindow: Codable, Equatable {
     private let kind: StoredWindowKind
     let otherLabel: String?
     let billingPeriodDuration: TimeInterval?
@@ -219,7 +244,7 @@ private struct StoredWindow: Codable {
         }
     }
 
-    init(_ legacy: LegacyStoredWindow, providerID: ProviderID, capturedAt: Date?) {
+    fileprivate init(_ legacy: LegacyStoredWindow, providerID: ProviderID, capturedAt: Date?) {
         self.kind = legacy.kind
         self.otherLabel = legacy.otherLabel
         self.billingPeriodDuration = legacy.billingPeriodDuration
@@ -274,7 +299,7 @@ private struct StoredWindow: Codable {
     }
 }
 
-private struct StoredResetEvidence: Codable {
+struct StoredResetEvidence: Codable, Equatable {
     private enum Kind: String, Codable {
         case scheduled
         case unresolved
@@ -359,9 +384,37 @@ enum UsageContinuityPolicy {
             accountEmail: cached.accountEmail,
             bankedResets: cached.bankedResets,
             capturedAt: cached.capturedAt,
-            freshness: .stale(.transient("Last known usage — refreshing"))
+            freshness: .stale(.transient("Last known usage — refreshing")),
+            identity: cached.identity
         )
     }
+
+    /// KTD10 (default-login plan): how a remembered account's last reading ages while
+    /// nothing reads it. Before its reset a window is last-known with its original
+    /// observation time; from its reset on it is `.unavailable(since: reset)`, which
+    /// already hides the number on every surface. A window with no scheduled reset fails
+    /// closed after the ordinary fallback lifetime. Unlike the ordinary mode, no window is
+    /// ever dropped and the snapshot never returns as pending: the row stays until the
+    /// user removes it (R9).
+    static func rememberedSnapshot(_ stored: UsageSnapshot, at date: Date) -> UsageSnapshot {
+        let windows = stored.windows.map { window -> UsageWindow in
+            if case .unavailable = window.freshness { return window }
+            guard let observedAt = window.observedAt ?? window.freshness.observedAt ?? stored.capturedAt else {
+                return window.withFreshness(.unavailable(since: date))
+            }
+            let expiredAt = continuityExpiryDate(
+                for: window,
+                providerID: stored.providerID,
+                capturedAt: observedAt
+            )
+            return expiredAt > date
+                ? window.withFreshness(.stale(observedAt: observedAt))
+                : window.withFreshness(.unavailable(since: expiredAt))
+        }
+        return stored.replacingWindows(windows, freshness: .stale(rememberedReason))
+    }
+
+    static let rememberedReason = FailureReason.transient("Last known usage")
 
     static func mergedSnapshot(
         _ fresh: UsageSnapshot,
@@ -403,7 +456,8 @@ enum UsageContinuityPolicy {
             accountEmail: prior.accountEmail,
             bankedResets: prior.bankedResets,
             capturedAt: prior.capturedAt,
-            freshness: .stale(reason)
+            freshness: .stale(reason),
+            identity: prior.identity
         )
     }
 
@@ -465,7 +519,8 @@ enum UsageContinuityPolicy {
         from prior: UsageSnapshot
     ) -> UsageSnapshot {
         guard fresh.windows.contains(where: { $0.kind == .weekly }),
-              let capturedAt = fresh.capturedAt
+              let capturedAt = fresh.capturedAt,
+              retainsAcrossReadings(fresh: fresh, prior: prior)
         else {
             return fresh
         }
@@ -504,8 +559,20 @@ enum UsageContinuityPolicy {
             accountEmail: fresh.accountEmail,
             bankedResets: fresh.bankedResets,
             capturedAt: fresh.capturedAt,
-            freshness: .live
+            freshness: .live,
+            identity: fresh.identity
         )
+    }
+
+    /// A missing row is only retained from a reading of the same account. A provider that
+    /// reports no identity keeps the earlier behavior. Once the fresh reading carries one,
+    /// the prior must name the same account: a prior with no identity, an older build's
+    /// record included, retains nothing (`BUGS.md`, the model row kept across a login
+    /// switch).
+    private static func retainsAcrossReadings(fresh: UsageSnapshot, prior: UsageSnapshot) -> Bool {
+        guard let outcome = fresh.identity else { return true }
+        guard let identity = outcome.identity else { return false }
+        return prior.identity?.identity == identity
     }
 
     private static func isClaudeWeeklySubLimit(

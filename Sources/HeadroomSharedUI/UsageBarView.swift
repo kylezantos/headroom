@@ -500,33 +500,55 @@ public struct UsageBarView: View {
         return ZStack(alignment: .leading) {
             if !isFull { microRow.hidden() }
             HStack(alignment: isFull ? .firstTextBaseline : .center, spacing: gap) {
-                // Every peer is laid out hidden with its own optical leading, this row's
-                // label among them, so the column is one width on every reset line.
-                ZStack(alignment: .leading) {
-                    ForEach(resetLabelPeers.filter { $0 != label }, id: \.self) { peer in
-                        Text(peer)
-                            .font(.system(size: labelSize, weight: labelWeight))
-                            .lineLimit(1)
-                            .fixedSize()
-                            .widgetOpticalLeading(peer, size: labelSize, weight: labelWeight)
-                            .hidden()
-                    }
-                    labelText.fixedSize()
+                if isFull {
+                    // Laid out as the meter's top line is: a label on the numeral's baseline.
+                    // The zero-width numeral holds that baseline, so the label does not move
+                    // while the meter fades out and this line fades in.
+                    resetLabelColumn
+                    resetHint(line)
+                    Spacer(minLength: 0)
+                    Text("0")
+                        .font(.system(size: percentSize, weight: percentWeight).monospacedDigit())
+                        .widgetCapHeightCentered(size: percentSize, weight: percentWeight)
+                        .frame(width: 0)
+                        .hidden()
+                } else {
+                    resetLabelColumn
+                        .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
+                    resetHint(line)
+                        .widgetCapHeightCentered(size: resetSize, weight: .regular)
+                    Spacer(minLength: 0)
                 }
-                .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
-                // The compact form on every reset line: the sentence ("Reset yesterday at
-                // 12:32 AM · …") does not fit a Micro row, and two forms in one account read
-                // as two different things. The tooltip and VoiceOver keep the sentence.
-                Text(resetNotReadCompactLine ?? line)
-                    .font(.system(size: resetSize).monospacedDigit())
-                    .foregroundStyle(hintInk)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .widgetCapHeightCentered(size: resetSize, weight: .regular)
-                Spacer(minLength: 0)
             }
             .help("\(spokenLabel): \(line)")
         }
+    }
+
+    /// Every peer is laid out hidden with its own optical leading, this row's label among
+    /// them, so the column is one width on every reset line.
+    private var resetLabelColumn: some View {
+        ZStack(alignment: .leading) {
+            ForEach(resetLabelPeers.filter { $0 != label }, id: \.self) { peer in
+                Text(peer)
+                    .font(.system(size: labelSize, weight: labelWeight))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .widgetOpticalLeading(peer, size: labelSize, weight: labelWeight)
+                    .hidden()
+            }
+            labelText.fixedSize()
+        }
+    }
+
+    /// The compact form on every reset line: the sentence ("Reset yesterday at 12:32 AM ·
+    /// …") does not fit a Micro row, and two forms in one account read as two different
+    /// things. The tooltip and VoiceOver keep the sentence.
+    private func resetHint(_ line: String) -> some View {
+        Text(resetNotReadCompactLine ?? line)
+            .font(.system(size: resetSize).monospacedDigit())
+            .foregroundStyle(hintInk)
+            .lineLimit(1)
+            .truncationMode(.tail)
     }
 
     /// Full keeps the established fit-aware frame: label metadata and numeral above the

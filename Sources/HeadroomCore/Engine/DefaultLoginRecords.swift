@@ -80,9 +80,31 @@ struct RememberedAccount: Codable, Equatable, Sendable {
     var reminders: ParkedReminders = .none
     var isHidden = false
     var lastReadAt: Date?
+    /// True when `label` is a number Headroom gave an unnamed account ("Account 4"), not
+    /// a name the user chose. Back in the slot such an account is "Main" again; leaving
+    /// again, it keeps its number. Optional so earlier records decode.
+    var hasAssignedLabel: Bool?
 
     var key: AccountKey { AccountKey(providerID: providerID, accountID: id) }
     var hasRow: Bool { snapshot != nil }
+}
+
+/// A remembered account as the store exposes it (default-login plan U5). `key` uses the
+/// Headroom-local id, never `AccountID.primary`, so rename and remove reach the record
+/// store and never the registry (KTD8). `snapshot` is the last reading as it was taken;
+/// a caller that shows it ages it with `UsageContinuityPolicy.rememberedSnapshot` (KTD10).
+public struct RememberedAccountSummary: Identifiable, Equatable, Sendable {
+    public let id: AccountID
+    public let providerID: ProviderID
+    public let label: String
+    /// For Mac display only; it never reaches the phone except as a displayed name (R17).
+    public let email: String?
+    public let snapshot: UsageSnapshot?
+    public let lastReadAt: Date?
+    /// Removed by the user (R11): kept, not shown, until the account is the default login.
+    public let isHidden: Bool
+
+    public var key: AccountKey { AccountKey(providerID: providerID, accountID: id) }
 }
 
 struct DefaultLoginRecordsState: Equatable, Sendable {
@@ -220,6 +242,9 @@ struct DefaultLoginSlotContext: Sendable {
     var launchSnapshot: UsageSnapshot?
     /// Digests other rows of this provider are bound to.
     var otherReaders: Set<String>
+    /// Every registry row's label for this provider, this one included. A remembered
+    /// account with no name of its own is numbered past them (U5).
+    var registryLabels: [String] = []
 }
 
 struct DefaultLoginEffects: Equatable, Sendable {
@@ -352,7 +377,7 @@ enum DefaultLoginTransition {
             ? takeArriving(identity, email: reading.email, providerID: slot.key.providerID, state: &state)
             : nil
         if context.isBuiltIn, bound.strength == .strong {
-            remember(leaving, identity: bound, context: context, state: &state)
+            remember(leaving, identity: bound, context: context, keeping: arriving?.id, state: &state)
         }
         if context.isBuiltIn {
             effects.label = arriving?.label ?? context.defaultLabel
@@ -391,14 +416,16 @@ enum DefaultLoginTransition {
         guard identity.strength == .strong, let saved = context.launchSnapshot, !saved.windows.isEmpty else { return }
         // Kept under its old label, keyed by email until a strong identity carrying that
         // email claims it (AE10). Its reminder state is unattributed, so it is not parked.
+        let named = context.label != context.defaultLabel
         var entry = RememberedAccount(
             id: AccountID(UUID().uuidString.lowercased()),
             providerID: slot.key.providerID,
             identity: nil,
             provisionalEmail: cachedEmail,
-            label: context.label,
+            label: named ? context.label : nextDefaultLabel(for: slot.key.providerID, context: context, state: state),
             email: cachedEmail,
-            lastReadAt: saved.capturedAt
+            lastReadAt: saved.capturedAt,
+            hasAssignedLabel: named ? nil : true
         )
         entry.snapshot = StoredSnapshot(key: entry.key, snapshot: saved)
         insert(entry, into: &state)
@@ -469,6 +496,49 @@ enum DefaultLoginTransition {
         state.upsert(slot)
     }
 
+    /// R11: a rename of a remembered row. The name is the user's from now on, so it
+    /// travels with the account into the slot when it returns. False for no such row or
+    /// an empty name; nothing changes then.
+    static func renameRemembered(_ key: AccountKey, to label: String, in state: inout DefaultLoginRecordsState) -> Bool {
+        guard let normalized = AccountRegistry.normalizedLabel(label),
+              let index = state.remembered.firstIndex(where: { $0.key == key && $0.hasRow })
+        else { return false }
+        state.remembered[index].label = normalized
+        state.remembered[index].hasAssignedLabel = nil
+        return true
+    }
+
+    /// R11: a removed row is kept hidden, with its label and reminder state, until its
+    /// account is the default login again (`takeArriving` clears the flag).
+    static func hideRemembered(_ key: AccountKey, in state: inout DefaultLoginRecordsState) -> Bool {
+        guard let index = state.remembered.firstIndex(where: { $0.key == key && $0.hasRow }) else { return false }
+        state.remembered[index].isHidden = true
+        return true
+    }
+
+    /// The remembered rows per provider, in stored order, hidden ones included. A row
+    /// whose account a slot reads yields to that slot (KTD12) and returns when it stops.
+    static func rememberedRows(in state: DefaultLoginRecordsState) -> [ProviderID: [RememberedAccountSummary]] {
+        var read: [ProviderID: Set<String>] = [:]
+        for slot in state.slots {
+            if let digest = slot.binding?.digest { read[slot.key.providerID, default: []].insert(digest) }
+        }
+        var rows: [ProviderID: [RememberedAccountSummary]] = [:]
+        for entry in state.remembered where entry.hasRow {
+            if let digest = entry.identity?.digest, read[entry.providerID]?.contains(digest) == true { continue }
+            rows[entry.providerID, default: []].append(RememberedAccountSummary(
+                id: entry.id,
+                providerID: entry.providerID,
+                label: entry.label,
+                email: entry.email,
+                snapshot: entry.snapshot?.snapshot,
+                lastReadAt: entry.lastReadAt,
+                isHidden: entry.isHidden
+            ))
+        }
+        return rows
+    }
+
     /// KTD4 launch repair, record side: a remembered row whose account a slot is bound to
     /// would show one account twice.
     static func retireDuplicates(in state: inout DefaultLoginRecordsState) {
@@ -486,7 +556,10 @@ enum DefaultLoginTransition {
     // MARK: Helpers
 
     private struct Arriving {
-        var label: String
+        var id: AccountID
+        /// Nil when the entry's label was only a number given while it was remembered:
+        /// back in the slot the account is the built-in row, under the default name.
+        var label: String?
         var reminders: ParkedReminders
         var snapshot: StoredSnapshot?
     }
@@ -549,7 +622,12 @@ enum DefaultLoginTransition {
         state.remembered[index].snapshot = nil
         state.remembered[index].reminders = .none
         state.remembered[index].isHidden = false
-        return Arriving(label: entry.label, reminders: entry.reminders, snapshot: entry.snapshot)
+        return Arriving(
+            id: entry.id,
+            label: entry.hasAssignedLabel == true ? nil : entry.label,
+            reminders: entry.reminders,
+            snapshot: entry.snapshot
+        )
     }
 
     /// KTD9: keeps the leaving account. It gets a row only from a real last reading, and
@@ -558,33 +636,69 @@ enum DefaultLoginTransition {
         _ leaving: ParkedAccount,
         identity: AccountIdentity,
         context: DefaultLoginSlotContext,
+        keeping arriving: AccountID?,
         state: inout DefaultLoginRecordsState
     ) {
         let snapshot = context.otherReaders.contains(identity.digest) ? nil : leaving.snapshot
-        let label = leaving.label ?? context.defaultLabel
+        // U5: an account the user never named is numbered like an added account, so its
+        // dimmed row never reads "Main" beside the live one.
+        let named = leaving.label.map { $0 != context.defaultLabel } ?? false
+        let kept: Set<AccountID> = arriving.map { [$0] } ?? []
         if let index = state.remembered.firstIndex(where: {
             $0.providerID == identity.providerID && $0.identity == identity
         }) {
             var entry = state.remembered.remove(at: index)
-            entry.label = label
+            if let label = leaving.label, named {
+                entry.label = label
+                entry.hasAssignedLabel = nil
+            } else if entry.hasAssignedLabel != true {
+                // Left once unnamed is numbered; one that keeps its number reuses it.
+                entry.label = nextDefaultLabel(for: identity.providerID, context: context, state: state)
+                entry.hasAssignedLabel = true
+            }
             entry.email = leaving.email ?? entry.email
             entry.snapshot = snapshot.flatMap { rekeyed($0, to: entry.key) }
             entry.reminders = leaving.reminders
             entry.lastReadAt = leaving.snapshot?.capturedAt ?? entry.lastReadAt
-            insert(entry, into: &state)
+            insert(entry, into: &state, keeping: kept)
         } else {
             var entry = RememberedAccount(
                 id: AccountID(UUID().uuidString.lowercased()),
                 providerID: identity.providerID,
                 identity: identity,
-                label: label,
+                label: named ? (leaving.label ?? context.defaultLabel)
+                    : nextDefaultLabel(for: identity.providerID, context: context, state: state),
                 email: leaving.email,
                 reminders: leaving.reminders,
-                lastReadAt: leaving.snapshot?.capturedAt
+                lastReadAt: leaving.snapshot?.capturedAt,
+                hasAssignedLabel: named ? nil : true
             )
             entry.snapshot = snapshot.flatMap { rekeyed($0, to: entry.key) }
-            insert(entry, into: &state)
+            insert(entry, into: &state, keeping: kept)
         }
+    }
+
+    /// `AccountRegistry`'s numbering ("Account 2", "Account 3", ...), counted across the
+    /// registry's rows and this provider's remembered rows, skipping every label either
+    /// holds, so an added account and a remembered one never share a number (U5).
+    static func nextDefaultLabel(
+        for providerID: ProviderID,
+        registryLabels: [String],
+        remembered: [RememberedAccount]
+    ) -> String {
+        let others = remembered.filter { $0.providerID == providerID }
+        let used = Set(registryLabels).union(others.map(\.label))
+        var ordinal = registryLabels.count + others.filter(\.hasRow).count + 1
+        while used.contains(ProviderAccount.extraDefaultLabel(ordinal: ordinal)) { ordinal += 1 }
+        return ProviderAccount.extraDefaultLabel(ordinal: ordinal)
+    }
+
+    private static func nextDefaultLabel(
+        for providerID: ProviderID,
+        context: DefaultLoginSlotContext,
+        state: DefaultLoginRecordsState
+    ) -> String {
+        nextDefaultLabel(for: providerID, registryLabels: context.registryLabels, remembered: state.remembered)
     }
 
     private static func rekeyed(_ snapshot: StoredSnapshot, to key: AccountKey) -> StoredSnapshot? {
@@ -594,18 +708,25 @@ enum DefaultLoginTransition {
     /// Appends `entry` and enforces the per-provider caps (KTD4). The arriving account was
     /// taken out before this runs, so neither side of a change is evicted for the other.
     /// Hidden rows go first, then the least recently read.
-    private static func insert(_ entry: RememberedAccount, into state: inout DefaultLoginRecordsState) {
+    /// `keeping` adds the arriving account's id: its entry is row-less now, and evicting
+    /// it would lose the local id and label it gets back if it leaves again.
+    private static func insert(
+        _ entry: RememberedAccount,
+        into state: inout DefaultLoginRecordsState,
+        keeping kept: Set<AccountID> = []
+    ) {
         state.remembered.append(entry)
-        evict(in: &state, providerID: entry.providerID, keeping: entry.id, rows: true,
+        let kept = kept.union([entry.id])
+        evict(in: &state, providerID: entry.providerID, keeping: kept, rows: true,
               cap: DefaultLoginRecordsCodec.rememberedCap)
-        evict(in: &state, providerID: entry.providerID, keeping: entry.id, rows: false,
+        evict(in: &state, providerID: entry.providerID, keeping: kept, rows: false,
               cap: DefaultLoginRecordsCodec.rowlessCap)
     }
 
     private static func evict(
         in state: inout DefaultLoginRecordsState,
         providerID: ProviderID,
-        keeping kept: AccountID,
+        keeping kept: Set<AccountID>,
         rows: Bool,
         cap: Int
     ) {
@@ -613,7 +734,7 @@ enum DefaultLoginTransition {
             state.remembered.filter { $0.providerID == providerID && $0.hasRow == rows }
         }
         while candidates().count > cap {
-            let evictable = candidates().filter { $0.id != kept }
+            let evictable = candidates().filter { !kept.contains($0.id) }
             guard let victim = evictable.min(by: { first, second in
                 if first.isHidden != second.isHidden { return first.isHidden }
                 return (first.lastReadAt ?? .distantPast) < (second.lastReadAt ?? .distantPast)

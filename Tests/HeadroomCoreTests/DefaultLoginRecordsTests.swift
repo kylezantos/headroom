@@ -159,7 +159,8 @@ struct DefaultLoginRecordsTests {
         // Inside the same reset cycle, the rule Work already spent does not repeat.
         #expect(rig.poster.posted.count == 1)
         #expect(rig.rows.map(\.identity) == [DefaultLoginRig.identity(b)])
-        #expect(rig.rows.first?.label == "Main")
+        // U5: an unnamed account is numbered when it leaves, never a second "Main".
+        #expect(rig.rows.first?.label == "Account 2")
         // Work's entry stays, row-less, so its local id is reused if it leaves again.
         #expect(rig.state.remembered.first { $0.identity == DefaultLoginRig.identity(a) }?.id == workID)
 

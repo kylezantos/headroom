@@ -204,6 +204,11 @@ public final class UsageStore {
     let defaultLoginRecordStore: (any DefaultLoginRecordStoring)?
     /// The decoded records; nil when there is no store or its envelope is unreadable.
     @ObservationIgnored var defaultLoginState: DefaultLoginRecordsState?
+    /// Default-login plan U5: the remembered accounts with a row, per provider, in stored
+    /// order and hidden ones included, minus any a slot reads (KTD12). Observed, unlike
+    /// the records, and reassigned only when it changes, so the steady per-reading
+    /// commit does not invalidate views that read it.
+    var rememberedAccountRows: [ProviderID: [RememberedAccountSummary]] = [:]
     /// Raw continuity records from launch, for rows nothing has been bound to yet (KTD7).
     @ObservationIgnored var launchContinuity: [AccountKey: UsageSnapshot] = [:]
     /// KTD14 (2026-09-19 sign-in plan): diagnostics-only record of observed Claude

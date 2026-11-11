@@ -70,7 +70,8 @@ final class DefaultLoginRig {
         launch()
     }
 
-    func launch(records usesRecords: Bool = true) {
+    /// `recordStore` swaps in another record store (a counting double) for this launch.
+    func launch(records usesRecords: Bool = true, recordStore: (any DefaultLoginRecordStoring)? = nil) {
         coordinator = NotificationCoordinator(poster: poster, useItUpLedger: ledger, bankedResetBaseline: baseline)
         store = UsageStore(
             providers: [primary] + extras,
@@ -79,7 +80,7 @@ final class DefaultLoginRig {
             accountStorage: RigAccountStorage(),
             providerFactory: { [primary] _ in primary },
             continuityCache: continuity,
-            defaultLoginRecords: usesRecords ? records : nil,
+            defaultLoginRecords: usesRecords ? (recordStore ?? records) : nil,
             bankedResetAcknowledgements: acknowledgements,
             notificationCoordinator: coordinator,
             now: clock.now

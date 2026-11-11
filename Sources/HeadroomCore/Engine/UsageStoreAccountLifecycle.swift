@@ -68,7 +68,8 @@ extension UsageStore {
         guard canAddAccount(for: providerID),
               let accountRegistry, let providerFactory,
               let account = accountRegistry.addAccount(
-                  for: providerID, capacity: accountCapacity(for: providerID), label: label
+                  for: providerID, capacity: accountCapacity(for: providerID),
+                  label: AccountRegistry.normalizedLabel(label) ?? defaultLoginLabelForNewAccount(for: providerID)
               )
         else { return nil }
         guard case .success = accountStorage.ensureDirectories(for: account) else {
@@ -99,6 +100,32 @@ extension UsageStore {
         }
         // R17 / KTD9: titles are resolved on the Mac, so a rename re-exports them.
         exportPhoneSyncSnapshot()
+    }
+
+    // MARK: Remembered accounts (default-login plan U5)
+
+    /// Accounts the default login left, with their last reading (R6), in stored order.
+    /// Not engine rows: they are never probed, never the main account and never fire a
+    /// reminder (R12), and they do not count toward add-account capacity (KTD4). A row
+    /// yields while another row reads its account (KTD12). Removed rows are left out
+    /// unless `includingHidden`.
+    public func rememberedAccounts(for providerID: ProviderID, includingHidden: Bool = false) -> [RememberedAccountSummary] {
+        let rows = rememberedAccountRows[providerID] ?? []
+        return includingHidden ? rows : rows.filter { !$0.isHidden }
+    }
+
+    /// R11. `key` is the remembered row's own key (`RememberedAccountSummary.key`). One
+    /// record commit; false, with nothing written, for no such row or an empty name.
+    @discardableResult
+    public func renameRememberedAccount(_ key: AccountKey, to label: String) -> Bool {
+        defaultLoginRenameRemembered(key, to: label)
+    }
+
+    /// R11: hides the row until its account is the default login again. Its label, last
+    /// reading and reminder state are kept for that return. One record commit.
+    @discardableResult
+    public func removeRememberedAccount(_ key: AccountKey) -> Bool {
+        defaultLoginHideRemembered(key)
     }
 
     public func canPromoteAccount(_ key: AccountKey) -> Bool {

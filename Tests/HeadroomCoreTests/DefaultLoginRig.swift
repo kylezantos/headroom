@@ -45,6 +45,8 @@ final class DefaultLoginRig {
     let records: DefaultLoginRecordStore
     /// Default-login plan U7: a phone publisher double, when the test counts exports.
     let phone: SpyPhoneSync?
+    /// Default-login plan U9: the Mac widget file each main-account merge writes.
+    let widgets = SpyWidgetExporter()
     private(set) var store: UsageStore!
     private(set) var coordinator: NotificationCoordinator!
 
@@ -70,6 +72,8 @@ final class DefaultLoginRig {
         let preferences = Preferences(defaults: defaults)
         preferences.useItUpRemindersEnabled = true
         preferences.bankedResetNotificationsEnabled = banked
+        // U9: a counted phone path is a real one, so its captures carry the providers.
+        preferences.syncToIPhoneEnabled = countsPhoneExports
         launch()
     }
 
@@ -87,6 +91,7 @@ final class DefaultLoginRig {
             bankedResetAcknowledgements: acknowledgements,
             notificationCoordinator: coordinator,
             now: clock.now,
+            widgetExporter: widgets,
             phoneSyncExporter: phone
         )
     }

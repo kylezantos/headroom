@@ -194,6 +194,72 @@ struct CompanionPayloadBudgetTests {
         #expect(fit.measurement.totalBytes <= 64_000)
     }
 
+    /// Default-login plan U9 (Risks: "20 accounts plus 20 remembered accounts"): Claude and
+    /// Codex each carry 20 engine accounts and 20 remembered ones (stale rows with their own
+    /// read times, long labels), beside the rest of the envelope. The write fits by the
+    /// existing ladder, and wherever the ladder caps it drops remembered rows first, because
+    /// they sort after every engine row.
+    @Test func twentyAccountsPlusTwentyRememberedFitByTheExistingLadder() throws {
+        var payloads = try Self.envelopeFixture()
+        func remembered(_ provider: String, _ i: Int) throws -> CompanionAccountSummary {
+            let used = Double((i * 41 + 7) % 100) + 0.654321
+            let read = F.date(-86_400 - Int64(i) * 97)
+            func row(_ kind: CompanionWindowKind, _ name: String? = nil) -> CompanionSlimWindow {
+                F.window(kind, name: name, remaining: 100 - used, utilization: used,
+                         resetAt: 7_200 + Int64(i) * 59, freshness: .stale, observed: read,
+                         spark: provider == "codex" && name != nil)
+            }
+            let windows = provider == "claude"
+                ? [row(.fiveHour), row(.weekly), row(.other, "Weekly (Fable)"), row(.other, "Weekly (Sonnet)")]
+                : [row(.fiveHour), row(.weekly), row(.other, "GPT-5.3-Codex-Spark 5h"),
+                   row(.other, "GPT-5.3-Codex-Spark Weekly")]
+            return try CompanionAccountSummary(
+                id: UUID().uuidString.lowercased(), title: "Remembered client account \(i + 1) — long label",
+                planName: "Prolite Plus", freshness: .stale, capturedAt: read, needsAttention: false,
+                bankedResets: provider == "codex" ? i % 4 : nil, windows: windows, isRemembered: true)
+        }
+        for index in 0..<2 {
+            let base = payloads[index]
+            payloads[index] = try CompanionProviderPayload(
+                sourceID: base.sourceID, providerID: base.providerID, payloadGeneration: base.payloadGeneration,
+                mode: base.mode, capabilityAttention: base.capabilityAttention, mainAccount: base.mainAccount,
+                accounts: base.accounts + (0..<20).map { try remembered(base.providerID, $0) },
+                apiSpend: base.apiSpend)
+        }
+        #expect(payloads.map(\.allAccounts.count) == [40, 40, 20, 1, 1])
+        let protocolValues = try Self.protocolValues(devices: 5)
+
+        let fit = try CompanionPayloadBudget.fit(
+            payloads: payloads, protocolValues: protocolValues, manifest: Self.manifest)
+        for (key, bytes) in fit.measurement.valueBytes.sorted(by: { $0.key < $1.key }) {
+            print("U9-REMEMBERED-BUDGET level=\(fit.ladderLevel) key=\(key) bytes=\(bytes)")
+        }
+        print("U9-REMEMBERED-BUDGET level=\(fit.ladderLevel) total=\(fit.measurement.totalBytes)")
+        #expect(fit.measurement.fits)
+        for payload in fit.payloads.prefix(2) {
+            // Whatever reaches the phone keeps every engine row, remembered rows after them.
+            let flags = payload.allAccounts.map(\.isRemembered)
+            #expect(flags.prefix(20).allSatisfy { !$0 })
+            #expect(flags.dropFirst(20).allSatisfy { $0 })
+            #expect(payload.allAccounts.count + payload.omittedAccountCount == 40)
+        }
+
+        // Every level the ladder can reach, measured; the cap step drops remembered rows only.
+        for level in 0...2 {
+            let stepped = try payloads.map { try CompanionPayloadBudget.apply(level: level, to: $0) }
+            let values = try stepped.map { try CompanionSyncCodec.encode($0) }
+            print("U9-REMEMBERED-BUDGET forced-level=\(level) claude=\(values[0].count) codex=\(values[1].count) "
+                + "providers=\(values.map(\.count).reduce(0, +))")
+            if level == 2 {
+                for payload in stepped.prefix(2) {
+                    #expect(payload.allAccounts.count == 20)
+                    #expect(payload.allAccounts.allSatisfy { !$0.isRemembered })
+                    #expect(payload.omittedAccountCount == 20)
+                }
+            }
+        }
+    }
+
     @Test func overTheEnvelopeTheLadderCapsOnlyAboveTwentyAndReportsTheCount() throws {
         let payloads = try Self.envelopeFixture(accountsPerProvider: 120)
         let fit = try CompanionPayloadBudget.fit(

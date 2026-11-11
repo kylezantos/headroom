@@ -211,7 +211,10 @@ public enum CheckNowMachine {
         var next = state
         if let assembled = content.assembledGeneration, assembled >= (next.assembledGeneration ?? .min) {
             next.assembledGeneration = assembled
-            next.notUpdatedCount = content.providers.flatMap(\.accounts).filter { $0.freshness != .live }.count
+            // Default-login R12: a check never reads a remembered row, so it is not one the
+            // check failed to update.
+            next.notUpdatedCount = content.providers.flatMap(\.accounts)
+                .filter { $0.freshness != .live && !$0.isRemembered }.count
         }
         if let answer = content.answeredRequests.first(where: { $0.requestID == state.requestID }) {
             apply(answer, to: &next, now: now)

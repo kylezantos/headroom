@@ -229,13 +229,20 @@ public struct CompanionAccountSummary: Codable, Equatable, Sendable {
     public let needsAttention: Bool?
     public let bankedResets: Int?
     public let windows: [CompanionSlimWindow]
+    /// Default-login plan KTD14: an account the Mac's default login left, shown from its
+    /// last reading and never read again (R6, R7). It is always an extra, never the main
+    /// account, and never a source of attention (R12). Optional on the wire and written only
+    /// when true, so a Mac with no remembered rows writes the same bytes as before (R15),
+    /// and an older phone, which ignores the key, reads the row as an ordinary stale extra.
+    public let isRemembered: Bool
 
     public init(
         id: String, title: String, planName: String? = nil,
         freshness: CompanionContentFreshness = .live,
         capturedAt: CompanionWireDate? = nil, attention: CompanionAttention? = nil,
         needsAttention: Bool? = nil,
-        bankedResets: Int? = nil, windows: [CompanionSlimWindow]
+        bankedResets: Int? = nil, windows: [CompanionSlimWindow],
+        isRemembered: Bool = false
     ) throws {
         guard !id.isEmpty else { throw CompanionLeafValidationError.identity }
         guard bankedResets.map({ $0 >= 0 }) != false else {
@@ -263,6 +270,7 @@ public struct CompanionAccountSummary: Codable, Equatable, Sendable {
         self.needsAttention = freshness == .unknown ? nil : needsAttention
         self.bankedResets = bankedResets
         self.windows = windows
+        self.isRemembered = isRemembered
     }
 
     public var displayTitle: String { title.isEmpty ? "Account" : title }
@@ -293,6 +301,7 @@ public struct CompanionAccountSummary: Codable, Equatable, Sendable {
         case needsAttention = "h"
         case bankedResets = "b"
         case windows = "w"
+        case isRemembered = "k"
     }
 
     public init(from decoder: any Decoder) throws {
@@ -306,7 +315,9 @@ public struct CompanionAccountSummary: Codable, Equatable, Sendable {
             attention: c.decodeIfPresent(CompanionAttention.self, forKey: .attention),
             needsAttention: c.decodeIfPresent(Bool.self, forKey: .needsAttention),
             bankedResets: c.decodeIfPresent(Int.self, forKey: .bankedResets),
-            windows: c.decode([CompanionSlimWindow].self, forKey: .windows))
+            windows: c.decode([CompanionSlimWindow].self, forKey: .windows),
+            // Lossy: a malformed flag reads as an ordinary account, never a lost one.
+            isRemembered: (try? c.decodeIfPresent(Bool.self, forKey: .isRemembered)) == true)
     }
 
     public func encode(to encoder: any Encoder) throws {
@@ -320,6 +331,7 @@ public struct CompanionAccountSummary: Codable, Equatable, Sendable {
         if freshness == .stale { try c.encode(needsAttention!, forKey: .needsAttention) }
         try c.encodeIfPresent(bankedResets, forKey: .bankedResets)
         try c.encode(windows, forKey: .windows)
+        if isRemembered { try c.encode(true, forKey: .isRemembered) }
     }
 }
 
@@ -1363,6 +1375,6 @@ extension CompanionAccountSummary {
         try Self(
             id: id, title: title, planName: planName, freshness: freshness, capturedAt: capturedAt,
             attention: attention, needsAttention: needsAttention, bankedResets: bankedResets,
-            windows: windows.filter { $0.kind != .other })
+            windows: windows.filter { $0.kind != .other }, isRemembered: isRemembered)
     }
 }

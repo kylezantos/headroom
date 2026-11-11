@@ -328,35 +328,188 @@ struct PhoneExportTriggerTests {
         #expect(accounts(f.phone.last).last?.attention == .setupScreenUnknown)
     }
 
-    // MARK: Remembered accounts (default-login plan U7)
+    // MARK: Remembered accounts (default-login plan U7, U9)
+
+    private let accountA = "aaaaaaaa-0000-4000-8000-000000000001"
+    private let accountB = "bbbbbbbb-0000-4000-8000-000000000002"
 
     /// The remembered rows' one choke point exports once per appear, rename and remove;
-    /// an appearance inside a merge rides the merge's own export. The capture still lists
-    /// only engine rows until the phone format carries remembered ones (U9).
+    /// an appearance inside a merge rides the merge's own export, and the capture carries
+    /// the row (U9).
     @Test func aRememberedAccountAppearingRenamedOrRemovedExportsOnce() async throws {
         let rig = DefaultLoginRig(countsPhoneExports: true)
         let phone = try #require(rig.phone)
-        await rig.read(rig.reading("aaaaaaaa-0000-4000-8000-000000000001"))
+        await rig.read(rig.reading(accountA))
         rig.advance(120)
 
-        rig.primary.set(rig.reading("bbbbbbbb-0000-4000-8000-000000000002"))
+        rig.primary.set(rig.reading(accountB))
         var count = phone.captures.count
         await rig.store.refreshAccount(rig.key)
         let work = try #require(rig.store.rememberedAccounts(for: .codex).first).key
         #expect(phone.captures.count == count + 1)
+        #expect(accounts(phone.last, "codex").map(\.isRemembered) == [false, true])
 
         count = phone.captures.count
         #expect(rig.store.renameRememberedAccount(work, to: "Work"))
         #expect(phone.captures.count == count + 1)
+        #expect(accounts(phone.last, "codex").last?.title == "Work")
 
         count = phone.captures.count
         #expect(rig.store.removeRememberedAccount(work))
         #expect(phone.captures.count == count + 1)
+        #expect(accounts(phone.last, "codex").count == 1)
 
         // A full refresh after the change still exports once, at its end.
         count = phone.captures.count
         await rig.store.refreshAll()
         #expect(phone.captures.count == count + 1)
+    }
+
+    /// U9 step 5: a row that retires (its account returns as the default login, or an extra
+    /// signs in to it) and a hidden row that comes back each export once.
+    @Test func aRememberedAccountRetiringOrComingBackExportsOnce() async throws {
+        let rig = DefaultLoginRig(extraLabels: ["Side"], countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        let side = rig.extras[0]
+        side.set(rig.reading("side"))
+        await rig.read(rig.reading(accountA))
+        rig.advance(120)
+        await rig.read(rig.reading(accountB))
+        #expect(rig.store.rememberedAccounts(for: .codex).count == 1)
+
+        // Retire: an extra signs in to the remembered account, so the row yields to it.
+        rig.advance(120)
+        side.set(rig.reading(accountA))
+        var count = phone.captures.count
+        await rig.store.refreshAccount(side.accountKey)
+        #expect(rig.store.rememberedAccounts(for: .codex).isEmpty)
+        #expect(phone.captures.count == count + 1)
+        #expect(accounts(phone.last, "codex").contains { $0.isRemembered } == false)
+
+        // Unhide: removing that extra brings the row back.
+        count = phone.captures.count
+        #expect(await rig.store.removeAccount(side.accountKey) == .removed)
+        #expect(rig.store.rememberedAccounts(for: .codex).count == 1)
+        #expect(phone.captures.count == count + 1)
+        #expect(accounts(phone.last, "codex").map(\.isRemembered) == [false, true])
+
+        // Retire by return: A is the default login again. Its row retires and B's appears,
+        // one change and one export.
+        rig.advance(120)
+        rig.primary.set(rig.reading(accountA))
+        count = phone.captures.count
+        await rig.store.refreshAccount(rig.key)
+        #expect(rig.store.rememberedAccounts(for: .codex).map(\.email) == ["\(accountB)@example.com"])
+        #expect(phone.captures.count == count + 1)
+
+        // A hidden row reappears once its account is the default login and leaves again.
+        let bRow = try #require(rig.store.rememberedAccounts(for: .codex).first).key
+        #expect(rig.store.removeRememberedAccount(bRow))
+        rig.advance(120)
+        rig.primary.set(rig.reading(accountB))
+        await rig.store.refreshAccount(rig.key)
+        rig.advance(120)
+        rig.primary.set(rig.reading(accountA))
+        count = phone.captures.count
+        await rig.store.refreshAccount(rig.key)
+        #expect(rig.store.rememberedAccounts(for: .codex).map(\.key) == [bRow])
+        #expect(phone.captures.count == count + 1)
+    }
+
+    /// U9 steps 2–3 and R12, R17: remembered rows follow the engine rows as flagged extras
+    /// under their random local ids, carry their last reading and no attention, and the
+    /// bytes hold no identity digest, upstream id or email.
+    @Test func theCaptureCarriesRememberedRowsAsFlaggedExtrasWithoutIdentity() async throws {
+        let rig = DefaultLoginRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        await rig.read(rig.reading(accountA, weeklyUsed: 90))
+        rig.store.renameAccount(rig.key, to: "Work")
+        let workRead = rig.clock.now()
+        rig.advance(120)
+        await rig.read(rig.reading(accountB, weeklyUsed: 3))
+
+        let row = try #require(rig.store.rememberedAccounts(for: .codex).first)
+        let codex = accounts(phone.last, "codex")
+        #expect(codex.map(\.title) == ["Main", "Work"])
+        let main = try #require(codex.first), work = try #require(codex.last)
+        #expect(main.isRemembered == false)
+        #expect(work.isRemembered)
+        #expect(work.id == row.id.raw)
+        #expect(UUID(uuidString: work.id) != nil)
+        #expect(work.freshness == .stale)
+        #expect(work.needsAttention == false)
+        #expect(work.attention == nil)
+        #expect(work.capturedAt?.date == workRead)
+        #expect(work.windows.map(\.freshness) == [.stale, .stale])
+        #expect(work.windows.last?.percentRemaining == 10)
+        let provider = try #require(phone.last?.providers.first { $0.providerID == "codex" })
+        #expect(provider.capabilityAttention == nil)
+
+        let encoded = try codex.map { String(decoding: try CompanionSyncCodec.encode($0), as: UTF8.self) }.joined()
+            + String(decoding: try JSONEncoder().encode(try #require(phone.last?.v3)), as: UTF8.self)
+        for banned in [
+            DefaultLoginRig.identity(accountA).digest, DefaultLoginRig.identity(accountB).digest,
+            accountA, accountB, "@", "example.com",
+        ] {
+            #expect(!encoded.contains(banned), "\(banned)")
+        }
+        #expect(!work.id.contains(DefaultLoginRig.identity(accountA).digest.prefix(8)))
+
+        // With "Use email as account name" on, the email reaches the phone only as the title.
+        rig.store.setUseEmailAsAccountName(true)
+        let titled = accounts(phone.last, "codex")
+        #expect(titled.map(\.title) == ["\(accountB)@example.com", "\(accountA)@example.com"])
+        let bytes = try titled.map { String(decoding: try CompanionSyncCodec.encode($0), as: UTF8.self) }.joined()
+        #expect(bytes.components(separatedBy: "@example.com").count - 1 == 2)
+        #expect(bytes.components(separatedBy: "\"t\":\"").count - 1 == 2)
+        for digest in [DefaultLoginRig.identity(accountA).digest, DefaultLoginRig.identity(accountB).digest] {
+            #expect(!bytes.contains(digest))
+        }
+    }
+
+    /// R15: with no remembered row the account bytes are what a build before U9 wrote — no
+    /// flag key — so a Mac whose default login never changes rewrites nothing.
+    @Test func aCaptureWithNoRememberedRowWritesThePreU9Bytes() async throws {
+        let rig = DefaultLoginRig(extraLabels: ["Side"], countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        rig.extras[0].set(.stale(for: .codex, reason: .transient("blip")))
+        await rig.read(rig.reading(accountA))
+        let codex = accounts(phone.last, "codex")
+        #expect(codex.count == 2)
+        #expect(codex.allSatisfy { !$0.isRemembered })
+        for account in codex {
+            let json = try #require(
+                try JSONSerialization.jsonObject(with: CompanionSyncCodec.encode(account)) as? [String: Any])
+            #expect(Set(json.keys).isSubset(of: ["i", "t", "p", "f", "c", "a", "h", "b", "w"]))
+        }
+        // A stale, attention-carrying extra encodes to the exact pre-U9 literal.
+        let summary = try CompanionAccountSummary(
+            id: "side", title: "Side", freshness: .stale, capturedAt: CompanionWireDate(epochSeconds: 1_790_000_000),
+            attention: .retrying, needsAttention: false, windows: [])
+        #expect(String(decoding: try CompanionSyncCodec.encode(summary), as: UTF8.self)
+            == #"{"a":"retrying","c":1790000000,"f":"stale","h":false,"i":"side","t":"Side","w":[]}"#)
+    }
+
+    /// U9 step 4: after the default login changes, the Mac widget file and the v3 key show
+    /// the new account on the built-in row — the display primary — never the remembered one.
+    @Test func theMacWidgetAndV3KeyFollowTheDisplayPrimaryAfterASwitch() async throws {
+        let rig = DefaultLoginRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        await rig.read(rig.reading(accountA, weeklyUsed: 90))
+        func weeklyLeft(_ envelope: WidgetSnapshotEnvelope?) -> Double? {
+            envelope?.providers.first { $0.id == "codex" }?.windows.first { $0.kind == .weekly }?.percentRemaining
+        }
+        #expect(weeklyLeft(rig.widgets.exports.last) == 10)
+        #expect(weeklyLeft(phone.last?.v3) == 10)
+
+        rig.advance(120)
+        await rig.read(rig.reading(accountB, weeklyUsed: 3))
+        #expect(rig.store.rememberedAccounts(for: .codex).count == 1)
+        #expect(rig.store.displayPrimaryKey(for: .codex) == rig.key)
+        #expect(weeklyLeft(rig.widgets.exports.last) == 97)
+        #expect(weeklyLeft(phone.last?.v3) == 97)
+        #expect(phone.last?.v3.providers.filter { $0.id == "codex" }.count == 1)
+        #expect(accounts(phone.last, "codex").first?.windows.last?.percentRemaining == 97)
     }
 
     /// The facade stamps a strictly increasing, persisted generation on the main actor.

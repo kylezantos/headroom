@@ -26,6 +26,8 @@ enum PhoneCardMetrics {
     /// label-to-gauge step (Full's 7, minus the line box) under the row it explains.
     static let pastResetSize: CGFloat = 11
     static let pastResetGap: CGFloat = 4
+    /// Default-login R7: the "Last read …" tag takes the Mac identity row's 10pt email size.
+    static let lastReadSize: CGFloat = 10
 }
 
 /// What every card on one screen shares.
@@ -206,9 +208,25 @@ struct PhoneAccountSection: View {
                     DisclosedTitle(providerID: provider.id, providerName: provider.displayName, title: full))
             },
             onPlanCapsuleTap: hasBankedResets ? { isCapsuleOpen.toggle() } : nil,
-            accessibilityIdentifierPrefix: identifier
-        ) { slot in
-            ProviderLogoView(providerID: provider.id, slot: slot)
+            accessoryPlacement: .afterChips,
+            accessibilityIdentifierPrefix: identifier,
+            mark: { slot in
+                ProviderLogoView(providerID: provider.id, slot: slot)
+            },
+            accessory: { lastReadTag }
+        )
+    }
+
+    /// Default-login R7/R21: a remembered row says how long ago it was read, in the Mac's
+    /// words, where a stale row's chip would sit.
+    @ViewBuilder private var lastReadTag: some View {
+        if let label = CompanionCardPresentation.lastReadLabel(for: account, now: context.now) {
+            Text(label)
+                .font(.system(size: PhoneCardMetrics.lastReadSize * scale).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(1)
+                .accessibilityIdentifier("\(identifier).last-read")
         }
     }
 
@@ -234,8 +252,10 @@ struct PhoneAccountSection: View {
 
     private func meterRows(dimmed: Bool) -> some View {
         PhoneMeterRows(
-            rows: CompanionCardPresentation.meterRows(context.display.appWindows(account.windows), now: context.now),
+            rows: CompanionCardPresentation.meterRows(
+                context.display.appWindows(account.windows), now: context.now, isRemembered: account.isRemembered),
             display: context.display,
+            isRemembered: account.isRemembered,
             now: context.now,
             // KTD15: the surface's dimming and the account's own stale treatment are one
             // demotion; a stale row under a dimmed surface adds only its "Last known" state.
@@ -253,6 +273,7 @@ struct PhoneAccountSection: View {
 struct PhoneMeterRows: View {
     let rows: [CompanionMeterRow]
     let display: ResolvedPhoneDisplay
+    var isRemembered = false
     let now: Date
     let dimmed: Bool
     let identifierPrefix: String
@@ -312,7 +333,7 @@ struct PhoneMeterRows: View {
 
     /// R11/AE6: the row already reads "—"; this says why, in the countdown's place and ink.
     private func pastResetLine(_ resetAt: Date, key: String) -> some View {
-        Text(CompanionCardPresentation.pastResetLine(resetAt, now: now))
+        Text(CompanionCardPresentation.pastResetLine(resetAt, now: now, isRemembered: isRemembered))
             .font(.system(size: PhoneCardMetrics.pastResetSize * scale).monospacedDigit())
             .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
             .fixedSize(horizontal: false, vertical: true)

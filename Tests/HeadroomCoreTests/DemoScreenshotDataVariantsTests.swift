@@ -261,7 +261,8 @@ struct DemoScreenshotDataVariantsTests {
     }
 
     /// The wire carries no reset labels: every surface formats the deadline relative to now.
-    /// Only the past-reset fixture's own 5-hour window lies in the past.
+    /// Only the past-reset fixture's own 5-hour window lies in the past, and the remembered
+    /// fixture's "Studio" rows, which the Mac sends unavailable since their resets.
     @Test(arguments: CompanionDemoVariant.allCases)
     func resetsAreDeadlinesRelativeToNow(_ variant: CompanionDemoVariant) {
         let later = now.addingTimeInterval(86_400)
@@ -276,7 +277,8 @@ struct DemoScreenshotDataVariantsTests {
             }
             #expect(second.timeIntervalSince(first) == 86_400)
             let pastReset = variant == .pastReset && early.kind == .fiveHour && first < now
-            #expect(first > now || pastReset)
+            let rememberedReset = variant == .remembered && early.freshness.isUnavailable && first < now
+            #expect(first > now || pastReset || rememberedReset)
         }
     }
 

@@ -336,8 +336,11 @@ public enum CompanionPhoneProjection {
     /// session overlay. Nil when the snapshot cannot form a structurally valid account
     /// (for example a live reading with no capture time); the provider key is then left
     /// out and the phone shows that Mac's schema-3 main account instead (KTD6.3).
+    /// `isRemembered` marks a last-known row the default login left (default-login KTD14);
+    /// the caller passes it only for an extra.
     public static func account(
-        id: AccountID, title: String, snapshot: UsageSnapshot, attention: CompanionAttention?
+        id: AccountID, title: String, snapshot: UsageSnapshot, attention: CompanionAttention?,
+        isRemembered: Bool = false
     ) -> CompanionAccountSummary? {
         let freshness: CompanionContentFreshness
         var needsAttention: Bool?
@@ -355,7 +358,7 @@ public enum CompanionPhoneProjection {
             capturedAt: freshness == .pending ? nil : captured,
             attention: attention,
             needsAttention: needsAttention, bankedResets: snapshot.bankedResets,
-            windows: windows)
+            windows: windows, isRemembered: isRemembered)
     }
 
     /// The canonical spend record, or nil when it cannot be carried honestly (a

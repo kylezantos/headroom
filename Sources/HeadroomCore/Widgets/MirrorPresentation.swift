@@ -84,6 +84,9 @@ public enum CompanionCardPresentation {
     /// nothing left to show — is one typed sentence naming the account; transient staleness
     /// keeps its dimmed meters and the Stale chip, as the popover does.
     public static func body(for account: CompanionResolvedAccount, title: String) -> CompanionAccountBody {
+        // Default-login R7, R12: a remembered row is its dimmed last reading, never a typed
+        // problem; its last-read tag stands in for the line.
+        if account.isRemembered { return .meters(dimmed: true) }
         switch account.freshness {
         case .pending:
             return .pending
@@ -100,8 +103,17 @@ public enum CompanionCardPresentation {
     /// P23/P33: the outlined Stale chip marks transient staleness only; a permanent problem
     /// has its sentence instead.
     public static func showsStaleChip(_ account: CompanionResolvedAccount) -> Bool {
+        // A remembered row carries "Last read …" in the chip's place (R7).
+        guard !account.isRemembered else { return false }
         if case .stale(_, needsAttention: false) = account.freshness { return !account.windows.isEmpty }
         return false
+    }
+
+    /// Default-login R7, R21: "Last read 2 min ago" beside a remembered row's title, the
+    /// Mac's wording through the shared `Countdown` label. Nil for every other account.
+    public static func lastReadLabel(for account: CompanionResolvedAccount, now: Date) -> String? {
+        guard account.isRemembered else { return nil }
+        return Countdown.lastReadLabel(capturedAt: account.capturedAt, now: now)
     }
 
     /// KTD6.3 / P24: the waiting line under a skeleton.
@@ -253,7 +265,9 @@ extension MirrorPresentation {
         now: Date
     ) -> FreshnessStamp.Anchors {
         var anchors = FreshnessStamp.Anchors()
-        for account in content.providers.flatMap(\.accounts) {
+        // Default-login R12: a remembered row is not a reading the Mac keeps current, so it
+        // neither anchors "Updated" nor answers "when was this last checked".
+        for account in content.providers.flatMap(\.accounts) where !account.isRemembered {
             for window in shownWindows(account) {
                 guard let observed = window.observedAt ?? account.capturedAt else { continue }
                 anchors.newestCheck = anchors.newestCheck.map { max($0, observed) } ?? observed
@@ -276,12 +290,20 @@ extension MirrorPresentation {
 extension CompanionCardPresentation {
     /// R3 + R11: the rows in reading order, each past-reset window taken through the
     /// unavailable path with its reset time.
-    public static func meterRows(_ windows: [CompanionResolvedWindow], now: Date) -> [CompanionMeterRow] {
+    /// A remembered row (default-login R8) hides each window at its reset with no grace,
+    /// and keeps the reset time on a window the Mac already sent as unavailable, so every
+    /// reset window says when it reset.
+    public static func meterRows(
+        _ windows: [CompanionResolvedWindow], now: Date, isRemembered: Bool = false
+    ) -> [CompanionMeterRow] {
         rows(windows).map { window in
-            guard window.hasDisplayValue, let resetAt = CompanionFreshnessRule.pastResetTime(window, at: now) else {
+            guard window.hasDisplayValue || isRemembered,
+                let resetAt = CompanionFreshnessRule.pastResetTime(window, at: now, isRemembered: isRemembered)
+            else {
                 return CompanionMeterRow(window: window, pastResetAt: nil)
             }
-            return CompanionMeterRow(window: window.madeUnavailable(since: resetAt), pastResetAt: resetAt)
+            let hidden = window.hasDisplayValue ? window.madeUnavailable(since: resetAt) : window
+            return CompanionMeterRow(window: hidden, pastResetAt: resetAt)
         }
     }
 
@@ -297,6 +319,17 @@ extension CompanionCardPresentation {
     ) -> String {
         CompanionFreshnessCopy.pastReset(
             at: WidgetClockText.text(for: resetAt, now: now, timeZone: timeZone, locale: locale))
+    }
+
+    /// Default-login R8, R21: a remembered row is never read again, so it says the window
+    /// reset and has not been read since, in the Mac's words, instead of waiting for the Mac.
+    public static func pastResetLine(
+        _ resetAt: Date, now: Date, isRemembered: Bool, timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> String {
+        isRemembered
+            ? Countdown.resetNotReadLine(resetAt: resetAt, now: now, timeZone: timeZone, locale: locale)
+            : pastResetLine(resetAt, now: now, timeZone: timeZone, locale: locale)
     }
 }
 

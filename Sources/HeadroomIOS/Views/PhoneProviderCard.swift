@@ -294,8 +294,12 @@ struct PhoneMeterRows: View {
                     // RI1: rows keyed by kind (and occurrence), so a row that arrives or
                     // leaves fades instead of handing its neighbour another window's value.
                     ForEach(Self.keyed(rows.map(\.window)), id: \.key) { keyed in
-                        let pastResetAt = rows.first { $0.window.id == keyed.window.id }?.pastResetAt
-                        let isMuted = dimmed || !keyed.window.freshness.isLive
+                        let layout = CompanionCardPresentation.meterRowLayout(
+                            rows.first { $0.window.id == keyed.window.id }
+                                ?? CompanionMeterRow(window: keyed.window, pastResetAt: nil),
+                            isRemembered: isRemembered, now: now)
+                        // A remembered window past its reset is a reset note, not a reading.
+                        let isMuted = layout.showsMeter && (dimmed || !keyed.window.freshness.isLive)
                         VStack(alignment: .leading, spacing: PhoneCardMetrics.pastResetGap * scale) {
                             UsageBarView(
                                 reading: UsageMeterReading(widgetSummary: keyed.window),
@@ -304,14 +308,16 @@ struct PhoneMeterRows: View {
                                 meterStyle: display.meterStyle,
                                 dimmed: dimmed,
                                 arrivalKey: arrivalKey,
-                                scale: scale
+                                scale: scale,
+                                resetNotReadLine: layout.resetNotReadLine,
+                                showsWindowState: layout.showsWindowState
                             )
                             // Retained readings should look inactive beside live accounts;
                             // keep identity, recovery instructions and reset notes at full ink.
                             .saturation(isMuted ? 0 : 1)
                             .opacity(isMuted ? 0.6 : 1)
-                            if let pastResetAt {
-                                pastResetLine(pastResetAt, key: keyed.key)
+                            if let line = layout.pastResetLine {
+                                pastResetLine(line, key: keyed.key)
                             }
                         }
                         .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
@@ -332,8 +338,8 @@ struct PhoneMeterRows: View {
     }
 
     /// R11/AE6: the row already reads "—"; this says why, in the countdown's place and ink.
-    private func pastResetLine(_ resetAt: Date, key: String) -> some View {
-        Text(CompanionCardPresentation.pastResetLine(resetAt, now: now, isRemembered: isRemembered))
+    private func pastResetLine(_ line: String, key: String) -> some View {
+        Text(line)
             .font(.system(size: PhoneCardMetrics.pastResetSize * scale).monospacedDigit())
             .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
             .fixedSize(horizontal: false, vertical: true)

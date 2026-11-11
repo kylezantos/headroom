@@ -304,6 +304,78 @@ struct MirrorPresentationTests {
             .hasSuffix("· waiting for your Mac"))
     }
 
+    /// R7, R8, R21 (review #12): a remembered row draws on the phone as on the Mac. Before
+    /// its reset: the meter with its number and no per-window "Last known"; past its reset:
+    /// one "Reset … · not read since" line in the meter's place, with no gauge and no number.
+    @Test func aRememberedRowDrawsItsMeterOrOneResetLineWithNoStateLabel() throws {
+        let (_, provider) = try rememberedProvider("claude")
+        let work = provider.accounts[1], studio = provider.accounts[2]
+
+        let workRows = CompanionCardPresentation.meterRows(work.windows, now: now, isRemembered: true)
+        let workLayouts = workRows.map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: true, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(numbers(workRows) == [22, 10])
+        #expect(workLayouts.allSatisfy { $0.showsMeter && !$0.showsWindowState && $0.pastResetLine == nil })
+
+        let studioRows = CompanionCardPresentation.meterRows(studio.windows, now: now, isRemembered: true)
+        let studioLayouts = studioRows.map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: true, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(numbers(studioRows) == [nil, nil])
+        #expect(studioLayouts.allSatisfy { !$0.showsMeter && !$0.showsWindowState && $0.pastResetLine == nil })
+        #expect(studioLayouts.compactMap(\.resetNotReadLine).map(plain) == [
+            "Reset Wednesday at 11:00 AM · not read since",
+            "Reset today at 2:00 AM · not read since",
+        ])
+        let resetAt = try #require(studioRows.first?.pastResetAt)
+        #expect(studioLayouts.first?.resetNotReadLine
+            == Countdown.resetNotReadLine(resetAt: resetAt, now: now, timeZone: utc, locale: enUS))
+    }
+
+    /// Review #12: an ordinary stale extra is drawn as before — its meter, its state label,
+    /// and past its reset the separate "waiting for your Mac" line under the meter.
+    @Test func anOrdinaryStaleExtraKeepsItsMeterStateLabelAndWaitingLine() throws {
+        let (_, provider) = try rememberedProvider("claude")
+        var work = provider.accounts[1], studio = provider.accounts[2]
+        work.isRemembered = false
+        studio.isRemembered = false
+
+        let workLayouts = CompanionCardPresentation.meterRows(work.windows, now: now).map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: false, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(workLayouts.allSatisfy {
+            $0 == CompanionMeterRowLayout(showsWindowState: true, resetNotReadLine: nil, pastResetLine: nil)
+        })
+
+        let studioRows = CompanionCardPresentation.meterRows(studio.windows, now: now)
+        let studioLayouts = studioRows.map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: false, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(studioLayouts.allSatisfy { $0.showsMeter && $0.showsWindowState && $0.resetNotReadLine == nil })
+        #expect(studioLayouts.map(\.pastResetLine) == studioRows.map { row in
+            row.pastResetAt.map {
+                CompanionCardPresentation.pastResetLine($0, now: now, isRemembered: false, timeZone: utc, locale: enUS)
+            }
+        })
+
+        // A stale extra's window with a number, past its reset and grace: an empty meter and
+        // the waiting line under it, exactly as before.
+        let reset = now.addingTimeInterval(-1_200)
+        let read = now.addingTimeInterval(-3_600)
+        let summary = WidgetWindowSummary(
+            kind: .fiveHour, label: "5-hour", percentRemaining: 22, resetSchedule: .scheduled(reset),
+            resetLabel: nil, observedAt: read,
+            severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: 22)),
+            freshness: .stale(observedAt: read))
+        let row = try #require(CompanionCardPresentation.meterRows(
+            [CompanionResolvedWindow(summary: summary, isSpark: false)], now: now).first)
+        #expect(row.pastResetAt == reset && row.window.displayPercentRemaining == nil)
+        let layout = CompanionCardPresentation.meterRowLayout(row, isRemembered: false, now: now, timeZone: utc, locale: enUS)
+        #expect(layout.showsMeter && layout.showsWindowState && layout.resetNotReadLine == nil)
+        #expect(layout.pastResetLine?.hasSuffix("· waiting for your Mac") == true)
+    }
+
     /// R8: a remembered window hides at its reset with no grace; a live account's keeps
     /// the ten-minute grace. The rule reads only the row, never the manifest.
     @Test func aRememberedWindowHidesAtItsResetWithNoGrace() {

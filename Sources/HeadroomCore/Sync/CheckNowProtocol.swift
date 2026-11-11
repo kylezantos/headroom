@@ -269,9 +269,11 @@ public enum CheckNowMachine {
     }
 
     /// KTD14.7: the largest lane's account count, from what the phone sees. Every account
-    /// of one provider shares that provider's lane.
+    /// of one provider shares that provider's lane. Default-login R12: the Mac never probes a
+    /// remembered row, so it adds nothing to the lane; omitted accounts stay counted, since
+    /// the wire does not say what was omitted.
     public static func largestLaneAccountCount(_ content: CompanionResolvedContent) -> Int {
-        content.providers.map { $0.accounts.count + $0.omittedAccountCount }.max() ?? 0
+        content.providers.map { $0.probedAccountCount + $0.omittedAccountCount }.max() ?? 0
     }
 
     private static func finishDeadline(acknowledgedAt: Date, state: CheckNowRequestState) -> Date {
@@ -328,7 +330,7 @@ public struct CheckNowStatus: Equatable, Sendable {
             line = .message(notUpdated > 0 ? CheckNowCopy.notUpdated(notUpdated) : CheckNowCopy.justNow)
         case .checking(let total, let completed, let landed):
             let content = snapshot?.content
-            let accounts = total ?? content?.providers.reduce(0) { $0 + $1.accounts.count } ?? 0
+            let accounts = total ?? content?.providers.reduce(0) { $0 + $1.probedAccountCount } ?? 0
             if let landed, completed > 0, let title = title(of: landed, in: content) {
                 line = .receipt(
                     RefreshReceiptPresentation.landed(
@@ -497,4 +499,9 @@ public final class CheckNowClient: @unchecked Sendable {
             return status
         }
     }
+}
+
+extension CompanionResolvedProvider {
+    /// Default-login R12: the accounts a check can read — every one but a remembered row.
+    var probedAccountCount: Int { accounts.count(where: { !$0.isRemembered }) }
 }

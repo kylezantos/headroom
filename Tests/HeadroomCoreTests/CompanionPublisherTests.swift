@@ -767,6 +767,26 @@ struct CompanionPublisherTests {
         #expect(average <= 6)
         #expect((setsPerMinute.max() ?? 0) <= 7)
     }
+
+    /// Default-login R12 (review #19): an extra becoming remembered, or returning, changes
+    /// only its flag, and that change must reach the phone, so the change fingerprint keeps it.
+    @Test func aRememberedFlagChangeAloneChangesTheFingerprint() throws {
+        func payload(remembered: Bool) throws -> CompanionProviderPayload {
+            try CompanionProviderPayload(
+                sourceID: F.macA, providerID: "claude", payloadGeneration: 1, mode: .subscription,
+                mainAccount: try CompanionAccountSummary(
+                    id: "primary", title: "Personal", capturedAt: F.date(), windows: []),
+                accounts: [
+                    try CompanionAccountSummary(
+                        id: "work", title: "Work", freshness: .stale, capturedAt: F.date(-120),
+                        needsAttention: false, windows: [], isRemembered: remembered),
+                ])
+        }
+        let ordinary = try payload(remembered: false)
+        let remembered = try payload(remembered: true)
+        #expect(CompanionPublishImage.fingerprint(ordinary) == CompanionPublishImage.fingerprint(try payload(remembered: false)))
+        #expect(CompanionPublishImage.fingerprint(ordinary) != CompanionPublishImage.fingerprint(remembered))
+    }
 }
 
 /// KTD22 / R35: the what-syncs footnote and the Mac status line.

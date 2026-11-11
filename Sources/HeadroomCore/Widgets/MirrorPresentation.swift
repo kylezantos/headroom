@@ -199,6 +199,18 @@ public struct CompanionMeterRow: Equatable, Sendable {
     public let pastResetAt: Date?
 }
 
+/// What `CompanionCardPresentation.meterRowLayout` decides for one row: whether the meter
+/// prints its per-window state label, the line that replaces the meter (a remembered window
+/// past its reset), and the line drawn under the meter (any other window past its reset).
+public struct CompanionMeterRowLayout: Equatable, Sendable {
+    public let showsWindowState: Bool
+    public let resetNotReadLine: String?
+    public let pastResetLine: String?
+
+    /// False only when `resetNotReadLine` replaces the gauge and the number.
+    public var showsMeter: Bool { resetNotReadLine == nil }
+}
+
 /// U21 (KTD3, P45–P53): one API spend row, resolved for the shared `APISpendRow` from the
 /// synced summary. The same Core decisions the popover's row model makes — title and chip
 /// split, context label, amount text, status — so the two rows cannot drift.
@@ -305,6 +317,25 @@ extension CompanionCardPresentation {
             let hidden = window.hasDisplayValue ? window.madeUnavailable(since: resetAt) : window
             return CompanionMeterRow(window: hidden, pastResetAt: resetAt)
         }
+    }
+
+    /// Default-login R7, R8, R21: how the phone draws one meter row, so a remembered row reads
+    /// as it does on the Mac (`RememberedRowRecipe`). A remembered window drops the per-window
+    /// "Last known" state (its identity row already says "Last read …"); past its reset it is
+    /// one line — label and "Reset … · not read since" — with no gauge and no number. Every
+    /// other row keeps the meter, its state label, and the separate "waiting for your Mac"
+    /// line under a window past its reset.
+    public static func meterRowLayout(
+        _ row: CompanionMeterRow, isRemembered: Bool, now: Date, timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> CompanionMeterRowLayout {
+        guard let resetAt = row.pastResetAt else {
+            return CompanionMeterRowLayout(showsWindowState: !isRemembered, resetNotReadLine: nil, pastResetLine: nil)
+        }
+        let line = pastResetLine(resetAt, now: now, isRemembered: isRemembered, timeZone: timeZone, locale: locale)
+        return isRemembered
+            ? CompanionMeterRowLayout(showsWindowState: false, resetNotReadLine: line, pastResetLine: nil)
+            : CompanionMeterRowLayout(showsWindowState: true, resetNotReadLine: nil, pastResetLine: line)
     }
 
     /// KTD15: whole-surface dimming and an account's own stale treatment are one secondary-ink

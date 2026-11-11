@@ -53,7 +53,10 @@ extension UsageStore {
             guard let slot = state.slot(for: key) else { return true }
             return slot.binding == nil && slot.phase != .cleared
         }
-        if state != loaded { commitDefaultLogin(state) } else { publishRememberedRows() }
+        // `defaultLoginState` already holds the repaired state, so the commit sees no
+        // change to publish; the rows are published here either way (a no-op if unchanged).
+        if state != loaded { commitDefaultLogin(state) }
+        publishRememberedRows()
     }
 
     /// A saved reading is the bound account's when it carries that account's digest, or

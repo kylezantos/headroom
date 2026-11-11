@@ -117,6 +117,48 @@ struct RememberedAccountTests {
         #expect(remembered(rig).map(\.label) == ["Work"])
     }
 
+    /// KTD12 across a relaunch: the launch repair retires a remembered row only against
+    /// the default login, so the row an extra hides still returns when the extra goes.
+    @Test func aRememberedRowHiddenByAnExtraSurvivesARelaunchAndReturnsWithItsReading() async {
+        let rig = DefaultLoginRig(extraLabels: ["Side"])
+        let side = rig.extras[0]
+        side.set(rig.reading("side"))
+        await boundToWork(rig).read(rig.reading(a, weeklyUsed: 90))
+        rig.advance(120)
+        await rig.read(rig.reading(b))
+        rig.advance(120)
+        side.set(rig.reading(a))
+        await rig.read(rig.reading(b))
+        #expect(remembered(rig).isEmpty)
+
+        rig.launch()
+        #expect(remembered(rig).isEmpty)
+        #expect(await rig.store.removeAccount(side.accountKey) == .removed)
+        let rows = remembered(rig)
+        #expect(rows.map(\.label) == ["Work"])
+        #expect(rows.first?.snapshot?.windows.last?.utilization == 90)
+    }
+
+    // MARK: Launch repair (KTD4)
+
+    /// A launch repair that changes the records (here a crash-interrupted mirror) still
+    /// publishes the remembered rows for the session.
+    @Test func aLaunchRepairThatChangesTheRecordsStillListsTheRememberedRows() async throws {
+        let rig = await boundToWork()
+        rig.advance(120)
+        await rig.read(rig.reading(b))
+        #expect(remembered(rig).map(\.label) == ["Work"])
+        var state = rig.state
+        var slot = try #require(state.slot(for: rig.key))
+        slot.pendingMirror = PendingMirror(label: "Main")
+        state.upsert(slot)
+        rig.records.write(try #require(DefaultLoginRecordsCodec.encode(state)))
+
+        rig.launch()
+        #expect(rig.slot?.pendingMirror == nil)
+        #expect(remembered(rig).map(\.label) == ["Work"])
+    }
+
     // MARK: Return (R10)
 
     /// Covers AE3.
@@ -183,6 +225,80 @@ struct RememberedAccountTests {
         await rig.read(rig.reading(b))
         #expect(remembered(rig).map(\.label) == ["Work"])
         #expect(remembered(rig).first?.id == work.id)
+    }
+
+    /// R10 and R11 through the reset boundary: a removed account that becomes the default
+    /// login again via "Sign Out & Set Up Again" is live under its own name, and is
+    /// visible under that name when it leaves again. The account bound at the reset is
+    /// still not remembered (KTD7).
+    @Test func aRemovedAccountBackThroughTheResetIsLiveUnderItsNameAndVisibleWhenItLeaves() async throws {
+        let rig = await boundToWork()
+        rig.advance(120)
+        await rig.read(rig.reading(b))
+        rig.store.renameAccount(rig.key, to: "Home")
+        rig.advance(120)
+        await rig.read(rig.reading(a))
+        #expect(rig.label == "Work")
+        let home = try #require(remembered(rig).first)
+        #expect(home.label == "Home")
+        #expect(rig.store.removeRememberedAccount(home.key))
+        #expect(remembered(rig).isEmpty)
+
+        rig.store.invalidateUsageForAccountReset(rig.key)
+        rig.advance(60)
+        await rig.read(rig.reading(b))
+        #expect(rig.label == "Home")
+        #expect(rig.slot?.binding == DefaultLoginRig.identity(b))
+        #expect(remembered(rig, includingHidden: true).isEmpty)
+        #expect(entry(rig, a)?.hasRow != true)
+        #expect(entry(rig, b)?.isHidden == false)
+
+        rig.advance(120)
+        await rig.read(rig.reading(c))
+        let rows = remembered(rig)
+        #expect(rows.map(\.label) == ["Home"])
+        #expect(rows.first?.id == home.id)
+        #expect(rows.first?.isHidden == false)
+    }
+
+    /// R11: a hidden entry whose account leaves the slot is visible again, and a name the
+    /// user chose is never replaced by a number.
+    @Test func aHiddenEntryThatLeavesAgainIsVisibleUnderTheUsersName() {
+        let key = AccountKey(providerID: .codex, accountID: .primary)
+        let identityB = DefaultLoginRig.identity(b)
+        var state = DefaultLoginRecordsState()
+        var slot = SlotRecord(key: key)
+        slot.binding = identityB
+        slot.mirroredLabel = "Main"
+        state.upsert(slot)
+        var hidden = RememberedAccount(
+            id: AccountID("home"), providerID: .codex, identity: identityB, label: "Home", email: nil
+        )
+        hidden.isHidden = true
+        state.remembered = [hidden]
+        let window = UsageWindow(kind: .weekly, utilization: 5, resetsAt: .distantFuture)
+        let current = UsageSnapshot(
+            providerID: .codex, windows: [window], planLabel: nil,
+            capturedAt: DefaultLoginRig.start, freshness: .live, identity: .known(identityB)
+        )
+        let incoming = UsageSnapshot(
+            providerID: .codex, windows: [window], planLabel: nil,
+            capturedAt: DefaultLoginRig.start.addingTimeInterval(60), freshness: .live,
+            identity: .known(DefaultLoginRig.identity(c))
+        )
+        _ = DefaultLoginTransition.apply(
+            DefaultLoginReading(incoming)!,
+            for: key,
+            context: DefaultLoginSlotContext(
+                isBuiltIn: true, label: "Main", defaultLabel: "Main", snapshot: current,
+                reminders: .none, launchSnapshot: nil, otherReaders: [], registryLabels: ["Main"]
+            ),
+            to: &state
+        )
+        let kept = state.remembered.first { $0.identity == identityB }
+        #expect(kept?.hasRow == true)
+        #expect(kept?.isHidden == false)
+        #expect(kept?.label == "Home")
     }
 
     @Test func aRenameSurvivesRetireAndRecreateAndKeepsTheLocalID() async {

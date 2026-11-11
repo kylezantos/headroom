@@ -328,7 +328,19 @@ enum DefaultLoginTransition {
         effects: inout DefaultLoginEffects
     ) {
         guard let bound = slot.binding else {
-            if slot.phase == .cleared {
+            // R10, R11: a remembered account that becomes the default login through the
+            // reset boundary (or onto a never-bound row) is claimed as on a change: live
+            // under its own name and history, and no longer hidden. The account bound at
+            // the reset is never remembered and its label never moves to another (KTD7).
+            let isResetAccount = slot.phase == .cleared && slot.parked?.identity == identity
+            if context.isBuiltIn, identity.strength == .strong, !isResetAccount,
+               let arriving = takeArriving(identity, email: reading.email, providerID: slot.key.providerID, state: &state) {
+                effects.label = arriving.label ?? context.defaultLabel
+                effects.reminders = arriving.reminders
+                effects.prior = arriving.snapshot?.snapshot.map(DefaultLoginEffects.Prior.snapshot) ?? .none
+                effects.accountChanged = true
+                effects.removesContinuity = true
+            } else if slot.phase == .cleared {
                 afterReset(identity, slot: &slot, context: context, effects: &effects)
             } else {
                 neverBound(identity, reading: reading, slot: &slot, context: context, state: &state, effects: &effects)
@@ -509,7 +521,8 @@ enum DefaultLoginTransition {
     }
 
     /// R11: a removed row is kept hidden, with its label and reminder state, until its
-    /// account is the default login again (`takeArriving` clears the flag).
+    /// account is the default login again (`takeArriving` clears the flag, on a change
+    /// and through the reset boundary alike).
     static func hideRemembered(_ key: AccountKey, in state: inout DefaultLoginRecordsState) -> Bool {
         guard let index = state.remembered.firstIndex(where: { $0.key == key && $0.hasRow }) else { return false }
         state.remembered[index].isHidden = true
@@ -539,10 +552,12 @@ enum DefaultLoginTransition {
         return rows
     }
 
-    /// KTD4 launch repair, record side: a remembered row whose account a slot is bound to
-    /// would show one account twice.
+    /// KTD4 launch repair, record side: a remembered row whose account the default login
+    /// holds would show one account twice. Only the built-in slot retires one; a row an
+    /// extra reads yields in `rememberedRows` and must keep its reading so it returns if
+    /// that extra is removed, across a relaunch too (KTD12).
     static func retireDuplicates(in state: inout DefaultLoginRecordsState) {
-        for slot in state.slots {
+        for slot in state.slots where slot.key.accountID == .primary {
             guard let bound = slot.binding else { continue }
             for index in state.remembered.indices
             where state.remembered[index].providerID == slot.key.providerID
@@ -648,11 +663,14 @@ enum DefaultLoginTransition {
             $0.providerID == identity.providerID && $0.identity == identity
         }) {
             var entry = state.remembered.remove(at: index)
+            // R11: a row leaving the slot is visible; hiding lasts only until it returns.
+            entry.isHidden = false
             if let label = leaving.label, named {
                 entry.label = label
                 entry.hasAssignedLabel = nil
-            } else if entry.hasAssignedLabel != true {
-                // Left once unnamed is numbered; one that keeps its number reuses it.
+            } else if entry.hasAssignedLabel != true, entry.label == context.defaultLabel {
+                // Left once unnamed is numbered; one that keeps its number reuses it, and
+                // a name the user chose is never replaced by a number.
                 entry.label = nextDefaultLabel(for: identity.providerID, context: context, state: state)
                 entry.hasAssignedLabel = true
             }

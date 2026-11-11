@@ -25,7 +25,7 @@ private struct RigAccountStorage: AccountStorageManaging {
     func removeDirectories(for account: ProviderAccount) async -> Result<Void, AccountStorageFailure> { .success(()) }
 }
 
-/// One Codex install across launches: a real registry, continuity cache, reminder stores
+/// One Codex (or, with `provider: .claude`, one Claude) install across launches: a real registry, continuity cache, reminder stores
 /// and record store over one throwaway defaults suite. `launch()` builds a new store on
 /// the same suite, which is a relaunch; `launch(records: false)` is an older build.
 @MainActor
@@ -35,7 +35,8 @@ final class DefaultLoginRig {
     let defaults: UserDefaults
     let clock = MutableDateSource(DefaultLoginRig.start)
     let poster = RecordingNotificationPoster()
-    let primary = ScriptedAccountProvider(id: .codex)
+    let providerID: ProviderID
+    let primary: ScriptedAccountProvider
     let extras: [ScriptedAccountProvider]
     let registry: AccountRegistry
     let ledger: UseItUpLedger
@@ -50,9 +51,17 @@ final class DefaultLoginRig {
     private(set) var store: UsageStore!
     private(set) var coordinator: NotificationCoordinator!
 
-    let key = AccountKey(providerID: .codex, accountID: .primary)
+    let key: AccountKey
 
-    init(extraLabels: [String] = [], banked: Bool = false, countsPhoneExports: Bool = false) {
+    init(
+        provider: ProviderID = .codex,
+        extraLabels: [String] = [],
+        banked: Bool = false,
+        countsPhoneExports: Bool = false
+    ) {
+        providerID = provider
+        primary = ScriptedAccountProvider(id: provider)
+        key = AccountKey(providerID: provider, accountID: .primary)
         phone = countsPhoneExports ? SpyPhoneSync() : nil
         let suite = "headroom.default-login.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
@@ -65,10 +74,10 @@ final class DefaultLoginRig {
         continuity = UsageContinuityCache(defaults: defaults)
         records = DefaultLoginRecordStore(defaults: defaults)
         let extraAccounts = extraLabels.map {
-            ProviderAccount(id: AccountID($0.lowercased()), providerID: .codex, label: $0)
+            ProviderAccount(id: AccountID($0.lowercased()), providerID: provider, label: $0)
         }
-        if !extraAccounts.isEmpty { registry.seed([.builtIn(for: .codex)] + extraAccounts) }
-        extras = extraAccounts.map { ScriptedAccountProvider(id: .codex, accountID: $0.id) }
+        if !extraAccounts.isEmpty { registry.seed([.builtIn(for: provider)] + extraAccounts) }
+        extras = extraAccounts.map { ScriptedAccountProvider(id: provider, accountID: $0.id) }
         let preferences = Preferences(defaults: defaults)
         preferences.useItUpRemindersEnabled = true
         preferences.bankedResetNotificationsEnabled = banked
@@ -105,7 +114,7 @@ final class DefaultLoginRig {
 
     func advance(_ seconds: TimeInterval) { clock.set(clock.now().addingTimeInterval(seconds)) }
 
-    var label: String { store.accounts(for: .codex).first { $0.key == key }?.label ?? "" }
+    var label: String { store.accounts(for: providerID).first { $0.key == key }?.label ?? "" }
     var snapshot: UsageSnapshot { store.snapshot(for: key) }
     var state: DefaultLoginRecordsState { store.defaultLoginState ?? DefaultLoginRecordsState() }
     var slot: SlotRecord? { state.slot(for: key) }
@@ -116,6 +125,22 @@ final class DefaultLoginRig {
 
     static func identity(_ account: String) -> AccountIdentity {
         AccountIdentity.codex(accountID: account)!
+    }
+
+    /// This rig's provider's identity for `account`. Claude needs UUID-syntactic ids, so a
+    /// plain name is mapped to a fixed UUID derived from it.
+    func identity(_ account: String) -> AccountIdentity {
+        guard providerID == .claude else { return Self.identity(account) }
+        return AccountIdentity.claude(accountUUID: Self.claudeUUID(account), organizationUUID: nil)!
+    }
+
+    static func claudeUUID(_ account: String) -> String {
+        if UUID(uuidString: account) != nil { return account }
+        var bytes = Array(account.utf8.prefix(16))
+        bytes += Array(repeating: 0, count: 16 - bytes.count)
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+            .uuidString
     }
 
     /// A live Codex reading for `account` (nil: the file names no account). Its weekly
@@ -129,9 +154,9 @@ final class DefaultLoginRig {
         weeklyResetIn: TimeInterval = 5 * 24 * 3_600
     ) -> UsageSnapshot {
         let now = clock.now()
-        let outcome: AccountIdentityOutcome? = identity ?? (account.map { .known(Self.identity($0)) } ?? .absent)
+        let outcome: AccountIdentityOutcome? = identity ?? (account.map { .known(self.identity($0)) } ?? .absent)
         return UsageSnapshot(
-            providerID: .codex,
+            providerID: providerID,
             windows: [
                 UsageWindow(kind: .fiveHour, utilization: 99, resetsAt: Self.start.addingTimeInterval(4 * 3_600)),
                 UsageWindow(kind: .weekly, utilization: weeklyUsed, resetsAt: Self.start.addingTimeInterval(weeklyResetIn)),
@@ -155,6 +180,8 @@ final class DefaultLoginRig {
         reading(nil, weeklyUsed: weeklyUsed, email: .some(email), identity: .some(nil))
     }
 
-    var signedOut: UsageSnapshot { .stale(for: .codex, reason: .providerSetup(.codexAuthAbsent)) }
-    var blip: UsageSnapshot { .stale(for: .codex, reason: .transient("blip")) }
+    var signedOut: UsageSnapshot {
+        .stale(for: providerID, reason: .providerSetup(providerID == .claude ? .claudeLoginRequired : .codexAuthAbsent))
+    }
+    var blip: UsageSnapshot { .stale(for: providerID, reason: .transient("blip")) }
 }

@@ -1310,10 +1310,13 @@ enum AppComposition {
             return UnavailableAccountProvider(account: account)
         }
         guard !account.isBuiltIn else {
-            return ClaudeProvider(source: ClaudeUsageCLIProbe(
-                locator: claudeExecutableLocator,
-                workingDirectory: workspace.path
-            ))
+            return ClaudeProvider(
+                source: ClaudeUsageCLIProbe(
+                    locator: claudeExecutableLocator,
+                    workingDirectory: workspace.path
+                ),
+                emailSource: claudeIdentityReader(configDirectory: nil)
+            )
         }
         guard let configDirectory = configuration.claudeConfigDirectory else {
             return UnavailableAccountProvider(account: account)
@@ -1324,8 +1327,22 @@ enum AppComposition {
                 workingDirectory: workspace.path,
                 environmentOverrides: ["CLAUDE_CONFIG_DIR": configDirectory.path]
             ),
-            accountID: account.id
+            accountID: account.id,
+            emailSource: claudeIdentityReader(configDirectory: configDirectory)
         )
+    }
+
+    /// Default-login plan U2: the `.claude.json` reader for one Claude row. The built-in
+    /// row (`configDirectory` nil) reads `~/.claude.json`; an extra reads the root of the
+    /// same `CLAUDE_CONFIG_DIR` its probe is handed, so each row reads its own file. Demo,
+    /// render, bench and XCTest-host launches get no reader and read no file.
+    static func claudeIdentityReader(
+        configDirectory: URL?,
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> (any ClaudeAccountEmailReading)? {
+        guard !usesInertPhoneSync(arguments: arguments, environment: environment) else { return nil }
+        return ClaudeAccountEmailFileReader(configDirectory: configDirectory)
     }
 
     @MainActor

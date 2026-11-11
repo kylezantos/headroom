@@ -7,7 +7,7 @@ import Foundation
 /// upstream ids out of storage. It is not a privacy control: the email is already
 /// stored locally for display.
 public struct AccountIdentity: Sendable, Equatable, Hashable, Codable {
-    /// Strong: a stable upstream account id (Codex). Weak: an email or login name, which
+    /// Strong: a stable upstream account id (Claude, Codex). Weak: an email or login name, which
     /// can be renamed or reused, so it relabels a row but never remembers or merges one
     /// (KTD13).
     public enum Strength: String, Sendable, Codable {
@@ -29,6 +29,39 @@ public struct AccountIdentity: Sendable, Equatable, Hashable, Codable {
         self.strength = strength
         self.digest = digest
         self.digestVersion = digestVersion
+    }
+
+    /// Claude: `oauthAccount.accountUuid` plus `oauthAccount.organizationUuid` from the
+    /// config home's `.claude.json` (KTD1; field paths confirmed by gate V1,
+    /// `docs/qa/2026-11-11-default-login-gate-v1.md`). One account in two organizations is
+    /// two identities. A null or absent organization is a value, not a failure. Both ids
+    /// must be UUID-syntactic: the file is local plaintext, so a hand-edited value yields
+    /// no identity rather than one that could match an unrelated home.
+    public static func claude(accountUUID: String?, organizationUUID: String?) -> AccountIdentity? {
+        guard let account = canonicalUUID(accountUUID) else { return nil }
+        let organization: String
+        if let raw = organizationUUID?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty {
+            guard let canonical = canonicalUUID(raw) else { return nil }
+            organization = canonical
+        } else {
+            organization = ""
+        }
+        return make(
+            .claude,
+            field: "oauthAccount.accountUuid+organizationUuid",
+            value: "\(account)|\(organization)",
+            strength: .strong
+        )
+    }
+
+    /// A UUID in lowercase canonical form, or nil for anything that is not UUID-syntactic
+    /// (moved here from `ClaudeDuplicateLoginDetector` so the badge and the identity share
+    /// one check).
+    static func canonicalUUID(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              let uuid = UUID(uuidString: trimmed)
+        else { return nil }
+        return uuid.uuidString.lowercased()
     }
 
     /// Codex: `tokens.account_id` from the `auth.json` the request's own token came from.
@@ -110,15 +143,23 @@ public enum AccountIdentityOutcome: Sendable, Equatable {
     }
 
     /// Combines the read taken before the usage read with the one taken after it.
+    ///
+    /// `steadyUnreadableIsAbsent: false` keeps KTD2's rule as written for a client whose
+    /// account file is the one the CLI itself reads (Claude): a file present but
+    /// undecodable on both sides is refused, and the scheduler's refusal bound turns the
+    /// third refusal into an ordinary transient failure.
     public static func bracketing(
         before: AccountIdentityRead,
-        after: AccountIdentityRead
+        after: AccountIdentityRead,
+        steadyUnreadableIsAbsent: Bool = true
     ) -> AccountIdentityOutcome {
         switch (before, after) {
         case (.identity(let first, _), .identity(let second, _)):
             return first == second ? .known(first) : .unreadable
         case (.absent, .absent):
             return .absent
+        case (.unreadable, .unreadable) where !steadyUnreadableIsAbsent:
+            return .unreadable
         case (.unreadable, .unreadable):
             // A file unreadable on both sides is steadily unreadable, not a login in
             // flux: a rewrite lasts milliseconds and the reads are seconds apart. Grok's

@@ -450,7 +450,7 @@ enum UIBenchHarness {
             preferences: preferences,
             credentialStore: CredentialStore(apiKeyStore: keyStore),
             // Never read the user's real `.claude.json` from the bench.
-            duplicateDetector: ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil }),
+            duplicateDetector: ClaudeDuplicateLoginDetector(readIdentity: { _ in nil }),
             notificationClient: notificationClient
         )
         .environment(\.colorScheme, .light)
@@ -1319,7 +1319,7 @@ private struct BenchSceneStandIn: View {
             preferences: preferences,
             credentialStore: credentialStore,
             launchControl: launchControl,
-            duplicateDetector: ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil }),
+            duplicateDetector: ClaudeDuplicateLoginDetector(readIdentity: { _ in nil }),
             notificationClient: notificationClient
         )
         .overlay(alignment: .topLeading) {

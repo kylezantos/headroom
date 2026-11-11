@@ -274,7 +274,7 @@ matching extra as one row (Phase 3) is not built yet. Parity, forced by what eac
 | Grok | email, weak | Yes | Yes | No |
 | Cursor | email from `status`, weak | No (the read runs beside the capture) | Yes | No |
 | Copilot | login, weak, up to an hour old | No | Yes | No |
-| Claude | not wired | No | No | No |
+| Claude | `accountUuid` + `organizationUuid` from `.claude.json`, strong | Yes | Yes | Yes |
 
 **Remembered accounts (Phase 2).** The account the default login left keeps a dimmed row with
 its last reading: a "Last read …" tag where "Stale" would be, and, once a window's reset has
@@ -308,9 +308,22 @@ a phone that predates the key shows the row as an ordinary stale extra. Widgets 
 show each provider's main account only. `--demo remembered` poses the states from an in-memory
 record store.
 
-Claude waits on gate V1 of the plan: its credential is in the Keychain and its identity in
-`.claude.json`, and nothing has yet shown that the two change together. Do not wire Claude's
-identity before that gate has a recorded result.
+Claude is wired on gate V1's one recorded case (`docs/qa/2026-11-11-default-login-gate-v1.md`):
+after `claude auth login` to another account, the `oauthAccount` block of `.claude.json` changed
+with the Keychain credential, and after `claude auth logout` it was gone. Identity is
+`oauthAccount.accountUuid` plus `oauthAccount.organizationUuid` (`AccountIdentity.claude`; one
+account in two organizations is two identities, a null organization is a value, a non-UUID id is
+no identity), read as metadata only. Each row reads its own file: the built-in row
+`~/.claude.json`, an extra the root of its `CLAUDE_CONFIG_DIR`. `ClaudeProvider` reads it before
+and after the `/usage` capture; unlike Grok, a file undecodable on both sides is refused, so the
+refusal bound turns it into a transient failure. An inherited `CLAUDE_CODE_OAUTH_TOKEN`
+(`ClaudeUsageCLIProbe.launchesWithInheritedOAuthToken`, presence only) makes every Claude row
+Absent. `AppComposition.claudeIdentityReader` wires the reader in a real launch only; demos,
+harnesses and the XCTest host read no file. **Unverified:** a Claude Desktop sign-in, and a
+default-login switcher that swaps the Keychain credential. A switcher that leaves `.claude.json`
+alone would file readings under the wrong account, so no release may claim to follow one until
+gate V1's switcher case has a result. Never read the Keychain item or run `claude auth status`
+for identity.
 
 Each provider has a persisted primary selection. **Make Main** reorders the selected row to the
 top, refreshes only it, and immediately reroutes the menu bar, widgets, phone projection,
@@ -324,8 +337,9 @@ an **extra** account deletes its Headroom-owned config home, while the **built-i
 only be *stop-tracked* (Aug 2026): a persisted registry tombstone hides the row without touching
 the CLI's own config or login, allowed only while another account exists, undone via "Show CLI
 Account" in the provider header. Claude rows signed in to the same upstream login (matched by
-`oauthAccount.accountUuid`, metadata only) get a detection-only "Same login as X" badge —
-never auto-merged.
+the default-login identity, `accountUuid` plus `organizationUuid`, metadata only, so the badge
+and the records never disagree) get a detection-only "Same login as X" badge — never
+auto-merged.
 
 ## Commands
 

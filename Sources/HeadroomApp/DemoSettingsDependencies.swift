@@ -20,11 +20,11 @@ extension AppComposition {
     }
 
     static func makeSettingsDuplicateDetector(isDemo: Bool,
-        readAccountUUID: @escaping @Sendable (AccountID) -> String? = {
-            ClaudeAccountEmailFileReader.forAccount($0).readAccountUUID()
+        readIdentity: @escaping @Sendable (AccountID) -> AccountIdentity? = {
+            ClaudeAccountEmailFileReader.forAccount($0).readAccountIdentity().identity
         }) -> ClaudeDuplicateLoginDetector {
-        if isDemo { return ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil }) }
-        return ClaudeDuplicateLoginDetector(readAccountUUID: readAccountUUID)
+        if isDemo { return ClaudeDuplicateLoginDetector(readIdentity: { _ in nil }) }
+        return ClaudeDuplicateLoginDetector(readIdentity: readIdentity)
     }
 
     /// Default-login plan U11: like the duplicate detector, a demo or hosted-test launch

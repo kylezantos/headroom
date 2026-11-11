@@ -139,9 +139,9 @@ struct LoadingDemoTests {
             _ = await credentials.saveAPIKey("demo-placeholder", for: id)
             _ = await credentials.deleteAPIKey(for: id)
         }
-        let detector = AppComposition.makeSettingsDuplicateDetector(isDemo: true, readAccountUUID: { _ in
+        let detector = AppComposition.makeSettingsDuplicateDetector(isDemo: true, readIdentity: { _ in
             spy.noteRead()
-            return "test-placeholder"
+            return AccountIdentity.claude(accountUUID: "11111111-2222-3333-4444-555555555555", organizationUUID: nil)
         })
         #expect(detector.duplicateLabels(for: [.builtIn(for: .claude)]).isEmpty)
         #expect(spy.calls == 0)

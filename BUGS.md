@@ -10,12 +10,20 @@ Plan: `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`. Phase 1 sh
 Codex, Grok, Cursor and Copilot. Phase 2 (remembered-account rows on the Mac and the phone) is
 built for Codex.
 
-- **Claude is not wired (gate V1).** `.claude.json` must be captured before and after
-  `claude /login` to another account, a Claude Desktop sign-in, and a default-login switcher,
-  to show the account block changes whenever the Keychain credential does. Until then Claude
-  rows behave as before, and the Claude model-row entry under "Claude CLI probe" stays open.
-  The continuity policy already refuses to retain a model row across two identities, so
-  wiring the reader is what closes it.
+- **Claude is wired on one of gate V1's three cases (2026-11-11).** Identity is
+  `oauthAccount.accountUuid` plus `organizationUuid` from each row's own `.claude.json`, read
+  before and after every `/usage` capture; relabel, refusal, remembered rows and the one-row
+  merge now apply to Claude (`ClaudeIdentityTests`). Still assumed, not verified: that a Claude
+  Desktop sign-in and a default-login switcher rewrite the `oauthAccount` block whenever they
+  change the Keychain credential (see the V1 entry below and the V1 record's "Contrary
+  evidence" section: third-party sources say a running Claude Code session can rewrite the
+  block from its own cached profile; unreproduced). Also unmeasured: how often the CLI's
+  own rewrite of `.claude.json` at launch makes the after-read meet a half-written file and
+  refuses a reading (`identityRefusalTotals` counts it; the plan's probe-trace line for it is
+  not added). Two choices made in the wiring: a file undecodable on both sides is refused, as
+  KTD2 is written, where Grok keeps that reading under no name; and an inherited
+  `CLAUDE_CODE_OAUTH_TOKEN` is detected by the variable's presence, so an empty value also
+  makes every Claude row Absent.
 - **Phase 3 (one row for the default login and a matching extra) is built for Codex.**
 - **Gate V1 passed for `claude auth login` only (2026-11-11).** See
   `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and a
@@ -492,10 +500,14 @@ that name. Still to do:
   fallback for CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version`
   timeout is not retried and still sends the probe to the PTY.
 
-- **An external Claude CLI account switch can retain a model row from the prior login.**
-  The continuity merger retains missing model rows without comparing upstream identity.
-  Headroom's explicit reset clears continuity; an external login switch does not.
-  Follow up with identity-aware continuity and a regression fixture.
+- **Fixed for a switch the account file records (2026-11-11): an external Claude CLI account
+  switch could retain a model row from the prior login.** Claude readings now carry their
+  `.claude.json` identity, and the continuity merger retains a missing model row only from a
+  reading of the same identity. Fixtures cover the in-memory and the relaunch path
+  (`ClaudeDefaultLoginStoreTests`). Still open for a switch that changes the Keychain
+  credential without rewriting `.claude.json` (gate V1's unverified cases). With an inherited
+  `CLAUDE_CODE_OAUTH_TOKEN` every reading is Absent, so no model row is retained at all: a
+  partial capture drops it instead of keeping it stale.
 
 
 - **Resolved upstream on 2026-07-20: the per-model weekly row ("Weekly (Fable)") returned in

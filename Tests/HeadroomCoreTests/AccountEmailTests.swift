@@ -18,6 +18,10 @@ private let claudeAccountFileFixture = """
 """
 
 /// Upstream identities the detector will accept: it trusts UUID-syntactic values only.
+private func claudeID(_ accountUUID: String?, organization: String? = nil) -> AccountIdentity? {
+    AccountIdentity.claude(accountUUID: accountUUID, organizationUUID: organization)
+}
+
 private let sharedLoginUUID = "11111111-2222-3333-4444-555555555555"
 private let otherLoginUUID = "99999999-8888-7777-6666-555555555555"
 
@@ -82,9 +86,9 @@ struct ClaudeAccountEmailTests {
     }
 
     @Test func forAccountRoutesPrimaryToHomeRootAndExtrasToTheirConfigHome() {
-        // `forAccount` is the one production resolver (ClaudeProvider's default
-        // emailSource) — the branch below decides which account's email shows on
-        // which card, so both sides are pinned.
+        // `forAccount` is the resolver the Settings duplicate badge reads through — the
+        // branch below decides which account's identity a row is checked under, so both
+        // sides are pinned.
         let home = FileManager.default.homeDirectoryForCurrentUser
         #expect(
             ClaudeAccountEmailFileReader.forAccount(.primary).accountFilePath
@@ -192,7 +196,7 @@ struct ClaudeDuplicateLoginTests {
     @Test func sameUpstreamLoginBadgesTheLaterRow() {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
         // Registry order decides the original: the earlier row keeps its plain
         // identity, the later duplicate carries the badge.
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
@@ -202,7 +206,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let detector = ClaudeDuplicateLoginDetector(
-            readAccountUUID: { $0 == .primary ? sharedLoginUUID : otherLoginUUID }
+            readIdentity: { claudeID($0 == .primary ? sharedLoginUUID : otherLoginUUID) }
         )
         #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
     }
@@ -212,7 +216,7 @@ struct ClaudeDuplicateLoginTests {
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         // A missing/unreadable `.claude.json` (signed out, fresh config home) must fail
         // safe to "no claim", never to "same account".
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(nil) })
         #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
     }
 
@@ -220,7 +224,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let detector = ClaudeDuplicateLoginDetector(
-            readAccountUUID: { $0 == .primary ? sharedLoginUUID.uppercased() : sharedLoginUUID }
+            readIdentity: { claudeID($0 == .primary ? sharedLoginUUID.uppercased() : sharedLoginUUID) }
         )
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
     }
@@ -230,13 +234,13 @@ struct ClaudeDuplicateLoginTests {
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
 
         #expect(
-            ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+            ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
                 .duplicateLabels(for: [main, extra]) == [extra.key: "Main"]
         )
         // `.claude.json` is a local plaintext file: an empty or hand-edited
         // `accountUuid` must not let two unrelated homes match.
         for identity in ["", "   ", "same-account", "not-a-uuid", "11111111-2222-3333-4444"] {
-            let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in identity })
+            let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(identity) })
             #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
         }
     }
@@ -244,7 +248,7 @@ struct ClaudeDuplicateLoginTests {
     @Test func nonClaudeAccountsAreIgnored() {
         let codexMain = ProviderAccount.builtIn(for: .codex)
         let codexExtra = ProviderAccount(id: AccountID("extra-1"), providerID: .codex, label: "Work")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
         #expect(detector.duplicateLabels(for: [codexMain, codexExtra]).isEmpty)
     }
 
@@ -252,7 +256,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let second = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let third = ProviderAccount(id: AccountID("extra-2"), providerID: .claude, label: "Newer")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
         #expect(detector.duplicateLabels(for: [main, second, third])
                 == [second.key: "Main", third.key: "Main"])
     }
@@ -833,6 +837,16 @@ private struct StubGrokAuthReader: GrokAuthReading {
 private struct StubClaudeEmailSource: ClaudeAccountEmailReading {
     let email: String?
     func readAccountEmail() -> String? { email }
+    /// One fixed account when the file names an email; signed out otherwise.
+    func readAccountIdentity() -> AccountIdentityRead {
+        guard let email,
+              let identity = AccountIdentity.claude(
+                  accountUUID: "00000000-0000-4000-8000-000000000001",
+                  organizationUUID: nil
+              )
+        else { return .absent }
+        return .identity(identity, email: email)
+    }
 }
 
 private struct StubGrokEmailSource: GrokAccountEmailReading {

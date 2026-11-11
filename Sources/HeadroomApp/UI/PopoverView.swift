@@ -98,42 +98,51 @@ struct PopoverView: View {
         }
     }
 
+    static func foldingActiveLogin(
+        _ entries: [ProviderID: [ProviderAccountEntry]], providerOrder: [ProviderID]
+    ) -> (entries: [ProviderID: [ProviderAccountEntry]], collapses: [ProviderID: ActiveLoginCollapse]) {
+        var entriesByProvider = entries
+        // An account switcher (ccswap and similar) rotates the CLI's default login across
+        // accounts that also have their own rows. The built-in row then reads the same
+        // login as one of them, so it folds into that row, which carries the Active chip.
+        // Only engine rows take part: a remembered row is never probed, so it never
+        // holds the default login's current reading.
+        let collapses = providerOrder.reduce(
+            into: [ProviderID: ActiveLoginCollapse]()
+        ) { collapses, providerID in
+            let engineEntries = (entriesByProvider[providerID] ?? []).filter { !$0.isRemembered }
+            var emails: [AccountKey: String] = [:]
+            var plans: [AccountKey: String] = [:]
+            if engineEntries.count > 1 {
+                for entry in engineEntries {
+                    if let email = entry.snapshot.accountEmail { emails[entry.account.key] = email }
+                    if let plan = entry.snapshot.planLabel { plans[entry.account.key] = plan }
+                }
+            }
+            collapses[providerID] = ActiveLoginCollapse.resolve(
+                accounts: engineEntries.map(\.account), emailsByKey: emails, planLabelsByKey: plans
+            )
+        }
+        for (providerID, collapse) in collapses {
+            guard let hiddenKey = collapse.hiddenKey else { continue }
+            entriesByProvider[providerID]?.removeAll { $0.account.key == hiddenKey }
+        }
+        return (entriesByProvider, collapses)
+    }
+
     private var timeline: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = pinnedDate ?? context.date
             let _ = BenchCounters.hit("PopoverView.timeline")
             // KTD8 (default-login plan U7): the display list, so a remembered row joins
             // its provider's card, the row titles and the column plan.
-            var entriesByProvider = store.providerOrder.reduce(
+            let folded = Self.foldingActiveLogin(store.providerOrder.reduce(
                 into: [ProviderID: [ProviderAccountEntry]]()
             ) { entries, id in
                 entries[id] = Self.accountEntries(for: id, in: store)
-            }
-            // An account switcher (ccswap and similar) rotates the CLI's default login across
-            // accounts that also have their own rows. The built-in row then reads the same
-            // login as one of them, so it folds into that row, which carries the Active chip.
-            // Only engine rows take part: a remembered row is never probed, so it never
-            // holds the default login's current reading.
-            let collapses = store.providerOrder.reduce(
-                into: [ProviderID: ActiveLoginCollapse]()
-            ) { collapses, providerID in
-                let engineEntries = (entriesByProvider[providerID] ?? []).filter { !$0.isRemembered }
-                var emails: [AccountKey: String] = [:]
-                var plans: [AccountKey: String] = [:]
-                if engineEntries.count > 1 {
-                    for entry in engineEntries {
-                        if let email = entry.snapshot.accountEmail { emails[entry.account.key] = email }
-                        if let plan = entry.snapshot.planLabel { plans[entry.account.key] = plan }
-                    }
-                }
-                collapses[providerID] = ActiveLoginCollapse.resolve(
-                    accounts: engineEntries.map(\.account), emailsByKey: emails, planLabelsByKey: plans
-                )
-            }
-            for (providerID, collapse) in collapses {
-                guard let hiddenKey = collapse.hiddenKey else { continue }
-                entriesByProvider[providerID]?.removeAll { $0.account.key == hiddenKey }
-            }
+            }, providerOrder: store.providerOrder)
+            let entriesByProvider = folded.entries
+            let collapses = folded.collapses
             let accountsByVisibleProvider = entriesByProvider.mapValues { $0.map(\.account) }
             let anyProviderMultiAccount = surfaceUsesAccountRows(
                 accountsByProvider: accountsByVisibleProvider

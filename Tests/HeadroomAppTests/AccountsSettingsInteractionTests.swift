@@ -2277,6 +2277,7 @@ struct RememberedRowInteractionTests {
         ) == nil)
         let entry = PopoverView.accountEntries(for: .codex, in: fixture.store)[1]
         #expect(entry.isRemembered)
-        #expect(AccountRowKindPresentation(entry: entry, now: Date()).offersRetry == false)
+        #expect(entry.kind.offersRetry == false)
+        #expect(row.kind.offersRetry == false)
     }
 }

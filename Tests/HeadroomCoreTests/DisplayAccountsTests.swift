@@ -44,6 +44,12 @@ struct DisplayAccountsTests {
         #expect(projection.primaryKey == engine[0].key)
     }
 
+    /// R12: only a probed row offers retry, sign-in or recovery; every surface reads this.
+    @Test func onlyAnEngineRowOffersRetry() {
+        #expect(DisplayAccountKind.engine.offersRetry)
+        #expect(DisplayAccountKind.remembered.offersRetry == false)
+    }
+
     @Test func aHiddenRememberedRowIsLeftOut() {
         let projection = DisplayAccountsResolver.resolve(
             providerID: .codex, engine: engine,

@@ -365,8 +365,6 @@ struct RememberedRowRecipeTests {
         let recipe = RememberedRowRecipe(
             windows: snapshot.windows, lastReadAt: snapshot.capturedAt, now: now, timeZone: utc, locale: locale
         )
-        #expect(recipe.lines.filter(\.showsMeter).map(\.window.kind) == [.weekly])
-        #expect(recipe.lines.compactMap(\.resetNotReadLine) == [resetLine(-3 * hour)])
         #expect(recipe.resetNotReadLines == [resetLine(-3 * hour), nil])
         #expect(recipe.lastReadLabel == "Last read 2 min ago")
     }
@@ -394,7 +392,7 @@ struct RememberedRowRecipeTests {
             freshness: .unavailable(since: now.addingTimeInterval(-day))
         )
         let recipe = RememberedRowRecipe(windows: [unscheduled], lastReadAt: nil, now: now)
-        #expect(recipe.lines.map(\.showsMeter) == [true])
+        #expect(recipe.resetNotReadLines == [nil])
         #expect(recipe.lastReadLabel == nil)
     }
 

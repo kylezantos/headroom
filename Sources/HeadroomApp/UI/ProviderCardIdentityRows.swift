@@ -105,8 +105,9 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
 /// its snapshot. Keyed on kind, never on freshness: an engine row that is stale or has an
 /// unavailable window keeps the "Stale" capsule, its gauges and its retry, exactly as before.
 /// A remembered row carries "Last read …" where "Stale" would be, draws a window past its
-/// reset as one line (`RememberedRowRecipe`), and offers no retry: it is never probed. No
-/// kind carries a default-login marker (R16).
+/// reset as one line (`RememberedRowRecipe`), dims its whole meter stack (mock dl-a2), and
+/// offers no retry: it is never probed (`DisplayAccountKind.offersRetry`). No kind carries a
+/// default-login marker (R16).
 struct AccountRowKindPresentation: Equatable {
     /// The "Stale" capsule.
     let isStale: Bool
@@ -117,8 +118,10 @@ struct AccountRowKindPresentation: Equatable {
     let resetNotReadLines: [String?]
     /// Full's per-window "· Last known …" label.
     let showsWindowState: Bool
-    /// Whether the section's retry and setup actions reach a provider.
-    let offersRetry: Bool
+    /// The whole stack reads as secondary: gauges and numbers dimmed whatever the
+    /// snapshot's freshness, window labels and countdowns too. False on engine rows, whose
+    /// dimming follows freshness alone.
+    let dimsWholeRow: Bool
 
     init(
         entry: ProviderAccountEntry,
@@ -132,7 +135,7 @@ struct AccountRowKindPresentation: Equatable {
             lastReadLabel = nil
             resetNotReadLines = []
             showsWindowState = true
-            offersRetry = true
+            dimsWholeRow = false
         case .remembered:
             let recipe = RememberedRowRecipe(
                 windows: entry.snapshot.windows,
@@ -145,7 +148,33 @@ struct AccountRowKindPresentation: Equatable {
             lastReadLabel = recipe.lastReadLabel
             resetNotReadLines = recipe.resetNotReadLines
             showsWindowState = false
-            offersRetry = false
+            dimsWholeRow = true
+        }
+    }
+}
+
+/// Which body an account section draws. The session-owned and sign-in bodies carry the
+/// section's Try Again, Check Now and sign-in chips, so they are reached only by a row whose
+/// actions reach a provider (`DisplayAccountKind.offersRetry`). A remembered row always
+/// draws its meters (or "No usage data"), whatever its snapshot says: it has no live
+/// control to offer.
+enum AccountSectionContent: Equatable {
+    case sessionOwned
+    case signIn(FailureReason)
+    case meters
+
+    init(freshness: Freshness, kind: DisplayAccountKind) {
+        guard kind.offersRetry else {
+            self = .meters
+            return
+        }
+        switch freshness {
+        case .pending:
+            self = .sessionOwned
+        case .stale(let reason) where reason.isPermanent:
+            self = .signIn(reason)
+        default:
+            self = .meters
         }
     }
 }
@@ -314,18 +343,19 @@ struct AccountSectionView: View {
         kind: AccountRowKindPresentation
     ) -> some View {
         ZStack(alignment: .topLeading) {
-            if case .pending = snapshot.freshness {
+            switch AccountSectionContent(freshness: snapshot.freshness, kind: entry.kind) {
+            case .sessionOwned:
                 // Review #6 (2026-09-19 sign-in review): a reset blanks this row to
                 // `.pending` and then waits on the Terminal exit, scheduling no check — so
                 // a skeleton here is the whole browser login with nothing said, and a
                 // staging refused after it is an actionless one too.
                 sessionOwnedRow(setupState: setupState)
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
-            } else if case .stale(let reason) = snapshot.freshness, reason.isPermanent {
+            case .signIn(let reason):
                 signInContent(reason, setupState: setupState)
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
-            } else {
-                bars(dimmed: snapshot.freshness != .live, kind: kind)
+            case .meters:
+                bars(dimmed: kind.dimsWholeRow || snapshot.freshness != .live, kind: kind)
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
             }
         }
@@ -344,7 +374,8 @@ struct AccountSectionView: View {
             meterStyle: meterStyle,
             arrivalKey: account.key,
             resetNotReadLines: kind?.resetNotReadLines ?? [],
-            showsWindowState: kind?.showsWindowState ?? true
+            showsWindowState: kind?.showsWindowState ?? true,
+            dimsLabels: kind?.dimsWholeRow ?? false
         )
         .padding(.leading, tuning.meterContentInset)
         .padding(.trailing, tuning.meterContentInset)

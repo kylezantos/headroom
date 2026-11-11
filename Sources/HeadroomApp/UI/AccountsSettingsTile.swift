@@ -384,7 +384,7 @@ struct AccountsSettingsTile: View {
     ) -> some View {
         let account = row.account
         // A remembered row is never probed: no sign-in, retry or recovery action (R12).
-        let offersRecovery = !row.isRemembered
+        let offersRecovery = row.kind.offersRetry
         let snapshot = store.snapshot(for: account.key)
         let removalState = store.accountRemovalStates[account.key]
         let setupState = SetupSessions.state(for: account)

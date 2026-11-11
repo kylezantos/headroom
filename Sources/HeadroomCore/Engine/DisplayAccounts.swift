@@ -7,6 +7,11 @@ import Foundation
 public enum DisplayAccountKind: Equatable, Hashable, Sendable {
     case engine
     case remembered
+
+    /// R12: whether a row's retry, sign-in and recovery actions reach a provider. Only an
+    /// engine row is ever probed, so a remembered row offers none. The popover section, its
+    /// card and the Settings row all read this one decision.
+    public var offersRetry: Bool { self == .engine }
 }
 
 /// One row as every user-visible surface lists it (KTD8). A remembered row carries a

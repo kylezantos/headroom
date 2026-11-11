@@ -24,7 +24,8 @@ enum MeterRecipeKey {
 struct ProviderAccountEntry: Identifiable {
     let account: ProviderAccount
     let snapshot: UsageSnapshot
-    /// KTD8: a remembered row is never probed, so it offers no retry or setup action.
+    /// KTD8: a remembered row is never probed, so it offers no retry or setup action
+    /// (`DisplayAccountKind.offersRetry`).
     var kind: DisplayAccountKind = .engine
     /// U8 (R7): when a remembered account was last read (`RememberedAccountSummary.lastReadAt`),
     /// carried here so the row draws its "Last read …" tag without a store read of its own.
@@ -115,6 +116,12 @@ func providerCardHasActiveSetupSession(
     hasActiveHandoff: @MainActor (ProviderAccount) -> Bool = SetupSessions.hasActiveHandoff(for:)
 ) -> Bool {
     entries.filter { !$0.isRemembered }.map(\.account).contains(where: hasActiveHandoff)
+}
+
+/// R2C7: whether the card still draws usage the failing CLI retained. A remembered row's last
+/// reading is not one, so it never makes the capability sentence say "last reading".
+func providerCardHasRetainedReading(entries: [ProviderAccountEntry]) -> Bool {
+    entries.contains { !$0.isRemembered && !$0.snapshot.windows.isEmpty }
 }
 
 func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
@@ -462,8 +469,7 @@ struct ProviderCardView: View {
         capabilityRecoveryPresentation(
             state: capabilityStatus?.state,
             hasActiveSetupSession: providerCardHasActiveSetupSession(entries: entries),
-            // A remembered row's last reading is not a reading the failing CLI retained.
-            hasRetainedReading: entries.contains { !$0.isRemembered && !$0.snapshot.windows.isEmpty }
+            hasRetainedReading: providerCardHasRetainedReading(entries: entries)
         )
     }
 
@@ -928,7 +934,7 @@ struct ProviderCardView: View {
             now: now,
             isMenuBarAccount: isMultiAccount && entry.id == entries.first?.id,
             showsStopWaiting: showsStopWaiting,
-            onRetry: entry.isRemembered ? {} : { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) },
+            onRetry: entry.kind.offersRetry ? { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) } : {},
             showsMark: showsMark,
             claimBankedResetReveal: claimBankedResetReveal,
             readLoading: { loadingForAccount(entry.account.key) }
@@ -1953,6 +1959,8 @@ struct UsageBarsStack: View {
     var resetNotReadLines: [String?] = []
     /// U8 (R7): false on a remembered row, whose identity row already says "Last read …".
     var showsWindowState: Bool = true
+    /// U8: true on a remembered row, whose labels and countdowns dim with its meters.
+    var dimsLabels: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.headroomTuning) private var tuning
@@ -1983,7 +1991,8 @@ struct UsageBarsStack: View {
                         dimmed: dimmed,
                         arrivalKey: arrivalKey,
                         resetNotReadLine: resetNotReadLines.indices.contains(index) ? resetNotReadLines[index] : nil,
-                        showsWindowState: showsWindowState
+                        showsWindowState: showsWindowState,
+                        dimsLabels: dimsLabels
                     )
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
                 }

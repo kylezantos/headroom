@@ -120,6 +120,12 @@ public struct UsageBarView: View {
     /// they were last read, so Full's per-window "· Last known …" label is not repeated under
     /// it. VoiceOver keeps the state. True, the default, is every existing row.
     public var showsWindowState: Bool = true
+    /// U8 (R7, mock dl-a2): true on a remembered account's rows, which read as secondary
+    /// beside the live rows. The window label takes the dimmed numeral's `.secondary` ink and
+    /// the countdown the tertiary text token, alongside the gauge and number `dimmed` already
+    /// quiets. False, the default, keeps every other row's label and countdown ink, stale
+    /// and unavailable engine rows included.
+    public var dimsLabels: Bool = false
 
     public init(
         reading: UsageMeterReading,
@@ -131,7 +137,8 @@ public struct UsageBarView: View {
         scale: CGFloat = 1,
         compactLabel: String? = nil,
         resetNotReadLine: String? = nil,
-        showsWindowState: Bool = true
+        showsWindowState: Bool = true,
+        dimsLabels: Bool = false
     ) {
         self.reading = reading
         self.percentageMode = percentageMode
@@ -143,6 +150,7 @@ public struct UsageBarView: View {
         self.compactLabel = compactLabel
         self.resetNotReadLine = resetNotReadLine
         self.showsWindowState = showsWindowState
+        self.dimsLabels = dimsLabels
     }
 
     /// The Mac's form: the reading is normalized from the actual provider window.
@@ -156,7 +164,8 @@ public struct UsageBarView: View {
         scale: CGFloat = 1,
         compactLabel: String? = nil,
         resetNotReadLine: String? = nil,
-        showsWindowState: Bool = true
+        showsWindowState: Bool = true,
+        dimsLabels: Bool = false
     ) {
         self.init(
             reading: UsageMeterReading(window: window),
@@ -168,7 +177,8 @@ public struct UsageBarView: View {
             scale: scale,
             compactLabel: compactLabel,
             resetNotReadLine: resetNotReadLine,
-            showsWindowState: showsWindowState
+            showsWindowState: showsWindowState,
+            dimsLabels: dimsLabels
         )
     }
 
@@ -588,7 +598,7 @@ public struct UsageBarView: View {
     private var labelText: some View {
         Text(label)
             .font(.system(size: labelSize, weight: labelWeight))
-            .foregroundStyle(ProviderStyle.meterLabelInk(scheme: scheme))
+            .foregroundStyle(labelInk)
             .lineLimit(1)
             .truncationMode(.tail)
             // OA1: "Weekly" (a diagonal) against "5-hour" (a flat stem) is the widest
@@ -659,7 +669,15 @@ public struct UsageBarView: View {
     /// position and digits are unchanged; only the ink steps up. It rides `landedSeverity`,
     /// so it crossfades with the fill on the same transaction.
     private var countdownInk: Color {
-        usesCriticalInk ? Color.secondary : ProviderStyle.meterCountdownInk(scheme: scheme)
+        if usesCriticalInk { return Color.secondary }
+        // U8: a remembered row's countdown steps down with its label (`dimsLabels`).
+        return dimsLabels ? ProviderStyle.tertiaryText(scheme: scheme) : ProviderStyle.meterCountdownInk(scheme: scheme)
+    }
+
+    /// U8: a remembered row's label takes the dimmed numeral's ink (`numeralInk`); every
+    /// other row keeps the meter label token.
+    private var labelInk: AnyShapeStyle {
+        dimsLabels ? AnyShapeStyle(.secondary) : AnyShapeStyle(ProviderStyle.meterLabelInk(scheme: scheme))
     }
 
     /// PA8: the numeral is the loudest thing in the row, and it was the only element still

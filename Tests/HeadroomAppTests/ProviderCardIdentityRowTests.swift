@@ -545,12 +545,65 @@ struct RememberedRowPresentationTests {
         #expect(shown.lastReadLabel == nil)
         #expect(shown.resetNotReadLines.isEmpty)
         #expect(shown.showsWindowState)
-        #expect(shown.offersRetry)
+        #expect(shown.dimsWholeRow == false)
+        #expect(AccountSectionContent(freshness: entry(.engine).snapshot.freshness, kind: .engine) == .meters)
     }
 
-    /// R12: never probed, so nothing on the row reaches a provider.
-    @Test func aRememberedRowOffersNoRetry() {
-        #expect(presentation(entry(.remembered)).offersRetry == false)
+    /// Mock dl-a2: the whole remembered row reads as secondary — labels and countdowns too,
+    /// not only the gauge and number.
+    @Test func aRememberedRowDimsItsWholeStack() {
+        #expect(presentation(entry(.remembered)).dimsWholeRow)
+    }
+
+    /// R12: never probed, so no state of a remembered row reaches the session-owned or
+    /// sign-in bodies, the only ones that draw Try Again, Check Now or a sign-in chip.
+    @Test func aRememberedRowNeverDrawsARetryControl() {
+        let states: [Freshness] = [
+            .live,
+            .pending,
+            .stale(.transient("Last known usage")),
+            .stale(.needsReauth("Sign in again")),
+        ]
+        for freshness in states {
+            #expect(AccountSectionContent(freshness: freshness, kind: .remembered) == .meters)
+        }
+    }
+
+    /// KTD8: a card of [engine row with no windows, remembered row with windows] has no
+    /// retained reading, and the stop-waiting and active-handoff checks never ask about the
+    /// remembered account.
+    @MainActor @Test func theCardNeverCountsARememberedRowAsRetainedOrInSetup() {
+        let engineAccount = ProviderAccount.builtIn(for: .claude)
+        let engine = ProviderAccountEntry(
+            account: engineAccount,
+            snapshot: UsageSnapshot(providerID: .claude, windows: [], planLabel: nil, capturedAt: now,
+                                    freshness: .stale(.transient("x")))
+        )
+        let remembered = entry(.remembered)
+        #expect(!remembered.snapshot.windows.isEmpty)
+        let entries = [engine, remembered]
+
+        #expect(providerCardHasRetainedReading(entries: entries) == false)
+        #expect(providerCardHasRetainedReading(entries: [remembered]) == false)
+
+        var asked: [AccountKey] = []
+        #expect(providerCardStopWaitingAccount(entries: entries, offersStopWaiting: {
+            asked.append($0.key)
+            return true
+        }) == engineAccount)
+        #expect(providerCardHasActiveSetupSession(entries: entries, hasActiveHandoff: {
+            asked.append($0.key)
+            return $0.key == remembered.account.key
+        }) == false)
+        #expect(!asked.contains(remembered.account.key))
+    }
+
+    /// The engine row's branches are unchanged.
+    @Test func anEngineRowKeepsItsSetupBodies() {
+        #expect(AccountSectionContent(freshness: .pending, kind: .engine) == .sessionOwned)
+        #expect(AccountSectionContent(freshness: .stale(.needsReauth("Sign in again")), kind: .engine) == .signIn(.needsReauth("Sign in again")))
+        #expect(AccountSectionContent(freshness: .stale(.transient("x")), kind: .engine) == .meters)
+        #expect(AccountSectionContent(freshness: .live, kind: .engine) == .meters)
     }
 
     @Test func voiceOverSaysLastReadAndWhenForARememberedRow() {

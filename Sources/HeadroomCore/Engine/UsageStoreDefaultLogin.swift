@@ -8,6 +8,11 @@ extension UsageStore {
     /// Loads the records and runs the idempotent launch repair, before the first merge
     /// (KTD4, KTD6). `cached` is the raw continuity load, expired windows included.
     func prepareDefaultLogin(cached: [AccountKey: UsageSnapshot]) {
+        // The launch refresh exports the first capture; preparing the records does not.
+        deferringRememberedRowExport { loadDefaultLogin(cached: cached) }
+    }
+
+    private func loadDefaultLogin(cached: [AccountKey: UsageSnapshot]) {
         guard let defaultLoginRecordStore else { return }
         guard let data = defaultLoginRecordStore.read() else {
             defaultLoginState = DefaultLoginRecordsState()
@@ -206,10 +211,41 @@ extension UsageStore {
     }
 
     /// Reassigns the observed rows only when they changed: most commits are the steady
-    /// capture-time update and must not invalidate views that list remembered rows.
+    /// capture-time update and must not invalidate views that list remembered rows. The
+    /// one place remembered rows appear, disappear, rename or hide (U7), so it re-ages
+    /// them and exports the phone capture once, unless its caller exports anyway.
     private func publishRememberedRows() {
         let rows = defaultLoginState.map(DefaultLoginTransition.rememberedRows(in:)) ?? [:]
-        if rows != rememberedAccountRows { rememberedAccountRows = rows }
+        guard rows != rememberedAccountRows else { return }
+        rememberedAccountRows = rows
+        ageRememberedSnapshots()
+        if rememberedRowExportDeferrals == 0 { exportPhoneSyncSnapshot() }
+    }
+
+    /// Runs `body` as a caller that exports the phone capture itself afterwards.
+    func deferringRememberedRowExport<T>(_ body: () -> T) -> T {
+        rememberedRowExportDeferrals += 1
+        defer { rememberedRowExportDeferrals -= 1 }
+        return body()
+    }
+
+    /// KTD10: the engine's wake is one of the three moments remembered rows age.
+    func engineDidWake() {
+        ageRememberedSnapshots()
+    }
+
+    /// Ages every visible remembered row's last reading as of now (U6 mode). Assigned only
+    /// when the result changed, so an unchanged age invalidates no view.
+    func ageRememberedSnapshots() {
+        let date = now()
+        var aged: [AccountKey: UsageSnapshot] = [:]
+        for rows in rememberedAccountRows.values {
+            for row in rows where !row.isHidden {
+                guard let stored = row.snapshot else { continue }
+                aged[row.key] = UsageContinuityPolicy.rememberedSnapshot(stored, at: date)
+            }
+        }
+        if aged != rememberedDisplaySnapshots { rememberedDisplaySnapshots = aged }
     }
 
     private func writeMirror(_ mirror: PendingMirror, for key: AccountKey) {

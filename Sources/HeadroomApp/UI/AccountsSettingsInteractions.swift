@@ -259,6 +259,18 @@ enum AccountsSettingsInteractions {
         }
     }
 
+    /// The same sweep over the display rows (default-login plan U7), so a typed rename of
+    /// a remembered row commits to the record store like any other.
+    nonisolated static func pendingLabelCommits(
+        drafts: [AccountKey: String],
+        rows: [DisplayAccount]
+    ) -> [DisplayAccount] {
+        rows.filter { row in
+            guard let draft = drafts[row.key] else { return false }
+            return pendingRename(draft, for: row.account) != nil
+        }
+    }
+
     enum CapabilityRowPresentation: Equatable {
         case standard
         case waitingForClaudeCode
@@ -305,6 +317,23 @@ enum AccountsSettingsInteractions {
         return true
     }
 
+    /// KTD8: a rename follows the row's kind. A remembered row's label lives in the record
+    /// store, so it never reaches the registry.
+    @discardableResult
+    static func commitLabel(
+        _ draft: String,
+        for row: DisplayAccount,
+        in store: UsageStore
+    ) -> Bool {
+        switch row.kind {
+        case .engine:
+            return commitLabel(draft, for: row.account, in: store)
+        case .remembered:
+            guard let trimmed = pendingRename(draft, for: row.account) else { return false }
+            return store.renameRememberedAccount(row.key, to: trimmed)
+        }
+    }
+
     /// The one rule for "this draft renames the account": trimmed, non-empty, and
     /// different from the current label. Shared by the commit path and the
     /// leave-Accounts sweep so the two can never disagree (R12).
@@ -324,6 +353,20 @@ enum AccountsSettingsInteractions {
         account.isBuiltIn
             ? await store.stopTrackingBuiltInAccount(for: account.providerID)
             : await store.removeAccount(account.key)
+    }
+
+    /// KTD8: removing a remembered row hides it in the record store (R11); it deletes no
+    /// config home and writes no registry tombstone. Engine rows keep their two paths.
+    static func removeAccount(
+        _ row: DisplayAccount,
+        from store: UsageStore
+    ) async -> AccountRemovalResult {
+        switch row.kind {
+        case .engine:
+            return await removeAccount(row.account, from: store)
+        case .remembered:
+            return store.removeRememberedAccount(row.key) ? .removed : .notAllowed
+        }
     }
 
     /// Shared Settings/popover action for an abandoned Terminal handoff. The store
@@ -362,12 +405,21 @@ enum AccountsSettingsInteractions {
         return true
     }
 
+    /// The Main badge reads the display primary (KTD8); a remembered row is never main
+    /// and never offered Make Main (KTD12).
     static func promotionState(
         for account: ProviderAccount,
         in store: UsageStore
     ) -> PromotionState {
-        if store.primaryAccount(for: account.providerID)?.key == account.key { return .primary }
+        if store.displayPrimaryKey(for: account.providerID) == account.key { return .primary }
         return store.canPromoteAccount(account.key) ? .available : .unavailable
+    }
+
+    static func promotionState(
+        for row: DisplayAccount,
+        in store: UsageStore
+    ) -> PromotionState {
+        row.isRemembered ? .unavailable : promotionState(for: row.account, in: store)
     }
 
     @discardableResult

@@ -81,7 +81,8 @@ struct AccountsSettingsTile: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var labelDrafts: [AccountKey: String] = [:]
-    @State private var removalCandidate: ProviderAccount?
+    /// KTD8: a display row, so the confirmed removal follows the row's kind.
+    @State private var removalCandidate: DisplayAccount?
     @State private var resetCandidate: ProviderAccount?
     @State private var removalOrigin: AccountKey?
     @State private var removalInProgress: AccountKey?
@@ -118,22 +119,24 @@ struct AccountsSettingsTile: View {
             }
         }
         .confirmationDialog(
-            removalCandidate?.isBuiltIn == true
+            removalCandidate?.account.isBuiltIn == true
                 ? "Stop tracking this account?"
                 : "Remove this account?",
             isPresented: removalDialogPresented,
             titleVisibility: .visible,
             presenting: removalCandidate
-        ) { account in
+        ) { row in
+            let account = row.account
             // Stop-tracking is deliberately not `.destructive` — it hides the row and
-            // deletes nothing, unlike extra-account removal.
+            // deletes nothing, unlike extra-account removal. Removing a remembered row
+            // only hides it too (R11).
             Button(
                 account.isBuiltIn ? "Stop Tracking \(store.desktopAccountName(for: account))" : "Remove \(store.desktopAccountName(for: account))",
-                role: account.isBuiltIn ? nil : .destructive
+                role: account.isBuiltIn || row.isRemembered ? nil : .destructive
             ) {
                 removalInProgress = account.key
                 Task { @MainActor in
-                    let result = await AccountsSettingsInteractions.removeAccount(account, from: store)
+                    let result = await AccountsSettingsInteractions.removeAccount(row, from: store)
                     guard result == .removed else {
                         removalInProgress = nil
                         restoreRemovalFocus()
@@ -151,8 +154,11 @@ struct AccountsSettingsTile: View {
                 }
             }
             Button("Cancel", role: .cancel) { restoreRemovalFocus() }
-        } message: { account in
-            Text(account.isBuiltIn
+        } message: { row in
+            // U8 owns the remembered row's final wording.
+            Text(row.isRemembered
+                 ? "Headroom stops showing its last reading until your CLI signs in to it again. Nothing on this Mac is deleted."
+                 : row.account.isBuiltIn
                  ? "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted."
                  : "Its sign-in on this Mac is deleted with it. Your subscription is untouched.")
         }
@@ -177,8 +183,8 @@ struct AccountsSettingsTile: View {
         // silently discarded renames while still displaying the draft (code-review
         // finding).
         .onChange(of: focusedLabel) { previous, _ in
-            if let previous, let account = account(for: previous) {
-                commitLabel(for: account)
+            if let previous, let row = displayRow(for: previous) {
+                commitLabel(for: row)
             }
         }
         // R12: leaving Accounts — pane switch or window close — commits a typed rename
@@ -198,14 +204,17 @@ struct AccountsSettingsTile: View {
         }
     }
 
-    private func account(for key: AccountKey) -> ProviderAccount? {
-        store.accounts(for: key.providerID).first { $0.key == key }
+    private func displayRow(for key: AccountKey) -> DisplayAccount? {
+        store.displayProjection(for: key.providerID).row(for: key)
     }
 
     // MARK: - Provider group
 
     @ViewBuilder private func providerGroup(_ providerID: ProviderID) -> some View {
+        // Engine rows drive capacity, the counter, the switch and capability recovery;
+        // the list draws the display rows, remembered ones after the engine rows (KTD8).
         let accounts = store.accounts(for: providerID)
+        let rows = store.displayAccounts(for: providerID)
         let capacity = store.accountCapacity(for: providerID)
         let capabilityState = store.providerCapabilities[providerID]?.state
         let displayName = store.displayNames[providerID] ?? providerID.raw.capitalized
@@ -292,8 +301,8 @@ struct AccountsSettingsTile: View {
                 .padding(.leading, 16)
                 .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
-            ForEach(accounts) { account in
-                accountRow(account, capability: capability, presentation: presentation)
+            ForEach(rows) { row in
+                accountRow(row, capability: capability, presentation: presentation)
                     .transition(SettingsAccountExit.transition(reduceMotion: reduceMotion))
             }
             if store.isBuiltInTrackingStopped(for: providerID) {
@@ -333,7 +342,7 @@ struct AccountsSettingsTile: View {
         // and the tile's `raisedTile` pins a height, so the tile follows the group per frame.
         .animation(
             HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion),
-            value: accounts.map(\.id)
+            value: rows.map(\.id)
         )
         .onAppear {
             SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
@@ -363,10 +372,13 @@ struct AccountsSettingsTile: View {
     // MARK: - Account row
 
     private func accountRow(
-        _ account: ProviderAccount,
+        _ row: DisplayAccount,
         capability: CapabilityRecoveryPresentation?,
         presentation: AccountsSettingsInteractions.ProviderGroupPresentation
     ) -> some View {
+        let account = row.account
+        // A remembered row is never probed: no sign-in, retry or recovery action (R12).
+        let offersRecovery = !row.isRemembered
         let snapshot = store.snapshot(for: account.key)
         let removalState = store.accountRemovalStates[account.key]
         let setupState = SetupSessions.state(for: account)
@@ -378,7 +390,7 @@ struct AccountsSettingsTile: View {
         // R11: fetch-recovery ("Check Again", "Install…", "Reconnect…") is fetch state,
         // so it goes with the status text while the provider is off; the plain sign-in
         // affordance below is management and stays.
-        let recoveryActions = presentation.hidesFetchRecovery
+        let recoveryActions = presentation.hidesFetchRecovery || !offersRecovery
             ? nil
             : settingsRecoveryActions(
                 snapshot: snapshot,
@@ -412,7 +424,7 @@ struct AccountsSettingsTile: View {
             && recoveryActions?.usesSecondLine == true
         return VStack(alignment: .leading, spacing: usesSecondLine ? 5 : 1) {
             HStack(spacing: 8) {
-                accountIdentity(account, email: email, isEditingLabel: isEditingLabel)
+                accountIdentity(row, email: email, isEditingLabel: isEditingLabel)
                 if account.isBuiltIn {
                     pillBadge("CLI login", help: "Uses the account your CLI is signed into")
                 }
@@ -444,7 +456,7 @@ struct AccountsSettingsTile: View {
                         account: account
                     )
                 }
-                if !usesSecondLine, capability == nil, removalState == nil {
+                if offersRecovery, !usesSecondLine, capability == nil, removalState == nil {
                     recoveryButtons(
                         for: account,
                         status: status,
@@ -453,7 +465,7 @@ struct AccountsSettingsTile: View {
                     )
                 }
                 removalActions(
-                    for: account,
+                    for: row,
                     removalState: removalState,
                     setupState: setupState
                 )
@@ -492,10 +504,11 @@ struct AccountsSettingsTile: View {
     }
 
     @ViewBuilder private func accountIdentity(
-        _ account: ProviderAccount,
+        _ row: DisplayAccount,
         email: String?,
         isEditingLabel: Bool
     ) -> some View {
+        let account = row.account
         VStack(alignment: .leading, spacing: 1) {
             if store.useEmailAsAccountName, let email {
                 Text(email)
@@ -514,7 +527,7 @@ struct AccountsSettingsTile: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .focused($focusedLabel, equals: account.key)
-                    .onSubmit { commitLabel(for: account) }
+                    .onSubmit { commitLabel(for: row) }
                     .padding(.horizontal, 6).padding(.vertical, 3)
                     .background(
                         Color.primary.opacity(isEditingLabel ? 0.06 : 0),
@@ -669,10 +682,11 @@ struct AccountsSettingsTile: View {
     }
 
     @ViewBuilder private func removalActions(
-        for account: ProviderAccount,
+        for row: DisplayAccount,
         removalState: AccountRemovalState?,
         setupState: SetupSessionState
     ) -> some View {
+        let account = row.account
         // The trash slot is always laid out — hidden (not absent) on built-in rows —
         // so status text shares one right anchor down the whole list (audit P2).
             if let stopWaitingAccount = settingsStopWaitingAccount(
@@ -690,7 +704,7 @@ struct AccountsSettingsTile: View {
             } else if removalState == .failed {
                 Button("Retry") {
                     Task { @MainActor in
-                        _ = await AccountsSettingsInteractions.removeAccount(account, from: store)
+                        _ = await AccountsSettingsInteractions.removeAccount(row, from: store)
                     }
                 }
                 .buttonStyle(.bordered)
@@ -727,7 +741,7 @@ struct AccountsSettingsTile: View {
                             Divider()
                             Button("Stop Tracking") {
                                 removalOrigin = account.key
-                                removalCandidate = account
+                                removalCandidate = row
                             }
                         } label: {
                             AccountActionsMenuGlyph()
@@ -744,7 +758,7 @@ struct AccountsSettingsTile: View {
                             Divider()
                             Button("Stop Tracking") {
                                 removalOrigin = account.key
-                                removalCandidate = account
+                                removalCandidate = row
                             }
                         } label: {
                             AccountActionsMenuGlyph()
@@ -759,7 +773,7 @@ struct AccountsSettingsTile: View {
                             .accessibilityHidden(true)
                     }
                 } else {
-                    if AccountsSettingsInteractions.promotionState(for: account, in: store) == .available {
+                    if AccountsSettingsInteractions.promotionState(for: row, in: store) == .available {
                         Menu {
                             Button("Make Main") { makeMain(account) }
                             Divider()
@@ -769,7 +783,7 @@ struct AccountsSettingsTile: View {
                             // plain: it hides a row and deletes nothing.)
                             Button("Remove Account", role: .destructive) {
                                 removalOrigin = account.key
-                                removalCandidate = account
+                                removalCandidate = row
                             }
                         } label: {
                             AccountActionsMenuGlyph()
@@ -781,7 +795,7 @@ struct AccountsSettingsTile: View {
                     } else {
                         Button {
                             removalOrigin = account.key
-                            removalCandidate = account
+                            removalCandidate = row
                         } label: {
                             Image(systemName: "trash")
                                 .font(SettingsType.help)
@@ -1056,20 +1070,20 @@ struct AccountsSettingsTile: View {
     private func commitPendingLabels() {
         guard !labelDrafts.isEmpty else { return }
         for providerID in store.registeredProviderOrder {
-            for account in AccountsSettingsInteractions.pendingLabelCommits(
+            for row in AccountsSettingsInteractions.pendingLabelCommits(
                 drafts: labelDrafts,
-                accounts: store.accounts(for: providerID)
+                rows: store.displayAccounts(for: providerID)
             ) {
-                commitLabel(for: account)
+                commitLabel(for: row)
             }
         }
         labelDrafts.removeAll()
     }
 
-    private func commitLabel(for account: ProviderAccount) {
-        guard let draft = labelDrafts[account.key] else { return }
-        AccountsSettingsInteractions.commitLabel(draft, for: account, in: store)
-        labelDrafts[account.key] = nil
+    private func commitLabel(for row: DisplayAccount) {
+        guard let draft = labelDrafts[row.key] else { return }
+        AccountsSettingsInteractions.commitLabel(draft, for: row, in: store)
+        labelDrafts[row.key] = nil
     }
 
     private var removalDialogPresented: Binding<Bool> {

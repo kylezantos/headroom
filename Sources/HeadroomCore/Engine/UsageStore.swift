@@ -209,6 +209,15 @@ public final class UsageStore {
     /// the records, and reassigned only when it changes, so the steady per-reading
     /// commit does not invalidate views that read it.
     var rememberedAccountRows: [ProviderID: [RememberedAccountSummary]] = [:]
+    /// Default-login plan U7 (KTD10): each visible remembered row's last reading, aged by
+    /// `UsageContinuityPolicy.rememberedSnapshot` at launch, on each engine wake, when the
+    /// popover opens and when the rows change, so no view body ages it. Keyed by the
+    /// row's local id, which never collides with an engine key.
+    var rememberedDisplaySnapshots: [AccountKey: UsageSnapshot] = [:]
+    /// U7: above zero while a caller that exports the phone capture itself (a merge, a
+    /// detach, a reset) is changing the records, so a remembered-row change inside it
+    /// does not export a second time.
+    @ObservationIgnored var rememberedRowExportDeferrals = 0
     /// Raw continuity records from launch, for rows nothing has been bound to yet (KTD7).
     @ObservationIgnored var launchContinuity: [AccountKey: UsageSnapshot] = [:]
     /// KTD14 (2026-09-19 sign-in plan): diagnostics-only record of observed Claude
@@ -451,7 +460,10 @@ public final class UsageStore {
                     ?? LaneSchedule.chosenInterval(minutes: Preferences.defaultIntervalMinutes)
             },
             now: now,
-            tick: { [weak self] in self?.scheduler.dispatchDue() }
+            tick: { [weak self] in
+                self?.engineDidWake()
+                self?.scheduler.dispatchDue()
+            }
         )
         engine.start()
         self.engine = engine
@@ -471,6 +483,8 @@ public final class UsageStore {
     /// interval after the fresh data. At most one extra poll per interval; the cadence
     /// itself is never raised (AGENTS.md's cost warning).
     public func refreshOnPopoverOpen() {
+        // KTD10: a remembered row shows its age as of this open, before any guard below.
+        ageRememberedSnapshots()
         // A user refresh already in flight is freshening the data by itself.
         guard !isRefreshing else { return }
         guard Self.shouldRefreshOnPopoverOpen(
@@ -565,7 +579,8 @@ public final class UsageStore {
 
     public func desktopAccountName(for account: ProviderAccount) -> String {
         DesktopAccountIdentity(
-            title: account.label, email: snapshots[account.key]?.accountEmail,
+            // `snapshot(for:)`, so a remembered row names itself by its last reading's email.
+            title: account.label, email: snapshot(for: account.key).accountEmail,
             showsPersistentEmail: false, usesEmailAsName: useEmailAsAccountName
         ).title
     }
@@ -835,7 +850,8 @@ public final class UsageStore {
     /// W4: how the footer receipt names an account — the provider alone while it has one
     /// account (labels are hidden then), "Claude Work" once it has several.
     public func refreshReceiptTitle(for key: AccountKey) -> String {
-        let accounts = accounts(for: key.providerID)
+        // KTD8: titled the way the popover titles its rows, remembered rows included.
+        let accounts = displayAccounts(for: key.providerID).map(\.account)
         return RefreshReceiptPresentation.title(
             providerName: displayNames[key.providerID] ?? key.providerID.raw,
             accountTitle: accounts.first(where: { $0.key == key }).map { desktopAccountName(for: $0) },
@@ -1119,7 +1135,8 @@ public final class UsageStore {
         guard acceptsResult(for: key, attachmentGeneration: attachmentGeneration) else { return false }
         // Default-login plan U3: a change of account is settled here, first, so nothing
         // below files this reading under the previous account's name or history.
-        let prior = defaultLoginPrior(for: key, fresh: fresh)
+        // Every merge is followed by its caller's phone export (U7).
+        let prior = deferringRememberedRowExport { defaultLoginPrior(for: key, fresh: fresh) }
         sessionReliabilityRecord?.note(
             fresh, for: key, expectedInterval: schedulerChosenInterval,
             trackedAccounts: providers.map(\.accountKey)
@@ -1147,7 +1164,8 @@ public final class UsageStore {
     /// this attachment, so a post that races a removal or reset writes no ledger (KTD6).
     private func evaluateNotifications(_ snapshot: UsageSnapshot, for key: AccountKey) {
         guard let notificationCoordinator else { return }
-        let visible = accounts(for: key.providerID)
+        // KTD8: the label appears once the provider shows several rows, remembered included.
+        let visible = displayAccounts(for: key.providerID).map(\.account)
         let context = NotificationEvaluationContext(
             providerName: key.providerID.displayName,
             accountLabel: visible.count > 1 ? visible.first { $0.key == key }?.label : nil,
@@ -1256,8 +1274,9 @@ public final class UsageStore {
         return bankedResetAcknowledgements?.claimReveal(for: key, currentCount: currentCount) ?? false
     }
 
+    /// An engine row's snapshot, or a visible remembered row's aged last reading (U7).
     public func snapshot(for key: AccountKey) -> UsageSnapshot {
-        snapshots[key] ?? .pending(for: key.providerID)
+        snapshots[key] ?? rememberedDisplaySnapshots[key] ?? .pending(for: key.providerID)
     }
 
     /// Primary-account snapshot — the single-account view compact surfaces use.
@@ -1278,8 +1297,10 @@ public final class UsageStore {
         appDisplaySnapshot(for: primaryKey(for: id))
     }
 
+    /// KTD8: the display primary, which compact surfaces and the main-account widget
+    /// export follow.
     private func primaryKey(for id: ProviderID) -> AccountKey {
-        AccountKey(providerID: id, accountID: primaryAccount(for: id)?.id ?? .primary)
+        displayPrimaryKey(for: id) ?? AccountKey(providerID: id, accountID: .primary)
     }
 
     /// Popover display order: 5-hour leads, weekly second, model rows keep their
@@ -1429,8 +1450,8 @@ public final class UsageStore {
     }
 
     private func providerNeedsAttention(_ id: ProviderID) -> Bool {
-        accounts(for: id).contains { account in
-            if case .stale(let reason) = snapshots[account.key]?.freshness { return reason.isPermanent }
+        displayAccounts(for: id).contains { row in
+            if case .stale(let reason) = snapshot(for: row.key).freshness { return reason.isPermanent }
             return false
         }
     }
@@ -1482,8 +1503,9 @@ extension UsageStore: AccountProbeSchedulerHost {
         return enabledSurfaces.contains(surface)
     }
 
+    /// Engine side, following the merge map (KTD8): never a remembered row.
     func schedulerIsPrimary(_ key: AccountKey) -> Bool {
-        primaryAccount(for: key.providerID)?.key == key
+        displayProjection(for: key.providerID).isEnginePrimary(key)
     }
 
     func schedulerFreshness(for key: AccountKey) -> Freshness? {

@@ -24,7 +24,10 @@ enum MeterRecipeKey {
 struct ProviderAccountEntry: Identifiable {
     let account: ProviderAccount
     let snapshot: UsageSnapshot
+    /// KTD8: a remembered row is never probed, so it offers no retry or setup action.
+    var kind: DisplayAccountKind = .engine
     var id: AccountID { account.id }
+    var isRemembered: Bool { kind == .remembered }
 }
 
 /// R6/R10: a value projection keeps ProviderCardView independent of the store. The
@@ -96,7 +99,7 @@ func providerCardStopWaitingAccount(
     entries: [ProviderAccountEntry],
     offersStopWaiting: @MainActor (ProviderAccount) -> Bool = setupSessionOffersStopWaiting(for:)
 ) -> ProviderAccount? {
-    entries.map(\.account).first(where: offersStopWaiting)
+    entries.filter { !$0.isRemembered }.map(\.account).first(where: offersStopWaiting)
 }
 
 /// Deliberately still keyed on the open handoff: this is what refuses capability recovery
@@ -107,7 +110,7 @@ func providerCardHasActiveSetupSession(
     entries: [ProviderAccountEntry],
     hasActiveHandoff: @MainActor (ProviderAccount) -> Bool = SetupSessions.hasActiveHandoff(for:)
 ) -> Bool {
-    entries.map(\.account).contains(where: hasActiveHandoff)
+    entries.filter { !$0.isRemembered }.map(\.account).contains(where: hasActiveHandoff)
 }
 
 func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
@@ -455,7 +458,8 @@ struct ProviderCardView: View {
         capabilityRecoveryPresentation(
             state: capabilityStatus?.state,
             hasActiveSetupSession: providerCardHasActiveSetupSession(entries: entries),
-            hasRetainedReading: entries.contains { !$0.snapshot.windows.isEmpty }
+            // A remembered row's last reading is not a reading the failing CLI retained.
+            hasRetainedReading: entries.contains { !$0.isRemembered && !$0.snapshot.windows.isEmpty }
         )
     }
 
@@ -918,7 +922,7 @@ struct ProviderCardView: View {
             now: now,
             isMenuBarAccount: isMultiAccount && entry.id == entries.first?.id,
             showsStopWaiting: showsStopWaiting,
-            onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) },
+            onRetry: entry.isRemembered ? {} : { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) },
             showsMark: showsMark,
             claimBankedResetReveal: claimBankedResetReveal,
             readLoading: { loadingForAccount(entry.account.key) }

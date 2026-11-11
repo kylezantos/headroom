@@ -43,12 +43,15 @@ final class DefaultLoginRig {
     let acknowledgements: BankedResetAcknowledgements
     let continuity: UsageContinuityCache
     let records: DefaultLoginRecordStore
+    /// Default-login plan U7: a phone publisher double, when the test counts exports.
+    let phone: SpyPhoneSync?
     private(set) var store: UsageStore!
     private(set) var coordinator: NotificationCoordinator!
 
     let key = AccountKey(providerID: .codex, accountID: .primary)
 
-    init(extraLabels: [String] = [], banked: Bool = false) {
+    init(extraLabels: [String] = [], banked: Bool = false, countsPhoneExports: Bool = false) {
+        phone = countsPhoneExports ? SpyPhoneSync() : nil
         let suite = "headroom.default-login.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
@@ -83,7 +86,8 @@ final class DefaultLoginRig {
             defaultLoginRecords: usesRecords ? (recordStore ?? records) : nil,
             bankedResetAcknowledgements: acknowledgements,
             notificationCoordinator: coordinator,
-            now: clock.now
+            now: clock.now,
+            phoneSyncExporter: phone
         )
     }
 

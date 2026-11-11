@@ -35,7 +35,11 @@ extension UsageStore {
         var providers: [CompanionCapturedProvider] = []
         var mainAttention: [ProviderID: CompanionAttention] = [:]
         for id in subscription {
-            let visible = accounts(for: id)
+            // KTD8: the capture reads the display projection and its primary. Remembered
+            // rows reach the phone only once the v4 record can mark them (U9, KTD14);
+            // until then it carries the engine rows.
+            let projection = displayProjection(for: id)
+            let visible = projection.rows.filter { $0.kind == .engine }.map(\.account)
             let stored = storedOrderAccounts(for: id)
             // The Mac's displayed name (KTD9 amended): the same snapshot email
             // `desktopAccountName(for:)` reads.
@@ -48,7 +52,7 @@ extension UsageStore {
             let keys = visible.map(\.key)
             var main: CompanionAccountSummary?
             var extras: [CompanionAccountSummary] = []
-            for (index, account) in visible.enumerated() {
+            for account in visible {
                 let snapshot = snapshot(for: account.key)
                 let attention = CompanionAttentionMapping.accountAttention(
                     freshness: snapshot.freshness, isBuiltIn: account.isBuiltIn,
@@ -56,7 +60,7 @@ extension UsageStore {
                 let summary = CompanionPhoneProjection.account(
                     id: account.id, title: titles[account.id] ?? account.label,
                     snapshot: snapshot, attention: attention)
-                if index == 0 {
+                if account.key == projection.primaryKey {
                     main = summary
                     if let attention { mainAttention[id] = attention }
                 } else if let summary {

@@ -66,6 +66,17 @@ struct PopoverView: View {
         PopoverTopPinnedLayout(reportIdealHeight: idealHeightReport) { timeline }
     }
 
+    /// KTD8: one provider's card rows, engine rows then visible remembered rows, each with
+    /// the snapshot it draws. A remembered row's is its aged last reading (KTD10), so this
+    /// does no aging of its own.
+    static func accountEntries(for providerID: ProviderID, in store: UsageStore) -> [ProviderAccountEntry] {
+        store.displayAccounts(for: providerID).map { row in
+            ProviderAccountEntry(
+                account: row.account, snapshot: store.appDisplaySnapshot(for: row.key), kind: row.kind
+            )
+        }
+    }
+
     /// SQ1: the fitter hears the content's ideal height only where it acts. Nil elsewhere keeps
     /// the root layout free of a closure, so it compares equal across body passes.
     private var idealHeightReport: (@Sendable (CGFloat) -> Void)? {
@@ -80,11 +91,14 @@ struct PopoverView: View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             let now = pinnedDate ?? context.date
             let _ = BenchCounters.hit("PopoverView.timeline")
-            let accountsByVisibleProvider = store.providerOrder.reduce(
-                into: [ProviderID: [ProviderAccount]]()
-            ) { accounts, providerID in
-                accounts[providerID] = store.accounts(for: providerID)
+            // KTD8 (default-login plan U7): the display list, so a remembered row joins
+            // its provider's card, the row titles and the column plan.
+            let entriesByProvider = store.providerOrder.reduce(
+                into: [ProviderID: [ProviderAccountEntry]]()
+            ) { entries, id in
+                entries[id] = Self.accountEntries(for: id, in: store)
             }
+            let accountsByVisibleProvider = entriesByProvider.mapValues { $0.map(\.account) }
             let anyProviderMultiAccount = surfaceUsesAccountRows(
                 accountsByProvider: accountsByVisibleProvider
             )
@@ -94,13 +108,6 @@ struct PopoverView: View {
             // miss the only reorder this surface can actually show.
             let cardListIdentity = store.providerOrder.flatMap { id in
                 (accountsByVisibleProvider[id] ?? []).map(\.key)
-            }
-            let entriesByProvider = store.providerOrder.reduce(
-                into: [ProviderID: [ProviderAccountEntry]]()
-            ) { entries, id in
-                entries[id] = (accountsByVisibleProvider[id] ?? []).map { account in
-                    ProviderAccountEntry(account: account, snapshot: store.appDisplaySnapshot(for: account.key))
-                }
             }
             // R5: accounts in provider order, then Make Main order, then the spend card.
             let columnSlots = store.providerOrder.flatMap { id in
@@ -614,6 +621,8 @@ struct PopoverView: View {
         // U3: the aggregation is Core's `FreshnessStamp.Anchors`, shared with the phone. A
         // retained row keeps its own *source* observation anchor across stale and unavailable
         // transitions — the honest answer to "when was this last checked" (R2M5).
+        // Engine rows only (U7): a remembered row's last reading is not a check this Mac
+        // made, so it never moves the header's "Updated" stamp.
         let anchors = FreshnessStamp.Anchors(snapshots: store.providerOrder.lazy.flatMap { id in
             store.accounts(for: id).map { store.snapshot(for: $0.key) }
         })
@@ -687,7 +696,7 @@ private struct RefreshFooter: View {
     var body: some View {
         let meters = store.menuBarMeters
         let mains = Dictionary(uniqueKeysWithValues: store.providerOrder.compactMap { id in
-            store.primaryAccount(for: id).map { (id, $0.key) }
+            store.displayPrimaryKey(for: id).map { (id, $0) }
         })
         let sourceIdentity = ReprintSourceIdentity(meters: meters,
             automatic: store.menuBarFillSource.providerIDs == nil, currentMains: mains)

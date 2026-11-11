@@ -328,6 +328,37 @@ struct PhoneExportTriggerTests {
         #expect(accounts(f.phone.last).last?.attention == .setupScreenUnknown)
     }
 
+    // MARK: Remembered accounts (default-login plan U7)
+
+    /// The remembered rows' one choke point exports once per appear, rename and remove;
+    /// an appearance inside a merge rides the merge's own export. The capture still lists
+    /// only engine rows until the phone format carries remembered ones (U9).
+    @Test func aRememberedAccountAppearingRenamedOrRemovedExportsOnce() async throws {
+        let rig = DefaultLoginRig(countsPhoneExports: true)
+        let phone = try #require(rig.phone)
+        await rig.read(rig.reading("aaaaaaaa-0000-4000-8000-000000000001"))
+        rig.advance(120)
+
+        rig.primary.set(rig.reading("bbbbbbbb-0000-4000-8000-000000000002"))
+        var count = phone.captures.count
+        await rig.store.refreshAccount(rig.key)
+        let work = try #require(rig.store.rememberedAccounts(for: .codex).first).key
+        #expect(phone.captures.count == count + 1)
+
+        count = phone.captures.count
+        #expect(rig.store.renameRememberedAccount(work, to: "Work"))
+        #expect(phone.captures.count == count + 1)
+
+        count = phone.captures.count
+        #expect(rig.store.removeRememberedAccount(work))
+        #expect(phone.captures.count == count + 1)
+
+        // A full refresh after the change still exports once, at its end.
+        count = phone.captures.count
+        await rig.store.refreshAll()
+        #expect(phone.captures.count == count + 1)
+    }
+
     /// The facade stamps a strictly increasing, persisted generation on the main actor.
     @Test func theFacadeStampsIncreasingPersistedGenerations() async throws {
         let defaults = freshDefaults()

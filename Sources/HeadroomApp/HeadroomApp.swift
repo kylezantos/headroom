@@ -1033,6 +1033,7 @@ enum AppComposition {
             accountRegistry: registry,
             providerFactory: { account in provider(for: account, credentials: credentials) },
             continuityCache: UsageContinuityCache(),
+            defaultLoginRecords: DefaultLoginRecordStore(defaults: launchDefaults),
             signOutRecord: signOutRecord,
             sessionReliabilityRecord: makeSessionReliabilityRecord(),
             bankedResetAcknowledgements: bankedResetAcknowledgements,

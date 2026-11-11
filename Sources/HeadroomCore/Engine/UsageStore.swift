@@ -199,6 +199,13 @@ public final class UsageStore {
     let accountRegistry: AccountRegistry?
     let accountStorage: any AccountStorageManaging
     let continuityCache: (any UsageContinuityCaching)?
+    /// Default-login plan KTD4: which account each row is bound to, and the accounts that
+    /// left. Nil in demos, harnesses and most tests, which leaves every row as it was.
+    let defaultLoginRecordStore: (any DefaultLoginRecordStoring)?
+    /// The decoded records; nil when there is no store or its envelope is unreadable.
+    @ObservationIgnored var defaultLoginState: DefaultLoginRecordsState?
+    /// Raw continuity records from launch, for rows nothing has been bound to yet (KTD7).
+    @ObservationIgnored var launchContinuity: [AccountKey: UsageSnapshot] = [:]
     /// KTD14 (2026-09-19 sign-in plan): diagnostics-only record of observed Claude
     /// sign-outs. Optional so the render harness, demo stores, and tests that don't
     /// care compose without it.
@@ -251,6 +258,7 @@ public final class UsageStore {
         accountStorage: any AccountStorageManaging = DefaultAccountStorage(),
         providerFactory: (@MainActor (ProviderAccount) -> any UsageProvider)? = nil,
         continuityCache: (any UsageContinuityCaching)? = nil,
+        defaultLoginRecords: (any DefaultLoginRecordStoring)? = nil,
         signOutRecord: SignOutRecord? = nil,
         sessionReliabilityRecord: SessionReliabilityRecord? = nil,
         bankedResetAcknowledgements: BankedResetAcknowledgements? = nil,
@@ -266,6 +274,7 @@ public final class UsageStore {
         self.accountStorage = accountStorage
         self.providerFactory = providerFactory
         self.continuityCache = continuityCache
+        self.defaultLoginRecordStore = defaultLoginRecords
         self.signOutRecord = signOutRecord
         self.sessionReliabilityRecord = sessionReliabilityRecord
         self.bankedResetAcknowledgements = bankedResetAcknowledgements
@@ -336,6 +345,7 @@ public final class UsageStore {
         for provider in providers { scheduler.register(provider) }
         // KTD8: heartbeats and forced republishes capture fresh state on the main actor.
         phoneSyncExporter?.bind { [weak self] in self?.companionCapture() }
+        prepareDefaultLogin(cached: cachedSnapshots)
     }
 
     private static func restoredSnapshot(
@@ -1099,13 +1109,16 @@ public final class UsageStore {
         // resumed, reusing the key — while its fetch was in flight. A late result from
         // a detached instance must not resurrect or overwrite the row.
         guard acceptsResult(for: key, attachmentGeneration: attachmentGeneration) else { return false }
+        // Default-login plan U3: a change of account is settled here, first, so nothing
+        // below files this reading under the previous account's name or history.
+        let prior = defaultLoginPrior(for: key, fresh: fresh)
         sessionReliabilityRecord?.note(
             fresh, for: key, expectedInterval: schedulerChosenInterval,
             trackedAccounts: providers.map(\.accountKey)
         )
         let next = UsageContinuityPolicy.mergedSnapshot(
             fresh,
-            with: snapshots[key],
+            with: prior,
             at: now()
         )
         recordSignOutEdge(next, for: key)
@@ -1162,13 +1175,18 @@ public final class UsageStore {
     }
 
     private func updateContinuityCache(_ snapshot: UsageSnapshot, for key: AccountKey) {
+        let saves: Bool
         if case .stale(let reason) = snapshot.freshness, reason.isPermanent {
-            continuityCache?.remove(for: key)
-        } else if !snapshot.windows.isEmpty {
+            saves = false
+        } else {
+            saves = !snapshot.windows.isEmpty
+        }
+        if saves {
             continuityCache?.save(snapshot, for: key)
         } else {
             continuityCache?.remove(for: key)
         }
+        defaultLoginDidUpdateContinuity(for: key, removed: !saves)
     }
 
     private func beginCapabilityRefresh(

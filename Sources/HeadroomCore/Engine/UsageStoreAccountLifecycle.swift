@@ -39,6 +39,7 @@ extension UsageStore {
         notificationCoordinator?.purge(for: key)
         snapshots[key] = .pending(for: key.providerID)
         continuityCache?.remove(for: key)
+        defaultLoginDidClear(key)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }
@@ -93,6 +94,9 @@ extension UsageStore {
         accountsByProvider[key.providerID] = accountRegistry.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         )
+        if let renamed = accounts(for: key.providerID).first(where: { $0.key == key }) {
+            defaultLoginDidRename(key, to: renamed.label)
+        }
         // R17 / KTD9: titles are resolved on the Mac, so a rename re-exports them.
         exportPhoneSyncSnapshot()
     }
@@ -210,6 +214,7 @@ extension UsageStore {
         scheduler.unregister(key)
         snapshots.removeValue(forKey: key)
         continuityCache?.remove(for: key)
+        defaultLoginDidClear(key, removed: key.accountID != .primary)
         accountsByProvider[key.providerID] = accountRegistry?.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         ) ?? []

@@ -64,6 +64,26 @@ public final class NotificationCoordinator {
         bankedResetBaseline.purge(for: account)
     }
 
+    /// Default-login plan KTD5: the reminder state that belongs to the account behind
+    /// `account`, lifted out when that account leaves the row.
+    public func parkedState(for account: AccountKey) -> (useItUp: [UseItUpLedgerEntry], bankedBaseline: Int?) {
+        (useItUpLedger.entries().filter { $0.account == account }, bankedResetBaseline.baselineCount(for: account))
+    }
+
+    /// Replaces the row's reminder state with an arriving account's parked state. Empty
+    /// state leaves the row with none, so a new account's first banked count seeds
+    /// silently and no fired rule carries over.
+    public func restore(
+        useItUp: [UseItUpLedgerEntry],
+        bankedBaseline: Int?,
+        for account: AccountKey,
+        now: Date
+    ) {
+        useItUpLedger.restore(useItUp, for: account, now: now)
+        bankedResetBaseline.purge(for: account)
+        if let bankedBaseline { bankedResetBaseline.record(count: bankedBaseline, for: account) }
+    }
+
     /// Awaits every post started so far and its ledger write. Tests use it to settle.
     public func waitForPendingPosts() async {
         while let post = pendingPosts.values.first {

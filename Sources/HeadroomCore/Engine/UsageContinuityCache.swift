@@ -116,7 +116,7 @@ private struct StoredEnvelope: Codable {
     }
 }
 
-struct StoredSnapshot: Codable, Equatable {
+struct StoredSnapshot: Codable, Equatable, Sendable {
     let key: AccountKey
     let windows: [StoredWindow]
     let planLabel: String?
@@ -188,14 +188,14 @@ struct StoredSnapshot: Codable, Equatable {
     }
 }
 
-enum StoredWindowKind: String, Codable {
+enum StoredWindowKind: String, Codable, Sendable {
     case fiveHour
     case weekly
     case billingPeriod
     case other
 }
 
-struct StoredWindow: Codable, Equatable {
+struct StoredWindow: Codable, Equatable, Sendable {
     private let kind: StoredWindowKind
     let otherLabel: String?
     let billingPeriodDuration: TimeInterval?
@@ -299,7 +299,7 @@ struct StoredWindow: Codable, Equatable {
     }
 }
 
-struct StoredResetEvidence: Codable, Equatable {
+struct StoredResetEvidence: Codable, Equatable, Sendable {
     private enum Kind: String, Codable {
         case scheduled
         case unresolved

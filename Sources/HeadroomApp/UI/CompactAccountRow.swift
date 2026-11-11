@@ -143,7 +143,9 @@ struct CompactAccountRow: View {
             bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
         ).map { [$0] } ?? []
         if isActiveLogin { lines.append("Active: the CLI's current login") }
-        if recipe.isDimmed, recipe.content == .meters { lines.append("Stale") }
+        // U8 (R7): a remembered row names when it was last read where a stale row says
+        // "Stale"; it never says both.
+        if let state = recipe.rowStateLabel { lines.append(state) }
         if !recipe.tooltip.isEmpty { lines.append(recipe.tooltip) }
         return lines.joined(separator: "\n")
     }
@@ -152,7 +154,7 @@ struct CompactAccountRow: View {
         var parts = ["\(title) account"]
         if isMenuBarAccount { parts.append("main account") }
         if isActiveLogin { parts.append("active login in the CLI") }
-        if recipe.isDimmed, recipe.content == .meters { parts.append("stale") }
+        if let state = recipe.rowStateLabel { parts.append(recipe.isRemembered ? state : state.lowercased()) }
         if recipe.content == .skeleton { parts.append("loading") }
         return parts.joined(separator: ", ")
     }

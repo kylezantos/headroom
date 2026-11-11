@@ -194,7 +194,9 @@ private struct Composer {
         if let attention = attentionLine(provider, account: main) { sentences.append(attention) }
 
         guard let mainValue = percentLeft else { return }
-        let tighter = provider.accounts.filter { $0.id != main.id }.compactMap {
+        // Default-login R12: a remembered row's last reading is not current, so Siri never
+        // offers it as the tighter account.
+        let tighter = provider.accounts.filter { $0.id != main.id && !$0.isRemembered }.compactMap {
             account -> (CompanionResolvedAccount, SpokenWindow)? in
             guard let lead = SpokenPlan(windows: shown(account), now: now).lead,
                 let value = lead.value, value < mainValue

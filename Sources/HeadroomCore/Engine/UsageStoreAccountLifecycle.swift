@@ -6,14 +6,40 @@ extension UsageStore {
     /// waiting out a full (possibly 20–30s) probe of an account that isn't signed in yet.
     public nonisolated static let finishSignInMessage = "Finish sign-in to add this account"
 
-    /// Accounts for a provider in display order, with its selected primary first.
+    /// The engine list (default-login plan KTD8): the registry accounts with a provider
+    /// instance, selected primary first. Merge acceptance, scheduling, setup and the
+    /// promote write read membership from it. What a surface lists is `displayAccounts(for:)`.
     public func accounts(for providerID: ProviderID) -> [ProviderAccount] {
         accountsByProvider[providerID] ?? []
     }
 
-    /// The account compact surfaces (menu bar, widgets) follow for a provider.
+    /// The engine list's main account. Surfaces that show "the main account" read
+    /// `displayPrimaryKey(for:)`; the two agree until the one-row merge (U10).
     public func primaryAccount(for providerID: ProviderID) -> ProviderAccount? {
         accounts(for: providerID).first
+    }
+
+    // MARK: Display projection (default-login plan U7, KTD8)
+
+    /// What every user-visible surface lists for a provider: the engine rows, then the
+    /// visible remembered rows in stored order, minus any merged row. Equal to the engine
+    /// list for a setup whose default login never changes (R15).
+    public func displayProjection(for providerID: ProviderID) -> DisplayAccountsProjection {
+        DisplayAccountsResolver.resolve(
+            providerID: providerID,
+            engine: accounts(for: providerID),
+            remembered: rememberedAccountRows[providerID] ?? []
+        )
+    }
+
+    public func displayAccounts(for providerID: ProviderID) -> [DisplayAccount] {
+        displayProjection(for: providerID).rows
+    }
+
+    /// The row the menu bar, widgets, the Main badge and the "already main" guard follow.
+    /// Never a remembered row (R12).
+    public func displayPrimaryKey(for providerID: ProviderID) -> AccountKey? {
+        displayProjection(for: providerID).primaryKey
     }
 
     public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator?) {
@@ -39,6 +65,7 @@ extension UsageStore {
         notificationCoordinator?.purge(for: key)
         snapshots[key] = .pending(for: key.providerID)
         continuityCache?.remove(for: key)
+        deferringRememberedRowExport { defaultLoginDidClear(key) }
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }
@@ -71,7 +98,9 @@ extension UsageStore {
         guard canAddAccount(for: providerID),
               let accountRegistry, let providerFactory,
               let account = accountRegistry.addAccount(
-                  for: providerID, capacity: accountCapacity(for: providerID), label: label, id: id
+                  for: providerID, capacity: accountCapacity(for: providerID),
+                  label: AccountRegistry.normalizedLabel(label) ?? defaultLoginLabelForNewAccount(for: providerID),
+                  id: id
               )
         else { return nil }
         guard case .success = accountStorage.ensureDirectories(for: account) else {
@@ -114,14 +143,46 @@ extension UsageStore {
         accountsByProvider[key.providerID] = accountRegistry.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         )
+        if let renamed = accounts(for: key.providerID).first(where: { $0.key == key }) {
+            defaultLoginDidRename(key, to: renamed.label)
+        }
         // R17 / KTD9: titles are resolved on the Mac, so a rename re-exports them.
         exportPhoneSyncSnapshot()
     }
 
+    // MARK: Remembered accounts (default-login plan U5)
+
+    /// Accounts the default login left, with their last reading (R6), in stored order.
+    /// Not engine rows: they are never probed, never the main account and never fire a
+    /// reminder (R12), and they do not count toward add-account capacity (KTD4). A row
+    /// yields while another row reads its account (KTD12). Removed rows are left out
+    /// unless `includingHidden`.
+    public func rememberedAccounts(for providerID: ProviderID, includingHidden: Bool = false) -> [RememberedAccountSummary] {
+        let rows = rememberedAccountRows[providerID] ?? []
+        return includingHidden ? rows : rows.filter { !$0.isHidden }
+    }
+
+    /// R11. `key` is the remembered row's own key (`RememberedAccountSummary.key`). One
+    /// record commit and one phone export; false, with nothing written, for no such row
+    /// or an empty name.
+    @discardableResult
+    public func renameRememberedAccount(_ key: AccountKey, to label: String) -> Bool {
+        defaultLoginRenameRemembered(key, to: label)
+    }
+
+    /// R11: hides the row until its account is the default login again. Its label, last
+    /// reading and reminder state are kept for that return. One record commit.
+    @discardableResult
+    public func removeRememberedAccount(_ key: AccountKey) -> Bool {
+        defaultLoginHideRemembered(key)
+    }
+
+    /// The "already main" guard reads the display primary; the promote write needs an
+    /// engine row, so a remembered row is never offered Make Main (KTD12).
     public func canPromoteAccount(_ key: AccountKey) -> Bool {
         guard providerFactory != nil,
               accountRegistry != nil,
-              primaryAccount(for: key.providerID)?.key != key
+              displayPrimaryKey(for: key.providerID) != key
         else { return false }
         return accounts(for: key.providerID).contains(where: { $0.key == key })
     }
@@ -235,6 +296,7 @@ extension UsageStore {
         scheduler.unregister(key)
         snapshots.removeValue(forKey: key)
         continuityCache?.remove(for: key)
+        deferringRememberedRowExport { defaultLoginDidClear(key, removed: key.accountID != .primary) }
         accountsByProvider[key.providerID] = accountRegistry?.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         ) ?? []

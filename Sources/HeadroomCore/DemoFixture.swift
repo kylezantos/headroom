@@ -438,6 +438,13 @@ extension DemoFixture {
         /// Copilot plan U7: a signed-in Copilot account before its first usage reading, beside
         /// a live Claude account. The Copilot row shows its label and no number.
         case copilotNoReading = "copilot-no-reading"
+        /// Default-login plan U11 (mock scenario A, steps 2 and 4; AE1, AE2): Claude and
+        /// Codex each show a live default ("Personal") and two accounts the default login
+        /// left. "Work" was read two minutes ago and is before both resets, so it is dimmed
+        /// with its numbers; "Studio" was read two days ago and both its resets have passed,
+        /// so it shows none. The remembered rows come from an in-memory record store seeded
+        /// by `defaultLoginRecords`; nothing is read from a CLI file or the user's defaults.
+        case remembered
     }
 
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
@@ -452,6 +459,17 @@ extension DemoFixture {
         /// Optional last-known values posed before the first demo refresh. Capability
         /// failures intentionally withhold account snapshots, exactly like production.
         public let continuitySnapshots: [AccountKey: UsageSnapshot]
+        /// Default-login plan U11: the encoded record envelope the scenario starts from.
+        /// Nil for every scenario but `remembered`, which leaves each display list equal to
+        /// its engine list (R15).
+        public let defaultLoginRecords: Data?
+
+        /// The inert record store every demo, render and bench host composes with: a fresh
+        /// in-memory copy of the seed per store, so no run reads or writes the user's
+        /// `defaultLoginRecords.v1` and none inherits another run's changes.
+        public func makeDefaultLoginRecordStore() -> DemoDefaultLoginRecordStore {
+            DemoDefaultLoginRecordStore(seed: defaultLoginRecords)
+        }
     }
 
     /// One deterministic account fixture: label + plan + varied utilizations so the
@@ -703,6 +721,13 @@ extension DemoFixture {
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
                 builtInProviderPair(provider: .copilot, snapshot: copilotNoReadingSnapshot),
             ]
+        case .remembered:
+            // Mock scenario A: the default login moved to the personal account. Its live
+            // numbers are the mock's (96% and 69% left).
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 4, weekly: 31, builtIn: true),
+                demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 4, weekly: 31, builtIn: true),
+            ]
         case .windowUnavailable:
             pairs = [
                 builtInProviderPair(provider: .claude, snapshot: claudePartialCaptureSnapshot, label: "Personal"),
@@ -830,8 +855,67 @@ extension DemoFixture {
         return MultiAccountFixture(
             accounts: pairs.map(\.account),
             providers: pairs.map(\.provider),
-            continuitySnapshots: continuitySnapshots
+            continuitySnapshots: continuitySnapshots,
+            defaultLoginRecords: scenario == .remembered ? rememberedRecords(at: Date()) : nil
         )
+    }
+
+    /// U11: the `remembered` scenario's record envelope, relative to `now` like every other
+    /// fixture's dates. Only remembered entries, no slots: the live rows carry no identity,
+    /// so no reading changes the records and the rows stay posed for the whole run.
+    ///
+    /// Codex entries carry a strong identity digest of a placeholder id, as a real remembered
+    /// Codex row would. Claude entries carry none: Claude identity waits on gate V1, and a
+    /// remembered row does not need one to be shown.
+    static func rememberedRecords(at now: Date) -> Data? {
+        func entry(
+            _ providerID: ProviderID,
+            id: String,
+            label: String,
+            plan: String,
+            readAgo: TimeInterval,
+            fiveHour: (used: Double, resetsIn: TimeInterval),
+            weekly: (used: Double, resetsIn: TimeInterval)
+        ) -> RememberedAccount {
+            let readAt = now.addingTimeInterval(-readAgo)
+            let email = "\(label.lowercased())@example.com"  // placeholder (see claudeSnapshot)
+            var account = RememberedAccount(
+                id: AccountID(id),
+                providerID: providerID,
+                identity: providerID == .codex ? AccountIdentity.codex(accountID: "demo-\(id)") : nil,
+                label: label,
+                email: email,
+                lastReadAt: readAt
+            )
+            let snapshot = UsageSnapshot(
+                providerID: providerID,
+                windows: [
+                    UsageWindow(kind: .fiveHour, utilization: fiveHour.used, resetsAt: now.addingTimeInterval(fiveHour.resetsIn)),
+                    UsageWindow(kind: .weekly, utilization: weekly.used, resetsAt: now.addingTimeInterval(weekly.resetsIn)),
+                ],
+                planLabel: plan,
+                accountEmail: email,
+                capturedAt: readAt,
+                freshness: .live
+            )
+            account.snapshot = StoredSnapshot(key: account.key, snapshot: snapshot)
+            return account
+        }
+        var remembered: [RememberedAccount] = []
+        for (providerID, prefix) in [(ProviderID.claude, "claude"), (.codex, "codex")] {
+            remembered += [
+                // AE1: read two minutes ago, 22% and 10% left, both resets ahead (1h 08m, 2d 4h).
+                entry(providerID, id: "remembered-\(prefix)-work", label: "Work",
+                      plan: providerID == .claude ? "Team" : "Pro", readAgo: 120,
+                      fiveHour: (78, 68 * 60 + 30), weekly: (90, 2 * 86_400 + 4 * 3_600 + 30 * 60)),
+                // AE2: read two days ago; the 5-hour window reset three hours after the read
+                // and the weekly one six hours ago, so no number is shown.
+                entry(providerID, id: "remembered-\(prefix)-studio", label: "Studio",
+                      plan: providerID == .claude ? "Pro" : "Plus", readAgo: 2 * 86_400,
+                      fiveHour: (40, -2 * 86_400 + 3 * 3_600), weekly: (65, -6 * 3_600)),
+            ]
+        }
+        return DefaultLoginRecordsCodec.encode(DefaultLoginRecordsState(remembered: remembered))
     }
 
     /// What `--demo` asked for (demo mode, Jul 2026). A bare `--demo` keeps the existing
@@ -869,6 +953,30 @@ public struct DemoAPIKeyStore: APIKeyStoring {
     public func readAPIKey(for provider: APIKeyProvider) throws -> String { throw CredentialError.notLoggedIn }
     public func saveAPIKey(_ key: String, for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
     public func deleteAPIKey(for provider: APIKeyProvider) throws { throw CredentialError.notLoggedIn }
+}
+
+/// Default-login plan U11: the record store for demo, render, bench and hosted-test stores.
+/// Held in memory and seeded from the fixture, so those hosts never read or write the
+/// `defaultLoginRecords.v1` key in any defaults domain, the way the inert duplicate
+/// detector never reads a `.claude.json`.
+public final class DemoDefaultLoginRecordStore: DefaultLoginRecordStoring, @unchecked Sendable { // guarded by `lock`
+    private let lock = NSLock()
+    private var data: Data?
+    private var writes = 0
+
+    public init(seed: Data? = nil) { data = seed }
+
+    public func read() -> Data? { lock.withLock { data } }
+
+    public func write(_ data: Data) {
+        lock.withLock {
+            self.data = data
+            writes += 1
+        }
+    }
+
+    /// How many commits the store absorbed; tests use it to show writes land here.
+    public var writeCount: Int { lock.withLock { writes } }
 }
 
 public struct DemoUsageProvider: UsageProvider {

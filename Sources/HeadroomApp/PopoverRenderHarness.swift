@@ -336,7 +336,10 @@ enum PopoverRenderHarness {
             providers: pairs.map(\.provider),
             apiSpendProviders: spendProviders,
             preferences: preferences,
-            accounts: pairs.map(\.account)
+            accounts: pairs.map(\.account),
+            // Default-login U11: the fixture's in-memory records (`remembered` poses its
+            // remembered rows from them); never the user's `defaultLoginRecords.v1`.
+            defaultLoginRecords: multiFixture(for: scenario).makeDefaultLoginRecordStore()
         )
     }
 
@@ -416,6 +419,7 @@ enum PopoverRenderHarness {
         // it, and Mission Control / Spaces leave it alone.
         window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)) - 1)
         window.collectionBehavior = [.transient, .ignoresCycle, .stationary]
+        keepOnOneDisplay(window)
         window.orderFrontRegardless()
         window.displayIfNeeded()
         await settle(hosting, in: window)
@@ -457,10 +461,20 @@ enum PopoverRenderHarness {
         let size = canvasSize(hosting.fittingSize)
         guard size != hosting.frame.size else { return false }
         window.setContentSize(size)
+        keepOnOneDisplay(window)
         hosting.frame = NSRect(origin: .zero, size: size)
         hosting.layoutSubtreeIfNeeded()
         window.displayIfNeeded()
         return true
+    }
+
+    /// `screencapture -l` leaves blank whatever part of a window lies outside every display.
+    /// The global origin is not inside a display on every arrangement (a second display set
+    /// higher than the main one put only the window's top 200pt on screen), so the window
+    /// is pinned to the top-left of the tallest display.
+    private static func keepOnOneDisplay(_ window: NSWindow) {
+        guard let screen = NSScreen.screens.max(by: { $0.frame.height < $1.frame.height }) else { return }
+        window.setFrameOrigin(NSPoint(x: screen.frame.minX, y: screen.frame.maxY - window.frame.height))
     }
 
     /// Marketing hero for headroom.zantos.co (U4): the connected, dark popover with the

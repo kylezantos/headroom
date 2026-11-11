@@ -199,6 +199,33 @@ struct CheckNowProtocolTests {
         #expect(CheckNowMachine.nextDeadline(of: bigAcked, now: t0) == t0.addingTimeInterval(600))
     }
 
+    /// Default-login R12 (review #18): the Mac never probes a remembered row, so it neither
+    /// lengthens the finish window nor counts toward "Checking N accounts".
+    @Test(arguments: [0, 2])
+    func rememberedRowsAddNothingToTheLaneOrTheFallbackTotal(_ remembered: Int) throws {
+        let (main, extras) = accounts()
+        let old = try (0..<remembered).map {
+            try CompanionAccountSummary(
+                id: "old\($0)", title: "Old \($0)", freshness: .stale, capturedAt: F.date(), needsAttention: false,
+                windows: [F.window()], isRemembered: true)
+        }
+        let bytes = F.bytes(F.payload(generation: 7, main: main, extras: extras + old))
+        let snapshot = CompanionSnapshotResolver.resolve(
+            CompanionResolverInput(
+                manifest: F.bytes(F.manifest(generation: 7, generatedAt: 7, entries: ["claude": F.entry(bytes, generation: 7)])),
+                providerKeys: ["claude": bytes], v3: nil, now: t0)
+        ).snapshot
+        let content = try #require(snapshot.content)
+        #expect(content.providers.first?.accounts.count == 2 + remembered)
+        #expect(CheckNowMachine.largestLaneAccountCount(content) == 2)
+
+        let (state, request) = try started(snapshot)
+        #expect(state.largestLaneAccountCount == 2)
+        let acked = CheckNowMachine.receive(receipt(.accepted, ids: [request.requestID]), into: state, now: t0)
+        #expect(CheckNowStatus.make(state: acked, snapshot: snapshot, now: t0).line
+            == .receipt(RefreshReceiptPresentation.checking(2)))
+    }
+
     @Test func progressOnlyMovesForwardAndALowerCompletedCountIsIgnored() throws {
         let (state, request) = try started()
         let id = request.requestID

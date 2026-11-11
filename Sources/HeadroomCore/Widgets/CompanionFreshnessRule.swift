@@ -108,10 +108,19 @@ public enum CompanionFreshnessRule {
     /// R11/AE6: ten minutes after a scheduled reset with no newer reading, the number hides
     /// and the row says when it reset. Returns that reset time while hidden.
     public static func pastResetTime(_ window: WidgetWindowSummary, at now: Date) -> Date? {
+        pastResetTime(window, at: now, isRemembered: false)
+    }
+
+    /// Default-login plan R8: a remembered row's window hides at its reset, with no grace.
+    /// The grace covers a Mac that is about to read a live account again; nothing reads a
+    /// remembered account, so its number is never current after the reset. Depends only on
+    /// the row, never on how fresh the manifest is.
+    public static func pastResetTime(_ window: WidgetWindowSummary, at now: Date, isRemembered: Bool) -> Date? {
         guard case .scheduled(let deadline) = window.resetSchedule else { return nil }
         let observed = window.observedAt ?? window.freshness.observedAt
         if let observed, !(observed < deadline) { return nil }
-        return !(now < deadline.addingTimeInterval(pastResetGrace)) ? deadline : nil
+        let grace = isRemembered ? 0 : pastResetGrace
+        return !(now < deadline.addingTimeInterval(grace)) ? deadline : nil
     }
 
     /// The number a surface may show: hidden while unavailable or past reset (R11).

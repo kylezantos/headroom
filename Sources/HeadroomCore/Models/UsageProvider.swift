@@ -33,13 +33,51 @@ public struct ProviderCapabilityStatus: Sendable, Equatable {
     }
 }
 
+/// Why a fetch result must not reach the store at all.
+public enum UsageFetchDiscard: Sendable, Equatable {
+    /// The identity reads around the usage read failed or disagreed, so the login was
+    /// changing and the reading belongs to neither account for certain (KTD2).
+    case identityUnreadable
+}
+
 public struct UsageProviderFetchResult: Sendable, Equatable {
     public let snapshot: UsageSnapshot
     public let capability: ProviderCapabilityState?
+    /// Set when the store must refuse this result instead of merging it. A discard is not
+    /// a failure: it moves no backoff, dims no row and never reaches a setup session,
+    /// which would read a stale snapshot during a handoff as retry exhaustion.
+    public let discard: UsageFetchDiscard?
 
-    public init(snapshot: UsageSnapshot, capability: ProviderCapabilityState? = nil) {
+    public init(
+        snapshot: UsageSnapshot,
+        capability: ProviderCapabilityState? = nil,
+        discard: UsageFetchDiscard? = nil
+    ) {
         self.snapshot = snapshot
         self.capability = capability
+        self.discard = discard
+    }
+
+    /// A reading taken while the login was changing (KTD2). The snapshot is a placeholder
+    /// for callers that only ask for a snapshot; the store never merges it.
+    public static func identityUnreadable(
+        for providerID: ProviderID,
+        capability: ProviderCapabilityState? = nil
+    ) -> UsageProviderFetchResult {
+        UsageProviderFetchResult(
+            snapshot: .stale(for: providerID, reason: identityUnconfirmedReason),
+            capability: capability,
+            discard: .identityUnreadable
+        )
+    }
+
+    /// What a refused reading becomes once the refusal bound is reached: an ordinary
+    /// transient failure, so a permanently unreadable identity file shows a stale row
+    /// with normal backoff instead of retrying forever (KTD2).
+    public static let identityUnconfirmedReason = FailureReason.transient("Couldn’t confirm the account — will retry")
+
+    var withoutDiscard: UsageProviderFetchResult {
+        UsageProviderFetchResult(snapshot: snapshot, capability: capability)
     }
 }
 

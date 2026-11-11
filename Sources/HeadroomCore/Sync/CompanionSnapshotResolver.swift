@@ -87,6 +87,9 @@ public struct CompanionResolvedAccount: Equatable, Sendable, Identifiable {
     public let capturedAt: Date?
     public let windows: [CompanionResolvedWindow]
     public let isMain: Bool
+    /// Default-login plan KTD14: a last-known row for an account the Mac's default login
+    /// left. Never the main account (R12); false for every v3 lift and older Mac.
+    public var isRemembered: Bool = false
 
     public var id: String { accountID ?? "main" }
     public var widgetWindows: [WidgetWindowSummary] { windows.map(\.summary) }
@@ -640,7 +643,9 @@ extension CompanionSnapshotResolver {
                 freshness: account.widgetFreshness, attention: account.attention,
                 bankedResets: account.bankedResets,
                 capturedAt: account.freshness == .unknown ? nil : account.capturedAt?.date,
-                windows: windows, isMain: isMain)
+                windows: windows, isMain: isMain,
+                // R12: a main account is live by definition, so a flagged main is ignored.
+                isRemembered: account.isRemembered && !isMain)
         }
 
         // MARK: v3 lift (rule 7)

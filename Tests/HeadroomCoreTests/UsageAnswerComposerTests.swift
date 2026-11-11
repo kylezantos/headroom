@@ -178,6 +178,14 @@ struct UsageAnswerComposerTests {
         #expect(result.percentLeft == 38)
     }
 
+    /// Default-login R12: a remembered row's last reading is not current, so Siri never
+    /// names it as the tighter account, even when its old number is lower.
+    @Test func aRememberedAccountIsNeverTheTighterOne() {
+        let result = text(answer(.claude, CompanionDemoData.snapshot(.remembered, now: now)))
+        #expect(result.hasPrefix("Your main Claude account, Personal, has 69% left"), "\(result)")
+        #expect(!result.contains("Work") && !result.contains("Studio") && !result.contains("tighter"))
+    }
+
     @Test func noExtraAccountIsMentionedWhenNoneIsTighter() {
         let snapshot = snapshot([
             provider(

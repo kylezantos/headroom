@@ -30,6 +30,15 @@ import Testing
             #expect(window.freshness == .live)
             #expect(window.observedAt == nil)
             #expect(window.resetSchedule == .unresolved(.absent))
+            // Default-login KTD13: the login from the status call that served the reading.
+            #expect(snapshot.identity == .known(AccountIdentity.copilot(login: account().login)!))
+        }
+    }
+
+    @Test func aFailedReadingCarriesNoIdentity() async throws {
+        try await withHome { home in
+            #expect(await provider(home, status: .signedOut).fetchSnapshot().identity == nil)
+            #expect(await provider(home, status: .cliMissing).fetchResult().discard == nil)
         }
     }
 

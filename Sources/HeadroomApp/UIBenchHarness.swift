@@ -365,6 +365,8 @@ enum UIBenchHarness {
         preferences.setSurfaceEnabled(true, for: .openAIAPI)
         var providers: [any UsageProvider]
         var accounts: [ProviderAccount]?
+        // Default-login U11: an in-memory record store, never the user's `defaultLoginRecords.v1`.
+        var records = DemoDefaultLoginRecordStore()
         switch scenario {
         case .single:
             providers = [
@@ -381,6 +383,7 @@ enum UIBenchHarness {
             let fixture = DemoFixture.multiFixture(for: demoScenario)
             providers = fixture.providers
             accounts = fixture.accounts
+            records = fixture.makeDefaultLoginRecordStore()
         case .multi20:
             // `refreshAll()` lands every row before timing starts.
             let pairs = DemoFixture.settledEnvelopePairs()
@@ -419,7 +422,8 @@ enum UIBenchHarness {
             preferences: preferences,
             accounts: accounts,
             accountRegistry: registry,
-            providerFactory: factory
+            providerFactory: factory,
+            defaultLoginRecords: records
         )
         await store.refreshAll()
         // Let any trailing main-actor merges land.

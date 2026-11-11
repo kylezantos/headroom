@@ -623,7 +623,9 @@ enum PhoneDemoStores {
 
     /// One `--demo <scenario>` store state after a full refresh. Fixture probes are read
     /// once up front so the envelope's simulated 4-second probes do not serialize.
-    static func store(_ scenario: DemoFixture.MultiAccountScenario, widgetSpark: Bool) async -> UsageStore {
+    static func store(
+        _ scenario: DemoFixture.MultiAccountScenario, widgetSpark: Bool, emailNames: Bool = false
+    ) async -> UsageStore {
         let fixture = DemoFixture.multiFixture(for: scenario)
         let results = await withTaskGroup(of: (Int, UsageProviderFetchResult).self) { group in
             for (index, provider) in fixture.providers.enumerated() {
@@ -643,6 +645,7 @@ enum PhoneDemoStores {
         let preferences = Preferences(defaults: defaults)
         preferences.syncToIPhoneEnabled = true
         preferences.showCodexSparkCountersInWidgets = widgetSpark
+        preferences.useEmailAsAccountName = emailNames
         let spend = spend(for: scenario)
         for provider in spend {
             if let surface = UsageSurface.api(for: provider.id) { preferences.setSurfaceEnabled(true, for: surface) }
@@ -749,13 +752,70 @@ struct CompanionPhoneProjectionTests {
             ProviderAccount(id: AccountID("d"), providerID: .claude, label: "   "),
             ProviderAccount(id: AccountID("e"), providerID: .claude, label: "WORK"),
         ]
-        let titles = CompanionPhoneProjection.titles(storedOrder: accounts)
+        let titles = CompanionPhoneProjection.titles(storedOrder: accounts, emails: [:], usesEmailAsName: false)
         #expect(titles[.primary] == "Main")
         #expect(titles[AccountID("a")] == "Work")
         #expect(titles[AccountID("b")] == "work · 3")
         #expect(titles[AccountID("c")] == "Work · 2")
         #expect(titles[AccountID("d")] == "Account")
         #expect(titles[AccountID("e")] == "WORK · 4")
+    }
+
+    /// KTD9 amended (Nov 2026): the phone title is the Mac's displayed name. With "Use email
+    /// as account name" off, a captured email never becomes a title; on, an account with a
+    /// captured email is titled with it (trimmed, as `DesktopAccountIdentity` does) and an
+    /// account without one keeps its label. A label the user typed as an email is a label.
+    @Test func titlesFollowTheMacsDisplayedNameWithAndWithoutEmailNames() {
+        let accounts = [
+            ProviderAccount(id: .primary, providerID: .codex, label: "Main", isBuiltIn: true),
+            ProviderAccount(id: AccountID("a"), providerID: .codex, label: "Work"),
+            ProviderAccount(id: AccountID("b"), providerID: .codex, label: "typed@example.com"),
+            ProviderAccount(id: AccountID("c"), providerID: .codex, label: "  "),
+            ProviderAccount(id: AccountID("d"), providerID: .codex, label: "Blank email"),
+        ]
+        let emails: [AccountID: String] = [
+            .primary: "main@example.com", AccountID("a"): "  work@example.com ",
+            AccountID("c"): "unlabeled@example.com", AccountID("d"): "   ",
+        ]
+        let off = CompanionPhoneProjection.titles(storedOrder: accounts, emails: emails, usesEmailAsName: false)
+        #expect(off == [
+            .primary: "Main", AccountID("a"): "Work", AccountID("b"): "typed@example.com",
+            AccountID("c"): "Account", AccountID("d"): "Blank email",
+        ])
+        let on = CompanionPhoneProjection.titles(storedOrder: accounts, emails: emails, usesEmailAsName: true)
+        #expect(on == [
+            .primary: "main@example.com", AccountID("a"): "work@example.com",
+            AccountID("b"): "typed@example.com", AccountID("c"): "unlabeled@example.com",
+            AccountID("d"): "Blank email",
+        ])
+        // Every email title is exactly what the Mac's own rule shows.
+        for account in accounts {
+            let mac = DesktopAccountIdentity(
+                title: account.label, email: emails[account.id], showsPersistentEmail: false,
+                usesEmailAsName: true)
+            if mac.isEmailTitle { #expect(on[account.id] == mac.title) }
+        }
+    }
+
+    /// KTD9 amended: duplicate handling holds when titles are emails. Rows signed in to one
+    /// login read "x", "x · 2"… in stored order, case-insensitively, and a generated suffix
+    /// skips a label the user already typed.
+    @Test func emailTitlesKeepTheDuplicateRules() {
+        let accounts = [
+            ProviderAccount(id: .primary, providerID: .claude, label: "Main", isBuiltIn: true),
+            ProviderAccount(id: AccountID("a"), providerID: .claude, label: "Work"),
+            ProviderAccount(id: AccountID("b"), providerID: .claude, label: "shared@example.com · 2"),
+            ProviderAccount(id: AccountID("c"), providerID: .claude, label: "Studio"),
+        ]
+        let emails: [AccountID: String] = [
+            .primary: "Shared@example.com", AccountID("a"): "shared@example.com",
+            AccountID("c"): "shared@example.com",
+        ]
+        let titles = CompanionPhoneProjection.titles(storedOrder: accounts, emails: emails, usesEmailAsName: true)
+        #expect(titles[.primary] == "Shared@example.com")
+        #expect(titles[AccountID("a")] == "shared@example.com · 3")
+        #expect(titles[AccountID("b")] == "shared@example.com · 2")
+        #expect(titles[AccountID("c")] == "shared@example.com · 4")
     }
 
     /// KTD13: one store state through the Mac projector (the paired schema-3 phone export)
@@ -800,7 +860,8 @@ struct CompanionPhoneProjectionTests {
         }
     }
 
-    /// V8 / KTD22: emails in account metadata, credentials and config paths never encode.
+    /// V8 / KTD22: with "Use email as account name" off (the default), captured emails,
+    /// credentials and config paths never encode anywhere in the publish.
     @Test func encodedPhoneSyncCarriesNoEmailOrUpstreamIdentity() async throws {
         let store = await PhoneDemoStores.store(.duplicateLabels, widgetSpark: true)
         #expect(store.accounts(for: .claude).contains { store.snapshot(for: $0.key).accountEmail != nil })
@@ -814,6 +875,44 @@ struct CompanionPhoneProjectionTests {
             "GROK_HOME", "COPILOT_HOME", ".copilot", "Application Support", "accountUuid", "oauthAccount", "auth.json", "email",
         ] {
             #expect(!encoded.contains(banned), "\(banned)")
+        }
+    }
+
+    /// KTD9 amended (Nov 2026): with "Use email as account name" on, a captured email
+    /// reaches the phone only as that account's title in its v4 provider key, exactly the
+    /// name the Mac shows. It is never an account ID, never in the manifest or the schema-3
+    /// key, and nothing upstream rides along with it.
+    @Test func emailNamesReachThePhoneOnlyAsTitles() async throws {
+        let store = await PhoneDemoStores.store(.duplicateLabels, widgetSpark: true, emailNames: true)
+        let emails = Set(store.accounts(for: .claude).compactMap { store.snapshot(for: $0.key).accountEmail })
+        #expect(emails.count == 4)
+        var capture = store.companionCapture()
+        capture.generation = 3
+        let claude = try #require(capture.providers.first { $0.providerID == "claude" })
+        let accounts = (claude.mainAccount.map { [$0] } ?? []) + claude.extraAccounts
+        for account in store.accounts(for: .claude) {
+            #expect(accounts.first { $0.id == account.id.raw }?.title == store.desktopAccountName(for: account))
+        }
+        #expect(Set(accounts.map(\.title)) == emails)
+        #expect(accounts.allSatisfy { !$0.id.contains("@") })
+
+        let image = try CompanionPublishImage.fullImage(capture: capture, sourceID: F.macA)
+        for data in [image.manifest, image.v3] {
+            #expect(!String(decoding: data, as: UTF8.self).contains("@"))
+        }
+        // Strip every title field; nothing email-like may remain in any provider key.
+        let providerJSON = Array(image.providers.values).map { String(decoding: $0, as: UTF8.self) }.joined()
+        var remainder = providerJSON
+        for title in accounts.map(\.title) {
+            let field = "\"t\":\"\(title)\""
+            #expect(providerJSON.contains(field), "\(title)")
+            remainder = remainder.replacingOccurrences(of: field, with: "")
+        }
+        for banned in [
+            "@", "example.com", "/Users/", ".claude", "CLAUDE_CONFIG_DIR", "accountUuid", "oauthAccount",
+            "auth.json", "email",
+        ] {
+            #expect(!remainder.contains(banned), "\(banned)")
         }
     }
 }

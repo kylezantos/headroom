@@ -28,7 +28,11 @@ public actor CredentialStore {
         do {
             let credential = try codexReader.readCodexCredential()
             return .success(
-                CodexSession(accessToken: credential.accessToken, accountEmail: credential.email)
+                CodexSession(
+                    accessToken: credential.accessToken,
+                    accountEmail: credential.email,
+                    identity: AccountIdentity.codex(accountID: credential.accountID)
+                )
             )
         } catch CredentialError.notLoggedIn {
             return .failure(.providerSetup(.codexAuthAbsent))

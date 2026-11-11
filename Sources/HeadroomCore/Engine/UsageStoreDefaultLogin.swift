@@ -1,0 +1,294 @@
+import Foundation
+
+/// Default-login plan U3 and U13: the store side of `DefaultLoginTransition`. One record
+/// commit per change, then the mirrors (registry label, the slot's reminder entries, the
+/// continuity record), then a second commit that marks the mirrors written.
+@MainActor
+extension UsageStore {
+    /// Loads the records and runs the idempotent launch repair, before the first merge
+    /// (KTD4, KTD6). `cached` is the raw continuity load, expired windows included.
+    func prepareDefaultLogin(cached: [AccountKey: UsageSnapshot]) {
+        // The launch refresh exports the first capture; preparing the records does not.
+        deferringRememberedRowExport { loadDefaultLogin(cached: cached) }
+    }
+
+    private func loadDefaultLogin(cached: [AccountKey: UsageSnapshot]) {
+        guard let defaultLoginRecordStore else { return }
+        guard let data = defaultLoginRecordStore.read() else {
+            defaultLoginState = DefaultLoginRecordsState()
+            launchContinuity = cached
+            return
+        }
+        // An envelope this build cannot read is left alone, and the feature stays off for
+        // the session rather than writing mirrors without their records.
+        guard var state = DefaultLoginRecordsCodec.decode(data) else { return }
+        let loaded = state
+
+        for index in state.slots.indices {
+            let key = state.slots[index].key
+            guard providers.contains(where: { $0.accountKey == key }) else { continue }
+            if let pending = state.slots[index].pendingMirror {
+                // A crash between the commit and its mirrors: finish the change.
+                writeMirror(pending, for: key)
+                if pending.removesContinuity {
+                    snapshots[key] = .pending(for: key.providerID)
+                    state.slots[index].continuityRemoved = true
+                }
+                state.slots[index].pendingMirror = nil
+            } else if state.slots[index].binding != nil,
+                      !Self.continuityIsAttributed(cached[key], to: state.slots[index]) {
+                // KTD6: another build rewrote this row's saved reading, so nothing kept
+                // under the row is known to be the bound account's. Purged, never parked.
+                purgeReminders(for: key)
+                snapshots[key] = .pending(for: key.providerID)
+                continuityCache?.remove(for: key)
+                state.slots[index].continuityRemoved = true
+            }
+        }
+        DefaultLoginTransition.retireDuplicates(in: &state)
+
+        defaultLoginState = state
+        // KTD7: only a slot nothing was ever bound to consults the saved reading's email.
+        launchContinuity = cached.filter { key, _ in
+            guard let slot = state.slot(for: key) else { return true }
+            return slot.binding == nil && slot.phase != .cleared
+        }
+        // `defaultLoginState` already holds the repaired state, so the commit sees no
+        // change to publish; the rows are published here either way (a no-op if unchanged).
+        if state != loaded { commitDefaultLogin(state) }
+        publishRememberedRows()
+    }
+
+    /// A saved reading is the bound account's when it carries that account's digest, or
+    /// carries none and is the very reading this slot last accepted. A missing record is
+    /// expected only when this build removed it (KTD6).
+    private static func continuityIsAttributed(_ record: UsageSnapshot?, to slot: SlotRecord) -> Bool {
+        guard let record else { return slot.continuityRemoved }
+        if let digest = record.identity?.identity?.digest {
+            return digest == slot.binding?.digest
+        }
+        return record.capturedAt != nil && record.capturedAt == slot.lastAcceptedCapturedAt
+    }
+
+    /// Classifies an accepted reading, applies any change of account as one committed
+    /// step, and returns the reading to merge it against. Runs right after the
+    /// `acceptsResult` guard, before the reliability note and the sign-out edge.
+    func defaultLoginPrior(for key: AccountKey, fresh: UsageSnapshot) -> UsageSnapshot? {
+        let current = snapshots[key]
+        guard var state = defaultLoginState,
+              let account = accounts(for: key.providerID).first(where: { $0.key == key })
+        else { return current }
+        guard let reading = DefaultLoginReading(fresh) else {
+            // A live reading with no identity evidence (a Cursor status read that missed)
+            // changes nothing about the row, but it is the reading the row now holds. The
+            // slot must vouch for it, or the next launch reads its digest-less saved copy
+            // as another build's and drops it (KTD6).
+            if fresh.freshness == .live, var slot = state.slot(for: key), slot.binding != nil,
+               slot.lastAcceptedCapturedAt != fresh.capturedAt {
+                slot.lastAcceptedCapturedAt = fresh.capturedAt
+                state.upsert(slot)
+                commitDefaultLogin(state)
+            }
+            return current
+        }
+
+        let slot = state.slot(for: key)
+        // The steady state, the same account again, parks nothing; skip the store reads.
+        let isSteady = slot?.phase == .attached && slot?.binding != nil && reading.kind == slot?.binding.map { .known($0) }
+        let context = DefaultLoginSlotContext(
+            isBuiltIn: account.isBuiltIn,
+            label: account.label,
+            defaultLabel: ProviderAccount.builtInDefaultLabel,
+            snapshot: current.flatMap { $0.windows.isEmpty || $0.freshness == .pending ? nil : $0 },
+            reminders: isSteady ? .none : parkedReminders(for: key),
+            launchSnapshot: launchContinuity[key],
+            // A row whose account lapsed or whose identity is unreadable for now is still
+            // that account's row, so it counts in every phase that keeps a binding.
+            otherReaders: Set(state.slots.compactMap { other in
+                other.key != key && other.key.providerID == key.providerID ? other.binding?.digest : nil
+            }),
+            registryLabels: accounts(for: key.providerID).map(\.label)
+        )
+        let before = state
+        let effects = DefaultLoginTransition.apply(reading, for: key, context: context, to: &state)
+        if reading.kind != .lapsed { launchContinuity.removeValue(forKey: key) }
+
+        if effects.accountChanged {
+            // A post still in flight for the previous account must write nothing here.
+            attachmentGenerations[key, default: 0] &+= 1
+            sessionReliabilityRecord?.endObservation(for: key)
+            signOutRecord?.clearLastKnownSignedIn(for: key)
+        }
+        if state != before { commitDefaultLogin(state) }
+        if effects.needsMirror, let pending = state.slot(for: key)?.pendingMirror {
+            writeMirror(pending, for: key)
+            if var written = state.slot(for: key) {
+                written.pendingMirror = nil
+                state.upsert(written)
+                commitDefaultLogin(state)
+            }
+        }
+
+        switch effects.prior {
+        case .current: return current
+        case .none: return nil
+        case .snapshot(let parked): return parked
+        }
+    }
+
+    /// The reset boundary and stop-tracking (KTD7); removing an extra drops its record.
+    func defaultLoginDidClear(_ key: AccountKey, removed: Bool = false) {
+        guard var state = defaultLoginState else { return }
+        launchContinuity.removeValue(forKey: key)
+        let before = state
+        if removed {
+            state.removeSlot(for: key)
+        } else {
+            let label = accounts(for: key.providerID).first(where: { $0.key == key })?.label
+                ?? ProviderAccount.builtInDefaultLabel
+            DefaultLoginTransition.clear(key, label: label, in: &state)
+        }
+        if state != before { commitDefaultLogin(state) }
+    }
+
+    func defaultLoginDidRename(_ key: AccountKey, to label: String) {
+        guard var state = defaultLoginState else { return }
+        let before = state
+        DefaultLoginTransition.rename(key, to: label, in: &state)
+        if state != before { commitDefaultLogin(state) }
+    }
+
+    /// KTD6: notes whether this build left the slot without a continuity record.
+    func defaultLoginDidUpdateContinuity(for key: AccountKey, removed: Bool) {
+        guard var state = defaultLoginState, var slot = state.slot(for: key),
+              slot.continuityRemoved != removed
+        else { return }
+        slot.continuityRemoved = removed
+        state.upsert(slot)
+        commitDefaultLogin(state)
+    }
+
+    /// U5: the label an added account takes when none is given. Nil leaves the choice to
+    /// the registry, which numbers past its own rows only; with remembered rows the count
+    /// runs across both, so the two never share a number.
+    func defaultLoginLabelForNewAccount(for providerID: ProviderID) -> String? {
+        guard let state = defaultLoginState,
+              state.remembered.contains(where: { $0.providerID == providerID })
+        else { return nil }
+        return DefaultLoginTransition.nextDefaultLabel(
+            for: providerID,
+            registryLabels: accounts(for: providerID).map(\.label),
+            remembered: state.remembered
+        )
+    }
+
+    /// R11: one record commit; the registry and the reminder stores are not touched.
+    func defaultLoginRenameRemembered(_ key: AccountKey, to label: String) -> Bool {
+        guard var state = defaultLoginState else { return false }
+        let before = state
+        guard DefaultLoginTransition.renameRemembered(key, to: label, in: &state) else { return false }
+        if state != before { commitDefaultLogin(state) }
+        return true
+    }
+
+    /// R11: one record commit, none when the row is already hidden.
+    func defaultLoginHideRemembered(_ key: AccountKey) -> Bool {
+        guard var state = defaultLoginState else { return false }
+        let before = state
+        guard DefaultLoginTransition.hideRemembered(key, in: &state) else { return false }
+        if state != before { commitDefaultLogin(state) }
+        return true
+    }
+
+    private func commitDefaultLogin(_ state: DefaultLoginRecordsState) {
+        let previous = defaultLoginState
+        defaultLoginState = state
+        // The rows depend only on the remembered list and the slots' bindings; the steady
+        // per-reading commit changes neither, so it skips the rebuild.
+        if previous?.remembered != state.remembered
+            || previous?.slots.map(\.binding) != state.slots.map(\.binding) {
+            publishRememberedRows()
+        }
+        guard let data = DefaultLoginRecordsCodec.encode(state) else { return }
+        defaultLoginRecordStore?.write(data)
+    }
+
+    /// Reassigns the observed rows only when they changed: most commits are the steady
+    /// capture-time update and must not invalidate views that list remembered rows. The
+    /// one place remembered rows appear, disappear, rename or hide (U7), so it re-ages
+    /// them and exports the phone capture once, unless its caller exports anyway.
+    private func publishRememberedRows() {
+        let rows = defaultLoginState.map(DefaultLoginTransition.rememberedRows(in:)) ?? [:]
+        guard rows != rememberedAccountRows else { return }
+        rememberedAccountRows = rows
+        ageRememberedSnapshots()
+        if rememberedRowExportDeferrals == 0 { exportPhoneSyncSnapshot() }
+    }
+
+    /// Runs `body` as a caller that exports the phone capture itself afterwards.
+    func deferringRememberedRowExport<T>(_ body: () -> T) -> T {
+        rememberedRowExportDeferrals += 1
+        defer { rememberedRowExportDeferrals -= 1 }
+        return body()
+    }
+
+    /// KTD10: the engine's wake is one of the three moments remembered rows age.
+    func engineDidWake() {
+        ageRememberedSnapshots()
+    }
+
+    /// Ages every visible remembered row's last reading as of now (U6 mode). Assigned only
+    /// when the result changed, so an unchanged age invalidates no view.
+    func ageRememberedSnapshots() {
+        let date = now()
+        var aged: [AccountKey: UsageSnapshot] = [:]
+        for rows in rememberedAccountRows.values {
+            for row in rows where !row.isHidden {
+                guard let stored = row.snapshot else { continue }
+                aged[row.key] = UsageContinuityPolicy.rememberedSnapshot(stored, at: date)
+            }
+        }
+        if aged != rememberedDisplaySnapshots { rememberedDisplaySnapshots = aged }
+    }
+
+    private func writeMirror(_ mirror: PendingMirror, for key: AccountKey) {
+        if let label = mirror.label { writeLabel(label, for: key) }
+        if let reminders = mirror.reminders {
+            notificationCoordinator?.restore(
+                useItUp: reminders.useItUp,
+                bankedBaseline: reminders.bankedBaseline,
+                for: key,
+                now: now()
+            )
+            bankedResetAcknowledgements?.restore(count: reminders.bankedAcknowledged, for: key)
+        }
+        if mirror.removesContinuity { continuityCache?.remove(for: key) }
+    }
+
+    /// Refreshes the account index too, so a reminder evaluated in the same merge names
+    /// the row by its new label.
+    private func writeLabel(_ label: String, for key: AccountKey) {
+        if let accountRegistry {
+            accountRegistry.renameAccount(key, to: label)
+            accountsByProvider[key.providerID] = accountRegistry.accounts(
+                for: key.providerID, capacity: accountCapacity(for: key.providerID)
+            )
+        } else if let index = accountsByProvider[key.providerID]?.firstIndex(where: { $0.key == key }) {
+            accountsByProvider[key.providerID]?[index].label = label
+        }
+    }
+
+    private func parkedReminders(for key: AccountKey) -> ParkedReminders {
+        let parked = notificationCoordinator?.parkedState(for: key)
+        return ParkedReminders(
+            useItUp: parked?.useItUp ?? [],
+            bankedBaseline: parked?.bankedBaseline,
+            bankedAcknowledged: bankedResetAcknowledgements?.acknowledgedCount(for: key)
+        )
+    }
+
+    private func purgeReminders(for key: AccountKey) {
+        bankedResetAcknowledgements?.purge(for: key)
+        notificationCoordinator?.purge(for: key)
+    }
+}

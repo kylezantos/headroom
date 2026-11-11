@@ -44,6 +44,11 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
     /// The multi-account moment with both API spend rows retained from a read three hours
     /// ago that the Mac will retry (the v4 form of build 33's `--demo-stale-api-spend`).
     case staleSpend
+    /// Default-login plan U9 (mock scenario A; AE1, AE2): Claude and Codex each show a live
+    /// "Personal" and two accounts the Mac's default login left. "Work" was read two minutes
+    /// ago with both resets ahead; "Studio" was read two days ago and both its resets have
+    /// passed, so it shows no number. Mirrors the Mac's `--demo remembered`.
+    case remembered
 
     public static let `default`: Self = .multiAccount
 
@@ -55,6 +60,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
         "five-providers": .fiveProviders,
         "banked-resets": .bankedResets,
         "multi-20": .multi20,
+        "remembered": .remembered,
     ]
 
     /// Exact case names or Mac scenario aliases; nil for anything else.
@@ -87,6 +93,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
         case .aboveEnvelope: "More than 20 accounts"
         case .accountStates: "Account states"
         case .staleSpend: "Stale API spend"
+        case .remembered: "Remembered accounts"
         }
     }
 
@@ -217,7 +224,8 @@ public enum CompanionDemoData {
         guard variant.supportsCheckNow,
             let landed = snapshot(variant.afterCheckNow, now: startedAt).content?.providers.flatMap({ provider in
                 provider.accounts.compactMap { account -> CompanionLastLanded? in
-                    guard let accountID = account.accountID else { return nil }
+                    // A check never reads a remembered row (default-login R12).
+                    guard let accountID = account.accountID, !account.isRemembered else { return nil }
                     return try? CompanionLastLanded(
                         providerID: provider.id, accountID: accountID, live: account.freshness == .live)
                 }
@@ -338,9 +346,69 @@ public enum CompanionDemoData {
                 extras: [codexAccount(clock, id: "codex-work", title: "Work", plan: "Pro", fiveHour: 54, weekly: 79)],
                 spend: openAISpend(retained, stale: true))
             return state
+        case .remembered:
+            return try rememberedState(clock: clock, generation: g)
         case .oldMac, .paused, .waiting:
             throw CompanionSyncValidationError.state
         }
+    }
+
+    /// Default-login U9: the phone half of `DemoFixture`'s `remembered` scenario, with its
+    /// numbers. Each remembered row is what the Mac capture sends after aging (U6): "Work"
+    /// stale at its original read time, "Studio" unavailable since each reset.
+    static func rememberedState(clock: DemoClock, generation g: Int64) throws -> MacState {
+        func live(plan: String) throws -> CompanionAccountSummary {
+            try CompanionAccountSummary(
+                id: "primary", title: "Personal", planName: plan, capturedAt: clock.captured,
+                windows: [
+                    window(.fiveHour, utilization: 4, resetIn: 3.2 * hour, clock),
+                    window(.weekly, utilization: 31, resetIn: 4 * day, clock),
+                ])
+        }
+        func remembered(
+            id: String, title: String, plan: String, readAgo: TimeInterval,
+            fiveHour: (used: Double, resetIn: TimeInterval), weekly: (used: Double, resetIn: TimeInterval)
+        ) throws -> CompanionAccountSummary {
+            let readAt = try wire(clock.now.addingTimeInterval(-readAgo))
+            func row(_ kind: CompanionWindowKind, used: Double, resetIn: TimeInterval) throws -> CompanionSlimWindow {
+                guard let display = UsageDisplayValue(utilization: used) else {
+                    throw CompanionLeafValidationError.number
+                }
+                let reset = try wire(clock.now.addingTimeInterval(resetIn))
+                let past = !(resetIn > 0)
+                return try CompanionSlimWindow(
+                    kind: kind, percentRemaining: display.percentRemaining, utilization: used,
+                    resetKind: .scheduled, resetDeadline: reset,
+                    freshness: past ? .unavailable : .stale, observedAtOverride: readAt,
+                    unavailableSince: past ? reset : nil)
+            }
+            return try CompanionAccountSummary(
+                id: id, title: title, planName: plan, freshness: .stale, capturedAt: readAt,
+                needsAttention: false,
+                windows: [
+                    row(.fiveHour, used: fiveHour.used, resetIn: fiveHour.resetIn),
+                    row(.weekly, used: weekly.used, resetIn: weekly.resetIn),
+                ],
+                isRemembered: true)
+        }
+        func provider(_ id: String, live livePlan: String, work workPlan: String, studio studioPlan: String) throws
+            -> CompanionProviderPayload
+        {
+            try payload(
+                id, g, main: live(plan: livePlan),
+                extras: [
+                    // AE1: 22% and 10% left, resets in 1h 08m and 2d 4h.
+                    remembered(id: "remembered-\(id)-work", title: "Work", plan: workPlan, readAgo: 2 * minute,
+                               fiveHour: (78, 68 * minute + 30), weekly: (90, 2 * day + 4 * hour + 30 * minute)),
+                    // AE2: both resets passed since the read two days ago.
+                    remembered(id: "remembered-\(id)-studio", title: "Studio", plan: studioPlan, readAgo: 2 * day,
+                               fiveHour: (40, -2 * day + 3 * hour), weekly: (65, -6 * hour)),
+                ])
+        }
+        return MacState(providers: [
+            try provider("claude", live: "Max", work: "Team", studio: "Pro"),
+            try provider("codex", live: "Pro Lite", work: "Pro", studio: "Plus"),
+        ])
     }
 
     static func fourProvidersState(clock: DemoClock, generation g: Int64) throws -> MacState {

@@ -199,6 +199,123 @@ struct DefaultLoginRecordsTests {
 
         #expect(rig.label == "Main")
         #expect(rig.ledger.entry(for: rig.key, windowID: "weekly") == nil)
+
+        // The banner was shown, so Work's parked state counts it as fired: coming back
+        // inside the same reset cycle does not show it a second time.
+        rig.advance(120)
+        await rig.read(rig.dueReading(a))
+        #expect(rig.label == "Work")
+        #expect(rig.poster.posted.count == 1)
+    }
+
+    @Test func aRowWhoseLoginLapsedStillCountsAsReadingItsAccount() async {
+        let rig = DefaultLoginRig(extraLabels: ["Side"])
+        let side = rig.extras[0]
+        side.set(rig.reading(a))
+        await rig.read(rig.reading(a))
+        side.set(rig.signedOut)
+        await rig.read(rig.reading(a))
+        #expect(rig.state.slot(for: side.accountKey)?.phase == .lapsed)
+
+        rig.advance(120)
+        await rig.read(rig.reading(b))
+        // The extra is still that account's row, so no second row is made for it.
+        #expect(rig.rows.isEmpty)
+    }
+
+    @Test func anAccountThatLeavesWhileItsIdentityWasUnreadableIsRememberedFromItsOwnReading() async {
+        let rig = await boundToWork()
+        await rig.read(rig.reading(a, weeklyUsed: 61))
+        let workCapture = rig.clock.now()
+        rig.advance(120)
+        await rig.read(rig.reading(nil, weeklyUsed: 20))
+        rig.advance(120)
+        await rig.read(rig.reading(b, weeklyUsed: 3))
+
+        #expect(rig.label == "Main")
+        #expect(rig.rows.map(\.label) == ["Work"])
+        // Work's own last reading, not the unnamed one taken in between.
+        #expect(rig.rows.first?.snapshot?.capturedAt == workCapture)
+        #expect(rig.rows.first?.snapshot?.snapshot?.windows.last?.utilization == 61)
+    }
+
+    @Test func aLapsedLoginFollowedByAnUnnamedReadingStillReturnsWhole() async {
+        let rig = await boundToWork()
+        await rig.read(rig.signedOut)
+        rig.advance(120)
+        await rig.read(rig.reading(nil))
+        #expect(rig.label == "Main")
+        #expect(rig.slot?.phase == .detached)
+        #expect(rig.slot?.parked?.label == "Work")
+
+        rig.advance(120)
+        await rig.read(rig.reading(a))
+        #expect(rig.label == "Work")
+        #expect(rig.state.remembered.isEmpty)
+    }
+
+    @Test func anExtraWithNoReadableIdentityKeepsItsLabelAndLosesItsReminderState() async {
+        let rig = DefaultLoginRig(extraLabels: ["Side"])
+        let side = rig.extras[0]
+        side.set(rig.dueReading("side"))
+        await rig.read(rig.reading(a))
+        #expect(rig.ledger.entry(for: side.accountKey, windowID: "weekly") != nil)
+
+        rig.advance(120)
+        side.set(rig.reading(nil))
+        await rig.read(rig.reading(a))
+        #expect(rig.store.accounts(for: .codex).first { $0.key == side.accountKey }?.label == "Side")
+        #expect(rig.state.slot(for: side.accountKey)?.phase == .detached)
+        #expect(rig.ledger.entry(for: side.accountKey, windowID: "weekly") == nil)
+    }
+
+    @Test func stopTrackingTheBuiltInClearsItsBindingAndRemovingAnExtraDropsItsRecord() async {
+        let rig = DefaultLoginRig(extraLabels: ["Side"])
+        let side = rig.extras[0]
+        side.set(rig.reading("side"))
+        await rig.read(rig.reading(a))
+        rig.store.renameAccount(rig.key, to: "Work")
+        #expect(rig.state.slot(for: side.accountKey)?.binding != nil)
+
+        #expect(await rig.store.stopTrackingBuiltInAccount(for: .codex) == .removed)
+        #expect(rig.slot?.phase == .cleared)
+        #expect(rig.slot?.binding == nil)
+        #expect(rig.slot?.parked?.label == "Work")
+
+        // Resumed as another account: the default name, and nothing remembered (KTD7).
+        #expect(rig.store.resumeTrackingBuiltInAccount(for: .codex) != nil)
+        await rig.read(rig.reading(b))
+        #expect(rig.label == "Main")
+        #expect(rig.state.remembered.isEmpty)
+
+        #expect(await rig.store.removeAccount(side.accountKey) == .removed)
+        #expect(rig.state.slot(for: side.accountKey) == nil)
+    }
+
+    @Test func aNeverBoundWeakIdentityOnADifferentEmailRelabelsAndRemembersNothing() {
+        var state = DefaultLoginRecordsState()
+        let key = AccountKey(providerID: .grok, accountID: .primary)
+        func grok(_ email: String, identity: Bool) -> UsageSnapshot {
+            UsageSnapshot(
+                providerID: .grok,
+                windows: [UsageWindow(kind: .weekly, utilization: 5, resetsAt: .distantFuture)],
+                planLabel: nil, accountEmail: email, capturedAt: DefaultLoginRig.start, freshness: .live,
+                identity: identity ? .known(AccountIdentity.grok(email: email)!) : nil
+            )
+        }
+        let effects = DefaultLoginTransition.apply(
+            DefaultLoginReading(grok("b@example.com", identity: true))!, for: key,
+            context: DefaultLoginSlotContext(
+                isBuiltIn: true, label: "Work", defaultLabel: "Main", snapshot: nil,
+                reminders: .none, launchSnapshot: grok("a@example.com", identity: false), otherReaders: []
+            ),
+            to: &state
+        )
+        #expect(effects.label == "Main")
+        #expect(effects.prior == .none)
+        #expect(effects.reminders == ParkedReminders.none)
+        #expect(state.remembered.isEmpty)
+        #expect(state.slot(for: key)?.binding == AccountIdentity.grok(email: "b@example.com"))
     }
 
     @Test func theNewAccountsFirstBankedCountSeedsSilently() async {

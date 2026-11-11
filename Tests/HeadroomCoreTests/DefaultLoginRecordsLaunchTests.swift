@@ -140,6 +140,29 @@ struct DefaultLoginRecordsLaunchTests {
         #expect(rig.poster.posted.count == 1)
     }
 
+    /// A Cursor status read that misses gives a live reading with no identity evidence.
+    @Test func aReadingWithNoIdentityEvidenceOnABoundRowSurvivesARelaunch() async {
+        let rig = await boundToWork()
+        rig.advance(300)
+        await rig.read(rig.reading(nil, weeklyUsed: 73, identity: .some(nil), weeklyResetIn: 5 * 3_600))
+        #expect(rig.label == "Work")
+        #expect(rig.continuity.load()[rig.key]?.identity == nil)
+
+        rig.launch()
+        #expect(rig.snapshot.windows.last?.utilization == 73)
+        #expect(rig.ledger.entry(for: rig.key, windowID: "weekly") != nil)
+        #expect(rig.label == "Work")
+    }
+
+    @Test func aSavedReadingCarryingAnotherAccountsDigestIsDropped() async {
+        let rig = await boundToWork()
+        rig.continuity.save(rig.reading(b, weeklyUsed: 40), for: rig.key)
+
+        rig.launch()
+        #expect(rig.snapshot.freshness == .pending)
+        #expect(rig.ledger.entry(for: rig.key, windowID: "weekly") == nil)
+    }
+
     /// 1.6.2 rewrites the whole continuity envelope on any save, which drops the digest
     /// from this row's record without changing whose reading it is.
     @Test func aRecordAnOlderBuildOnlyReEncodedIsStillAttributedByItsCaptureTime() async {

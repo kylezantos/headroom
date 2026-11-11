@@ -68,9 +68,21 @@ extension UsageStore {
     func defaultLoginPrior(for key: AccountKey, fresh: UsageSnapshot) -> UsageSnapshot? {
         let current = snapshots[key]
         guard var state = defaultLoginState,
-              let reading = DefaultLoginReading(fresh),
               let account = accounts(for: key.providerID).first(where: { $0.key == key })
         else { return current }
+        guard let reading = DefaultLoginReading(fresh) else {
+            // A live reading with no identity evidence (a Cursor status read that missed)
+            // changes nothing about the row, but it is the reading the row now holds. The
+            // slot must vouch for it, or the next launch reads its digest-less saved copy
+            // as another build's and drops it (KTD6).
+            if fresh.freshness == .live, var slot = state.slot(for: key), slot.binding != nil,
+               slot.lastAcceptedCapturedAt != fresh.capturedAt {
+                slot.lastAcceptedCapturedAt = fresh.capturedAt
+                state.upsert(slot)
+                commitDefaultLogin(state)
+            }
+            return current
+        }
 
         let slot = state.slot(for: key)
         // The steady state, the same account again, parks nothing; skip the store reads.
@@ -82,9 +94,10 @@ extension UsageStore {
             snapshot: current.flatMap { $0.windows.isEmpty || $0.freshness == .pending ? nil : $0 },
             reminders: isSteady ? .none : parkedReminders(for: key),
             launchSnapshot: launchContinuity[key],
+            // A row whose account lapsed or whose identity is unreadable for now is still
+            // that account's row, so it counts in every phase that keeps a binding.
             otherReaders: Set(state.slots.compactMap { other in
-                other.key != key && other.key.providerID == key.providerID && other.phase == .attached
-                    ? other.binding?.digest : nil
+                other.key != key && other.key.providerID == key.providerID ? other.binding?.digest : nil
             })
         )
         let before = state

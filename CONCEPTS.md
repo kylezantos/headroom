@@ -39,6 +39,20 @@ A reminder fires at most once per limit per reset, only from a fresh reading, an
 ### Banked-reset notice
 An opt-in Mac notification that Codex banked a new spare reset for an account. It fires only when a fresh reading shows the count rising above the last count Headroom saw; the first count seen for an account never fires.
 
+## Accounts
+
+### Default login
+The account a provider's CLI is signed in to in its own default config home. The built-in row reads it, so the built-in row is whichever account that is right now.
+*Avoid:* active account, current account
+
+An account switcher, a plain sign-in or another app can change it without Headroom being involved.
+
+### Remembered account
+An account that used to be the default login and no longer is. Headroom keeps its name, its last reading and its reminder state, and gives them back if it becomes the default login again.
+*Avoid:* inactive account, cached account
+
+It is not read while it is away, so its numbers are a last reading, never a live one.
+
 ## Loading
 
 ### Slosh

@@ -251,6 +251,33 @@ account below the print-mode floor keep the `interactive` bare launch, which is 
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
 Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
 
+**Follow the default login (Nov 2026, Phase 1 of
+`docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Codex, Grok, Cursor and
+Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
+digest of the CLI's own metadata, never the upstream id). Codex and Grok read their account file
+before and after the usage read; if the two reads disagree or one fails, the reading is refused
+on `UsageProviderFetchResult.discard` and read again at the lane's next turn, with no backoff
+and no dimmed row. After two refusals in a row the next one merges as an ordinary transient
+failure. A row is a slot bound to one identity (`SlotRecord` in `Engine/DefaultLoginRecords.swift`,
+stored under `defaultLoginRecords.v1`). When the built-in row's default login becomes a different
+account, the row takes that account's name, or "Main", and none of the previous account's
+history or reminder state; the previous account's label, last reading and reminder state are
+kept in the record store and return if that account does. Showing that kept account as a row
+(Phase 2) and showing the default login and a matching extra as one row (Phase 3) are not built
+yet. Parity, forced by what each client exposes:
+
+| Provider | Identity | Mid-change refusal | Relabel and history reset | Remembered |
+|---|---|---|---|---|
+| Codex | `account_id`, strong | Yes | Yes | Yes |
+| Grok | email, weak | Yes | Yes | No |
+| Cursor | email from `status`, weak | No (the read runs beside the capture) | Yes | No |
+| Copilot | login, weak, up to an hour old | No | Yes | No |
+| Claude | not wired | No | No | No |
+
+Claude waits on gate V1 of the plan: its credential is in the Keychain and its identity in
+`.claude.json`, and nothing has yet shown that the two change together. Do not wire Claude's
+identity before that gate has a recorded result.
+
 Each provider has a persisted primary selection. **Make Main** reorders the selected row to the
 top, refreshes only it, and immediately reroutes the menu bar, widgets, phone projection,
 capability recovery, and the never-signed-in timer exemption. A dangling primary pointer falls
@@ -636,6 +663,16 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   add an in-app sender, an
   endpoint or analytics without a new plan: the privacy policy promises Headroom sends
   nothing itself. See `docs/plans/2026-11-03-1400-feat-feedback-by-email-plan.md`.
+- **An account change is one record commit, then its mirrors (Nov 2026).** `UsageStore.merge`
+  calls `defaultLoginPrior` first, before the reliability note and the sign-out edge. A change
+  commits `defaultLoginRecords.v1` once with a `pendingMirror`, then writes the registry label,
+  the row's reminder entries and the continuity record, then clears the marker. The launch
+  repair finishes a change a crash interrupted and drops a saved reading another build rewrote
+  (a continuity record is the bound account's when it carries that digest, or carries none and
+  has the capture time the slot last accepted). Keep that order, keep the reminder stores keyed
+  by `AccountKey`, and add no field to `ProviderAccount`: `Release162FrozenStores` decodes every
+  existing store the way 1.6.2 does. Any new per-account state needs a park-and-restore path
+  here, or it carries from one account to the next.
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

@@ -283,7 +283,10 @@ passed, one line "Reset Tue 3:32 PM · not read since" with no gauge and no numb
 phone; the row draws the compact form because the sentence form, "Reset yesterday at 12:32 AM ·
 not read since", does not fit a Micro row, and the tooltip and VoiceOver keep the sentence). The
 reset lines of one account share a label column (`UsageBarView.resetLine(peers:compact:)`), so
-they start at one x, and their ink sits one step under the dimmed label. It is never probed,
+they start at one x, and their ink sits one step under the dimmed label. In the Full meter style
+the reset row is the line alone, with no band kept open for the gauge; when a reset passes while
+the popover is open, the popover's layout signature (`PopoverCardLayoutSignature.resetLines`)
+closes the row on `valueSpring` while the gauge and the line cross-fade. Micro keeps its row height. It is never probed,
 never the main account and never fires a reminder, and it does not count toward add-account
 capacity. An unnamed one is numbered like an added account ("Account 2") while it is remembered
 and is "Main" again when it is the default login; a name the user chose travels both ways. Rename

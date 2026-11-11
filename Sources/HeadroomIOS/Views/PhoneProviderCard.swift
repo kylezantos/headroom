@@ -334,6 +334,12 @@ struct PhoneMeterRows: View {
                     HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
                     value: rows.map(\.window.kind)
                 )
+                // A Full-style reset line is shorter than the meter it replaces, so the row
+                // closes when a remembered window's reset passes.
+                .animation(
+                    HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                    value: resetLabelPeers
+                )
             }
         }
         .padding(.leading, IdentityRowMetrics.meterContentInset * scale)

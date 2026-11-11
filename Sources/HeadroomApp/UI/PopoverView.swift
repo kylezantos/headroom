@@ -149,6 +149,14 @@ struct PopoverView: View {
                 // A live poll can add or age out a meter row with freshness unchanged.
                 rows: store.providerOrder.flatMap { id in
                     (entriesByProvider[id] ?? []).map { $0.snapshot.windows.map(\.kind) }
+                },
+                resetLines: store.providerOrder.reduce(0) { count, id in
+                    count + (entriesByProvider[id] ?? []).reduce(0) { sum, entry in
+                        guard entry.isRemembered else { return sum }
+                        return sum + entry.snapshot.windows.count { window in
+                            window.resetSchedule.deadline.map { !($0 > now) } ?? false
+                        }
+                    }
                 }
             )
             VStack(spacing: tuning.values.cardGap) {
@@ -1480,4 +1488,7 @@ struct PopoverCardLayoutSignature: Equatable {
     var freshness: [Freshness]
     var sessions: [SetupSessionState]
     var rows: [[WindowKind]]
+    /// How many remembered windows draw a reset line. In the Full style that row is shorter
+    /// than the meter it replaces, so a reset passing changes the stack's height.
+    var resetLines = 0
 }

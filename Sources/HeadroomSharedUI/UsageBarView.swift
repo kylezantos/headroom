@@ -453,10 +453,13 @@ public struct UsageBarView: View {
         Group {
             if compactLabel == nil, let resetNotReadLine {
                 resetNotReadRow(resetNotReadLine)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             } else {
                 switch meterStyle.format {
                 case .full:
+                    // The meter leaves on a fade when its reset passes on a remembered row.
                     fullRow
+                        .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
                 case .micro:
                     if let compactLabel {
                         compactCell(compactLabel)
@@ -486,15 +489,16 @@ public struct UsageBarView: View {
         .onChange(of: rowSignal) { _, _ in land() }
     }
 
-    /// U8 (R8): a remembered window past its reset. The meter row it replaces is laid out
-    /// hidden underneath, so this line takes exactly that row's height and its label lands
-    /// where the meter's label would; nothing travels when a reset passes. In Full the label
-    /// sits on the meter's top line; in Micro on its one optical axis.
+    /// U8 (R8): a remembered window past its reset. In Micro the meter row it replaces is
+    /// laid out hidden underneath, so the line takes that row's height on its one optical
+    /// axis and nothing travels when a reset passes. In Full the row is the line alone: a
+    /// band kept open for a gauge that is no longer there read as an accident (Kyle, Nov
+    /// 2026). There the row closes when the reset passes, and the scope that owns the stack
+    /// animates it: the gauge and number fade, the height closes, the line fades in.
     private func resetNotReadRow(_ line: String) -> some View {
         let isFull = meterStyle.format == .full
-        return ZStack(alignment: isFull ? .topLeading : .leading) {
-            Group { if isFull { fullRow } else { microRow } }
-                .hidden()
+        return ZStack(alignment: .leading) {
+            if !isFull { microRow.hidden() }
             HStack(alignment: isFull ? .firstTextBaseline : .center, spacing: gap) {
                 // Every peer is laid out hidden with its own optical leading, this row's
                 // label among them, so the column is one width on every reset line.

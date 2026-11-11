@@ -306,7 +306,11 @@ struct CodexAccountEmailTests {
         )
         #expect(
             await store.codexSession()
-                == .success(CodexSession(accessToken: "at", accountEmail: "work@example.com"))
+                == .success(CodexSession(
+                    accessToken: "at",
+                    accountEmail: "work@example.com",
+                    identity: AccountIdentity.codex(accountID: "acc")
+                ))
         )
         #expect(await store.codexAccessToken() == .success("at"))
     }

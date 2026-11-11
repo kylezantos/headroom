@@ -40,7 +40,12 @@ public struct CopilotProvider: UsageProvider {
         case .cliMissing: return stale(.providerSetup(.copilotCLIMissing))
         case .signedOut: return stale(.providerSetup(.copilotSignedOut))
         case .failure(let reason): return stale(reason)
-        case .signedIn(let status): return await snapshot(for: status)
+        case .signedIn(let status):
+            // KTD13: the login comes from the status call that served the reading, up to
+            // an hour old, so it labels the reading but cannot bracket it.
+            let identity = AccountIdentity.copilot(login: status.login).map(AccountIdentityOutcome.known) ?? .absent
+            let snapshot = await snapshot(for: status)
+            return snapshot.freshness == .live ? snapshot.withIdentity(identity) : snapshot
         }
     }
 

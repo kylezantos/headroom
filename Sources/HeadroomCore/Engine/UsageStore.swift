@@ -1068,6 +1068,10 @@ public final class UsageStore {
         notifiesSetup: Bool,
         attachmentGeneration: UInt64?
     ) -> Bool {
+        // KTD2 (default-login plan): a reading taken while the login was changing belongs
+        // to neither account for certain. Refused here, before `merge`, so it never
+        // reaches the snapshot, the continuity cache or a setup session.
+        if result.discard != nil { return false }
         let isCapabilityFailure = result.capability.map { $0 != .available } == true
         if isCapabilityFailure {
             // A provider-wide discovery failure says nothing about this account. Keep a
@@ -1313,16 +1317,7 @@ public final class UsageStore {
 
     private func filterCodexSparkCounters(from snapshot: UsageSnapshot, shouldShow: Bool) -> UsageSnapshot {
         guard snapshot.providerID == .codex, !shouldShow else { return snapshot }
-        return UsageSnapshot(
-            providerID: snapshot.providerID,
-            windows: snapshot.windows.filter { !$0.kind.isCodexSparkCounter },
-            planLabel: snapshot.planLabel,
-            accountEmail: snapshot.accountEmail,
-            bankedResets: snapshot.bankedResets,
-            codexResetCreditsField: snapshot.codexResetCreditsField,
-            capturedAt: snapshot.capturedAt,
-            freshness: snapshot.freshness
-        )
+        return snapshot.replacingWindows(snapshot.windows.filter { !$0.kind.isCodexSparkCounter })
     }
 
     /// The menu bar summary: selected percentage presentation in each provider's chosen

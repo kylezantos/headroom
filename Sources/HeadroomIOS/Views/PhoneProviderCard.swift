@@ -290,6 +290,12 @@ struct PhoneMeterRows: View {
                     .font(.system(size: StatusSentence.size * scale, weight: .medium))
                     .foregroundStyle(.secondary)
             } else {
+                // Reset lines start at one x: their label column is the widest label among them.
+                let resetLabelPeers = rows.compactMap { row in
+                    CompanionCardPresentation.meterRowLayout(row, isRemembered: isRemembered, now: now)
+                        .resetNotReadLine == nil
+                        ? nil : UsageMeterReading(widgetSummary: row.window).window.kind.displayName
+                }
                 VStack(spacing: rowGap * scale) {
                     // RI1: rows keyed by kind (and occurrence), so a row that arrives or
                     // leaves fades instead of handing its neighbour another window's value.
@@ -312,6 +318,7 @@ struct PhoneMeterRows: View {
                                 resetNotReadLine: layout.resetNotReadLine,
                                 showsWindowState: layout.showsWindowState
                             )
+                            .resetLine(peers: resetLabelPeers, compact: layout.resetNotReadCompactLine)
                             // Retained readings should look inactive beside live accounts;
                             // keep identity, recovery instructions and reset notes at full ink.
                             .saturation(isMuted ? 0 : 1)

@@ -42,7 +42,8 @@ public enum ResetClockFormatter {
         now: Date,
         timeZone: TimeZone = .current,
         locale: Locale = .current,
-        calendar suppliedCalendar: Calendar = Calendar(identifier: .gregorian)
+        calendar suppliedCalendar: Calendar = Calendar(identifier: .gregorian),
+        compact: Bool = false
     ) -> String {
         var calendar = suppliedCalendar
         calendar.timeZone = timeZone
@@ -54,6 +55,13 @@ public enum ResetClockFormatter {
             to: calendar.startOfDay(for: now)
         ).day ?? .max
         let time = format(date, template: "jmm", calendar: calendar)
+
+        // The short form for a row, which has no room for the sentence: "Wed 10:00 AM",
+        // "Sep 18 10:00 AM". A short weekday covers today and yesterday too.
+        if compact {
+            let day = format(date, template: daysAgo > 6 ? "MMMd" : "EEE", calendar: calendar)
+            return "\(day) \(time)"
+        }
 
         switch daysAgo {
         case ...0:

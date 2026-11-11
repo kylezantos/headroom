@@ -26,12 +26,13 @@ built for Codex.
   meter style's reset line are covered by tests and builds only.
 - **A phone that predates the `k` key treats a remembered row as an ordinary stale extra.** It
   counts the row as not updated after a check-now and Siri may name it, until that phone
-  updates. Recorded in the sync field contract. The alternative, holding remembered rows back
-  until the phone build ships, was not taken; Kyle has not ruled on it.
+  updates. Recorded in the sync field contract. Accepted (Kyle, 2026-11-10) over holding
+  remembered rows back until the phone build ships.
 - **First launch after upgrade differs from the plan's KTD7.** The plan says a never-bound row
   with the default label adopts the saved label and history. The code treats a cached email
   that differs from the first identity as another account even when the label is "Main", and
-  keeps the saved reading as a remembered account. Safer for R1; not reconciled with the plan.
+  keeps the saved reading as a remembered account. Kept as built (Kyle, 2026-11-10): it is the
+  safer reading of R1, and this entry is the record that it differs from the plan's text.
 - **A remembered reading ages on the Mac without a phone export.** Aging runs at launch, on
   each engine wake and on popover open. A window that passes its reset between exports reaches
   the phone in its unavailable form at the next publish. A current phone hides the number at

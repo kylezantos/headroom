@@ -140,9 +140,13 @@ public enum Countdown {
         resetAt: Date,
         now: Date,
         timeZone: TimeZone = .current,
-        locale: Locale = .current
+        locale: Locale = .current,
+        compact: Bool = false
     ) -> String {
-        let when = ResetClockFormatter.pastPhrase(for: resetAt, now: now, timeZone: timeZone, locale: locale)
+        // `compact` is what a row draws, since the sentence does not fit one:
+        // "Reset Wed 10:00 AM · not read since". Tooltips and VoiceOver keep the sentence.
+        let when = ResetClockFormatter.pastPhrase(
+            for: resetAt, now: now, timeZone: timeZone, locale: locale, compact: compact)
         return "Reset \(when) · not read since"
     }
 }

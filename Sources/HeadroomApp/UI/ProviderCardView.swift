@@ -1957,6 +1957,8 @@ struct UsageBarsStack: View {
     /// U8 (R8): per window, in `windows` order, the line that replaces a remembered row's
     /// meter once its reset has passed. Empty (every engine row) draws every meter.
     var resetNotReadLines: [String?] = []
+    /// The same lines in the compact form the row draws.
+    var compactResetNotReadLines: [String?] = []
     /// U8 (R7): false on a remembered row, whose identity row already says "Last read …".
     var showsWindowState: Bool = true
     /// U8: true on a remembered row, whose labels and countdowns dim with its meters.
@@ -1982,7 +1984,12 @@ struct UsageBarsStack: View {
                 // next row's window, so "Weekly 40%" rolled into "5-hour 12%" — motion that
                 // claimed a value changed when a row had only moved. Now a row keeps its
                 // window, and one that arrives or leaves fades.
-                ForEach(Array(Self.keyedRows(windows).enumerated()), id: \.element.key) { index, row in
+                let keyedRows = Self.keyedRows(windows)
+                let resetLabelPeers = keyedRows.enumerated().compactMap { index, row in
+                    resetNotReadLines.indices.contains(index) && resetNotReadLines[index] != nil
+                        ? row.window.kind.displayName : nil
+                }
+                ForEach(Array(keyedRows.enumerated()), id: \.element.key) { index, row in
                     UsageBarView(
                         window: row.window,
                         percentageMode: percentageMode,
@@ -1993,6 +2000,11 @@ struct UsageBarsStack: View {
                         resetNotReadLine: resetNotReadLines.indices.contains(index) ? resetNotReadLines[index] : nil,
                         showsWindowState: showsWindowState,
                         dimsLabels: dimsLabels
+                    )
+                    .resetLine(
+                        peers: resetLabelPeers,
+                        compact: compactResetNotReadLines.indices.contains(index)
+                            ? compactResetNotReadLines[index] : nil
                     )
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
                 }

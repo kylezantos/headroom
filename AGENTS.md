@@ -278,8 +278,12 @@ matching extra as one row (Phase 3) is not built yet. Parity, forced by what eac
 
 **Remembered accounts (Phase 2).** The account the default login left keeps a dimmed row with
 its last reading: a "Last read …" tag where "Stale" would be, and, once a window's reset has
-passed, one line "Reset … · not read since" with no gauge and no number (`Countdown.lastReadLabel`
-and `Countdown.resetNotReadLine`, the same wording on the Mac and the phone). It is never probed,
+passed, one line "Reset Tue 3:32 PM · not read since" with no gauge and no number
+(`Countdown.lastReadLabel` and `Countdown.resetNotReadLine`, the same wording on the Mac and the
+phone; the row draws the compact form because the sentence form, "Reset yesterday at 12:32 AM ·
+not read since", does not fit a Micro row, and the tooltip and VoiceOver keep the sentence). The
+reset lines of one account share a label column (`UsageBarView.resetLine(peers:compact:)`), so
+they start at one x, and their ink sits one step under the dimmed label. It is never probed,
 never the main account and never fires a reminder, and it does not count toward add-account
 capacity. An unnamed one is numbered like an added account ("Account 2") while it is remembered
 and is "Main" again when it is the default login; a name the user chose travels both ways. Rename

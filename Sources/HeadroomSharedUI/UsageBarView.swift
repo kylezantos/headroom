@@ -126,6 +126,22 @@ public struct UsageBarView: View {
     /// quiets. False, the default, keeps every other row's label and countdown ink, stale
     /// and unavailable engine rows included.
     public var dimsLabels: Bool = false
+    /// The labels of every window in the same account that draws a reset line. The label
+    /// column of a reset line is as wide as the widest of them, so the lines start at one
+    /// x ("5-hour" and "Weekly" are not the same width). Empty, the default, sizes the label
+    /// to itself.
+    public var resetLabelPeers: [String] = []
+    /// `resetNotReadLine` in its compact form ("Reset Wed 10:00 AM · not read since"), which
+    /// is what the row draws; the sentence form stays in the tooltip and for VoiceOver. Nil
+    /// draws the sentence.
+    public var resetNotReadCompactLine: String? = nil
+
+    public func resetLine(peers: [String], compact: String?) -> UsageBarView {
+        var copy = self
+        copy.resetLabelPeers = peers
+        copy.resetNotReadCompactLine = compact
+        return copy
+    }
 
     public init(
         reading: UsageMeterReading,
@@ -480,11 +496,26 @@ public struct UsageBarView: View {
             Group { if isFull { fullRow } else { microRow } }
                 .hidden()
             HStack(alignment: isFull ? .firstTextBaseline : .center, spacing: gap) {
-                labelText
-                    .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
-                Text(line)
+                // Every peer is laid out hidden with its own optical leading, this row's
+                // label among them, so the column is one width on every reset line.
+                ZStack(alignment: .leading) {
+                    ForEach(resetLabelPeers.filter { $0 != label }, id: \.self) { peer in
+                        Text(peer)
+                            .font(.system(size: labelSize, weight: labelWeight))
+                            .lineLimit(1)
+                            .fixedSize()
+                            .widgetOpticalLeading(peer, size: labelSize, weight: labelWeight)
+                            .hidden()
+                    }
+                    labelText.fixedSize()
+                }
+                .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
+                // The compact form on every reset line: the sentence ("Reset yesterday at
+                // 12:32 AM · …") does not fit a Micro row, and two forms in one account read
+                // as two different things. The tooltip and VoiceOver keep the sentence.
+                Text(resetNotReadCompactLine ?? line)
                     .font(.system(size: resetSize).monospacedDigit())
-                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                    .foregroundStyle(hintInk)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .widgetCapHeightCentered(size: resetSize, weight: .regular)
@@ -671,7 +702,15 @@ public struct UsageBarView: View {
     private var countdownInk: Color {
         if usesCriticalInk { return Color.secondary }
         // U8: a remembered row's countdown steps down with its label (`dimsLabels`).
-        return dimsLabels ? ProviderStyle.tertiaryText(scheme: scheme) : ProviderStyle.meterCountdownInk(scheme: scheme)
+        return dimsLabels ? hintInk : ProviderStyle.meterCountdownInk(scheme: scheme)
+    }
+
+    /// The countdown and the reset line beside a window label. On a remembered row the label
+    /// is already `.secondary`, and the tertiary text token reads as bright as that, so the
+    /// hint steps one notch under the label (Kyle, Nov 2026). Elsewhere the label is full
+    /// ink and the token is already the quieter of the two.
+    private var hintInk: Color {
+        dimsLabels ? Color.secondary.opacity(0.72) : ProviderStyle.tertiaryText(scheme: scheme)
     }
 
     /// U8: a remembered row's label takes the dimmed numeral's ink (`numeralInk`); every

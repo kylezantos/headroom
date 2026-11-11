@@ -116,6 +116,8 @@ struct AccountRowKindPresentation: Equatable {
     /// Per window, in `snapshot.windows` order: the reset line that replaces its meter, or
     /// nil for a meter. Empty on engine rows.
     let resetNotReadLines: [String?]
+    /// The same lines in the compact form the row draws.
+    let compactResetNotReadLines: [String?]
     /// Full's per-window "· Last known …" label.
     let showsWindowState: Bool
     /// The whole stack reads as secondary: gauges and numbers dimmed whatever the
@@ -134,6 +136,7 @@ struct AccountRowKindPresentation: Equatable {
             isStale = providerCardHasTransientStaleState(entry.snapshot)
             lastReadLabel = nil
             resetNotReadLines = []
+            compactResetNotReadLines = []
             showsWindowState = true
             dimsWholeRow = false
         case .remembered:
@@ -147,6 +150,7 @@ struct AccountRowKindPresentation: Equatable {
             isStale = false
             lastReadLabel = recipe.lastReadLabel
             resetNotReadLines = recipe.resetNotReadLines
+            compactResetNotReadLines = recipe.compactResetNotReadLines
             showsWindowState = false
             dimsWholeRow = true
         }
@@ -374,6 +378,7 @@ struct AccountSectionView: View {
             meterStyle: meterStyle,
             arrivalKey: account.key,
             resetNotReadLines: kind?.resetNotReadLines ?? [],
+            compactResetNotReadLines: kind?.compactResetNotReadLines ?? [],
             showsWindowState: kind?.showsWindowState ?? true,
             dimsLabels: kind?.dimsWholeRow ?? false
         )

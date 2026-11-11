@@ -233,5 +233,14 @@ struct RememberedAgingTests {
         #expect(line(now.addingTimeInterval(-2 * day)) == "Reset Wednesday at 10:00 AM · not read since")
         #expect(line(now.addingTimeInterval(-6 * day)) == "Reset Saturday at 10:00 AM · not read since")
         #expect(line(now.addingTimeInterval(-7 * day)) == "Reset Sep 18 at 10:00 AM · not read since")
+        // What a row draws; the sentence is for the tooltip and VoiceOver.
+        func compact(_ resetAt: Date) -> String {
+            Countdown.resetNotReadLine(resetAt: resetAt, now: now, timeZone: zone, locale: locale, compact: true)
+                .replacingOccurrences(of: "\u{202F}", with: " ")
+        }
+        #expect(compact(now.addingTimeInterval(-2 * hour)) == "Reset Fri 8:00 AM · not read since")
+        #expect(compact(now.addingTimeInterval(-20 * hour)) == "Reset Thu 2:00 PM · not read since")
+        #expect(compact(now.addingTimeInterval(-2 * day)) == "Reset Wed 10:00 AM · not read since")
+        #expect(compact(now.addingTimeInterval(-7 * day)) == "Reset Sep 18 10:00 AM · not read since")
     }
 }

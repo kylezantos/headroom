@@ -17,6 +17,8 @@ public struct RememberedRowRecipe: Sendable, Equatable {
     /// One per window, in the order given — what `UsageBarsStack` lays out: the reset line
     /// that replaces the window's meter, or nil for its (dimmed) meter.
     public let resetNotReadLines: [String?]
+    /// The same lines in `Countdown`'s compact form, which is what the row draws.
+    public let compactResetNotReadLines: [String?]
 
     public init(
         windows: [UsageWindow],
@@ -29,6 +31,9 @@ public struct RememberedRowRecipe: Sendable, Equatable {
         resetNotReadLines = windows.map { window in
             Self.resetNotReadLine(for: window, now: now, timeZone: timeZone, locale: locale)
         }
+        compactResetNotReadLines = windows.map { window in
+            Self.resetNotReadLine(for: window, now: now, timeZone: timeZone, locale: locale, compact: true)
+        }
     }
 
     /// The reset line for one window of a remembered row, or nil while its reset is ahead
@@ -38,10 +43,12 @@ public struct RememberedRowRecipe: Sendable, Equatable {
         for window: UsageWindow,
         now: Date,
         timeZone: TimeZone = .current,
-        locale: Locale = .current
+        locale: Locale = .current,
+        compact: Bool = false
     ) -> String? {
         guard let deadline = window.resetSchedule.deadline, !(deadline > now) else { return nil }
-        return Countdown.resetNotReadLine(resetAt: deadline, now: now, timeZone: timeZone, locale: locale)
+        return Countdown.resetNotReadLine(
+            resetAt: deadline, now: now, timeZone: timeZone, locale: locale, compact: compact)
     }
 }
 

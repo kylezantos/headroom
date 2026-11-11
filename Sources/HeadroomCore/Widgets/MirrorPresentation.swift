@@ -206,6 +206,8 @@ public struct CompanionMeterRowLayout: Equatable, Sendable {
     public let showsWindowState: Bool
     public let resetNotReadLine: String?
     public let pastResetLine: String?
+    /// `resetNotReadLine` in the compact form the row draws.
+    public var resetNotReadCompactLine: String? = nil
 
     /// False only when `resetNotReadLine` replaces the gauge and the number.
     public var showsMeter: Bool { resetNotReadLine == nil }
@@ -334,7 +336,10 @@ extension CompanionCardPresentation {
         }
         let line = pastResetLine(resetAt, now: now, isRemembered: isRemembered, timeZone: timeZone, locale: locale)
         return isRemembered
-            ? CompanionMeterRowLayout(showsWindowState: false, resetNotReadLine: line, pastResetLine: nil)
+            ? CompanionMeterRowLayout(
+                showsWindowState: false, resetNotReadLine: line, pastResetLine: nil,
+                resetNotReadCompactLine: Countdown.resetNotReadLine(
+                    resetAt: resetAt, now: now, timeZone: timeZone, locale: locale, compact: true))
             : CompanionMeterRowLayout(showsWindowState: true, resetNotReadLine: nil, pastResetLine: line)
     }
 

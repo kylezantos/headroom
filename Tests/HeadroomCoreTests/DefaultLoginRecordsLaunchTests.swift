@@ -215,7 +215,7 @@ struct DefaultLoginRecordsLaunchTests {
             context: DefaultLoginSlotContext(
                 isBuiltIn: true, label: "Work", defaultLabel: "Main", snapshot: rig.snapshot,
                 reminders: ParkedReminders(useItUp: rig.ledger.entries(), bankedBaseline: nil, bankedAcknowledged: nil),
-                launchSnapshot: nil, otherReaders: [], now: rig.clock.now()
+                launchSnapshot: nil, otherReaders: []
             ),
             to: &state
         )

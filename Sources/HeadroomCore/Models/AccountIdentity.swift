@@ -123,14 +123,4 @@ public enum AccountIdentityOutcome: Sendable, Equatable {
             return .unreadable
         }
     }
-
-    /// Providers whose client offers one identity read per reading (Cursor, Copilot)
-    /// cannot bracket it, so they never refuse a reading for a mismatch (KTD13).
-    public static func single(_ read: AccountIdentityRead) -> AccountIdentityOutcome {
-        switch read {
-        case .identity(let identity, _): return .known(identity)
-        case .absent: return .absent
-        case .unreadable: return .unreadable
-        }
-    }
 }

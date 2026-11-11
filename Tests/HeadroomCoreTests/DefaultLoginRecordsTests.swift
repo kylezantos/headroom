@@ -296,7 +296,7 @@ struct DefaultLoginRecordsTests {
         func context(label: String, snapshot: UsageSnapshot?) -> DefaultLoginSlotContext {
             DefaultLoginSlotContext(
                 isBuiltIn: true, label: label, defaultLabel: "Main", snapshot: snapshot,
-                reminders: .none, launchSnapshot: nil, otherReaders: [], now: DefaultLoginRig.start
+                reminders: .none, launchSnapshot: nil, otherReaders: []
             )
         }
         func grok(_ email: String) -> UsageSnapshot {
@@ -355,7 +355,7 @@ struct DefaultLoginRecordsTests {
                 DefaultLoginReading(fresh)!, for: key,
                 context: DefaultLoginSlotContext(
                     isBuiltIn: true, label: "Main", defaultLabel: "Main", snapshot: current,
-                    reminders: .none, launchSnapshot: nil, otherReaders: [], now: date
+                    reminders: .none, launchSnapshot: nil, otherReaders: []
                 ),
                 to: &state
             )

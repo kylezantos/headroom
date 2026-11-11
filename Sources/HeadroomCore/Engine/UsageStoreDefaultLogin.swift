@@ -85,8 +85,7 @@ extension UsageStore {
             otherReaders: Set(state.slots.compactMap { other in
                 other.key != key && other.key.providerID == key.providerID && other.phase == .attached
                     ? other.binding?.digest : nil
-            }),
-            now: now()
+            })
         )
         let before = state
         let effects = DefaultLoginTransition.apply(reading, for: key, context: context, to: &state)

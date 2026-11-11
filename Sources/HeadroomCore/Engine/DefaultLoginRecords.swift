@@ -220,7 +220,6 @@ struct DefaultLoginSlotContext: Sendable {
     var launchSnapshot: UsageSnapshot?
     /// Digests other rows of this provider are bound to.
     var otherReaders: Set<String>
-    var now: Date
 }
 
 struct DefaultLoginEffects: Equatable, Sendable {
@@ -242,8 +241,6 @@ struct DefaultLoginEffects: Equatable, Sendable {
     /// its reliability observation and clear its sign-out flag.
     var accountChanged = false
     var removesContinuity = false
-    /// A remembered row appeared or went away.
-    var rememberedRowsChanged = false
 
     var needsMirror: Bool { label != nil || reminders != nil || removesContinuity }
 }
@@ -355,10 +352,8 @@ enum DefaultLoginTransition {
             ? takeArriving(identity, email: reading.email, providerID: slot.key.providerID, state: &state)
             : nil
         if context.isBuiltIn, bound.strength == .strong {
-            remember(leaving, identity: bound, context: context, state: &state, effects: &effects)
+            remember(leaving, identity: bound, context: context, state: &state)
         }
-        if arriving?.hadRow == true { effects.rememberedRowsChanged = true }
-
         if context.isBuiltIn {
             effects.label = arriving?.label ?? context.defaultLabel
         }
@@ -407,7 +402,6 @@ enum DefaultLoginTransition {
         )
         entry.snapshot = StoredSnapshot(key: entry.key, snapshot: saved)
         insert(entry, into: &state)
-        effects.rememberedRowsChanged = true
     }
 
     /// KTD7, after "Sign Out & Set Up Again" or stop-tracking: the user chose to leave the
@@ -495,7 +489,6 @@ enum DefaultLoginTransition {
         var label: String
         var reminders: ParkedReminders
         var snapshot: StoredSnapshot?
-        var hadRow: Bool
     }
 
     /// The account that is leaving, as it stands in the slot or parked beside it.
@@ -556,7 +549,7 @@ enum DefaultLoginTransition {
         state.remembered[index].snapshot = nil
         state.remembered[index].reminders = .none
         state.remembered[index].isHidden = false
-        return Arriving(label: entry.label, reminders: entry.reminders, snapshot: entry.snapshot, hadRow: entry.hasRow)
+        return Arriving(label: entry.label, reminders: entry.reminders, snapshot: entry.snapshot)
     }
 
     /// KTD9: keeps the leaving account. It gets a row only from a real last reading, and
@@ -565,8 +558,7 @@ enum DefaultLoginTransition {
         _ leaving: ParkedAccount,
         identity: AccountIdentity,
         context: DefaultLoginSlotContext,
-        state: inout DefaultLoginRecordsState,
-        effects: inout DefaultLoginEffects
+        state: inout DefaultLoginRecordsState
     ) {
         let snapshot = context.otherReaders.contains(identity.digest) ? nil : leaving.snapshot
         let label = leaving.label ?? context.defaultLabel
@@ -593,7 +585,6 @@ enum DefaultLoginTransition {
             entry.snapshot = snapshot.flatMap { rekeyed($0, to: entry.key) }
             insert(entry, into: &state)
         }
-        if snapshot != nil { effects.rememberedRowsChanged = true }
     }
 
     private static func rekeyed(_ snapshot: StoredSnapshot, to key: AccountKey) -> StoredSnapshot? {

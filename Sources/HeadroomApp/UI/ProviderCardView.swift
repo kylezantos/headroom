@@ -26,6 +26,10 @@ struct ProviderAccountEntry: Identifiable {
     let snapshot: UsageSnapshot
     /// KTD8: a remembered row is never probed, so it offers no retry or setup action.
     var kind: DisplayAccountKind = .engine
+    /// U8 (R7): when a remembered account was last read (`RememberedAccountSummary.lastReadAt`),
+    /// carried here so the row draws its "Last read …" tag without a store read of its own.
+    /// Nil on every engine row.
+    var lastReadAt: Date? = nil
     var id: AccountID { account.id }
     var isRemembered: Bool { kind == .remembered }
 }
@@ -845,7 +849,9 @@ struct ProviderCardView: View {
             percentageMode: percentageMode,
             now: now,
             requiresStandardSection: compactRowNeedsStandardSection(entry.account),
-            showsCodexSparkCounters: showsCodexSparkCounters
+            showsCodexSparkCounters: showsCodexSparkCounters,
+            isRemembered: entry.isRemembered,
+            lastReadAt: entry.lastReadAt
         )
         return recipe.fallsBackToStandard ? nil : recipe
     }
@@ -1942,6 +1948,11 @@ struct UsageBarsStack: View {
     /// M4A: passed straight through so both of an account's rows draw in together on the
     /// first live view of that account this launch. `nil` keeps a stack static.
     var arrivalKey: AccountKey? = nil
+    /// U8 (R8): per window, in `windows` order, the line that replaces a remembered row's
+    /// meter once its reset has passed. Empty (every engine row) draws every meter.
+    var resetNotReadLines: [String?] = []
+    /// U8 (R7): false on a remembered row, whose identity row already says "Last read …".
+    var showsWindowState: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.headroomTuning) private var tuning
@@ -1963,14 +1974,16 @@ struct UsageBarsStack: View {
                 // next row's window, so "Weekly 40%" rolled into "5-hour 12%" — motion that
                 // claimed a value changed when a row had only moved. Now a row keeps its
                 // window, and one that arrives or leaves fades.
-                ForEach(Self.keyedRows(windows), id: \.key) { row in
+                ForEach(Array(Self.keyedRows(windows).enumerated()), id: \.element.key) { index, row in
                     UsageBarView(
                         window: row.window,
                         percentageMode: percentageMode,
                         now: now,
                         meterStyle: meterStyle,
                         dimmed: dimmed,
-                        arrivalKey: arrivalKey
+                        arrivalKey: arrivalKey,
+                        resetNotReadLine: resetNotReadLines.indices.contains(index) ? resetNotReadLines[index] : nil,
+                        showsWindowState: showsWindowState
                     )
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
                 }

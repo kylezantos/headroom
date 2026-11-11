@@ -70,9 +70,20 @@ struct PopoverView: View {
     /// the snapshot it draws. A remembered row's is its aged last reading (KTD10), so this
     /// does no aging of its own.
     static func accountEntries(for providerID: ProviderID, in store: UsageStore) -> [ProviderAccountEntry] {
-        store.displayAccounts(for: providerID).map { row in
+        let rows = store.displayAccounts(for: providerID)
+        // U8: read once per provider, and only when it has a remembered row to tag.
+        let lastReadAt: [AccountKey: Date] = rows.contains(where: \.isRemembered)
+            ? Dictionary(
+                store.rememberedAccounts(for: providerID).compactMap { summary in
+                    summary.lastReadAt.map { (summary.key, $0) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            : [:]
+        return rows.map { row in
             ProviderAccountEntry(
-                account: row.account, snapshot: store.appDisplaySnapshot(for: row.key), kind: row.kind
+                account: row.account, snapshot: store.appDisplaySnapshot(for: row.key), kind: row.kind,
+                lastReadAt: row.isRemembered ? lastReadAt[row.key] : nil
             )
         }
     }

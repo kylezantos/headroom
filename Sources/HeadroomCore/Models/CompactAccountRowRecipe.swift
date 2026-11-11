@@ -1,5 +1,63 @@
 import Foundation
 
+/// Default-login plan U8 (R7, R8, KTD10): how a remembered account's row reads, decided once
+/// for Standard, Compact and Settings. The treatment is keyed on the row's kind, never on
+/// freshness: an engine row that is stale keeps its "Stale" capsule and its gauges.
+///
+/// - The identity row carries `lastReadLabel` ("Last read 2 min ago") where an engine row
+///   would carry "Stale". A remembered row never says "Stale".
+/// - A window whose scheduled reset has passed draws as one line, its label and
+///   `Countdown.resetNotReadLine` ("Reset today at 1:10 PM · not read since"), with no gauge
+///   and no number (R8). Every other window keeps its dimmed meter. The reset is read off the
+///   window's own schedule rather than its freshness, so a reading the aging pass has not
+///   reached yet still never states a value past its reset.
+public struct RememberedRowRecipe: Sendable, Equatable {
+    public struct Line: Sendable, Equatable {
+        public let window: UsageWindow
+        /// Nil draws the window's (dimmed) meter; set, the single reset line.
+        public let resetNotReadLine: String?
+
+        public var showsMeter: Bool { resetNotReadLine == nil }
+    }
+
+    /// `Countdown.lastReadLabel`; nil only when nothing records when the account was read.
+    public let lastReadLabel: String?
+    /// One per window, in the order given.
+    public let lines: [Line]
+
+    public init(
+        windows: [UsageWindow],
+        lastReadAt: Date?,
+        now: Date,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) {
+        lastReadLabel = Countdown.lastReadLabel(capturedAt: lastReadAt, now: now)
+        lines = windows.map { window in
+            Line(
+                window: window,
+                resetNotReadLine: Self.resetNotReadLine(for: window, now: now, timeZone: timeZone, locale: locale)
+            )
+        }
+    }
+
+    /// The reset line for one window of a remembered row, or nil while its reset is ahead
+    /// (or it has none: a window with no scheduled reset keeps the ordinary unavailable
+    /// meter, since "Reset …" would name a reset nobody reported).
+    public static func resetNotReadLine(
+        for window: UsageWindow,
+        now: Date,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) -> String? {
+        guard let deadline = window.resetSchedule.deadline, !(deadline > now) else { return nil }
+        return Countdown.resetNotReadLine(resetAt: deadline, now: now, timeZone: timeZone, locale: locale)
+    }
+
+    /// The `resetNotReadLine` of each line, in window order — what `UsageBarsStack` lays out.
+    public var resetNotReadLines: [String?] { lines.map(\.resetNotReadLine) }
+}
+
 /// One meter a Compact account row draws. The window keeps its own per-window freshness, so
 /// a retained stale row stays stale and an unavailable one keeps its label but no value.
 public struct CompactAccountRowWindow: Sendable, Equatable {
@@ -48,26 +106,62 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     /// R12/R13: every window with its value, state and reset text. Empty when the row draws
     /// no meters.
     public let accessibilityValue: String
+    /// Default-login plan U8 (R7): set only on a remembered account's row, where it takes the
+    /// place of "Stale" in the tooltip and VoiceOver label. Nil on every engine row.
+    public let lastReadLabel: String?
+    /// U8: true for a remembered account's row, whatever its freshness.
+    public let isRemembered: Bool
 
     public var fallsBackToStandard: Bool { content == .standardFallback }
+
+    /// The row's one state word for its tooltip and VoiceOver label: "Last read …" on a
+    /// remembered row (U8, R7), "Stale" on a dimmed engine row, nil otherwise. A remembered
+    /// row never says "Stale".
+    public var rowStateLabel: String? {
+        guard content == .meters else { return nil }
+        if isRemembered { return lastReadLabel }
+        return isDimmed ? "Stale" : nil
+    }
 
     /// - Parameters:
     ///   - snapshot: the account's snapshot. Order does not matter; Spark filtering is
     ///     re-applied here so an unfiltered snapshot cannot leak a row Standard hides.
     ///   - showsCodexSparkCounters: `UsageStore.showCodexSparkCountersInApp`, the flag
     ///     `appDisplaySnapshot(for:)` filters the Standard bars with.
+    ///   - isRemembered: U8, the row is an account the default login left. Its tooltip
+    ///     names when it was last read and, per window, its reset (`RememberedRowRecipe`).
+    ///   - lastReadAt: U8, when a remembered account was last read; the snapshot's capture
+    ///     time stands in when absent.
     public init(
         snapshot: UsageSnapshot,
         meterStyle: MeterStyle,
         percentageMode: UsagePercentageMode,
         now: Date,
         requiresStandardSection: Bool,
-        showsCodexSparkCounters: Bool
+        showsCodexSparkCounters: Bool,
+        isRemembered: Bool = false,
+        lastReadAt: Date? = nil,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current
     ) {
         self.meterStyle = Self.microTwin(of: meterStyle)
         self.isDimmed = snapshot.freshness != .live
+        self.isRemembered = isRemembered
+        self.lastReadLabel = isRemembered
+            ? Countdown.lastReadLabel(capturedAt: lastReadAt ?? snapshot.capturedAt, now: now)
+            : nil
 
-        let windows = Self.visibleWindows(in: snapshot, showsCodexSparkCounters: showsCodexSparkCounters)
+        var windows = Self.visibleWindows(in: snapshot, showsCodexSparkCounters: showsCodexSparkCounters)
+        if isRemembered {
+            // U8 (R8): a cell past its reset prints no number, even before the aging pass
+            // has turned its window unavailable.
+            windows = windows.map { window in
+                guard !window.freshness.isUnavailable,
+                      let deadline = window.resetSchedule.deadline, !(deadline > now)
+                else { return window }
+                return window.withFreshness(.unavailable(since: deadline))
+            }
+        }
 
         let content = Self.content(
             freshness: snapshot.freshness,
@@ -95,8 +189,18 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         self.overflowCount = windows.count - shown.count
 
         let dimmed = isDimmed
-        let lines = windows.map {
-            Self.windowDescription($0, percentageMode: percentageMode, dimmed: dimmed, now: now)
+        let lines = windows.map { window -> (tooltip: String, spoken: String) in
+            // U8 (R8): a remembered window past its reset says when it reset, never a value.
+            if isRemembered,
+               let line = RememberedRowRecipe.resetNotReadLine(
+                   for: window, now: now, timeZone: timeZone, locale: locale) {
+                let name = window.kind.spokenName
+                return (tooltip: "\(name): \(line)", spoken: "\(name): \(line)")
+            }
+            return Self.windowDescription(
+                window, percentageMode: percentageMode, dimmed: dimmed,
+                showsWindowState: !isRemembered, now: now
+            )
         }
         self.tooltip = lines.map(\.tooltip).joined(separator: "\n")
         self.accessibilityValue = lines.map(\.spoken).joined(separator: "; ")
@@ -176,10 +280,19 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     /// R13: the same pieces, wording and reset formatter `UsageBarView` puts in a Micro row's
     /// `.help` and accessibility value — the percentage in the chosen mode, the window's own
     /// state ("Last known …", "Unavailable") and `meterResetLine(now:)`'s "Resets in …".
+    ///
+    /// U8: a remembered row drops the per-window "Last known …" (`showsWindowState: false`);
+    /// the row's own last-read line already says it once.
+    private static func lastKnownState(_ window: UsageWindow, now: Date) -> String {
+        Countdown.updatedLabel(capturedAt: window.freshness.observedAt, now: now).map { "Last known \($0)" }
+            ?? "Last known"
+    }
+
     private static func windowDescription(
         _ window: UsageWindow,
         percentageMode: UsagePercentageMode,
         dimmed: Bool,
+        showsWindowState: Bool,
         now: Date
     ) -> (tooltip: String, spoken: String) {
         let reading = UsageMeterReading(window: window)
@@ -187,8 +300,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         let state: String? = switch window.freshness {
         case .live:
             nil
-        case .stale(let observedAt):
-            Countdown.updatedLabel(capturedAt: observedAt, now: now).map { "Last known \($0)" } ?? "Last known"
+        case .stale:
+            showsWindowState ? lastKnownState(window, now: now) : nil
         case .unavailable:
             "Unavailable"
         }

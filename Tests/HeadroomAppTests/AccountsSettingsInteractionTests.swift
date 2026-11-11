@@ -2021,6 +2021,13 @@ private final class RememberedRowTestProvider: UsageProvider, @unchecked Sendabl
     func fetchSnapshot() async -> UsageSnapshot { lock.withLock { snapshot } }
 }
 
+/// Counts the phone captures the store submits (U8: a rename must reach the phone path).
+@MainActor
+private final class RememberedRowPhoneSpy: CompanionPhoneSyncing {
+    private(set) var captures: [CompanionPublishCapture] = []
+    func submit(_ capture: CompanionPublishCapture) { captures.append(capture) }
+}
+
 /// A Codex built-in whose default login moved from one account to another, so the store
 /// keeps the first as a remembered row. Real registry and record store on a throwaway suite.
 @MainActor
@@ -2031,6 +2038,7 @@ private struct RememberedRowFixture {
     let defaults: UserDefaults
     let registry: AccountRegistry
     let provider = RememberedRowTestProvider()
+    let phoneSync = RememberedRowPhoneSpy()
     let store: UsageStore
 
     init() {
@@ -2046,7 +2054,8 @@ private struct RememberedRowFixture {
             accountRegistry: registry,
             accountStorage: DemoAccountStorage(),
             providerFactory: { _ in provider },
-            defaultLoginRecords: DefaultLoginRecordStore(defaults: defaults)
+            defaultLoginRecords: DefaultLoginRecordStore(defaults: defaults),
+            phoneSyncExporter: phoneSync
         )
     }
 
@@ -2172,5 +2181,102 @@ struct RememberedRowInteractionTests {
         let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
         #expect(entries.map(\.account) == fixture.store.accounts(for: .codex))
         #expect(entries.allSatisfy { !$0.isRemembered })
+        #expect(entries.allSatisfy { $0.lastReadAt == nil })
+    }
+
+    // MARK: U8
+
+    /// The popover entry carries the remembered row's last-read time, so the row draws its
+    /// tag without a store read of its own; the engine row carries none.
+    @Test func thePopoverEntryCarriesTheRememberedRowsLastReadTime() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
+        let summary = fixture.store.rememberedAccounts(for: .codex).first { $0.key == row.key }
+        #expect(summary?.lastReadAt != nil)
+        #expect(entries.map(\.lastReadAt) == [nil, summary?.lastReadAt])
+    }
+
+    /// Rename reaches every place the row's name shows: the popover's entry, the footer
+    /// receipt, and the phone path (a fresh capture is submitted; whether the phone lists
+    /// remembered rows is U9's, KTD14).
+    @Test func renamingARememberedRowUpdatesThePopoverTheReceiptAndThePhonePath() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let capturesBefore = fixture.phoneSync.captures.count
+
+        #expect(AccountsSettingsInteractions.commitLabel("Esper Labs", for: row, in: fixture.store))
+
+        let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
+        #expect(entries.first { $0.account.key == row.key }?.account.label == "Esper Labs")
+        #expect(fixture.store.desktopAccountName(for: entries[1].account) == "Esper Labs")
+        #expect(fixture.store.refreshReceiptTitle(for: row.key).hasSuffix("Esper Labs"))
+        #expect(fixture.phoneSync.captures.count > capturesBefore)
+    }
+
+    /// R11: Remove only hides it. The dialog says so in plain words, its button is not
+    /// destructive, and the row leaves every display list with no registry tombstone.
+    @Test func removingARememberedRowSaysItStaysHiddenAndDeletesNothing() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let registryBefore = fixture.defaults.data(forKey: "providerAccounts.v1")
+
+        #expect(AccountsSettingsInteractions.removalDialogTitle(for: row) == "Remove this account?")
+        let message = AccountsSettingsInteractions.removalDialogMessage(for: row)
+        #expect(message == "It stays hidden until your CLI is signed in to this account again. Nothing is deleted.")
+        #expect(AccountsSettingsInteractions.removalIsDestructive(for: row) == false)
+
+        #expect(await AccountsSettingsInteractions.removeAccount(row, from: fixture.store) == .removed)
+        #expect(!fixture.store.displayAccounts(for: .codex).contains { $0.key == row.key })
+        #expect(PopoverView.accountEntries(for: .codex, in: fixture.store).allSatisfy { !$0.isRemembered })
+        #expect(fixture.store.isBuiltInTrackingStopped(for: .codex) == false)
+        #expect(fixture.defaults.data(forKey: "providerAccounts.v1") == registryBefore)
+    }
+
+    /// The engine rows' dialogs keep their own words.
+    @Test func engineRowRemovalDialogsAreUnchanged() async {
+        let fixture = RememberedRowFixture()
+        _ = await fixture.switchAway()
+        let builtIn = fixture.store.displayAccounts(for: .codex)[0]
+        let extra = DisplayAccount(
+            account: ProviderAccount(id: AccountID("extra"), providerID: .codex, label: "Extra"), kind: .engine
+        )
+        #expect(AccountsSettingsInteractions.removalDialogTitle(for: builtIn) == "Stop tracking this account?")
+        #expect(AccountsSettingsInteractions.removalDialogMessage(for: builtIn)
+            == "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted.")
+        #expect(AccountsSettingsInteractions.removalIsDestructive(for: builtIn) == false)
+        #expect(AccountsSettingsInteractions.removalDialogTitle(for: extra) == "Remove this account?")
+        #expect(AccountsSettingsInteractions.removalDialogMessage(for: extra)
+            == "Its sign-in on this Mac is deleted with it. Your subscription is untouched.")
+        #expect(AccountsSettingsInteractions.removalIsDestructive(for: extra))
+    }
+
+    /// R7: Settings prints the popover's own tag as the row's status line.
+    @Test func theSettingsStatusLineSaysWhenTheRowWasLastRead() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let summary = fixture.store.rememberedAccounts(for: .codex).first { $0.key == row.key }!
+        let status = AccountsSettingsInteractions.rememberedStatus(
+            lastReadAt: summary.lastReadAt,
+            snapshot: fixture.store.snapshot(for: row.key),
+            now: summary.lastReadAt!.addingTimeInterval(120)
+        )
+        #expect(status == "Last read 2 min ago")
+        #expect(AccountsSettingsInteractions.rememberedStatusHelp.contains("Add Account"))
+    }
+
+    /// R12: no Make Main, no Sign Out & Set Up Again, no sign-in or Try Again — in Settings
+    /// and on the popover row.
+    @Test func aRememberedRowOffersNoMakeMainSignOutOrTryAgain() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        #expect(AccountsSettingsInteractions.promotionState(for: row, in: fixture.store) == .unavailable)
+        #expect(AccountsSettingsInteractions.builtInRowActions(for: row.account, in: fixture.store) == .unavailable)
+        #expect(AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: fixture.store.snapshot(for: row.key), account: row.account
+        ) == nil)
+        let entry = PopoverView.accountEntries(for: .codex, in: fixture.store)[1]
+        #expect(entry.isRemembered)
+        #expect(AccountRowKindPresentation(entry: entry, now: Date()).offersRetry == false)
     }
 }

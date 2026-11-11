@@ -29,6 +29,11 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     public var bankedResets: Int? = nil
     public var isCritical: Bool = false
     public var isRevealing: Bool = false
+    /// Default-login plan U8 (R7, R21): a remembered account's "Last read 2 min ago"
+    /// (`Countdown.lastReadLabel`). Set, it draws as a state capsule in the place the "Stale"
+    /// capsule takes, and "Stale" is never drawn beside it. Nil, the default, leaves every
+    /// existing row exactly as it was.
+    public var lastReadLabel: String? = nil
     /// KTD3: the phone's one Dynamic Type unit over the popover ramp; the Mac passes 1.
     public var scale: CGFloat = 1
     /// U3: where a host shows the full account name once the title has truncated. The Mac
@@ -63,6 +68,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
+        lastReadLabel: String? = nil,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
         onPlanCapsuleTap: (() -> Void)? = nil,
@@ -83,6 +89,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         self.bankedResets = bankedResets
         self.isCritical = isCritical
         self.isRevealing = isRevealing
+        self.lastReadLabel = lastReadLabel
         self.scale = scale
         self.onTruncatedTitle = onTruncatedTitle
         self.onPlanCapsuleTap = onPlanCapsuleTap
@@ -125,7 +132,13 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
             // rather than pushed to the row's trailing edge — one chip run reading
             // "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
-            if isStale {
+            if let lastReadLabel {
+                // U8: a remembered row's one state chip; it replaces "Stale" rather than
+                // joining it, so the row says what it is once.
+                stateTag(lastReadLabel)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+                    .accessibilityHidden(containsControls)
+            } else if isStale {
                 staleTag
                     // RM1: the freshness scope around it is `.movement`, so the tag keeps
                     // its fade under Reduce Motion on its own.
@@ -289,7 +302,12 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// meters), so this tag survives as that state's only visible signal. C6A gives it the
     /// same 18pt as the plan pill beside it.
     private var staleTag: some View {
-        Text("Stale")
+        stateTag("Stale")
+    }
+
+    /// The "Stale" capsule's recipe, shared by U8's last-read tag so the two can never drift.
+    private func stateTag(_ text: String) -> some View {
+        Text(text)
             .kerning(IdentityRowMetrics.capsuleLabelKerning * scale)
             // PA7: type comes from `identityCapsule` now.
             .foregroundStyle(.secondary)
@@ -310,7 +328,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             isStale: isStale,
             email: email,
             showsConnectedChip: showsConnectedChip,
-            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
+            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets),
+            lastReadLabel: lastReadLabel
         )
     }
 
@@ -322,7 +341,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             isStale: isStale,
             email: email,
             showsConnectedChip: showsConnectedChip,
-            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets)
+            bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets),
+            lastReadLabel: lastReadLabel
         )
     }
 }
@@ -373,6 +393,7 @@ public extension IdentityRow where Accessory == EmptyView {
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
+        lastReadLabel: String? = nil,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
         onPlanCapsuleTap: (() -> Void)? = nil,
@@ -384,7 +405,7 @@ public extension IdentityRow where Accessory == EmptyView {
             isMenuBarAccount: isMenuBarAccount, isStale: isStale, email: email,
             showsPersistentEmail: showsPersistentEmail, showsConnectedChip: showsConnectedChip,
             showsMark: showsMark, bankedResets: bankedResets, isCritical: isCritical,
-            isRevealing: isRevealing, scale: scale, onTruncatedTitle: onTruncatedTitle,
+            isRevealing: isRevealing, lastReadLabel: lastReadLabel, scale: scale, onTruncatedTitle: onTruncatedTitle,
             onPlanCapsuleTap: onPlanCapsuleTap, accessibilityIdentifierPrefix: accessibilityIdentifierPrefix,
             mark: mark, accessory: { EmptyView() }
         )
@@ -441,27 +462,35 @@ public enum IdentityRowText {
         isStale: Bool,
         email: String?,
         showsConnectedChip: Bool,
-        bankedPhrase: String?
+        bankedPhrase: String?,
+        lastReadLabel: String? = nil
     ) -> String {
         let detail = accessibilityDetail(
             planDisplayName: planDisplayName, isMenuBarAccount: isMenuBarAccount, isStale: isStale,
-            email: email, showsConnectedChip: showsConnectedChip, bankedPhrase: bankedPhrase)
+            email: email, showsConnectedChip: showsConnectedChip, bankedPhrase: bankedPhrase,
+            lastReadLabel: lastReadLabel)
         return detail.isEmpty ? title : "\(title), \(detail)"
     }
 
-    /// Everything the identity phrase says after the title, in the same order.
+    /// Everything the identity phrase says after the title, in the same order. U8: a
+    /// remembered row's `lastReadLabel` takes the place of "Stale", as its capsule does.
     public static func accessibilityDetail(
         planDisplayName: String?,
         isMenuBarAccount: Bool,
         isStale: Bool,
         email: String?,
         showsConnectedChip: Bool,
-        bankedPhrase: String?
+        bankedPhrase: String?,
+        lastReadLabel: String? = nil
     ) -> String {
         var parts: [String] = []
         if let planDisplayName { parts.append("\(planDisplayName) plan") }
         if isMenuBarAccount { parts.append("Main account, shown in the menu bar and widgets") }
-        if isStale { parts.append("Stale") }
+        if let lastReadLabel {
+            parts.append(lastReadLabel)
+        } else if isStale {
+            parts.append("Stale")
+        }
         if let email { parts.append("signed in as \(email)") }
         if showsConnectedChip { parts.append("Connected") }
         if let bankedPhrase { parts.append(bankedPhrase) }

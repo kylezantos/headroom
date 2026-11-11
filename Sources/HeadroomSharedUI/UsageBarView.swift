@@ -110,6 +110,16 @@ public struct UsageBarView: View {
     /// tooltip of its own. The Compact row owns those (R13), so this cell stays out of the
     /// accessibility tree.
     public var compactLabel: String? = nil
+    /// Default-login plan U8 (R8): a remembered account's window whose reset has passed
+    /// (`RememberedRowRecipe.resetNotReadLine`). Set, the row draws its window label and
+    /// this line in place of the gauge and the number, inside the height a meter row takes,
+    /// so the card does not jump when a reset passes. Ignored by a Compact cell, whose row
+    /// carries the wording in its tooltip. Nil, the default, draws the meter as before.
+    public var resetNotReadLine: String? = nil
+    /// U8 (R7): false on a remembered account's rows, whose identity row already says when
+    /// they were last read, so Full's per-window "· Last known …" label is not repeated under
+    /// it. VoiceOver keeps the state. True, the default, is every existing row.
+    public var showsWindowState: Bool = true
 
     public init(
         reading: UsageMeterReading,
@@ -119,7 +129,9 @@ public struct UsageBarView: View {
         dimmed: Bool = false,
         arrivalKey: AccountKey? = nil,
         scale: CGFloat = 1,
-        compactLabel: String? = nil
+        compactLabel: String? = nil,
+        resetNotReadLine: String? = nil,
+        showsWindowState: Bool = true
     ) {
         self.reading = reading
         self.percentageMode = percentageMode
@@ -129,6 +141,8 @@ public struct UsageBarView: View {
         self.arrivalKey = arrivalKey
         self.scale = scale
         self.compactLabel = compactLabel
+        self.resetNotReadLine = resetNotReadLine
+        self.showsWindowState = showsWindowState
     }
 
     /// The Mac's form: the reading is normalized from the actual provider window.
@@ -140,7 +154,9 @@ public struct UsageBarView: View {
         dimmed: Bool = false,
         arrivalKey: AccountKey? = nil,
         scale: CGFloat = 1,
-        compactLabel: String? = nil
+        compactLabel: String? = nil,
+        resetNotReadLine: String? = nil,
+        showsWindowState: Bool = true
     ) {
         self.init(
             reading: UsageMeterReading(window: window),
@@ -150,7 +166,9 @@ public struct UsageBarView: View {
             dimmed: dimmed,
             arrivalKey: arrivalKey,
             scale: scale,
-            compactLabel: compactLabel
+            compactLabel: compactLabel,
+            resetNotReadLine: resetNotReadLine,
+            showsWindowState: showsWindowState
         )
     }
 
@@ -407,17 +425,21 @@ public struct UsageBarView: View {
     public var body: some View {
         let _ = SharedBenchCounters.hit("UsageBarView")
         Group {
-            switch meterStyle.format {
-            case .full:
-                fullRow
-            case .micro:
-                if let compactLabel {
-                    compactCell(compactLabel)
-                } else {
-                    // M3A′: Micro has no room for the state label — a rendered "· Last known …"
-                    // pushes the gauge and numeral out of the card — so the state travels in
-                    // the tooltip and the accessibility value instead of a line of its own.
-                    microRow.help(microHelp)
+            if compactLabel == nil, let resetNotReadLine {
+                resetNotReadRow(resetNotReadLine)
+            } else {
+                switch meterStyle.format {
+                case .full:
+                    fullRow
+                case .micro:
+                    if let compactLabel {
+                        compactCell(compactLabel)
+                    } else {
+                        // M3A′: Micro has no room for the state label — a rendered "· Last known …"
+                        // pushes the gauge and numeral out of the card — so the state travels in
+                        // the tooltip and the accessibility value instead of a line of its own.
+                        microRow.help(microHelp)
+                    }
                 }
             }
         }
@@ -436,6 +458,30 @@ public struct UsageBarView: View {
             land()
         }
         .onChange(of: rowSignal) { _, _ in land() }
+    }
+
+    /// U8 (R8): a remembered window past its reset. The meter row it replaces is laid out
+    /// hidden underneath, so this line takes exactly that row's height and its label lands
+    /// where the meter's label would; nothing travels when a reset passes. In Full the label
+    /// sits on the meter's top line; in Micro on its one optical axis.
+    private func resetNotReadRow(_ line: String) -> some View {
+        let isFull = meterStyle.format == .full
+        return ZStack(alignment: isFull ? .topLeading : .leading) {
+            Group { if isFull { fullRow } else { microRow } }
+                .hidden()
+            HStack(alignment: isFull ? .firstTextBaseline : .center, spacing: gap) {
+                labelText
+                    .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
+                Text(line)
+                    .font(.system(size: resetSize).monospacedDigit())
+                    .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .widgetCapHeightCentered(size: resetSize, weight: .regular)
+                Spacer(minLength: 0)
+            }
+            .help("\(spokenLabel): \(line)")
+        }
     }
 
     /// Full keeps the established fit-aware frame: label metadata and numeral above the
@@ -554,7 +600,7 @@ public struct UsageBarView: View {
     /// behind the fill and leaves ahead of it, both driven by `land()`.
     @ViewBuilder
     private var stateLabel: some View {
-        if let visibleStateText {
+        if showsWindowState, let visibleStateText {
             Text("· \(visibleStateText)")
                 // PB11: "Last known 4 min ago" ticks a digit at a time beside a countdown
                 // that already sets its digits monospaced, so it takes the same tabular
@@ -657,7 +703,7 @@ public struct UsageBarView: View {
     /// M3A′: the tooltip is where a Micro row's state lives. It always says something, so the
     /// row keeps one stable view identity rather than gaining and losing a modifier.
     private var microHelp: String {
-        if let stateText { return stateText }
+        if showsWindowState, let stateText { return stateText }
         return resetLine?.tooltip ?? "\(spokenLabel) usage"
     }
 
@@ -665,6 +711,8 @@ public struct UsageBarView: View {
     public static let criticalSpokenState = "critical"
 
     private var accessibilityValue: String {
+        // U8 (R8): the reset line is the row's whole statement; it carries no number.
+        if compactLabel == nil, let resetNotReadLine { return resetNotReadLine }
         var parts: [String] = []
         if let pct {
             parts.append("\(pct) percent \(percentageMode.term)")

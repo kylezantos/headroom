@@ -76,6 +76,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
+        lastReadLabel: String? = nil,
         loadingAccessory: (() -> AccountLoadingState)? = nil
     ) {
         self.init(
@@ -91,9 +92,61 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
             bankedResets: bankedResets,
             isCritical: isCritical,
             isRevealing: isRevealing,
+            lastReadLabel: lastReadLabel,
             mark: { ProviderLogoView(providerID: providerID, size: $0) },
             accessory: { IdentityLoadingAccessory(readLoading: loadingAccessory) }
         )
+    }
+}
+
+// MARK: - Row kind (default-login plan U8)
+
+/// U8 (R7, R8, R16): what an account section draws because of its row's kind, on top of
+/// its snapshot. Keyed on kind, never on freshness: an engine row that is stale or has an
+/// unavailable window keeps the "Stale" capsule, its gauges and its retry, exactly as before.
+/// A remembered row carries "Last read …" where "Stale" would be, draws a window past its
+/// reset as one line (`RememberedRowRecipe`), and offers no retry: it is never probed. No
+/// kind carries a default-login marker (R16).
+struct AccountRowKindPresentation: Equatable {
+    /// The "Stale" capsule.
+    let isStale: Bool
+    /// The remembered row's tag; nil on engine rows.
+    let lastReadLabel: String?
+    /// Per window, in `snapshot.windows` order: the reset line that replaces its meter, or
+    /// nil for a meter. Empty on engine rows.
+    let resetNotReadLines: [String?]
+    /// Full's per-window "· Last known …" label.
+    let showsWindowState: Bool
+    /// Whether the section's retry and setup actions reach a provider.
+    let offersRetry: Bool
+
+    init(
+        entry: ProviderAccountEntry,
+        now: Date,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current
+    ) {
+        switch entry.kind {
+        case .engine:
+            isStale = providerCardHasTransientStaleState(entry.snapshot)
+            lastReadLabel = nil
+            resetNotReadLines = []
+            showsWindowState = true
+            offersRetry = true
+        case .remembered:
+            let recipe = RememberedRowRecipe(
+                windows: entry.snapshot.windows,
+                lastReadAt: entry.lastReadAt ?? entry.snapshot.capturedAt,
+                now: now,
+                timeZone: timeZone,
+                locale: locale
+            )
+            isStale = false
+            lastReadLabel = recipe.lastReadLabel
+            resetNotReadLines = recipe.resetNotReadLines
+            showsWindowState = false
+            offersRetry = false
+        }
     }
 }
 
@@ -130,6 +183,10 @@ struct AccountSectionView: View {
 
     private var snapshot: UsageSnapshot { entry.snapshot }
     private var account: ProviderAccount { entry.account }
+    /// U8: computed per body from the entry and `now` alone; an engine row does no formatting.
+    private var kindPresentation: AccountRowKindPresentation {
+        AccountRowKindPresentation(entry: entry, now: now)
+    }
 
     var body: some View {
         let _ = BenchCounters.hit("AccountSectionView")
@@ -140,6 +197,7 @@ struct AccountSectionView: View {
         // R2M1: what the section's second animation scope keys on. See
         // `providerCardSessionKey` — the raw state's retry counter must not restage anything.
         let sessionKey = providerCardSessionKey(setupState)
+        let kind = kindPresentation
         // G3/R4A: the identity binds to its meters; the 26pt inter-section gap in
         // `multiAccountBody` does the separating (proximity, not chrome). The whole section
         // is one VoiceOver container so the rotor can jump account-to-account instead of the
@@ -152,13 +210,13 @@ struct AccountSectionView: View {
         // Kyle picked the values off the side-by-side mock: 4 over meters (≈14pt ink), 6 over
         // a sign-in sentence (≈12.5pt ink, the pre-round value).
         return VStack(alignment: .leading, spacing: identityToContentGap) {
-            identityRow
+            identityRow(kind)
             // M4A/S2A: the innermost scope around the switching body, so the crossfade —
             // not the section's height change — is what this animation drives. The wrapper
             // repeats the parent's spacing so it stays layout-neutral for the multi-view
             // `signInContent` branch. Fill and numeral roll are `UsageBarView`'s.
             VStack(alignment: .leading, spacing: identityToContentGap) {
-                stateContent(setupState: setupState)
+                stateContent(setupState: setupState, kind: kind)
             }
             // RM1: both scopes are `.movement`; the fades in `stateContent` carry their own
             // timing under Reduce Motion, so there the section's height snaps.
@@ -221,13 +279,13 @@ struct AccountSectionView: View {
         }
     }
 
-    private var identityRow: some View {
+    private func identityRow(_ kind: AccountRowKindPresentation) -> some View {
         return IdentityRow(
             providerID: account.providerID,
             title: identityTitle,
             planLabel: snapshot.planLabel,
             isMenuBarAccount: isMenuBarAccount,
-            isStale: providerCardHasTransientStaleState(snapshot),
+            isStale: kind.isStale,
             email: identityEmail,
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
@@ -235,6 +293,7 @@ struct AccountSectionView: View {
             bankedResets: snapshot.bankedResets,
             isCritical: snapshot.hasLiveCriticalResettableWindow,
             isRevealing: isRevealingBankedResets,
+            lastReadLabel: kind.lastReadLabel,
             loadingAccessory: readLoading
         )
     }
@@ -250,7 +309,10 @@ struct AccountSectionView: View {
     /// SL1: live and transient stale are one branch, so a live ↔ stale flip repaints the rows
     /// in place (M3A′) instead of stacking two meter sets for the crossfade. The branches that
     /// do swap overlap in a ZStack.
-    @ViewBuilder private func stateContent(setupState: SetupSessionState) -> some View {
+    @ViewBuilder private func stateContent(
+        setupState: SetupSessionState,
+        kind: AccountRowKindPresentation
+    ) -> some View {
         ZStack(alignment: .topLeading) {
             if case .pending = snapshot.freshness {
                 // Review #6 (2026-09-19 sign-in review): a reset blanks this row to
@@ -263,13 +325,15 @@ struct AccountSectionView: View {
                 signInContent(reason, setupState: setupState)
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
             } else {
-                bars(dimmed: snapshot.freshness != .live)
+                bars(dimmed: snapshot.freshness != .live, kind: kind)
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
             }
         }
     }
 
-    private func bars(dimmed: Bool) -> some View {
+    /// U8: `kind` nil is an engine row's meters (the sign-in branch, which a remembered row,
+    /// never probed, does not reach).
+    private func bars(dimmed: Bool, kind: AccountRowKindPresentation? = nil) -> some View {
         // M4A: account sections only ever render real accounts — the Appearance specimen is
         // single-account and never reaches here — so the arrival key is unconditional.
         UsageBarsStack(
@@ -278,7 +342,9 @@ struct AccountSectionView: View {
             now: now,
             dimmed: dimmed,
             meterStyle: meterStyle,
-            arrivalKey: account.key
+            arrivalKey: account.key,
+            resetNotReadLines: kind?.resetNotReadLines ?? [],
+            showsWindowState: kind?.showsWindowState ?? true
         )
         .padding(.leading, tuning.meterContentInset)
         .padding(.trailing, tuning.meterContentInset)

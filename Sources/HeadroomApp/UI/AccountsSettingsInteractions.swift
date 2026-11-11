@@ -1,3 +1,4 @@
+import Foundation
 import HeadroomCore
 
 enum CapabilityRecoveryActionState: Equatable {
@@ -354,6 +355,42 @@ enum AccountsSettingsInteractions {
             ? await store.stopTrackingBuiltInAccount(for: account.providerID)
             : await store.removeAccount(account.key)
     }
+
+    // MARK: Remembered rows (default-login plan U8)
+
+    /// The removal dialog's title, by row kind: stop-tracking for the built-in row, removal
+    /// for an extra or a remembered row.
+    nonisolated static func removalDialogTitle(for row: DisplayAccount) -> String {
+        row.account.isBuiltIn && !row.isRemembered ? "Stop tracking this account?" : "Remove this account?"
+    }
+
+    /// R11: a remembered row's removal only hides it, and it returns when its account is the
+    /// default login again, so the dialog says both, plainly, and says nothing is deleted.
+    nonisolated static func removalDialogMessage(for row: DisplayAccount) -> String {
+        if row.isRemembered {
+            return "It stays hidden until your CLI is signed in to this account again. Nothing is deleted."
+        }
+        return row.account.isBuiltIn
+            ? "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted."
+            : "Its sign-in on this Mac is deleted with it. Your subscription is untouched."
+    }
+
+    /// R11: removing a remembered row deletes nothing, so its confirm button is not
+    /// destructive; neither is stop-tracking. Only an extra's removal deletes its sign-in.
+    nonisolated static func removalIsDestructive(for row: DisplayAccount) -> Bool {
+        !row.account.isBuiltIn && !row.isRemembered
+    }
+
+    /// U8 (R7): the status a remembered row prints in Settings, the popover's own tag
+    /// ("Last read 2 min ago"). Nil only when nothing records when it was read.
+    nonisolated static func rememberedStatus(lastReadAt: Date?, snapshot: UsageSnapshot, now: Date) -> String? {
+        Countdown.lastReadLabel(capturedAt: lastReadAt ?? snapshot.capturedAt, now: now)
+    }
+
+    /// U8: the status line's tooltip. A remembered row is never read on its own; it goes
+    /// live when the CLI is signed in to it again, or as an account added with Add Account.
+    nonisolated static let rememberedStatusHelp =
+        "Headroom reads this account again when your CLI is signed in to it. To keep it live alongside your current login, add it with Add Account…"
 
     /// KTD8: removing a remembered row hides it in the record store (R11); it deletes no
     /// config home and writes no registry tombstone. Engine rows keep their two paths.

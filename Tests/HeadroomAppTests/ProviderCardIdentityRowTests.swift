@@ -482,6 +482,126 @@ struct IdentityRowHelpTests {
     }
 }
 
+/// Default-login plan U8 (R7, R8, R16): a remembered row's popover presentation is keyed on
+/// its kind. An engine row, stale or with an unavailable window, draws exactly as before.
+@Suite
+struct RememberedRowPresentationTests {
+    private let now = Date(timeIntervalSince1970: 2_000_000_000)
+    private let utc = TimeZone(identifier: "UTC")!
+    private let locale = Locale(identifier: "en_US_POSIX")
+
+    /// AE2's aged snapshot: the 5-hour window reset three hours ago, the weekly one is ahead.
+    private func agedSnapshot(readAt: Date) -> UsageSnapshot {
+        let fiveHourReset = now.addingTimeInterval(-3 * 3_600)
+        return UsageSnapshot(
+            providerID: .claude,
+            windows: [
+                UsageWindow(kind: .fiveHour, utilization: 78, resetsAt: fiveHourReset,
+                            freshness: .unavailable(since: fiveHourReset)),
+                UsageWindow(kind: .weekly, utilization: 90, resetsAt: now.addingTimeInterval(2 * 86_400),
+                            freshness: .stale(observedAt: readAt)),
+            ],
+            planLabel: "team", capturedAt: readAt, freshness: .stale(.transient("Last known usage"))
+        )
+    }
+
+    private func entry(_ kind: DisplayAccountKind, readAgo: TimeInterval = 120) -> ProviderAccountEntry {
+        let readAt = now.addingTimeInterval(-readAgo)
+        return ProviderAccountEntry(
+            account: ProviderAccount(id: AccountID("remembered-work"), providerID: .claude, label: "Work"),
+            snapshot: agedSnapshot(readAt: readAt),
+            kind: kind,
+            lastReadAt: kind == .remembered ? readAt : nil
+        )
+    }
+
+    private func presentation(_ entry: ProviderAccountEntry) -> AccountRowKindPresentation {
+        AccountRowKindPresentation(entry: entry, now: now, timeZone: utc, locale: locale)
+    }
+
+    @Test func aRememberedRowCarriesLastReadInPlaceOfStale() {
+        let shown = presentation(entry(.remembered))
+        #expect(shown.lastReadLabel == "Last read 2 min ago")
+        #expect(shown.isStale == false)
+        #expect(shown.showsWindowState == false)
+    }
+
+    /// R8: one meter, one reset line, in window order, with the shared wording.
+    @Test func aRememberedRowDrawsItsResetWindowAsOneLine() {
+        let shown = presentation(entry(.remembered))
+        let resetAt = now.addingTimeInterval(-3 * 3_600)
+        #expect(shown.resetNotReadLines == [
+            Countdown.resetNotReadLine(resetAt: resetAt, now: now, timeZone: utc, locale: locale),
+            nil,
+        ])
+    }
+
+    /// Keyed on kind, not freshness: the same stale snapshot with an unavailable window on an
+    /// engine row keeps "Stale", its gauges and its retry.
+    @Test func anEngineRowThatIsStaleRendersAsBefore() {
+        let shown = presentation(entry(.engine))
+        #expect(shown.isStale == providerCardHasTransientStaleState(entry(.engine).snapshot))
+        #expect(shown.isStale)
+        #expect(shown.lastReadLabel == nil)
+        #expect(shown.resetNotReadLines.isEmpty)
+        #expect(shown.showsWindowState)
+        #expect(shown.offersRetry)
+    }
+
+    /// R12: never probed, so nothing on the row reaches a provider.
+    @Test func aRememberedRowOffersNoRetry() {
+        #expect(presentation(entry(.remembered)).offersRetry == false)
+    }
+
+    @Test func voiceOverSaysLastReadAndWhenForARememberedRow() {
+        let shown = presentation(entry(.remembered, readAgo: 2 * 86_400))
+        let label = IdentityRowText.accessibilityParts(
+            title: "Work",
+            planDisplayName: "Team",
+            isMenuBarAccount: false,
+            isStale: shown.isStale,
+            email: nil,
+            showsConnectedChip: false,
+            bankedPhrase: nil,
+            lastReadLabel: shown.lastReadLabel
+        )
+        #expect(label == "Work, Team plan, Last read 2 days ago")
+        #expect(!label.contains("Stale"))
+        // An engine stale row's phrase is unchanged.
+        #expect(IdentityRowText.accessibilityParts(
+            title: "Work", planDisplayName: "Team", isMenuBarAccount: false, isStale: true,
+            email: nil, showsConnectedChip: false, bankedPhrase: nil
+        ) == "Work, Team plan, Stale")
+    }
+
+    /// R16: no row, of either kind or role, carries a default-login marker in its tag, its
+    /// tooltip or its VoiceOver phrase.
+    @Test func noRowCarriesADefaultLoginMarker() {
+        for kind in [DisplayAccountKind.engine, .remembered] {
+            for isMain in [true, false] {
+                let shown = presentation(entry(kind))
+                let strings = [
+                    shown.lastReadLabel ?? "",
+                    IdentityRowText.helpLines(title: "Work", titleIsTruncated: true, email: "w@example.com",
+                                              isMenuBarAccount: isMain, bankedHelp: nil) ?? "",
+                    IdentityRowText.accessibilityParts(
+                        title: "Work", planDisplayName: "Team", isMenuBarAccount: isMain,
+                        isStale: shown.isStale, email: "w@example.com", showsConnectedChip: false,
+                        bankedPhrase: nil, lastReadLabel: shown.lastReadLabel),
+                    CompactAccountRowRecipe(
+                        snapshot: entry(kind).snapshot, meterStyle: .default, percentageMode: .remaining,
+                        now: now, requiresStandardSection: false, showsCodexSparkCounters: true,
+                        isRemembered: kind == .remembered, lastReadAt: entry(kind).lastReadAt
+                    ).tooltip,
+                ]
+                for string in strings {
+                    #expect(!string.localizedCaseInsensitiveContains("default login"))
+                }
+            }
+        }
+    }
+}
+
 /// RI1: meter rows are keyed by window kind, so a row keeps its identity when a window above
 /// it appears or leaves — the regression was "Weekly 40%" rolling into "5-hour 12%".
 @Suite

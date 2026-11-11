@@ -119,9 +119,8 @@ struct AccountsSettingsTile: View {
             }
         }
         .confirmationDialog(
-            removalCandidate?.account.isBuiltIn == true
-                ? "Stop tracking this account?"
-                : "Remove this account?",
+            removalCandidate.map(AccountsSettingsInteractions.removalDialogTitle(for:))
+                ?? "Remove this account?",
             isPresented: removalDialogPresented,
             titleVisibility: .visible,
             presenting: removalCandidate
@@ -131,8 +130,10 @@ struct AccountsSettingsTile: View {
             // deletes nothing, unlike extra-account removal. Removing a remembered row
             // only hides it too (R11).
             Button(
-                account.isBuiltIn ? "Stop Tracking \(store.desktopAccountName(for: account))" : "Remove \(store.desktopAccountName(for: account))",
-                role: account.isBuiltIn || row.isRemembered ? nil : .destructive
+                account.isBuiltIn && !row.isRemembered
+                    ? "Stop Tracking \(store.desktopAccountName(for: account))"
+                    : "Remove \(store.desktopAccountName(for: account))",
+                role: AccountsSettingsInteractions.removalIsDestructive(for: row) ? .destructive : nil
             ) {
                 removalInProgress = account.key
                 Task { @MainActor in
@@ -155,12 +156,7 @@ struct AccountsSettingsTile: View {
             }
             Button("Cancel", role: .cancel) { restoreRemovalFocus() }
         } message: { row in
-            // U8 owns the remembered row's final wording.
-            Text(row.isRemembered
-                 ? "Headroom stops showing its last reading until your CLI signs in to it again. Nothing on this Mac is deleted."
-                 : row.account.isBuiltIn
-                 ? "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted."
-                 : "Its sign-in on this Mac is deleted with it. Your subscription is untouched.")
+            Text(AccountsSettingsInteractions.removalDialogMessage(for: row))
         }
         .confirmationDialog(
             "Sign out and set up again?",
@@ -215,6 +211,15 @@ struct AccountsSettingsTile: View {
         // the list draws the display rows, remembered ones after the engine rows (KTD8).
         let accounts = store.accounts(for: providerID)
         let rows = store.displayAccounts(for: providerID)
+        // U8: one read per provider, and only when a remembered row needs its last-read time.
+        let lastReadAt: [AccountKey: Date] = rows.contains(where: \.isRemembered)
+            ? Dictionary(
+                store.rememberedAccounts(for: providerID).compactMap { summary in
+                    summary.lastReadAt.map { (summary.key, $0) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            : [:]
         let capacity = store.accountCapacity(for: providerID)
         let capabilityState = store.providerCapabilities[providerID]?.state
         let displayName = store.displayNames[providerID] ?? providerID.raw.capitalized
@@ -302,7 +307,7 @@ struct AccountsSettingsTile: View {
                 .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
             ForEach(rows) { row in
-                accountRow(row, capability: capability, presentation: presentation)
+                accountRow(row, lastReadAt: lastReadAt[row.key], capability: capability, presentation: presentation)
                     .transition(SettingsAccountExit.transition(reduceMotion: reduceMotion))
             }
             if store.isBuiltInTrackingStopped(for: providerID) {
@@ -373,6 +378,7 @@ struct AccountsSettingsTile: View {
 
     private func accountRow(
         _ row: DisplayAccount,
+        lastReadAt: Date?,
         capability: CapabilityRecoveryPresentation?,
         presentation: AccountsSettingsInteractions.ProviderGroupPresentation
     ) -> some View {
@@ -446,7 +452,15 @@ struct AccountsSettingsTile: View {
                     waitingForClaudeCode: capabilityRow == .waitingForClaudeCode,
                     showsStatus: !presentation.hidesAccountStatus(isSetupState: status.isSetupState),
                     level: loadingLevel)
-                if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
+                if row.isRemembered {
+                    // U8 (R7): the popover's tag, as this row's status line. It is not fetch
+                    // state, so it shows while the provider's switch is off too.
+                    if let text = AccountsSettingsInteractions.rememberedStatus(
+                        lastReadAt: lastReadAt, snapshot: snapshot, now: Date()
+                    ) {
+                        rememberedStatusLabel(text)
+                    }
+                } else if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
                     accountStatus(
                         capabilityRow,
                         snapshot: snapshot,
@@ -568,6 +582,21 @@ struct AccountsSettingsTile: View {
                 }
             }
         }
+    }
+
+    /// U8: the stale status's clock-and-text treatment, worded "Last read …". Its tooltip
+    /// points at Add Account for someone who wants the account live.
+    private func rememberedStatusLabel(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 9, weight: .medium))
+            Text(text)
+                .font(SettingsType.help.monospacedDigit())
+        }
+        .foregroundStyle(.secondary)
+        .help(AccountsSettingsInteractions.rememberedStatusHelp)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(text)
     }
 
     @ViewBuilder private func accountStatus(

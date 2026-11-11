@@ -128,6 +128,12 @@ public enum Countdown {
         return days == 1 ? "1 day ago" : "\(days) days ago"
     }
 
+    /// The tag a remembered account carries on every surface (R7, R21): "Last read 2 min
+    /// ago". One function so the Mac and the phone cannot word it differently.
+    public static func lastReadLabel(capturedAt: Date?, now: Date) -> String? {
+        updatedLabel(capturedAt: capturedAt, now: now).map { "Last read \($0)" }
+    }
+
     /// The line a remembered account shows for a window whose reset has passed (R8): when
     /// it reset, and that Headroom has not read it since. It never states a value.
     public static func resetNotReadLine(

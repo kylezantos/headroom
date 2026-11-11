@@ -211,6 +211,12 @@ struct RememberedAgingTests {
         #expect(label(9 * day + 5 * hour) == "9 days ago")
     }
 
+    @Test func theLastReadTagIsTheSameWordingOnEverySurface() {
+        #expect(Countdown.lastReadLabel(capturedAt: nil, now: capturedAt) == nil)
+        #expect(Countdown.lastReadLabel(capturedAt: capturedAt, now: capturedAt.addingTimeInterval(120)) == "Last read 2 min ago")
+        #expect(Countdown.lastReadLabel(capturedAt: capturedAt, now: capturedAt.addingTimeInterval(2 * day)) == "Last read 2 days ago")
+    }
+
     private let zone = TimeZone(identifier: "America/Los_Angeles")!
     private let locale = Locale(identifier: "en_US")
     /// Friday 25 Sep 2026, 10:00 AM in Los Angeles.

@@ -306,7 +306,11 @@ struct CodexAccountEmailTests {
         )
         #expect(
             await store.codexSession()
-                == .success(CodexSession(accessToken: "at", accountEmail: "work@example.com"))
+                == .success(CodexSession(
+                    accessToken: "at",
+                    accountEmail: "work@example.com",
+                    identity: AccountIdentity.codex(accountID: "acc")
+                ))
         )
         #expect(await store.codexAccessToken() == .success("at"))
     }
@@ -660,6 +664,9 @@ struct CursorAccountEmailTests {
 
         #expect(snapshot.freshness == .live)
         #expect(snapshot.accountEmail == "personal@example.com")
+        // Default-login KTD13: one weak identity per reading, from the same status read.
+        #expect(snapshot.identity == .known(AccountIdentity.cursor(email: "personal@example.com")!))
+        #expect(await provider.fetchResult().discard == nil)
     }
 
     @Test func providerStillReportsUsageWhenTheEmailSourceFails() async throws {
@@ -674,6 +681,9 @@ struct CursorAccountEmailTests {
         #expect(snapshot.windows.count == 2)
         #expect(snapshot.planLabel == "Pro+")
         #expect(snapshot.accountEmail == nil)
+        // A missed status read is no evidence: never a refusal, never "no account".
+        #expect(snapshot.identity == nil)
+        #expect(await provider.fetchResult().discard == nil)
     }
 
     @Test func failedCaptureCarriesNoEmail() async {

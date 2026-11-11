@@ -150,6 +150,28 @@ struct LoadingDemoTests {
         #expect(AppComposition.settingsLaunchControl.isEnabled)
         try AppComposition.settingsLaunchControl.setEnabled(false)
     }
+
+    /// Default-login plan U11: a demo gets the in-memory record store and never touches
+    /// `defaultLoginRecords.v1`; a real launch gets the UserDefaults store over the suite it
+    /// is handed.
+    @Test func demoRecordStoreIsInMemoryAndARealLaunchWritesItsDefaults() throws {
+        let suite = "headroom.tests.default-login-records.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = "defaultLoginRecords.v1"
+        let payload = Data("records".utf8)
+
+        let demo = AppComposition.makeDefaultLoginRecordStore(isDemo: true, defaults: defaults)
+        #expect(demo is DemoDefaultLoginRecordStore)
+        demo.write(payload)
+        #expect(defaults.data(forKey: key) == nil)
+
+        let real = AppComposition.makeDefaultLoginRecordStore(isDemo: false, defaults: defaults)
+        #expect(real is DefaultLoginRecordStore)
+        real.write(payload)
+        #expect(defaults.data(forKey: key) == payload)
+        #expect(real.read() == payload)
+    }
 }
 
 private enum DemoTestFailure: Error { case checkpoint }

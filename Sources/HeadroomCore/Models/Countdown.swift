@@ -122,6 +122,31 @@ public enum Countdown {
         if minutes == 1 { return "1 min ago" }
         if minutes < 60 { return "\(minutes) min ago" }
         let hours = minutes / 60
-        return hours == 1 ? "1 hr ago" : "\(hours) hr ago"
+        if hours < 24 { return hours == 1 ? "1 hr ago" : "\(hours) hr ago" }
+        // A remembered account can go unread for days (default-login plan, R7).
+        let days = hours / 24
+        return days == 1 ? "1 day ago" : "\(days) days ago"
+    }
+
+    /// The tag a remembered account carries on every surface (R7, R21): "Last read 2 min
+    /// ago". One function so the Mac and the phone cannot word it differently.
+    public static func lastReadLabel(capturedAt: Date?, now: Date) -> String? {
+        updatedLabel(capturedAt: capturedAt, now: now).map { "Last read \($0)" }
+    }
+
+    /// The line a remembered account shows for a window whose reset has passed (R8): when
+    /// it reset, and that Headroom has not read it since. It never states a value.
+    public static func resetNotReadLine(
+        resetAt: Date,
+        now: Date,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current,
+        compact: Bool = false
+    ) -> String {
+        // `compact` is what a row draws, since the sentence does not fit one:
+        // "Reset Wed 10:00 AM · not read since". Tooltips and VoiceOver keep the sentence.
+        let when = ResetClockFormatter.pastPhrase(
+            for: resetAt, now: now, timeZone: timeZone, locale: locale, compact: compact)
+        return "Reset \(when) · not read since"
     }
 }

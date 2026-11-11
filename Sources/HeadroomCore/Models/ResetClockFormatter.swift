@@ -34,6 +34,47 @@ public enum ResetClockFormatter {
         }
     }
 
+    /// The same grammar for a reset already behind us (default-login plan, R8). A weekday
+    /// alone is ambiguous once the reset is more than six days past, so the calendar date
+    /// takes over there.
+    public static func pastPhrase(
+        for date: Date,
+        now: Date,
+        timeZone: TimeZone = .current,
+        locale: Locale = .current,
+        calendar suppliedCalendar: Calendar = Calendar(identifier: .gregorian),
+        compact: Bool = false
+    ) -> String {
+        var calendar = suppliedCalendar
+        calendar.timeZone = timeZone
+        calendar.locale = locale
+
+        let daysAgo = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: date),
+            to: calendar.startOfDay(for: now)
+        ).day ?? .max
+        let time = format(date, template: "jmm", calendar: calendar)
+
+        // The short form for a row, which has no room for the sentence: "Wed 10:00 AM",
+        // "Sep 18 10:00 AM". A short weekday covers today and yesterday too.
+        if compact {
+            let day = format(date, template: daysAgo > 6 ? "MMMd" : "EEE", calendar: calendar)
+            return "\(day) \(time)"
+        }
+
+        switch daysAgo {
+        case ...0:
+            return "today at \(time)"
+        case 1:
+            return "yesterday at \(time)"
+        case 2...6:
+            return "\(format(date, template: "EEEE", calendar: calendar)) at \(time)"
+        default:
+            return "\(format(date, template: "MMMd", calendar: calendar)) at \(time)"
+        }
+    }
+
     private static func format(_ date: Date, template: String, calendar: Calendar) -> String {
         let formatter = DateFormatter()
         formatter.calendar = calendar

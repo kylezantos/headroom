@@ -214,7 +214,8 @@ public enum CompanionPublishImage {
                 id: account.id, title: account.title, planName: account.planName,
                 freshness: account.freshness, capturedAt: account.capturedAt.map { _ in sentinel },
                 attention: account.attention, needsAttention: account.needsAttention,
-                bankedResets: account.bankedResets, windows: windows)) ?? account
+                bankedResets: account.bankedResets, windows: windows,
+                isRemembered: account.isRemembered)) ?? account
         }
         let spend = payload.apiSpend.map { spend in
             (try? CompanionSpendSummary(

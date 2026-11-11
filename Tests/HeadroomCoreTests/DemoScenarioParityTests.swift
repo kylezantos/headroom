@@ -161,6 +161,48 @@ struct DemoScenarioParityTests {
         }
     }
 
+    /// Default-login U11 (R20: Claude and Codex both get remembered rows): the `remembered`
+    /// scenario poses the same moment for each, so a render or a review of one provider
+    /// stands for the other. Same labels, kinds, window kinds, numbers and states;
+    /// no other provider is posed.
+    @MainActor
+    @Test func rememberedScenarioPosesClaudeAndCodexAlike() async throws {
+        let fixture = DemoFixture.multiFixture(for: .remembered)
+        let suite = "headroom.demo-parity.tests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defaults.removePersistentDomain(forName: suite)
+        let store = UsageStore(
+            providers: fixture.providers,
+            preferences: Preferences(defaults: defaults),
+            accounts: fixture.accounts,
+            defaultLoginRecords: fixture.makeDefaultLoginRecordStore()
+        )
+        await store.refreshAll()
+        #expect(store.registeredProviderOrder == [.claude, .codex])
+
+        func signature(_ providerID: ProviderID) -> [RememberedRowSignature] {
+            store.displayAccounts(for: providerID).map { row in
+                let snapshot = store.snapshot(for: row.key)
+                return RememberedRowSignature(
+                    label: row.label,
+                    kind: row.kind,
+                    windows: snapshot.windows.map { window in
+                        let state = window.freshness.isLive ? "live" : window.freshness.isUnavailable ? "unavailable" : "stale"
+                        let number = window.freshness.isUnavailable
+                            ? nil : UsagePercentageMode.remaining.roundedPercentage(for: window)
+                        return "\(window.kind.shortLabel) \(state) \(number.map(String.init) ?? "—")"
+                    }
+                )
+            }
+        }
+        let claude = signature(.claude)
+        #expect(claude.count == 3)
+        #expect(claude == signature(.codex))
+        #expect(claude.map(\.kind) == [.engine, .remembered, .remembered])
+        #expect(claude[1].windows.allSatisfy { $0.contains(" stale ") })
+        #expect(claude[2].windows.allSatisfy { $0.hasSuffix("unavailable —") })
+    }
+
     private func isFable(_ window: WidgetWindowSummary) -> Bool { window.kind == .other("Weekly (Fable)") }
 
     /// KTD9: the phone title is the user's label; a built-in Grok/Cursor row carries the
@@ -250,6 +292,12 @@ private struct SpendSignature: Equatable {
     let currency: String?
     let periodLabel: String
     let freshness: WidgetProviderFreshness
+}
+
+private struct RememberedRowSignature: Equatable {
+    let label: String
+    let kind: DisplayAccountKind
+    let windows: [String]
 }
 
 private struct RowSignature: Equatable {

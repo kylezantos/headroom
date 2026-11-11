@@ -34,13 +34,21 @@ def check(source, site):
     demo = (site / "lib/headroom-demo/usage-model.ts").read_text()
     order = re.search(r'export const PROVIDER_ORDER[^=]*=\s*\[([^]]+)\]', demo)
     shown = set(re.findall(r'"(\w+)"', order[1])) if order else set()
-    if not providers or shown != providers:
-        raise ValueError(f"Website demo provider drift: app={sorted(providers)}, website={sorted(shown)}")
+    # Providers the site deliberately does not feature; each must still be a real app provider.
+    hidden = re.search(r'export const UNFEATURED_PROVIDERS[^=]*=\s*\[([^]]*)\]', demo)
+    unfeatured = set(re.findall(r'"(\w+)"', hidden[1])) if hidden else set()
+    if unfeatured - providers:
+        raise ValueError(f"Website unfeatured providers are not app providers: {sorted(unfeatured - providers)}")
+    if shown & unfeatured:
+        raise ValueError(f"Website demo shows unfeatured providers: {sorted(shown & unfeatured)}")
+    featured = providers - unfeatured
+    if not featured or shown != featured:
+        raise ValueError(f"Website demo provider drift: app={sorted(featured)}, website={sorted(shown)}")
     metadata = (site / "lib/site-metadata.ts").read_text()
     description = re.search(r'export const SITE_DESCRIPTION = "([^"]+)"', metadata)
-    if not description or any(provider.casefold() not in description[1].casefold() for provider in providers):
-        raise ValueError("Website description omits a supported provider")
-    print(f"PASS: {version} ({build}), canonical notes, latest appcast, {len(providers)} demo/metadata providers")
+    if not description or any(provider.casefold() not in description[1].casefold() for provider in featured):
+        raise ValueError("Website description omits a featured provider")
+    print(f"PASS: {version} ({build}), canonical notes, latest appcast, {len(featured)} demo/metadata providers ({len(unfeatured)} unfeatured)")
 
 
 if __name__ == "__main__":

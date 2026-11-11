@@ -33,6 +33,10 @@ public final class NotificationCoordinator {
     private let bankedResetBaseline: BankedResetNotificationBaseline
     private var limitsInFlight: Set<LimitKey> = []
     private var bankedInFlight: Set<AccountKey> = []
+    /// What each in-flight post will record if it is accepted. An account that leaves its
+    /// row mid-post takes these with it (default-login plan, KTD5).
+    private var useItUpInFlight: [LimitKey: UseItUpLedgerEntry] = [:]
+    private var bankedCountInFlight: [AccountKey: Int] = [:]
     private var pendingPosts: [UUID: Task<Void, Never>] = [:]
 
     public init(
@@ -64,6 +68,48 @@ public final class NotificationCoordinator {
         bankedResetBaseline.purge(for: account)
     }
 
+    /// Default-login plan KTD5: the reminder state that belongs to the account behind
+    /// `account`, lifted out when that account leaves the row.
+    ///
+    /// A post still in flight is counted as delivered. Its completion finds the row
+    /// re-attached to another account and writes nothing, so without this the banner the
+    /// system already showed would be shown again when the account returns. If that post
+    /// is refused after all, the account misses one reminder for that reset, which is the
+    /// cheaper error.
+    public func parkedState(for account: AccountKey) -> (useItUp: [UseItUpLedgerEntry], bankedBaseline: Int?) {
+        var entries = useItUpLedger.entries().filter { $0.account == account }
+        for (limit, pending) in useItUpInFlight where limit.account == account {
+            if let index = entries.firstIndex(where: { $0.windowID == pending.windowID }),
+               entries[index].isSameCycle(as: pending.deadline) {
+                let stored = entries[index]
+                entries[index] = UseItUpLedgerEntry(
+                    account: account,
+                    windowID: stored.windowID,
+                    deadline: stored.deadline,
+                    firedKeys: stored.firedKeys + pending.firedKeys.filter { !stored.firedKeys.contains($0) }
+                )
+            } else {
+                entries.removeAll { $0.windowID == pending.windowID }
+                entries.append(pending)
+            }
+        }
+        return (entries, bankedCountInFlight[account] ?? bankedResetBaseline.baselineCount(for: account))
+    }
+
+    /// Replaces the row's reminder state with an arriving account's parked state. Empty
+    /// state leaves the row with none, so a new account's first banked count seeds
+    /// silently and no fired rule carries over.
+    public func restore(
+        useItUp: [UseItUpLedgerEntry],
+        bankedBaseline: Int?,
+        for account: AccountKey,
+        now: Date
+    ) {
+        useItUpLedger.restore(useItUp, for: account, now: now)
+        bankedResetBaseline.purge(for: account)
+        if let bankedBaseline { bankedResetBaseline.record(count: bankedBaseline, for: account) }
+    }
+
     /// Awaits every post started so far and its ledger write. Tests use it to settle.
     public func waitForPendingPosts() async {
         while let post = pendingPosts.values.first {
@@ -91,6 +137,7 @@ public final class NotificationCoordinator {
             let limit = LimitKey(account: account, windowID: proposal.windowID)
             guard !limitsInFlight.contains(limit) else { continue }
             limitsInFlight.insert(limit)
+            useItUpInFlight[limit] = proposal.ledgerEntry
             let content = NotificationContent.useItUp(
                 proposal,
                 providerName: context.providerName,
@@ -99,6 +146,7 @@ public final class NotificationCoordinator {
             )
             post(content) { [useItUpLedger] accepted in
                 self.limitsInFlight.remove(limit)
+                self.useItUpInFlight.removeValue(forKey: limit)
                 guard accepted, isStillAttached() else { return }
                 useItUpLedger.record(proposal.ledgerEntry, activeFiringKeys: activeFiringKeys, now: now)
             }
@@ -121,9 +169,11 @@ public final class NotificationCoordinator {
             bankedResetBaseline.record(count: count, for: account)
         case .notify(let proposal):
             bankedInFlight.insert(account)
+            bankedCountInFlight[account] = proposal.count
             let content = NotificationContent.bankedReset(proposal, accountLabel: context.accountLabel)
             post(content) { [bankedResetBaseline] accepted in
                 self.bankedInFlight.remove(account)
+                self.bankedCountInFlight.removeValue(forKey: account)
                 guard accepted, isStillAttached() else { return }
                 bankedResetBaseline.record(count: proposal.count, for: account)
             }

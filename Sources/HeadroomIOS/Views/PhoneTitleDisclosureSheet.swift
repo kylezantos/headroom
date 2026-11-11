@@ -2,7 +2,8 @@ import SwiftUI
 
 /// U3 step 6 / U8: a truncated account title opens this native sheet with the complete
 /// resolved name, " · N" suffix included, so two accounts that share a long prefix stay
-/// distinguishable. It names the provider for context and never shows an email.
+/// distinguishable. It names the provider for context and shows only the synced title,
+/// which is an email only when the Mac uses that email as the account's name (KTD9).
 struct PhoneTitleDisclosureSheet: View {
     let disclosed: DisclosedTitle
 

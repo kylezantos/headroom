@@ -29,7 +29,9 @@ struct UsageStoreTests {
         #expect(phoneExporter.captures.isEmpty)
     }
 
-    @Test func emailAccountNamesPersistWithoutChangingLabelsOrExports() {
+    /// KTD9 amended (Nov 2026): the switch never changes labels or Mac widget exports, but
+    /// it changes the phone's titles, so each real toggle hands the phone one capture.
+    @Test func emailAccountNamesPersistWithoutChangingLabelsAndExportOnlyToThePhone() {
         let preferences = freshPreferences()
         preferences.useEmailAsAccountName = true
         preferences.syncToIPhoneEnabled = true
@@ -53,18 +55,21 @@ struct UsageStoreTests {
             )
             #expect(store.desktopAccountName(for: account) == "\(provider.raw)@example.com")
         }
+        #expect(phoneExporter.captures.isEmpty)
         store.setUseEmailAsAccountName(false)
         #expect(!preferences.useEmailAsAccountName)
         for provider in [ProviderID.claude, .codex, .grok, .cursor] {
             let account = ProviderAccount.builtIn(for: provider)
             #expect(store.desktopAccountName(for: account) == account.label)
         }
+        #expect(phoneExporter.captures.count == 1)
         preferences.useEmailAsAccountName = true
         store.setUseEmailAsAccountName(false)
         #expect(preferences.useEmailAsAccountName)
         #expect(store.accounts(for: .claude).first?.label == ProviderAccount.builtInDefaultLabel)
         #expect(exporter.exports.isEmpty)
-        #expect(phoneExporter.captures.isEmpty)
+        // A setter echo is not a change, so it sends nothing more.
+        #expect(phoneExporter.captures.count == 1)
     }
 
     @Test func refreshPopulatesAllProviders() async {
@@ -2088,6 +2093,36 @@ struct UsageStoreTests {
 
         #expect(store.snapshot(for: .claude).freshness == .live)
         #expect(store.snapshot(for: .claude).windows.map(\.kind) == [.weekly])
+    }
+
+    /// Default-login plan U7 / AE5: with no record store, nothing remembered and no merge,
+    /// the display projection is the engine list and its main account, through Make Main.
+    @Test func displayProjectionEqualsTheEngineListWithoutRememberedAccounts() {
+        let suite = "headroom.display.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let registry = AccountRegistry(defaults: defaults)
+        let work = registry.addAccount(for: .claude, label: "Work")!
+        let store = UsageStore(
+            providers: [
+                DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+                DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude), accountID: work.id),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: DemoAccountStorage(),
+            providerFactory: { DemoUsageProvider(id: $0.providerID, displayName: "Claude", snapshot: .pending(for: $0.providerID), accountID: $0.id) }
+        )
+        #expect(store.displayAccounts(for: .claude).map(\.account) == store.accounts(for: .claude))
+        #expect(store.displayAccounts(for: .claude).allSatisfy { $0.kind == .engine })
+        #expect(store.displayPrimaryKey(for: .claude) == store.primaryAccount(for: .claude)?.key)
+
+        #expect(store.promoteAccount(work.key))
+        #expect(store.displayAccounts(for: .claude).map(\.account) == store.accounts(for: .claude))
+        #expect(store.displayPrimaryKey(for: .claude) == work.key)
+        #expect(store.providerMenuBarMeter(for: .claude).sourceAccountKey == work.key)
+        #expect(store.schedulerIsPrimary(work.key))
+        #expect(store.canPromoteAccount(work.key) == false)
     }
 
     /// Fresh-suite preferences so tests never read the developer's real UserDefaults —

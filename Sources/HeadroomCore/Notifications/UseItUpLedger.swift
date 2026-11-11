@@ -77,6 +77,21 @@ public struct UseItUpLedger: @unchecked Sendable { // UserDefaults is thread-saf
         save(stored)
     }
 
+    /// Default-login plan KTD5: replaces `account`'s entries with `entries`, re-keyed to
+    /// it, when the account behind a row changes. Entries a day past their deadline are
+    /// dropped, as `record` does. The stored format is unchanged.
+    public func restore(_ entries: [UseItUpLedgerEntry], for account: AccountKey, now: Date) {
+        var stored = load()
+        stored.entries.removeAll { $0.account == account }
+        stored.entries += entries
+            .filter { !(now.timeIntervalSince($0.deadline) > Self.pruneAge) }
+            .map { UseItUpLedgerEntry(account: account, windowID: $0.windowID, deadline: $0.deadline, firedKeys: $0.firedKeys) }
+        if stored.entries.count > Self.maxEntries {
+            stored.entries.removeFirst(stored.entries.count - Self.maxEntries)
+        }
+        save(stored)
+    }
+
     public func purge(for account: AccountKey) {
         var stored = load()
         let remaining = stored.entries.filter { $0.account != account }

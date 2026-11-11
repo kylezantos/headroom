@@ -86,8 +86,8 @@ public enum CompanionAttentionCopy {
 
     /// U8 (V12, spec-flow F3): the phone card names the account it is talking about, so the
     /// sign-in family reads "Sign in to Work on your Mac" where a stack holds several. The
-    /// title is the one the user chose on the Mac (KTD9), never an email; every other
-    /// category keeps its canonical sentence.
+    /// title is the name the Mac shows (KTD9), which is an email only when the user names
+    /// accounts by email there; every other category keeps its canonical sentence.
     public static func account(_ attention: CompanionAttention?, title: String?) -> String {
         guard let title, !title.isEmpty else { return account(attention) }
         switch attention {

@@ -55,6 +55,18 @@ class ReleaseNotesTests(unittest.TestCase):
             (site / "lib/headroom-demo/usage-model.ts").write_text('export const PROVIDER_ORDER = ["claude", "codex", "grok", "cursor", "copilot"]')
             (site / "lib/site-metadata.ts").write_text('export const SITE_DESCRIPTION = "Claude Codex Grok Cursor Copilot"')
             gate.check(source, site)
+            # The site may leave a supported provider out on purpose, but only by naming it.
+            (site / "lib/headroom-demo/usage-model.ts").write_text('export const PROVIDER_ORDER = ["claude", "codex", "grok", "cursor"]\nexport const UNFEATURED_PROVIDERS: string[] = ["copilot"]')
+            (site / "lib/site-metadata.ts").write_text('export const SITE_DESCRIPTION = "Claude Codex Grok Cursor and more"')
+            gate.check(source, site)
+            (site / "lib/headroom-demo/usage-model.ts").write_text('export const PROVIDER_ORDER = ["claude", "codex", "grok", "cursor", "copilot"]\nexport const UNFEATURED_PROVIDERS: string[] = ["copilot"]')
+            with self.assertRaisesRegex(ValueError, "shows unfeatured"):
+                gate.check(source, site)
+            (site / "lib/headroom-demo/usage-model.ts").write_text('export const PROVIDER_ORDER = ["claude", "codex", "grok", "cursor"]\nexport const UNFEATURED_PROVIDERS: string[] = ["copilot", "opencode"]')
+            with self.assertRaisesRegex(ValueError, "not app providers"):
+                gate.check(source, site)
+            (site / "lib/headroom-demo/usage-model.ts").write_text('export const PROVIDER_ORDER = ["claude", "codex", "grok", "cursor", "copilot"]')
+            (site / "lib/site-metadata.ts").write_text('export const SITE_DESCRIPTION = "Claude Codex Grok Cursor Copilot"')
             (source / "project.yml").write_text(
                 'targets:\n  Headroom:\n    platform: macOS\n    MARKETING_VERSION: 1.6\n    CURRENT_PROJECT_VERSION: 44\n'
                 '  HeadroomIOS:\n    platform: iOS\n    MARKETING_VERSION: 1.5.1\n    CURRENT_PROJECT_VERSION: 44\n')

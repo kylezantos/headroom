@@ -24,7 +24,15 @@ enum MeterRecipeKey {
 struct ProviderAccountEntry: Identifiable {
     let account: ProviderAccount
     let snapshot: UsageSnapshot
+    /// KTD8: a remembered row is never probed, so it offers no retry or setup action
+    /// (`DisplayAccountKind.offersRetry`).
+    var kind: DisplayAccountKind = .engine
+    /// U8 (R7): when a remembered account was last read (`RememberedAccountSummary.lastReadAt`),
+    /// carried here so the row draws its "Last read …" tag without a store read of its own.
+    /// Nil on every engine row.
+    var lastReadAt: Date? = nil
     var id: AccountID { account.id }
+    var isRemembered: Bool { kind == .remembered }
 }
 
 /// R6/R10: a value projection keeps ProviderCardView independent of the store. The
@@ -96,7 +104,7 @@ func providerCardStopWaitingAccount(
     entries: [ProviderAccountEntry],
     offersStopWaiting: @MainActor (ProviderAccount) -> Bool = setupSessionOffersStopWaiting(for:)
 ) -> ProviderAccount? {
-    entries.map(\.account).first(where: offersStopWaiting)
+    entries.filter { !$0.isRemembered }.map(\.account).first(where: offersStopWaiting)
 }
 
 /// Deliberately still keyed on the open handoff: this is what refuses capability recovery
@@ -107,7 +115,13 @@ func providerCardHasActiveSetupSession(
     entries: [ProviderAccountEntry],
     hasActiveHandoff: @MainActor (ProviderAccount) -> Bool = SetupSessions.hasActiveHandoff(for:)
 ) -> Bool {
-    entries.map(\.account).contains(where: hasActiveHandoff)
+    entries.filter { !$0.isRemembered }.map(\.account).contains(where: hasActiveHandoff)
+}
+
+/// R2C7: whether the card still draws usage the failing CLI retained. A remembered row's last
+/// reading is not one, so it never makes the capability sentence say "last reading".
+func providerCardHasRetainedReading(entries: [ProviderAccountEntry]) -> Bool {
+    entries.contains { !$0.isRemembered && !$0.snapshot.windows.isEmpty }
 }
 
 func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
@@ -461,7 +475,7 @@ struct ProviderCardView: View {
         capabilityRecoveryPresentation(
             state: capabilityStatus?.state,
             hasActiveSetupSession: providerCardHasActiveSetupSession(entries: entries),
-            hasRetainedReading: entries.contains { !$0.snapshot.windows.isEmpty }
+            hasRetainedReading: providerCardHasRetainedReading(entries: entries)
         )
     }
 
@@ -852,7 +866,9 @@ struct ProviderCardView: View {
             percentageMode: percentageMode,
             now: now,
             requiresStandardSection: compactRowNeedsStandardSection(entry.account),
-            showsCodexSparkCounters: showsCodexSparkCounters
+            showsCodexSparkCounters: showsCodexSparkCounters,
+            isRemembered: entry.isRemembered,
+            lastReadAt: entry.lastReadAt
         )
         return recipe.fallsBackToStandard ? nil : recipe
     }
@@ -930,7 +946,7 @@ struct ProviderCardView: View {
             now: now,
             isMenuBarAccount: isMultiAccount && isMenuBarEntry(entry),
             showsStopWaiting: showsStopWaiting,
-            onRetry: { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) },
+            onRetry: entry.kind.offersRetry ? { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) } : {},
             showsMark: showsMark,
             isActiveLogin: entry.account.key == activeLoginKey,
             claimBankedResetReveal: claimBankedResetReveal,
@@ -1951,6 +1967,15 @@ struct UsageBarsStack: View {
     /// M4A: passed straight through so both of an account's rows draw in together on the
     /// first live view of that account this launch. `nil` keeps a stack static.
     var arrivalKey: AccountKey? = nil
+    /// U8 (R8): per window, in `windows` order, the line that replaces a remembered row's
+    /// meter once its reset has passed. Empty (every engine row) draws every meter.
+    var resetNotReadLines: [String?] = []
+    /// The same lines in the compact form the row draws.
+    var compactResetNotReadLines: [String?] = []
+    /// U8 (R7): false on a remembered row, whose identity row already says "Last read …".
+    var showsWindowState: Bool = true
+    /// U8: true on a remembered row, whose labels and countdowns dim with its meters.
+    var dimsLabels: Bool = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.headroomTuning) private var tuning
@@ -1972,14 +1997,27 @@ struct UsageBarsStack: View {
                 // next row's window, so "Weekly 40%" rolled into "5-hour 12%" — motion that
                 // claimed a value changed when a row had only moved. Now a row keeps its
                 // window, and one that arrives or leaves fades.
-                ForEach(Self.keyedRows(windows), id: \.key) { row in
+                let keyedRows = Self.keyedRows(windows)
+                let resetLabelPeers = keyedRows.enumerated().compactMap { index, row in
+                    resetNotReadLines.indices.contains(index) && resetNotReadLines[index] != nil
+                        ? row.window.kind.displayName : nil
+                }
+                ForEach(Array(keyedRows.enumerated()), id: \.element.key) { index, row in
                     UsageBarView(
                         window: row.window,
                         percentageMode: percentageMode,
                         now: now,
                         meterStyle: meterStyle,
                         dimmed: dimmed,
-                        arrivalKey: arrivalKey
+                        arrivalKey: arrivalKey,
+                        resetNotReadLine: resetNotReadLines.indices.contains(index) ? resetNotReadLines[index] : nil,
+                        showsWindowState: showsWindowState,
+                        dimsLabels: dimsLabels
+                    )
+                    .resetLine(
+                        peers: resetLabelPeers,
+                        compact: compactResetNotReadLines.indices.contains(index)
+                            ? compactResetNotReadLines[index] : nil
                     )
                     .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
                 }

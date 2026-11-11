@@ -35,20 +35,44 @@ extension UsageStore {
         var providers: [CompanionCapturedProvider] = []
         var mainAttention: [ProviderID: CompanionAttention] = [:]
         for id in subscription {
-            let visible = accounts(for: id)
-            let titles = CompanionPhoneProjection.titles(storedOrder: storedOrderAccounts(for: id))
-            let keys = visible.map(\.key)
+            // KTD8: the capture reads the display projection and its primary. Remembered
+            // rows follow the engine rows as extras, flagged (KTD14), under their random
+            // local ids; the store serves their aged last reading (U6).
+            let projection = displayProjection(for: id)
+            let stored = storedOrderAccounts(for: id, projection: projection)
+            // The Mac's displayed name (KTD9 amended): the same snapshot email
+            // `desktopAccountName(for:)` reads, a remembered row's from its last reading.
+            let titles = CompanionPhoneProjection.titles(
+                storedOrder: stored,
+                emails: stored.reduce(into: [:]) { emails, account in
+                    emails[account.id] = snapshot(for: account.key).accountEmail
+                },
+                usesEmailAsName: useEmailAsAccountName)
+            let engineKeys = projection.rows.filter { $0.kind == .engine }.map(\.key)
             var main: CompanionAccountSummary?
             var extras: [CompanionAccountSummary] = []
-            for (index, account) in visible.enumerated() {
+            for row in projection.rows {
+                let account = row.account
                 let snapshot = snapshot(for: account.key)
+                let title = titles[account.id] ?? account.label
+                guard row.kind == .engine else {
+                    // R12: never the main account and never a source of attention, so it
+                    // carries no attention and no session overlay.
+                    if let summary = CompanionPhoneProjection.account(
+                        id: account.id, title: title, snapshot: snapshot, attention: nil,
+                        isRemembered: true)
+                    {
+                        extras.append(summary)
+                    }
+                    continue
+                }
                 let attention = CompanionAttentionMapping.accountAttention(
                     freshness: snapshot.freshness, isBuiltIn: account.isBuiltIn,
                     session: companionSession(for: account.key))
                 let summary = CompanionPhoneProjection.account(
-                    id: account.id, title: titles[account.id] ?? account.label,
+                    id: account.id, title: title,
                     snapshot: snapshot, attention: attention)
-                if index == 0 {
+                if account.key == projection.primaryKey {
                     main = summary
                     if let attention { mainAttention[id] = attention }
                 } else if let summary {
@@ -64,7 +88,7 @@ extension UsageStore {
                     providerID: id.raw, mode: .subscription,
                     capabilityAttention: CompanionAttentionMapping.providerAttention(
                         capability: providerCapabilities[id]?.state,
-                        sessions: keys.compactMap(companionSession)),
+                        sessions: engineKeys.compactMap(companionSession)),
                     mainAccount: main, extraAccounts: extras,
                     apiSpend: spendExports[id],
                     effectiveIntervalSeconds: pollCadence(for: id).effectiveInterval))
@@ -100,13 +124,18 @@ extension UsageStore {
     }
 
     /// KTD9: suffixes follow stored registry order, never the main-first display order.
-    private func storedOrderAccounts(for id: ProviderID) -> [ProviderAccount] {
-        let visible = accounts(for: id)
-        guard let accountRegistry else { return visible }
+    /// Remembered rows follow in their stored order, so a remembered "Work" beside a live
+    /// "Work" takes the suffix and the live row keeps its name.
+    private func storedOrderAccounts(
+        for id: ProviderID, projection: DisplayAccountsProjection
+    ) -> [ProviderAccount] {
+        let visible = projection.rows.filter { $0.kind == .engine }.map(\.account)
+        let remembered = projection.rows.filter { $0.kind == .remembered }.map(\.account)
+        guard let accountRegistry else { return visible + remembered }
         let stored = accountRegistry.storedOrderAccounts(for: id, capacity: accountCapacity(for: id))
             .map(\.id)
         let ordered = stored.compactMap { storedID in visible.first { $0.id == storedID } }
-        return ordered + visible.filter { account in !stored.contains(account.id) }
+        return ordered + visible.filter { account in !stored.contains(account.id) } + remembered
     }
 
     /// The typed overlay of a live setup session (KTD10). Only the typed state and

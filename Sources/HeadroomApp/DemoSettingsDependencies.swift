@@ -27,6 +27,14 @@ extension AppComposition {
         return ClaudeDuplicateLoginDetector(readAccountUUID: readAccountUUID)
     }
 
+    /// Default-login plan U11: like the duplicate detector, a demo or hosted-test launch
+    /// gets an in-memory record store and never reads or writes `defaultLoginRecords.v1`.
+    static func makeDefaultLoginRecordStore(isDemo: Bool,
+        defaults: UserDefaults = launchDefaults) -> any DefaultLoginRecordStoring {
+        if isDemo { return DemoDefaultLoginRecordStore() }
+        return DefaultLoginRecordStore(defaults: defaults)
+    }
+
     static let settingsDuplicateDetector = makeSettingsDuplicateDetector(isDemo: DemoFixture.isEnabled)
     static let settingsLaunchControl: any LaunchAtLoginControlling = DemoFixture.isEnabled ? DemoLaunchAtLogin() : LaunchAtLogin()
 }

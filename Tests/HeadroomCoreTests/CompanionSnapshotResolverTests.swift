@@ -47,6 +47,22 @@ struct CompanionSnapshotResolverTests {
     }
 
     /// V4: manifest 12 with Claude key 11 keeps Claude's last complete copy, never mixing.
+    /// Default-login R12: a main account is live by definition, so the remembered flag on a
+    /// main is ignored, while the same flag on an extra is kept.
+    @Test func aRememberedFlagOnTheMainAccountIsIgnored() throws {
+        let flaggedMain = try CompanionAccountSummary(
+            id: "primary", title: "Personal", capturedAt: F.date(), windows: [F.window()], isRemembered: true)
+        let flaggedExtra = try CompanionAccountSummary(
+            id: "work", title: "Work", freshness: .stale, capturedAt: F.date(), needsAttention: false,
+            windows: [F.window()], isRemembered: true)
+        let claude = F.bytes(F.payload(generation: 4, main: flaggedMain, extras: [flaggedExtra]))
+        #expect(String(decoding: claude, as: UTF8.self).contains("\"k\":true"))
+        let manifest = F.manifest(generation: 9, entries: ["claude": F.entry(claude, generation: 4)])
+        let provider = try provider(resolve(manifest: manifest, keys: ["claude": claude]), "claude")
+        #expect(provider.accounts.map(\.isMain) == [true, false])
+        #expect(provider.accounts.map(\.isRemembered) == [false, true])
+    }
+
     @Test func laggingKeyShowsItsCompleteCopyThenTurnsLastKnownAfterGrace() throws {
         let old = F.bytes(F.payload(generation: 11, extras: [F.account("x1", title: "Work")]))
         let expected = F.bytes(F.payload(generation: 12, extras: [F.account("x2", title: "Studio")]))

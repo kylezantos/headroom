@@ -105,7 +105,7 @@ struct MenuBarStatusLabel: View {
     var body: some View {
         let _ = BenchCounters.hit("MenuBarStatusLabel")
         let sources = Dictionary(uniqueKeysWithValues: store.providerOrder.map {
-            ($0, AccountKey(providerID: $0, accountID: store.primaryAccount(for: $0)?.id ?? .primary))
+            ($0, store.displayPrimaryKey(for: $0) ?? AccountKey(providerID: $0, accountID: .primary))
         })
         let ends = store.lastProbeEndTimes
         MenuBarLabel(

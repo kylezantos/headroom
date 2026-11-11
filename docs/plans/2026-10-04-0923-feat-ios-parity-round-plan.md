@@ -76,7 +76,7 @@ Kyle's direction: bring everything over from the Mac that the phone can do, make
 - R12. The Mac publishes a new sync data version that carries every account, display choices, typed attention, banked resets and its refresh cadence, within iCloud key-value limits at the tested envelope of 20 accounts per provider.
 - R13. The Mac keeps publishing today's primary-only format alongside the new version.
 - R14. A 1.5 phone paired with an older Mac shows the main accounts and says what updating the Mac adds.
-- R15. Account titles on the phone are the names the user chose on the Mac, made unique without emails. No email, credential or config path ever syncs.
+- R15. Account titles on the phone are the names the user chose on the Mac, made unique without emails. No email, credential or config path ever syncs. *(Amended 2026-11-10: titles follow the name the Mac shows, so an email syncs as a title when the user names accounts by email on the Mac, through a typed label or "Use email as account name". Credentials, config paths and upstream IDs still never sync, and an email is never its own field.)*
 - R16. Turning off "Sync usage to iPhone" removes synced account data from iCloud.
 - R17. Mac changes that affect the phone (account added, renamed, removed or made main; display choices; widget providers; refresh interval) reach the phone without waiting for the next main-account refresh.
 

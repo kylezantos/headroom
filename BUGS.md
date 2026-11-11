@@ -7,7 +7,8 @@ official `claude` CLI's `/usage` panel instead.
 ## Follow the default login: open items (2026-11-10)
 
 Plan: `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`. Phase 1 shipped for
-Codex, Grok, Cursor and Copilot.
+Codex, Grok, Cursor and Copilot. Phase 2 (remembered-account rows on the Mac and the phone) is
+built for Codex.
 
 - **Claude is not wired (gate V1).** `.claude.json` must be captured before and after
   `claude /login` to another account, a Claude Desktop sign-in, and a default-login switcher,
@@ -15,11 +16,46 @@ Codex, Grok, Cursor and Copilot.
   rows behave as before, and the Claude model-row entry under "Claude CLI probe" stays open.
   The continuity policy already refuses to retain a model row across two identities, so
   wiring the reader is what closes it.
-- **Phases 2 and 3 are not built.** A swapped-out Codex account is kept in the record store
-  with no row yet (U5, U7, U8, U9, U11), and the default login and a matching extra still show
-  as two rows (U10). U5 and U9 need PR #219 merged first.
+- **Phase 3 is not built.** The default login and a matching extra still show as two rows
+  (U10).
 - **Gates V2 and V3 have no result.** V2: whether Codex `account_id` is shared by members of
-  one workspace (before U10). V3: one real rotation on a switcher setup.
+  one workspace (before U10). V3: one real rotation of the Phase 2 build on a switcher setup;
+  Phase 2 is not accepted until it has one.
+- **Phase 2 has no live or device look.** The remembered rows were checked in `--render-popover`
+  renders (Standard and Compact, light and dark). The Settings row, the iPhone row and the Micro
+  meter style's reset line are covered by tests and builds only.
+- **A phone that predates the `k` key treats a remembered row as an ordinary stale extra.** It
+  counts the row as not updated after a check-now and Siri may name it, until that phone
+  updates. Recorded in the sync field contract. The alternative, holding remembered rows back
+  until the phone build ships, was not taken; Kyle has not ruled on it.
+- **First launch after upgrade differs from the plan's KTD7.** The plan says a never-bound row
+  with the default label adopts the saved label and history. The code treats a cached email
+  that differs from the first identity as another account even when the label is "Main", and
+  keeps the saved reading as a remembered account. Safer for R1; not reconciled with the plan.
+- **A remembered reading ages on the Mac without a phone export.** Aging runs at launch, on
+  each engine wake and on popover open. A window that passes its reset between exports reaches
+  the phone in its unavailable form at the next publish. A current phone hides the number at
+  the reset by itself; a phone that predates `k` waits its ten-minute grace.
+- **The budget ladder strips live extras' model rows before it drops a remembered row.** At 20
+  accounts plus 20 remembered on Claude and Codex the set fits at level 1 (34,711 bytes);
+  remembered rows go first only at level 2. Dropping them before level 1 would protect live data.
+- **Records written by a Phase 1 build can hold a remembered account labelled "Main".** It
+  shows as a dimmed "Main" beside the live one until that account is the default login and
+  leaves again. Phase 1 was never released, so this needs a build from `main` between #220 and
+  this change.
+- **A remembered account kept by email only never yields to an extra.** The first-launch entry
+  has no identity digest until a strong identity claims it, and the yield compares digests.
+- **A returned account renamed back to "Main" keeps its earlier chosen name when it leaves.**
+  Follows "never renumber a name the user chose"; unconfirmed as the wanted behaviour.
+- **A remembered row with no stored reading shows "No usage data".** Needs a stored window this
+  build cannot decode; not seen.
+- **Not measured: the popover with remembered rows.** The 20-account bench matches the baseline
+  for a setup with none. `commitDefaultLogin` compares the remembered list on every merge.
+- **Review residuals (2026-11-10), not applied.** The last-read date map is built in two views;
+  the reset-passed test is written in both `CompactAccountRowRecipe` and `RememberedRowRecipe`;
+  the remove-button wording is decided in the Settings view; default-label numbering has a
+  second loop beside `AccountRegistry`; `displayPrimaryKey` rebuilds the projection per call;
+  the Settings "Last read" line reads `Date()` and does not tick while Settings stays open.
 - **Unmeasured: how often a reading is refused.** The CLI can rewrite its account file while
   Headroom reads it. `AccountProbeScheduler.identityRefusalTotals` counts refusals per account
   in memory; no diagnostic prints it yet.

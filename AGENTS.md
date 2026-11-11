@@ -253,7 +253,7 @@ account below the print-mode floor keep the `interactive` bare launch, which is 
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
 Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
 
-**Follow the default login (Nov 2026, Phase 1 of
+**Follow the default login (Nov 2026, Phases 1 and 2 of
 `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Codex, Grok, Cursor and
 Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
 digest of the CLI's own metadata, never the upstream id). Codex and Grok read their account file
@@ -265,9 +265,8 @@ account's name. A row is a slot bound to one identity (`SlotRecord` in `Engine/D
 stored under `defaultLoginRecords.v1`). When the built-in row's default login becomes a different
 account, the row takes that account's name, or "Main", and none of the previous account's
 history or reminder state; the previous account's label, last reading and reminder state are
-kept in the record store and return if that account does. Showing that kept account as a row
-(Phase 2) and showing the default login and a matching extra as one row (Phase 3) are not built
-yet. Parity, forced by what each client exposes:
+kept in the record store and return if that account does. Showing the default login and a
+matching extra as one row (Phase 3) is not built yet. Parity, forced by what each client exposes:
 
 | Provider | Identity | Mid-change refusal | Relabel and history reset | Remembered |
 |---|---|---|---|---|
@@ -276,6 +275,31 @@ yet. Parity, forced by what each client exposes:
 | Cursor | email from `status`, weak | No (the read runs beside the capture) | Yes | No |
 | Copilot | login, weak, up to an hour old | No | Yes | No |
 | Claude | not wired | No | No | No |
+
+**Remembered accounts (Phase 2).** The account the default login left keeps a dimmed row with
+its last reading: a "Last read …" tag where "Stale" would be, and, once a window's reset has
+passed, one line "Reset … · not read since" with no gauge and no number (`Countdown.lastReadLabel`
+and `Countdown.resetNotReadLine`, the same wording on the Mac and the phone). It is never probed,
+never the main account and never fires a reminder, and it does not count toward add-account
+capacity. An unnamed one is numbered like an added account ("Account 2") while it is remembered
+and is "Main" again when it is the default login; a name the user chose travels both ways. Rename
+and Remove live on `UsageStore.renameRememberedAccount` / `removeRememberedAccount`; Remove only
+hides the row until that account is the default login again. A remembered row yields while an
+extra row reads the same account and returns when that extra is removed.
+
+Two lists, and every consumer belongs to one (KTD8). `UsageStore.accounts(for:)` is the **engine
+list**: what is read. Merge acceptance, scheduling, setup, the promote write, the duplicate-login
+scan and feedback diagnostics read it. `UsageStore.displayAccounts(for:)` / `displayPrimaryKey(for:)`
+(`DisplayAccountsResolver` in `Engine/DisplayAccounts.swift`) is the **display list**: engine rows,
+then visible remembered rows. The popover, Settings, the menu bar, notification labels and the
+phone capture read it. A new surface reads the display list; anything that decides what to probe
+reads the engine list. `store.snapshot(for:)` serves a remembered row's reading already aged
+(`UsageContinuityPolicy.rememberedSnapshot`, run at launch, on each engine wake and on popover
+open), so no view ages one. The phone learns a row is remembered from one optional v4 account key,
+`k`, written only when true: a setup with no remembered rows writes the bytes it wrote before, and
+a phone that predates the key shows the row as an ordinary stale extra. Widgets and the v3 key
+show each provider's main account only. `--demo remembered` poses the states from an in-memory
+record store.
 
 Claude waits on gate V1 of the plan: its credential is in the Keychain and its identity in
 `.claude.json`, and nothing has yet shown that the two change together. Do not wire Claude's

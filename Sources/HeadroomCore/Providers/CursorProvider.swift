@@ -363,10 +363,10 @@ public struct CursorProvider: UsageProvider {
                 capturedAt: capturedAt,
                 freshness: .live,
                 // KTD13: the status read runs beside the panel capture, so it cannot
-                // bracket the reading. One identity per reading, never a refusal.
-                identity: emailSource == nil
-                    ? nil
-                    : AccountIdentity.cursor(email: email).map(AccountIdentityOutcome.known) ?? .absent
+                // bracket the reading. One identity per reading, never a refusal. The
+                // reader returns nil for every miss, a timed-out spawn included, so a
+                // missing email is no evidence either way and the row is left as it is.
+                identity: AccountIdentity.cursor(email: email).map(AccountIdentityOutcome.known)
             )
         case .loginRequired: return stale(.providerSetup(.cursorAuthAbsent))
         case .workspaceTrustRequired: return stale(.providerSetup(.cursorTrustRequired))

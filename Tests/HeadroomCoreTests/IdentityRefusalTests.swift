@@ -133,6 +133,33 @@ struct IdentityRefusalTests {
         #expect(store.userRefreshRun?.entries[probe.accountKey]?.outcome == .live)
     }
 
+    /// A stale snapshot during a handoff reads as retry exhaustion, and a handoff is when
+    /// the identity file is being rewritten. The refusal never reaches the session.
+    @Test func aRefusedReadingDuringASignInHandoffDoesNotFailTheSetupSession() async {
+        let clock = MutableDateSource(t0)
+        let account = ProviderAccount.builtIn(for: .codex)
+        let probe = LaneProbe(id: .codex, accountID: .primary, lane: .concurrent, order: ProbeOrder(),
+                              result: { .identityUnreadable(for: .codex) })
+        let store = store(probe, clock: clock)
+        let coordinator = SetupSessionCoordinator(
+            retryDelays: [.seconds(60)],
+            prepare: { account, mode in .success(PreparedSetupHandoff(accountKey: account.key, mode: mode)) },
+            open: { _ in .success(()) },
+            accountExists: { _ in true },
+            requestRefresh: { _ in }
+        )
+        store.attachSetupCoordinator(coordinator)
+        coordinator.begin(for: account)
+        for _ in 0..<20 where coordinator.state(for: account.key) != .waiting(attempt: 0) {
+            await Task.yield()
+        }
+
+        await store.refreshAll()
+
+        #expect(probe.fetchCount == 2)
+        #expect(coordinator.state(for: account.key) == .waiting(attempt: 0))
+    }
+
     @Test func aSecondRefusalInsideOneUserRefreshIsNotQueuedAgain() async {
         let clock = MutableDateSource(t0)
         let probe = LaneProbe(id: .codex, accountID: .primary, lane: .concurrent, order: ProbeOrder(),

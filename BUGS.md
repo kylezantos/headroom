@@ -6,30 +6,46 @@ official `claude` CLI's `/usage` panel instead.
 
 ## Follow the default login: open items (2026-11-10)
 
-Plan: `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`. Phase 1 shipped for
-Codex, Grok, Cursor and Copilot. Phase 2 (remembered-account rows on the Mac and the phone) is
-built for Codex.
+Plan: `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`. Phase 1 covers Claude,
+Codex, Grok, Cursor and Copilot. Phases 2 (remembered-account rows on the Mac and the phone) and
+3 (one row for the default login and a matching extra) cover Claude and Codex, the providers
+with a strong identity.
 
 - **Claude is wired on one of gate V1's three cases (2026-11-11).** Identity is
   `oauthAccount.accountUuid` plus `organizationUuid` from each row's own `.claude.json`, read
   before and after every `/usage` capture; relabel, refusal, remembered rows and the one-row
   merge now apply to Claude (`ClaudeIdentityTests`). Still assumed, not verified: that a Claude
   Desktop sign-in and a default-login switcher rewrite the `oauthAccount` block whenever they
-  change the Keychain credential (see the V1 entry below and the V1 record's "Contrary
-  evidence" section: third-party sources say a running Claude Code session can rewrite the
-  block from its own cached profile; unreproduced). Also unmeasured: how often the CLI's
+  change the Keychain credential (see the V1 entry below). Third-party sources say a running
+  Claude Code session can rewrite the block from its own cached profile; a run on 2026-11-11
+  (CLI 2.1.322, one session, a few minutes) did not reproduce it: see the V1 record's "The
+  open-session case". Also unmeasured: how often the CLI's
   own rewrite of `.claude.json` at launch makes the after-read meet a half-written file and
   refuses a reading (`identityRefusalTotals` counts it; the plan's probe-trace line for it is
   not added). Two choices made in the wiring: a file undecodable on both sides is refused, as
   KTD2 is written, where Grok keeps that reading under no name; and an inherited
   `CLAUDE_CODE_OAUTH_TOKEN` is detected by the variable's presence, so an empty value also
   makes every Claude row Absent.
-- **Phase 3 (one row for the default login and a matching extra) is built for Codex.**
-- **Gate V1 passed for `claude auth login` only (2026-11-11).** See
-  `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and a
+- **Phase 3 (one row for the default login and a matching extra) is built for Claude and Codex**, the two
+  providers with a strong identity.
+- **A merged row dims when the added account's poll failed, even if the default login's own
+  reading is live (accepted, KTD11).** While merged, the row shows the added account's reading,
+  so a transient failure on that account dims the row. KTD11 keeps the merge through a transient
+  failure so the row does not split and rejoin on every blip.
+- **Gate V1 passed for `claude auth login`, with and without a session left running
+  (2026-11-11).** See `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and a
   switcher that swaps the Keychain credential. A switcher that leaves `.claude.json` alone
   would put readings under the wrong account; get a before-and-after `.claude.json` from a
   ccswap setup before a release says it follows one.
+- **Review residuals, Phase 3 and Claude (2026-11-11).** Not fixed: an added account that changes
+  to another login while merged sets its reminder state aside under the old account, and the
+  hand-over at unmerge skips it, so the built-in can post one of those reminders again. A setup
+  that ends in `connected` with the popover closed holds the merge off until the popover next
+  plays the Connected chip. The Claude provider decodes `.claude.json` twice per probe; the cost
+  on a large file is unmeasured. The popover header builds the display projection per body
+  (popover open at 20 accounts measured 742 view bodies against a recorded 741; the extra body is not identified and `main` was not re-measured the same day). The Settings badge rule for a merged pair is
+  tested in Core only. The cross-model adversarial review timed out with no output, so that
+  lens did not run on this branch.
 - **Gate V2 was not run; the risk is accepted (Kyle, 2026-11-11).** The one-row merge trusts
   that one Codex `account_id` is one account. Two teammates sharing an id would show as one
   row. Kyle's two logins have different ids.

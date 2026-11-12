@@ -10,6 +10,7 @@ Run 2026-11-11 on Kyle's Mac Studio, Claude Code 2.1.322, with Kyle approving ea
 | `claude auth login` to another account | **Pass.** The account block changes with the credential. |
 | Claude Desktop signing in | Not run. |
 | A default-login switcher (ccswap) | **Pass by source reading**, not by a run. Both projects named ccswap write the credential and then replace `oauthAccount`. See below. |
+| A session left running while the login changes | **Pass.** The running session kept writing the file and never put the old account back. See "The open-session case". |
 
 Claude identity work (U1, U2) can start on the strength of the first case. The switcher case rests
 on reading the switchers' source, with two edge cases noted below; no switch was run.
@@ -94,4 +95,28 @@ this was reproduced here, and none of it is from Anthropic.
 
 This is the plan's stop condition for Claude: if the file and the credential can change apart,
 Claude's identity work is revisited. The case to reproduce before a release is a session left
-running under account A while the login changes to B.
+running under account A while the login changes to B. It was run the same day; see below.
+
+## The open-session case (2026-11-11, run)
+
+Same method as the first case: a throwaway `CLAUDE_CONFIG_DIR` under `/tmp`, a clean environment,
+Claude Code 2.1.322, Kyle approving both sign-ins, digests only. The Keychain entry list was
+identical before and after, and the folder was signed out and deleted.
+
+1. `claude auth login` as the personal account (A). File and `claude auth status --json` agreed.
+2. An interactive `claude` session was started in that folder, taken past first-run screens, and
+   sent one prompt, so it held a live profile for A.
+3. With that session still running, `claude auth login` as the Team account (B). The file's
+   `accountUuid`, `organizationUuid` and email changed to B within one 2-second sample.
+4. The file was sampled every 2 seconds for about 3.5 minutes while session A sat idle for 45
+   seconds, answered a second prompt, opened `/usage`, and exited with `/exit`.
+
+Result: every sample after the sign-in named B (101 of 101). Session A did rewrite `.claude.json`
+three times after the switch (the file's modification time moved after the prompt, after `/usage`
+and at exit), and each rewrite kept B's `oauthAccount`. `claude auth status --json` named B at the
+end. The claim that a running session writes its cached account back did not reproduce on this
+CLI version.
+
+Limits: one CLI version, one session, one config folder with its own Keychain entry (not the
+default `~/.claude`), a few minutes rather than hours, and no token refresh inside the old
+session. A switcher that swaps the Keychain item under a running session was still not run.

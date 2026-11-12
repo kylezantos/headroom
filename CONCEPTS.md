@@ -53,6 +53,12 @@ An account that used to be the default login and no longer is. Headroom keeps it
 
 It is not read while it is away, so its numbers are a last reading, never a live one. It shows as a dimmed row that says when it was last read, and once a limit's reset has passed the row says so and shows no number.
 
+### Merged row
+The one row shown when the default login and an added account are the same account. The added account's row stands for both, and both are still read.
+*Avoid:* duplicate, linked account
+
+Only a strong identity merges (Claude and Codex). Nothing is stored or removed: when the default login changes again, the two rows come back.
+
 ### Engine list
 The accounts Headroom reads for a provider: the ones the user signed in to, with the main account first.
 

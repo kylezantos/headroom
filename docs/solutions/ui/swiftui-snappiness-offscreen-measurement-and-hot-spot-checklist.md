@@ -129,7 +129,7 @@ stand-in to match.
 - Stores come from `DemoFixture`: the single-account snapshots, `multiFixture(for: .multiThree)`
   and `(for: .multiFive)`, and the `multi-20` account list without its simulated 4-second probes, so
   `refreshAll()` lands every row before timing starts. Settings gets in-memory key stores and
-  `ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil })`, so the bench never touches the
+  `ClaudeDuplicateLoginDetector(readIdentity: { _ in nil })`, so the bench never touches the
   Keychain or the user's `.claude.json`.
 - Every run gets fresh `UserDefaults` suites (`co.zantos.headroom.bench.<UUID>` and
   `co.zantos.headroom.bench.accounts.<UUID>`) and deletes them before exit, plist included.

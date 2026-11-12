@@ -253,20 +253,19 @@ account below the print-mode floor keep the `interactive` bare launch, which is 
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
 Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
 
-**Follow the default login (Nov 2026, Phases 1 and 2 of
-`docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Codex, Grok, Cursor and
+**Follow the default login (Nov 2026,
+`docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Claude, Codex, Grok, Cursor and
 Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
-digest of the CLI's own metadata, never the upstream id). Codex and Grok read their account file
+digest of the CLI's own metadata, never the upstream id). Claude, Codex and Grok read their account file
 before and after the usage read; if the two reads disagree or exactly one fails, the reading is refused
 on `UsageProviderFetchResult.discard` and read again at the lane's next turn, with no backoff
 and no dimmed row. After two refusals in a row the next one merges as an ordinary transient
 failure. A file unreadable on both sides is a steady state, so that reading is kept under no
-account's name. A row is a slot bound to one identity (`SlotRecord` in `Engine/DefaultLoginRecords.swift`,
+account's name (Claude refuses it instead, see below). A row is a slot bound to one identity (`SlotRecord` in `Engine/DefaultLoginRecords.swift`,
 stored under `defaultLoginRecords.v1`). When the built-in row's default login becomes a different
 account, the row takes that account's name, or "Main", and none of the previous account's
 history or reminder state; the previous account's label, last reading and reminder state are
-kept in the record store and return if that account does. Showing the default login and a
-matching extra as one row (Phase 3) is not built yet. Parity, forced by what each client exposes:
+kept in the record store and return if that account does. Parity, forced by what each client exposes:
 
 | Provider | Identity | Mid-change refusal | Relabel and history reset | Remembered |
 |---|---|---|---|---|
@@ -275,6 +274,15 @@ matching extra as one row (Phase 3) is not built yet. Parity, forced by what eac
 | Cursor | email from `status`, weak | No (the read runs beside the capture) | Yes | No |
 | Copilot | login, weak, up to an hour old | No | Yes | No |
 | Claude | `accountUuid` + `organizationUuid` from `.claude.json`, strong | Yes | Yes | Yes |
+
+**One row for one account (Phase 3).** When the default login is the same account as exactly
+one added account, every display surface shows one row for the pair: the added account's row
+stands for both (`DisplayMergePlanner`, the display list's `mergeMap`). Both config homes keep
+being read. The merge needs a known, equal, strong identity on both rows (so Claude and Codex
+only; a weak identity never merges), a live or transiently stale reading on the added row, and
+no setup in progress on either; in any other case both rows show as before. It is a display
+decision made fresh from current readings, never stored, and it removes or signs out nothing.
+`--demo merged` and `--render-scenario merged` pose it.
 
 **Remembered accounts (Phase 2).** The account the default login left keeps a dimmed row with
 its last reading: a "Last read …" tag where "Stale" would be, and, once a window's reset has
@@ -319,7 +327,9 @@ and after the `/usage` capture; unlike Grok, a file undecodable on both sides is
 refusal bound turns it into a transient failure. An inherited `CLAUDE_CODE_OAUTH_TOKEN`
 (`ClaudeUsageCLIProbe.launchesWithInheritedOAuthToken`, presence only) makes every Claude row
 Absent. `AppComposition.claudeIdentityReader` wires the reader in a real launch only; demos,
-harnesses and the XCTest host read no file. **Unverified:** a Claude Desktop sign-in, and a
+harnesses and the XCTest host read no file. A session left running under one account while
+`claude auth login` changed the folder to another did not write the old account back (same
+record, one CLI version, a few minutes). **Unverified:** a Claude Desktop sign-in, and a
 default-login switcher that swaps the Keychain credential. A switcher that leaves `.claude.json`
 alone would file readings under the wrong account, so no release may claim to follow one until
 gate V1's switcher case has a result. Never read the Keychain item or run `claude auth status`
@@ -338,8 +348,9 @@ only be *stop-tracked* (Aug 2026): a persisted registry tombstone hides the row 
 the CLI's own config or login, allowed only while another account exists, undone via "Show CLI
 Account" in the provider header. Claude rows signed in to the same upstream login (matched by
 the default-login identity, `accountUuid` plus `organizationUuid`, metadata only, so the badge
-and the records never disagree) get a detection-only "Same login as X" badge — never
-auto-merged.
+and the records never disagree) get a detection-only "Same login as X" badge. Rows are never
+merged in storage; the only merge is the display-only one-row rule above, between the built-in
+row and one added account with the same strong identity.
 
 ## Commands
 

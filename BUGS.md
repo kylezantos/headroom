@@ -63,7 +63,9 @@ with a strong identity.
   should count only the rows shown.
 - **Live looks so far.** Popover with remembered and merged rows: macOS 26 (dark) and macOS
   15.7.7 (light), Standard and Compact. Settings › Accounts with a merged pair and a remembered
-  row: macOS 15.7.7 in the `merged` demo. Not looked at: the iPhone rows, the Micro meter
+  row: macOS 15.7.7 in the `merged` demo. iPhone remembered rows, with the "Last read" tag and the
+  reset lines: the `remembered` demo in an iPhone 17 Pro simulator (iOS 26.5, dark). Not looked
+  at: a real iPhone, the Micro meter
   style's reset line, Settings on macOS 26, and a merged pair made from real sign-ins (the VM
   run had no added account).
 - **Flaky test.** `AccountProbeSchedulerTests.popoverOpenProbeDoesNotCarryTheUserRequestedFlag`

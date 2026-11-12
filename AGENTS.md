@@ -329,11 +329,13 @@ refusal bound turns it into a transient failure. An inherited `CLAUDE_CODE_OAUTH
 Absent. `AppComposition.claudeIdentityReader` wires the reader in a real launch only; demos,
 harnesses and the XCTest host read no file. A session left running under one account while
 `claude auth login` changed the folder to another did not write the old account back (same
-record, one CLI version, a few minutes). **Unverified:** a Claude Desktop sign-in, and a
-default-login switcher that swaps the Keychain credential. A switcher that leaves `.claude.json`
-alone would file readings under the wrong account, so no release may claim to follow one until
-gate V1's switcher case has a result. Never read the Keychain item or run `claude auth status`
-for identity.
+record, one CLI version, a few minutes). One switcher is verified by a run: `errhythm/ccswap`
+at `8bf7b9b` kept the file and the credential together through five switches and a switch
+under a running session, and Headroom followed two of them end to end (same record,
+2026-11-12, in a VM). **Unverified:** a Claude Desktop sign-in, and every other switcher. A
+switcher that leaves `.claude.json` alone would file readings under the wrong account, so a
+release may say it follows that ccswap and the CLI's own sign-in, and no other tool by name.
+Never read the Keychain item or run `claude auth status` for identity.
 
 Each provider has a persisted primary selection. **Make Main** reorders the selected row to the
 top, refreshes only it, and immediately reroutes the menu bar, widgets, phone projection,

@@ -32,11 +32,11 @@ with a strong identity.
   reading is live (accepted, KTD11).** While merged, the row shows the added account's reading,
   so a transient failure on that account dims the row. KTD11 keeps the merge through a transient
   failure so the row does not split and rejoin on every blip.
-- **Gate V1 passed for `claude auth login`, with and without a session left running
-  (2026-11-11).** See `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and a
-  switcher that swaps the Keychain credential. A switcher that leaves `.claude.json` alone
-  would put readings under the wrong account; get a before-and-after `.claude.json` from a
-  ccswap setup before a release says it follows one.
+- **Gate V1 passed for `claude auth login` (with and without a session left running,
+  2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** See
+  `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and any
+  other switcher. A switcher that leaves `.claude.json` alone would put readings under the
+  wrong account.
 - **Review residuals, Phase 3 and Claude (2026-11-11).** Not fixed: an added account that changes
   to another login while merged sets its reminder state aside under the old account, and the
   hand-over at unmerge skips it, so the built-in can post one of those reminders again. A setup
@@ -54,10 +54,23 @@ with a strong identity.
 - **Gate V2 was not run; the risk is accepted (Kyle, 2026-11-11).** The one-row merge trusts
   that one Codex `account_id` is one account. Two teammates sharing an id would show as one
   row. Kyle's two logins have different ids.
-- **Gate V3 has no result.** One real rotation on a switcher setup, before a public release.
-- **Phase 2 has no live or device look.** The remembered rows were checked in `--render-popover`
-  renders (Standard and Compact, light and dark). The Settings row, the iPhone row and the Micro
-  meter style's reset line are covered by tests and builds only.
+- **Gate V3 passed for Claude (2026-11-12).** A real Headroom build on macOS 15.7.7 in a VM
+  followed three ccswap switches between two real subscriptions: the built-in row took the new
+  account's numbers and "Main", and the account it left stayed as a dimmed "Last read" row with
+  its own last reading. Not run for Codex. Seen there: the two accounts' remembered names were
+  "Account 2" and "Account 3", each stable, so a two-account rotation never shows "Account 1"
+  and the second remembered account reads "Account 3". Not changed; decide whether numbering
+  should count only the rows shown.
+- **Live looks so far.** Popover with remembered and merged rows: macOS 26 (dark) and macOS
+  15.7.7 (light), Standard and Compact. Settings › Accounts with a merged pair and a remembered
+  row: macOS 15.7.7 in the `merged` demo. Not looked at: the iPhone rows, the Micro meter
+  style's reset line, Settings on macOS 26, and a merged pair made from real sign-ins (the VM
+  run had no added account).
+- **Flaky test.** `AccountProbeSchedulerTests.popoverOpenProbeDoesNotCarryTheUserRequestedFlag`
+  failed once in four full parallel runs on a quiet machine (2026-11-12, `recorder.values ==
+  [true, false]`); it is older than the default-login work. The fake-CLI deadline tests
+  (`ClaudeUsageCLIProbeTests`, `CopilotStatusSourceTests`, Cursor probe tests) fail under heavy
+  machine load and pass serially.
 - **A phone that predates the `k` key treats a remembered row as an ordinary stale extra.** It
   counts the row as not updated after a check-now and Siri may name it, until that phone
   updates. Recorded in the sync field contract. Accepted (Kyle, 2026-11-10) over holding

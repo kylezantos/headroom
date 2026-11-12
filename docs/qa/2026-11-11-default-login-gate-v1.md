@@ -9,7 +9,8 @@ Run 2026-11-11 on Kyle's Mac Studio, Claude Code 2.1.322, with Kyle approving ea
 |---|---|
 | `claude auth login` to another account | **Pass.** The account block changes with the credential. |
 | Claude Desktop signing in | Not run. |
-| A default-login switcher (ccswap) | **Pass by source reading**, not by a run. Both projects named ccswap write the credential and then replace `oauthAccount`. See below. |
+| A default-login switcher (ccswap) | **Pass by a run** for `errhythm/ccswap` (2026-11-12), including under a running session. `Dudude-bit/ccswap` by source reading only. See "The switcher run". |
+| Headroom following a real switch (gate V3) | **Pass** for Claude with that ccswap. See "The switcher run". |
 | A session left running while the login changes | **Pass.** The running session kept writing the file and never put the old account back. See "The open-session case". |
 
 Claude identity work (U1, U2) can start on the strength of the first case. The switcher case rests
@@ -119,4 +120,41 @@ CLI version.
 
 Limits: one CLI version, one session, one config folder with its own Keychain entry (not the
 default `~/.claude`), a few minutes rather than hours, and no token refresh inside the old
-session. A switcher that swaps the Keychain item under a running session was still not run.
+session. A switcher that swaps the Keychain item under a running session was run the next day;
+see below.
+
+## The switcher run (2026-11-12)
+
+Run in a throwaway macOS 15.7.7 VM (tart clone, deleted afterwards), so no real default login
+was touched. Claude Code 2.1.322 and `errhythm/ccswap` at `8bf7b9b` were installed in it, and
+Kyle signed two real subscriptions in (a personal Max plan and a Team plan), each added with
+`ccswap add`. Both were signed out and `ccswap purge` run before the VM was deleted. Digests
+only, as before.
+
+Three things were compared after each switch: the `oauthAccount` block of the default
+`~/.claude.json`, `claude auth status --json`, and the usage report from `claude -p "/usage"`.
+The last is the independent check: it is fetched from the server with the live credential, and
+the two accounts have different weekly reset times, so it shows whose credential is in use
+whatever the file says.
+
+- **Five plain switches** (`ccswap switch 1` / `2`): after every one, the file and the status
+  named the account switched to. The usage report was read after two of them and showed that
+  account's reset times both times.
+- **A switch under a running session.** An interactive `claude` session was started under
+  account A and sent a prompt. `ccswap switch 2` ran from another shell. The file was sampled
+  every second for 110 seconds while the session sat idle for 45 seconds, answered a prompt,
+  opened `/usage` and exited. Every sample after the switch named B (104 of 104). The session
+  rewrote the file four times after the switch and kept B each time, and its own `/usage`
+  panel showed B's reset times, so it had taken up the new credential.
+- **Headroom, end to end (gate V3).** A build of `main` (`22a3fea0`, 1.6.2 (46)) was launched
+  in the VM with the default login on B: one "Claude" row with B's numbers. After `ccswap
+  switch 1` and Refresh: the row read "Main" with A's numbers, and B was kept as a dimmed row
+  "Account 2 · Last read 1 min ago" with its last reading. After `ccswap switch 2` and
+  Refresh: "Main" with B's numbers, and A dimmed as "Account 3". A third switch gave the
+  second state again, with B as "Account 2". No reading appeared under the wrong account and
+  no window from one account was carried onto the other's row.
+
+Limits: one switcher at one commit, one CLI version, macOS 15.7.7, Claude only (no Codex
+switch), no added account present (so the one-row merge was not exercised with real logins),
+minutes rather than hours, and no token refresh during the run. Captures are local files under
+`.context/qc/phase3-vm/` and show real account emails, so they are not committed.

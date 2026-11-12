@@ -331,11 +331,17 @@ harnesses and the XCTest host read no file. A session left running under one acc
 `claude auth login` changed the folder to another did not write the old account back (same
 record, one CLI version, a few minutes). One switcher is verified by a run: `errhythm/ccswap`
 at `8bf7b9b` kept the file and the credential together through five switches and a switch
-under a running session, and Headroom followed two of them end to end (same record,
-2026-11-12, in a VM). **Unverified:** a Claude Desktop sign-in, and every other switcher. A
-switcher that leaves `.claude.json` alone would file readings under the wrong account, so a
-release may say it follows that ccswap and the CLI's own sign-in, and no other tool by name.
-Never read the Keychain item or run `claude auth status` for identity.
+under a running session, and Headroom followed three more end to end (same record,
+2026-11-12, in a VM). **What a release may say (Kyle, 2026-11-12):** Headroom follows the
+default login when it changes the standard way, with the credential and the CLI's account
+record swapped together, which is how account switchers work. All six Claude switchers read
+in source do that; one is proven by a run. Do not name a tool as supported. A switcher that
+leaves `.claude.json` alone would file readings under the wrong account, and that limit goes
+in any support answer about a switcher that misbehaves. A Claude Desktop sign-in is not
+checked and will not be (Kyle: people who switch accounts are not using Desktop for it).
+Codex has no real-switch run: its account id and its token live in the one `auth.json` that
+the request reads, so there is no second place to fall out of step, and that is reasoning,
+not a test. Never read the Keychain item or run `claude auth status` for identity.
 
 Each provider has a persisted primary selection. **Make Main** reorders the selected row to the
 top, refreshes only it, and immediately reroutes the menu bar, widgets, phone projection,

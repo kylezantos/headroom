@@ -34,8 +34,10 @@ with a strong identity.
   failure so the row does not split and rejoin on every blip.
 - **Gate V1 passed for `claude auth login` (with and without a session left running,
   2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** See
-  `docs/qa/2026-11-11-default-login-gate-v1.md`. Not run: Claude Desktop signing in, and any
-  other switcher. A switcher that leaves `.claude.json` alone would put readings under the
+  `docs/qa/2026-11-11-default-login-gate-v1.md`. Closed without a run (Kyle, 2026-11-12):
+  Claude Desktop signing in. Not run: any other switcher (five more were read in source and
+  swap the credential and the account block together), and a Codex switch (id and token share
+  one `auth.json`). A switcher that leaves `.claude.json` alone would put readings under the
   wrong account.
 - **Review residuals, Phase 3 and Claude (2026-11-11).** Not fixed: an added account that changes
   to another login while merged sets its reminder state aside under the old account, and the

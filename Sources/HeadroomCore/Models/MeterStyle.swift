@@ -120,7 +120,7 @@ public enum MeterGeometry {
     /// the cell height. `MeterStyleTests` pins the ratios so a later retune of one format
     /// cannot silently drift away from the other.
     ///
-    /// MX3 (Kyle, Oct 2026, `design/meter-execution-pass-options.html`): the 10pt row of
+    /// MX3 (Oct 2026): the 10pt row of
     /// free-standing tiles read as a row of keys. Full cells now sit at 8pt — the height of
     /// every other Full track — at a 3.5pt gap and r2.5, and the tip cell stands proud of the
     /// row (`fullTipCellHeight`) the way the Glass/Ghost cap stands proud of the chip. The

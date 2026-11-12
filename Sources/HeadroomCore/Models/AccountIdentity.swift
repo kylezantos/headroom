@@ -32,8 +32,8 @@ public struct AccountIdentity: Sendable, Equatable, Hashable, Codable {
     }
 
     /// Claude: `oauthAccount.accountUuid` plus `oauthAccount.organizationUuid` from the
-    /// config home's `.claude.json` (KTD1; field paths confirmed by gate V1,
-    /// `docs/qa/2026-11-11-default-login-gate-v1.md`). One account in two organizations is
+    /// config home's `.claude.json` (KTD1; field paths confirmed by gate V1).
+    /// One account in two organizations is
     /// two identities. A null or absent organization is a value, not a failure. Both ids
     /// must be UUID-syntactic: the file is local plaintext, so a hand-edited value yields
     /// no identity rather than one that could match an unrelated home.

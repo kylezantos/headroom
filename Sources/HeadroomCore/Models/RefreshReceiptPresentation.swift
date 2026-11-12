@@ -1,6 +1,6 @@
 import Foundation
 
-/// W4 (Oct 2026, design/refresh-stamp-merge-round4.html): a user-requested refresh in
+/// W4 (Oct 2026): a user-requested refresh in
 /// progress, which the popover footer turns into a one-line receipt. Moved to Models with
 /// the receipt presentation (iPhone parity U6, KTD14.6) so the phone's check-now line and
 /// the Mac footer share one vocabulary.

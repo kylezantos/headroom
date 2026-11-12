@@ -33,7 +33,7 @@ public enum AboutLinks {
 
     /// G9 (iPhone parity plan): the iPhone app's App Store page, linked from the Mac's
     /// Widgets & iPhone pane. The ID-only form survives the listing's rename to "Headroom
-    /// by Kyle Zantos"; the ID is the live listing's (`docs/plans/2026-10-04-ios-parity-research/appstore.md`).
+    /// by Kyle Zantos"; the ID is the live listing's.
     public static let iPhoneApp = AboutLink(
         title: "Get Headroom for iPhone",
         destination: "App Store",

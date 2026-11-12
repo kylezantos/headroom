@@ -8,7 +8,7 @@ enum HeadroomTheme {
 
     /// The screen background — a lifted vertical gradient (gray at top → near-black at
     /// bottom) with a faint cool glow bleeding from the top, ported from the approved
-    /// `design/ios-companion.html` mock. This is what gives the phone its Mac-like
+    /// iOS companion mock. This is what gives the phone its Mac-like
     /// elevated feel without literally copying the Mac's translucent glass (a flat
     /// full-screen gray would read muddier, not more premium).
     static func backgroundView(_ scheme: ColorScheme) -> some View {

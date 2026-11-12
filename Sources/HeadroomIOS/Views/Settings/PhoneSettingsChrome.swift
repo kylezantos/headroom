@@ -9,7 +9,7 @@ extension PhoneDisplayPreferencesStore {
 /// U12: the phone Settings sheet's swatch vocabulary. Kyle's U9-A: neutral like the popover,
 /// never system blue, so every selected state and switch here is drawn in label ink.
 enum PhoneSettingsStyle {
-    /// Swatch geometry after the approved S2 mock (`design/ios-parity-options.html`, `.sw`):
+    /// Swatch geometry after the approved S2 mock (`.sw`):
     /// a 42pt well with a 10pt radius and 11pt medium names. The mock's 60pt swatch is 2pt
     /// short of the Format fragment the Mac draws (a 6pt "Weekly", a 4pt gap and the 32pt
     /// micro chip), so swatches are 62 on 5pt gaps: five columns need 330pt, inside the 332pt

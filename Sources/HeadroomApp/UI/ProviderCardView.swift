@@ -1474,7 +1474,7 @@ struct CardActionRow<Content: View>: View {
     }
 }
 
-/// O15/V13b (Kyle, 2026-10-03; `design/on-card-row-button-variations.html`): an account
+/// O15/V13b (2026-10-03): an account
 /// row's status sentence *is* its primary action, so the separate chip row is gone. Four
 /// boxed chips across two signed-out accounts outweighed the meters; one quiet row per
 /// account, with the secondary action reduced to a trailing glyph, is lighter and shorter.
@@ -1811,7 +1811,7 @@ struct CardRowButtonStyle: ButtonStyle {
             .onHover { hovering = $0 }
         }
 
-        /// B (Kyle, 2026-10-03; `design/on-card-row-vs-plan-chip.html`): V6′'s flat grey fill
+        /// B (2026-10-03): V6′'s flat grey fill
         /// was the plan capsule's material, so the row read as a long capsule. A lighter fill
         /// plus a 0.5pt edge separates them — the plan capsule has no edge. White over the dark
         /// card, black over the light one. (C, the recessed/raised plate, was tried live first.)

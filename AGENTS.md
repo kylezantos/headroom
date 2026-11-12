@@ -10,6 +10,11 @@ usage — 5-hour and weekly windows, reset times, manual renewal dates — for *
 **ChatGPT/Codex**, behind one provider abstraction so more can be added. Tahoe uses Liquid
 Glass; Sequoia uses a native material popover surface.
 
+The repository is open source under GPL-3.0, with contributions accepted under `CLA.md`. Outside
+contributors start from `CONTRIBUTING.md`; this file stays the full guide. Design explorations,
+plans and QA records are kept outside the repo, so plan anchors in comments (`KTD7`, `R12`) have
+no in-repo definition.
+
 ## Product principles (Sep 2026)
 
 - **The goal is real-time usage data for every provider and every account, as smoothly,
@@ -107,8 +112,7 @@ section for any account whose state needs an action. The plan is made when the p
 from the heights it last drew, and on an account-set change; heights never replan while it is
 open. `MenuBarExtra` grows its window with the content but never shrinks it, so `PopoverView`
 fits a narrower window itself, while it is hidden. See
-`docs/solutions/ui/popover-account-columns.md` and
-`docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
+`docs/solutions/ui/popover-account-columns.md`.
 
 The popover meter style is one global `MeterStyle`, persisted as three independent
 UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStore`. Widget and
@@ -129,14 +133,13 @@ unavailable last), shedding ladders, Liquid Level's wash segments, large-only sp
 — is a pure, tested `WidgetStyleRecipe`; the shared views in `HeadroomWidgetSharedUI` only lay
 recipes out through `HeadroomWidgetStyledBody` plus the full-bleed `HeadroomWidgetStyledBackground`,
 which every caller (both hosts, Settings, the harness) draws under the padded content. Settings ›
-Widgets & iPhone previews the styles but never sets them. Plan:
-`docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
+Widgets & iPhone previews the styles but never sets them.
 **Lock Screen widgets (Oct 2026).** A second widget in the iOS extension, kind
 `HeadroomIOSLockScreenWidget` with its own `HeadroomLockScreenConfigurationIntent`, offers circle,
 rectangle and inline sizes on the iPhone and iPad Lock Screens. Edit Widget offers **Style** (the
 same four names, default **Liquid Level**) and **Provider** (Automatic, Claude, Codex, Grok,
-Cursor, Copilot); there is no Color. Each style draws one approved design per size
-(`design/lock-screen-widget-ideas.html`). Every decision — which provider (circle: home R6 pick;
+Cursor, Copilot); there is no Color. Each style draws one approved design per size.
+Every decision — which provider (circle: home R6 pick;
 rectangle and inline: the two widget providers; Tightest First on Automatic: every synced provider),
 the R8 state order, captions, Cursor pool names, demo labels, status forms, inline text candidates
 and the stepped inline image — is the pure, tested `LockScreenWidgetRecipe`; the shared
@@ -146,8 +149,7 @@ Like the home widgets, it shows each provider's main account only (schema 3 carr
 the stated multi-account parity exception. `--render-widgets` also renders every Lock Screen
 style × size × provider × fixture at three phone geometries, normal, Always On and privacy
 (`--widget-family lock|home` filters). The inline vessel images are generated from Core geometry
-with `swift run Headroom --generate-lock-screen-vessels`. Plan:
-`docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`.
+with `swift run Headroom --generate-lock-screen-vessels`.
 Tube remains a stored shape when Full is selected, but `GaugeShape.resolved(for:)` renders it
 as Chip until the user returns to Micro.
 
@@ -163,8 +165,7 @@ reset + 10 min. The Mac widget dims against its own export time on the 120-minut
 
 ### iPhone and iPad companion (Oct 2026)
 
-Plan: `docs/plans/2026-10-04-0923-feat-ios-parity-round-plan.md`; every key and field, with its
-fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durable reasoning:
+Durable reasoning:
 `docs/solutions/architecture-patterns/companion-sync-v4-multi-key.md`.
 
 - **Two sync formats in one publish.** The Mac writes v4 under `headroom.sync.v4.`: a manifest
@@ -190,9 +191,8 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
   change swaps it. Every phone process's loader creates it when the store has none (a placed widget
   can run before the app after an update); none ever rewrites one. The first candidate,
   `ubiquityIdentityToken`, failed on device (it differs between app and widget and is nil with
-  iCloud Drive off). Kyle approved the marker and everyday-use acceptance in place of the DEBUG
-  probe; the account-switch check in `docs/qa/2026-10-04-companion-identity-candidate-gate.md`
-  remains a U20 item. Turning the switch off restores build 33's loading path.
+  iCloud Drive off). The marker and everyday-use acceptance were approved in place of the DEBUG
+  probe; the on-device account-switch check remains a U20 item. Turning the switch off restores build 33's loading path.
 - **The Mac publisher coalesces (KTD8).** `UsageStore` hands a fresh capture to
   `CompanionPhoneSync` on every phone-bound change; it stamps a generation on the main actor and
   forwards to the serial `CompanionPublisher` actor. Flushes write changed provider keys, the
@@ -253,8 +253,7 @@ account below the print-mode floor keep the `interactive` bare launch, which is 
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
 Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
 
-**Follow the default login (Nov 2026,
-`docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Claude, Codex, Grok, Cursor and
+**Follow the default login (Nov 2026).** Every Claude, Codex, Grok, Cursor and
 Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
 digest of the CLI's own metadata, never the upstream id). Claude, Codex and Grok read their account file
 before and after the usage read; if the two reads disagree or exactly one fails, the reading is refused
@@ -316,7 +315,7 @@ a phone that predates the key shows the row as an ordinary stale extra. Widgets 
 show each provider's main account only. `--demo remembered` poses the states from an in-memory
 record store.
 
-Claude is wired on gate V1's one recorded case (`docs/qa/2026-11-11-default-login-gate-v1.md`):
+Claude is wired on gate V1's one recorded case:
 after `claude auth login` to another account, the `oauthAccount` block of `.claude.json` changed
 with the Keychain credential, and after `claude auth logout` it was gone. Identity is
 `oauthAccount.accountUuid` plus `oauthAccount.organizationUuid` (`AccountIdentity.claude`; one
@@ -364,6 +363,7 @@ xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS -destination 'platfor
 # Required pre-PR iOS build (app + extension), alongside swift build and swift test.
 ./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
+# Without the maintainer's Apple team (contributors, CI), append CODE_SIGNING_ALLOWED=NO to both xcodebuild commands: the app tests and the iOS build pass unsigned. `.github/workflows/ci.yml` runs all three checks on the `xcode-27` runner.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
 Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
@@ -568,7 +568,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   only; timer passes never show "Refreshing…". Don't reintroduce a sweep-per-tick path or a
   computed stretch factor: the gate is measured from the probe log (`LaneSchedule`), so an
   outage clears within one normal pass. See
-  `docs/plans/2026-09-19-2217-feat-per-account-polling-schedule-plan.md`. **Export rule
+  `docs/solutions/architecture-patterns/per-account-polling-measured-duty-cycle.md`. **Export rule
   (amended Oct 2026, iPhone parity KTD8):** a main account's merge writes the Mac widget file and
   reloads its timelines; every merge, extras included, marks the phone path dirty
   (`exportPhoneSyncSnapshot()`), and an extra's merge never reloads Mac WidgetKit timelines. A
@@ -687,8 +687,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   frames from Core's wall clock and stopping after the wave/print deadline (KTD17 exception).
   The popover footer's stamp turns into a
   per-account receipt during a user refresh (`refreshProgress`, Core `RefreshReceiptPresentation`, shared with the phone's check-now line). Both come
-  from the scheduler's probe and user-progress callbacks; see
-  `design/refresh-stamp-merge-round3.html` (S2) and `…-round4.html` (W4).
+  from the scheduler's probe and user-progress callbacks (decisions S2 and W4).
 - **Check-now (Oct 2026, iPhone parity U6) joins one full refresh.** `refreshAll()` keeps one
   in-flight full-refresh task (`fullRefreshStartedAt`); every other caller — popover, launch, a
   phone request — awaits it, and `lastFullRefreshCompletedAt` starts a 60 s cooldown. A phone
@@ -698,7 +697,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   write the receipt first. The phone matches its own request ID only and shows "Just now" only
   after assembling `finishedGeneration` (`Sync/CheckNowProtocol.swift`). Single-account checks,
   setup checks and spend-only refreshes never answer a request. Timing constants are
-  provisional until `docs/qa/2026-10-check-now-latency-spike.md` runs. The phone sends requests
+  provisional until the two-device check-now latency spike runs. The phone sends requests
   only when the resolver's winner is v4; a Mac on 1.4.1 or older only gets a re-read.
 - **The v3 key must stay readable by build 33.** `Build33DecoderGoldenTests` runs the Mac's v3
   output through a frozen copy of that decoder; never weaken it. The Mac's random lineage UUID
@@ -723,7 +722,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   and harnesses read no CLI and open no mail app (`AppComposition.usesInertFeedback`). Don't
   add an in-app sender, an
   endpoint or analytics without a new plan: the privacy policy promises Headroom sends
-  nothing itself. See `docs/plans/2026-11-03-1400-feat-feedback-by-email-plan.md`.
+  nothing itself.
 - **An account change is one record commit, then its mirrors (Nov 2026).** `UsageStore.merge`
   calls `defaultLoginPrior` first, before the reliability note and the sign-out edge. A change
   commits `defaultLoginRecords.v1` once with a `pendingMirror`, then writes the registry label,
@@ -745,8 +744,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   uncatchable exception without an `.app` bundle, so `UserNotificationClient` stays inert under
   `swift run`, `--demo`, `--render-popover` and `HeadroomAppTests` (KTD9) — verify real banners and
   the permission prompt on a built `Headroom.app`. The popover can't be opened programmatically,
-  so a tap only activates the app (KTD8). Core never imports UserNotifications. See
-  `docs/plans/2026-09-26-1111-feat-notifications-pane-plan.md`.
+  so a tap only activates the app (KTD8). Core never imports UserNotifications.
 
 ## Follow-ups
 

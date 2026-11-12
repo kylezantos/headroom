@@ -6,7 +6,7 @@ import Testing
 /// The KVS scope-marker candidate (KTD22 amendment, pending Kyle's sign-off): the marker lives
 /// in the same iCloud key-value store the cached content comes from, so an account change
 /// replaces it. These prove the rules with an in-memory store; the platform behaviour still
-/// needs the device check in docs/qa/2026-10-04-companion-identity-candidate-gate.md.
+/// needs the companion identity gate's device check.
 @Suite
 struct CompanionKVSScopeMarkerTests {
     typealias F = CompanionFixtures

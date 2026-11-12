@@ -83,7 +83,7 @@ and writes the finished report atomically. What remains is only the honest failu
 credential persistence. Controlled tests on official CLI 2.1.302 and 2.1.303 found normal
 exit could abandon an in-flight synthetic renewal even after valid cached usage. Removing
 the redundant auth-status preflight reduces one exposure; print/PTY termination remains
-subject to the upstream limitation. See `docs/qa/2026-10-20-safe-provider-session-fixes.md`.
+subject to the upstream limitation.
 
 ## The PTY fallback opts out of Remote Control (October 2026)
 

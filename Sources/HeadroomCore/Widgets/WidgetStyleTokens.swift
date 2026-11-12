@@ -3,8 +3,7 @@ import Foundation
 /// KTD8 (2026-10-02 widget-styles plan): the numeral sizes the four widget styles add to the
 /// `WidgetTypeScale` ladder. Hero numerals are fixed size — scaling a 42pt hero at xxLarge
 /// overflows "100%" and drags Vessel Hero's vessel with it — while labels, captions and
-/// countdowns keep the ladder's Dynamic Type scaling. Values are the approved mocks
-/// (`design/widget-styles-round2.html`).
+/// countdowns keep the ladder's Dynamic Type scaling. Values are the approved mocks.
 public enum WidgetStyleType {
     public static func heroNumeral(style: WidgetLayoutStyle, family: WidgetFamily, providerCount: Int) -> Double {
         switch (style, family) {

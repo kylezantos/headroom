@@ -91,7 +91,6 @@ above 2 min. Halve the accounts and it reads exactly the chosen interval again. 
 
 ## Related
 
-- `docs/plans/2026-09-19-2217-feat-per-account-polling-schedule-plan.md` (R8, KTD3–KTD6)
 - `docs/solutions/logic-errors/claude-partial-usage-window-freshness.md` (why `capturedAt` and
   per-window freshness are provenance, not scheduling state)
 - `docs/solutions/claude-print-mode-usage-probe.md` (why one Claude probe can cost 3 s or 30 s)

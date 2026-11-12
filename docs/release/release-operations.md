@@ -160,8 +160,8 @@ payload contents.
 | Xcode-run Mac + Xcode-run phone (CloudKit Development on both) | | | | | | |
 
 The account-change and offline rows only mean something once `CompanionLoaderAdoption` is on;
-until then record "adoption off" and the build-33 behavior observed. Record the signed identity
-gate result (`docs/qa/2026-10-04-companion-identity-candidate-gate.md`) beside them.
+until then record "adoption off" and the build-33 behavior observed. Record the signed companion
+identity gate result beside them.
 
 **A 1.4.1 Mac cannot delete v4 keys.** It predates the v4 namespace, so turning sync off there
 writes only the disabled schema-3 envelope and leaves the manifest, provider, receipt and request
@@ -176,14 +176,13 @@ Production, so the shipping pair is Production + Production. A Mac run from Xcod
 from Xcode both use Development. Never pair across environments: a Development Mac writes records
 a Production phone never sees, and the subscription silently stays quiet. Deploy the
 `ReminderEvent` schema to Production before any Production build saves a record; Production
-schema changes cannot be removed. The spike runbook on `spike/u15-cloudkit-reminders`
-(`docs/qa/2026-10-cloudkit-reminders-spike.md`) carries the exact steps.
+schema changes cannot be removed. The spike runbook on the
+`spike/u15-cloudkit-reminders` branch carries the exact steps.
 
 **Build numbers (decided 2026-10-05).** Mac 1.4.1 is build 33, and iOS TestFlight already holds
 1.5 (33). The U15 CloudKit spike's TestFlight upload takes iOS **34**. The 1.5 release is build **35**
 for every target, Mac included, so the paired builds stay equal. The release-candidate step stamps 35
-once, on `main`; feature branches never stamp it. PR #160's `docs/release/1.5-release-checklist.md`
-records this.
+once, on `main`; feature branches never stamp it. PR #160 records this.
 
 ## Phase 4 — closeout
 

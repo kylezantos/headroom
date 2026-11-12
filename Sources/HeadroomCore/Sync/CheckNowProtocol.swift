@@ -9,8 +9,8 @@ import os
 // MARK: - Timing
 
 /// KTD14 timing. The acknowledgement and age numbers are the plan's; the per-probe estimate
-/// is a documented provisional constant until the two-device spike
-/// (`docs/qa/2026-10-check-now-latency-spike.md`) replaces it with a measurement.
+/// is a documented provisional constant until the two-device latency spike replaces it
+/// with a measurement.
 public enum CheckNowTiming {
     /// KTD14.7: no acknowledgement this long after asking reads "hasn't answered".
     public static let acknowledgementTimeout: TimeInterval = 60
@@ -364,7 +364,7 @@ public struct CheckNowStatus: Equatable, Sendable {
 
 // MARK: - Client
 
-/// U6 spike instrumentation (`docs/qa/2026-10-check-now-latency-spike.md`): one line per
+/// U6 spike instrumentation (the check-now latency spike): one line per
 /// state change, the request ID's first eight characters only, static wording otherwise.
 public enum CheckNowLog {
     public static let logger = Logger(subsystem: "com.kylezantos.headroom", category: "checknow")

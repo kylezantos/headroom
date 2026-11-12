@@ -162,7 +162,7 @@ xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS \
   -derivedDataPath .xcode-derived build
 ```
 
-Building requires Xcode 26.6 / Swift 6.3.3. The Mac app targets macOS 15 Sequoia and later on
+Building requires Xcode 27.0 / Swift 6.4. The Mac app targets macOS 15 Sequoia and later on
 Apple silicon: Tahoe uses Liquid Glass, while Sequoia uses a native material popover
 surface. A macOS 15 Apple-silicon runtime smoke remains the release gate before this is
 advertised as supported. Intel slices may be present in generic Xcode artifacts, but Intel
@@ -425,3 +425,17 @@ companion is pixel-verified on device in both appearances, and text/bar colors p
 numeric WCAG AA contrast audit in both schemes (macOS build 10, iOS build 12). Remaining:
 App Store submission for the iOS companion (TestFlight record exists) and the next
 notarized DMG cut for the Mac download page.
+
+## Contributing
+
+Pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); [AGENTS.md](AGENTS.md)
+explains the architecture and the rules every change follows. Report security problems privately
+as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Headroom is licensed under the [GNU General Public License v3.0](LICENSE). Contributions are
+accepted under the [Contributor License Agreement](CLA.md).
+
+The Headroom name and app icon are not licensed under the GPL. Forks are welcome, but a fork you
+publish needs its own name and icon, and must not suggest it is Headroom or made by its maintainer.

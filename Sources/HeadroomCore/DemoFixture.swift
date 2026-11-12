@@ -445,8 +445,8 @@ extension DemoFixture {
         /// to the account "Account 2" already reads with its own sign-in, so Claude and Codex
         /// each show "Account 2" once, live, and "Esper Labs" dimmed with the work account's
         /// last reading. The built-in row is still read but hidden. The bindings come from an
-        /// in-memory record store seeded by `defaultLoginRecords`; Claude's is posed from
-        /// fixture data only, since Claude identity waits on gate V1.
+        /// in-memory record store seeded by `defaultLoginRecords`, for Claude as for Codex:
+        /// a demo launch reads no CLI file (`AppComposition.claudeIdentityReader` is nil).
         case merged
     }
 
@@ -868,7 +868,8 @@ extension DemoFixture {
     /// "Account 2" slot are bound to one strong identity, the gmail account, so the one-row
     /// merge shows "Account 2" alone; "Esper Labs" is the remembered work account, read two
     /// minutes ago (AE4). Fixture readings carry no identity, so no read changes the records.
-    /// Placeholder digests only; Claude's is posed, never read from a CLI file (gate V1).
+    /// Placeholder digests only, posed from fixture data: a demo launch reads no CLI file
+    /// (`AppComposition.claudeIdentityReader` is nil).
     static func mergedRecords(at now: Date) -> Data? {
         var state = DefaultLoginRecordsState()
         for providerID in [ProviderID.claude, .codex] {
@@ -919,8 +920,9 @@ extension DemoFixture {
     /// so no reading changes the records and the rows stay posed for the whole run.
     ///
     /// Codex entries carry a strong identity digest of a placeholder id, as a real remembered
-    /// Codex row would. Claude entries carry none: Claude identity waits on gate V1, and a
-    /// remembered row does not need one to be shown.
+    /// Codex row would. Claude entries carry none, although a real remembered Claude row now
+    /// would: a remembered row does not need one to be shown, and a demo launch reads no CLI
+    /// file (`AppComposition.claudeIdentityReader` is nil), so no reading can rebind it.
     static func rememberedRecords(at now: Date) -> Data? {
         func entry(
             _ providerID: ProviderID,

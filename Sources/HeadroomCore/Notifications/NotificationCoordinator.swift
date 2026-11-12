@@ -110,6 +110,38 @@ public final class NotificationCoordinator {
         if let bankedBaseline { bankedResetBaseline.record(count: bankedBaseline, for: account) }
     }
 
+    /// Default-login plan KTD11: when the one-row merge ends, the hidden built-in row
+    /// takes on what the row that stood for it already announced, because both rows read
+    /// one account and only the shown row was evaluated. Same-cycle fired keys are joined;
+    /// a newer cycle replaces an older one; the banked baseline follows the shown row's.
+    /// The source keeps its own state.
+    public func handOver(from source: AccountKey, to target: AccountKey, now: Date) {
+        let incoming = parkedState(for: source)
+        var entries = useItUpLedger.entries().filter { $0.account == target }
+        for entry in incoming.useItUp {
+            guard let index = entries.firstIndex(where: { $0.windowID == entry.windowID }) else {
+                entries.append(entry)
+                continue
+            }
+            let stored = entries[index]
+            if stored.isSameCycle(as: entry.deadline) {
+                entries[index] = UseItUpLedgerEntry(
+                    account: target,
+                    windowID: stored.windowID,
+                    deadline: stored.deadline,
+                    firedKeys: stored.firedKeys + entry.firedKeys.filter { !stored.firedKeys.contains($0) }
+                )
+            } else if entry.deadline > stored.deadline {
+                entries[index] = entry
+            }
+        }
+        useItUpLedger.restore(entries, for: target, now: now)
+        if let baseline = incoming.bankedBaseline {
+            bankedResetBaseline.purge(for: target)
+            bankedResetBaseline.record(count: baseline, for: target)
+        }
+    }
+
     /// Awaits every post started so far and its ledger write. Tests use it to settle.
     public func waitForPendingPosts() async {
         while let post = pendingPosts.values.first {

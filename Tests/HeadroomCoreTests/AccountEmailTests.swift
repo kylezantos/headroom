@@ -133,56 +133,59 @@ struct ClaudeAccountEmailTests {
 }
 
 struct ClaudeDuplicateLoginTests {
-    @Test func decodesOAuthAccountUUID() {
-        #expect(
-            ClaudeAccountBlob.accountUUID(in: Data(claudeAccountFileFixture.utf8))
-                == "00000000-0000-0000-0000-000000000000"
-        )
+    @Test func decodesOAuthAccountIdentity() {
+        let read = ClaudeAccountBlob.identityRead(in: Data(claudeAccountFileFixture.utf8))
+        #expect(read.identity == claudeID("00000000-0000-0000-0000-000000000000"))
+        #expect(read.email == "personal@example.com")
     }
 
-    @Test func missingOrBlankUUIDYieldsNil() {
+    @Test func missingBlankOrNonUUIDAccountIdYieldsNoIdentity() {
         for json in [
             "{}",
             #"{ "oauthAccount": {} }"#,
             #"{ "oauthAccount": { "accountUuid": "  " } }"#,
+            #"{ "oauthAccount": { "accountUuid": "not-a-uuid" } }"#,
             #"{ "oauthAccount": { "accountUuid": 42 } }"#,
-            "not json at all",
         ] {
-            #expect(ClaudeAccountBlob.accountUUID(in: Data(json.utf8)) == nil)
+            #expect(ClaudeAccountBlob.identityRead(in: Data(json.utf8)) == .absent, "\(json)")
         }
+        #expect(ClaudeAccountBlob.identityRead(in: Data("not json at all".utf8)) == .unreadable)
     }
 
     /// Every other detector test stubs the read closure, so nothing else covers the
     /// production path that opens `<CLAUDE_CONFIG_DIR>/.claude.json` off disk.
-    @Test func fileBackedUUIDReadReturnsTheIdentityWrittenInTheConfigHome() throws {
+    @Test func fileBackedIdentityReadReturnsTheIdentityWrittenInTheConfigHome() throws {
         let directory = try temporaryConfigHome()
         defer { try? FileManager.default.removeItem(at: directory) }
         try Data(claudeAccountFileFixture.utf8)
             .write(to: directory.appendingPathComponent(".claude.json"))
 
         let reader = ClaudeAccountEmailFileReader(configDirectory: directory)
-        #expect(reader.readAccountUUID() == "00000000-0000-0000-0000-000000000000")
+        #expect(reader.readAccountIdentity().identity == claudeID("00000000-0000-0000-0000-000000000000"))
         // Same file, same real read: identity and email come out of one capture.
         #expect(reader.readAccountEmail() == "personal@example.com")
     }
 
-    @Test func fileBackedUUIDReadFailsSafeForMissingMalformedAndKeylessFiles() throws {
+    @Test func fileBackedIdentityReadFailsSafeForMissingMalformedAndKeylessFiles() throws {
         let directory = try temporaryConfigHome()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent(".claude.json")
         let reader = ClaudeAccountEmailFileReader(configDirectory: directory)
 
         // A fresh config home: the CLI hasn't written the file yet.
-        #expect(reader.readAccountUUID() == nil)
+        #expect(reader.readAccountIdentity() == .absent)
+
+        try Data("{ not json at all".utf8).write(to: file)
+        #expect(reader.readAccountIdentity() == .unreadable)
 
         for contents in [
-            "{ not json at all",
             #"{ "oauthAccount": { "emailAddress": "personal@example.com" } }"#,
+            #"{ "oauthAccount": { "accountUuid": "not-a-uuid" } }"#,
             #"{ "oauthAccount": {} }"#,
             "{}",
         ] {
             try Data(contents.utf8).write(to: file)
-            #expect(reader.readAccountUUID() == nil)
+            #expect(reader.readAccountIdentity() == .absent, "\(contents)")
         }
     }
 
@@ -200,6 +203,22 @@ struct ClaudeDuplicateLoginTests {
         // Registry order decides the original: the earlier row keeps its plain
         // identity, the later duplicate carries the badge.
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
+    }
+
+    /// U10: the merged row already stands for the built-in it hides, so it is not badged
+    /// "Same login as Main" naming a row that is not shown.
+    @Test func aRowWhoseOnlyDuplicateIsMergedIntoItIsNotBadged() {
+        let main = ProviderAccount.builtIn(for: .claude)
+        let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
+        #expect(detector.duplicateLabels(for: [main, extra], mergedAway: [main.key: extra.key]).isEmpty)
+
+        // A third shown row on the same login is still badged, naming the shown row.
+        let third = ProviderAccount(id: AccountID("extra-2"), providerID: .claude, label: "Spare")
+        #expect(
+            detector.duplicateLabels(for: [main, extra, third], mergedAway: [main.key: extra.key])
+                == [third.key: "New"]
+        )
     }
 
     @Test func distinctLoginsProduceNoBadges() {

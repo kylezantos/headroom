@@ -539,6 +539,86 @@ struct DisplayAccountsTests {
         #expect(rig.poster.posted.contains { ($0.title + $0.body).contains("Account 2") })
     }
 
+    /// KTD11: only the shown row reminded while merged, so the built-in takes that state
+    /// when the merge ends; its next live reading posts nothing already posted.
+    @Test func removingTheExtraAfterAMergedReminderDoesNotPostItAgain() async {
+        let rig = await mergedRig()
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.poster.posted.count == 1)
+
+        #expect(await rig.store.removeAccount(extraKey) == .removed)
+        rig.advance(600)
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayAccounts(for: .codex).first?.key == rig.key)
+        #expect(rig.store.snapshot(for: rig.key).freshness == .live)
+        #expect(rig.poster.posted.count == 1)
+        #expect(rig.ledger.entry(for: rig.key, windowID: WindowKind.weekly.persistentID) != nil)
+    }
+
+    @Test func anExtraLapsingAfterAMergedReminderDoesNotPostItAgain() async {
+        let rig = await mergedRig()
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.poster.posted.count == 1)
+
+        rig.extras[0].set(rig.signedOut)
+        rig.advance(600)
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap.isEmpty)
+        // A second read, so the built-in is evaluated as a shown row at least once.
+        rig.advance(600)
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayAccounts(for: .codex).first?.key == rig.key)
+        #expect(rig.poster.posted.count == 1)
+    }
+
+    /// The hand-over is for the same account only: a built-in reset while merged keeps
+    /// none of the shown row's reminder state.
+    @Test func aResetBuiltInTakesNoReminderStateFromTheMergedRow() async {
+        let rig = await mergedRig()
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.poster.posted.count == 1)
+
+        rig.store.invalidateUsageForAccountReset(rig.key)
+        #expect(rig.ledger.entry(for: rig.key, windowID: WindowKind.weekly.persistentID) == nil)
+        #expect(rig.ledger.entry(for: extraKey, windowID: WindowKind.weekly.persistentID) != nil)
+    }
+
+    @Test func resettingAMergedBuiltInShowsItsRowAgain() async {
+        let rig = await mergedRig()
+        #expect(!rig.store.displayProjection(for: .codex).mergeMap.isEmpty)
+        rig.store.invalidateUsageForAccountReset(rig.key)
+        #expect(rig.store.displayProjection(for: .codex).mergeMap.isEmpty)
+        #expect(rig.store.displayMergeMaps.isEmpty)
+        #expect(rig.store.displayAccounts(for: .codex).map(\.key).prefix(2) == [rig.key, extraKey])
+    }
+
+    /// KTD11: E alone acknowledges banked resets while merged.
+    @Test func whileMergedOnlyTheShownRowClaimsAndLowersBankedResets() async {
+        let rig = await mergedRig()
+        rig.acknowledgements.restore(count: 3, for: rig.key)
+        rig.extras[0].set(rig.reading("gmail", weeklyUsed: 31, banked: 2))
+        await rig.read(rig.reading("gmail", weeklyUsed: 32, banked: 1))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+        // The built-in's merge did not lower its acknowledgement to 1.
+        #expect(rig.acknowledgements.acknowledgedCount(for: rig.key) == 3)
+        #expect(rig.store.claimBankedResetReveal(for: rig.key, currentCount: 4) == false)
+        #expect(rig.acknowledgements.acknowledgedCount(for: rig.key) == 3)
+        #expect(rig.store.claimBankedResetReveal(for: extraKey, currentCount: 2) == true)
+        #expect(rig.acknowledgements.acknowledgedCount(for: extraKey) == 2)
+    }
+
+    @Test func aMergedBuiltInsRefreshReceiptIsTitledAsTheShownRow() async {
+        let rig = await mergedRig()
+        #expect(rig.store.refreshReceiptTitle(for: rig.key) == rig.store.refreshReceiptTitle(for: extraKey))
+        #expect(rig.store.refreshReceiptTitle(for: rig.key).contains("Account 2"))
+    }
+
     @Test func aMergedBuiltInsProbeDoesNotSloshTheMenuBar() async {
         let rig = await mergedRig()
         rig.store.schedulerProbeDidStart(rig.key)

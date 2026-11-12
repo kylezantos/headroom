@@ -557,8 +557,10 @@ private struct ClaudeDuplicateLoginScan: View {
                     displayed.label = store.desktopAccountName(for: account)
                     return displayed
                 }
+                // U10: a row the one-row merge hides is not shown, so it badges nothing.
+                let mergedAway = store.displayProjection(for: .claude).mergeMap
                 let scanned = await Task.detached {
-                    detector.duplicateLabels(for: accounts)
+                    detector.duplicateLabels(for: accounts, mergedAway: mergedAway)
                 }.value
                 // The detached scan outlives this .task's cancellation, so a slow stale
                 // scan can finish after a newer one — never let it overwrite the fresh
@@ -572,13 +574,15 @@ private struct ClaudeDuplicateLoginScan: View {
     /// renamed (badges quote account labels), a row's signed-in identity changes, or
     /// a fresh capture lands (a re-login to a different accountUuid under the same
     /// email only surfaces as a new `capturedAt` — the scan is cheap off-main and
-    /// only runs while the settings window is open).
+    /// only runs while the settings window is open). A merge starting or ending rescans.
     private var fingerprint: String {
-        store.accounts(for: .claude)
+        let mergedAway = store.displayProjection(for: .claude).mergeMap
+        return store.accounts(for: .claude)
             .map { account in
                 let snapshot = store.snapshot(for: account.key)
                 let captured = snapshot.capturedAt?.timeIntervalSinceReferenceDate ?? 0
-                return "\(account.id.raw):\(store.desktopAccountName(for: account)):\(snapshot.accountEmail ?? ""):\(captured)"
+                let merged = mergedAway[account.key] == nil ? "" : ":merged"
+                return "\(account.id.raw):\(store.desktopAccountName(for: account)):\(snapshot.accountEmail ?? ""):\(captured)\(merged)"
             }
             .joined(separator: "|")
     }

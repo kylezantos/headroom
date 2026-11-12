@@ -172,8 +172,46 @@ struct ClaudeIdentityModelTests {
         #expect(ClaudeAccountBlob.identityRead(in: claudeFile(account: nil)) == .absent)
         // Half-written or hand-broken.
         #expect(ClaudeAccountBlob.identityRead(in: Data("{ \"oauthAccount\": { \"accountUu".utf8)) == .unreadable)
-        #expect(ClaudeAccountBlob.identityRead(in: Data(#"{"oauthAccount": {"accountUuid": 42}}"#.utf8)) == .unreadable)
         #expect(ClaudeAccountBlob.identityRead(in: Data()) == .unreadable)
+        // Valid JSON that is not an account file at all.
+        #expect(ClaudeAccountBlob.identityRead(in: Data("[]".utf8)) == .unreadable)
+    }
+
+    /// A wrong-typed field is that field missing, never the whole block unreadable: an
+    /// unreadable file on both sides refuses every reading (KTD2).
+    @Test func aWrongTypedFieldIsReadOnItsOwn() throws {
+        func file(_ block: String) -> Data { Data(#"{"numStartups": 4, "oauthAccount": \#(block)}"#.utf8) }
+        let account = #""accountUuid": "\#(accountA)""#
+        let org = #""organizationUuid": "\#(personalOrg)""#
+
+        // A wrong-typed email leaves the identity readable, with no email.
+        for email in ["42", "{}", "[]", "true"] {
+            let read = ClaudeAccountBlob.identityRead(in: file(#"{\#(account), \#(org), "emailAddress": \#(email)}"#))
+            #expect(read.identity == identity(accountA), "\(email)")
+            #expect(read.email == nil, "\(email)")
+        }
+        // A wrong-typed account id is no identity.
+        for bad in ["42", #"{"id": "x"}"#, "[]", "false"] {
+            let read = ClaudeAccountBlob.identityRead(in: file(#"{"accountUuid": \#(bad), \#(org), "emailAddress": "a@example.com"}"#))
+            #expect(read == .absent, "\(bad)")
+        }
+        // A present organization that is not a string is no identity, never "no organization":
+        // that would be a different identity from the account's true one.
+        for bad in ["42", #"{"uuid": "\#(personalOrg)"}"#, "[]", "true"] {
+            let read = ClaudeAccountBlob.identityRead(in: file(#"{\#(account), "organizationUuid": \#(bad)}"#))
+            #expect(read == .absent, "\(bad)")
+        }
+        // A null or missing organization stays "no organization".
+        let null = try #require(ClaudeAccountBlob.identityRead(in: file(#"{\#(account), "organizationUuid": null}"#)).identity)
+        let missing = try #require(ClaudeAccountBlob.identityRead(in: file("{\(account)}")).identity)
+        #expect(null == missing)
+        #expect(null == AccountIdentity.claude(accountUUID: accountA, organizationUUID: nil))
+        // A block that is not an object names no account.
+        for block in ["42", #""text""#, "[]"] {
+            #expect(ClaudeAccountBlob.identityRead(in: file(block)) == .absent, "\(block)")
+        }
+        // The email reader is tolerant the same way.
+        #expect(ClaudeAccountBlob.email(in: file(#"{"accountUuid": 42, "emailAddress": "a@example.com"}"#)) == "a@example.com")
     }
 
     @Test func aMissingFileIsAbsentAnUnreadableOneIsUnreadableAndNeitherThrows() throws {

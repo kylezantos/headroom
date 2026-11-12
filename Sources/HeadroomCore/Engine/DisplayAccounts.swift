@@ -135,8 +135,8 @@ public struct DisplayMergeInput: Equatable, Sendable {
 /// extra row that reads the same account. Display-only; both rows keep being read.
 public enum DisplayMergePlanner {
     /// The built-in merges into extra E only when:
-    /// - both identities are Known and equal, and the identity is strong (Codex today;
-    ///   Grok, Cursor and Copilot are weak and never merge, Claude reports none, KTD13);
+    /// - both identities are Known and equal, and the identity is strong (Claude and Codex;
+    ///   Grok, Cursor and Copilot are weak and never merge, KTD13);
     /// - exactly one extra matches (R14);
     /// - E's latest snapshot is live or transient-stale;
     /// - neither row is in a setup state.

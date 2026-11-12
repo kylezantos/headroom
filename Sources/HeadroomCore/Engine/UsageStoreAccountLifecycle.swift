@@ -48,7 +48,11 @@ extension UsageStore {
     @discardableResult
     func refreshDisplayMerge(for providerID: ProviderID, exports: Bool) -> Bool {
         let map = computeDisplayMerge(for: providerID)
-        guard map != (displayMergeMaps[providerID] ?? [:]) else { return false }
+        let previous = displayMergeMaps[providerID] ?? [:]
+        guard map != previous else { return false }
+        for (hidden, shown) in previous where map[hidden] != shown {
+            handOverMergedReminders(from: shown, to: hidden)
+        }
         if map.isEmpty {
             displayMergeMaps.removeValue(forKey: providerID)
         } else {
@@ -59,6 +63,25 @@ extension UsageStore {
             exportPhoneSyncSnapshot()
         }
         return true
+    }
+
+    /// KTD11: while merged only the shown row reminds and acknowledges banked resets, so a
+    /// hidden built-in that comes back still bound to the same account takes the shown
+    /// row's state first; its next live reading then posts nothing already posted. Runs
+    /// before any purge of the shown row (a removal settles the merge before it purges).
+    /// A built-in that left the engine list, was reset, or now reads another account
+    /// takes nothing: the state belongs to the shown row's account, not to the row.
+    private func handOverMergedReminders(from shown: AccountKey, to hidden: AccountKey) {
+        guard accounts(for: hidden.providerID).contains(where: { $0.key == hidden }),
+              let state = defaultLoginState,
+              let hiddenIdentity = knownIdentity(state.slot(for: hidden)),
+              let shownIdentity = state.slot(for: shown)?.binding,
+              hiddenIdentity == shownIdentity
+        else { return }
+        notificationCoordinator?.handOver(from: shown, to: hidden, now: now())
+        if let acknowledged = bankedResetAcknowledgements?.acknowledgedCount(for: shown) {
+            bankedResetAcknowledgements?.restore(count: acknowledged, for: hidden)
+        }
     }
 
     /// The gate inputs, read only once the built-in holds a strong Known identity: for a

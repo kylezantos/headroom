@@ -2393,6 +2393,7 @@ struct MergedRowInteractionTests {
         #expect(fixture.store.isBuiltInTrackingStopped(for: .codex))
         #expect(fixture.store.displayAccounts(for: .codex).map(\.label) == ["Account 2", "Esper Labs"])
         #expect(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store) == nil)
+        #expect(fixture.store.displayProjection(for: .codex).mergeMap.isEmpty)
     }
 
     /// Covers AE5: two accounts kept apart on purpose draw as before, with no header menu.

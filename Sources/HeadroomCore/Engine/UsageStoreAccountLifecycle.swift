@@ -51,7 +51,11 @@ extension UsageStore {
         let previous = displayMergeMaps[providerID] ?? [:]
         guard map != previous else { return false }
         for (hidden, shown) in previous where map[hidden] != shown {
-            handOverMergedReminders(from: shown, to: hidden)
+            handOverMergedReminders(hidden: hidden, shown: shown, entering: false)
+        }
+        // Before `merge` evaluates the shown row in this turn (KTD11).
+        for (hidden, shown) in map where previous[hidden] != shown {
+            handOverMergedReminders(hidden: hidden, shown: shown, entering: true)
         }
         if map.isEmpty {
             displayMergeMaps.removeValue(forKey: providerID)
@@ -71,17 +75,26 @@ extension UsageStore {
     /// before any purge of the shown row (a removal settles the merge before it purges).
     /// A built-in that left the engine list, was reset, or now reads another account
     /// takes nothing: the state belongs to the shown row's account, not to the row.
-    private func handOverMergedReminders(from shown: AccountKey, to hidden: AccountKey) {
+    ///
+    /// `entering` is the other direction: the built-in reminded while the rows were
+    /// separate, so the shown row takes the built-in's state as the merge begins. Neither
+    /// row's banked counts are then known to be the newer, so the shown row's counts only
+    /// rise (a higher one of its own is what it last announced); a real drop is lowered by
+    /// its next live reading, as `lower` and the baseline's silent drop record already do.
+    private func handOverMergedReminders(hidden: AccountKey, shown: AccountKey, entering: Bool) {
         guard accounts(for: hidden.providerID).contains(where: { $0.key == hidden }),
               let state = defaultLoginState,
               let hiddenIdentity = knownIdentity(state.slot(for: hidden)),
               let shownIdentity = state.slot(for: shown)?.binding,
               hiddenIdentity == shownIdentity
         else { return }
-        notificationCoordinator?.handOver(from: shown, to: hidden, now: now())
-        if let acknowledged = bankedResetAcknowledgements?.acknowledgedCount(for: shown) {
-            bankedResetAcknowledgements?.restore(count: acknowledged, for: hidden)
-        }
+        let (source, target) = entering ? (hidden, shown) : (shown, hidden)
+        notificationCoordinator?.handOver(from: source, to: target, now: now(), raisesBankedBaselineOnly: entering)
+        guard let acknowledgements = bankedResetAcknowledgements,
+              let acknowledged = acknowledgements.acknowledgedCount(for: source)
+        else { return }
+        if entering, let stored = acknowledgements.acknowledgedCount(for: target), !(acknowledged > stored) { return }
+        acknowledgements.restore(count: acknowledged, for: target)
     }
 
     /// The gate inputs, read only once the built-in holds a strong Known identity: for a

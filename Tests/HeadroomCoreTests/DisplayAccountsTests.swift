@@ -575,6 +575,89 @@ struct DisplayAccountsTests {
         #expect(rig.poster.posted.count == 1)
     }
 
+    /// KTD11, entering direction: the built-in reminded while the rows were separate, so
+    /// the shown row takes that state when the merge begins, before its own reading in the
+    /// same turn is evaluated.
+    @Test func aReminderPostedBeforeTheMergeIsNotPostedAgainByTheShownRow() async {
+        let rig = DefaultLoginRig(extraLabels: ["Account 2"])
+        rig.extras[0].set(rig.signedOut)
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap.isEmpty)
+        #expect(rig.poster.posted.count == 1)
+
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+        #expect(rig.store.snapshot(for: extraKey).freshness == .live)
+        #expect(rig.poster.posted.count == 1)
+        #expect(rig.ledger.entry(for: extraKey, windowID: WindowKind.weekly.persistentID) != nil)
+    }
+
+    @Test func aMergeRoundTripPostsAReminderOnce() async {
+        let rig = await mergedRig()
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.poster.posted.count == 1)
+
+        rig.extras[0].set(rig.signedOut)
+        rig.advance(600)
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap.isEmpty)
+
+        rig.advance(600)
+        rig.extras[0].set(rig.dueReading("gmail"))
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+        rig.advance(600)
+        await rig.read(rig.dueReading("gmail"))
+        #expect(rig.poster.posted.count == 1)
+    }
+
+    /// Entering the merge, the banked state only rises: the shown row keeps a higher count
+    /// of its own, and takes the built-in's when that is higher, so neither the capsule nor
+    /// the notice announces a count this account already announced.
+    @Test func enteringTheMergeRaisesTheShownRowsBankedStateOnly() async {
+        let rig = DefaultLoginRig(extraLabels: ["Account 2"], banked: true)
+        rig.extras[0].set(rig.signedOut)
+        await rig.read(rig.reading("gmail", banked: 2))
+        rig.advance(600)
+        await rig.read(rig.reading("gmail", banked: 3))
+        #expect(rig.poster.posted.count == 1)
+        rig.acknowledgements.restore(count: 3, for: rig.key)
+        // What the extra saw on an earlier separate reading.
+        rig.baseline.record(count: 2, for: extraKey)
+        rig.acknowledgements.restore(count: 2, for: extraKey)
+
+        rig.advance(600)
+        rig.extras[0].set(rig.reading("gmail", weeklyUsed: 31, banked: 3))
+        await rig.read(rig.reading("gmail", banked: 3))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+        #expect(rig.poster.posted.count == 1)
+        #expect(rig.baseline.baselineCount(for: extraKey) == 3)
+        #expect(rig.acknowledgements.acknowledgedCount(for: extraKey) == 3)
+        #expect(rig.store.claimBankedResetReveal(for: extraKey, currentCount: 3) == false)
+    }
+
+    @Test func enteringTheMergeNeverLowersTheShownRowsBankedState() async {
+        let rig = DefaultLoginRig(extraLabels: ["Account 2"], banked: true)
+        rig.extras[0].set(rig.signedOut)
+        await rig.read(rig.reading("gmail", banked: 1))
+        rig.acknowledgements.restore(count: 1, for: rig.key)
+        rig.baseline.record(count: 4, for: extraKey)
+        rig.acknowledgements.restore(count: 4, for: extraKey)
+
+        rig.advance(600)
+        rig.extras[0].set(rig.reading("gmail", weeklyUsed: 31, banked: 4))
+        // The built-in reports no count, so it moves nothing if it merges first.
+        await rig.read(rig.reading("gmail"))
+        #expect(rig.store.displayProjection(for: .codex).mergeMap == [rig.key: extraKey])
+        #expect(rig.poster.posted.isEmpty)
+        #expect(rig.baseline.baselineCount(for: extraKey) == 4)
+        #expect(rig.acknowledgements.acknowledgedCount(for: extraKey) == 4)
+    }
+
     /// The hand-over is for the same account only: a built-in reset while merged keeps
     /// none of the shown row's reminder state.
     @Test func aResetBuiltInTakesNoReminderStateFromTheMergedRow() async {

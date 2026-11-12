@@ -43,9 +43,14 @@ with a strong identity.
   that ends in `connected` with the popover closed holds the merge off until the popover next
   plays the Connected chip. The Claude provider decodes `.claude.json` twice per probe; the cost
   on a large file is unmeasured. The popover header builds the display projection per body
-  (popover open at 20 accounts measured 742 view bodies against a recorded 741; the extra body is not identified and `main` was not re-measured the same day). The Settings badge rule for a merged pair is
-  tested in Core only. The cross-model adversarial review timed out with no output, so that
-  lens did not run on this branch.
+  (popover open at 20 accounts measures 741 or 742 view bodies run to run, against a recorded 741; the one that varies is `PopoverScrollIndicator`, 6 or 7). The Settings badge rule for a merged pair is
+  tested in Core only. The cross-model adversarial review timed out with no output; an in-process
+  adversarial pass ran after the merge and its one finding (a reminder repeated when two rows
+  merge) is fixed. Its unverified risks: if the Claude CLI ever fills in `organizationUuid` for
+  an account bound with none, the row is treated as a different account (relabelled, history
+  and reminders set aside, the old binding shown as a remembered row); while merged, no
+  reminder fires if the added account's polls keep failing while the default login reads
+  live; a merged provider's Settings counter still counts both accounts above one row.
 - **Gate V2 was not run; the risk is accepted (Kyle, 2026-11-11).** The one-row merge trusts
   that one Codex `account_id` is one account. Two teammates sharing an id would show as one
   row. Kyle's two logins have different ids.

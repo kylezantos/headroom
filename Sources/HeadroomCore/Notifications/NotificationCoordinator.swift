@@ -114,8 +114,16 @@ public final class NotificationCoordinator {
     /// takes on what the row that stood for it already announced, because both rows read
     /// one account and only the shown row was evaluated. Same-cycle fired keys are joined;
     /// a newer cycle replaces an older one; the banked baseline follows the shown row's.
-    /// The source keeps its own state.
-    public func handOver(from source: AccountKey, to target: AccountKey, now: Date) {
+    /// The source keeps its own state. With `raisesBankedBaselineOnly` (the merge
+    /// beginning, when neither row's baseline is known to be the newer) the target keeps a
+    /// higher baseline of its own, so a count already announced is not announced again; a
+    /// real drop is recorded by the target's next live reading.
+    public func handOver(
+        from source: AccountKey,
+        to target: AccountKey,
+        now: Date,
+        raisesBankedBaselineOnly: Bool = false
+    ) {
         let incoming = parkedState(for: source)
         var entries = useItUpLedger.entries().filter { $0.account == target }
         for entry in incoming.useItUp {
@@ -137,6 +145,9 @@ public final class NotificationCoordinator {
         }
         useItUpLedger.restore(entries, for: target, now: now)
         if let baseline = incoming.bankedBaseline {
+            if raisesBankedBaselineOnly,
+               let stored = parkedState(for: target).bankedBaseline,
+               !(baseline > stored) { return }
             bankedResetBaseline.purge(for: target)
             bankedResetBaseline.record(count: baseline, for: target)
         }

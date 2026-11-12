@@ -61,8 +61,9 @@ with a strong identity.
   account's numbers and "Main", and the account it left stayed as a dimmed "Last read" row with
   its own last reading. Not run for Codex. Seen there: the two accounts' remembered names were
   "Account 2" and "Account 3", each stable, so a two-account rotation never shows "Account 1"
-  and the second remembered account reads "Account 3". Not changed; decide whether numbering
-  should count only the rows shown.
+  and the second remembered account reads "Account 3". Decided, not a bug (Kyle, 2026-11-12):
+  a number stays with its account, so a label never means one account now and another later.
+  A rename, or "Use email as account name", replaces it.
 - **Live looks so far.** Popover with remembered and merged rows: macOS 26 (dark) and macOS
   15.7.7 (light), Standard and Compact. Settings › Accounts with a merged pair and a remembered
   row: macOS 15.7.7 in the `merged` demo. iPhone remembered rows, with the "Last read" tag and the

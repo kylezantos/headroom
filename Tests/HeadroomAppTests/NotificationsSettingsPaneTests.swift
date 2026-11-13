@@ -9,7 +9,7 @@ import HeadroomCore
 /// through its presentation and interaction seams with a `ScriptedNotificationClient` and
 /// isolated defaults. Nothing here reaches `UNUserNotificationCenter` (KTD9).
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct NotificationsSettingsPaneTests {
     private struct Fixture {
         let store: UsageStore

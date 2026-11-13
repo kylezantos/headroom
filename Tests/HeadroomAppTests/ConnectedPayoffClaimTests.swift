@@ -6,7 +6,7 @@ import HeadroomCore
 /// The Connected payoff is claimed per account, so a card rebuilt by the meter-style
 /// crossfade (M5A) cannot replay the chip or queue a second settle for the same connection.
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct ConnectedPayoffClaimTests {
     private func account(_ id: String) -> ProviderAccount {
         ProviderAccount(id: AccountID(id), providerID: .claude, label: id, isBuiltIn: false)

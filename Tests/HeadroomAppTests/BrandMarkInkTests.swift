@@ -10,7 +10,7 @@ import Testing
 /// rasterise the shipped artwork exactly the way `ProviderLogoView` draws it and fail if a
 /// mark is ever re-cut with padding, or if a light/dark pair drifts apart so the mark would
 /// shift when the appearance changes.
-@Suite
+@Suite(.sharedAppState)
 struct BrandMarkInkTests {
     private static let brandIconsDirectory: URL = URL(fileURLWithPath: #filePath)
         .deletingLastPathComponent()   // HeadroomAppTests

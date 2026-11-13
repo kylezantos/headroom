@@ -3,7 +3,7 @@ import HeadroomCore
 import Testing
 @testable import Headroom
 
-@Suite struct RefreshReceiptTests {
+@Suite(.sharedAppState) struct RefreshReceiptTests {
     private let claude = AccountKey(providerID: .claude, accountID: .primary)
     private let work = AccountKey(providerID: .claude, accountID: AccountID("work"))
     private let now = Date(timeIntervalSince1970: 100)

@@ -5,7 +5,7 @@ import HeadroomCore
 @testable import Headroom
 
 @MainActor
-@Suite(.serialized) struct MenuBarSloshTests {
+@Suite(.sharedAppState, .serialized) struct MenuBarSloshTests {
     private let key = AccountKey(providerID: .claude, accountID: .primary)
     private let start = Date(timeIntervalSince1970: 100.25)
 

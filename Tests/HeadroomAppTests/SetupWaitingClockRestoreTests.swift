@@ -7,7 +7,7 @@ import HeadroomCore
 /// stamp; this is the seam that puts it back into the observable session state on relaunch,
 /// and it must stay fail-safe — a start Headroom never wrote is no clock, not "Waiting 3s".
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct SetupWaitingClockRestoreTests {
     private func makeMarker() throws -> (SetupCompletionMarker, URL) {
         let directory = FileManager.default.temporaryDirectory

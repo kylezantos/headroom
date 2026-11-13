@@ -5,7 +5,7 @@ import HeadroomCore
 @testable import Headroom
 
 @MainActor
-@Suite struct AccountsSettingsWaitTests {
+@Suite(.sharedAppState) struct AccountsSettingsWaitTests {
     @Test func verificationWorksAfterTheTerminalHandoffHasGone() {
         let phase = SetupWaitingPhase.resolve(state: .verifying, hasActiveHandoff: false,
                                              purpose: .setup)

@@ -8,7 +8,7 @@ import Testing
 /// to begin" over cards saying "Sign in to Codex again" or that signing in again will not help.
 /// These pin the derivation to the same `CodexConnectionAction` the card switches on, and pin
 /// the one verb ("Waiting for …") that the cards and account rows already use.
-@Suite
+@Suite(.sharedAppState)
 struct PopoverHeaderStatusTests {
     @Test func everyCodexActionGetsItsOwnHeaderLine() {
         #expect(PopoverHeaderStatusText.codex(action: .connect, isWaiting: false)
@@ -76,7 +76,7 @@ struct PopoverHeaderStatusTests {
 /// first run, an all-stale popover and a capability failure showed a card full of retained
 /// numbers with no visible age anywhere. Since Sep 2026 the age lives in the footer beside
 /// Refresh and the header speaks only for setup; these pin both lines and their precedence.
-@Suite
+@Suite(.sharedAppState)
 struct PopoverHeaderStatusResolverTests {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
@@ -135,7 +135,7 @@ struct PopoverHeaderStatusResolverTests {
 
 /// R2M12: an open-ended wait needs a clock (Apple §16 status). The Connect card is explicit
 /// about "Takes about 20 seconds" and the waiting state used to drop the thread entirely.
-@Suite
+@Suite(.sharedAppState)
 struct PopoverWaitingClockTests {
     @Test func secondsReadPlainlyForTheFirstMinute() {
         #expect(PopoverHeaderStatusText.waiting(elapsed: 0) == "Waiting 0s")
@@ -164,7 +164,7 @@ struct PopoverWaitingClockTests {
 
 /// R2M1: the card's second animation scope keys on this, so a retry counter that changes
 /// nothing on screen must not restage the crossfade.
-@Suite
+@Suite(.sharedAppState)
 struct ProviderCardSessionKeyTests {
     @Test func retryAttemptsCollapseToOneWaitingKey() {
         #expect(providerCardSessionKey(.waiting(attempt: 0)) == .waiting(attempt: 0))

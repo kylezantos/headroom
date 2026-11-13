@@ -6,7 +6,7 @@ import HeadroomCore
 /// Claude CLI discovery and manual-command recovery at the app boundary: what the
 /// capability recovery row offers for each discovery state, and which executable the
 /// staged handoff, clipboard fallback, and legacy script actually launch.
-@Suite struct ClaudeExecutableDiscoveryInteractionTests {
+@Suite(.sharedAppState) struct ClaudeExecutableDiscoveryInteractionTests {
     /// A `.command` handler can acknowledge LaunchServices without actually running the
     /// script. Exercise the production orchestration seam so reverting `openPreparedHandoff`
     /// to the default handler makes this test fail.
@@ -916,7 +916,7 @@ private actor ClaudeVersionReaderSpy {
 /// staging is inert, swapped in with `SetupSessions.withCoordinator`, so the live coordinator
 /// in this test host never stages a handoff and nothing opens Terminal.
 @MainActor
-@Suite struct ClaudeStartupQuestionSessionTests {
+@Suite(.sharedAppState) struct ClaudeStartupQuestionSessionTests {
     private func standInCoordinator() -> SetupSessionCoordinator {
         SetupSessionCoordinator(
             scheduler: StartupQuestionIgnoringScheduler(),

@@ -13,7 +13,7 @@ import Testing
 /// Settings view slides anything with `matchedGeometryEffect`.
 /// See `docs/solutions/ui/settings-matched-geometry-crash-macos15.md`.
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct SettingsSelectionPlateTests {
     nonisolated private static let swatchCount = 3
     nonisolated private static let swatchWidth: CGFloat = 60

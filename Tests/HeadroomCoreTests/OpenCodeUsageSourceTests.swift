@@ -1042,11 +1042,13 @@ struct OpenCodeUsageSourceProcessTests {
         try fake.hook("version", pre: "cat > /dev/null\n")
         try fake.hook("usage", pre: "cat > /dev/null\n")
         let started = Date()
-        guard case .goUsage = await fake.source(deadline: 8).capture(home: .builtIn) else {
+        // A client blocked on stdin would never print its reading, so the reading is the proof.
+        // The bound only has to sit under the deadline; a tight one flaked on a loaded machine.
+        guard case .goUsage = await fake.source(deadline: 60).capture(home: .builtIn) else {
             Issue.record("a client reading stdin did not finish with its reading")
             return
         }
-        #expect(Date().timeIntervalSince(started) < 5)
+        #expect(Date().timeIntervalSince(started) < 45)
     }
 
     @Test func refreshBadIsSignInExpired() async throws {

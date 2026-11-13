@@ -557,7 +557,7 @@ enum OpenCodeProcessRunner {
             exitCode: exitCode,
             stdout: output,
             overflowed: overflowed,
-            timedOut: exitCode == nil && Date() >= end
+            timedOut: exitCode == nil && !(Date() < end)
         )
     }
 }

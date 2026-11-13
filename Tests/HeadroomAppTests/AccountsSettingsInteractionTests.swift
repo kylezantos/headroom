@@ -108,6 +108,227 @@ struct AccountsSettingsInteractionTests {
         await SetupSessions.discardPreparedHandoff(handoff)
     }
 
+    // MARK: - U5 (OpenCode plan): staging the sign-in handoff
+
+    /// KTD3: a 1.x client is refused at staging with the usage read's own outcome. No script
+    /// is written, so no Terminal can open.
+    @Test func openCodeStagingRefusesAnOldClientBeforeAnyTerminal() async {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-oc-stage-old-\(UUID().uuidString)/ClaudeProbe", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: workspace.deletingLastPathComponent()) }
+        let account = ProviderAccount.builtIn(for: .opencode)
+        for version in ["1.1.53\n", "opencode v2.1.0"] {
+            let result = await SetupSessions.prepareHandoff(
+                for: account,
+                mode: .standard,
+                builtInClaudeWorkspace: workspace,
+                openCodeExecutableResolver: { "/fake/bin/opencode" },
+                openCodeExecutableOverride: nil,
+                openCodeVersionReader: { _, _ in version }
+            )
+            #expect(result == .failure(.provider(.opencodeUpdateRequired)))
+            #expect(SetupSessions.stagedHandoff(for: account.key) == nil)
+        }
+        let missing = await SetupSessions.prepareHandoff(
+            for: account,
+            mode: .standard,
+            builtInClaudeWorkspace: workspace,
+            openCodeExecutableResolver: { nil },
+            openCodeExecutableOverride: nil,
+            openCodeVersionReader: { _, _ in "2.2.5" }
+        )
+        #expect(missing == .failure(.executableMissing))
+    }
+
+    /// KTD18: the built-in home never takes the DEBUG override; the version read and the
+    /// script both use the resolved client, and the clipboard fallback names its path.
+    @Test(arguments: [SetupHandoffPurpose.setup, .reset])
+    func openCodeBuiltInStagingUsesTheResolvedClientAndItsDefaultHome(_ purpose: SetupHandoffPurpose) async throws {
+        let workspace = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-oc-stage-\(UUID().uuidString)/ClaudeProbe", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: workspace.deletingLastPathComponent()) }
+        let account = ProviderAccount.builtIn(for: .opencode)
+        let reads = VersionReadRecorder()
+
+        let result = await SetupSessions.prepareHandoff(
+            for: account,
+            mode: .standard,
+            purpose: purpose,
+            builtInClaudeWorkspace: workspace,
+            openCodeExecutableResolver: { "/resolved/bin/opencode" },
+            openCodeExecutableOverride: "/override/opencode",
+            openCodeVersionReader: { path, home in
+                await reads.record(path, home)
+                return "opencode v2.2.5"
+            }
+        )
+        guard case .success(let handoff) = result else {
+            Issue.record("Expected OpenCode staging to succeed, got \(result)")
+            return
+        }
+        let prepared = try #require(SetupSessions.stagedHandoff(for: account.key))
+        let script = try String(contentsOf: prepared.scriptURL, encoding: .utf8)
+
+        #expect(await reads.calls == ["/resolved/bin/opencode builtIn"])
+        #expect(script.contains("unset XDG_DATA_HOME XDG_CONFIG_HOME XDG_CACHE_HOME XDG_STATE_HOME"))
+        #expect(script.contains("'/resolved/bin/opencode' auth login --standalone opencode --method device"))
+        #expect(script.contains("'/resolved/bin/opencode' auth logout --standalone opencode") == (purpose == .reset))
+        #expect(!script.contains("/override/opencode"))
+        #expect(script.contains("trap headroom_setup_completed EXIT"))
+        #expect(prepared.manualCommand.contains("/resolved/bin/opencode"))
+        #expect(handoff.purpose == purpose)
+        await SetupSessions.discardPreparedHandoff(handoff)
+    }
+
+    // MARK: - U5/AE7: the built-in sign-in warning
+
+    /// Covers AE7: Sign In, Sign In Again (the same `openSetup`), Try Again and reset on the
+    /// built-in account ask before anything is staged, every time, including after an earlier
+    /// confirmed start. Cancel opens nothing.
+    @Test func builtInOpenCodeSignInAsksEveryTimeAndCancelOpensNothing() async {
+        let fixture = makeFixture()
+        defer { fixture.cleanup() }
+        let harness = AppSetupHarness(store: fixture.store)
+        let coordinator = harness.makeCoordinator()
+        let builtIn = ProviderAccount.builtIn(for: .opencode)
+        let center = BuiltInSignInConfirmation.shared
+        center.reset()
+        defer { center.reset() }
+
+        SetupSessions.withCoordinator(coordinator) {
+            SetupSessions.performRecovery(.connectOpenCode, for: builtIn, onRetry: {})
+        }
+        #expect(center.pending?.account.key == builtIn.key)
+        #expect(center.pending?.purpose == .setup)
+        #expect(coordinator.state(for: builtIn.key) == .idle)
+
+        if let request = center.pending { center.cancel(request) }
+        await settleTasks()
+        #expect(center.pending == nil)
+        #expect(harness.preparedKeys.isEmpty)
+        #expect(harness.openedKeys.isEmpty)
+
+        // Confirm: the start runs for real.
+        SetupSessions.withCoordinator(coordinator) {
+            SetupSessions.openSetup(for: builtIn, onRetry: {})
+            if let request = center.pending { center.confirm(request) }
+        }
+        #expect(center.pending == nil)
+        #expect(coordinator.state(for: builtIn.key) == .preparing)
+        await settleTasks()
+        #expect(harness.preparedKeys == [builtIn.key])
+        coordinator.forceCancel(builtIn.key)
+        SetupSessions.forceCancel(for: builtIn)
+
+        // Asked again after an earlier confirmed start: nothing is remembered.
+        SetupSessions.withCoordinator(coordinator) {
+            SetupSessions.tryAgain(for: builtIn, route: .startNewHandoff(.setup), onRetry: {})
+        }
+        #expect(center.pending?.purpose == .setup)
+        if let request = center.pending { center.cancel(request) }
+
+        // Reset, from Try Again's reset branch and from the direct entry point.
+        SetupSessions.withCoordinator(coordinator) {
+            SetupSessions.tryAgain(for: builtIn, route: .startNewHandoff(.reset), onRetry: {})
+        }
+        #expect(center.pending?.purpose == .reset)
+        if let request = center.pending { center.cancel(request) }
+        SetupSessions.withCoordinator(coordinator) {
+            SetupSessions.resetSetup(for: builtIn)
+        }
+        #expect(center.pending?.purpose == .reset)
+        SetupSessions.withCoordinator(coordinator) {
+            if let request = center.pending { center.confirm(request) }
+        }
+        #expect(coordinator.sessionPurpose(for: builtIn.key) == .reset)
+        await settleTasks()
+        #expect(harness.preparedKeys == [builtIn.key, builtIn.key])
+        coordinator.forceCancel(builtIn.key)
+        SetupSessions.forceCancel(for: builtIn)
+    }
+
+    /// AE7: an extra account, and every other provider's built-in, start with no dialog.
+    @Test func extraOpenCodeAccountsAndOtherProvidersNeverAsk() async {
+        let fixture = makeFixture()
+        defer { fixture.cleanup() }
+        let harness = AppSetupHarness(store: fixture.store)
+        let coordinator = harness.makeCoordinator()
+        let center = BuiltInSignInConfirmation.shared
+        center.reset()
+        defer { center.reset() }
+        let extra = ProviderAccount(id: AccountID("oc-extra-\(UUID().uuidString)"), providerID: .opencode,
+                                    label: "Work", isBuiltIn: false)
+        let claude = ProviderAccount.builtIn(for: .claude)
+
+        SetupSessions.withCoordinator(coordinator) {
+            SetupSessions.openSetup(for: extra, onRetry: {})
+            SetupSessions.openSetup(for: claude, onRetry: {})
+        }
+        #expect(center.pending == nil)
+        await settleTasks()
+        #expect(harness.preparedKeys == [extra.key, claude.key])
+        for account in [extra, claude] {
+            coordinator.forceCancel(account.key)
+            SetupSessions.forceCancel(for: account)
+        }
+    }
+
+    /// The Settings reset dialog is the built-in warning itself, so it asks once, not twice.
+    @Test func settingsResetDialogCarriesTheOpenCodeWarning() {
+        let builtIn = ProviderAccount.builtIn(for: .opencode)
+        let message = AccountsSettingsInteractions.resetDialogMessage(for: builtIn, providerDisplayName: "OpenCode")
+        #expect(message == SettingsCopy.opencodeBuiltInResetWarning)
+        #expect(AccountsSettingsInteractions.resetDialogMessage(
+            for: .builtIn(for: .codex), providerDisplayName: "Codex"
+        ).contains("switches the Codex CLI login"))
+    }
+
+    /// U12 (b): a Console login adds an OAuth credential and makes it active; a stored key is
+    /// kept. The copy says so, never that the key is replaced or removed, and the Terminal
+    /// claim stays modest for users who moved OpenCode's data (KTD10).
+    @Test func builtInWarningCopyMatchesWhatALoginDoesToAStoredKey() {
+        let signIn = SettingsCopy.opencodeBuiltInSignInWarning
+        #expect(signIn.contains("A saved API key stays saved"))
+        #expect(signIn.contains("makes it the active login"))
+        for text in [signIn, SettingsCopy.opencodeBuiltInResetWarning] {
+            #expect(!text.localizedCaseInsensitiveContains("replace"))
+            #expect(text.contains("Terminal normally uses"))
+            #expect(!text.contains("'"))
+            #expect(!text.localizedCaseInsensitiveContains("connect"))
+        }
+        #expect(BuiltInSignInConfirmation.title(for: .setup) == "Sign in to OpenCode Console?")
+        #expect(BuiltInSignInConfirmation.title(for: .reset) == "Sign out and set up again?")
+        #expect(BuiltInSignInConfirmation.confirmLabel(for: .setup) == "Sign In")
+    }
+
+    @Test func confirmationGoesToTheKeyWindowThenAVisibleOneThenTheLatest() {
+        let a = UUID(), b = UUID(), c = UUID()
+        typealias Candidate = BuiltInSignInConfirmation.PresenterCandidate
+        #expect(BuiltInSignInConfirmation.choosePresenter(from: [
+            Candidate(id: a, isKey: false, isVisible: true),
+            Candidate(id: b, isKey: true, isVisible: true),
+            Candidate(id: c, isKey: false, isVisible: false),
+        ]) == b)
+        #expect(BuiltInSignInConfirmation.choosePresenter(from: [
+            Candidate(id: a, isKey: false, isVisible: true),
+            Candidate(id: c, isKey: false, isVisible: false),
+        ]) == a)
+        #expect(BuiltInSignInConfirmation.choosePresenter(from: [
+            Candidate(id: a, isKey: false, isVisible: false),
+            Candidate(id: c, isKey: false, isVisible: false),
+        ]) == c)
+        #expect(BuiltInSignInConfirmation.choosePresenter(from: []) == nil)
+    }
+
+    @Test func openCodeInstallRouteIsTheDocsPageAndTheNoGoRowCarriesTheWorkspaceNote() {
+        #expect(SetupSessions.recoveryRoute(for: .installOpenCodeCLI) == .documentation(OpenCodeCLI.installationURL))
+        #expect(PlanStatusActionRow.primaryHelp(for: .seeOpenCodeGoPlans) == SettingsCopy.opencodeWorkspaceScope)
+        #expect(PlanStatusActionRow.primaryHelp(for: .checkNow) == nil)
+        #expect(SetupSessions.failureMessage(
+            for: .executableMissing, account: .builtIn(for: .opencode)
+        ) == "OpenCode CLI wasn’t found. Install or update it, then try again.")
+    }
+
     @Test func addFlowReachesPreparingWaitingAndLiveForEachProviderWithoutMountedViews() async {
         for providerID in [ProviderID.claude, .codex] {
             let fixture = makeFixture()
@@ -1168,6 +1389,18 @@ private struct IsolatedSetupEnvironment {
 
     func cleanup() {
         try? FileManager.default.removeItem(at: supportRoot)
+    }
+}
+
+/// U5: records which client and home staging asked for a version, without running one.
+private actor VersionReadRecorder {
+    private(set) var calls: [String] = []
+
+    func record(_ path: String, _ home: OpenCodeAccountHome) {
+        switch home {
+        case .builtIn: calls.append("\(path) builtIn")
+        case .isolated(let root): calls.append("\(path) \(root)")
+        }
     }
 }
 

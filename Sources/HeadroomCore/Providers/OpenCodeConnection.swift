@@ -108,6 +108,192 @@ public enum OpenCodeCLI {
     }
 }
 
+// MARK: - Sign-in handoff (U5, KTD11)
+
+/// What staging decides from one `opencode --version` read, before any Terminal opens.
+public enum OpenCodeSignInSupport: Sendable, Equatable {
+    case supported
+    /// Below 2.2.0. 1.x falls through to its TUI on `api` and `auth`, so staging refuses
+    /// instead of running either on it (KTD3).
+    case tooOld
+    /// The version could not be read. Like Claude's R6 rule, a version-format change must not
+    /// lock everyone out of sign-in, so this stages; every 1.x build prints a readable version.
+    case unreadable
+}
+
+extension OpenCodeCLI {
+    /// KTD21/U12 step 8: the docs page now lists only 2.x installs (the `v2/install` script,
+    /// Homebrew `opencode-v2`, npm `@opencode/cli`). The bare `opencode.ai/install` script and
+    /// npm `opencode-ai` still give 1.x, so neither is named anywhere in Headroom.
+    public static let installationURL = URL(string: "https://opencode.ai/docs/")!
+
+    /// KTD11: the Console device-code login. It binds no callback port (U12 (b),
+    /// `plugin/provider/opencode.ts`), so OpenCode needs no exclusive login slot.
+    static let loginArguments = ["auth", "login", "--standalone", "opencode", "--method", "device"]
+    /// KTD11: always opens an account picker; exits 1 with no stored credential and 130
+    /// when cancelled, so its status is never what the handoff reports.
+    static let logoutArguments = ["auth", "logout", "--standalone", "opencode"]
+
+    public static func signInSupport(versionOutput: String?) -> OpenCodeSignInSupport {
+        guard let output = versionOutput, let version = OpenCodeVersion(versionOutput: output) else {
+            return .unreadable
+        }
+        return version < OpenCodeCLIUsageSource.minimumVersion ? .tooOld : .supported
+    }
+
+    /// KTD18: the DEBUG executable override reaches extra-account homes only, never the
+    /// built-in one: 2.x migrates a 1.x home one way on first use.
+    public static func signInExecutable(
+        for home: OpenCodeAccountHome,
+        override: String?,
+        resolve: () -> String? = { OpenCodeCLI.resolveExecutable() }
+    ) -> String? {
+        if case .isolated = home, let override { return override }
+        return resolve()
+    }
+
+    /// The one `--version` read staging makes, with the account's own probe environment
+    /// (KTD2, KTD10). No `api` or `auth` command runs before the version passes.
+    public static func readVersionOutput(
+        executablePath: String,
+        home: OpenCodeAccountHome,
+        inherited: [String: String] = ProcessInfo.processInfo.environment
+    ) async -> String? {
+        let loginPath = CLIExecutableResolver.resolveLoginPath(
+            fallback: "\(NSHomeDirectory())/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+        )
+        let environment = environment(inherited: inherited, home: home, loginPath: loginPath)
+        let workingDirectory = defaultWorkingDirectory.path
+        try? FileManager.default.createDirectory(atPath: workingDirectory, withIntermediateDirectories: true)
+        let output: OpenCodeRunOutput? = await withCheckedContinuation { continuation in
+            Thread.detachNewThread {
+                continuation.resume(returning: OpenCodeProcessRunner.run(
+                    .version,
+                    executable: executablePath,
+                    interpreter: nil,
+                    environment: environment,
+                    workingDirectory: workingDirectory,
+                    deadline: OpenCodeCLIUsageSource.defaultVersionDeadline
+                ))
+            }
+        }
+        guard let output, output.exitCode == 0 else { return nil }
+        return String(decoding: output.stdout, as: UTF8.self)
+    }
+
+    /// The clipboard fallback (Terminal refused the script). An exported subshell, never a
+    /// one-command env prefix, so a reset's logout and login both read this account's home.
+    public static func manualLoginCommand(
+        executablePath: String,
+        home: OpenCodeAccountHome,
+        purpose: SetupHandoffPurpose = .setup
+    ) -> String {
+        let executable = shellQuoted(executablePath)
+        let login = ([executable] + loginArguments).joined(separator: " ")
+        let commands = purpose == .reset
+            ? "{ \(([executable] + logoutArguments).joined(separator: " ")); \(login); }"
+            : login
+        let routing = shellEnvironmentLines(for: home).joined(separator: "; ")
+        // zsh only: `(k)parameters` in the shared clearing line is zsh syntax.
+        return "zsh -c \(shellQuoted("(\(routing); \(commands))"))"
+    }
+
+    /// KTD11: the Terminal script. The account's environment comes from the same lines the
+    /// probe's rule produces (`shellEnvironmentLines`), and the script ends with the login's
+    /// own status, because `SetupCompletionCommand.wrap` records the last command's status.
+    public static func loginScript(
+        executablePath: String?,
+        home: OpenCodeAccountHome,
+        purpose: SetupHandoffPurpose = .setup,
+        completionMarker: SetupCompletionMarker? = nil
+    ) -> String {
+        let guidance: [String]
+        switch (purpose, home) {
+        case (.reset, _):
+            guidance = [
+                "OpenCode will ask which login to sign out. Pick it, then sign in to Console again.",
+            ]
+        case (_, .builtIn):
+            guidance = ["This signs in to OpenCode Console for your default OpenCode setup on this Mac."]
+        case (_, .isolated):
+            guidance = [
+                "Sign in with the OpenCode Console account you want to add. This login is kept",
+                "separate from your default OpenCode setup.",
+            ]
+        }
+        let introduction = (
+            [
+                "#!/bin/zsh",
+                "clear",
+                "export PATH=\"$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH\"",
+            ]
+            + shellEnvironmentLines(for: home)
+            + ["echo \"Headroom is opening the official OpenCode device-code sign-in.\""]
+            + guidance.map { "echo \"\($0)\"" }
+            + [
+                "echo \"Follow the device-code instructions in this window, then return to Headroom.\"",
+                "echo \"Headroom never receives your password or sign-in details.\"",
+                "echo",
+            ]
+        ).joined(separator: "\n")
+
+        guard let executablePath else {
+            return introduction + "\n" + """
+            echo "OpenCode CLI was not found. Install OpenCode 2.2 or newer from \(installationURL.absoluteString)"
+            echo "then reopen Headroom and sign in again."
+            echo
+            echo "Press any key to close this window."
+            read -k 1
+            exit 127
+            """
+        }
+
+        let executable = shellQuoted(executablePath)
+        let invocation = signInInvocation(executable: executable, purpose: purpose)
+        let launch = completionMarker.map {
+            SetupCompletionCommand.wrap(invocation, marker: $0, mode: .standard)
+        } ?? invocation
+        return introduction + "\n" + """
+        if [[ ! -x \(executable) ]]; then
+          echo "The OpenCode CLI moved or is no longer executable. Reopen Headroom and try again."
+          echo
+          echo "Press any key to close this window."
+          read -k 1
+          exit 127
+        fi
+        \(launch)
+        """
+    }
+
+    /// KTD11: a reset's logout status is ignored (1 with no stored credential, 130 when the
+    /// picker is cancelled) and the login always runs. While logout runs, Ctrl-C ends only
+    /// logout: the wrapper's `exit 130` INT trap is swapped for a no-op and restored after.
+    private static func signInInvocation(executable: String, purpose: SetupHandoffPurpose) -> String {
+        let login = ([executable] + loginArguments).joined(separator: " ")
+        let logout = purpose == .reset ? """
+        trap ':' INT
+        \(([executable] + logoutArguments).joined(separator: " "))
+        trap 'exit 130' INT
+        echo
+
+        """ : ""
+        return """
+        typeset headroom_signin_status=0
+        \(logout)\(login)
+        headroom_signin_status=$?
+        if (( headroom_signin_status == 0 )); then
+          echo "\(finishedLine)"
+        else
+          echo "\(unfinishedLine)"
+        fi
+        ( exit $headroom_signin_status )
+        """
+    }
+
+    private static let finishedLine = "Sign-in finished. Headroom is checking your OpenCode account."
+    private static let unfinishedLine = "Sign-in didn’t finish. Return to Headroom to try again."
+}
+
 // MARK: - Test-client seams (KTD18)
 
 /// What `--probe-opencode` reads: which home, and which executable. A nil executable means

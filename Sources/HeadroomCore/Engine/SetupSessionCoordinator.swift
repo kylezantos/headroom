@@ -51,7 +51,7 @@ public enum SetupSessionFailure: Error, Sendable, Equatable {
 /// The policy is chosen once, when the handoff is staged, and saved with it — never
 /// re-derived from a CLI version that can change while the original Terminal is open.
 public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
-    /// Today's bounded retry ladder. Every provider but Claude.
+    /// Today’s bounded retry ladder. Every provider but Claude and OpenCode.
     case retryLadder
     /// One check a fixed delay after each landed result. Claude's `interactive` launch,
     /// where the CLI's own screens can be satisfied without the process exiting.
@@ -68,6 +68,7 @@ public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
         purpose: SetupHandoffPurpose,
         claudeScriptKind: ClaudeSetupScriptKind?
     ) -> Self {
+        if let policy = exitSignalledOpenCode(providerID: providerID, purpose: purpose) { return policy }
         guard providerID == .claude else { return .retryLadder }
         if purpose == .reset { return .exitSignalled }
         return claudeScriptKind == .signIn ? .exitSignalled : .polled
@@ -77,8 +78,20 @@ public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
     /// survives in the marker, and a `.setup` handoff on a current CLI is overwhelmingly
     /// the sign-in script; `.trust` is always the interactive launch.
     public static func restored(providerID: ProviderID, purpose: SetupHandoffPurpose) -> Self {
+        if let policy = exitSignalledOpenCode(providerID: providerID, purpose: purpose) { return policy }
         guard providerID == .claude else { return .retryLadder }
         return purpose == .setup || purpose == .reset ? .exitSignalled : .polled
+    }
+
+    /// KTD11 (OpenCode plan): the device login can outlast the 55-second ladder, and every
+    /// check before it exits would read signed out, so OpenCode sign-in and reset wait on the
+    /// process exit with the five-minute timeout, as Claude's sign-in script does.
+    private static func exitSignalledOpenCode(
+        providerID: ProviderID,
+        purpose: SetupHandoffPurpose
+    ) -> Self? {
+        guard providerID == .opencode, purpose == .setup || purpose == .reset else { return nil }
+        return .exitSignalled
     }
 }
 
@@ -723,7 +736,8 @@ public final class SetupSessionCoordinator {
         if let completion = handoffsAwaitingFinalRefresh[key] {
             let failure: SetupSessionFailure
             if let outcome = reason.providerSetupOutcome {
-                if outcome == .claudeLoginRequired {
+                if outcome == .claudeLoginRequired || outcome == .opencodeSignedOut
+                    || outcome == .opencodeConsoleSignInRequired {
                     // KTD10: whatever status the wrapper recorded, the account is still
                     // signed out, so the window closed before sign-in finished (R11).
                     failure = .closedBeforeSignIn
@@ -922,7 +936,8 @@ public final class SetupSessionCoordinator {
     }
 
     /// Grok's production loopback login binds an ephemeral port and device auth binds no
-    /// callback listener (verified 2026-08-01), so only Codex currently needs an exclusive
+    /// callback listener (verified 2026-08-01), and OpenCode's device login binds none either
+    /// (KTD11, U12 (b), checked against v2.2.5 source and live), so only Codex currently needs an exclusive
     /// provider slot. The keyed representation is ready for any future fixed-port CLI.
     private static func requiresExclusiveLoginSlot(_ providerID: ProviderID) -> Bool {
         providerID == .codex

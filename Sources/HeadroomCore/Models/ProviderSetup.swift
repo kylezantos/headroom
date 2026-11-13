@@ -101,6 +101,9 @@ public enum SetupWaitingPrompt: Sendable, Equatable, CaseIterable {
     /// asks before its prompt. Headroom never answers it, so the copy names no option.
     case startupQuestion
     case deviceCode
+    /// KTD11 (OpenCode plan): Sign Out & Set Up Again. OpenCode's logout opens an account
+    /// picker in Terminal before the device-code login, so the copy names that step first.
+    case deviceCodeAfterSignOut
 }
 
 /// KTD11: the literal the user has to pick or type, set apart from the prose in the card's

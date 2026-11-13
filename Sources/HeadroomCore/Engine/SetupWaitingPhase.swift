@@ -33,12 +33,14 @@ public enum SetupWaitingPhase: Sendable, Equatable {
         purpose: SetupHandoffPurpose?,
         mode: SetupHandoffMode = .standard,
         interactiveReason: ClaudeInteractiveLaunchReason? = nil,
-        reportedCompletion: SetupHandoffCompletion? = nil
+        reportedCompletion: SetupHandoffCompletion? = nil,
+        providerID: ProviderID? = nil
     ) -> SetupWaitingPhase? {
         let prompt = prompt(
             purpose: purpose,
             mode: mode,
-            interactiveReason: interactiveReason
+            interactiveReason: interactiveReason,
+            providerID: providerID
         )
         switch state {
         case .preparing:
@@ -58,8 +60,14 @@ public enum SetupWaitingPhase: Sendable, Equatable {
     private static func prompt(
         purpose: SetupHandoffPurpose?,
         mode: SetupHandoffMode,
-        interactiveReason: ClaudeInteractiveLaunchReason?
+        interactiveReason: ClaudeInteractiveLaunchReason?,
+        providerID: ProviderID?
     ) -> SetupWaitingPrompt {
+        // KTD11 (OpenCode plan): every OpenCode sign-in is the device-code login, whatever
+        // mode the session was started in; a reset first asks which login to sign out.
+        if providerID == .opencode {
+            return purpose == .reset ? .deviceCodeAfterSignOut : .deviceCode
+        }
         if purpose == .trust {
             // A startup question reuses the approval launch; only the reason recorded at
             // staging tells the two apart, so neither borrows the other's sentence.
@@ -117,6 +125,11 @@ public enum SetupWaitingPhase: Sendable, Equatable {
             .init(
                 title: "Waiting for device code…",
                 body: "Follow the device-code instructions in Terminal. Headroom continues as soon as the code is accepted."
+            )
+        case .deviceCodeAfterSignOut:
+            .init(
+                title: "Waiting for device code…",
+                body: "In Terminal, pick the login to sign out, then follow the device-code instructions. Headroom continues as soon as the code is accepted."
             )
         }
     }

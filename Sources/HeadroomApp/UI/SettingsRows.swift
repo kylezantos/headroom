@@ -207,6 +207,15 @@ enum SettingsCopy {
     /// active. Visible help under the OpenCode group in Settings › Accounts, and the planned
     /// tooltip on the no-Go row; one constant so the two never drift.
     static let opencodeWorkspaceScope = "OpenCode reports only the active Console workspace"
+
+    /// D7/AE7 (OpenCode plan): the built-in sign-in warning, printed by the popover and
+    /// Settings. U12 (b): a Console login adds an OAuth credential and makes it the active
+    /// one; a stored API key is kept. KTD10: a user who moved OpenCode's data with XDG
+    /// variables has a Terminal that reads elsewhere, so the Terminal claim stays "normally".
+    static let opencodeBuiltInSignInWarning = "This adds an OpenCode Console login to the default OpenCode setup on this Mac, which Terminal normally uses too, and makes it the active login. A saved API key stays saved. To track a different Console account without changing this one, add it as a separate account."
+
+    /// KTD11: upstream's logout asks in Terminal which login to remove and removes only that one.
+    static let opencodeBuiltInResetWarning = "OpenCode asks in Terminal which login to sign out, then signs in to Console again. This changes the default OpenCode setup on this Mac, which Terminal normally uses too. Only the login you pick is removed. To track a different Console account instead, add it as a separate account."
 }
 
 /// One material for every section: the popover's card language — `RaisedTile` at

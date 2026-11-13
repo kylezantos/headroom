@@ -301,6 +301,8 @@ struct PopoverView: View {
             // one place it enters the view tree (the Settings specimen sets its own).
             .environment(\.accountTitleInk, store.accountTitleInk)
             .environment(\.headroomTuning, tuning.values)
+            // D7/AE7 (OpenCode plan): the built-in OpenCode sign-in warning.
+            .builtInSignInConfirmation()
         }
     }
 

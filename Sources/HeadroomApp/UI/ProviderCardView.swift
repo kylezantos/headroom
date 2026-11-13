@@ -1556,7 +1556,7 @@ struct CardRowAction<Accessory: View>: View {
                     criticalInk: criticalInk,
                     showsArrow: primary.opensElsewhere
                 ))
-                .help(primary.label)
+                .help(primary.help ?? primary.label)
                 .accessibilityLabel(accountLabel.map { "\(primary.label) for \($0)" } ?? primary.label)
                 .accessibilityValue(message)
             if let secondary {
@@ -1611,6 +1611,9 @@ struct CardRowButtonAction {
     /// Whether the click leaves Headroom (Terminal, a web page). Only those rows carry the
     /// trailing ↗; Check Now re-reads in place.
     var opensElsewhere: Bool = true
+    /// The row's tooltip when it should say more than the label (KTD21: the no-Go row's
+    /// workspace note). Nil keeps the label.
+    var help: String? = nil
     let perform: () -> Void
 }
 

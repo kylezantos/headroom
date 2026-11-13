@@ -1498,6 +1498,161 @@ import Testing
         #expect(harness.scheduler.pendingCount == 0)
     }
 
+    // MARK: - U5 (OpenCode plan, KTD11): the device-code sign-in waits on Terminal exit
+
+    @Test func openCodeSetupAndResetAreExitSignalledWhenStagedAndRestored() {
+        for purpose in [SetupHandoffPurpose.setup, .reset] {
+            #expect(SetupWaitingPolicy.staged(providerID: .opencode, purpose: purpose, claudeScriptKind: nil)
+                == .exitSignalled)
+            #expect(SetupWaitingPolicy.restored(providerID: .opencode, purpose: purpose) == .exitSignalled)
+        }
+        // Unchanged for the ladder providers.
+        #expect(SetupWaitingPolicy.staged(providerID: .grok, purpose: .setup, claudeScriptKind: nil) == .retryLadder)
+        #expect(SetupWaitingPolicy.restored(providerID: .copilot, purpose: .setup) == .retryLadder)
+    }
+
+    /// A device login in the browser can take minutes. Nothing but the five-minute timeout
+    /// is armed, so a three-minute sign-in sees no check, no ladder and no failure.
+    @Test(arguments: [SetupHandoffPurpose.setup, .reset])
+    func openCodeHandoffArmsOnlyTheTimeoutSoAThreeMinuteLoginShowsNoFailure(_ purpose: SetupHandoffPurpose) async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator(retryDelays: [.seconds(3), .seconds(7), .seconds(15), .seconds(30)])
+        let account = ProviderAccount.builtIn(for: .opencode)
+
+        if purpose == .reset { coordinator.beginReset(for: account) } else { coordinator.begin(for: account) }
+        await settleTasks()
+
+        #expect(coordinator.state(for: account.key) == .waiting(attempt: 0))
+        #expect(coordinator.waitingPolicy(for: account.key) == .exitSignalled)
+        #expect(harness.scheduler.pendingDelays == [.seconds(300)])
+        for delay: Duration in [.seconds(3), .seconds(7), .seconds(15), .seconds(30), .seconds(180)] {
+            #expect(!harness.scheduler.fire(after: delay))
+        }
+        #expect(harness.refreshCalls.isEmpty)
+        #expect(coordinator.state(for: account.key) == .waiting(attempt: 0))
+    }
+
+    @Test func openCodeSetupCompletesOnExitThenAThreeWindowReading() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount(id: AccountID("oc-extra"), providerID: .opencode, label: "Work", isBuiltIn: false)
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key, completion: .succeeded)
+        #expect(coordinator.state(for: account.key) == .verifying)
+        #expect(harness.refreshCalls == [account.key])
+
+        let reset = Date().addingTimeInterval(3_600)
+        coordinator.receive(.live(.opencode, windows: [
+            UsageWindow(kind: .fiveHour, utilization: 10, resetSchedule: .scheduled(reset)),
+            UsageWindow(kind: .weekly, utilization: 20, resetSchedule: .scheduled(reset)),
+            UsageWindow(kind: .billingPeriod(label: "Monthly", duration: 30 * 86_400), utilization: 30,
+                        resetSchedule: .scheduled(reset)),
+        ]), for: account.key)
+        #expect(coordinator.state(for: account.key) == .connected)
+    }
+
+    /// KTD7/KTD20: a Console login with no Go plan (or no workspace) is a live reading too.
+    @Test func openCodeSetupCompletesOnExitThenTheNoGoReading() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount.builtIn(for: .opencode)
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key, completion: .succeeded)
+        coordinator.receive(UsageSnapshot(
+            providerID: .opencode,
+            windows: [UsageWindow(kind: .billingPeriod(label: "Monthly", duration: 30 * 86_400),
+                                  utilization: 0, resetSchedule: .unresolved(.absent),
+                                  freshness: .unavailable(since: Date()))],
+            planLabel: nil,
+            capturedAt: Date(),
+            freshness: .live,
+            planStatus: .noActivePlan
+        ), for: account.key)
+        #expect(coordinator.state(for: account.key) == .connected)
+    }
+
+    /// R11 for OpenCode: Terminal exited and the account still reads signed out (or still
+    /// only has its API key), whatever status the wrapper recorded.
+    @Test(arguments: [ProviderSetupOutcome.opencodeSignedOut, .opencodeConsoleSignInRequired])
+    func openCodeStillSignedOutAfterExitIsClosedBeforeSignIn(_ outcome: ProviderSetupOutcome) async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount.builtIn(for: .opencode)
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.handoffDidEnd(account.key, completion: .succeeded)
+        coordinator.receive(.stale(for: .opencode, reason: .providerSetup(outcome)), for: account.key)
+
+        #expect(coordinator.state(for: account.key) == .failed(.closedBeforeSignIn))
+    }
+
+    /// Relaunch mid-handoff, from a build that saved a record and from one that did not:
+    /// both resume waiting on the exit with the remaining timeout, never the ladder.
+    @Test func restoredOpenCodeHandoffWaitsOnExitWithTheRemainingTimeout() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        for savedPolicy in [SetupWaitingPolicy?.some(.exitSignalled), nil] {
+            for purpose in [SetupHandoffPurpose.setup, .reset] {
+                let harness = SetupCoordinatorHarness()
+                let coordinator = harness.makeCoordinator()
+                let key = AccountKey(providerID: .opencode, accountID: .primary)
+                harness.existingAccounts.insert(key)
+
+                coordinator.restoreActiveHandoff(
+                    key,
+                    purpose: purpose,
+                    policy: savedPolicy,
+                    startedAt: now.addingTimeInterval(-60),
+                    now: now
+                )
+
+                #expect(coordinator.waitingPolicy(for: key) == .exitSignalled)
+                #expect(coordinator.state(for: key) == .waiting(attempt: 0))
+                #expect(harness.scheduler.pendingDelays == [.seconds(240)])
+                coordinator.handoffDidEnd(key, completion: .succeeded, purpose: purpose)
+                #expect(coordinator.state(for: key) == .verifying)
+            }
+        }
+    }
+
+    /// KTD11: the device flow binds no callback port, so two OpenCode sign-ins run at once.
+    @Test func twoOpenCodeSignInsDoNotBlockEachOther() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let first = ProviderAccount.builtIn(for: .opencode)
+        let second = ProviderAccount(id: AccountID("oc-2"), providerID: .opencode, label: "Two", isBuiltIn: false)
+
+        coordinator.begin(for: first)
+        coordinator.begin(for: second)
+        await settleTasks()
+
+        #expect(coordinator.state(for: first.key) == .waiting(attempt: 0))
+        #expect(coordinator.state(for: second.key) == .waiting(attempt: 0))
+    }
+
+    /// The waiting copy: device code for a sign-in, and the account picker first for a reset.
+    @Test func openCodeWaitingCopyIsDeviceCodeAndTheResetNamesThePicker() {
+        let setup = SetupWaitingPhase.resolve(
+            state: .waiting(attempt: 0), hasActiveHandoff: true, purpose: .setup, mode: .standard,
+            providerID: .opencode
+        )
+        let reset = SetupWaitingPhase.resolve(
+            state: .waiting(attempt: 0), hasActiveHandoff: true, purpose: .reset, mode: .standard,
+            providerID: .opencode
+        )
+        #expect(setup == .waitingForUser(.deviceCode))
+        #expect(reset == .waitingForUser(.deviceCodeAfterSignOut))
+        #expect(reset?.copy.body.contains("pick the login to sign out") == true)
+        // Claude's reset keeps its own prompt.
+        #expect(SetupWaitingPhase.resolve(
+            state: .waiting(attempt: 0), hasActiveHandoff: true, purpose: .reset, providerID: .claude
+        ) == .waitingForUser(.signIn))
+    }
+
     private func settleTasks() async {
         for _ in 0..<20 { await Task.yield() }
     }

@@ -205,6 +205,7 @@ struct SettingsView: View {
         } message: { provider in
             Text("Headroom will stop fetching \(provider.displayName) spend until a new key is added.")
         }
+        .builtInSignInConfirmation()
     }
 
     /// The pane on screen. `sidebarSelection` is optional because `List(selection:)` demands

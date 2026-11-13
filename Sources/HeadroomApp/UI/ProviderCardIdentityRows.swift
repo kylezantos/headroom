@@ -202,9 +202,7 @@ struct PlanStatusActionRow: View {
             message: presentation.status,
             severity: .attention,
             accountLabel: account.label,
-            primary: .init(label: presentation.primaryLabel, recovery: presentation.primaryAction) {
-                SetupSessions.performRecovery(presentation.primaryAction, for: account, onRetry: onRetry)
-            },
+            primary: primaryAction,
             secondary: presentation.secondaryAction.flatMap { action in
                 presentation.secondaryLabel.map { label in
                     .init(label: label, recovery: action) {
@@ -213,6 +211,21 @@ struct PlanStatusActionRow: View {
                 }
             }
         )
+    }
+}
+
+extension PlanStatusActionRow {
+    /// KTD21: the no-Go row's tooltip says why another workspace's Go plan doesn't show.
+    static func primaryHelp(for action: SetupRecoveryAction) -> String? {
+        action == .seeOpenCodeGoPlans ? SettingsCopy.opencodeWorkspaceScope : nil
+    }
+
+    private var primaryAction: CardRowButtonAction {
+        var action = CardRowButtonAction(label: presentation.primaryLabel, recovery: presentation.primaryAction) {
+            SetupSessions.performRecovery(presentation.primaryAction, for: account, onRetry: onRetry)
+        }
+        action.help = Self.primaryHelp(for: presentation.primaryAction)
+        return action
     }
 }
 

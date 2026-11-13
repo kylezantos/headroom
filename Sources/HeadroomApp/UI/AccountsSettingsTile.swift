@@ -165,15 +165,23 @@ struct AccountsSettingsTile: View {
             presenting: resetCandidate
         ) { account in
             Button("Sign Out & Set Up Again") {
-                _ = AccountsSettingsInteractions.resetBuiltIn(account, in: store)
+                // D7 (OpenCode plan): this dialog is the built-in warning for a reset, so the
+                // start is already confirmed and must not ask a second time.
+                _ = AccountsSettingsInteractions.resetBuiltIn(
+                    account,
+                    in: store,
+                    beginReset: { SetupSessions.resetSetup(for: $0, confirmed: true) }
+                )
                 resetCandidate = nil
                 restoreRemovalFocus()
             }
             Button("Cancel", role: .cancel) { restoreRemovalFocus() }
         } message: { account in
-            let provider = store.displayNames[account.providerID]
-                ?? account.providerID.raw.capitalized
-            Text("Signing in again switches the \(provider) CLI login across this Mac, including Terminal sessions. If you only want Headroom to show another login, add it as a separate account and use Make Main.")
+            Text(AccountsSettingsInteractions.resetDialogMessage(
+                for: account,
+                providerDisplayName: store.displayNames[account.providerID]
+                    ?? account.providerID.raw.capitalized
+            ))
         }
         // Commit a pending rename when the field loses focus — Enter-only commit
         // silently discarded renames while still displaying the draft (code-review

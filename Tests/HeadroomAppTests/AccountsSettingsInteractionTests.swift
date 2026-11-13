@@ -356,6 +356,12 @@ struct AccountsSettingsInteractionTests {
             (.connectCursor, .setup(.standard)),
             (.installCopilotCLI, .documentation(CopilotCLI.installationURL)),
             (.connectCopilot, .setup(.standard)),
+            (.installOpenCodeCLI, .documentation(URL(string: "https://opencode.ai/docs/")!)),
+            (.updateOpenCode, .documentation(URL(string: "https://anoma.ly/notes/opencode-2-0")!)),
+            (.connectOpenCode, .setup(.standard)),
+            (.seeOpenCodeGoPlans, .documentation(URL(string: "https://opencode.ai/go")!)),
+            // KTD21: the same feedback email as Settings › About.
+            (.contactSupport, .feedbackEmail),
             // KTD5 (2026-09-19 sign-in plan): Claude's approval handoff shares Cursor's
             // trust route; only Sign In still routes to `.setup(.standard)`.
             (.openClaudeWorkspace, .workspaceTrust),

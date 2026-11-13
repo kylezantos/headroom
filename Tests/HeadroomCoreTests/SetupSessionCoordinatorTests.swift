@@ -55,6 +55,20 @@ import Testing
         #expect(coordinator.state(for: account.key) == .failed(.provider(.copilotCLIMissing)))
     }
 
+    /// U1: a missing CLI can't be fixed by waiting on Terminal, so it fails the open
+    /// handoff at once rather than after the wait.
+    @Test func openCodeMissingCLIFailsAnOpenHandoffAtOnce() async {
+        let harness = SetupCoordinatorHarness()
+        let coordinator = harness.makeCoordinator()
+        let account = ProviderAccount.builtIn(for: .opencode)
+
+        coordinator.begin(for: account)
+        await settleTasks()
+        coordinator.receive(.stale(for: .opencode, reason: .providerSetup(.opencodeCLIMissing)), for: account.key)
+
+        #expect(coordinator.state(for: account.key) == .failed(.provider(.opencodeCLIMissing)))
+    }
+
     @Test func cursorLoginThenWorkspaceTrustRefreshesIntoLiveUsage() async {
         let harness = SetupCoordinatorHarness()
         let coordinator = harness.makeCoordinator()

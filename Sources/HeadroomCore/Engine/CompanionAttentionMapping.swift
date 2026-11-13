@@ -27,10 +27,15 @@ public struct CompanionSessionInput: Equatable, Sendable {
 public enum CompanionAttentionMapping {
     public static func attention(for outcome: ProviderSetupOutcome) -> CompanionAttention {
         switch outcome {
-        case .claudeCLIMissing, .codexCLIMissing, .grokCLIMissing, .cursorCLIMissing, .copilotCLIMissing:
+        case .claudeCLIMissing, .codexCLIMissing, .grokCLIMissing, .cursorCLIMissing, .copilotCLIMissing,
+            .opencodeCLIMissing:
             .cliMissing
-        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut:
+        // KTD21: an API-key connection is fixed by signing in, like a signed-out account.
+        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut,
+            .opencodeSignedOut, .opencodeConsoleSignInRequired:
             .signInRequired
+        case .opencodeUpdateRequired:
+            .cliUpdateRequired
         case .claudeTrustRequired, .cursorTrustRequired:
             .workspaceApproval
         // No wire value names a startup question; the phone's unknown-setup-screen copy is
@@ -39,13 +44,14 @@ public enum CompanionAttentionMapping {
             .setupScreenUnknown
         // Credential IO is retryable, never proof the credentials were rejected.
         case .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified, .grokCredentialIO,
-            .grokTransientCapture, .cursorTransientCapture, .copilotLogsUnreadable:
+            .grokTransientCapture, .cursorTransientCapture, .copilotLogsUnreadable,
+            .opencodeTransientCapture, .opencodeFormatChanged:
             .retrying
         case .codexPermissionDenied, .grokPermissionDenied:
             .allowSignInFile
         // Unsafe permissions recover by signing in again; no permission bits or path export.
         case .codexUnsafePermissions, .grokUnsafePermissions, .codexRejectedAuth,
-            .grokRejectedAuth:
+            .grokRejectedAuth, .opencodeSignInExpired:
             .signInAgain
         case .codexMalformedAuth, .grokMalformedAuth:
             .signInFileUnreadable

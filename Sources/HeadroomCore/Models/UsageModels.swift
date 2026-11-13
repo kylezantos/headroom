@@ -473,6 +473,16 @@ public struct UsageSnapshot: Sendable, Equatable {
     /// behavior as it was before identities existed. Mac-local: it never reaches the
     /// widget envelope or the phone.
     public let identity: AccountIdentityOutcome?
+    /// What the source said about the account's plan when it isn't a usage number: today
+    /// only OpenCode's signed-in workspace without Go (KTD7, OpenCode plan). Nil on every
+    /// other reading.
+    public let planStatus: PlanStatus?
+
+    /// KTD7 (OpenCode plan): a stored value, so its raw value is permanent once shipped.
+    public enum PlanStatus: String, Sendable, Equatable, Codable {
+        /// Signed in, but the workspace has no plan with usage limits to read.
+        case noActivePlan
+    }
 
     public init(
         providerID: ProviderID,
@@ -483,7 +493,8 @@ public struct UsageSnapshot: Sendable, Equatable {
         codexResetCreditsField: CodexResetCreditsField? = nil,
         capturedAt: Date?,
         freshness: Freshness,
-        identity: AccountIdentityOutcome? = nil
+        identity: AccountIdentityOutcome? = nil,
+        planStatus: PlanStatus? = nil
     ) {
         self.providerID = providerID
         self.windows = windows
@@ -494,6 +505,7 @@ public struct UsageSnapshot: Sendable, Equatable {
         self.capturedAt = capturedAt
         self.freshness = freshness
         self.identity = identity
+        self.planStatus = planStatus
     }
 
     /// `--probe-codex` line. Three live states stay distinguishable: an integer
@@ -552,7 +564,8 @@ public struct UsageSnapshot: Sendable, Equatable {
             codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
             freshness: .stale(reason),
-            identity: identity
+            identity: identity,
+            planStatus: planStatus
         )
     }
 
@@ -567,7 +580,8 @@ public struct UsageSnapshot: Sendable, Equatable {
             codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
             freshness: freshness,
-            identity: identity
+            identity: identity,
+            planStatus: planStatus
         )
     }
 
@@ -581,7 +595,8 @@ public struct UsageSnapshot: Sendable, Equatable {
             codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
             freshness: freshness,
-            identity: identity
+            identity: identity,
+            planStatus: planStatus
         )
     }
 
@@ -597,7 +612,8 @@ public struct UsageSnapshot: Sendable, Equatable {
             codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
             freshness: freshness ?? self.freshness,
-            identity: identity
+            identity: identity,
+            planStatus: planStatus
         )
     }
 }
@@ -637,6 +653,9 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
     case openAIAPI
     case xaiAPI
     case cursorAPI
+    /// KTD13 (OpenCode plan): appended after the API surfaces, not beside the other
+    /// subscriptions, so no stored raw value or `allCases` position moves.
+    case opencodeSubscription
 
     public var providerID: ProviderID {
         switch self {
@@ -645,6 +664,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .grokSubscription, .xaiAPI: return .grok
         case .cursorSubscription, .cursorAPI: return .cursor
         case .copilotSubscription: return .copilot
+        case .opencodeSubscription: return .opencode
         }
     }
 
@@ -659,12 +679,14 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .openAIAPI: return "OpenAI API spend"
         case .xaiAPI: return "xAI API spend"
         case .cursorAPI: return "Cursor on-demand spend"
+        case .opencodeSubscription: return "OpenCode subscription"
         }
     }
 
     public var isSubscription: Bool {
         switch self {
-        case .claudeSubscription, .codexSubscription, .grokSubscription, .cursorSubscription, .copilotSubscription:
+        case .claudeSubscription, .codexSubscription, .grokSubscription, .cursorSubscription, .copilotSubscription,
+             .opencodeSubscription:
             return true
         case .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
             return false
@@ -675,7 +697,10 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         switch self {
         case .claudeSubscription, .codexSubscription:
             return true
-        case .grokSubscription, .cursorSubscription, .copilotSubscription, .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
+        // R11: OpenCode is off for fresh installs and upgrades alike, like Grok, Cursor and
+        // Copilot before it.
+        case .grokSubscription, .cursorSubscription, .copilotSubscription, .opencodeSubscription,
+             .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
             return false
         }
     }

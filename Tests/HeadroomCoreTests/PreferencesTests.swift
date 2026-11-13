@@ -277,6 +277,7 @@ struct PreferencesTests {
         #expect(!prefs.isSurfaceEnabled(.grokSubscription))
         #expect(!prefs.isSurfaceEnabled(.cursorSubscription))
         #expect(!prefs.isSurfaceEnabled(.copilotSubscription))
+        #expect(!prefs.isSurfaceEnabled(.opencodeSubscription))
         #expect(!prefs.isSurfaceEnabled(.anthropicAPI))
         #expect(!prefs.isSurfaceEnabled(.openAIAPI))
         #expect(!prefs.isSurfaceEnabled(.xaiAPI))
@@ -299,7 +300,30 @@ struct PreferencesTests {
             "openAIAPI",
             "xaiAPI",
             "cursorAPI",
+            // KTD13: appended, never inserted, so every stored key above keeps its meaning.
+            "opencodeSubscription",
         ])
+        #expect(UsageSurface.opencodeSubscription.providerID == .opencode)
+        #expect(UsageSurface.opencodeSubscription.isSubscription)
+        #expect(UsageSurface.subscription(for: .opencode) == .opencodeSubscription)
+        #expect(UsageSurface.api(for: .opencode) == nil)
+    }
+
+    /// R11: an install that already chose its surfaces has no OpenCode key, and must not
+    /// start fetching OpenCode on upgrade.
+    @Test func openCodeStaysOffAfterAnUpgrade() {
+        let defaults = freshDefaults()
+        let before = Preferences(defaults: defaults)
+        for surface in UsageSurface.allCases where surface != .opencodeSubscription {
+            before.setSurfaceEnabled(true, for: surface)
+        }
+        #expect(defaults.object(forKey: "surfaceEnabled.opencodeSubscription") == nil)
+
+        let upgraded = Preferences(defaults: defaults)
+        #expect(!upgraded.isSurfaceEnabled(.opencodeSubscription))
+        #expect(upgraded.isSurfaceEnabled(.copilotSubscription))
+        upgraded.setSurfaceEnabled(true, for: .opencodeSubscription)
+        #expect(Preferences(defaults: defaults).isSurfaceEnabled(.opencodeSubscription))
     }
 
     @Test func settingsPaneDefaultsPersistsAndIgnoresUnknownValues() {

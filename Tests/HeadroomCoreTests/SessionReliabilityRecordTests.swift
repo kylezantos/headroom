@@ -30,6 +30,23 @@ struct SessionReliabilityRecordTests {
         #expect(restarted.days.first { $0.provider == .codex }?.rejectedAuthTransitions == 1)
     }
 
+    @Test func openCodeSignOutsAndExpiredSignInsAreCountedApart() {
+        let opencode = AccountKey(providerID: .opencode, accountID: .primary)
+        for outcome in [ProviderSetupOutcome.opencodeSignedOut, .opencodeConsoleSignInRequired] {
+            let record = SessionReliabilityRecord(defaults: defaults())
+            record.note(live(.opencode), for: opencode, expectedInterval: 300)
+            record.note(.stale(for: .opencode, reason: .providerSetup(outcome)), for: opencode, expectedInterval: 300)
+            #expect(record.days.first?.signOutTransitions == 1, "\(outcome)")
+            #expect(record.days.first?.rejectedAuthTransitions == 0, "\(outcome)")
+        }
+        let record = SessionReliabilityRecord(defaults: defaults())
+        record.note(live(.opencode), for: opencode, expectedInterval: 300)
+        record.note(.stale(for: .opencode, reason: .providerSetup(.opencodeSignInExpired)),
+                    for: opencode, expectedInterval: 300)
+        #expect(record.days.first?.signOutTransitions == 0)
+        #expect(record.days.first?.rejectedAuthTransitions == 1)
+    }
+
     @Test func unverifiedCodex401CountsRejectedRequestsWithoutClaimingASignOut() {
         let record = SessionReliabilityRecord(defaults: defaults())
         record.note(live(.codex), for: codex, expectedInterval: 300)

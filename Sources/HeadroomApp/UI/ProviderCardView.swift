@@ -1869,6 +1869,7 @@ extension SetupSessions.RecoveryRoute {
         // as the alternative, so it needs a glyph of its own: the code is what you type.
         case .setup(.deviceCode): "number"
         case .setup, .workspaceTrust, .cursorTools: "apple.terminal"
+        case .feedbackEmail: "envelope"
         case .checkNow: "arrow.clockwise"
         }
     }

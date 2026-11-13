@@ -172,6 +172,19 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// A session log under `~/.copilot` exists but could not be read. A partial sum would
     /// look like a real, lower number, so nothing is shown until every log reads.
     case copilotLogsUnreadable
+    // OpenCode plan, KTD3/KTD4/KTD20. KTD22's `opencodeUpdateHeld` is added only if the
+    // migration measurement shows the hold is needed.
+    case opencodeCLIMissing
+    /// The installed `opencode` is older than 2.2.0, so Headroom never runs its usage read.
+    case opencodeUpdateRequired
+    case opencodeSignedOut
+    /// Connected with a stored API key rather than a Console sign-in, which has no Go usage.
+    case opencodeConsoleSignInRequired
+    /// The usage read says the Console sign-in can no longer be refreshed.
+    case opencodeSignInExpired
+    /// The usage read's output no longer matches the contract; only a Headroom update fixes it.
+    case opencodeFormatChanged
+    case opencodeTransientCapture
 
     // W2A: these render in the popover's 295pt recovery line and again, wrapping freely
     // since S2B, in a ≈197pt account state row. The `\u{00A0}` runs glue tails that would otherwise
@@ -222,6 +235,14 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .copilotCLIMissing: ProviderSignInCopy.cliMissing(for: .copilot)
         case .copilotSignedOut: ProviderSignInCopy.status(for: .copilot)
         case .copilotLogsUnreadable: "Couldn’t read Copilot session logs\u{00A0}—\u{00A0}will retry"
+        // KTD21's copy table.
+        case .opencodeCLIMissing: ProviderSignInCopy.cliMissing(for: .opencode)
+        case .opencodeUpdateRequired: "Update OpenCode to 2.2 or newer, a major upgrade"
+        case .opencodeSignedOut: ProviderSignInCopy.status(for: .opencode)
+        case .opencodeConsoleSignInRequired: "Sign in to OpenCode Console to see Go usage"
+        case .opencodeSignInExpired: ProviderSignInCopy.status(for: .opencode, again: true)
+        case .opencodeFormatChanged: "Headroom can’t read OpenCode usage after an OpenCode change. Contact support"
+        case .opencodeTransientCapture: "Couldn’t read OpenCode usage\u{00A0}—\u{00A0}will retry"
         }
     }
 
@@ -229,7 +250,8 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         switch self {
         case .claudeUnknownUI, .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified,
              .grokCredentialIO, .grokTransientCapture, .cursorUnknownUI,
-             .cursorTransientCapture, .copilotLogsUnreadable:
+             .cursorTransientCapture, .copilotLogsUnreadable,
+             .opencodeFormatChanged, .opencodeTransientCapture:
             false
         default:
             true
@@ -240,7 +262,9 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// Timer backoff keys off this typed state rather than enumerating providers.
     public var isNeverSignedIn: Bool {
         switch self {
-        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut:
+        // KTD12 (OpenCode plan): an API-key connection has never signed in to the Console.
+        case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut,
+             .opencodeSignedOut, .opencodeConsoleSignInRequired:
             true
         default:
             false
@@ -359,6 +383,28 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         // Terminal sign-in.
         case .copilotLogsUnreadable:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
+        case .opencodeCLIMissing:
+            .init(status: message, primaryLabel: "Install OpenCode CLI", primaryAction: .installOpenCodeCLI,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        // KTD3: a 1.x install needs a major upgrade, which only the user can run.
+        case .opencodeUpdateRequired:
+            .init(status: message, primaryLabel: "Update OpenCode", primaryAction: .updateOpenCode,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        case .opencodeSignedOut, .opencodeConsoleSignInRequired:
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectOpenCode,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  automaticPolicy: .boundedChecksAfterHandoff)
+        case .opencodeSignInExpired:
+            .init(status: message, primaryLabel: ProviderSignInCopy.buttonAgain, primaryAction: .connectOpenCode,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  automaticPolicy: .boundedChecksAfterHandoff)
+        // KTD21: the usage route is experimental, and only a Headroom update can follow a
+        // change to it, so the action is the feedback email rather than a sign-in.
+        case .opencodeFormatChanged:
+            .init(status: message, primaryLabel: "Contact Support", primaryAction: .contactSupport,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        case .opencodeTransientCapture:
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         }
     }
 }
@@ -378,6 +424,16 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case connectCursor
     case installCopilotCLI
     case connectCopilot
+    case installOpenCodeCLI
+    /// Opens the maintainers' OpenCode 2 upgrade guide (KTD21).
+    case updateOpenCode
+    /// Sign In and Sign In Again both run `opencode auth` in Terminal (R6).
+    case connectOpenCode
+    /// KTD7: the no-Go row's link to OpenCode's Go plans.
+    case seeOpenCodeGoPlans
+    /// Opens the same pre-filled feedback email as Settings › About › Send Feedback
+    /// (KTD21), so Headroom still sends nothing itself.
+    case contactSupport
     case openClaudeWorkspace
     /// Opens interactive Claude Code in the account's workspace so the user can answer a
     /// startup question (or see an unrecognized screen). Same launch as
@@ -388,6 +444,21 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case showPrivacyGuidance
     case resolveCodexStorage
     case checkNow
+}
+
+public extension UsageSnapshot.PlanStatus {
+    /// KTD7/D2 (OpenCode plan): a live reading with no plan draws one sentence and one
+    /// button where the meter would be. Nil for a provider that never reports the status.
+    func recoveryPresentation(for providerID: ProviderID) -> ProviderRecoveryPresentation? {
+        switch (self, providerID) {
+        case (.noActivePlan, .opencode):
+            .init(status: "No Go plan on this workspace", primaryLabel: "See Go Plans",
+                  primaryAction: .seeOpenCodeGoPlans,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        default:
+            nil
+        }
+    }
 }
 
 public enum SetupAutomaticPolicy: Sendable, Equatable, Hashable {

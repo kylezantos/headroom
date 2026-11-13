@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import HeadroomCore
 
@@ -70,7 +71,15 @@ import Testing
             (.copilotCLIMissing, .installCopilotCLI, nil, .none),
             (.copilotSignedOut, .connectCopilot, .checkNow, .boundedChecksAfterHandoff),
             (.copilotLogsUnreadable, .checkNow, nil, .none),
+            (.opencodeCLIMissing, .installOpenCodeCLI, .checkNow, .none),
+            (.opencodeUpdateRequired, .updateOpenCode, .checkNow, .none),
+            (.opencodeSignedOut, .connectOpenCode, .checkNow, .boundedChecksAfterHandoff),
+            (.opencodeConsoleSignInRequired, .connectOpenCode, .checkNow, .boundedChecksAfterHandoff),
+            (.opencodeSignInExpired, .connectOpenCode, .checkNow, .boundedChecksAfterHandoff),
+            (.opencodeFormatChanged, .contactSupport, .checkNow, .none),
+            (.opencodeTransientCapture, .checkNow, nil, .none),
         ]
+        #expect(Set(expectations.map(\.0)) == Set(allSetupOutcomes))
 
         for (outcome, primaryAction, secondaryAction, automaticPolicy) in expectations {
             let presentation = outcome.recoveryPresentation
@@ -113,6 +122,96 @@ import Testing
         #expect(FailureReason.providerSetup(.copilotCLIMissing).isPermanent)
         #expect(FailureReason.providerSetup(.copilotSignedOut).isPermanent)
         #expect(!FailureReason.providerSetup(.copilotLogsUnreadable).isPermanent)
+    }
+
+    /// KTD4/U1: only the two retryable OpenCode reads poll on; the rest wait for the user.
+    @Test func openCodeOutcomesSplitIntoPermanentAndTransient() {
+        for outcome in [ProviderSetupOutcome.opencodeCLIMissing, .opencodeUpdateRequired,
+                        .opencodeSignedOut, .opencodeConsoleSignInRequired, .opencodeSignInExpired] {
+            #expect(outcome.isPermanent, "\(outcome)")
+            #expect(FailureReason.providerSetup(outcome).isPermanent)
+        }
+        for outcome in [ProviderSetupOutcome.opencodeFormatChanged, .opencodeTransientCapture] {
+            #expect(!outcome.isPermanent, "\(outcome)")
+            #expect(!FailureReason.providerSetup(outcome).isPermanent)
+        }
+    }
+
+    /// KTD13: the default CLI name appends " CLI" itself, which is how Copilot once read
+    /// "GitHub Copilot CLI CLI".
+    @Test func openCodeNamesItsCLIOnce() {
+        #expect(ProviderID.opencode.raw == "opencode")
+        #expect(ProviderID.opencode.displayName == "OpenCode")
+        #expect(ProviderSignInCopy.cliName(for: .opencode) == "OpenCode CLI")
+        let message = ProviderSetupOutcome.opencodeCLIMissing.message
+        #expect(message.components(separatedBy: "OpenCode CLI").count - 1 == 1)
+        #expect(message == "OpenCode CLI isn’t installed on this Mac")
+        for text in allPresentationStrings {
+            #expect(!text.contains("CLI CLI"), "\(text) names its CLI twice")
+        }
+    }
+
+    /// KTD21's copy table, row by row: status, primary and secondary.
+    @Test func openCodeRecoveryCopyMatchesTheKTD21Table() {
+        let rows: [(ProviderSetupOutcome, String, String, String?)] = [
+            (.opencodeCLIMissing, "OpenCode CLI isn’t installed on this Mac", "Install OpenCode CLI", "Check Now"),
+            (.opencodeUpdateRequired, "Update OpenCode to 2.2 or newer, a major upgrade", "Update OpenCode", "Check Now"),
+            (.opencodeSignedOut, "Sign in with the official OpenCode CLI", "Sign In", "Check Now"),
+            (.opencodeConsoleSignInRequired, "Sign in to OpenCode Console to see Go usage", "Sign In", "Check Now"),
+            (.opencodeSignInExpired, "Sign in again with the official OpenCode CLI", "Sign In Again", "Check Now"),
+            (.opencodeTransientCapture, "Couldn’t read OpenCode usage\u{00A0}—\u{00A0}will retry", "Check Now", nil),
+            (.opencodeFormatChanged,
+             "Headroom can’t read OpenCode usage after an OpenCode change. Contact support",
+             "Contact Support", "Check Now"),
+        ]
+        for (outcome, status, primary, secondary) in rows {
+            let presentation = outcome.recoveryPresentation
+            #expect(outcome.message == status, "\(outcome)")
+            #expect(presentation.status == status, "\(outcome)")
+            #expect(presentation.primaryLabel == primary, "\(outcome)")
+            #expect(presentation.secondaryLabel == secondary, "\(outcome)")
+            #expect(presentation.secondaryAction == (secondary == nil ? nil : .checkNow), "\(outcome)")
+        }
+        #expect(ProviderSignInCopy.status(for: .opencode, again: true)
+            == ProviderSetupOutcome.opencodeSignInExpired.message)
+    }
+
+    /// KTD7: no Go plan is a live reading, not a failure, so its row comes off the
+    /// snapshot's plan status. Every other provider has no such row.
+    @Test func noGoPlanRowComesFromThePlanStatus() {
+        let presentation = UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: .opencode)
+        #expect(presentation?.status == "No Go plan on this workspace")
+        #expect(presentation?.primaryLabel == "See Go Plans")
+        #expect(presentation?.primaryAction == .seeOpenCodeGoPlans)
+        #expect(presentation?.secondaryLabel == "Check Now")
+        #expect(presentation?.secondaryAction == .checkNow)
+        #expect(presentation?.automaticPolicy == SetupAutomaticPolicy.none)
+        for provider in [ProviderID.claude, .codex, .grok, .cursor, .copilot] {
+            #expect(UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: provider) == nil)
+        }
+    }
+
+    /// KTD7: plan status is new and optional. Every existing caller stays nil, its stored
+    /// value is permanent, and the snapshot's own transforms carry it forward.
+    @Test func planStatusDefaultsNilAndSurvivesSnapshotTransforms() throws {
+        let existing = UsageSnapshot(providerID: .copilot, windows: [], planLabel: nil, capturedAt: nil, freshness: .live)
+        #expect(existing.planStatus == nil)
+        #expect(UsageSnapshot.pending(for: .opencode).planStatus == nil)
+        #expect(UsageSnapshot.stale(for: .opencode, reason: .transient("x")).planStatus == nil)
+
+        let noPlan = UsageSnapshot(
+            providerID: .opencode, windows: [], planLabel: nil,
+            capturedAt: Date(timeIntervalSince1970: 1_000), freshness: .live, planStatus: .noActivePlan)
+        #expect(noPlan.markedStale(.providerSetup(.opencodeTransientCapture)).planStatus == .noActivePlan)
+        #expect(noPlan.withIdentity(nil).planStatus == .noActivePlan)
+        #expect(noPlan.withAccountEmail("a@b.c").planStatus == .noActivePlan)
+        #expect(noPlan.replacingWindows([]).planStatus == .noActivePlan)
+        #expect(noPlan.fiveHourFirst().planStatus == .noActivePlan)
+
+        #expect(UsageSnapshot.PlanStatus.noActivePlan.rawValue == "noActivePlan")
+        let encoded = try JSONEncoder().encode(UsageSnapshot.PlanStatus.noActivePlan)
+        #expect(String(decoding: encoded, as: UTF8.self) == "\"noActivePlan\"")
+        #expect(try JSONDecoder().decode(UsageSnapshot.PlanStatus.self, from: encoded) == .noActivePlan)
     }
 
     /// PA11: one label per action. `.checkNow` used to read "Check Again" in a primary slot
@@ -507,6 +606,13 @@ import Testing
         #expect(ProviderSetupOutcome.cursorAuthAbsent.isNeverSignedIn)
         #expect(ProviderSetupOutcome.copilotSignedOut.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.copilotLogsUnreadable.isNeverSignedIn)
+        // KTD12: both OpenCode states with no Console sign-in wait four intervals on extras.
+        #expect(ProviderSetupOutcome.opencodeSignedOut.isNeverSignedIn)
+        #expect(ProviderSetupOutcome.opencodeConsoleSignInRequired.isNeverSignedIn)
+        for outcome in [ProviderSetupOutcome.opencodeCLIMissing, .opencodeUpdateRequired,
+                        .opencodeSignInExpired, .opencodeFormatChanged, .opencodeTransientCapture] {
+            #expect(!outcome.isNeverSignedIn, "\(outcome)")
+        }
         #expect(!ProviderSetupOutcome.claudeCLIMissing.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
@@ -521,6 +627,10 @@ private var allPresentationStrings: [String] {
         let presentation = outcome.recoveryPresentation
         strings.append(contentsOf: [outcome.message, presentation.status, presentation.primaryLabel])
         if let secondary = presentation.secondaryLabel { strings.append(secondary) }
+    }
+    if let noPlan = UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: .opencode) {
+        strings.append(contentsOf: [noPlan.status, noPlan.primaryLabel])
+        if let secondary = noPlan.secondaryLabel { strings.append(secondary) }
     }
     for state in [ProviderCapabilityState.inconclusive(.shellTimeout),
                   .inconclusive(.npmPrefixUnresolved),
@@ -562,4 +672,6 @@ private let allSetupOutcomes: [ProviderSetupOutcome] = [
     .cursorCLIMissing, .cursorAuthAbsent, .cursorTrustRequired, .cursorMCPApprovalRequired,
     .cursorUnknownUI, .cursorTransientCapture,
     .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable,
+    .opencodeCLIMissing, .opencodeUpdateRequired, .opencodeSignedOut, .opencodeConsoleSignInRequired,
+    .opencodeSignInExpired, .opencodeFormatChanged, .opencodeTransientCapture,
 ]

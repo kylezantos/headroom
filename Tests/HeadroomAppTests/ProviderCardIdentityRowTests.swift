@@ -714,16 +714,18 @@ struct CardRowActionTests {
     @Test func terminalHandoffsWebPagesAndRereadsEachGetTheirOwnGlyph() {
         for action in [SetupRecoveryAction.openClaudeSetup, .connectCodex, .reconnectCodex, .connectGrok,
                        .reconnectGrok, .connectCursor, .openClaudeWorkspace, .openCursorWorkspace,
-                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot] {
+                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot, .connectOpenCode] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "apple.terminal")
         }
         for action in [SetupRecoveryAction.installClaudeCLI, .installCodexCLI, .installGrokCLI,
-                       .installCursorAgent, .installCopilotCLI, .showPrivacyGuidance] {
+                       .installCursorAgent, .installCopilotCLI, .showPrivacyGuidance,
+                       .installOpenCodeCLI, .updateOpenCode, .seeOpenCodeGoPlans] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "globe")
         }
         // Device code is the alternative beside a Terminal sign-in, so it can't share its glyph.
         #expect(SetupSessions.recoveryRoute(for: .connectCodexDeviceCode).systemImage == "number")
         #expect(SetupSessions.recoveryRoute(for: .checkNow).systemImage == "arrow.clockwise")
+        #expect(SetupSessions.recoveryRoute(for: .contactSupport).systemImage == "envelope")
     }
 
     /// The ↗ promises the click leaves Headroom, so Check Now — a re-read in place — never

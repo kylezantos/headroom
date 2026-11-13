@@ -10,7 +10,7 @@ public enum CLIVersionReader {
     public typealias Run = @Sendable (_ executablePath: String, _ loginPath: String) -> String?
 
     /// The order the diagnostics block lists CLIs in.
-    public static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot]
+    public static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
 
     public static func versions(
         resolve: @escaping Resolve = defaultResolve,
@@ -41,6 +41,16 @@ public enum CLIVersionReader {
         case .grok: GrokCLI.resolveExecutable()
         case .cursor: CursorCLI.resolveExecutable()
         case .copilot: CopilotCLI.resolveExecutable()
+        // U1 placeholder until U2's OpenCode resolver exists: the same login-shell lookup,
+        // plus the official install script's `~/.opencode/bin`.
+        case .opencode:
+            CLIExecutableResolver.resolve(named: "opencode", fallbackPaths: [
+                "\(NSHomeDirectory())/.opencode/bin/opencode",
+                "/opt/homebrew/bin/opencode",
+                "/usr/local/bin/opencode",
+                "\(NSHomeDirectory())/.local/bin/opencode",
+                "\(NSHomeDirectory())/.npm-global/bin/opencode",
+            ])
         default: nil
         }
     }

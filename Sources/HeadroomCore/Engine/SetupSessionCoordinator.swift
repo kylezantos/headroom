@@ -747,7 +747,7 @@ public final class SetupSessionCoordinator {
         case .codexPermissionDenied, .codexMalformedAuth, .codexStorageMismatch,
              .codexCallbackIncomplete, .codexCLIMissing, .claudeCLIMissing,
              .grokCLIMissing, .grokPermissionDenied, .grokUnsafePermissions,
-             .grokMalformedAuth, .cursorCLIMissing, .copilotCLIMissing:
+             .grokMalformedAuth, .cursorCLIMissing, .copilotCLIMissing, .opencodeCLIMissing:
             invalidateWork(for: key, finalState: .failed(.provider(outcome)), releaseLoginSlot: true)
         default:
             break

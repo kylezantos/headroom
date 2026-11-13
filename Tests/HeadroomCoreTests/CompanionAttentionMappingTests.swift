@@ -43,11 +43,19 @@ struct CompanionAttentionMappingTests {
         (.copilotCLIMissing, .cliMissing),
         (.copilotSignedOut, .signInRequired),
         (.copilotLogsUnreadable, .retrying),
+        // KTD21's phone-attention column.
+        (.opencodeCLIMissing, .cliMissing),
+        (.opencodeUpdateRequired, .cliUpdateRequired),
+        (.opencodeSignedOut, .signInRequired),
+        (.opencodeConsoleSignInRequired, .signInRequired),
+        (.opencodeSignInExpired, .signInAgain),
+        (.opencodeFormatChanged, .retrying),
+        (.opencodeTransientCapture, .retrying),
     ]
 
     @Test func everyProviderSetupOutcomeMapsToItsReviewedAttention() {
-        #expect(Self.outcomes.count == 33)
-        #expect(Set(Self.outcomes.map(\.0)).count == 33)
+        #expect(Self.outcomes.count == 40)
+        #expect(Set(Self.outcomes.map(\.0)).count == 40)
         for (outcome, expected) in Self.outcomes {
             #expect(CompanionAttentionMapping.attention(for: outcome) == expected, "\(outcome)")
             #expect(CompanionAttentionMapping.attention(for: .providerSetup(outcome)) == expected)

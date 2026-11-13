@@ -29,7 +29,7 @@ func presentedSetupOutcome(
     return neverSignedInOutcome(for: providerID)
 }
 
-/// The typed "this account has never signed in" outcome per provider — the same five
+/// The typed "this account has never signed in" outcome per provider, one of those
 /// `ProviderSetupOutcome.isNeverSignedIn` reports true for. Provider-scoped rather than
 /// hard-wired to Claude's, because `UsageStore.addAccount` hands the preset to every
 /// provider that can carry an extra account.
@@ -40,6 +40,7 @@ func neverSignedInOutcome(for providerID: ProviderID) -> ProviderSetupOutcome? {
     case .grok: .grokAuthAbsent
     case .cursor: .cursorAuthAbsent
     case .copilot: .copilotSignedOut
+    case .opencode: .opencodeSignedOut
     default: nil
     }
 }

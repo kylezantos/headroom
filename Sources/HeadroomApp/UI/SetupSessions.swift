@@ -105,6 +105,8 @@ enum SetupSessions {
         case workspaceTrust
         case cursorTools
         case privacyGuidance(URL)
+        /// KTD21 (OpenCode plan): Contact Support opens Settings › About's feedback email.
+        case feedbackEmail
         case checkNow
     }
 
@@ -506,6 +508,9 @@ enum SetupSessions {
             } else {
                 CodexSetupSession.openSetup(for: account, onRetry: onRetry)
             }
+        case .feedbackEmail:
+            guard let store else { return }
+            Task { _ = await FeedbackMail.send(store: store, isInert: AppComposition.usesInertFeedback()) }
         case .checkNow:
             guard checkNowTasks[account.key] == nil else { return }
             checkNowTasks[account.key] = Task {
@@ -528,7 +533,7 @@ enum SetupSessions {
             // R8: Anthropic's current official installation guide.
             .documentation(URL(string: "https://code.claude.com/docs/en/installation")!)
         case .openClaudeSetup, .connectCodex, .reconnectCodex, .resolveCodexStorage,
-             .connectGrok, .reconnectGrok, .connectCursor, .connectCopilot:
+             .connectGrok, .reconnectGrok, .connectCursor, .connectCopilot, .connectOpenCode:
             .setup(.standard)
         case .installCodexCLI:
             .documentation(URL(string: "https://developers.openai.com/codex/cli/")!)
@@ -540,6 +545,15 @@ enum SetupSessions {
             .documentation(URL(string: "https://docs.cursor.com/en/cli/installation")!)
         case .installCopilotCLI:
             .documentation(CopilotCLI.installationURL)
+        // U1 placeholder: U5/U12 confirm the install page gives a 2.x build (KTD21).
+        case .installOpenCodeCLI:
+            .documentation(URL(string: "https://opencode.ai/docs/")!)
+        case .updateOpenCode:
+            .documentation(URL(string: "https://anoma.ly/notes/opencode-2-0")!)
+        case .seeOpenCodeGoPlans:
+            .documentation(URL(string: "https://opencode.ai/go")!)
+        case .contactSupport:
+            .feedbackEmail
         // A startup question is answered in the same interactive launch an approval uses;
         // `performRecovery` records the reason that tells them apart.
         case .openClaudeWorkspace, .answerClaudeQuestion, .openCursorWorkspace:

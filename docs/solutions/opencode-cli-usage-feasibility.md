@@ -26,9 +26,10 @@ prints the result. Headroom never reads OpenCode's credential store, never calls
 itself, never starts `opencode service`, and never sends a model request. Plan:
 `docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md` (KTD1–KTD22).
 
-**Everything below was verified against a local stub Console, not a real Go subscription.**
-The fixtures in `Tests/HeadroomCoreTests/Fixtures/opencode/` are stub-derived. A real Go response
-has not been captured yet; see "Still unverified" and the release-blocker entry in `BUGS.md`.
+**Almost everything below was verified against a local stub Console.** The fixtures in
+`Tests/HeadroomCoreTests/Fixtures/opencode/` are stub-derived, with one exception: `go-real`, a
+real Go response captured on 2026-11-13 (see "Live checks, 2026-11-13"). What a real account has
+not shown yet is under "Still unverified".
 
 ## Verified build
 
@@ -329,22 +330,51 @@ SHA-256 `c1c9e62521192192ef4c3ed1355ada2144055bddb61682217e997b03c55203c1`), val
 - **Removing an extra account deletes its Headroom-owned home only.** Its Console session stays
   valid on OpenCode's servers, as with the other providers.
 
-## Still unverified (live checks, plan U11)
+## Live checks, 2026-11-13
 
-- The real Go response: its shape and values. Every fixture is stub-derived. Release is blocked on
-  this (`BUGS.md`).
+Run on the owner's Mac with the built app from this branch and the official client 2.2.7, after
+`opencode upgrade` (1.1.53 to 1.19.5) and `opencode upgrade --major` (to 2.2.7).
+
+- **Built-in probe, never signed in.** `--probe-opencode` on the real default home read
+  `opencodeSignedOut`, twice.
+- **Sign-in through Headroom.** Sign In on the built-in OpenCode card opened Terminal, the device
+  sign-in to a free Console account finished, and the card went to the no-Go state. The See Go
+  Plans link opened OpenCode's Go page.
+- **A free Console account has a workspace and no Go plan.** The card read "No Go plan on this
+  workspace", so this account took the `data` without `go` path, not the `data: null` one. One
+  account; it does not show that every free account has a workspace (KTD20).
+- **Go appears within minutes of purchase.** A few minutes after subscribing, the card showed the
+  three windows, each 100% left, with resets of 4h 59m, 2d 3h and 29d 23h.
+- **The real response has the shape the stub copied.** `go.rolling`, `go.weekly` and `go.monthly`,
+  each with `percent`, `limited` and `resetsAt`; `workspace` with `id`, `name` and `usageURL`;
+  `budgets: []`. One JSON line, exit 0. Fixture `go-real` is that capture with the workspace and
+  folder values replaced by the stub fixtures' placeholders.
+- **`resetsAt` is milliseconds.** The three values were 5.0 hours, 51.7 hours and 30.0 days after
+  the capture.
+- **Reset shapes.** Unused, the rolling window reported a reset five hours from the read, so it
+  moves with every read until something is used. The weekly reset was a whole-second UTC time
+  (a fixed boundary, not seven days from purchase). The monthly reset was thirty days after the
+  purchase, which matches the fixed 30-day duration Headroom gives the Monthly window.
+- **`percent` at 0 on a new subscription.** This fits percent used (nothing used, 100% left). It
+  does not independently prove the direction: no request had been made, so no non-zero value has
+  been compared with OpenCode's own usage page.
+
+## Still unverified
+
+- That a non-zero `percent` matches OpenCode's usage page as percent used. The public client
+  source says used; a real account has only shown 0.
 - What Go does at a limit (refuses, falls back to free models, or bills a balance), and whether
   one limited window stops Go while the others show room. The red sentence deliberately claims
   none of these.
 - What the usage read returns once a Go subscription lapses.
-- How quickly Go appears after purchase.
-- Whether a new free Console account always has a workspace, and how the device page picks one
-  for a two-workspace account.
+- Whether every new free Console account has a workspace, and how the device page picks one for a
+  two-workspace account.
 - The real Console's log content (tokens, workspace IDs, raw responses), permissions and
   retention. The log file is world-readable.
-- The built-in home after the owner upgrades: log rotation and coexistence with his own OpenCode.
+- Log rotation and coexistence with the owner's own OpenCode in the upgraded built-in home.
 - An extra account running with the user's real `HOME` (QA runs used a scratch `HOME`).
-- The built-in sign-in dialog on the live `MenuBarExtra` window.
+- Whether the built-in sign-in confirmation dialog appeared on the live `MenuBarExtra` window
+  during the 2026-11-13 sign-in (not reported either way).
 
 ## Re-diagnosis
 

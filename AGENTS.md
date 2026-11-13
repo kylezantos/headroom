@@ -750,8 +750,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
     (KTD19), and the privacy policy says so. Each built-in poll leaves OpenCode's normal log entry
     in `~/.local/share/opencode`.
   OpenCode reaches the phone, widgets, the Lock Screen provider choice and Siri like the others;
-  phones need the paired iOS build to show it. **The fixtures are stub-derived: OpenCode must not
-  be announced or released until a real Go response replaces them** (BUGS.md). Re-diagnose with
+  phones need the paired iOS build to show it. The fixtures are stub-derived except `go-real`, a real Go response captured 2026-11-13 at 0%
+  used; a non-zero percentage, a limited window and a lapsed subscription have not been seen on a
+  real account (BUGS.md). Re-diagnose with
   `--probe-opencode`; see `docs/solutions/opencode-cli-usage-feasibility.md` and
   `docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md`. Parity exceptions:
   - No API spend entry (D1): OpenCode exposes no pay-as-you-go balance.

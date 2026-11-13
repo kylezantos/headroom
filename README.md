@@ -431,8 +431,8 @@ HEADROOM_IOS_UPLOAD=1 \
 ## Status
 
 Working end-to-end: live Claude, Codex, Grok, Cursor, and Copilot subscription usage through their
-documented provider paths (OpenCode Go is so far verified only against a local stub Console with
-the official client; a real Go reading is still to be checked), optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
+documented provider paths (OpenCode Go has one real reading, an unused subscription, with its
+other states checked against a local stub Console), optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
 launch-at-login, the adaptive macOS popover,
 widget cache export, app icon, the bundled macOS widget extension, and the iPhone
 companion/widget targets with live Mac → iPhone iCloud sync. Widget design parity with the

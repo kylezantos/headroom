@@ -76,7 +76,7 @@ struct OpenCodeUsageClassifierTests {
         "plugins-not-activated": .done(.failed(.transient(.pluginsNotActivated))),
         "standalone-start-failed": .done(.failed(.transient(.serverStartFailed))),
     ]
-    private static let liveFixtures = ["go", "go-limited", "go-oauth", "refreshok"]
+    private static let liveFixtures = ["go", "go-limited", "go-oauth", "refreshok", "go-real"]
     private static let authTable: [String: OpenCodeCapture] = [
         "auth-list-signed-out": .failed(.signedOut),
         "auth-list-api-key": .failed(.consoleSignInRequired),
@@ -121,6 +121,25 @@ struct OpenCodeUsageClassifierTests {
         #expect(abs(usage.rolling.resetsAt.timeIntervalSince(now) - 11_520) < 5)
         #expect(abs(usage.weekly.resetsAt.timeIntervalSince(now) - 280_800) < 5)
         #expect(abs(usage.monthly.resetsAt.timeIntervalSince(now) - 1_501_200) < 5)
+    }
+
+    /// The one fixture that is not stub-derived: a real Go response captured on 2026-11-13 with
+    /// client 2.2.7, minutes after subscribing and before any use. It pins the real field names,
+    /// that `resetsAt` is milliseconds, and the three reset spans a real account reported.
+    @Test func realGoResponseReadsThreeUnusedWindows() throws {
+        let fixture = try OpenCodeFixture.load("go-real")
+        guard case .done(.goUsage(let usage)) = OpenCodeUsageClassifier.classifyUsage(fixture.output) else {
+            Issue.record("the real Go response did not read as live Go usage")
+            return
+        }
+        #expect([usage.rolling.percentUsed, usage.weekly.percentUsed, usage.monthly.percentUsed] == [0, 0, 0])
+        #expect(![usage.rolling.isLimited, usage.weekly.isLimited, usage.monthly.isLimited].contains(true))
+        let now = fixture.capturedAt
+        // Unused, the rolling window reports a reset five hours out; weekly ends on a fixed
+        // boundary (a whole-second UTC time); monthly ends thirty days after the purchase.
+        #expect(abs(usage.rolling.resetsAt.timeIntervalSince(now) - 18_000) < 60)
+        #expect(usage.weekly.resetsAt == Date(timeIntervalSince1970: 1_794_787_200))
+        #expect(abs(usage.monthly.resetsAt.timeIntervalSince(now) - 2_592_000) < 600)
     }
 
     @Test func limitedWindowReadsFullyUsedWhateverItReports() throws {

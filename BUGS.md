@@ -1377,37 +1377,34 @@ pane builds its rows from `APIKeyProvider.allCases`, which has no Cursor entry
 (`Sources/HeadroomApp/UI/SettingsPanes.swift`), so `CursorOnDemandSpendProvider` can't be enabled
 in the real app. Add a key-free row to that pane.
 
-## RELEASE BLOCKER: OpenCode has no real Go reading yet (2026-11-12)
+## OpenCode: live checks still open (updated 2026-11-13)
 
 Plan: `docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md`. Feasibility record:
-`docs/solutions/opencode-cli-usage-feasibility.md`.
+`docs/solutions/opencode-cli-usage-feasibility.md` ("Live checks, 2026-11-13").
 
-**Do not announce or release OpenCode until a real Go response replaces the stub-derived
-fixtures** in `Tests/HeadroomCoreTests/Fixtures/opencode/`. Every OpenCode result so far comes
-from the official 2.2.5 client against `Scripts/opencode-stub-console.py`, whose Go response
-shape is copied from OpenCode's public source, not from a real account. The live checks still
-open (plan U11 steps 2–5):
+This entry was the release blocker "OpenCode has no real Go reading yet". On 2026-11-13 a real Go
+response was captured with client 2.2.7 and added as the `go-real` fixture; it has the shape and
+units the stub fixtures assumed. Sign-in through Headroom and the no-Go state were also seen live
+on a free Console account, and the built-in home was upgraded to 2.x. Still open:
 
-- **Free Console account (Kyle).** Sign in through Headroom's real handoff and confirm the live
-  no-Go state. Record whether a new free account always has a workspace (KTD20), and how the
-  device page picks the workspace for a two-workspace account. Inspect the resulting OpenCode
-  log for tokens, workspace IDs and raw responses, and record its permissions and retention (the
-  file is world-readable).
-- **One paid Go month (Kyle, about $5).** Capture one real response by running the pinned client
-  by hand with stdout redirected under `.context/`, never through Headroom; sanitize it as the
-  fixture manifest describes and add it as a fixture; confirm all three windows and their resets
-  in the app. Record how quickly Go appears after purchase, what the usage read returns once the
-  subscription lapses (one 403 on the Go route reads as no Go plan, KTD4), and, if a window
-  reaches its limit, what Go does with requests and whether one limited window stops Go while the
-  others show room. Adjust the red limited sentence if needed.
-- **Kyle's built-in account.** Only when he chooses to run `opencode upgrade --major` on his own
-  install: afterwards recheck log rotation and coexistence with his own OpenCode in
-  `~/.local/share/opencode`.
-- **Live visual acceptance.** Ask Kyle first, then batch light and dark for `six-providers` on the
-  live `MenuBarExtra` in one short run, including the built-in sign-in confirmation dialog.
+- **A non-zero percentage.** The real capture is 0% used on all three windows, taken before any
+  request. Nothing has compared a non-zero `percent` with OpenCode's usage page, so "percent
+  used" still rests on the public client source. Check once the subscription has some use.
+- **At a limit, and after a lapse.** What Go does with requests when a window is limited, whether
+  one limited window stops Go while the others show room, and what the usage read returns once
+  the subscription lapses (one 403 on the Go route reads as no Go plan, KTD4). Adjust the red
+  limited sentence if needed.
+- **The built-in sign-in confirmation dialog** on the live `MenuBarExtra` window: not reported
+  either way from the 2026-11-13 sign-in.
+- **Workspaces.** Whether every new free Console account has a workspace (KTD20), and how the
+  device page picks the workspace for a two-workspace account.
+- **The OpenCode log** in the built-in home: tokens, workspace IDs or raw responses in it, its
+  permissions and retention (the file is world-readable), and rotation now that the home is 2.x.
+- **Light appearance on the live popover.** Named demos follow the OS appearance, so the live
+  captures were dark only; light was checked in offscreen renders.
 
-Also unchecked until then: an extra account running with the user's real `HOME` (QA runs used a
-scratch `HOME`), and whether the real Console rotates refresh tokens on use, which would make an
+Also unchecked: an extra account running with the user's real `HOME` (QA runs used a scratch
+`HOME`), and whether the real Console rotates refresh tokens on use, which would make an
 abandoned slow refresh (below) leave a stale token.
 
 ## OpenCode: simultaneous client starts can fail with "database is locked" (2026-11-12)

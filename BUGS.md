@@ -1176,6 +1176,14 @@ From `docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
   popover` builds a fresh view per open, so every one of its warm opens pays it. A fix would
   persist the last plan (column count and split, keyed by the item IDs) and seed the model with
   it on launch.
+- **The first open's column split depends on whether data had landed.** Found 2026-11-12
+  capturing `--demo multi-20` live: across eleven launches the second column began at Account
+  9, 10 or 13. The first plan is made from whatever heights the first layout reports, and a
+  still-pending account draws a skeleton of a different height (Claude 67pt against 75pt live,
+  Grok 67 against 44, the spend card 104 against 51). R6 then keeps that split until the
+  popover closes, by design. Real launches restore snapshots first, so this needs an open
+  before the first reading; demos hit it because their fixtures land a few seconds in.
+  Persisting the last plan, as above, would cover returning users without touching R6.
 - **Hosted App tests quit while the installed Headroom is running.** `HeadroomApp.main`'s
   single-instance guard runs before the XCTest host is recognised, so `xcodebuild test` for
   `HeadroomAppTests` exits at launch ("Headroom is already running … Quit it first") whenever

@@ -36,6 +36,12 @@ jobs:
       - uses: actions/checkout@v4
       - name: Unpack Sparkle
         run: ./Scripts/build-app.sh --deps-only
+      - name: Cold-host handoff cleanup
+        run: |
+          xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests \
+            -destination 'platform=macOS' -derivedDataPath ./.xcode-derived \
+            -only-testing:HeadroomAppTests/ClaudeExecutableDiscoveryInteractionTests \
+            CODE_SIGNING_ALLOWED=NO test
       - name: HeadroomAppTests
         run: |
           xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests \

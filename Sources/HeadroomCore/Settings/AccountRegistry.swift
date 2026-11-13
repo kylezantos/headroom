@@ -238,7 +238,10 @@ public struct AccountRegistry: @unchecked Sendable { // UserDefaults is thread-s
         return all
     }
 
-    private func normalizedLabel(_ label: String?) -> String? {
+    private func normalizedLabel(_ label: String?) -> String? { Self.normalizedLabel(label) }
+
+    /// Shared with remembered-account renames, so both kinds of row take the same names.
+    static func normalizedLabel(_ label: String?) -> String? {
         guard let trimmed = label?.trimmingCharacters(in: .whitespacesAndNewlines),
               !trimmed.isEmpty else { return nil }
         return String(trimmed.prefix(40))

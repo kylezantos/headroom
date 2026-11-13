@@ -7,39 +7,91 @@ public protocol ClaudeAccountEmailReading: Sendable {
     /// `oauthAccount.emailAddress`. Never throws: identity is display context, and a
     /// missing email must never downgrade an otherwise good usage capture (KTD7).
     func readAccountEmail() -> String?
+    /// The account file as identity evidence (default-login plan, KTD1/KTD2), with the
+    /// email from the same read. A missing file, or one with no `oauthAccount` block
+    /// (signed out, gate V1), is `.absent`; a file that is present but cannot be read or
+    /// decoded is `.unreadable`. Never throws.
+    func readAccountIdentity() -> AccountIdentityRead
 }
 
-/// Decodes **only** `oauthAccount.emailAddress` and `oauthAccount.accountUuid` out of
-/// `.claude.json`. The decoder declares those two fields, so the rest of that file
-/// (project history, session state, tips, MCP config — and every credential) can never
-/// be read into Headroom by accident.
+/// Decodes **only** `oauthAccount.emailAddress`, `oauthAccount.accountUuid` and
+/// `oauthAccount.organizationUuid` out of `.claude.json`. The decoder declares those three
+/// fields, so the rest of that file (project history, session state, tips, MCP config —
+/// and every credential) can never be read into Headroom by accident.
 public enum ClaudeAccountBlob {
+    /// One field, read on its own so a wrong-typed neighbour cannot make the whole block
+    /// unreadable (an unreadable block refuses every reading, KTD2).
+    private enum Field: Equatable {
+        /// The key is missing or JSON null.
+        case none
+        case string(String)
+        /// Present but not a string.
+        case wrongType
+
+        var string: String? {
+            if case .string(let value) = self { return value }
+            return nil
+        }
+    }
+
     private struct Root: Decodable {
         struct OAuthAccount: Decodable {
-            let emailAddress: String?
-            let accountUuid: String?
+            let emailAddress: Field
+            let accountUuid: Field
+            let organizationUuid: Field
+
+            private enum CodingKeys: String, CodingKey {
+                case emailAddress, accountUuid, organizationUuid
+            }
+
+            init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                emailAddress = Self.field(container, .emailAddress)
+                accountUuid = Self.field(container, .accountUuid)
+                organizationUuid = Self.field(container, .organizationUuid)
+            }
+
+            private static func field(_ container: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> Field {
+                guard container.contains(key), (try? container.decodeNil(forKey: key)) == false else { return .none }
+                guard let value = try? container.decode(String.self, forKey: key) else { return .wrongType }
+                return .string(value)
+            }
         }
+
         let oauthAccount: OAuthAccount?
+
+        private enum CodingKeys: String, CodingKey { case oauthAccount }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            // A block that is not an object names no account; it is not a broken file.
+            oauthAccount = try? container.decodeIfPresent(OAuthAccount.self, forKey: .oauthAccount)
+        }
+    }
+
+    /// The file's account as identity evidence (KTD1). Only data that is not a JSON
+    /// object is `.unreadable`. No `oauthAccount` block, ids that are not UUIDs, or an
+    /// id field that is not a string is `.absent`. A missing or null `organizationUuid`
+    /// is "no organization", but one that is present and not a string is `.absent`, never
+    /// "no organization": that would be another identity from the account's true one.
+    public static func identityRead(in data: Data) -> AccountIdentityRead {
+        guard let root = decode(data) else { return .unreadable }
+        guard let account = root.oauthAccount,
+              account.organizationUuid != .wrongType,
+              let identity = AccountIdentity.claude(
+                  accountUUID: account.accountUuid.string,
+                  organizationUUID: account.organizationUuid.string
+              )
+        else { return .absent }
+        return .identity(identity, email: AccountEmail.normalized(account.emailAddress.string))
     }
 
     public static func email(in data: Data) -> String? {
-        AccountEmail.normalized(decode(data)?.oauthAccount?.emailAddress)
-    }
-
-    /// The stable upstream account identity — the safe deduplication key (emails can
-    /// be reused across logins; the UUID cannot).
-    public static func accountUUID(in data: Data) -> String? {
-        nonEmpty(decode(data)?.oauthAccount?.accountUuid)
+        AccountEmail.normalized(decode(data)?.oauthAccount?.emailAddress.string)
     }
 
     private static func decode(_ data: Data) -> Root? {
         try? JSONDecoder().decode(Root.self, from: data)
-    }
-
-    private static func nonEmpty(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty else { return nil }
-        return trimmed
     }
 }
 
@@ -49,7 +101,7 @@ public enum ClaudeAccountBlob {
 /// built-in account (home root, **not** inside `~/.claude/`), and
 /// `<CLAUDE_CONFIG_DIR>/.claude.json` for an extra account, the same directory the probe
 /// points the CLI at. Read-only, like every other Claude path here: the official client
-/// owns the file, Headroom only looks at one field of it.
+/// owns the file, Headroom only looks at the named `oauthAccount` fields of it.
 public struct ClaudeAccountEmailFileReader: ClaudeAccountEmailReading {
     private let path: URL
     private let readData: @Sendable (URL) throws -> Data
@@ -102,55 +154,78 @@ public struct ClaudeAccountEmailFileReader: ClaudeAccountEmailReading {
         return ClaudeAccountBlob.email(in: data)
     }
 
-    /// Upstream account identity for duplicate-login detection, same fail-safe contract
-    /// as the email: nil when the file is absent, unreadable, or carries no UUID.
-    public func readAccountUUID() -> String? {
-        guard let data = try? readData(path) else { return nil }
-        return ClaudeAccountBlob.accountUUID(in: data)
+    /// One read of the file: identity and email together (KTD2).
+    public func readAccountIdentity() -> AccountIdentityRead {
+        let data: Data
+        do {
+            data = try readData(path)
+        } catch {
+            return Self.isMissingFile(error) ? .absent : .unreadable
+        }
+        return ClaudeAccountBlob.identityRead(in: data)
+    }
+
+    /// The file this reader opens: `~/.claude.json` for the built-in account,
+    /// `<CLAUDE_CONFIG_DIR>/.claude.json` for an extra.
+    public var accountFile: URL { path }
+
+    /// A config home the CLI has not written yet is "no account", not a read failure.
+    static func isMissingFile(_ error: Error) -> Bool {
+        if let cocoa = error as? CocoaError,
+           cocoa.code == .fileReadNoSuchFile || cocoa.code == .fileNoSuchFile {
+            return true
+        }
+        if let posix = error as? POSIXError, posix.code == .ENOENT { return true }
+        let ns = error as NSError
+        if ns.domain == NSPOSIXErrorDomain, ns.code == Int(ENOENT) { return true }
+        if ns.domain == NSCocoaErrorDomain,
+           ns.code == NSFileReadNoSuchFileError || ns.code == NSFileNoSuchFileError {
+            return true
+        }
+        return false
     }
 }
 
 /// Flags Claude accounts whose config homes are signed in to the **same upstream
 /// Claude login**. Detection only — Headroom never merges or removes rows on its own
 /// (a user may keep two homes on one subscription deliberately); the settings UI
-/// badges the duplicate so the user can decide which record to keep. Identity is
-/// `oauthAccount.accountUuid`, the stable upstream key — never the email.
+/// badges the duplicate so the user can decide which record to keep. The key is the
+/// default-login identity (`AccountIdentity.claude`: `accountUuid` plus
+/// `organizationUuid`, KTD1), so the badge and the default-login records can never
+/// disagree about whether two homes hold one account — never the email.
 public struct ClaudeDuplicateLoginDetector: Sendable {
-    private let readAccountUUID: @Sendable (AccountID) -> String?
+    private let readIdentity: @Sendable (AccountID) -> AccountIdentity?
 
     public init(
-        readAccountUUID: @escaping @Sendable (AccountID) -> String? = {
-            ClaudeAccountEmailFileReader.forAccount($0).readAccountUUID()
+        readIdentity: @escaping @Sendable (AccountID) -> AccountIdentity? = {
+            ClaudeAccountEmailFileReader.forAccount($0).readAccountIdentity().identity
         }
     ) {
-        self.readAccountUUID = readAccountUUID
+        self.readIdentity = readIdentity
     }
 
     /// For each Claude account signed in to the same upstream login as an earlier row,
     /// the earlier row's label ("Same login as Main"). Registry order decides which
     /// row counts as the original. Unreadable identity fails safe to "no claim".
-    public func duplicateLabels(for accounts: [ProviderAccount]) -> [AccountKey: String] {
-        var firstLabelByUUID: [String: String] = [:]
+    ///
+    /// `mergedAway` is the display list's merge map: a built-in row the one-row merge hides
+    /// (default-login plan U10, KTD11). Its row is not shown, and the row it merged into
+    /// already stands for both, so it is neither badged nor named as an original; its file
+    /// is not read.
+    public func duplicateLabels(
+        for accounts: [ProviderAccount],
+        mergedAway: [AccountKey: AccountKey] = [:]
+    ) -> [AccountKey: String] {
+        var firstLabelByDigest: [String: String] = [:]
         var duplicates: [AccountKey: String] = [:]
-        for account in accounts where account.providerID == .claude {
-            guard let uuid = Self.canonicalIdentity(readAccountUUID(account.id)) else { continue }
-            if let original = firstLabelByUUID[uuid] {
+        for account in accounts where account.providerID == .claude && mergedAway[account.key] == nil {
+            guard let identity = readIdentity(account.id), identity.providerID == .claude else { continue }
+            if let original = firstLabelByDigest[identity.digest] {
                 duplicates[account.key] = original
             } else {
-                firstLabelByUUID[uuid] = account.label
+                firstLabelByDigest[identity.digest] = account.label
             }
         }
         return duplicates
-    }
-
-    /// Identity has to be UUID-*syntactic*, not merely non-empty: `.claude.json` is a
-    /// local plaintext file, so a hand-edited or truncated `accountUuid` could otherwise
-    /// make two unrelated homes match and wear a false "Same login as X" badge. Anything
-    /// that isn't a UUID is treated as absent — the same fail-safe as an unreadable file.
-    private static func canonicalIdentity(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              let uuid = UUID(uuidString: trimmed)
-        else { return nil }
-        return uuid.uuidString.lowercased()
     }
 }

@@ -30,10 +30,19 @@ public struct CodexCredential: Sendable, Equatable {
 public struct CodexSession: Sendable, Equatable {
     public let accessToken: String
     public let accountEmail: String?
+    /// Digest of `tokens.account_id`, from the same file read as the token, so it names
+    /// the account this token belongs to (default-login plan, KTD1). Nil when the file
+    /// carries no account id.
+    public let identity: AccountIdentity?
 
-    public init(accessToken: String, accountEmail: String?) {
+    public init(accessToken: String, accountEmail: String?, identity: AccountIdentity? = nil) {
         self.accessToken = accessToken
         self.accountEmail = accountEmail
+        self.identity = identity
+    }
+
+    var identityRead: AccountIdentityRead {
+        identity.map { .identity($0, email: accountEmail) } ?? .absent
     }
 }
 

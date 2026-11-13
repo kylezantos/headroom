@@ -2007,3 +2007,402 @@ private final class GrokDeviceCodeSetupHarness {
             == "Terminal is still open. Finish there, or try again to keep waiting.")
     }
 }
+
+// MARK: - Remembered rows (default-login plan U7, KTD8)
+
+/// Returns whatever reading the test set; never touches a CLI.
+private final class RememberedRowTestProvider: UsageProvider, @unchecked Sendable {
+    let id: ProviderID = .codex
+    let displayName = "Codex"
+    private let lock = NSLock()
+    private var snapshot: UsageSnapshot = .pending(for: .codex)
+
+    func set(_ snapshot: UsageSnapshot) { lock.withLock { self.snapshot = snapshot } }
+    func fetchSnapshot() async -> UsageSnapshot { lock.withLock { snapshot } }
+}
+
+/// Counts the phone captures the store submits (U8: a rename must reach the phone path).
+@MainActor
+private final class RememberedRowPhoneSpy: CompanionPhoneSyncing {
+    private(set) var captures: [CompanionPublishCapture] = []
+    func submit(_ capture: CompanionPublishCapture) { captures.append(capture) }
+}
+
+/// A Codex built-in whose default login moved from one account to another, so the store
+/// keeps the first as a remembered row. Real registry and record store on a throwaway suite.
+@MainActor
+private struct RememberedRowFixture {
+    static let first = "aaaaaaaa-0000-4000-8000-000000000001"
+    static let second = "bbbbbbbb-0000-4000-8000-000000000002"
+
+    let defaults: UserDefaults
+    let registry: AccountRegistry
+    let provider = RememberedRowTestProvider()
+    let phoneSync = RememberedRowPhoneSpy()
+    let store: UsageStore
+
+    init() {
+        let suite = "headroom.remembered-rows.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        self.defaults = defaults
+        registry = AccountRegistry(defaults: defaults)
+        let provider = self.provider
+        store = UsageStore(
+            providers: [provider],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: DemoAccountStorage(),
+            providerFactory: { _ in provider },
+            defaultLoginRecords: DefaultLoginRecordStore(defaults: defaults),
+            phoneSyncExporter: phoneSync
+        )
+    }
+
+    func reading(_ account: String, used: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: used, resetsAt: Date().addingTimeInterval(5 * 86_400))],
+            planLabel: "plus", accountEmail: "\(account)@example.com",
+            capturedAt: Date(), freshness: .live,
+            identity: .known(AccountIdentity.codex(accountID: account)!)
+        )
+    }
+
+    func read(_ account: String, used: Double = 10) async {
+        provider.set(reading(account, used: used))
+        await store.refreshAll()
+    }
+
+    /// Reads the first account, renames the row "Work", then moves the login on.
+    func switchAway() async -> DisplayAccount {
+        await read(Self.first, used: 90)
+        store.renameAccount(AccountKey(providerID: .codex, accountID: .primary), to: "Work")
+        await read(Self.second, used: 3)
+        return store.displayAccounts(for: .codex).first { $0.isRemembered }!
+    }
+}
+
+@MainActor
+@Suite(.serialized)
+struct RememberedRowInteractionTests {
+    private let builtInKey = AccountKey(providerID: .codex, accountID: .primary)
+
+    @Test func makeMainSignOutAndSetupAreNotOfferedForARememberedRow() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let main = fixture.store.displayAccounts(for: .codex)[0]
+
+        #expect(AccountsSettingsInteractions.promotionState(for: row, in: fixture.store) == .unavailable)
+        #expect(AccountsSettingsInteractions.promotionState(for: main, in: fixture.store) == .primary)
+        #expect(AccountsSettingsInteractions.builtInRowActions(for: row.account, in: fixture.store) == .unavailable)
+        #expect(AccountsSettingsInteractions.resetBuiltIn(row.account, in: fixture.store, beginReset: { _ in
+            Issue.record("A remembered row must not start a reset")
+        }) == false)
+        #expect(AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: fixture.store.snapshot(for: row.key), account: row.account
+        ) == nil)
+        #expect(AccountsSettingsInteractions.makeMain(row.account, in: fixture.store) == nil)
+        #expect(fixture.store.displayPrimaryKey(for: .codex) == builtInKey)
+    }
+
+    @Test func renamingARememberedRowInSettingsWritesTheRecordStoreNotTheRegistry() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let registryBefore = fixture.defaults.data(forKey: "providerAccounts.v1")
+
+        let pending = AccountsSettingsInteractions.pendingLabelCommits(
+            drafts: [row.key: "Esper Labs"], rows: fixture.store.displayAccounts(for: .codex)
+        )
+        #expect(pending.map(\.key) == [row.key])
+        #expect(AccountsSettingsInteractions.commitLabel("  Esper Labs ", for: row, in: fixture.store))
+
+        #expect(fixture.defaults.data(forKey: "providerAccounts.v1") == registryBefore)
+        #expect(fixture.store.accounts(for: .codex).map(\.label) == ["Main"])
+        #expect(fixture.store.displayAccounts(for: .codex).map(\.label) == ["Main", "Esper Labs"])
+        // An unchanged draft commits nothing.
+        let renamed = fixture.store.displayAccounts(for: .codex)[1]
+        #expect(AccountsSettingsInteractions.commitLabel("Esper Labs", for: renamed, in: fixture.store) == false)
+    }
+
+    @Test func removingARememberedRowInSettingsHidesItWithoutATombstone() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+
+        #expect(await AccountsSettingsInteractions.removeAccount(row, from: fixture.store) == .removed)
+
+        #expect(fixture.store.displayAccounts(for: .codex).map(\.key) == [builtInKey])
+        #expect(fixture.store.isBuiltInTrackingStopped(for: .codex) == false)
+        #expect(fixture.store.accounts(for: .codex).map(\.key) == [builtInKey])
+        #expect(fixture.store.rememberedAccounts(for: .codex, includingHidden: true).map(\.isHidden) == [true])
+    }
+
+    /// Stop-tracking the built-in needs an engine extra; a remembered row is not one.
+    @Test func stopTrackingIsNotOfferedWhenOnlyARememberedRowSitsBesideTheBuiltIn() async {
+        let fixture = RememberedRowFixture()
+        _ = await fixture.switchAway()
+        let main = fixture.store.displayAccounts(for: .codex)[0]
+        #expect(AccountsSettingsInteractions.builtInRowActions(for: main.account, in: fixture.store) == .resetOnly)
+    }
+
+    /// The popover's card rows follow the engine rows, and the row's appearance is one
+    /// account-set change for the column plan; a steady reading after it is none.
+    @Test func aRememberedRowJoinsThePopoverCardAndReplansOnce() async {
+        let fixture = RememberedRowFixture()
+        await fixture.read(RememberedRowFixture.first, used: 90)
+        let slots = {
+            ProviderCardView.columnSlots(
+                providerID: .codex,
+                entries: PopoverView.accountEntries(for: .codex, in: fixture.store),
+                capabilityStatus: nil
+            )
+        }
+        let before = slots()
+        #expect(before.count == 1)
+
+        await fixture.read(RememberedRowFixture.second, used: 3)
+        let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
+        #expect(entries.map(\.kind) == [.engine, .remembered])
+        #expect(entries.map(\.account.key)[0] == builtInKey)
+        #expect(entries[1].snapshot.freshness != .live)
+        let after = slots()
+        #expect(after != before)
+        #expect(after.map(\.id) == entries.map(\.account.key.description))
+
+        await fixture.read(RememberedRowFixture.second, used: 4)
+        #expect(slots() == after)
+    }
+
+    /// AE5: with no remembered row the popover's entries are the engine list exactly.
+    @Test func withoutARememberedRowThePopoverEntriesAreTheEngineRows() async {
+        let fixture = RememberedRowFixture()
+        await fixture.read(RememberedRowFixture.first)
+        await fixture.read(RememberedRowFixture.first, used: 20)
+        let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
+        #expect(entries.map(\.account) == fixture.store.accounts(for: .codex))
+        #expect(entries.allSatisfy { !$0.isRemembered })
+        #expect(entries.allSatisfy { $0.lastReadAt == nil })
+    }
+
+    // MARK: U8
+
+    /// The popover entry carries the remembered row's last-read time, so the row draws its
+    /// tag without a store read of its own; the engine row carries none.
+    @Test func thePopoverEntryCarriesTheRememberedRowsLastReadTime() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
+        let summary = fixture.store.rememberedAccounts(for: .codex).first { $0.key == row.key }
+        #expect(summary?.lastReadAt != nil)
+        #expect(entries.map(\.lastReadAt) == [nil, summary?.lastReadAt])
+    }
+
+    /// Rename reaches every place the row's name shows: the popover's entry, the footer
+    /// receipt, and the phone path (a fresh capture is submitted; whether the phone lists
+    /// remembered rows is U9's, KTD14).
+    @Test func renamingARememberedRowUpdatesThePopoverTheReceiptAndThePhonePath() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let capturesBefore = fixture.phoneSync.captures.count
+
+        #expect(AccountsSettingsInteractions.commitLabel("Esper Labs", for: row, in: fixture.store))
+
+        let entries = PopoverView.accountEntries(for: .codex, in: fixture.store)
+        #expect(entries.first { $0.account.key == row.key }?.account.label == "Esper Labs")
+        #expect(fixture.store.desktopAccountName(for: entries[1].account) == "Esper Labs")
+        #expect(fixture.store.refreshReceiptTitle(for: row.key).hasSuffix("Esper Labs"))
+        #expect(fixture.phoneSync.captures.count > capturesBefore)
+    }
+
+    /// R11: Remove only hides it. The dialog says so in plain words, its button is not
+    /// destructive, and the row leaves every display list with no registry tombstone.
+    @Test func removingARememberedRowSaysItStaysHiddenAndDeletesNothing() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let registryBefore = fixture.defaults.data(forKey: "providerAccounts.v1")
+
+        #expect(AccountsSettingsInteractions.removalDialogTitle(for: row) == "Remove this account?")
+        let message = AccountsSettingsInteractions.removalDialogMessage(for: row)
+        #expect(message == "It stays hidden until your CLI is signed in to this account again. Nothing is deleted.")
+        #expect(AccountsSettingsInteractions.removalIsDestructive(for: row) == false)
+
+        #expect(await AccountsSettingsInteractions.removeAccount(row, from: fixture.store) == .removed)
+        #expect(!fixture.store.displayAccounts(for: .codex).contains { $0.key == row.key })
+        #expect(PopoverView.accountEntries(for: .codex, in: fixture.store).allSatisfy { !$0.isRemembered })
+        #expect(fixture.store.isBuiltInTrackingStopped(for: .codex) == false)
+        #expect(fixture.defaults.data(forKey: "providerAccounts.v1") == registryBefore)
+    }
+
+    /// The engine rows' dialogs keep their own words.
+    @Test func engineRowRemovalDialogsAreUnchanged() async {
+        let fixture = RememberedRowFixture()
+        _ = await fixture.switchAway()
+        let builtIn = fixture.store.displayAccounts(for: .codex)[0]
+        let extra = DisplayAccount(
+            account: ProviderAccount(id: AccountID("extra"), providerID: .codex, label: "Extra"), kind: .engine
+        )
+        #expect(AccountsSettingsInteractions.removalDialogTitle(for: builtIn) == "Stop tracking this account?")
+        #expect(AccountsSettingsInteractions.removalDialogMessage(for: builtIn)
+            == "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted.")
+        #expect(AccountsSettingsInteractions.removalIsDestructive(for: builtIn) == false)
+        #expect(AccountsSettingsInteractions.removalDialogTitle(for: extra) == "Remove this account?")
+        #expect(AccountsSettingsInteractions.removalDialogMessage(for: extra)
+            == "Its sign-in on this Mac is deleted with it. Your subscription is untouched.")
+        #expect(AccountsSettingsInteractions.removalIsDestructive(for: extra))
+    }
+
+    /// R7: Settings prints the popover's own tag as the row's status line.
+    @Test func theSettingsStatusLineSaysWhenTheRowWasLastRead() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        let summary = fixture.store.rememberedAccounts(for: .codex).first { $0.key == row.key }!
+        let status = AccountsSettingsInteractions.rememberedStatus(
+            lastReadAt: summary.lastReadAt,
+            snapshot: fixture.store.snapshot(for: row.key),
+            now: summary.lastReadAt!.addingTimeInterval(120)
+        )
+        #expect(status == "Last read 2 min ago")
+        #expect(AccountsSettingsInteractions.rememberedStatusHelp.contains("Add Account"))
+    }
+
+    /// R12: no Make Main, no Sign Out & Set Up Again, no sign-in or Try Again — in Settings
+    /// and on the popover row.
+    @Test func aRememberedRowOffersNoMakeMainSignOutOrTryAgain() async {
+        let fixture = RememberedRowFixture()
+        let row = await fixture.switchAway()
+        #expect(AccountsSettingsInteractions.promotionState(for: row, in: fixture.store) == .unavailable)
+        #expect(AccountsSettingsInteractions.builtInRowActions(for: row.account, in: fixture.store) == .unavailable)
+        #expect(AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: fixture.store.snapshot(for: row.key), account: row.account
+        ) == nil)
+        let entry = PopoverView.accountEntries(for: .codex, in: fixture.store)[1]
+        #expect(entry.isRemembered)
+        #expect(entry.kind.offersRetry == false)
+        #expect(row.kind.offersRetry == false)
+    }
+}
+
+// MARK: - One account, one row (default-login plan U10)
+
+private final class MergedRowTestProvider: UsageProvider, @unchecked Sendable {
+    let id: ProviderID = .codex
+    let accountID: AccountID
+    let displayName = "Codex"
+    private let lock = NSLock()
+    private var snapshot: UsageSnapshot = .pending(for: .codex)
+
+    init(accountID: AccountID) { self.accountID = accountID }
+
+    func set(_ snapshot: UsageSnapshot) { lock.withLock { self.snapshot = snapshot } }
+    func fetchSnapshot() async -> UsageSnapshot { lock.withLock { snapshot } }
+}
+
+/// Mock scenario B: the Codex built-in "Esper Labs" reads the work account, "Account 2"
+/// has its own sign-in to gmail, and the default login then moves to gmail.
+@MainActor
+private struct MergedRowFixture {
+    static let work = "aaaaaaaa-0000-4000-8000-000000000001"
+    static let gmail = "bbbbbbbb-0000-4000-8000-000000000002"
+
+    let builtIn = MergedRowTestProvider(accountID: .primary)
+    let extra: MergedRowTestProvider
+    let extraAccount: ProviderAccount
+    let store: UsageStore
+
+    init() {
+        let suite = "headroom.merged-rows.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let registry = AccountRegistry(defaults: defaults)
+        let extraAccount = registry.addAccount(for: .codex, label: "Account 2")!
+        self.extraAccount = extraAccount
+        let extra = MergedRowTestProvider(accountID: extraAccount.id)
+        self.extra = extra
+        let builtIn = self.builtIn
+        store = UsageStore(
+            providers: [builtIn, extra],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: DemoAccountStorage(),
+            providerFactory: { account in account.isBuiltIn ? builtIn : extra },
+            defaultLoginRecords: DefaultLoginRecordStore(defaults: defaults)
+        )
+    }
+
+    static func reading(_ account: String, used: Double) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: .codex,
+            windows: [UsageWindow(kind: .weekly, utilization: used, resetsAt: Date().addingTimeInterval(5 * 86_400))],
+            planLabel: "plus", accountEmail: "\(account)@example.com",
+            capturedAt: Date(), freshness: .live,
+            identity: .known(AccountIdentity.codex(accountID: account)!)
+        )
+    }
+
+    func merge() async {
+        extra.set(Self.reading(Self.gmail, used: 31))
+        builtIn.set(Self.reading(Self.work, used: 90))
+        await store.refreshAll()
+        store.renameAccount(AccountKey(providerID: .codex, accountID: .primary), to: "Esper Labs")
+        builtIn.set(Self.reading(Self.gmail, used: 31))
+        await store.refreshAll()
+    }
+}
+
+@MainActor
+@Suite(.serialized)
+struct MergedRowInteractionTests {
+    private let builtInKey = AccountKey(providerID: .codex, accountID: .primary)
+
+    /// U10: Settings lists the merged pair as one row, "Account 2", with its own actions:
+    /// it carries the Main badge and is not offered Make Main.
+    @Test func theMergedPairIsOneRowWithTheExtrasActions() async {
+        let fixture = MergedRowFixture()
+        await fixture.merge()
+        let rows = fixture.store.displayAccounts(for: .codex)
+        #expect(rows.map(\.label) == ["Account 2", "Esper Labs"])
+        let merged = rows[0]
+        #expect(merged.key == fixture.extraAccount.key)
+        #expect(merged.account.isBuiltIn == false)
+        #expect(AccountsSettingsInteractions.promotionState(for: merged, in: fixture.store) == .primary)
+        #expect(AccountsSettingsInteractions.makeMain(merged.account, in: fixture.store) == nil)
+        // The popover card draws the same rows.
+        #expect(PopoverView.accountEntries(for: .codex, in: fixture.store).map(\.account.key) == rows.map(\.key))
+    }
+
+    /// U10: the built-in's Sign Out & Set Up Again and stop-tracking stay reachable from the
+    /// provider header while its row is merged away, and starting the reset shows the row.
+    @Test func theProviderHeaderOffersTheMergedBuiltInsActions() async throws {
+        let fixture = MergedRowFixture()
+        #expect(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store) == nil)
+        #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .unavailable)
+
+        await fixture.merge()
+        let builtIn = try #require(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store))
+        #expect(builtIn.key == builtInKey)
+        #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .resetAndStopTracking)
+
+        var reset: ProviderAccount?
+        let started = AccountsSettingsInteractions.resetBuiltIn(builtIn, in: fixture.store, beginReset: { reset = $0 })
+        #expect(started)
+        #expect(reset?.key == builtInKey)
+
+        #expect(await AccountsSettingsInteractions.removeAccount(
+            DisplayAccount(account: builtIn, kind: .engine), from: fixture.store
+        ) == .removed)
+        #expect(fixture.store.isBuiltInTrackingStopped(for: .codex))
+        #expect(fixture.store.displayAccounts(for: .codex).map(\.label) == ["Account 2", "Esper Labs"])
+        #expect(AccountsSettingsInteractions.mergedBuiltIn(for: .codex, in: fixture.store) == nil)
+        #expect(fixture.store.displayProjection(for: .codex).mergeMap.isEmpty)
+    }
+
+    /// Covers AE5: two accounts kept apart on purpose draw as before, with no header menu.
+    @Test func twoSeparateAccountsDrawAsBefore() async {
+        let fixture = MergedRowFixture()
+        fixture.extra.set(MergedRowFixture.reading(MergedRowFixture.gmail, used: 31))
+        fixture.builtIn.set(MergedRowFixture.reading(MergedRowFixture.work, used: 90))
+        await fixture.store.refreshAll()
+        #expect(fixture.store.displayAccounts(for: .codex).map(\.account) == fixture.store.accounts(for: .codex))
+        #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .unavailable)
+    }
+}

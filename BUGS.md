@@ -4,6 +4,138 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Follow the default login: open items (2026-11-10)
+
+Plan: `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`. Phase 1 covers Claude,
+Codex, Grok, Cursor and Copilot. Phases 2 (remembered-account rows on the Mac and the phone) and
+3 (one row for the default login and a matching extra) cover Claude and Codex, the providers
+with a strong identity.
+
+- **Claude is wired on one of gate V1's three cases (2026-11-11).** Identity is
+  `oauthAccount.accountUuid` plus `organizationUuid` from each row's own `.claude.json`, read
+  before and after every `/usage` capture; relabel, refusal, remembered rows and the one-row
+  merge now apply to Claude (`ClaudeIdentityTests`). Still assumed, not verified: that a Claude
+  Desktop sign-in and a default-login switcher rewrite the `oauthAccount` block whenever they
+  change the Keychain credential (see the V1 entry below). Third-party sources say a running
+  Claude Code session can rewrite the block from its own cached profile; a run on 2026-11-11
+  (CLI 2.1.322, one session, a few minutes) did not reproduce it: see the V1 record's "The
+  open-session case". Also unmeasured: how often the CLI's
+  own rewrite of `.claude.json` at launch makes the after-read meet a half-written file and
+  refuses a reading (`identityRefusalTotals` counts it; the plan's probe-trace line for it is
+  not added). Two choices made in the wiring: a file undecodable on both sides is refused, as
+  KTD2 is written, where Grok keeps that reading under no name; and an inherited
+  `CLAUDE_CODE_OAUTH_TOKEN` is detected by the variable's presence, so an empty value also
+  makes every Claude row Absent.
+- **Phase 3 (one row for the default login and a matching extra) is built for Claude and Codex**, the two
+  providers with a strong identity.
+- **A merged row dims when the added account's poll failed, even if the default login's own
+  reading is live (accepted, KTD11).** While merged, the row shows the added account's reading,
+  so a transient failure on that account dims the row. KTD11 keeps the merge through a transient
+  failure so the row does not split and rejoin on every blip.
+- **Gate V1 passed for `claude auth login` (with and without a session left running,
+  2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** See
+  `docs/qa/2026-11-11-default-login-gate-v1.md`. Closed without a run (Kyle, 2026-11-12):
+  Claude Desktop signing in. Not run: any other switcher (five more were read in source and
+  swap the credential and the account block together), and a Codex switch (id and token share
+  one `auth.json`). A switcher that leaves `.claude.json` alone would put readings under the
+  wrong account.
+- **Review residuals, Phase 3 and Claude (2026-11-11).** Not fixed: an added account that changes
+  to another login while merged sets its reminder state aside under the old account, and the
+  hand-over at unmerge skips it, so the built-in can post one of those reminders again. A setup
+  that ends in `connected` with the popover closed holds the merge off until the popover next
+  plays the Connected chip. The Claude provider decodes `.claude.json` twice per probe; the cost
+  on a large file is unmeasured. The popover header builds the display projection per body
+  (popover open at 20 accounts measures 741 or 742 view bodies run to run, against a recorded 741; the one that varies is `PopoverScrollIndicator`, 6 or 7). The Settings badge rule for a merged pair is
+  tested in Core only. The cross-model adversarial review timed out with no output; an in-process
+  adversarial pass ran after the merge and its one finding (a reminder repeated when two rows
+  merge) is fixed. Its unverified risks: if the Claude CLI ever fills in `organizationUuid` for
+  an account bound with none, the row is treated as a different account (relabelled, history
+  and reminders set aside, the old binding shown as a remembered row); while merged, no
+  reminder fires if the added account's polls keep failing while the default login reads
+  live; a merged provider's Settings counter still counts both accounts above one row.
+- **Gate V2 was not run; the risk is accepted (Kyle, 2026-11-11).** The one-row merge trusts
+  that one Codex `account_id` is one account. Two teammates sharing an id would show as one
+  row. Kyle's two logins have different ids.
+- **Gate V3 passed for Claude (2026-11-12).** A real Headroom build on macOS 15.7.7 in a VM
+  followed three ccswap switches between two real subscriptions: the built-in row took the new
+  account's numbers and "Main", and the account it left stayed as a dimmed "Last read" row with
+  its own last reading. Not run for Codex. Seen there: the two accounts' remembered names were
+  "Account 2" and "Account 3", each stable, so a two-account rotation never shows "Account 1"
+  and the second remembered account reads "Account 3". Decided, not a bug (Kyle, 2026-11-12):
+  a number stays with its account, so a label never means one account now and another later.
+  A rename, or "Use email as account name", replaces it.
+- **Live looks so far.** Popover with remembered and merged rows: macOS 26 (dark) and macOS
+  15.7.7 (light), Standard and Compact. Settings › Accounts with a merged pair and a remembered
+  row: macOS 15.7.7 in the `merged` demo. iPhone remembered rows, with the "Last read" tag and the
+  reset lines: the `remembered` demo in an iPhone 17 Pro simulator (iOS 26.5, dark). Not looked
+  at: a real iPhone, the Micro meter
+  style's reset line, Settings on macOS 26, and a merged pair made from real sign-ins (the VM
+  run had no added account).
+- **Flaky test.** `AccountProbeSchedulerTests.popoverOpenProbeDoesNotCarryTheUserRequestedFlag`
+  failed once in four full parallel runs on a quiet machine (2026-11-12, `recorder.values ==
+  [true, false]`); it is older than the default-login work. The fake-CLI deadline tests
+  (`ClaudeUsageCLIProbeTests`, `CopilotStatusSourceTests`, Cursor probe tests) fail under heavy
+  machine load and pass serially.
+- **A phone that predates the `k` key treats a remembered row as an ordinary stale extra.** It
+  counts the row as not updated after a check-now and Siri may name it, until that phone
+  updates. Recorded in the sync field contract. Accepted (Kyle, 2026-11-10) over holding
+  remembered rows back until the phone build ships.
+- **First launch after upgrade differs from the plan's KTD7.** The plan says a never-bound row
+  with the default label adopts the saved label and history. The code treats a cached email
+  that differs from the first identity as another account even when the label is "Main", and
+  keeps the saved reading as a remembered account. Kept as built (Kyle, 2026-11-10): it is the
+  safer reading of R1, and this entry is the record that it differs from the plan's text.
+- **A remembered reading ages on the Mac without a phone export.** Aging runs at launch, on
+  each engine wake and on popover open. A window that passes its reset between exports reaches
+  the phone in its unavailable form at the next publish. A current phone hides the number at
+  the reset by itself; a phone that predates `k` waits its ten-minute grace.
+- **The budget ladder strips live extras' model rows before it drops a remembered row.** At 20
+  accounts plus 20 remembered on Claude and Codex the set fits at level 1 (34,711 bytes);
+  remembered rows go first only at level 2. Dropping them before level 1 would protect live data.
+- **Records written by a Phase 1 build can hold a remembered account labelled "Main".** It
+  shows as a dimmed "Main" beside the live one until that account is the default login and
+  leaves again. Phase 1 was never released, so this needs a build from `main` between #220 and
+  this change.
+- **A remembered account kept by email only never yields to an extra.** The first-launch entry
+  has no identity digest until a strong identity claims it, and the yield compares digests.
+- **A returned account renamed back to "Main" keeps its earlier chosen name when it leaves.**
+  Follows "never renumber a name the user chose"; unconfirmed as the wanted behaviour.
+- **A remembered row with no stored reading shows "No usage data".** Needs a stored window this
+  build cannot decode; not seen.
+- **Not measured: the popover with remembered rows.** The 20-account bench matches the baseline
+  for a setup with none. `commitDefaultLogin` compares the remembered list on every merge.
+- **Review residuals (2026-11-10), not applied.** The last-read date map is built in two views;
+  the reset-passed test is written in both `CompactAccountRowRecipe` and `RememberedRowRecipe`;
+  the remove-button wording is decided in the Settings view; default-label numbering has a
+  second loop beside `AccountRegistry`; `displayPrimaryKey` rebuilds the projection per call;
+  the Settings "Last read" line reads `Date()` and does not tick while Settings stays open.
+- **Unmeasured: how often a reading is refused.** The CLI can rewrite its account file while
+  Headroom reads it. `AccountProbeScheduler.identityRefusalTotals` counts refusals per account
+  in memory; no diagnostic prints it yet.
+- **A Grok `auth.json` Headroom cannot read keeps the row live under no account's name.**
+  Decided 2026-11-10 (Kyle), amending the plan's KTD2: a file unreadable on both sides of the
+  usage read counts as "no account named", and only a one-sided failure or a disagreement is
+  refused. A row that was bound to an account shows under "Main" until the file is readable.
+- **Every accepted reading with an identity rewrites `defaultLoginRecords.v1`.** The slot's
+  capture time must stay current for KTD6 attribution. Correct, cost unmeasured; measure at
+  `multi20` with remembered snapshots before Phase 2 adds rows that read this state.
+- **A reminder post in flight when its account leaves is counted as delivered.** Its
+  completion finds the row holding another account and writes nothing, so the parked state
+  takes the pending entry. If that post is then refused, the account misses one reminder for
+  that reset. The new account's alert for the same limit also waits for that post to return.
+- **Grok names the file's account, not the billed one.** Its ACP path reads its login
+  separately from `auth.json`. Remembered accounts for Grok wait for an identity check.
+- **Cursor and Copilot cannot bracket a reading.** A Cursor status read that misses is no
+  evidence either way, so one reading after a switch can sit under the old name. Copilot's
+  login comes from a status cache up to an hour old.
+- **The sign-out record logs a switcher's brief signed-out moment as a sign-out.** Diagnostics
+  only.
+- **No test for "an account change counts as two sessions" in `SessionReliabilityRecord`.** The
+  change ends the observation; the day counters are not asserted.
+- **Copilot keeps two identity records.** `CopilotLoginMemory` (log evidence cut-off) and the
+  slot record both key on the login from the same status read, so they agree on a change, but
+  they are two stores.
+
 ## Feedback by email follow-ups (2026-11-03)
 
 - **Live acceptance outstanding.** Send one report from a built, signed Mac app and one from
@@ -27,6 +159,22 @@ official `claude` CLI's `/usage` panel instead.
   runs, or spawning `/bin/sh` with the script as an argument.
 - **Overlap with the troubleshooting sheet.** The deferred in-app troubleshooting sheet
   should reuse `FeedbackDiagnosticsCollector` rather than read state a second way.
+
+## Account names on the phone follow-ups (2026-11-10)
+
+The phone now shows the account name the Mac shows, so an email used as a name syncs as
+that name. Still to do:
+
+- **headroom-site privacy page.** It needs the same wording as the app: "If you use an
+  email address as an account name, that address syncs as the name. Sign-ins, passwords
+  and API keys never sync." Separate repository; publish with the release that ships this.
+- **App Store listing unchecked.** If the live description or privacy answers say emails
+  never sync, they need the same change. The label itself should stand, since Headroom
+  cannot read the user's iCloud data, but that is unconfirmed.
+- **Two rows on one email read differently.** The phone shows "x" and "x · 2"; the Mac
+  popover shows the bare email on both rows.
+- **Long email titles end-truncate on phone cards.** The design docs recommend middle
+  truncation for emails.
 
 ## Copilot provider follow-ups (2026-11-02)
 
@@ -391,10 +539,14 @@ official `claude` CLI's `/usage` panel instead.
   fallback for CLIs ≥ 2.1.217; AGENTS.md currently forbids it, so it stays. A `--version`
   timeout is not retried and still sends the probe to the PTY.
 
-- **An external Claude CLI account switch can retain a model row from the prior login.**
-  The continuity merger retains missing model rows without comparing upstream identity.
-  Headroom's explicit reset clears continuity; an external login switch does not.
-  Follow up with identity-aware continuity and a regression fixture.
+- **Fixed for a switch the account file records (2026-11-11): an external Claude CLI account
+  switch could retain a model row from the prior login.** Claude readings now carry their
+  `.claude.json` identity, and the continuity merger retains a missing model row only from a
+  reading of the same identity. Fixtures cover the in-memory and the relaunch path
+  (`ClaudeDefaultLoginStoreTests`). Still open for a switch that changes the Keychain
+  credential without rewriting `.claude.json` (gate V1's unverified cases). With an inherited
+  `CLAUDE_CODE_OAUTH_TOKEN` every reading is Absent, so no model row is retained at all: a
+  partial capture drops it instead of keeping it stale.
 
 
 - **Resolved upstream on 2026-07-20: the per-model weekly row ("Weekly (Fable)") returned in

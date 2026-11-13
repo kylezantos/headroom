@@ -139,9 +139,9 @@ struct LoadingDemoTests {
             _ = await credentials.saveAPIKey("demo-placeholder", for: id)
             _ = await credentials.deleteAPIKey(for: id)
         }
-        let detector = AppComposition.makeSettingsDuplicateDetector(isDemo: true, readAccountUUID: { _ in
+        let detector = AppComposition.makeSettingsDuplicateDetector(isDemo: true, readIdentity: { _ in
             spy.noteRead()
-            return "test-placeholder"
+            return AccountIdentity.claude(accountUUID: "11111111-2222-3333-4444-555555555555", organizationUUID: nil)
         })
         #expect(detector.duplicateLabels(for: [.builtIn(for: .claude)]).isEmpty)
         #expect(spy.calls == 0)
@@ -149,6 +149,28 @@ struct LoadingDemoTests {
         try AppComposition.settingsLaunchControl.setEnabled(true)
         #expect(AppComposition.settingsLaunchControl.isEnabled)
         try AppComposition.settingsLaunchControl.setEnabled(false)
+    }
+
+    /// Default-login plan U11: a demo gets the in-memory record store and never touches
+    /// `defaultLoginRecords.v1`; a real launch gets the UserDefaults store over the suite it
+    /// is handed.
+    @Test func demoRecordStoreIsInMemoryAndARealLaunchWritesItsDefaults() throws {
+        let suite = "headroom.tests.default-login-records.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let key = "defaultLoginRecords.v1"
+        let payload = Data("records".utf8)
+
+        let demo = AppComposition.makeDefaultLoginRecordStore(isDemo: true, defaults: defaults)
+        #expect(demo is DemoDefaultLoginRecordStore)
+        demo.write(payload)
+        #expect(defaults.data(forKey: key) == nil)
+
+        let real = AppComposition.makeDefaultLoginRecordStore(isDemo: false, defaults: defaults)
+        #expect(real is DefaultLoginRecordStore)
+        real.write(payload)
+        #expect(defaults.data(forKey: key) == payload)
+        #expect(real.read() == payload)
     }
 }
 

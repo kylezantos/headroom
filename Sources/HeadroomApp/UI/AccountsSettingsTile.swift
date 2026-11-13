@@ -81,7 +81,8 @@ struct AccountsSettingsTile: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
     @State private var labelDrafts: [AccountKey: String] = [:]
-    @State private var removalCandidate: ProviderAccount?
+    /// KTD8: a display row, so the confirmed removal follows the row's kind.
+    @State private var removalCandidate: DisplayAccount?
     @State private var resetCandidate: ProviderAccount?
     @State private var removalOrigin: AccountKey?
     @State private var removalInProgress: AccountKey?
@@ -110,7 +111,7 @@ struct AccountsSettingsTile: View {
                         }
                     )
                 )
-                SettingsHelpText(text: "Applies to every account in the Mac app. Saved names return when turned off, and are used whenever an email is unavailable.")
+                SettingsHelpText(text: "Applies to every account, in the Mac app and on a synced iPhone or iPad. Saved names return when turned off, and are used whenever an email is unavailable.")
             }
 
             ForEach(store.registeredProviderOrder, id: \.self) { providerID in
@@ -118,22 +119,25 @@ struct AccountsSettingsTile: View {
             }
         }
         .confirmationDialog(
-            removalCandidate?.isBuiltIn == true
-                ? "Stop tracking this account?"
-                : "Remove this account?",
+            removalCandidate.map(AccountsSettingsInteractions.removalDialogTitle(for:))
+                ?? "Remove this account?",
             isPresented: removalDialogPresented,
             titleVisibility: .visible,
             presenting: removalCandidate
-        ) { account in
+        ) { row in
+            let account = row.account
             // Stop-tracking is deliberately not `.destructive` — it hides the row and
-            // deletes nothing, unlike extra-account removal.
+            // deletes nothing, unlike extra-account removal. Removing a remembered row
+            // only hides it too (R11).
             Button(
-                account.isBuiltIn ? "Stop Tracking \(store.desktopAccountName(for: account))" : "Remove \(store.desktopAccountName(for: account))",
-                role: account.isBuiltIn ? nil : .destructive
+                account.isBuiltIn && !row.isRemembered
+                    ? "Stop Tracking \(store.desktopAccountName(for: account))"
+                    : "Remove \(store.desktopAccountName(for: account))",
+                role: AccountsSettingsInteractions.removalIsDestructive(for: row) ? .destructive : nil
             ) {
                 removalInProgress = account.key
                 Task { @MainActor in
-                    let result = await AccountsSettingsInteractions.removeAccount(account, from: store)
+                    let result = await AccountsSettingsInteractions.removeAccount(row, from: store)
                     guard result == .removed else {
                         removalInProgress = nil
                         restoreRemovalFocus()
@@ -151,10 +155,8 @@ struct AccountsSettingsTile: View {
                 }
             }
             Button("Cancel", role: .cancel) { restoreRemovalFocus() }
-        } message: { account in
-            Text(account.isBuiltIn
-                 ? "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted."
-                 : "Its sign-in on this Mac is deleted with it. Your subscription is untouched.")
+        } message: { row in
+            Text(AccountsSettingsInteractions.removalDialogMessage(for: row))
         }
         .confirmationDialog(
             "Sign out and set up again?",
@@ -177,8 +179,8 @@ struct AccountsSettingsTile: View {
         // silently discarded renames while still displaying the draft (code-review
         // finding).
         .onChange(of: focusedLabel) { previous, _ in
-            if let previous, let account = account(for: previous) {
-                commitLabel(for: account)
+            if let previous, let row = displayRow(for: previous) {
+                commitLabel(for: row)
             }
         }
         // R12: leaving Accounts — pane switch or window close — commits a typed rename
@@ -198,14 +200,26 @@ struct AccountsSettingsTile: View {
         }
     }
 
-    private func account(for key: AccountKey) -> ProviderAccount? {
-        store.accounts(for: key.providerID).first { $0.key == key }
+    private func displayRow(for key: AccountKey) -> DisplayAccount? {
+        store.displayProjection(for: key.providerID).row(for: key)
     }
 
     // MARK: - Provider group
 
     @ViewBuilder private func providerGroup(_ providerID: ProviderID) -> some View {
+        // Engine rows drive capacity, the counter, the switch and capability recovery;
+        // the list draws the display rows, remembered ones after the engine rows (KTD8).
         let accounts = store.accounts(for: providerID)
+        let rows = store.displayAccounts(for: providerID)
+        // U8: one read per provider, and only when a remembered row needs its last-read time.
+        let lastReadAt: [AccountKey: Date] = rows.contains(where: \.isRemembered)
+            ? Dictionary(
+                store.rememberedAccounts(for: providerID).compactMap { summary in
+                    summary.lastReadAt.map { (summary.key, $0) }
+                },
+                uniquingKeysWith: { first, _ in first }
+            )
+            : [:]
         let capacity = store.accountCapacity(for: providerID)
         let capabilityState = store.providerCapabilities[providerID]?.state
         let displayName = store.displayNames[providerID] ?? providerID.raw.capitalized
@@ -244,6 +258,7 @@ struct AccountsSettingsTile: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
+                mergedBuiltInMenu(for: providerID)
                 if presentation.showsAddAction {
                     // L11A: an off group dims as one unit, Add included. Both the enabled
                     // and disabled reasons come from `ProviderGroupPresentation` so the
@@ -292,8 +307,8 @@ struct AccountsSettingsTile: View {
                 .padding(.leading, 16)
                 .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
-            ForEach(accounts) { account in
-                accountRow(account, capability: capability, presentation: presentation)
+            ForEach(rows) { row in
+                accountRow(row, lastReadAt: lastReadAt[row.key], capability: capability, presentation: presentation)
                     .transition(SettingsAccountExit.transition(reduceMotion: reduceMotion))
             }
             if store.isBuiltInTrackingStopped(for: providerID) {
@@ -333,13 +348,42 @@ struct AccountsSettingsTile: View {
         // and the tile's `raisedTile` pins a height, so the tile follows the group per frame.
         .animation(
             HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion),
-            value: accounts.map(\.id)
+            value: rows.map(\.id)
         )
         .onAppear {
             SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
         }
         .onChange(of: capabilityState) {
             SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
+        }
+    }
+
+    /// Default-login U10 (KTD11): while the default login shows through the extra row that
+    /// reads the same account, the list draws that one row with its own actions, and the
+    /// built-in's "Sign Out & Set Up Again" and stop-tracking live here. Nothing is drawn
+    /// for a provider with no merge, so its header is unchanged (R15). No row is marked as
+    /// the default login (R16).
+    @ViewBuilder private func mergedBuiltInMenu(for providerID: ProviderID) -> some View {
+        let actions = AccountsSettingsInteractions.mergedBuiltInActions(for: providerID, in: store)
+        if actions != .unavailable,
+           let builtIn = AccountsSettingsInteractions.mergedBuiltIn(for: providerID, in: store) {
+            Menu {
+                Section("CLI login") {
+                    Button("Sign Out & Set Up Again") { requestReset(builtIn) }
+                    if actions == .resetAndStopTracking {
+                        Button("Stop Tracking") {
+                            removalOrigin = builtIn.key
+                            removalCandidate = DisplayAccount(account: builtIn, kind: .engine)
+                        }
+                    }
+                }
+            } label: {
+                AccountActionsMenuGlyph()
+            }
+            .accountActionsMenuChrome()
+            .help("CLI login actions")
+            .accessibilityLabel("Actions for the \(store.displayNames[providerID] ?? providerID.raw) CLI login")
+            .focused($focusedRemovalAction, equals: builtIn.key)
         }
     }
 
@@ -363,10 +407,14 @@ struct AccountsSettingsTile: View {
     // MARK: - Account row
 
     private func accountRow(
-        _ account: ProviderAccount,
+        _ row: DisplayAccount,
+        lastReadAt: Date?,
         capability: CapabilityRecoveryPresentation?,
         presentation: AccountsSettingsInteractions.ProviderGroupPresentation
     ) -> some View {
+        let account = row.account
+        // A remembered row is never probed: no sign-in, retry or recovery action (R12).
+        let offersRecovery = row.kind.offersRetry
         let snapshot = store.snapshot(for: account.key)
         let removalState = store.accountRemovalStates[account.key]
         let setupState = SetupSessions.state(for: account)
@@ -378,7 +426,7 @@ struct AccountsSettingsTile: View {
         // R11: fetch-recovery ("Check Again", "Install…", "Reconnect…") is fetch state,
         // so it goes with the status text while the provider is off; the plain sign-in
         // affordance below is management and stays.
-        let recoveryActions = presentation.hidesFetchRecovery
+        let recoveryActions = presentation.hidesFetchRecovery || !offersRecovery
             ? nil
             : settingsRecoveryActions(
                 snapshot: snapshot,
@@ -412,7 +460,7 @@ struct AccountsSettingsTile: View {
             && recoveryActions?.usesSecondLine == true
         return VStack(alignment: .leading, spacing: usesSecondLine ? 5 : 1) {
             HStack(spacing: 8) {
-                accountIdentity(account, email: email, isEditingLabel: isEditingLabel)
+                accountIdentity(row, email: email, isEditingLabel: isEditingLabel)
                 if account.isBuiltIn {
                     pillBadge("CLI login", help: "Uses the account your CLI is signed into")
                 }
@@ -434,7 +482,15 @@ struct AccountsSettingsTile: View {
                     waitingForClaudeCode: capabilityRow == .waitingForClaudeCode,
                     showsStatus: !presentation.hidesAccountStatus(isSetupState: status.isSetupState),
                     level: loadingLevel)
-                if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
+                if row.isRemembered {
+                    // U8 (R7): the popover's tag, as this row's status line. It is not fetch
+                    // state, so it shows while the provider's switch is off too.
+                    if let text = AccountsSettingsInteractions.rememberedStatus(
+                        lastReadAt: lastReadAt, snapshot: snapshot, now: Date()
+                    ) {
+                        rememberedStatusLabel(text)
+                    }
+                } else if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
                     accountStatus(
                         capabilityRow,
                         snapshot: snapshot,
@@ -444,7 +500,7 @@ struct AccountsSettingsTile: View {
                         account: account
                     )
                 }
-                if !usesSecondLine, capability == nil, removalState == nil {
+                if offersRecovery, !usesSecondLine, capability == nil, removalState == nil {
                     recoveryButtons(
                         for: account,
                         status: status,
@@ -453,7 +509,7 @@ struct AccountsSettingsTile: View {
                     )
                 }
                 removalActions(
-                    for: account,
+                    for: row,
                     removalState: removalState,
                     setupState: setupState
                 )
@@ -492,10 +548,11 @@ struct AccountsSettingsTile: View {
     }
 
     @ViewBuilder private func accountIdentity(
-        _ account: ProviderAccount,
+        _ row: DisplayAccount,
         email: String?,
         isEditingLabel: Bool
     ) -> some View {
+        let account = row.account
         VStack(alignment: .leading, spacing: 1) {
             if store.useEmailAsAccountName, let email {
                 Text(email)
@@ -514,7 +571,7 @@ struct AccountsSettingsTile: View {
                     .textFieldStyle(.plain)
                     .font(.system(size: 13))
                     .focused($focusedLabel, equals: account.key)
-                    .onSubmit { commitLabel(for: account) }
+                    .onSubmit { commitLabel(for: row) }
                     .padding(.horizontal, 6).padding(.vertical, 3)
                     .background(
                         Color.primary.opacity(isEditingLabel ? 0.06 : 0),
@@ -555,6 +612,21 @@ struct AccountsSettingsTile: View {
                 }
             }
         }
+    }
+
+    /// U8: the stale status's clock-and-text treatment, worded "Last read …". Its tooltip
+    /// points at Add Account for someone who wants the account live.
+    private func rememberedStatusLabel(_ text: String) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: "clock")
+                .font(.system(size: 9, weight: .medium))
+            Text(text)
+                .font(SettingsType.help.monospacedDigit())
+        }
+        .foregroundStyle(.secondary)
+        .help(AccountsSettingsInteractions.rememberedStatusHelp)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(text)
     }
 
     @ViewBuilder private func accountStatus(
@@ -669,10 +741,11 @@ struct AccountsSettingsTile: View {
     }
 
     @ViewBuilder private func removalActions(
-        for account: ProviderAccount,
+        for row: DisplayAccount,
         removalState: AccountRemovalState?,
         setupState: SetupSessionState
     ) -> some View {
+        let account = row.account
         // The trash slot is always laid out — hidden (not absent) on built-in rows —
         // so status text shares one right anchor down the whole list (audit P2).
             if let stopWaitingAccount = settingsStopWaitingAccount(
@@ -690,7 +763,7 @@ struct AccountsSettingsTile: View {
             } else if removalState == .failed {
                 Button("Retry") {
                     Task { @MainActor in
-                        _ = await AccountsSettingsInteractions.removeAccount(account, from: store)
+                        _ = await AccountsSettingsInteractions.removeAccount(row, from: store)
                     }
                 }
                 .buttonStyle(.bordered)
@@ -727,7 +800,7 @@ struct AccountsSettingsTile: View {
                             Divider()
                             Button("Stop Tracking") {
                                 removalOrigin = account.key
-                                removalCandidate = account
+                                removalCandidate = row
                             }
                         } label: {
                             AccountActionsMenuGlyph()
@@ -744,7 +817,7 @@ struct AccountsSettingsTile: View {
                             Divider()
                             Button("Stop Tracking") {
                                 removalOrigin = account.key
-                                removalCandidate = account
+                                removalCandidate = row
                             }
                         } label: {
                             AccountActionsMenuGlyph()
@@ -759,7 +832,7 @@ struct AccountsSettingsTile: View {
                             .accessibilityHidden(true)
                     }
                 } else {
-                    if AccountsSettingsInteractions.promotionState(for: account, in: store) == .available {
+                    if AccountsSettingsInteractions.promotionState(for: row, in: store) == .available {
                         Menu {
                             Button("Make Main") { makeMain(account) }
                             Divider()
@@ -769,7 +842,7 @@ struct AccountsSettingsTile: View {
                             // plain: it hides a row and deletes nothing.)
                             Button("Remove Account", role: .destructive) {
                                 removalOrigin = account.key
-                                removalCandidate = account
+                                removalCandidate = row
                             }
                         } label: {
                             AccountActionsMenuGlyph()
@@ -781,7 +854,7 @@ struct AccountsSettingsTile: View {
                     } else {
                         Button {
                             removalOrigin = account.key
-                            removalCandidate = account
+                            removalCandidate = row
                         } label: {
                             Image(systemName: "trash")
                                 .font(SettingsType.help)
@@ -1056,20 +1129,20 @@ struct AccountsSettingsTile: View {
     private func commitPendingLabels() {
         guard !labelDrafts.isEmpty else { return }
         for providerID in store.registeredProviderOrder {
-            for account in AccountsSettingsInteractions.pendingLabelCommits(
+            for row in AccountsSettingsInteractions.pendingLabelCommits(
                 drafts: labelDrafts,
-                accounts: store.accounts(for: providerID)
+                rows: store.displayAccounts(for: providerID)
             ) {
-                commitLabel(for: account)
+                commitLabel(for: row)
             }
         }
         labelDrafts.removeAll()
     }
 
-    private func commitLabel(for account: ProviderAccount) {
-        guard let draft = labelDrafts[account.key] else { return }
-        AccountsSettingsInteractions.commitLabel(draft, for: account, in: store)
-        labelDrafts[account.key] = nil
+    private func commitLabel(for row: DisplayAccount) {
+        guard let draft = labelDrafts[row.key] else { return }
+        AccountsSettingsInteractions.commitLabel(draft, for: row, in: store)
+        labelDrafts[row.key] = nil
     }
 
     private var removalDialogPresented: Binding<Bool> {

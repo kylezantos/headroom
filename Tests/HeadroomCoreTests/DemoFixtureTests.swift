@@ -104,6 +104,11 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .bankedResets).accounts.count == 4)
         #expect(DemoFixture.multiFixture(for: .fiveProviders).accounts.count == 5)
         #expect(DemoFixture.multiFixture(for: .copilotNoReading).accounts.count == 2)
+        // Default-login U11: the engine holds only each provider's live default; the two
+        // remembered rows per provider come from the record store.
+        #expect(DemoFixture.multiFixture(for: .remembered).accounts.count == 2)
+        // U10: each provider's built-in and "Account 2"; the built-in is merged away.
+        #expect(DemoFixture.multiFixture(for: .merged).accounts.count == 4)
         // Provider instances are 1:1 with accounts.
         for scenario in DemoFixture.MultiAccountScenario.allCases {
             let fixture = DemoFixture.multiFixture(for: scenario)
@@ -279,6 +284,144 @@ struct DemoFixtureTests {
         #expect(fixture.accounts.allSatisfy {
             showsPersistentEmail(for: $0, in: fixture.accounts)
         })
+    }
+
+    // MARK: - Remembered accounts (default-login plan U11)
+
+    /// A store built the way `AppComposition.demoMultiAccountStore` and the render harness
+    /// build one: fixture providers, fixture accounts, and the fixture's in-memory record
+    /// store. Preferences live in a throwaway suite, never `.standard`.
+    @MainActor
+    private func demoStore(
+        _ scenario: DemoFixture.MultiAccountScenario
+    ) -> (store: UsageStore, records: DemoDefaultLoginRecordStore) {
+        let fixture = DemoFixture.multiFixture(for: scenario)
+        let suite = "headroom.demo-fixture.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        let records = fixture.makeDefaultLoginRecordStore()
+        let store = UsageStore(
+            providers: fixture.providers,
+            preferences: Preferences(defaults: defaults),
+            accounts: fixture.accounts,
+            defaultLoginRecords: records
+        )
+        return (store, records)
+    }
+
+    /// U11: `--demo remembered` lists each of Claude and Codex as a live default followed by
+    /// two remembered rows: Work, read two minutes ago and still before both resets (dimmed,
+    /// numbers kept), and Studio, read two days ago with both resets passed (no numbers).
+    @MainActor
+    @Test func rememberedScenarioBuildsTheExpectedDisplayList() async throws {
+        let (store, _) = demoStore(.remembered)
+        await store.refreshAll()
+
+        #expect(store.providerOrder == [.claude, .codex])
+        for providerID in [ProviderID.claude, .codex] {
+            let rows = store.displayAccounts(for: providerID)
+            #expect(rows.map(\.label) == ["Personal", "Work", "Studio"], "\(providerID)")
+            #expect(rows.map(\.kind) == [.engine, .remembered, .remembered], "\(providerID)")
+            #expect(store.accounts(for: providerID).map(\.label) == ["Personal"], "\(providerID)")
+            #expect(rows.first?.account.isBuiltIn == true)
+
+            let live = store.snapshot(for: rows[0].key)
+            #expect(live.freshness == .live)
+            #expect(live.windows.allSatisfy { $0.freshness.isLive })
+
+            let work = store.snapshot(for: rows[1].key)
+            #expect(work.windows.count == 2)
+            #expect(work.windows.allSatisfy { $0.freshness.observedAt != nil }, "\(providerID) Work is dimmed")
+            #expect(work.windows.map { UsagePercentageMode.remaining.roundedPercentage(for: $0) } == [22, 10])
+
+            let studio = store.snapshot(for: rows[2].key)
+            #expect(studio.windows.count == 2)
+            #expect(studio.windows.allSatisfy { $0.freshness.isUnavailable }, "\(providerID) Studio has reset")
+
+            let remembered = store.rememberedAccounts(for: providerID)
+            let workRead = try #require(remembered.first { $0.label == "Work" }?.lastReadAt)
+            let studioRead = try #require(remembered.first { $0.label == "Studio" }?.lastReadAt)
+            #expect(Date().timeIntervalSince(workRead) < 10 * 60)
+            #expect(Date().timeIntervalSince(studioRead) > 36 * 3_600)
+        }
+        // Remembered rows are never the main account (R12).
+        #expect(store.displayAccounts(for: .claude).first?.key == AccountKey(providerID: .claude, accountID: .primary))
+    }
+
+    /// U10: `--demo merged` is mock scenario B, step 2 (AE4), for Claude and Codex alike:
+    /// "Account 2" shows once and live with the gmail account's reading, and "Esper Labs" is
+    /// dimmed with the work account's. The built-in is still an engine row, hidden by the
+    /// merge, and every main-account surface follows "Account 2".
+    @MainActor
+    @Test func mergedScenarioBuildsTheExpectedDisplayList() async throws {
+        let (store, _) = demoStore(.merged)
+        await store.refreshAll()
+
+        #expect(store.providerOrder == [.claude, .codex])
+        for providerID in [ProviderID.claude, .codex] {
+            let extra = AccountKey(providerID: providerID, accountID: AccountID("\(providerID.raw)-account-2"))
+            let rows = store.displayAccounts(for: providerID)
+            #expect(rows.map(\.label) == ["Account 2", "Esper Labs"], "\(providerID)")
+            #expect(rows.map(\.kind) == [.engine, .remembered], "\(providerID)")
+            #expect(rows[0].key == extra)
+            #expect(store.accounts(for: providerID).map(\.label) == ["Main", "Account 2"], "\(providerID)")
+            #expect(store.displayProjection(for: providerID).mergeMap
+                == [AccountKey(providerID: providerID, accountID: .primary): extra])
+            #expect(store.displayPrimaryKey(for: providerID) == extra)
+
+            let live = store.snapshot(for: extra)
+            #expect(live.freshness == .live)
+            #expect(live.windows.map { UsagePercentageMode.remaining.roundedPercentage(for: $0) } == [96, 69])
+
+            let esper = store.snapshot(for: rows[1].key)
+            #expect(esper.windows.allSatisfy { $0.freshness.observedAt != nil }, "\(providerID) Esper Labs is dimmed")
+            #expect(esper.windows.map { UsagePercentageMode.remaining.roundedPercentage(for: $0) } == [22, 10])
+            #expect(esper.planLabel == "Team")
+        }
+    }
+
+    /// R15: no other scenario carries a record, so each display list is its engine list.
+    @MainActor
+    @Test func otherScenariosShowNoRememberedRows() async {
+        for scenario in DemoFixture.MultiAccountScenario.allCases where scenario != .remembered && scenario != .merged {
+            #expect(DemoFixture.multiFixture(for: scenario).defaultLoginRecords == nil, "\(scenario)")
+            // multi-20 simulates 4s probes; its display list is fixed before any refresh.
+            let (store, _) = demoStore(scenario)
+            if scenario != .envelope, scenario != .loading { await store.refreshAll() }
+            for providerID in store.registeredProviderOrder {
+                #expect(
+                    store.displayAccounts(for: providerID).map(\.account) == store.accounts(for: providerID),
+                    "\(scenario) \(providerID)"
+                )
+                #expect(store.rememberedAccounts(for: providerID, includingHidden: true).isEmpty, "\(scenario)")
+            }
+        }
+    }
+
+    /// R18 and the U11 isolation rule: a demo store's records live in memory. Its writes
+    /// (a rename here) land in the in-memory store, and the `defaultLoginRecords.v1` key in
+    /// the process's standard domain is never written. Every provider is a fixture, so no
+    /// identity reader runs and no CLI file is read.
+    @MainActor
+    @Test func demoStoreKeepsItsRecordsInMemory() async throws {
+        let realKey = "defaultLoginRecords.v1"
+        let before = UserDefaults.standard.data(forKey: realKey)
+        let (store, records) = demoStore(.remembered)
+        #expect(store.defaultLoginRecordStore is DemoDefaultLoginRecordStore)
+        #expect(store.providers.allSatisfy { $0 is DemoUsageProvider })
+        await store.refreshAll()
+
+        let work = try #require(store.rememberedAccounts(for: .codex).first { $0.label == "Work" })
+        let writes = records.writeCount
+        #expect(store.renameRememberedAccount(work.key, to: "Work laptop"))
+        #expect(records.writeCount == writes + 1)
+        #expect(store.displayAccounts(for: .codex).map(\.label) == ["Personal", "Work laptop", "Studio"])
+        #expect(UserDefaults.standard.data(forKey: realKey) == before)
+
+        // A second store from the same fixture starts from the seed again: nothing a
+        // previous demo run did carries over.
+        let (fresh, _) = demoStore(.remembered)
+        #expect(fresh.displayAccounts(for: .codex).map(\.label) == ["Personal", "Work", "Studio"])
     }
 
     // MARK: - Settings Appearance specimen (U3 / KTD4)

@@ -28,6 +28,24 @@ public struct GrokProvider: UsageProvider {
     }
 
     public func fetchSnapshot() async -> UsageSnapshot {
+        await fetchResult().snapshot
+    }
+
+    /// KTD2 (default-login plan): the account file is read before and after the usage
+    /// read, and a live reading is kept only when both reads agree. The email shown comes
+    /// from that same pair. With no reader wired the provider reports no identity.
+    public func fetchResult() async -> UsageProviderFetchResult {
+        let before = emailSource?.readAccountIdentity()
+        let snapshot = await fetchUsageSnapshot()
+        guard snapshot.freshness == .live, let before, let emailSource else {
+            return UsageProviderFetchResult(snapshot: snapshot)
+        }
+        let outcome = AccountIdentityOutcome.bracketing(before: before, after: emailSource.readAccountIdentity())
+        guard outcome != .unreadable else { return .identityUnreadable(for: id) }
+        return UsageProviderFetchResult(snapshot: snapshot.withIdentity(outcome).withAccountEmail(before.email))
+    }
+
+    private func fetchUsageSnapshot() async -> UsageSnapshot {
         switch await source.fetchUsage() {
         case .payload(let data, _): return decode(data)
         case .methodUnavailable: return stale(.providerSetup(.grokTransientCapture))
@@ -53,7 +71,6 @@ public struct GrokProvider: UsageProvider {
             providerID: id,
             windows: [window],
             planLabel: dto.subscriptionTier,
-            accountEmail: emailSource?.readAccountEmail(),
             capturedAt: now(),
             freshness: .live
         )

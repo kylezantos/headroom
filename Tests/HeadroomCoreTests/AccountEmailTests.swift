@@ -18,6 +18,10 @@ private let claudeAccountFileFixture = """
 """
 
 /// Upstream identities the detector will accept: it trusts UUID-syntactic values only.
+private func claudeID(_ accountUUID: String?, organization: String? = nil) -> AccountIdentity? {
+    AccountIdentity.claude(accountUUID: accountUUID, organizationUUID: organization)
+}
+
 private let sharedLoginUUID = "11111111-2222-3333-4444-555555555555"
 private let otherLoginUUID = "99999999-8888-7777-6666-555555555555"
 
@@ -82,9 +86,9 @@ struct ClaudeAccountEmailTests {
     }
 
     @Test func forAccountRoutesPrimaryToHomeRootAndExtrasToTheirConfigHome() {
-        // `forAccount` is the one production resolver (ClaudeProvider's default
-        // emailSource) — the branch below decides which account's email shows on
-        // which card, so both sides are pinned.
+        // `forAccount` is the resolver the Settings duplicate badge reads through — the
+        // branch below decides which account's identity a row is checked under, so both
+        // sides are pinned.
         let home = FileManager.default.homeDirectoryForCurrentUser
         #expect(
             ClaudeAccountEmailFileReader.forAccount(.primary).accountFilePath
@@ -129,56 +133,59 @@ struct ClaudeAccountEmailTests {
 }
 
 struct ClaudeDuplicateLoginTests {
-    @Test func decodesOAuthAccountUUID() {
-        #expect(
-            ClaudeAccountBlob.accountUUID(in: Data(claudeAccountFileFixture.utf8))
-                == "00000000-0000-0000-0000-000000000000"
-        )
+    @Test func decodesOAuthAccountIdentity() {
+        let read = ClaudeAccountBlob.identityRead(in: Data(claudeAccountFileFixture.utf8))
+        #expect(read.identity == claudeID("00000000-0000-0000-0000-000000000000"))
+        #expect(read.email == "personal@example.com")
     }
 
-    @Test func missingOrBlankUUIDYieldsNil() {
+    @Test func missingBlankOrNonUUIDAccountIdYieldsNoIdentity() {
         for json in [
             "{}",
             #"{ "oauthAccount": {} }"#,
             #"{ "oauthAccount": { "accountUuid": "  " } }"#,
+            #"{ "oauthAccount": { "accountUuid": "not-a-uuid" } }"#,
             #"{ "oauthAccount": { "accountUuid": 42 } }"#,
-            "not json at all",
         ] {
-            #expect(ClaudeAccountBlob.accountUUID(in: Data(json.utf8)) == nil)
+            #expect(ClaudeAccountBlob.identityRead(in: Data(json.utf8)) == .absent, "\(json)")
         }
+        #expect(ClaudeAccountBlob.identityRead(in: Data("not json at all".utf8)) == .unreadable)
     }
 
     /// Every other detector test stubs the read closure, so nothing else covers the
     /// production path that opens `<CLAUDE_CONFIG_DIR>/.claude.json` off disk.
-    @Test func fileBackedUUIDReadReturnsTheIdentityWrittenInTheConfigHome() throws {
+    @Test func fileBackedIdentityReadReturnsTheIdentityWrittenInTheConfigHome() throws {
         let directory = try temporaryConfigHome()
         defer { try? FileManager.default.removeItem(at: directory) }
         try Data(claudeAccountFileFixture.utf8)
             .write(to: directory.appendingPathComponent(".claude.json"))
 
         let reader = ClaudeAccountEmailFileReader(configDirectory: directory)
-        #expect(reader.readAccountUUID() == "00000000-0000-0000-0000-000000000000")
+        #expect(reader.readAccountIdentity().identity == claudeID("00000000-0000-0000-0000-000000000000"))
         // Same file, same real read: identity and email come out of one capture.
         #expect(reader.readAccountEmail() == "personal@example.com")
     }
 
-    @Test func fileBackedUUIDReadFailsSafeForMissingMalformedAndKeylessFiles() throws {
+    @Test func fileBackedIdentityReadFailsSafeForMissingMalformedAndKeylessFiles() throws {
         let directory = try temporaryConfigHome()
         defer { try? FileManager.default.removeItem(at: directory) }
         let file = directory.appendingPathComponent(".claude.json")
         let reader = ClaudeAccountEmailFileReader(configDirectory: directory)
 
         // A fresh config home: the CLI hasn't written the file yet.
-        #expect(reader.readAccountUUID() == nil)
+        #expect(reader.readAccountIdentity() == .absent)
+
+        try Data("{ not json at all".utf8).write(to: file)
+        #expect(reader.readAccountIdentity() == .unreadable)
 
         for contents in [
-            "{ not json at all",
             #"{ "oauthAccount": { "emailAddress": "personal@example.com" } }"#,
+            #"{ "oauthAccount": { "accountUuid": "not-a-uuid" } }"#,
             #"{ "oauthAccount": {} }"#,
             "{}",
         ] {
             try Data(contents.utf8).write(to: file)
-            #expect(reader.readAccountUUID() == nil)
+            #expect(reader.readAccountIdentity() == .absent, "\(contents)")
         }
     }
 
@@ -192,17 +199,33 @@ struct ClaudeDuplicateLoginTests {
     @Test func sameUpstreamLoginBadgesTheLaterRow() {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
         // Registry order decides the original: the earlier row keeps its plain
         // identity, the later duplicate carries the badge.
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
+    }
+
+    /// U10: the merged row already stands for the built-in it hides, so it is not badged
+    /// "Same login as Main" naming a row that is not shown.
+    @Test func aRowWhoseOnlyDuplicateIsMergedIntoItIsNotBadged() {
+        let main = ProviderAccount.builtIn(for: .claude)
+        let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
+        #expect(detector.duplicateLabels(for: [main, extra], mergedAway: [main.key: extra.key]).isEmpty)
+
+        // A third shown row on the same login is still badged, naming the shown row.
+        let third = ProviderAccount(id: AccountID("extra-2"), providerID: .claude, label: "Spare")
+        #expect(
+            detector.duplicateLabels(for: [main, extra, third], mergedAway: [main.key: extra.key])
+                == [third.key: "New"]
+        )
     }
 
     @Test func distinctLoginsProduceNoBadges() {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let detector = ClaudeDuplicateLoginDetector(
-            readAccountUUID: { $0 == .primary ? sharedLoginUUID : otherLoginUUID }
+            readIdentity: { claudeID($0 == .primary ? sharedLoginUUID : otherLoginUUID) }
         )
         #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
     }
@@ -212,7 +235,7 @@ struct ClaudeDuplicateLoginTests {
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         // A missing/unreadable `.claude.json` (signed out, fresh config home) must fail
         // safe to "no claim", never to "same account".
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in nil })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(nil) })
         #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
     }
 
@@ -220,7 +243,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let detector = ClaudeDuplicateLoginDetector(
-            readAccountUUID: { $0 == .primary ? sharedLoginUUID.uppercased() : sharedLoginUUID }
+            readIdentity: { claudeID($0 == .primary ? sharedLoginUUID.uppercased() : sharedLoginUUID) }
         )
         #expect(detector.duplicateLabels(for: [main, extra]) == [extra.key: "Main"])
     }
@@ -230,13 +253,13 @@ struct ClaudeDuplicateLoginTests {
         let extra = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
 
         #expect(
-            ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+            ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
                 .duplicateLabels(for: [main, extra]) == [extra.key: "Main"]
         )
         // `.claude.json` is a local plaintext file: an empty or hand-edited
         // `accountUuid` must not let two unrelated homes match.
         for identity in ["", "   ", "same-account", "not-a-uuid", "11111111-2222-3333-4444"] {
-            let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in identity })
+            let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(identity) })
             #expect(detector.duplicateLabels(for: [main, extra]).isEmpty)
         }
     }
@@ -244,7 +267,7 @@ struct ClaudeDuplicateLoginTests {
     @Test func nonClaudeAccountsAreIgnored() {
         let codexMain = ProviderAccount.builtIn(for: .codex)
         let codexExtra = ProviderAccount(id: AccountID("extra-1"), providerID: .codex, label: "Work")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
         #expect(detector.duplicateLabels(for: [codexMain, codexExtra]).isEmpty)
     }
 
@@ -252,7 +275,7 @@ struct ClaudeDuplicateLoginTests {
         let main = ProviderAccount.builtIn(for: .claude)
         let second = ProviderAccount(id: AccountID("extra-1"), providerID: .claude, label: "New")
         let third = ProviderAccount(id: AccountID("extra-2"), providerID: .claude, label: "Newer")
-        let detector = ClaudeDuplicateLoginDetector(readAccountUUID: { _ in sharedLoginUUID })
+        let detector = ClaudeDuplicateLoginDetector(readIdentity: { _ in claudeID(sharedLoginUUID) })
         #expect(detector.duplicateLabels(for: [main, second, third])
                 == [second.key: "Main", third.key: "Main"])
     }
@@ -306,7 +329,11 @@ struct CodexAccountEmailTests {
         )
         #expect(
             await store.codexSession()
-                == .success(CodexSession(accessToken: "at", accountEmail: "work@example.com"))
+                == .success(CodexSession(
+                    accessToken: "at",
+                    accountEmail: "work@example.com",
+                    identity: AccountIdentity.codex(accountID: "acc")
+                ))
         )
         #expect(await store.codexAccessToken() == .success("at"))
     }
@@ -660,6 +687,9 @@ struct CursorAccountEmailTests {
 
         #expect(snapshot.freshness == .live)
         #expect(snapshot.accountEmail == "personal@example.com")
+        // Default-login KTD13: one weak identity per reading, from the same status read.
+        #expect(snapshot.identity == .known(AccountIdentity.cursor(email: "personal@example.com")!))
+        #expect(await provider.fetchResult().discard == nil)
     }
 
     @Test func providerStillReportsUsageWhenTheEmailSourceFails() async throws {
@@ -674,6 +704,9 @@ struct CursorAccountEmailTests {
         #expect(snapshot.windows.count == 2)
         #expect(snapshot.planLabel == "Pro+")
         #expect(snapshot.accountEmail == nil)
+        // A missed status read is no evidence: never a refusal, never "no account".
+        #expect(snapshot.identity == nil)
+        #expect(await provider.fetchResult().discard == nil)
     }
 
     @Test func failedCaptureCarriesNoEmail() async {
@@ -823,6 +856,16 @@ private struct StubGrokAuthReader: GrokAuthReading {
 private struct StubClaudeEmailSource: ClaudeAccountEmailReading {
     let email: String?
     func readAccountEmail() -> String? { email }
+    /// One fixed account when the file names an email; signed out otherwise.
+    func readAccountIdentity() -> AccountIdentityRead {
+        guard let email,
+              let identity = AccountIdentity.claude(
+                  accountUUID: "00000000-0000-4000-8000-000000000001",
+                  organizationUUID: nil
+              )
+        else { return .absent }
+        return .identity(identity, email: email)
+    }
 }
 
 private struct StubGrokEmailSource: GrokAccountEmailReading {

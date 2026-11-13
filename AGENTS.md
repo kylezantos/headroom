@@ -171,7 +171,9 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
   (`…manifest`: lineage, generation, status, provider order, per-provider generation + SHA-256
   digest + effective interval, display block, widget selection, reminder summary, answered
   check-now IDs, ladder level), one key per provider (`…provider.<id>`: every account in Make Main
-  order with Mac-resolved titles, typed attention, banked resets, flagged Spark rows, API spend),
+  order with Mac-resolved titles (the name the Mac shows, so a captured email when "Use email as
+  account name" is on; never an email in any other field), typed attention, banked resets,
+  flagged Spark rows, API spend),
   one store-wide `…receipt` and one `…request.<deviceUUID>` per phone install. It keeps writing
   the primary-only schema-3 key `headroom.syncedWidgetSnapshot` alongside, with the same
   `generatedAt` plus `companionSourceID`/`companionGeneration`, so build-33 phones keep working.
@@ -251,6 +253,96 @@ account below the print-mode floor keep the `interactive` bare launch, which is 
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
 Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
 
+**Follow the default login (Nov 2026,
+`docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Claude, Codex, Grok, Cursor and
+Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
+digest of the CLI's own metadata, never the upstream id). Claude, Codex and Grok read their account file
+before and after the usage read; if the two reads disagree or exactly one fails, the reading is refused
+on `UsageProviderFetchResult.discard` and read again at the lane's next turn, with no backoff
+and no dimmed row. After two refusals in a row the next one merges as an ordinary transient
+failure. A file unreadable on both sides is a steady state, so that reading is kept under no
+account's name (Claude refuses it instead, see below). A row is a slot bound to one identity (`SlotRecord` in `Engine/DefaultLoginRecords.swift`,
+stored under `defaultLoginRecords.v1`). When the built-in row's default login becomes a different
+account, the row takes that account's name, or "Main", and none of the previous account's
+history or reminder state; the previous account's label, last reading and reminder state are
+kept in the record store and return if that account does. Parity, forced by what each client exposes:
+
+| Provider | Identity | Mid-change refusal | Relabel and history reset | Remembered |
+|---|---|---|---|---|
+| Codex | `account_id`, strong | Yes | Yes | Yes |
+| Grok | email, weak | Yes | Yes | No |
+| Cursor | email from `status`, weak | No (the read runs beside the capture) | Yes | No |
+| Copilot | login, weak, up to an hour old | No | Yes | No |
+| Claude | `accountUuid` + `organizationUuid` from `.claude.json`, strong | Yes | Yes | Yes |
+
+**One row for one account (Phase 3).** When the default login is the same account as exactly
+one added account, every display surface shows one row for the pair: the added account's row
+stands for both (`DisplayMergePlanner`, the display list's `mergeMap`). Both config homes keep
+being read. The merge needs a known, equal, strong identity on both rows (so Claude and Codex
+only; a weak identity never merges), a live or transiently stale reading on the added row, and
+no setup in progress on either; in any other case both rows show as before. It is a display
+decision made fresh from current readings, never stored, and it removes or signs out nothing.
+`--demo merged` and `--render-scenario merged` pose it.
+
+**Remembered accounts (Phase 2).** The account the default login left keeps a dimmed row with
+its last reading: a "Last read …" tag where "Stale" would be, and, once a window's reset has
+passed, one line "Reset Tue 3:32 PM · not read since" with no gauge and no number
+(`Countdown.lastReadLabel` and `Countdown.resetNotReadLine`, the same wording on the Mac and the
+phone; the row draws the compact form because the sentence form, "Reset yesterday at 12:32 AM ·
+not read since", does not fit a Micro row, and the tooltip and VoiceOver keep the sentence). The
+reset lines of one account share a label column (`UsageBarView.resetLine(peers:compact:)`), so
+they start at one x, and their ink sits one step under the dimmed label. In the Full meter style
+the reset row is the line alone, with no band kept open for the gauge; when a reset passes while
+the popover is open, the popover's layout signature (`PopoverCardLayoutSignature.resetLines`)
+closes the row on `valueSpring` while the gauge and the line cross-fade. Micro keeps its row height. It is never probed,
+never the main account and never fires a reminder, and it does not count toward add-account
+capacity. An unnamed one is numbered like an added account ("Account 2") while it is remembered
+and is "Main" again when it is the default login; a name the user chose travels both ways. Rename
+and Remove live on `UsageStore.renameRememberedAccount` / `removeRememberedAccount`; Remove only
+hides the row until that account is the default login again. A remembered row yields while an
+extra row reads the same account and returns when that extra is removed.
+
+Two lists, and every consumer belongs to one (KTD8). `UsageStore.accounts(for:)` is the **engine
+list**: what is read. Merge acceptance, scheduling, setup, the promote write, the duplicate-login
+scan and feedback diagnostics read it. `UsageStore.displayAccounts(for:)` / `displayPrimaryKey(for:)`
+(`DisplayAccountsResolver` in `Engine/DisplayAccounts.swift`) is the **display list**: engine rows,
+then visible remembered rows. The popover, Settings, the menu bar, notification labels and the
+phone capture read it. A new surface reads the display list; anything that decides what to probe
+reads the engine list. `store.snapshot(for:)` serves a remembered row's reading already aged
+(`UsageContinuityPolicy.rememberedSnapshot`, run at launch, on each engine wake and on popover
+open), so no view ages one. The phone learns a row is remembered from one optional v4 account key,
+`k`, written only when true: a setup with no remembered rows writes the bytes it wrote before, and
+a phone that predates the key shows the row as an ordinary stale extra. Widgets and the v3 key
+show each provider's main account only. `--demo remembered` poses the states from an in-memory
+record store.
+
+Claude is wired on gate V1's one recorded case (`docs/qa/2026-11-11-default-login-gate-v1.md`):
+after `claude auth login` to another account, the `oauthAccount` block of `.claude.json` changed
+with the Keychain credential, and after `claude auth logout` it was gone. Identity is
+`oauthAccount.accountUuid` plus `oauthAccount.organizationUuid` (`AccountIdentity.claude`; one
+account in two organizations is two identities, a null organization is a value, a non-UUID id is
+no identity), read as metadata only. Each row reads its own file: the built-in row
+`~/.claude.json`, an extra the root of its `CLAUDE_CONFIG_DIR`. `ClaudeProvider` reads it before
+and after the `/usage` capture; unlike Grok, a file undecodable on both sides is refused, so the
+refusal bound turns it into a transient failure. An inherited `CLAUDE_CODE_OAUTH_TOKEN`
+(`ClaudeUsageCLIProbe.launchesWithInheritedOAuthToken`, presence only) makes every Claude row
+Absent. `AppComposition.claudeIdentityReader` wires the reader in a real launch only; demos,
+harnesses and the XCTest host read no file. A session left running under one account while
+`claude auth login` changed the folder to another did not write the old account back (same
+record, one CLI version, a few minutes). One switcher is verified by a run: `errhythm/ccswap`
+at `8bf7b9b` kept the file and the credential together through five switches and a switch
+under a running session, and Headroom followed three more end to end (same record,
+2026-11-12, in a VM). **What a release may say (Kyle, 2026-11-12):** Headroom follows the
+default login when it changes the standard way, with the credential and the CLI's account
+record swapped together, which is how account switchers work. All six Claude switchers read
+in source do that; one is proven by a run. Do not name a tool as supported. A switcher that
+leaves `.claude.json` alone would file readings under the wrong account, and that limit goes
+in any support answer about a switcher that misbehaves. A Claude Desktop sign-in is not
+checked and will not be (Kyle: people who switch accounts are not using Desktop for it).
+Codex has no real-switch run: its account id and its token live in the one `auth.json` that
+the request reads, so there is no second place to fall out of step, and that is reasoning,
+not a test. Never read the Keychain item or run `claude auth status` for identity.
+
 Each provider has a persisted primary selection. **Make Main** reorders the selected row to the
 top, refreshes only it, and immediately reroutes the menu bar, widgets, phone projection,
 capability recovery, and the never-signed-in timer exemption. A dangling primary pointer falls
@@ -263,8 +355,10 @@ an **extra** account deletes its Headroom-owned config home, while the **built-i
 only be *stop-tracked* (Aug 2026): a persisted registry tombstone hides the row without touching
 the CLI's own config or login, allowed only while another account exists, undone via "Show CLI
 Account" in the provider header. Claude rows signed in to the same upstream login (matched by
-`oauthAccount.accountUuid`, metadata only) get a detection-only "Same login as X" badge —
-never auto-merged.
+the default-login identity, `accountUuid` plus `organizationUuid`, metadata only, so the badge
+and the records never disagree) get a detection-only "Same login as X" badge. Rows are never
+merged in storage; the only merge is the display-only one-row rule above, between the built-in
+row and one added account with the same strong identity.
 
 ## Commands
 
@@ -280,8 +374,8 @@ swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windo
 Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
-swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width
-swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|copilot-no-reading]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope
+swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width; `--render-scenario remembered` poses remembered rows, `--render-scenario merged` the one-row merge
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|copilot-no-reading|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
@@ -487,7 +581,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   full refresh exports once at its end. The publisher coalesces, so this is never a write per merge.
 - **Every `UsageStore` change the phone can see must call `exportPhoneSyncSnapshot()`.** Account
   add/rename/remove/Make Main, the display setters, `reschedulePolling`, widget selection, the
-  Spark, provider and reminder switches all do; nothing calls it for you. `PhoneExportTriggerTests`
+  Spark, provider and reminder switches and "Use email as account name" all do; nothing calls it for you. `PhoneExportTriggerTests`
   covers them, so add a case there with any new phone-visible setting.
 - **Per-account isolation is env-var based and verified**: a fresh `CLAUDE_CONFIG_DIR`
   reports "Not logged in · Please run /login" and a fresh `CODEX_HOME` reports "Not
@@ -636,6 +730,16 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   add an in-app sender, an
   endpoint or analytics without a new plan: the privacy policy promises Headroom sends
   nothing itself. See `docs/plans/2026-11-03-1400-feat-feedback-by-email-plan.md`.
+- **An account change is one record commit, then its mirrors (Nov 2026).** `UsageStore.merge`
+  calls `defaultLoginPrior` first, before the reliability note and the sign-out edge. A change
+  commits `defaultLoginRecords.v1` once with a `pendingMirror`, then writes the registry label,
+  the row's reminder entries and the continuity record, then clears the marker. The launch
+  repair finishes a change a crash interrupted and drops a saved reading another build rewrote
+  (a continuity record is the bound account's when it carries that digest, or carries none and
+  has the capture time the slot last accepted). Keep that order, keep the reminder stores keyed
+  by `AccountKey`, and add no field to `ProviderAccount`: `Release162FrozenStores` decodes every
+  existing store the way 1.6.2 does. Any new per-account state needs a park-and-restore path
+  here, or it carries from one account to the next.
 - **Notifications (Sep 2026) are local Mac banners posted by the running app** — the use-it-up
   reminders (all providers and accounts) and the Codex-only banked-reset notice, set in Settings →
   Notifications. `NotificationCoordinator` (Core) runs only from `UsageStore.merge` on a `.live`

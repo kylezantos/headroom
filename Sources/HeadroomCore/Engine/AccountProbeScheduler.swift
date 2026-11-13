@@ -92,6 +92,17 @@ final class AccountProbeScheduler {
     /// Preserve that task-local discovery generation across the scheduler's own task hop so
     /// the probe can reuse the setup result instead of starting a second CLI search.
     private var priorityLocatorGeneration: [AccountKey: UUID] = [:]
+    /// KTD2 (default-login plan): consecutive readings refused because the account's
+    /// identity could not be read on both sides of the usage read. At the bound the next
+    /// one is merged as an ordinary transient failure, so a permanently unreadable
+    /// identity file ends in a stale row with normal backoff, not an endless retry.
+    private var identityRefusals: [AccountKey: Int] = [:]
+    static let identityRefusalBound = 2
+    /// Accounts whose refused reading was already re-queued inside the current user work.
+    private var identityRequeued: Set<AccountKey> = []
+    /// Refusals since launch, per account. Diagnostics only: how often the after-read
+    /// meets a file the CLI is rewriting is unmeasured.
+    private(set) var identityRefusalTotals: [AccountKey: Int] = [:]
     private var userWaiters: [CheckedContinuation<Void, Never>] = []
     private var completionWaiters: [AccountKey: [CheckedContinuation<Void, Never>]] = [:]
     private var idleWaiters: [CheckedContinuation<Void, Never>] = []
@@ -114,6 +125,7 @@ final class AccountProbeScheduler {
             lanes[lane]?.priority.removeAll { $0 == key }
         }
         priorityLocatorGeneration.removeValue(forKey: key)
+        identityRefusals.removeValue(forKey: key)
         finish(key, outcome: .dropped)
     }
 
@@ -407,7 +419,7 @@ final class AccountProbeScheduler {
         // them, while a timer pass or popover open reaching a user-pending key still serves it.
         let isUserRequested = userPending.contains(key)
         if isUserRequested { inFlightUserRequested.insert(key) }
-        let result = await CLIExecutableRefreshContext.$generation.withValue(locatorGeneration) {
+        let fetched = await CLIExecutableRefreshContext.$generation.withValue(locatorGeneration) {
             await UserRequestedProbeContext.$isUserRequested.withValue(isUserRequested) {
                 await provider.fetchResult()
             }
@@ -420,6 +432,12 @@ final class AccountProbeScheduler {
         let end = liveHost.schedulerNow
         lanes[lane]?.inFlight.remove(key)
         appendToLog(LaneSchedule.ProbeSpan(start: start, end: end), lane: lane, now: end, chosen: liveHost.schedulerChosenInterval)
+        let result = boundingIdentityRefusal(fetched, for: key)
+        if result.discard != nil {
+            // The store refuses it, so `accepted` is false below: no backoff, no dimmed
+            // row. The account is due again at the lane's next turn (R3).
+            requeueAfterIdentityRefusal(key)
+        }
         let accepted = liveHost.schedulerMerge(key: key, result: result, attachmentGeneration: attachment)
         // After the merge, so a pill calms on the number it just fetched.
         liveHost.schedulerProbeDidEnd(key)
@@ -442,6 +460,28 @@ final class AccountProbeScheduler {
         // A follow-up queued behind this probe: the serial loop picks it up itself, but a
         // concurrent lane has no loop, so its batch is started here.
         if case .concurrent = lane, lanes[lane]?.priority.contains(key) == true { dispatchUserWork(in: lane) }
+    }
+
+    // MARK: Identity refusals (KTD2)
+
+    private func boundingIdentityRefusal(_ result: UsageProviderFetchResult, for key: AccountKey) -> UsageProviderFetchResult {
+        guard result.discard == .identityUnreadable else {
+            identityRefusals.removeValue(forKey: key)
+            return result
+        }
+        identityRefusalTotals[key, default: 0] += 1
+        let refusals = identityRefusals[key, default: 0]
+        guard refusals < Self.identityRefusalBound else { return result.withoutDiscard }
+        identityRefusals[key] = refusals + 1
+        return result
+    }
+
+    private func requeueAfterIdentityRefusal(_ key: AccountKey) {
+        records[key]?.forcedDue = true
+        // A user who asked for this account gets one more read inside the same refresh;
+        // `finish` leaves the request open while the follow-up is queued.
+        guard userPending.contains(key), identityRequeued.insert(key).inserted else { return }
+        enqueuePriority(key)
     }
 
     // MARK: Helpers
@@ -567,6 +607,7 @@ final class AccountProbeScheduler {
         if let waiters = completionWaiters.removeValue(forKey: key) {
             for waiter in waiters { waiter.resume() }
         }
+        identityRequeued.remove(key)
         guard userPending.remove(key) != nil else { return }
         if setupPendingPreservingLanding.remove(key) == nil {
             userRun?.entries[key]?.outcome = outcome

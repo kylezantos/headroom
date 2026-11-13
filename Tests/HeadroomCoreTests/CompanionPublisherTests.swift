@@ -767,6 +767,26 @@ struct CompanionPublisherTests {
         #expect(average <= 6)
         #expect((setsPerMinute.max() ?? 0) <= 7)
     }
+
+    /// Default-login R12 (review #19): an extra becoming remembered, or returning, changes
+    /// only its flag, and that change must reach the phone, so the change fingerprint keeps it.
+    @Test func aRememberedFlagChangeAloneChangesTheFingerprint() throws {
+        func payload(remembered: Bool) throws -> CompanionProviderPayload {
+            try CompanionProviderPayload(
+                sourceID: F.macA, providerID: "claude", payloadGeneration: 1, mode: .subscription,
+                mainAccount: try CompanionAccountSummary(
+                    id: "primary", title: "Personal", capturedAt: F.date(), windows: []),
+                accounts: [
+                    try CompanionAccountSummary(
+                        id: "work", title: "Work", freshness: .stale, capturedAt: F.date(-120),
+                        needsAttention: false, windows: [], isRemembered: remembered),
+                ])
+        }
+        let ordinary = try payload(remembered: false)
+        let remembered = try payload(remembered: true)
+        #expect(CompanionPublishImage.fingerprint(ordinary) == CompanionPublishImage.fingerprint(try payload(remembered: false)))
+        #expect(CompanionPublishImage.fingerprint(ordinary) != CompanionPublishImage.fingerprint(remembered))
+    }
 }
 
 /// KTD22 / R35: the what-syncs footnote and the Mac status line.
@@ -775,13 +795,16 @@ struct CompanionPrivacyCopyTests {
     @Test func whatSyncsNamesEveryWireCategoryAndClaimsNoEncryption() {
         let copy = CompanionPrivacyCopy.whatSyncs
         for phrase in [
-            "account names you chose", "plan names", "usage", "reset times", "API spend",
+            "account names", "plan names", "usage", "reset times", "API spend",
             "display choices", "check-now requests", "random IDs for this Mac",
-            "each iPhone or iPad", "your iCloud account’s sync", "Sign-ins, emails and API keys never sync",
-            "isn’t end-to-end encrypted",
+            "each iPhone or iPad", "your iCloud account’s sync",
+            "If you use an email address as an account name, that address syncs as the name.",
+            "Sign-ins, passwords and API keys never sync", "isn’t end-to-end encrypted",
         ] {
             #expect(copy.contains(phrase), "\(phrase)")
         }
+        // KTD9 amended: an email can sync as a name, so the copy must not promise otherwise.
+        #expect(!copy.contains("emails and API keys never sync"))
         // R2C6: curly apostrophes only, no "connect".
         #expect(!copy.contains("'") && !copy.localizedCaseInsensitiveContains("connect"))
     }

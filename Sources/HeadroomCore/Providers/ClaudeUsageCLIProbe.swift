@@ -7,6 +7,15 @@ public protocol ClaudeUsageSource: Sendable {
     /// Returns the ANSI-stripped text of Claude Code's `/usage` panel, or nil when the
     /// CLI is missing / not logged in / the capture failed.
     func capturePanel() async -> ClaudePanelResult
+    /// Whether the CLI this source launches inherits `CLAUDE_CODE_OAUTH_TOKEN`. The CLI
+    /// then signs in as that token's account, not the account named in `.claude.json`,
+    /// so the file says nothing about whose reading it is (default-login plan, KTD2).
+    /// Only the variable's presence is checked; its value is never read.
+    var launchesWithInheritedOAuthToken: Bool { get }
+}
+
+public extension ClaudeUsageSource {
+    var launchesWithInheritedOAuthToken: Bool { false }
 }
 
 /// Outcome of a capture attempt — lets the provider distinguish "no CLI" from a
@@ -102,6 +111,19 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
 
     public func capturePanel() async -> ClaudePanelResult {
         await captureWithTrace().result
+    }
+
+    /// Read from the same environment the launch builds, so an extra account's
+    /// `CLAUDE_CONFIG_DIR` override does not hide an inherited token.
+    public var launchesWithInheritedOAuthToken: Bool {
+        Self.carriesOAuthToken(inherited: ProcessInfo.processInfo.environment, overrides: environmentOverrides)
+    }
+
+    static let oauthTokenVariable = "CLAUDE_CODE_OAUTH_TOKEN"
+
+    static func carriesOAuthToken(inherited: [String: String], overrides: [String: String]) -> Bool {
+        environment(inherited: inherited, overrides: overrides, loginPath: "", workingDirectory: "")
+            .keys.contains(oauthTokenVariable)
     }
 
     /// The capture plus a redaction-safe record of which stage decided it, for

@@ -468,6 +468,11 @@ public struct UsageSnapshot: Sendable, Equatable {
     public let codexResetCreditsField: CodexResetCreditsField?
     public let capturedAt: Date?
     public let freshness: Freshness
+    /// Whose reading this is, from the identity reads around it (default-login plan,
+    /// KTD2). Nil when the provider reports no identity evidence, which keeps the row's
+    /// behavior as it was before identities existed. Mac-local: it never reaches the
+    /// widget envelope or the phone.
+    public let identity: AccountIdentityOutcome?
 
     public init(
         providerID: ProviderID,
@@ -477,7 +482,8 @@ public struct UsageSnapshot: Sendable, Equatable {
         bankedResets: Int? = nil,
         codexResetCreditsField: CodexResetCreditsField? = nil,
         capturedAt: Date?,
-        freshness: Freshness
+        freshness: Freshness,
+        identity: AccountIdentityOutcome? = nil
     ) {
         self.providerID = providerID
         self.windows = windows
@@ -487,6 +493,7 @@ public struct UsageSnapshot: Sendable, Equatable {
         self.codexResetCreditsField = codexResetCreditsField
         self.capturedAt = capturedAt
         self.freshness = freshness
+        self.identity = identity
     }
 
     /// `--probe-codex` line. Three live states stay distinguishable: an integer
@@ -544,7 +551,53 @@ public struct UsageSnapshot: Sendable, Equatable {
             bankedResets: bankedResets,
             codexResetCreditsField: codexResetCreditsField,
             capturedAt: capturedAt,
-            freshness: .stale(reason)
+            freshness: .stale(reason),
+            identity: identity
+        )
+    }
+
+    /// The same reading, stamped with what the identity reads around it found (KTD2).
+    public func withIdentity(_ identity: AccountIdentityOutcome?) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: providerID,
+            windows: windows,
+            planLabel: planLabel,
+            accountEmail: accountEmail,
+            bankedResets: bankedResets,
+            codexResetCreditsField: codexResetCreditsField,
+            capturedAt: capturedAt,
+            freshness: freshness,
+            identity: identity
+        )
+    }
+
+    public func withAccountEmail(_ accountEmail: String?) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: providerID,
+            windows: windows,
+            planLabel: planLabel,
+            accountEmail: accountEmail,
+            bankedResets: bankedResets,
+            codexResetCreditsField: codexResetCreditsField,
+            capturedAt: capturedAt,
+            freshness: freshness,
+            identity: identity
+        )
+    }
+
+    /// The same reading with different windows; every other field, identity included,
+    /// carries over.
+    public func replacingWindows(_ windows: [UsageWindow], freshness: Freshness? = nil) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: providerID,
+            windows: windows,
+            planLabel: planLabel,
+            accountEmail: accountEmail,
+            bankedResets: bankedResets,
+            codexResetCreditsField: codexResetCreditsField,
+            capturedAt: capturedAt,
+            freshness: freshness ?? self.freshness,
+            identity: identity
         )
     }
 }
@@ -568,16 +621,7 @@ public extension UsageSnapshot {
             .sorted { (rank($0.element.kind), $0.offset) < (rank($1.element.kind), $1.offset) }
             .map(\.element)
         guard ordered != windows else { return self }
-        return UsageSnapshot(
-            providerID: providerID,
-            windows: ordered,
-            planLabel: planLabel,
-            accountEmail: accountEmail,
-            bankedResets: bankedResets,
-            codexResetCreditsField: codexResetCreditsField,
-            capturedAt: capturedAt,
-            freshness: freshness
-        )
+        return replacingWindows(ordered)
     }
 }
 

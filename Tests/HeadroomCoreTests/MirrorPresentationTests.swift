@@ -222,6 +222,210 @@ struct MirrorPresentationTests {
             == "\(omitted) more on your Mac")
     }
 
+    // MARK: Remembered accounts (default-login plan U9, R7, R8, R12, R21, KTD14)
+
+    private let utc = TimeZone(identifier: "UTC")!
+    private let enUS = Locale(identifier: "en_US")
+
+    /// `now` is Friday 15 Jan 2027, 8:00 AM UTC.
+    private func rememberedProvider(_ id: String) throws -> (CompanionResolvedContent, CompanionResolvedProvider) {
+        let content = try #require(CompanionDemoData.snapshot(.remembered, now: now).content)
+        return (content, try #require(content.providers.first { $0.id == id }))
+    }
+
+    private func numbers(_ rows: [CompanionMeterRow]) -> [Double?] {
+        rows.map { CompanionFreshnessRule.visiblePercentRemaining($0.window, at: now) }
+    }
+
+    private func plain(_ text: String) -> String { text.replacingOccurrences(of: "\u{202F}", with: " ") }
+
+    /// Scenario A on a current phone, through the real codec and resolver: a live main, a
+    /// dimmed "Work" with its numbers and "Last read 2 min ago", and a "Studio" whose
+    /// resets both passed, so it shows no number and says when each window reset.
+    @Test(arguments: ["claude", "codex"])
+    func theRememberedDemoDrawsScenarioAOnACurrentPhone(_ id: String) throws {
+        let (_, provider) = try rememberedProvider(id)
+        #expect(provider.accounts.map(\.title) == ["Personal", "Work", "Studio"])
+        #expect(provider.accounts.map(\.isRemembered) == [false, true, true])
+        let personal = provider.accounts[0], work = provider.accounts[1], studio = provider.accounts[2]
+
+        #expect(personal.isMain)
+        #expect(CompanionCardPresentation.lastReadLabel(for: personal, now: now) == nil)
+        #expect(CompanionCardPresentation.body(for: personal, title: "Personal") == .meters(dimmed: false))
+        #expect(numbers(CompanionCardPresentation.meterRows(personal.windows, now: now)) == [96, 69])
+
+        #expect(CompanionCardPresentation.lastReadLabel(for: work, now: now) == "Last read 2 min ago")
+        #expect(CompanionCardPresentation.body(for: work, title: "Work") == .meters(dimmed: true))
+        #expect(CompanionCardPresentation.showsStaleChip(work) == false)
+        let workRows = CompanionCardPresentation.meterRows(work.windows, now: now, isRemembered: true)
+        #expect(numbers(workRows) == [22, 10])
+        #expect(workRows.allSatisfy { $0.pastResetAt == nil })
+
+        #expect(CompanionCardPresentation.lastReadLabel(for: studio, now: now) == "Last read 2 days ago")
+        #expect(CompanionCardPresentation.body(for: studio, title: "Studio") == .meters(dimmed: true))
+        let studioRows = CompanionCardPresentation.meterRows(studio.windows, now: now, isRemembered: true)
+        #expect(numbers(studioRows) == [nil, nil])
+        let lines = studioRows.compactMap(\.pastResetAt).map {
+            plain(CompanionCardPresentation.pastResetLine($0, now: now, isRemembered: true, timeZone: utc, locale: enUS))
+        }
+        #expect(lines == [
+            "Reset Wednesday at 11:00 AM · not read since",
+            "Reset today at 2:00 AM · not read since",
+        ])
+        // R21: the Mac's own wording, from the one shared function.
+        let resetAt = try #require(studioRows.first?.pastResetAt)
+        #expect(lines.first == plain(Countdown.resetNotReadLine(resetAt: resetAt, now: now, timeZone: utc, locale: enUS)))
+    }
+
+    /// KTD14 on a phone that predates the flag: the bytes still decode, and the row reads
+    /// as an ordinary stale extra — dimmed, the Stale chip, no "Last read", and a reset
+    /// window still shows no number.
+    @Test func anOlderPhoneReadsARememberedRowAsAnOrdinaryStaleExtra() throws {
+        let publication = try CompanionDemoData.publication(.remembered, now: now)
+        let raw = try #require(publication.providerKeys["claude"])
+        #expect(String(decoding: raw, as: UTF8.self).contains("\"k\":true"))
+
+        // A frozen copy of the account record as a pre-U9 phone decodes it.
+        let legacy = try JSONDecoder().decode(LegacyProviderPayload.self, from: raw)
+        #expect(legacy.x.map(\.t) == ["Work", "Studio"])
+        #expect(legacy.x.allSatisfy { $0.f == "stale" && $0.h == false })
+        #expect(legacy.x[1].w.map(\.f) == ["unavailable", "unavailable"])
+
+        // The same rows with the flag unknown, as that phone presents them.
+        let (_, provider) = try rememberedProvider("claude")
+        var work = provider.accounts[1], studio = provider.accounts[2]
+        work.isRemembered = false
+        studio.isRemembered = false
+        #expect(CompanionCardPresentation.body(for: work, title: "Work") == .meters(dimmed: true))
+        #expect(CompanionCardPresentation.showsStaleChip(work))
+        #expect(CompanionCardPresentation.lastReadLabel(for: work, now: now) == nil)
+        #expect(numbers(CompanionCardPresentation.meterRows(studio.windows, now: now)) == [nil, nil])
+        #expect(CompanionCardPresentation.pastResetLine(now, now: now, isRemembered: false, timeZone: utc, locale: enUS)
+            .hasSuffix("· waiting for your Mac"))
+    }
+
+    /// R7, R8, R21 (review #12): a remembered row draws on the phone as on the Mac. Before
+    /// its reset: the meter with its number and no per-window "Last known"; past its reset:
+    /// one "Reset … · not read since" line in the meter's place, with no gauge and no number.
+    @Test func aRememberedRowDrawsItsMeterOrOneResetLineWithNoStateLabel() throws {
+        let (_, provider) = try rememberedProvider("claude")
+        let work = provider.accounts[1], studio = provider.accounts[2]
+
+        let workRows = CompanionCardPresentation.meterRows(work.windows, now: now, isRemembered: true)
+        let workLayouts = workRows.map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: true, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(numbers(workRows) == [22, 10])
+        #expect(workLayouts.allSatisfy { $0.showsMeter && !$0.showsWindowState && $0.pastResetLine == nil })
+
+        let studioRows = CompanionCardPresentation.meterRows(studio.windows, now: now, isRemembered: true)
+        let studioLayouts = studioRows.map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: true, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(numbers(studioRows) == [nil, nil])
+        #expect(studioLayouts.allSatisfy { !$0.showsMeter && !$0.showsWindowState && $0.pastResetLine == nil })
+        #expect(studioLayouts.compactMap(\.resetNotReadLine).map(plain) == [
+            "Reset Wednesday at 11:00 AM · not read since",
+            "Reset today at 2:00 AM · not read since",
+        ])
+        let resetAt = try #require(studioRows.first?.pastResetAt)
+        #expect(studioLayouts.first?.resetNotReadLine
+            == Countdown.resetNotReadLine(resetAt: resetAt, now: now, timeZone: utc, locale: enUS))
+    }
+
+    /// Review #12: an ordinary stale extra is drawn as before — its meter, its state label,
+    /// and past its reset the separate "waiting for your Mac" line under the meter.
+    @Test func anOrdinaryStaleExtraKeepsItsMeterStateLabelAndWaitingLine() throws {
+        let (_, provider) = try rememberedProvider("claude")
+        var work = provider.accounts[1], studio = provider.accounts[2]
+        work.isRemembered = false
+        studio.isRemembered = false
+
+        let workLayouts = CompanionCardPresentation.meterRows(work.windows, now: now).map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: false, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(workLayouts.allSatisfy {
+            $0 == CompanionMeterRowLayout(showsWindowState: true, resetNotReadLine: nil, pastResetLine: nil)
+        })
+
+        let studioRows = CompanionCardPresentation.meterRows(studio.windows, now: now)
+        let studioLayouts = studioRows.map {
+            CompanionCardPresentation.meterRowLayout($0, isRemembered: false, now: now, timeZone: utc, locale: enUS)
+        }
+        #expect(studioLayouts.allSatisfy { $0.showsMeter && $0.showsWindowState && $0.resetNotReadLine == nil })
+        #expect(studioLayouts.map(\.pastResetLine) == studioRows.map { row in
+            row.pastResetAt.map {
+                CompanionCardPresentation.pastResetLine($0, now: now, isRemembered: false, timeZone: utc, locale: enUS)
+            }
+        })
+
+        // A stale extra's window with a number, past its reset and grace: an empty meter and
+        // the waiting line under it, exactly as before.
+        let reset = now.addingTimeInterval(-1_200)
+        let read = now.addingTimeInterval(-3_600)
+        let summary = WidgetWindowSummary(
+            kind: .fiveHour, label: "5-hour", percentRemaining: 22, resetSchedule: .scheduled(reset),
+            resetLabel: nil, observedAt: read,
+            severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: 22)),
+            freshness: .stale(observedAt: read))
+        let row = try #require(CompanionCardPresentation.meterRows(
+            [CompanionResolvedWindow(summary: summary, isSpark: false)], now: now).first)
+        #expect(row.pastResetAt == reset && row.window.displayPercentRemaining == nil)
+        let layout = CompanionCardPresentation.meterRowLayout(row, isRemembered: false, now: now, timeZone: utc, locale: enUS)
+        #expect(layout.showsMeter && layout.showsWindowState && layout.resetNotReadLine == nil)
+        #expect(layout.pastResetLine?.hasSuffix("· waiting for your Mac") == true)
+    }
+
+    /// R8: a remembered window hides at its reset with no grace; a live account's keeps
+    /// the ten-minute grace. The rule reads only the row, never the manifest.
+    @Test func aRememberedWindowHidesAtItsResetWithNoGrace() {
+        let reset = now.addingTimeInterval(-60)
+        let read = now.addingTimeInterval(-3_600)
+        let summary = WidgetWindowSummary(
+            kind: .fiveHour, label: "5-hour", percentRemaining: 22, resetSchedule: .scheduled(reset),
+            resetLabel: nil, observedAt: read,
+            severity: WidgetUsageSeverity(UsageSeverity(percentRemaining: 22)),
+            freshness: .stale(observedAt: read))
+        #expect(CompanionFreshnessRule.pastResetTime(summary, at: now, isRemembered: true) == reset)
+        #expect(CompanionFreshnessRule.pastResetTime(summary, at: now) == nil)
+        let rows = CompanionCardPresentation.meterRows(
+            [CompanionResolvedWindow(summary: summary, isSpark: false)], now: now, isRemembered: true)
+        #expect(rows.first?.pastResetAt == reset)
+        #expect(rows.first?.window.displayPercentRemaining == nil)
+    }
+
+    /// R12: remembered rows never dim the surface or hide a live row, and never anchor the
+    /// freshness line. "Work" was read 2 minutes ago, after "Personal"'s 2 min 15 s reading,
+    /// so counting it would move the newest check.
+    @Test func rememberedRowsNeitherDimTheScreenNorAnchorItsStamp() throws {
+        let (content, provider) = try rememberedProvider("claude")
+        let shown: (CompanionResolvedAccount) -> [WidgetWindowSummary] = { $0.widgetWindows }
+        #expect(!MirrorPresentation.freshness(content, shownWindows: shown, now: now).isDimmed)
+        let anchors = MirrorPresentation.stampAnchors(content, shownWindows: shown, now: now)
+        let personalRead = try #require(provider.mainAccount?.capturedAt)
+        #expect(anchors.oldestLive == personalRead)
+        #expect(anchors.newestCheck == personalRead)
+        #expect(numbers(CompanionCardPresentation.meterRows(provider.accounts[0].windows, now: now)) == [96, 69])
+    }
+
+    /// R12: a check never reads a remembered row, so finishing one never reports it as "not
+    /// updated", and the demo's replay never lands one.
+    @Test func aCheckNeverCountsOrLandsARememberedRow() throws {
+        let snapshot = CompanionDemoData.snapshot(.remembered, now: now)
+        let content = try #require(snapshot.content)
+        let state = CheckNowRequestState(
+            requestID: CompanionDemoData.requestID, sourceID: try #require(content.sourceID), askedAt: now,
+            largestLaneAccountCount: 3)
+        let received = CheckNowMachine.receive(snapshot, into: state, now: now)
+        #expect(received.assembledGeneration == content.assembledGeneration)
+        #expect(received.assembledGeneration != nil)
+        #expect(received.notUpdatedCount == 0)
+        let steps = CompanionDemoData.checkNowSteps(
+            .remembered, requestID: CompanionDemoData.requestID, startedAt: now)
+        let landed = try steps.dropFirst().dropLast().map { try $0.build(now).receipt.lastLanded?.accountID }
+        #expect(landed == ["primary", "primary"])
+    }
+
     // MARK: Phone scale (KTD3)
 
     @Test func phoneScaleStopsGrowingAtXXXLarge() {
@@ -263,6 +467,23 @@ struct MirrorPresentationTests {
             bankedResets: banked, capturedAt: now,
             windows: (windows ?? [window(.fiveHour)]).map { CompanionResolvedWindow(summary: $0, isSpark: false) },
             isMain: isMain)
+    }
+
+    /// A frozen copy of the v4 account record as a phone built before KTD14 decodes it.
+    private struct LegacyProviderPayload: Decodable {
+        struct Account: Decodable {
+            let i: String
+            let t: String
+            let f: String?
+            let h: Bool?
+            let w: [Window]
+        }
+        struct Window: Decodable {
+            let k: String
+            let f: String?
+        }
+        let a: Account
+        let x: [Account]
     }
 
     private func provider(

@@ -110,6 +110,38 @@ public struct UsageBarView: View {
     /// tooltip of its own. The Compact row owns those (R13), so this cell stays out of the
     /// accessibility tree.
     public var compactLabel: String? = nil
+    /// Default-login plan U8 (R8): a remembered account's window whose reset has passed
+    /// (`RememberedRowRecipe.resetNotReadLine`). Set, the row draws its window label and
+    /// this line in place of the gauge and the number, inside the height a meter row takes,
+    /// so the card does not jump when a reset passes. Ignored by a Compact cell, whose row
+    /// carries the wording in its tooltip. Nil, the default, draws the meter as before.
+    public var resetNotReadLine: String? = nil
+    /// U8 (R7): false on a remembered account's rows, whose identity row already says when
+    /// they were last read, so Full's per-window "· Last known …" label is not repeated under
+    /// it. VoiceOver keeps the state. True, the default, is every existing row.
+    public var showsWindowState: Bool = true
+    /// U8 (R7, mock dl-a2): true on a remembered account's rows, which read as secondary
+    /// beside the live rows. The window label takes the dimmed numeral's `.secondary` ink and
+    /// the countdown the tertiary text token, alongside the gauge and number `dimmed` already
+    /// quiets. False, the default, keeps every other row's label and countdown ink, stale
+    /// and unavailable engine rows included.
+    public var dimsLabels: Bool = false
+    /// The labels of every window in the same account that draws a reset line. The label
+    /// column of a reset line is as wide as the widest of them, so the lines start at one
+    /// x ("5-hour" and "Weekly" are not the same width). Empty, the default, sizes the label
+    /// to itself.
+    public var resetLabelPeers: [String] = []
+    /// `resetNotReadLine` in its compact form ("Reset Wed 10:00 AM · not read since"), which
+    /// is what the row draws; the sentence form stays in the tooltip and for VoiceOver. Nil
+    /// draws the sentence.
+    public var resetNotReadCompactLine: String? = nil
+
+    public func resetLine(peers: [String], compact: String?) -> UsageBarView {
+        var copy = self
+        copy.resetLabelPeers = peers
+        copy.resetNotReadCompactLine = compact
+        return copy
+    }
 
     public init(
         reading: UsageMeterReading,
@@ -119,7 +151,10 @@ public struct UsageBarView: View {
         dimmed: Bool = false,
         arrivalKey: AccountKey? = nil,
         scale: CGFloat = 1,
-        compactLabel: String? = nil
+        compactLabel: String? = nil,
+        resetNotReadLine: String? = nil,
+        showsWindowState: Bool = true,
+        dimsLabels: Bool = false
     ) {
         self.reading = reading
         self.percentageMode = percentageMode
@@ -129,6 +164,9 @@ public struct UsageBarView: View {
         self.arrivalKey = arrivalKey
         self.scale = scale
         self.compactLabel = compactLabel
+        self.resetNotReadLine = resetNotReadLine
+        self.showsWindowState = showsWindowState
+        self.dimsLabels = dimsLabels
     }
 
     /// The Mac's form: the reading is normalized from the actual provider window.
@@ -140,7 +178,10 @@ public struct UsageBarView: View {
         dimmed: Bool = false,
         arrivalKey: AccountKey? = nil,
         scale: CGFloat = 1,
-        compactLabel: String? = nil
+        compactLabel: String? = nil,
+        resetNotReadLine: String? = nil,
+        showsWindowState: Bool = true,
+        dimsLabels: Bool = false
     ) {
         self.init(
             reading: UsageMeterReading(window: window),
@@ -150,7 +191,10 @@ public struct UsageBarView: View {
             dimmed: dimmed,
             arrivalKey: arrivalKey,
             scale: scale,
-            compactLabel: compactLabel
+            compactLabel: compactLabel,
+            resetNotReadLine: resetNotReadLine,
+            showsWindowState: showsWindowState,
+            dimsLabels: dimsLabels
         )
     }
 
@@ -407,17 +451,24 @@ public struct UsageBarView: View {
     public var body: some View {
         let _ = SharedBenchCounters.hit("UsageBarView")
         Group {
-            switch meterStyle.format {
-            case .full:
-                fullRow
-            case .micro:
-                if let compactLabel {
-                    compactCell(compactLabel)
-                } else {
-                    // M3A′: Micro has no room for the state label — a rendered "· Last known …"
-                    // pushes the gauge and numeral out of the card — so the state travels in
-                    // the tooltip and the accessibility value instead of a line of its own.
-                    microRow.help(microHelp)
+            if compactLabel == nil, let resetNotReadLine {
+                resetNotReadRow(resetNotReadLine)
+                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+            } else {
+                switch meterStyle.format {
+                case .full:
+                    // The meter leaves on a fade when its reset passes on a remembered row.
+                    fullRow
+                        .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+                case .micro:
+                    if let compactLabel {
+                        compactCell(compactLabel)
+                    } else {
+                        // M3A′: Micro has no room for the state label — a rendered "· Last known …"
+                        // pushes the gauge and numeral out of the card — so the state travels in
+                        // the tooltip and the accessibility value instead of a line of its own.
+                        microRow.help(microHelp)
+                    }
                 }
             }
         }
@@ -436,6 +487,68 @@ public struct UsageBarView: View {
             land()
         }
         .onChange(of: rowSignal) { _, _ in land() }
+    }
+
+    /// U8 (R8): a remembered window past its reset. In Micro the meter row it replaces is
+    /// laid out hidden underneath, so the line takes that row's height on its one optical
+    /// axis and nothing travels when a reset passes. In Full the row is the line alone: a
+    /// band kept open for a gauge that is no longer there read as an accident (Kyle, Nov
+    /// 2026). There the row closes when the reset passes, and the scope that owns the stack
+    /// animates it: the gauge and number fade, the height closes, the line fades in.
+    private func resetNotReadRow(_ line: String) -> some View {
+        let isFull = meterStyle.format == .full
+        return ZStack(alignment: .leading) {
+            if !isFull { microRow.hidden() }
+            HStack(alignment: isFull ? .firstTextBaseline : .center, spacing: gap) {
+                if isFull {
+                    // Laid out as the meter's top line is: a label on the numeral's baseline.
+                    // The zero-width numeral holds that baseline, so the label does not move
+                    // while the meter fades out and this line fades in.
+                    resetLabelColumn
+                    resetHint(line)
+                    Spacer(minLength: 0)
+                    Text("0")
+                        .font(.system(size: percentSize, weight: percentWeight).monospacedDigit())
+                        .widgetCapHeightCentered(size: percentSize, weight: percentWeight)
+                        .frame(width: 0)
+                        .hidden()
+                } else {
+                    resetLabelColumn
+                        .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
+                    resetHint(line)
+                        .widgetCapHeightCentered(size: resetSize, weight: .regular)
+                    Spacer(minLength: 0)
+                }
+            }
+            .help("\(spokenLabel): \(line)")
+        }
+    }
+
+    /// Every peer is laid out hidden with its own optical leading, this row's label among
+    /// them, so the column is one width on every reset line.
+    private var resetLabelColumn: some View {
+        ZStack(alignment: .leading) {
+            ForEach(resetLabelPeers.filter { $0 != label }, id: \.self) { peer in
+                Text(peer)
+                    .font(.system(size: labelSize, weight: labelWeight))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .widgetOpticalLeading(peer, size: labelSize, weight: labelWeight)
+                    .hidden()
+            }
+            labelText.fixedSize()
+        }
+    }
+
+    /// The compact form on every reset line: the sentence ("Reset yesterday at 12:32 AM ·
+    /// …") does not fit a Micro row, and two forms in one account read as two different
+    /// things. The tooltip and VoiceOver keep the sentence.
+    private func resetHint(_ line: String) -> some View {
+        Text(resetNotReadCompactLine ?? line)
+            .font(.system(size: resetSize).monospacedDigit())
+            .foregroundStyle(hintInk)
+            .lineLimit(1)
+            .truncationMode(.tail)
     }
 
     /// Full keeps the established fit-aware frame: label metadata and numeral above the
@@ -542,7 +655,7 @@ public struct UsageBarView: View {
     private var labelText: some View {
         Text(label)
             .font(.system(size: labelSize, weight: labelWeight))
-            .foregroundStyle(ProviderStyle.meterLabelInk(scheme: scheme))
+            .foregroundStyle(labelInk)
             .lineLimit(1)
             .truncationMode(.tail)
             // OA1: "Weekly" (a diagonal) against "5-hour" (a flat stem) is the widest
@@ -554,7 +667,7 @@ public struct UsageBarView: View {
     /// behind the fill and leaves ahead of it, both driven by `land()`.
     @ViewBuilder
     private var stateLabel: some View {
-        if let visibleStateText {
+        if showsWindowState, let visibleStateText {
             Text("· \(visibleStateText)")
                 // PB11: "Last known 4 min ago" ticks a digit at a time beside a countdown
                 // that already sets its digits monospaced, so it takes the same tabular
@@ -613,7 +726,23 @@ public struct UsageBarView: View {
     /// position and digits are unchanged; only the ink steps up. It rides `landedSeverity`,
     /// so it crossfades with the fill on the same transaction.
     private var countdownInk: Color {
-        usesCriticalInk ? Color.secondary : ProviderStyle.meterCountdownInk(scheme: scheme)
+        if usesCriticalInk { return Color.secondary }
+        // U8: a remembered row's countdown steps down with its label (`dimsLabels`).
+        return dimsLabels ? hintInk : ProviderStyle.meterCountdownInk(scheme: scheme)
+    }
+
+    /// The countdown and the reset line beside a window label. On a remembered row the label
+    /// is already `.secondary`, and the tertiary text token reads as bright as that, so the
+    /// hint steps one notch under the label (Kyle, Nov 2026). Elsewhere the label is full
+    /// ink and the token is already the quieter of the two.
+    private var hintInk: Color {
+        dimsLabels ? Color.secondary.opacity(0.72) : ProviderStyle.tertiaryText(scheme: scheme)
+    }
+
+    /// U8: a remembered row's label takes the dimmed numeral's ink (`numeralInk`); every
+    /// other row keeps the meter label token.
+    private var labelInk: AnyShapeStyle {
+        dimsLabels ? AnyShapeStyle(.secondary) : AnyShapeStyle(ProviderStyle.meterLabelInk(scheme: scheme))
     }
 
     /// PA8: the numeral is the loudest thing in the row, and it was the only element still
@@ -657,7 +786,7 @@ public struct UsageBarView: View {
     /// M3A′: the tooltip is where a Micro row's state lives. It always says something, so the
     /// row keeps one stable view identity rather than gaining and losing a modifier.
     private var microHelp: String {
-        if let stateText { return stateText }
+        if showsWindowState, let stateText { return stateText }
         return resetLine?.tooltip ?? "\(spokenLabel) usage"
     }
 
@@ -665,6 +794,8 @@ public struct UsageBarView: View {
     public static let criticalSpokenState = "critical"
 
     private var accessibilityValue: String {
+        // U8 (R8): the reset line is the row's whole statement; it carries no number.
+        if compactLabel == nil, let resetNotReadLine { return resetNotReadLine }
         var parts: [String] = []
         if let pct {
             parts.append("\(pct) percent \(percentageMode.term)")

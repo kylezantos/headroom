@@ -150,6 +150,38 @@ struct DemoLaunchTokenTests {
         #expect(AppComposition.widgetExporter() is NoOpWidgetSnapshotExporter)
     }
 
+    // MARK: Claude identity reader (default-login plan U2)
+
+    /// Only a real launch reads `.claude.json`. Demo scenarios (`remembered`, `merged`,
+    /// `multi-3` and the rest), the render and bench harnesses and this XCTest host get no
+    /// reader, so their Claude providers read no file. The decision is asserted without
+    /// reading: building a reader opens nothing until a fetch runs.
+    @Test func onlyARealLaunchWiresTheClaudeIdentityReaderAndEachRowGetsItsOwnFile() throws {
+        for arguments in [
+            ["Headroom", "--demo", "remembered"],
+            ["Headroom", "--demo", "merged"],
+            ["Headroom", "--demo", "multi-3"],
+            ["Headroom", "--render-popover", "/tmp/x"],
+            ["Headroom", "--render-widgets", "/tmp/x"],
+            ["Headroom", "--bench-ui", "popover"],
+        ] {
+            #expect(AppComposition.claudeIdentityReader(configDirectory: nil, arguments: arguments, environment: [:]) == nil,
+                    "\(arguments)")
+        }
+        #expect(AppComposition.claudeIdentityReader(configDirectory: nil) == nil)
+
+        let builtIn = try #require(AppComposition.claudeIdentityReader(
+            configDirectory: nil, arguments: ["Headroom"], environment: [:]
+        ) as? ClaudeAccountEmailFileReader)
+        #expect(builtIn.accountFile.path
+            == FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude.json").path)
+        let extraHome = URL(fileURLWithPath: "/tmp/headroom-tests/claude/work/config", isDirectory: true)
+        let extra = try #require(AppComposition.claudeIdentityReader(
+            configDirectory: extraHome, arguments: ["Headroom"], environment: [:]
+        ) as? ClaudeAccountEmailFileReader)
+        #expect(extra.accountFile.path == "/tmp/headroom-tests/claude/work/config/.claude.json")
+    }
+
     @Test func widgetStyleTokenSelectsThePreviewedStyle() {
         #expect(AppComposition.demoWidgetStyle(arguments: ["Headroom", "--widget-style", "tightestFirst"]) == .tightestFirst)
     }

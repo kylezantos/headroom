@@ -60,6 +60,15 @@ public struct BankedResetAcknowledgements: @unchecked Sendable { // UserDefaults
         save(stored)
     }
 
+    /// Default-login plan KTD5: puts back the count an account had announced before it
+    /// left this row. Nil clears the row's record.
+    public func restore(count: Int?, for key: AccountKey) {
+        guard let count else { return purge(for: key) }
+        var stored = load()
+        stored.upsert(BankedResetAcknowledgement(account: key, count: count))
+        save(stored)
+    }
+
     public func purge(for key: AccountKey) {
         var stored = load()
         let remaining = stored.entries.filter { $0.account != key }

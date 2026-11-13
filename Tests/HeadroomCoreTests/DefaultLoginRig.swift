@@ -1,0 +1,187 @@
+import Foundation
+@testable import HeadroomCore
+
+/// Provider double for the default-login suites: returns whatever snapshot the test set.
+final class ScriptedAccountProvider: UsageProvider, @unchecked Sendable {
+    let id: ProviderID
+    let accountID: AccountID
+    let displayName: String
+    private let lock = NSLock()
+    private var snapshot: UsageSnapshot
+
+    init(id: ProviderID, accountID: AccountID = .primary) {
+        self.id = id
+        self.accountID = accountID
+        self.displayName = id.displayName
+        self.snapshot = .pending(for: id)
+    }
+
+    func set(_ snapshot: UsageSnapshot) { lock.withLock { self.snapshot = snapshot } }
+    func fetchSnapshot() async -> UsageSnapshot { lock.withLock { snapshot } }
+}
+
+private struct RigAccountStorage: AccountStorageManaging {
+    func ensureDirectories(for account: ProviderAccount) -> Result<Void, AccountStorageFailure> { .success(()) }
+    func removeDirectories(for account: ProviderAccount) async -> Result<Void, AccountStorageFailure> { .success(()) }
+}
+
+/// One Codex (or, with `provider: .claude`, one Claude) install across launches: a real registry, continuity cache, reminder stores
+/// and record store over one throwaway defaults suite. `launch()` builds a new store on
+/// the same suite, which is a relaunch; `launch(records: false)` is an older build.
+@MainActor
+final class DefaultLoginRig {
+    static let start = Date(timeIntervalSince1970: 1_790_355_600)
+
+    let defaults: UserDefaults
+    let clock = MutableDateSource(DefaultLoginRig.start)
+    let poster = RecordingNotificationPoster()
+    let providerID: ProviderID
+    let primary: ScriptedAccountProvider
+    let extras: [ScriptedAccountProvider]
+    let registry: AccountRegistry
+    let ledger: UseItUpLedger
+    let baseline: BankedResetNotificationBaseline
+    let acknowledgements: BankedResetAcknowledgements
+    let continuity: UsageContinuityCache
+    let records: DefaultLoginRecordStore
+    /// Default-login plan U7: a phone publisher double, when the test counts exports.
+    let phone: SpyPhoneSync?
+    /// Default-login plan U9: the Mac widget file each main-account merge writes.
+    let widgets = SpyWidgetExporter()
+    private(set) var store: UsageStore!
+    private(set) var coordinator: NotificationCoordinator!
+
+    let key: AccountKey
+
+    init(
+        provider: ProviderID = .codex,
+        extraLabels: [String] = [],
+        banked: Bool = false,
+        countsPhoneExports: Bool = false
+    ) {
+        providerID = provider
+        primary = ScriptedAccountProvider(id: provider)
+        key = AccountKey(providerID: provider, accountID: .primary)
+        phone = countsPhoneExports ? SpyPhoneSync() : nil
+        let suite = "headroom.default-login.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        self.defaults = defaults
+        registry = AccountRegistry(defaults: defaults)
+        ledger = UseItUpLedger(defaults: defaults)
+        baseline = BankedResetNotificationBaseline(defaults: defaults)
+        acknowledgements = BankedResetAcknowledgements(defaults: defaults)
+        continuity = UsageContinuityCache(defaults: defaults)
+        records = DefaultLoginRecordStore(defaults: defaults)
+        let extraAccounts = extraLabels.map {
+            ProviderAccount(id: AccountID($0.lowercased()), providerID: provider, label: $0)
+        }
+        if !extraAccounts.isEmpty { registry.seed([.builtIn(for: provider)] + extraAccounts) }
+        extras = extraAccounts.map { ScriptedAccountProvider(id: provider, accountID: $0.id) }
+        let preferences = Preferences(defaults: defaults)
+        preferences.useItUpRemindersEnabled = true
+        preferences.bankedResetNotificationsEnabled = banked
+        // U9: a counted phone path is a real one, so its captures carry the providers.
+        preferences.syncToIPhoneEnabled = countsPhoneExports
+        launch()
+    }
+
+    /// `recordStore` swaps in another record store (a counting double) for this launch.
+    func launch(records usesRecords: Bool = true, recordStore: (any DefaultLoginRecordStoring)? = nil) {
+        coordinator = NotificationCoordinator(poster: poster, useItUpLedger: ledger, bankedResetBaseline: baseline)
+        store = UsageStore(
+            providers: [primary] + extras,
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: RigAccountStorage(),
+            providerFactory: { [primary] _ in primary },
+            continuityCache: continuity,
+            defaultLoginRecords: usesRecords ? (recordStore ?? records) : nil,
+            bankedResetAcknowledgements: acknowledgements,
+            notificationCoordinator: coordinator,
+            now: clock.now,
+            widgetExporter: widgets,
+            phoneSyncExporter: phone
+        )
+    }
+
+    /// One poll: `snapshot` is what the built-in row's provider returns.
+    func read(_ snapshot: UsageSnapshot) async {
+        primary.set(snapshot)
+        await store.refreshAll()
+        await coordinator.waitForPendingPosts()
+    }
+
+    func advance(_ seconds: TimeInterval) { clock.set(clock.now().addingTimeInterval(seconds)) }
+
+    var label: String { store.accounts(for: providerID).first { $0.key == key }?.label ?? "" }
+    var snapshot: UsageSnapshot { store.snapshot(for: key) }
+    var state: DefaultLoginRecordsState { store.defaultLoginState ?? DefaultLoginRecordsState() }
+    var slot: SlotRecord? { state.slot(for: key) }
+    /// Remembered accounts that have a row.
+    var rows: [RememberedAccount] { state.remembered.filter(\.hasRow) }
+
+    // MARK: Fixtures
+
+    static func identity(_ account: String) -> AccountIdentity {
+        AccountIdentity.codex(accountID: account)!
+    }
+
+    /// This rig's provider's identity for `account`. Claude needs UUID-syntactic ids, so a
+    /// plain name is mapped to a fixed UUID derived from it.
+    func identity(_ account: String) -> AccountIdentity {
+        guard providerID == .claude else { return Self.identity(account) }
+        return AccountIdentity.claude(accountUUID: Self.claudeUUID(account), organizationUUID: nil)!
+    }
+
+    static func claudeUUID(_ account: String) -> String {
+        if UUID(uuidString: account) != nil { return account }
+        var bytes = Array(account.utf8.prefix(16))
+        bytes += Array(repeating: 0, count: 16 - bytes.count)
+        return UUID(uuid: (bytes[0], bytes[1], bytes[2], bytes[3], bytes[4], bytes[5], bytes[6], bytes[7],
+                           bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]))
+            .uuidString
+    }
+
+    /// A live Codex reading for `account` (nil: the file names no account). Its weekly
+    /// reset is days away, so no use-it-up reminder is due.
+    func reading(
+        _ account: String?,
+        weeklyUsed: Double = 10,
+        banked: Int? = nil,
+        email: String?? = nil,
+        identity: AccountIdentityOutcome?? = nil,
+        weeklyResetIn: TimeInterval = 5 * 24 * 3_600
+    ) -> UsageSnapshot {
+        let now = clock.now()
+        let outcome: AccountIdentityOutcome? = identity ?? (account.map { .known(self.identity($0)) } ?? .absent)
+        return UsageSnapshot(
+            providerID: providerID,
+            windows: [
+                UsageWindow(kind: .fiveHour, utilization: 99, resetsAt: Self.start.addingTimeInterval(4 * 3_600)),
+                UsageWindow(kind: .weekly, utilization: weeklyUsed, resetsAt: Self.start.addingTimeInterval(weeklyResetIn)),
+            ],
+            planLabel: "plus",
+            accountEmail: email ?? account.map { "\($0)@example.com" },
+            bankedResets: banked,
+            capturedAt: now,
+            freshness: .live,
+            identity: outcome
+        )
+    }
+
+    /// Weekly at 27% left with 5 hours to its reset: the default 6 hour / 25% rule fires.
+    func dueReading(_ account: String?) -> UsageSnapshot {
+        reading(account, weeklyUsed: 73, weeklyResetIn: 5 * 3_600)
+    }
+
+    /// What a build from before identities wrote: no identity on the reading.
+    func legacyReading(email: String?, weeklyUsed: Double = 10) -> UsageSnapshot {
+        reading(nil, weeklyUsed: weeklyUsed, email: .some(email), identity: .some(nil))
+    }
+
+    var signedOut: UsageSnapshot {
+        .stale(for: providerID, reason: .providerSetup(providerID == .claude ? .claudeLoginRequired : .codexAuthAbsent))
+    }
+    var blip: UsageSnapshot { .stale(for: providerID, reason: .transient("blip")) }
+}

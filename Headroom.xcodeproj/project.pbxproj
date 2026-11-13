@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		003475AF90FE48BDC8A0142D /* HeadroomWidgetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B44B488B5CC6B49C3A230DF0 /* HeadroomWidgetView.swift */; };
 		008E5A956B0AF7D1DA3E1082 /* UsageDisplayValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */; };
+		015E17852BA4A0AF9BDBF263 /* AccountIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9AC8661811E08ACE95D61 /* AccountIdentity.swift */; };
 		019741076E359239D592FBAA /* WidgetMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC42D808487CA15143AB4C5 /* WidgetMetrics.swift */; };
 		01E3694FCC7CC9903A4349EA /* CompanionLoaderAdoption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86538C1817F9C23E3B6FDA15 /* CompanionLoaderAdoption.swift */; };
 		01F5298BBF7958F27A848A8A /* Account.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E052D0EBE1013A87240C92E /* Account.swift */; };
@@ -39,6 +40,7 @@
 		08A18D40A9312F7DEB5B8C9B /* CompanionDemoData.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7E66E67262C892788840900 /* CompanionDemoData.swift */; };
 		08EA7A27827BF6A56A7DBA09 /* ProviderCardIdentityRows.swift in Sources */ = {isa = PBXBuildFile; fileRef = 489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */; };
 		0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */; };
+		093B5AEA59CB9ADC0395BC7F /* AccountIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9AC8661811E08ACE95D61 /* AccountIdentity.swift */; };
 		09E47216BA8717CC62BC3449 /* CompanionStatusScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB790FB7609D11C1F9E66863 /* CompanionStatusScreen.swift */; };
 		0A685B2041A3418A5897E50C /* UseItUpLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */; };
 		0A7E6FC306A8B682679DB334 /* PlanCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61976BDA86182356251A6D79 /* PlanCapsule.swift */; };
@@ -286,6 +288,7 @@
 		66BA4AA745FB0E91177156D3 /* CodexSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8884B8D5664E9FA9DC416556 /* CodexSetupViews.swift */; };
 		66CAF608E41C4A15D88CCF2E /* ClaudeSetupViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28FECE6C7A3D1E55E26A7C55 /* ClaudeSetupViews.swift */; };
 		66E4583ADD507D5406CD36C5 /* MenuBarSloshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A044F73D162D5EAE3187A63A /* MenuBarSloshTests.swift */; };
+		675C834F5BD5D671467D2554 /* AccountIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9AC8661811E08ACE95D61 /* AccountIdentity.swift */; };
 		67A6CD4C0152D96F083A773D /* HeadroomIOSAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03E51FDA0AB85FB184F905B7 /* HeadroomIOSAppDelegate.swift */; };
 		67AAB1795FED9D0FB78041D0 /* DemoAccountStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 628E11DE7E09C84361854B74 /* DemoAccountStorage.swift */; };
 		6815DCE564EED3F7B5928632 /* NotificationContent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38AC1B6F83174342ECF1AEEE /* NotificationContent.swift */; };
@@ -468,6 +471,7 @@
 		ADFC8AC3DA7A164554421F54 /* CompanionAccountScope.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5493786BF2891E1B61D670A /* CompanionAccountScope.swift */; };
 		AE5CCFEE830D55259FE63D46 /* APISpendRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89A8D7ADC6788BF978502FDD /* APISpendRow.swift */; };
 		AE66818AEB1925E9CCC2C349 /* SessionReliabilityRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61109A4CD2AA6730B095FD79 /* SessionReliabilityRecord.swift */; };
+		AF05E4A5387581FF941015A5 /* UsageStoreDefaultLogin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02ABF2A7E97A45F1516829AD /* UsageStoreDefaultLogin.swift */; };
 		AF8D92D2E50538EC7D2B00B2 /* CompanionDemoModeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97F76A65E918F593C48D2640 /* CompanionDemoModeStore.swift */; };
 		B01E80F0528982EB957D345F /* CompactFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ED61F310D5AFE4BC1148BDC /* CompactFallbackTests.swift */; };
 		B07D78FADBF33B095E43091F /* MiniPillPreviewHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58BC98FEFB1B6841B9079A75 /* MiniPillPreviewHarness.swift */; };
@@ -484,6 +488,7 @@
 		B6012FDC966B53758A081BE9 /* HalftonePillRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D943C3629B5B80B1861F7DA9 /* HalftonePillRow.swift */; };
 		B6099A17FC050E89A37ED1B2 /* CompanionSyncCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */; };
 		B742DA1FF9639308DF6D03D7 /* CompanionFreshnessRule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 194C63E8131AF50BE4E59CB2 /* CompanionFreshnessRule.swift */; };
+		B76504E5D64E7063C3FF4F5E /* DisplayAccounts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381C82C35348DD29DDE38F29 /* DisplayAccounts.swift */; };
 		B779B019A3EDF4D4AF443B69 /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		B7B4BCBDAFCFC897ECCAACD9 /* WidgetLayoutStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA59F148939EB6AC45B4BD65 /* WidgetLayoutStyle.swift */; };
 		B7D06FBDC03D1DE273B772DA /* AccountEmail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */; };
@@ -638,6 +643,7 @@
 		F7851818441DCAF68200D356 /* UsageDisplayValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFDF4E29853BBFD51BBC3410 /* UsageDisplayValue.swift */; };
 		F8179E56D738A55B68B52535 /* WidgetWindowText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03D35190A84A6D65EDE1CDB8 /* WidgetWindowText.swift */; };
 		F817D60864F9BDA258A27083 /* libHeadroomCore.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 2741A92799D95F6286BABBBA /* libHeadroomCore.a */; };
+		F856ED9DCDF60B308F229ABB /* DefaultLoginRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = E612B033DA471AB5E45FE441 /* DefaultLoginRecords.swift */; };
 		F8A78D9BA963D59CE10CC3C2 /* IdentityCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27AFEEF6F9BA247936BEFEEA /* IdentityCapsule.swift */; };
 		F8EAE09E501AA23BF63C4060 /* HeadroomWidgetVesselHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8F70A32BED298DB58AE62BC /* HeadroomWidgetVesselHero.swift */; };
 		FA12FAB798F3E875BEF00193 /* UseItUpLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */; };
@@ -738,6 +744,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		02ABF2A7E97A45F1516829AD /* UsageStoreDefaultLogin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageStoreDefaultLogin.swift; sourceTree = "<group>"; };
 		03D35190A84A6D65EDE1CDB8 /* WidgetWindowText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetWindowText.swift; sourceTree = "<group>"; };
 		03E51FDA0AB85FB184F905B7 /* HeadroomIOSAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomIOSAppDelegate.swift; sourceTree = "<group>"; };
 		05961B6FE40E1FE2775DE429 /* LoadingNativeBench.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingNativeBench.swift; sourceTree = "<group>"; };
@@ -815,6 +822,7 @@
 		34FBA8CE415A23CC256D0BC4 /* BrandMarkInkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandMarkInkTests.swift; sourceTree = "<group>"; };
 		35FDD3E9954F1D0C7FE0BC7B /* SetupCompletionCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupCompletionCommand.swift; sourceTree = "<group>"; };
 		368710686B033F2FD75F9DE0 /* NotificationPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPreferences.swift; sourceTree = "<group>"; };
+		381C82C35348DD29DDE38F29 /* DisplayAccounts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayAccounts.swift; sourceTree = "<group>"; };
 		38AC1B6F83174342ECF1AEEE /* NotificationContent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationContent.swift; sourceTree = "<group>"; };
 		38B4DB6BBC85EE182B8E5F23 /* CredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStore.swift; sourceTree = "<group>"; };
 		38CE265FC984F166782EC234 /* ProviderCardIdentityRowTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardIdentityRowTests.swift; sourceTree = "<group>"; };
@@ -964,6 +972,7 @@
 		A065BC230BE7C4312C1EDCCD /* HeadroomLockScreenWidgetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomLockScreenWidgetView.swift; sourceTree = "<group>"; };
 		A0E0A8ACC16402469E129F6E /* HeadroomAppShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomAppShortcuts.swift; sourceTree = "<group>"; };
 		A175138AFA123994C3292DC0 /* NotificationCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationCoordinator.swift; sourceTree = "<group>"; };
+		A2C9AC8661811E08ACE95D61 /* AccountIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountIdentity.swift; sourceTree = "<group>"; };
 		A3FA110A99259E1A7135EC69 /* MeterGauge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeterGauge.swift; sourceTree = "<group>"; };
 		A43C20FB297B9F64C76EAA8A /* ClaudeUsageParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageParser.swift; sourceTree = "<group>"; };
 		A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APISpendProviders.swift; sourceTree = "<group>"; };
@@ -1049,6 +1058,7 @@
 		E30BB5027666829CE5F98194 /* CompanionDemoLaunchOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionDemoLaunchOptions.swift; sourceTree = "<group>"; };
 		E542DE434B4A2F1EA525110E /* ProviderCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardView.swift; sourceTree = "<group>"; };
 		E5493786BF2891E1B61D670A /* CompanionAccountScope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAccountScope.swift; sourceTree = "<group>"; };
+		E612B033DA471AB5E45FE441 /* DefaultLoginRecords.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultLoginRecords.swift; sourceTree = "<group>"; };
 		E82174D6E3D6084D707A51A1 /* WidgetStatusCopy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetStatusCopy.swift; sourceTree = "<group>"; };
 		E8427EA4FFB9BD0AD0835F8B /* AccountProbeScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountProbeScheduler.swift; sourceTree = "<group>"; };
 		E8F70A32BED298DB58AE62BC /* HeadroomWidgetVesselHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetVesselHero.swift; sourceTree = "<group>"; };
@@ -1250,6 +1260,8 @@
 				CCB4BD862E876F4163998908 /* CompanionAttentionMapping.swift */,
 				1C9F18C9A189406756CFFC18 /* CompanionPublisher.swift */,
 				1DA2869F060DC3CA7EE7BE3D /* CompanionSyncLifecycle.swift */,
+				E612B033DA471AB5E45FE441 /* DefaultLoginRecords.swift */,
+				381C82C35348DD29DDE38F29 /* DisplayAccounts.swift */,
 				4279FDBBC98A13A512EA0332 /* FeedbackDiagnosticsCollector.swift */,
 				77C0D46544DF7793280C86B5 /* LaneSchedule.swift */,
 				432AF864130D5870A2FC78CF /* PollingEngine.swift */,
@@ -1260,6 +1272,7 @@
 				0CE3E0A64B321BCD7FDD13A6 /* UsageContinuityCache.swift */,
 				316B9C4940604D925421AD2A /* UsageStore.swift */,
 				60D87E3D808109BDDEF624C7 /* UsageStoreAccountLifecycle.swift */,
+				02ABF2A7E97A45F1516829AD /* UsageStoreDefaultLogin.swift */,
 				445BE4D41EA2C6946532B7A1 /* UsageStorePhoneSync.swift */,
 			);
 			path = Engine;
@@ -1637,6 +1650,7 @@
 				4E052D0EBE1013A87240C92E /* Account.swift */,
 				7493B61EA41DC37041196C73 /* AccountColumnsPlan.swift */,
 				4AE0B3EEE8A3CF524AB5790B /* AccountEmail.swift */,
+				A2C9AC8661811E08ACE95D61 /* AccountIdentity.swift */,
 				7A2B2887C4F4FCD8B8DA8FDE /* BrandColorValues.swift */,
 				AA0B56B46D3607F25DF97CCD /* CLIExecutableDiscoveryIssue.swift */,
 				9501B828B59C64F77A8A184A /* CompactAccountRowRecipe.swift */,
@@ -2070,6 +2084,7 @@
 				01F5298BBF7958F27A848A8A /* Account.swift in Sources */,
 				BB938FF01ED9B897FE87CA07 /* AccountColumnsPlan.swift in Sources */,
 				9523971DEF18D88046CD29C7 /* AccountEmail.swift in Sources */,
+				015E17852BA4A0AF9BDBF263 /* AccountIdentity.swift in Sources */,
 				E3DAD680F61370E67E369D19 /* AccountProbeScheduler.swift in Sources */,
 				A113A612C726C4102627D24C /* AccountRegistry.swift in Sources */,
 				4B4C9CAB4F37C267CE7FAF7E /* AccountStorage.swift in Sources */,
@@ -2130,9 +2145,11 @@
 				10F3AF2B0CC5FE5260DFC712 /* CursorConnection.swift in Sources */,
 				E6CA1463B44C45FB24D502FF /* CursorProvider.swift in Sources */,
 				11ED633FEA9659E1F74B6EAC /* CursorUsageCLIProbe.swift in Sources */,
+				F856ED9DCDF60B308F229ABB /* DefaultLoginRecords.swift in Sources */,
 				67AAB1795FED9D0FB78041D0 /* DemoAccountStorage.swift in Sources */,
 				80916D058A17FA99064557F0 /* DemoFixture.swift in Sources */,
 				4D0D895D05AFE5E6263B5179 /* DemoScreenshotData.swift in Sources */,
+				B76504E5D64E7063C3FF4F5E /* DisplayAccounts.swift in Sources */,
 				5667220D6648A7E8A6EBF06B /* FeedbackDiagnosticsCollector.swift in Sources */,
 				9CD9BFF563F7D9EAD277CECF /* FeedbackEmail.swift in Sources */,
 				306658E67B0EC641170EDCB0 /* FlowingColumnsPlan.swift in Sources */,
@@ -2197,6 +2214,7 @@
 				7137CC26FA0CC28953121570 /* UsageSeverityColorValues.swift in Sources */,
 				F2104C132889055EE7F1A3E1 /* UsageStore.swift in Sources */,
 				02764C9BA6011A766AAA4C0B /* UsageStoreAccountLifecycle.swift in Sources */,
+				AF05E4A5387581FF941015A5 /* UsageStoreDefaultLogin.swift in Sources */,
 				C54A360BE30C8B0BB4C918B8 /* UsageStorePhoneSync.swift in Sources */,
 				CDD22CF9579A4F00E4E9211B /* UsageWindow+WidgetSummary.swift in Sources */,
 				5D4FA611C493F27C42A9B6E9 /* UseItUpEvaluator.swift in Sources */,
@@ -2231,6 +2249,7 @@
 				46C9C3ADD4E42ADF810AA836 /* Account.swift in Sources */,
 				F47946A26778F13D1D38AF3B /* AccountColumnsPlan.swift in Sources */,
 				B7D06FBDC03D1DE273B772DA /* AccountEmail.swift in Sources */,
+				675C834F5BD5D671467D2554 /* AccountIdentity.swift in Sources */,
 				AB4FA361DCBD77CBFBA6277C /* AccountRegistry.swift in Sources */,
 				C3877FE45FBA2E3E15DFC50B /* BankedResetAcknowledgements.swift in Sources */,
 				F77225CB525B717288DECA96 /* BankedResetNotificationBaseline.swift in Sources */,
@@ -2534,6 +2553,7 @@
 				7FEAF8DB9B4DC568BC3AC00D /* Account.swift in Sources */,
 				F540D1FD29D623D64D996EB5 /* AccountColumnsPlan.swift in Sources */,
 				88286464CEFB8013E9380F27 /* AccountEmail.swift in Sources */,
+				093B5AEA59CB9ADC0395BC7F /* AccountIdentity.swift in Sources */,
 				BA3072EDE1B23A6F7E100BB7 /* AccountRegistry.swift in Sources */,
 				7D00BE8DB67E3F51576914C8 /* AppearanceSection.swift in Sources */,
 				D13E8EE9A513FB1311992870 /* AppearanceSetting.swift in Sources */,
@@ -2732,12 +2752,12 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomWidgets/HeadroomWidgets.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -2785,7 +2805,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOS/HeadroomIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2805,7 +2825,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomApp/HeadroomApp.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle\"",
@@ -2813,8 +2833,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Headroom;
 				INFOPLIST_KEY_CFBundleName = Headroom;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.6.2;
-				INFOPLIST_KEY_CFBundleVersion = 46;
+				INFOPLIST_KEY_CFBundleShortVersionString = 1.7;
+				INFOPLIST_KEY_CFBundleVersion = 47;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSMinimumSystemVersion = "$(MACOSX_DEPLOYMENT_TARGET)";
@@ -2826,7 +2846,7 @@
 				INFOPLIST_KEY_SUFeedURL = "$(HEADROOM_SPARKLE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -2906,7 +2926,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomApp/HeadroomApp.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"\".xcode-derived/SourcePackages/artifacts/sparkle/Sparkle\"",
@@ -2914,8 +2934,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Headroom;
 				INFOPLIST_KEY_CFBundleName = Headroom;
-				INFOPLIST_KEY_CFBundleShortVersionString = 1.6.2;
-				INFOPLIST_KEY_CFBundleVersion = 46;
+				INFOPLIST_KEY_CFBundleShortVersionString = 1.7;
+				INFOPLIST_KEY_CFBundleVersion = 47;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_LSMinimumSystemVersion = "$(MACOSX_DEPLOYMENT_TARGET)";
@@ -2927,7 +2947,7 @@
 				INFOPLIST_KEY_SUFeedURL = "$(HEADROOM_SPARKLE_FEED_URL)";
 				INFOPLIST_KEY_SUPublicEDKey = "$(HEADROOM_SPARKLE_PUBLIC_ED_KEY)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -2975,7 +2995,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOS/HeadroomIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOS/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -2993,7 +3013,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOSWidgets/HeadroomIOSWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOSWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
@@ -3119,12 +3139,12 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomWidgets/HeadroomWidgets.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
-				MARKETING_VERSION = 1.6.2;
+				MARKETING_VERSION = 1.7;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -3138,7 +3158,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = Sources/HeadroomIOSWidgets/HeadroomIOSWidgets.entitlements;
-				CURRENT_PROJECT_VERSION = 46;
+				CURRENT_PROJECT_VERSION = 47;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Sources/HeadroomIOSWidgets/Info.plist;
 				INFOPLIST_KEY_HeadroomAppGroupIdentifier = "$(HEADROOM_APP_GROUP_IDENTIFIER)";

@@ -100,7 +100,7 @@ struct PhoneSettingsPresentationTests {
     @Test func whatSyncsNamesExactlyTheKTD22ListAndNoEncryptionClaim() {
         let list = PhoneSettingsCopy.whatSyncs
         #expect(list == [
-            "Account names you chose",
+            "Account names, as your Mac shows them",
             "Plan names",
             "Usage and reset times",
             "API spend",
@@ -110,6 +110,11 @@ struct PhoneSettingsPresentationTests {
             "A random ID that tells this app which iCloud account its saved data belongs to",
         ])
         #expect(PhoneSettingsCopy.whatSyncsFooter.contains("isn’t end-to-end encrypted"))
+        // KTD9 amended: an email can sync as a name, so the footer must not promise otherwise.
+        #expect(PhoneSettingsCopy.whatSyncsFooter.contains(
+            "If you use an email address as an account name, that address syncs as the name."))
+        #expect(PhoneSettingsCopy.whatSyncsFooter.contains("Sign-ins, passwords and API keys never leave your Mac."))
+        #expect(!PhoneSettingsCopy.whatSyncsFooter.contains("emails and API keys never"))
         #expect(!PhoneSettingsCopy.whatSyncsFooter.localizedCaseInsensitiveContains("source ID"))
     }
 

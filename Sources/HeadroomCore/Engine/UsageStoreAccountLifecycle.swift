@@ -6,18 +6,152 @@ extension UsageStore {
     /// waiting out a full (possibly 20–30s) probe of an account that isn't signed in yet.
     public nonisolated static let finishSignInMessage = "Finish sign-in to add this account"
 
-    /// Accounts for a provider in display order, with its selected primary first.
+    /// The engine list (default-login plan KTD8): the registry accounts with a provider
+    /// instance, selected primary first. Merge acceptance, scheduling, setup and the
+    /// promote write read membership from it. What a surface lists is `displayAccounts(for:)`.
     public func accounts(for providerID: ProviderID) -> [ProviderAccount] {
         accountsByProvider[providerID] ?? []
     }
 
-    /// The account compact surfaces (menu bar, widgets) follow for a provider.
+    /// The engine list's main account. Surfaces that show "the main account" read
+    /// `displayPrimaryKey(for:)`; the two agree until the one-row merge (U10).
     public func primaryAccount(for providerID: ProviderID) -> ProviderAccount? {
         accounts(for: providerID).first
     }
 
+    // MARK: Display projection (default-login plan U7, KTD8)
+
+    /// What every user-visible surface lists for a provider: the engine rows, then the
+    /// visible remembered rows in stored order, minus any merged row. Equal to the engine
+    /// list for a setup whose default login never changes (R15).
+    public func displayProjection(for providerID: ProviderID) -> DisplayAccountsProjection {
+        DisplayAccountsResolver.resolve(
+            providerID: providerID,
+            engine: accounts(for: providerID),
+            remembered: rememberedAccountRows[providerID] ?? [],
+            mergeMap: displayMergeMaps[providerID] ?? [:]
+        )
+    }
+
+    // MARK: One account, one row (default-login plan U10, KTD11)
+
+    /// True for an engine row the one-row merge hides: a built-in whose account an extra
+    /// row reads. It is still probed; it never reminds and never shows (KTD11).
+    func isMergedAway(_ key: AccountKey) -> Bool {
+        displayMergeMaps[key.providerID]?[key] != nil
+    }
+
+    /// Settles the one-row merge for a provider from its current gates. Called in the same
+    /// turn as every gate change: a merged reading, a setup state, a removal, a reset, a
+    /// detach or a resume. Returns whether the map changed. With `exports`, a change
+    /// reaches the widgets and the phone once each; callers that export anyway pass false.
+    @discardableResult
+    func refreshDisplayMerge(for providerID: ProviderID, exports: Bool) -> Bool {
+        let map = computeDisplayMerge(for: providerID)
+        let previous = displayMergeMaps[providerID] ?? [:]
+        guard map != previous else { return false }
+        for (hidden, shown) in previous where map[hidden] != shown {
+            handOverMergedReminders(hidden: hidden, shown: shown, entering: false)
+        }
+        // Before `merge` evaluates the shown row in this turn (KTD11).
+        for (hidden, shown) in map where previous[hidden] != shown {
+            handOverMergedReminders(hidden: hidden, shown: shown, entering: true)
+        }
+        if map.isEmpty {
+            displayMergeMaps.removeValue(forKey: providerID)
+        } else {
+            displayMergeMaps[providerID] = map
+        }
+        if exports {
+            exportWidgetSnapshot()
+            exportPhoneSyncSnapshot()
+        }
+        return true
+    }
+
+    /// KTD11: while merged only the shown row reminds and acknowledges banked resets, so a
+    /// hidden built-in that comes back still bound to the same account takes the shown
+    /// row's state first; its next live reading then posts nothing already posted. Runs
+    /// before any purge of the shown row (a removal settles the merge before it purges).
+    /// A built-in that left the engine list, was reset, or now reads another account
+    /// takes nothing: the state belongs to the shown row's account, not to the row.
+    ///
+    /// `entering` is the other direction: the built-in reminded while the rows were
+    /// separate, so the shown row takes the built-in's state as the merge begins. Neither
+    /// row's banked counts are then known to be the newer, so the shown row's counts only
+    /// rise (a higher one of its own is what it last announced); a real drop is lowered by
+    /// its next live reading, as `lower` and the baseline's silent drop record already do.
+    private func handOverMergedReminders(hidden: AccountKey, shown: AccountKey, entering: Bool) {
+        guard accounts(for: hidden.providerID).contains(where: { $0.key == hidden }),
+              let state = defaultLoginState,
+              let hiddenIdentity = knownIdentity(state.slot(for: hidden)),
+              let shownIdentity = state.slot(for: shown)?.binding,
+              hiddenIdentity == shownIdentity
+        else { return }
+        let (source, target) = entering ? (hidden, shown) : (shown, hidden)
+        notificationCoordinator?.handOver(from: source, to: target, now: now(), raisesBankedBaselineOnly: entering)
+        guard let acknowledgements = bankedResetAcknowledgements,
+              let acknowledged = acknowledgements.acknowledgedCount(for: source)
+        else { return }
+        if entering, let stored = acknowledgements.acknowledgedCount(for: target), !(acknowledged > stored) { return }
+        acknowledgements.restore(count: acknowledged, for: target)
+    }
+
+    /// The gate inputs, read only once the built-in holds a strong Known identity: for a
+    /// setup with no merge that is one slot lookup per provider (R15).
+    private func computeDisplayMerge(for providerID: ProviderID) -> [AccountKey: AccountKey] {
+        guard let state = defaultLoginState else { return [:] }
+        let engine = accounts(for: providerID)
+        guard let builtIn = engine.first(where: \.isBuiltIn),
+              let identity = knownIdentity(state.slot(for: builtIn.key)),
+              identity.strength == .strong
+        else { return [:] }
+        return DisplayMergePlanner.mergeMap(engine.map { account in
+            DisplayMergeInput(
+                key: account.key,
+                isBuiltIn: account.isBuiltIn,
+                identity: account.key == builtIn.key ? identity : knownIdentity(state.slot(for: account.key)),
+                freshness: snapshots[account.key]?.freshness,
+                isInSetup: isInSetupForDisplayMerge(account.key)
+            )
+        })
+    }
+
+    /// A slot's identity is Known while readings name its bound account (phase attached).
+    private func knownIdentity(_ slot: SlotRecord?) -> AccountIdentity? {
+        guard let slot, slot.phase == .attached else { return nil }
+        return slot.binding
+    }
+
+    private func isInSetupForDisplayMerge(_ key: AccountKey) -> Bool {
+        removingAccounts.contains(key) || setupCoordinator?.state(for: key).holdsDisplayMerge == true
+    }
+
+    /// KTD11: a setup state began or ended on some row; the merge follows in the same turn.
+    func setupStatesDidChange(_ providerIDs: Set<ProviderID>) {
+        for id in registeredProviderOrder where providerIDs.contains(id) {
+            refreshDisplayMerge(for: id, exports: true)
+        }
+    }
+
+    public func displayAccounts(for providerID: ProviderID) -> [DisplayAccount] {
+        displayProjection(for: providerID).rows
+    }
+
+    /// The row the menu bar, widgets, the Main badge and the "already main" guard follow.
+    /// Never a remembered row (R12).
+    public func displayPrimaryKey(for providerID: ProviderID) -> AccountKey? {
+        displayProjection(for: providerID).primaryKey
+    }
+
     public func attachSetupCoordinator(_ coordinator: SetupSessionCoordinator?) {
+        if setupCoordinator !== coordinator { setupCoordinator?.onStatesChange = nil }
         setupCoordinator = coordinator
+        // U10: setup states are a merge gate (KTD11), so the store hears every change.
+        coordinator?.onStatesChange = { [weak self] providerIDs in
+            self?.setupStatesDidChange(providerIDs)
+        }
+        setupStatesDidChange(Set(registeredProviderOrder))
     }
 
     /// An isolated demo/capture owner releases its sources before awaiting scheduler teardown.
@@ -39,6 +173,9 @@ extension UsageStore {
         notificationCoordinator?.purge(for: key)
         snapshots[key] = .pending(for: key.providerID)
         continuityCache?.remove(for: key)
+        deferringRememberedRowExport { defaultLoginDidClear(key) }
+        // U10: the reset clears the row's binding, so a merged built-in shows again here.
+        refreshDisplayMerge(for: key.providerID, exports: false)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }
@@ -67,7 +204,8 @@ extension UsageStore {
         guard canAddAccount(for: providerID),
               let accountRegistry, let providerFactory,
               let account = accountRegistry.addAccount(
-                  for: providerID, capacity: accountCapacity(for: providerID), label: label
+                  for: providerID, capacity: accountCapacity(for: providerID),
+                  label: AccountRegistry.normalizedLabel(label) ?? defaultLoginLabelForNewAccount(for: providerID)
               )
         else { return nil }
         guard case .success = accountStorage.ensureDirectories(for: account) else {
@@ -93,14 +231,46 @@ extension UsageStore {
         accountsByProvider[key.providerID] = accountRegistry.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         )
+        if let renamed = accounts(for: key.providerID).first(where: { $0.key == key }) {
+            defaultLoginDidRename(key, to: renamed.label)
+        }
         // R17 / KTD9: titles are resolved on the Mac, so a rename re-exports them.
         exportPhoneSyncSnapshot()
     }
 
+    // MARK: Remembered accounts (default-login plan U5)
+
+    /// Accounts the default login left, with their last reading (R6), in stored order.
+    /// Not engine rows: they are never probed, never the main account and never fire a
+    /// reminder (R12), and they do not count toward add-account capacity (KTD4). A row
+    /// yields while another row reads its account (KTD12). Removed rows are left out
+    /// unless `includingHidden`.
+    public func rememberedAccounts(for providerID: ProviderID, includingHidden: Bool = false) -> [RememberedAccountSummary] {
+        let rows = rememberedAccountRows[providerID] ?? []
+        return includingHidden ? rows : rows.filter { !$0.isHidden }
+    }
+
+    /// R11. `key` is the remembered row's own key (`RememberedAccountSummary.key`). One
+    /// record commit and one phone export; false, with nothing written, for no such row
+    /// or an empty name.
+    @discardableResult
+    public func renameRememberedAccount(_ key: AccountKey, to label: String) -> Bool {
+        defaultLoginRenameRemembered(key, to: label)
+    }
+
+    /// R11: hides the row until its account is the default login again. Its label, last
+    /// reading and reminder state are kept for that return. One record commit.
+    @discardableResult
+    public func removeRememberedAccount(_ key: AccountKey) -> Bool {
+        defaultLoginHideRemembered(key)
+    }
+
+    /// The "already main" guard reads the display primary; the promote write needs an
+    /// engine row, so a remembered row is never offered Make Main (KTD12).
     public func canPromoteAccount(_ key: AccountKey) -> Bool {
         guard providerFactory != nil,
               accountRegistry != nil,
-              primaryAccount(for: key.providerID)?.key != key
+              displayPrimaryKey(for: key.providerID) != key
         else { return false }
         return accounts(for: key.providerID).contains(where: { $0.key == key })
     }
@@ -132,10 +302,14 @@ extension UsageStore {
         if let blocked = await setupHandoffBlock(for: account) { return blocked }
         removingAccounts.insert(key)
         accountRemovalStates[key] = .removing
+        // U10 (KTD11): a row being removed holds no merge, so a built-in merged into it
+        // shows, with its own reading, before the row goes; no frame shows neither.
+        refreshDisplayMerge(for: key.providerID, exports: true)
         setupCoordinator?.markRemoving(key)
         let removal = await accountStorage.removeDirectories(for: account)
         guard case .success = removal else {
             removingAccounts.remove(key)
+            refreshDisplayMerge(for: key.providerID, exports: true)
             if case .failure(.setupActive) = removal {
                 accountRemovalStates[key] = .setupActive
                 setupCoordinator?.markRemovalFailed(key)
@@ -186,6 +360,7 @@ extension UsageStore {
         else { return nil }
         attachBuiltInProvider(account)
         accountsByProvider[providerID] = accountRegistry.accounts(for: providerID, capacity: accountCapacity(for: providerID))
+        refreshDisplayMerge(for: providerID, exports: false)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
         return account
@@ -210,6 +385,7 @@ extension UsageStore {
         scheduler.unregister(key)
         snapshots.removeValue(forKey: key)
         continuityCache?.remove(for: key)
+        deferringRememberedRowExport { defaultLoginDidClear(key, removed: key.accountID != .primary) }
         accountsByProvider[key.providerID] = accountRegistry?.accounts(
             for: key.providerID, capacity: accountCapacity(for: key.providerID)
         ) ?? []
@@ -217,6 +393,8 @@ extension UsageStore {
         removingAccounts.remove(key)
         accountRemovalStates.removeValue(forKey: key)
         setupCoordinator?.markRemoved(key)
+        // U10: the detached row leaves the merge in the same turn; the exports follow.
+        refreshDisplayMerge(for: key.providerID, exports: false)
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }

@@ -199,6 +199,32 @@ public final class UsageStore {
     let accountRegistry: AccountRegistry?
     let accountStorage: any AccountStorageManaging
     let continuityCache: (any UsageContinuityCaching)?
+    /// Default-login plan KTD4: which account each row is bound to, and the accounts that
+    /// left. Nil in demos, harnesses and most tests, which leaves every row as it was.
+    let defaultLoginRecordStore: (any DefaultLoginRecordStoring)?
+    /// The decoded records; nil when there is no store or its envelope is unreadable.
+    @ObservationIgnored var defaultLoginState: DefaultLoginRecordsState?
+    /// Default-login plan U5: the remembered accounts with a row, per provider, in stored
+    /// order and hidden ones included, minus any a slot reads (KTD12). Observed, unlike
+    /// the records, and reassigned only when it changes, so the steady per-reading
+    /// commit does not invalidate views that read it.
+    var rememberedAccountRows: [ProviderID: [RememberedAccountSummary]] = [:]
+    /// Default-login plan U7 (KTD10): each visible remembered row's last reading, aged by
+    /// `UsageContinuityPolicy.rememberedSnapshot` at launch, on each engine wake, when the
+    /// popover opens and when the rows change, so no view body ages it. Keyed by the
+    /// row's local id, which never collides with an engine key.
+    var rememberedDisplaySnapshots: [AccountKey: UsageSnapshot] = [:]
+    /// Default-login plan U10 (KTD11): per provider, the built-in key hidden by the
+    /// one-row merge to the extra that shows it. Recomputed in the same turn as any gate
+    /// change (`refreshDisplayMerge`) and reassigned only when it changes, so no view body
+    /// rebuilds it. Empty for a setup with no merge.
+    var displayMergeMaps: [ProviderID: [AccountKey: AccountKey]] = [:]
+    /// U7: above zero while a caller that exports the phone capture itself (a merge, a
+    /// detach, a reset) is changing the records, so a remembered-row change inside it
+    /// does not export a second time.
+    @ObservationIgnored var rememberedRowExportDeferrals = 0
+    /// Raw continuity records from launch, for rows nothing has been bound to yet (KTD7).
+    @ObservationIgnored var launchContinuity: [AccountKey: UsageSnapshot] = [:]
     /// KTD14 (2026-09-19 sign-in plan): diagnostics-only record of observed Claude
     /// sign-outs. Optional so the render harness, demo stores, and tests that don't
     /// care compose without it.
@@ -251,6 +277,7 @@ public final class UsageStore {
         accountStorage: any AccountStorageManaging = DefaultAccountStorage(),
         providerFactory: (@MainActor (ProviderAccount) -> any UsageProvider)? = nil,
         continuityCache: (any UsageContinuityCaching)? = nil,
+        defaultLoginRecords: (any DefaultLoginRecordStoring)? = nil,
         signOutRecord: SignOutRecord? = nil,
         sessionReliabilityRecord: SessionReliabilityRecord? = nil,
         bankedResetAcknowledgements: BankedResetAcknowledgements? = nil,
@@ -266,6 +293,7 @@ public final class UsageStore {
         self.accountStorage = accountStorage
         self.providerFactory = providerFactory
         self.continuityCache = continuityCache
+        self.defaultLoginRecordStore = defaultLoginRecords
         self.signOutRecord = signOutRecord
         self.sessionReliabilityRecord = sessionReliabilityRecord
         self.bankedResetAcknowledgements = bankedResetAcknowledgements
@@ -336,6 +364,10 @@ public final class UsageStore {
         for provider in providers { scheduler.register(provider) }
         // KTD8: heartbeats and forced republishes capture fresh state on the main actor.
         phoneSyncExporter?.bind { [weak self] in self?.companionCapture() }
+        prepareDefaultLogin(cached: cachedSnapshots)
+        // U10: a relaunch while merged comes back merged before the first frame, from the
+        // restored records and readings; the launch refresh exports, so this does not.
+        for id in registeredProviderOrder { refreshDisplayMerge(for: id, exports: false) }
     }
 
     private static func restoredSnapshot(
@@ -436,7 +468,10 @@ public final class UsageStore {
                     ?? LaneSchedule.chosenInterval(minutes: Preferences.defaultIntervalMinutes)
             },
             now: now,
-            tick: { [weak self] in self?.scheduler.dispatchDue() }
+            tick: { [weak self] in
+                self?.engineDidWake()
+                self?.scheduler.dispatchDue()
+            }
         )
         engine.start()
         self.engine = engine
@@ -456,6 +491,8 @@ public final class UsageStore {
     /// interval after the fresh data. At most one extra poll per interval; the cadence
     /// itself is never raised (AGENTS.md's cost warning).
     public func refreshOnPopoverOpen() {
+        // KTD10: a remembered row shows its age as of this open, before any guard below.
+        ageRememberedSnapshots()
         // A user refresh already in flight is freshening the data by itself.
         guard !isRefreshing else { return }
         guard Self.shouldRefreshOnPopoverOpen(
@@ -537,6 +574,9 @@ public final class UsageStore {
         guard useEmailAsAccountName != enabled else { return }
         preferences.useEmailAsAccountName = enabled
         useEmailAsAccountName = enabled
+        // KTD9 amended: the phone's titles follow the Mac's displayed name, so this changes
+        // them; a title change forces the publisher's immediate flush (KTD8).
+        exportPhoneSyncSnapshot()
     }
 
     public func setExpandAccountsHorizontally(_ enabled: Bool) {
@@ -547,7 +587,8 @@ public final class UsageStore {
 
     public func desktopAccountName(for account: ProviderAccount) -> String {
         DesktopAccountIdentity(
-            title: account.label, email: snapshots[account.key]?.accountEmail,
+            // `snapshot(for:)`, so a remembered row names itself by its last reading's email.
+            title: account.label, email: snapshot(for: account.key).accountEmail,
             showsPersistentEmail: false, usesEmailAsName: useEmailAsAccountName
         ).title
     }
@@ -817,10 +858,13 @@ public final class UsageStore {
     /// W4: how the footer receipt names an account — the provider alone while it has one
     /// account (labels are hidden then), "Claude Work" once it has several.
     public func refreshReceiptTitle(for key: AccountKey) -> String {
-        let accounts = accounts(for: key.providerID)
+        // KTD8: titled the way the popover titles its rows, remembered rows included.
+        let accounts = displayAccounts(for: key.providerID).map(\.account)
+        // U10: a merged built-in's probe lands under the row that shows it.
+        let shown = displayMergeMaps[key.providerID]?[key] ?? key
         return RefreshReceiptPresentation.title(
             providerName: displayNames[key.providerID] ?? key.providerID.raw,
-            accountTitle: accounts.first(where: { $0.key == key }).map { desktopAccountName(for: $0) },
+            accountTitle: accounts.first(where: { $0.key == shown }).map { desktopAccountName(for: $0) },
             providerAccountCount: accounts.count)
     }
 
@@ -1068,6 +1112,10 @@ public final class UsageStore {
         notifiesSetup: Bool,
         attachmentGeneration: UInt64?
     ) -> Bool {
+        // KTD2 (default-login plan): a reading taken while the login was changing belongs
+        // to neither account for certain. Refused here, before `merge`, so it never
+        // reaches the snapshot, the continuity cache or a setup session.
+        if result.discard != nil { return false }
         let isCapabilityFailure = result.capability.map { $0 != .available } == true
         if isCapabilityFailure {
             // A provider-wide discovery failure says nothing about this account. Keep a
@@ -1095,23 +1143,33 @@ public final class UsageStore {
         // resumed, reusing the key — while its fetch was in flight. A late result from
         // a detached instance must not resurrect or overwrite the row.
         guard acceptsResult(for: key, attachmentGeneration: attachmentGeneration) else { return false }
+        // Default-login plan U3: a change of account is settled here, first, so nothing
+        // below files this reading under the previous account's name or history.
+        // Every merge is followed by its caller's phone export (U7).
+        let prior = deferringRememberedRowExport { defaultLoginPrior(for: key, fresh: fresh) }
         sessionReliabilityRecord?.note(
             fresh, for: key, expectedInterval: schedulerChosenInterval,
             trackedAccounts: providers.map(\.accountKey)
         )
         let next = UsageContinuityPolicy.mergedSnapshot(
             fresh,
-            with: snapshots[key],
+            with: prior,
             at: now()
         )
         recordSignOutEdge(next, for: key)
-        if next.freshness == .live {
-            bankedResetAcknowledgements?.lower(for: key, currentCount: next.bankedResets)
-            evaluateNotifications(next, for: key)
-        }
         // Skip the assignment when nothing changed so an unchanging state (e.g. a
         // provider that stays logged-out) doesn't invalidate observers every cycle.
         if snapshots[key] != next { snapshots[key] = next }
+        // U10: this reading may bind, rebind or lapse a row, or make E readable or not, so
+        // the one-row merge is settled before anything below asks whether the row shows.
+        // The caller exports (`schedulerMerge`, or a full refresh at its end).
+        refreshDisplayMerge(for: key.providerID, exports: false)
+        // KTD11: a merged built-in's reading is E's account, so E alone reminds and
+        // acknowledges banked resets; the pair fires one reminder, not two.
+        if next.freshness == .live, !isMergedAway(key) {
+            bankedResetAcknowledgements?.lower(for: key, currentCount: next.bankedResets)
+            evaluateNotifications(next, for: key)
+        }
         updateContinuityCache(next, for: key)
         if notifiesSetup { setupCoordinator?.receive(next, for: key) }
         return true
@@ -1122,7 +1180,8 @@ public final class UsageStore {
     /// this attachment, so a post that races a removal or reset writes no ledger (KTD6).
     private func evaluateNotifications(_ snapshot: UsageSnapshot, for key: AccountKey) {
         guard let notificationCoordinator else { return }
-        let visible = accounts(for: key.providerID)
+        // KTD8: the label appears once the provider shows several rows, remembered included.
+        let visible = displayAccounts(for: key.providerID).map(\.account)
         let context = NotificationEvaluationContext(
             providerName: key.providerID.displayName,
             accountLabel: visible.count > 1 ? visible.first { $0.key == key }?.label : nil,
@@ -1158,13 +1217,18 @@ public final class UsageStore {
     }
 
     private func updateContinuityCache(_ snapshot: UsageSnapshot, for key: AccountKey) {
+        let saves: Bool
         if case .stale(let reason) = snapshot.freshness, reason.isPermanent {
-            continuityCache?.remove(for: key)
-        } else if !snapshot.windows.isEmpty {
+            saves = false
+        } else {
+            saves = !snapshot.windows.isEmpty
+        }
+        if saves {
             continuityCache?.save(snapshot, for: key)
         } else {
             continuityCache?.remove(for: key)
         }
+        defaultLoginDidUpdateContinuity(for: key, removed: !saves)
     }
 
     private func beginCapabilityRefresh(
@@ -1222,12 +1286,13 @@ public final class UsageStore {
         guard acceptsResult(for: key, attachmentGeneration: attachmentGenerations[key, default: 0]) else {
             return false
         }
-        guard snapshot(for: key).freshness == .live else { return false }
+        guard snapshot(for: key).freshness == .live, !isMergedAway(key) else { return false }
         return bankedResetAcknowledgements?.claimReveal(for: key, currentCount: currentCount) ?? false
     }
 
+    /// An engine row's snapshot, or a visible remembered row's aged last reading (U7).
     public func snapshot(for key: AccountKey) -> UsageSnapshot {
-        snapshots[key] ?? .pending(for: key.providerID)
+        snapshots[key] ?? rememberedDisplaySnapshots[key] ?? .pending(for: key.providerID)
     }
 
     /// Primary-account snapshot — the single-account view compact surfaces use.
@@ -1248,8 +1313,10 @@ public final class UsageStore {
         appDisplaySnapshot(for: primaryKey(for: id))
     }
 
+    /// KTD8: the display primary, which compact surfaces and the main-account widget
+    /// export follow.
     private func primaryKey(for id: ProviderID) -> AccountKey {
-        AccountKey(providerID: id, accountID: primaryAccount(for: id)?.id ?? .primary)
+        displayPrimaryKey(for: id) ?? AccountKey(providerID: id, accountID: .primary)
     }
 
     /// Popover display order: 5-hour leads, weekly second, model rows keep their
@@ -1313,16 +1380,7 @@ public final class UsageStore {
 
     private func filterCodexSparkCounters(from snapshot: UsageSnapshot, shouldShow: Bool) -> UsageSnapshot {
         guard snapshot.providerID == .codex, !shouldShow else { return snapshot }
-        return UsageSnapshot(
-            providerID: snapshot.providerID,
-            windows: snapshot.windows.filter { !$0.kind.isCodexSparkCounter },
-            planLabel: snapshot.planLabel,
-            accountEmail: snapshot.accountEmail,
-            bankedResets: snapshot.bankedResets,
-            codexResetCreditsField: snapshot.codexResetCreditsField,
-            capturedAt: snapshot.capturedAt,
-            freshness: snapshot.freshness
-        )
+        return snapshot.replacingWindows(snapshot.windows.filter { !$0.kind.isCodexSparkCounter })
     }
 
     /// The menu bar summary: selected percentage presentation in each provider's chosen
@@ -1408,8 +1466,8 @@ public final class UsageStore {
     }
 
     private func providerNeedsAttention(_ id: ProviderID) -> Bool {
-        accounts(for: id).contains { account in
-            if case .stale(let reason) = snapshots[account.key]?.freshness { return reason.isPermanent }
+        displayAccounts(for: id).contains { row in
+            if case .stale(let reason) = snapshot(for: row.key).freshness { return reason.isPermanent }
             return false
         }
     }
@@ -1461,8 +1519,9 @@ extension UsageStore: AccountProbeSchedulerHost {
         return enabledSurfaces.contains(surface)
     }
 
+    /// Engine side, following the merge map (KTD8): never a remembered row.
     func schedulerIsPrimary(_ key: AccountKey) -> Bool {
-        primaryAccount(for: key.providerID)?.key == key
+        displayProjection(for: key.providerID).isEnginePrimary(key)
     }
 
     func schedulerFreshness(for key: AccountKey) -> Freshness? {
@@ -1494,15 +1553,20 @@ extension UsageStore: AccountProbeSchedulerHost {
 
     func schedulerMerge(key: AccountKey, result: UsageProviderFetchResult, attachmentGeneration: UInt64) -> Bool {
         let notifiesSetup = result.capability == nil || result.capability == .available
+        let primaryBefore = primaryKey(for: key.providerID)
         let accepted = mergeResult(
             key: key, result: result, notifiesSetup: notifiesSetup, attachmentGeneration: attachmentGeneration
         )
         // KTD9 / R19: Mac widgets mirror the primary, so its merge exports at once instead
         // of waiting for every extra in the lane. iPhone parity KTD8 amends AE7: an extra's
         // merge now marks the phone path dirty too, but never reloads Mac WidgetKit
-        // timelines. A full refresh exports once at its end instead.
+        // timelines. A full refresh exports once at its end instead. U10: a reading that
+        // merges or unmerges the main account moves the display primary, so it reloads the
+        // widget once too.
         if accepted, fullRefreshDepth == 0 {
-            if primaryKey(for: key.providerID) == key { exportWidgetSnapshot() }
+            if primaryKey(for: key.providerID) == key || primaryKey(for: key.providerID) != primaryBefore {
+                exportWidgetSnapshot()
+            }
             exportPhoneSyncSnapshot()
         }
         return accepted

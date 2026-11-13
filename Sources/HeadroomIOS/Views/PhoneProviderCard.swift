@@ -26,6 +26,8 @@ enum PhoneCardMetrics {
     /// label-to-gauge step (Full's 7, minus the line box) under the row it explains.
     static let pastResetSize: CGFloat = 11
     static let pastResetGap: CGFloat = 4
+    /// Default-login R7: the "Last read …" tag takes the Mac identity row's 10pt email size.
+    static let lastReadSize: CGFloat = 10
 }
 
 /// What every card on one screen shares.
@@ -40,7 +42,8 @@ struct PhoneCardContext {
     let onTruncatedTitle: (DisclosedTitle) -> Void
 }
 
-/// The full resolved title handed to the disclosure sheet (U3 step 6). Never an email.
+/// The full resolved title handed to the disclosure sheet (U3 step 6): the Mac's
+/// displayed name, an email only when the Mac names the account by email (KTD9).
 struct DisclosedTitle: Identifiable, Equatable {
     let providerID: String
     let providerName: String
@@ -205,9 +208,25 @@ struct PhoneAccountSection: View {
                     DisclosedTitle(providerID: provider.id, providerName: provider.displayName, title: full))
             },
             onPlanCapsuleTap: hasBankedResets ? { isCapsuleOpen.toggle() } : nil,
-            accessibilityIdentifierPrefix: identifier
-        ) { slot in
-            ProviderLogoView(providerID: provider.id, slot: slot)
+            accessoryPlacement: .afterChips,
+            accessibilityIdentifierPrefix: identifier,
+            mark: { slot in
+                ProviderLogoView(providerID: provider.id, slot: slot)
+            },
+            accessory: { lastReadTag }
+        )
+    }
+
+    /// Default-login R7/R21: a remembered row says how long ago it was read, in the Mac's
+    /// words, where a stale row's chip would sit.
+    @ViewBuilder private var lastReadTag: some View {
+        if let label = CompanionCardPresentation.lastReadLabel(for: account, now: context.now) {
+            Text(label)
+                .font(.system(size: PhoneCardMetrics.lastReadSize * scale).monospacedDigit())
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .layoutPriority(1)
+                .accessibilityIdentifier("\(identifier).last-read")
         }
     }
 
@@ -233,8 +252,10 @@ struct PhoneAccountSection: View {
 
     private func meterRows(dimmed: Bool) -> some View {
         PhoneMeterRows(
-            rows: CompanionCardPresentation.meterRows(context.display.appWindows(account.windows), now: context.now),
+            rows: CompanionCardPresentation.meterRows(
+                context.display.appWindows(account.windows), now: context.now, isRemembered: account.isRemembered),
             display: context.display,
+            isRemembered: account.isRemembered,
             now: context.now,
             // KTD15: the surface's dimming and the account's own stale treatment are one
             // demotion; a stale row under a dimmed surface adds only its "Last known" state.
@@ -252,6 +273,7 @@ struct PhoneAccountSection: View {
 struct PhoneMeterRows: View {
     let rows: [CompanionMeterRow]
     let display: ResolvedPhoneDisplay
+    var isRemembered = false
     let now: Date
     let dimmed: Bool
     let identifierPrefix: String
@@ -268,12 +290,22 @@ struct PhoneMeterRows: View {
                     .font(.system(size: StatusSentence.size * scale, weight: .medium))
                     .foregroundStyle(.secondary)
             } else {
+                // Reset lines start at one x: their label column is the widest label among them.
+                let resetLabelPeers = rows.compactMap { row in
+                    CompanionCardPresentation.meterRowLayout(row, isRemembered: isRemembered, now: now)
+                        .resetNotReadLine == nil
+                        ? nil : UsageMeterReading(widgetSummary: row.window).window.kind.displayName
+                }
                 VStack(spacing: rowGap * scale) {
                     // RI1: rows keyed by kind (and occurrence), so a row that arrives or
                     // leaves fades instead of handing its neighbour another window's value.
                     ForEach(Self.keyed(rows.map(\.window)), id: \.key) { keyed in
-                        let pastResetAt = rows.first { $0.window.id == keyed.window.id }?.pastResetAt
-                        let isMuted = dimmed || !keyed.window.freshness.isLive
+                        let layout = CompanionCardPresentation.meterRowLayout(
+                            rows.first { $0.window.id == keyed.window.id }
+                                ?? CompanionMeterRow(window: keyed.window, pastResetAt: nil),
+                            isRemembered: isRemembered, now: now)
+                        // A remembered window past its reset is a reset note, not a reading.
+                        let isMuted = layout.showsMeter && (dimmed || !keyed.window.freshness.isLive)
                         VStack(alignment: .leading, spacing: PhoneCardMetrics.pastResetGap * scale) {
                             UsageBarView(
                                 reading: UsageMeterReading(widgetSummary: keyed.window),
@@ -282,14 +314,17 @@ struct PhoneMeterRows: View {
                                 meterStyle: display.meterStyle,
                                 dimmed: dimmed,
                                 arrivalKey: arrivalKey,
-                                scale: scale
+                                scale: scale,
+                                resetNotReadLine: layout.resetNotReadLine,
+                                showsWindowState: layout.showsWindowState
                             )
+                            .resetLine(peers: resetLabelPeers, compact: layout.resetNotReadCompactLine)
                             // Retained readings should look inactive beside live accounts;
                             // keep identity, recovery instructions and reset notes at full ink.
                             .saturation(isMuted ? 0 : 1)
                             .opacity(isMuted ? 0.6 : 1)
-                            if let pastResetAt {
-                                pastResetLine(pastResetAt, key: keyed.key)
+                            if let line = layout.pastResetLine {
+                                pastResetLine(line, key: keyed.key)
                             }
                         }
                         .transition(HeadroomMotion.fade(HeadroomMotion.valueSpring, reduceMotion: reduceMotion))
@@ -298,6 +333,12 @@ struct PhoneMeterRows: View {
                 .animation(
                     HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
                     value: rows.map(\.window.kind)
+                )
+                // A Full-style reset line is shorter than the meter it replaces, so the row
+                // closes when a remembered window's reset passes.
+                .animation(
+                    HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                    value: resetLabelPeers
                 )
             }
         }
@@ -310,8 +351,8 @@ struct PhoneMeterRows: View {
     }
 
     /// R11/AE6: the row already reads "—"; this says why, in the countdown's place and ink.
-    private func pastResetLine(_ resetAt: Date, key: String) -> some View {
-        Text(CompanionCardPresentation.pastResetLine(resetAt, now: now))
+    private func pastResetLine(_ line: String, key: String) -> some View {
+        Text(line)
             .font(.system(size: PhoneCardMetrics.pastResetSize * scale).monospacedDigit())
             .foregroundStyle(ProviderStyle.meterCountdownInk(scheme: scheme))
             .fixedSize(horizontal: false, vertical: true)

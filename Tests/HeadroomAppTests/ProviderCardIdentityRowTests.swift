@@ -619,6 +619,13 @@ struct RememberedRowPresentationTests {
         #expect(AccountSectionContent(freshness: .live, kind: .remembered, planRecovery: presentation) == .meters)
     }
 
+    /// D2: the approved row shows what the click does, after the sentence.
+    @Test func theNoPlanRowShowsItsActionAfterTheSentence() throws {
+        let presentation = try #require(UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: .opencode))
+        #expect(PlanStatusActionRow.message(for: presentation) == "No Go plan on this workspace. See\u{00A0}Go\u{00A0}Plans")
+        #expect(PlanStatusActionRow.rowLabel(for: presentation) == "See\u{00A0}Go\u{00A0}Plans")
+    }
+
     @Test func voiceOverSaysLastReadAndWhenForARememberedRow() {
         let shown = presentation(entry(.remembered, readAgo: 2 * 86_400))
         let label = IdentityRowText.accessibilityParts(

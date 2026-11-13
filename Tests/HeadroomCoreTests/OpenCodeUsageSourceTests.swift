@@ -915,9 +915,10 @@ struct OpenCodeUsageSourceProcessTests {
         let fake = try FakeOpenCode()
         defer { fake.remove() }
         try fake.set("usage", fixture: "nogo")
-        let source = fake.source(deadline: 1)
+        // A 1-second deadline made the ordinary runs time out on a loaded machine.
+        let source = fake.source(deadline: 4)
         #expect(await source.capture(home: .builtIn) == .noGoPlan)
-        try fake.hook("usage", pre: "sleep 5\n")
+        try fake.hook("usage", pre: "sleep 30\n")
         #expect(await source.capture(home: .builtIn) == .failed(.transient(.deadline)))
         try FileManager.default.removeItem(at: fake.directory.appendingPathComponent("usage.pre"))
         #expect(await source.capture(home: .builtIn) == .noGoPlan)

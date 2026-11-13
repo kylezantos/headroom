@@ -15,10 +15,13 @@ struct SharedAppState: TestTrait, SuiteTrait, TestScoping {
     func provideScope(for test: Test, testCase: Test.Case?,
                       performing function: @Sendable () async throws -> Void) async throws {
         await Self.gate.acquire()
+        print("SHARED_APP_SCOPE begin: \(test.name)")
         do {
             try await function()
+            print("SHARED_APP_SCOPE end: \(test.name)")
             await Self.gate.release()
         } catch {
+            print("SHARED_APP_SCOPE error: \(test.name)")
             await Self.gate.release()
             throw error
         }
@@ -64,6 +67,10 @@ private actor AppStateScopeProbe {
 
 @Suite(.sharedAppState)
 struct SharedAppStateFirstSuiteTests {
+    @MainActor @Test func ordinaryTestExcludesPeerSuite() async throws {
+        try await AppStateScopeProbe.shared.verifyExclusiveAccess()
+    }
+
     @Test(arguments: 0..<8) func excludesPeerSuiteAndCases(_ caseID: Int) async throws {
         try await AppStateScopeProbe.shared.verifyExclusiveAccess()
     }
@@ -71,6 +78,10 @@ struct SharedAppStateFirstSuiteTests {
 
 @Suite(.sharedAppState)
 struct SharedAppStateSecondSuiteTests {
+    @MainActor @Test func ordinaryTestExcludesPeerSuite() async throws {
+        try await AppStateScopeProbe.shared.verifyExclusiveAccess()
+    }
+
     @Test(arguments: 0..<8) func excludesPeerSuiteAndCases(_ caseID: Int) async throws {
         try await AppStateScopeProbe.shared.verifyExclusiveAccess()
     }

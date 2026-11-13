@@ -11,13 +11,20 @@ printed as halftone ghosts.
   converts them to sRGB, strips alpha and verifies with `sips`.
 - Listing order and copy: `docs/release/appstore-listing.md`.
 
+## Local fonts
+
+The exports use the maintainer's locally installed TX-02 Regular and Medium fonts. Install
+your licensed copies in macOS before previewing or exporting this set. The compositor resolves
+them by their installed names; no font files are distributed in this repository. The export
+script stops with an installation message if either face is unavailable.
+
 ## What's in `assets/`
 
 | Folder | What | Source |
 |---|---|---|
 | `captures/` | Simulator captures: Usage (multi-account), check-now receipt, widget styles wall, per device | "AppStore iPhone 17 Pro Max" and "AppStore iPad Pro 13" simulators, status bar 9:41 on 2026-01-13 |
 | `renders/` | Lock Screen inline, circle and rectangle widgets (Liquid Level, Claude/Codex) | `swift run Headroom --render-widgets <dir> --widget-family lock --widget-transparent`, via headroom-videos `kit/product/renders/lock` |
-| `brand/` | TX-02 (licensed: keep this repo private), app icon, star field | headroom-videos `kit/brand` |
+| `brand/` | App icon, star field | headroom-videos `kit/brand` |
 | `kit/` | `site-lib.js` (the site's halftone model), `headroom-kit.js` (draws the vessel), GSAP | headroom-videos `kit` |
 
 ## Refreshing captures

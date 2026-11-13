@@ -20,7 +20,7 @@ struct BrandMarkInkTests {
 
     private static let markFiles = [
         "claude-color", "codex-color", "cursor-dark", "cursor-light", "grok-dark", "grok-light",
-        "copilot-dark", "copilot-light",
+        "copilot-dark", "copilot-light", "opencode-dark", "opencode-light",
     ]
 
     /// The ink box as a fraction of the drawn image, plus the image's own aspect. Drawn into
@@ -80,7 +80,8 @@ struct BrandMarkInkTests {
     /// Grok and Cursor ship a light/dark pair. Both are the same path with a different fill,
     /// so their trimmed boxes must be identical — otherwise the mark would jump sideways
     /// when the appearance changes.
-    @Test(arguments: [("grok-light", "grok-dark"), ("cursor-light", "cursor-dark"), ("copilot-light", "copilot-dark")])
+    @Test(arguments: [("grok-light", "grok-dark"), ("cursor-light", "cursor-dark"), ("copilot-light", "copilot-dark"),
+        ("opencode-light", "opencode-dark")])
     func lightAndDarkPairsTrimToTheSameBox(_ pair: (String, String)) throws {
         let light = try Self.inkBox(of: pair.0)
         let dark = try Self.inkBox(of: pair.1)
@@ -100,6 +101,8 @@ struct BrandMarkInkTests {
         (ProviderID.grok.raw, "grok-light"),
         (ProviderID.cursor.raw, "cursor-light"),
         (ProviderID.copilot.raw, "copilot-light"),
+        (ProviderID.opencode.raw, "opencode-light"),
+        (ProviderID.opencode.raw, "opencode-dark"),
     ])
     func coreInkAspectMatchesTheShippedArtwork(_ pair: (String, String)) throws {
         let measured = try Self.inkBox(of: pair.1).aspect

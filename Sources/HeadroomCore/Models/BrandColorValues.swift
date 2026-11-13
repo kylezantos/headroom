@@ -146,6 +146,10 @@ public enum HeadroomBrandColorValues {
     /// GitHub draws the Copilot mark in black or white only, so it is a monochrome brand
     /// too, given a cooler neutral than Cursor's so the two read apart (U6, Copilot plan).
     public static let copilot = HeadroomRGBColor(red: 0.34, green: 0.37, blue: 0.43)
+    /// OpenCode publishes its mark in black or white only, so it is monochrome too. Its own
+    /// palette is a warm neutral (the mark's inner block is `#5A5858`), which keeps it apart
+    /// from Cursor's and Copilot's cooler neutrals (U6, OpenCode plan).
+    public static let opencode = HeadroomRGBColor(red: 0.35, green: 0.34, blue: 0.34)
 
     /// R2C13: the value ceiling for the two monochrome marks. Their artwork shipped at the
     /// numeral's own value (`#F5F5F7` dark / `#0D0D0F` light), which put Cursor's solid cube
@@ -257,6 +261,9 @@ public enum HeadroomWidgetColorValues {
         case (ProviderID.cursor.raw, true): HeadroomRGBColor(red: 0.81, green: 0.81, blue: 0.83)
         case (ProviderID.copilot.raw, false): HeadroomRGBColor(red: 0.18, green: 0.20, blue: 0.24)
         case (ProviderID.copilot.raw, true): HeadroomRGBColor(red: 0.79, green: 0.81, blue: 0.86)
+        // OpenCode: the warm neutral of its own palette, at Cursor's legible lightnesses.
+        case (ProviderID.opencode.raw, false): HeadroomRGBColor(red: 0.18, green: 0.17, blue: 0.17)
+        case (ProviderID.opencode.raw, true): HeadroomRGBColor(red: 0.82, green: 0.81, blue: 0.81)
         default: nil
         }
     }
@@ -784,6 +791,12 @@ public enum HeadroomBrandMark {
         // read as a cramped gap in the live five-provider popover. At 1.00 it is 13pt wide,
         // Claude's width, and the gap matches theirs.
         case ProviderID.copilot.raw: 1.00
+        // OpenCode 1.00 (Nov 2026): a solid 4:5 block, ~0.74 alpha-weighted coverage (the
+        // frame plus its translucent inner block), close to Codex's 0.70 but in a box only
+        // 0.8 as wide. Scored like Claude and Cursor above, it reads level with Codex and
+        // Cursor at 1.00, and its 10.4pt width leaves a wider title gap than Claude's, never
+        // the cramped one Copilot had.
+        case ProviderID.opencode.raw: 1.00
         default: 1.0
         }
     }
@@ -809,6 +822,8 @@ public enum HeadroomBrandMark {
         case ProviderID.cursor.raw: 21.0586 / 24.0
         // Copilot's head is wider than it is tall.
         case ProviderID.copilot.raw: 24.0 / 20.03
+        // OpenCode's block is a 4:5 portrait (its official 240 × 300 artboard is all ink).
+        case ProviderID.opencode.raw: 240.0 / 300.0
         default: 1.0
         }
     }

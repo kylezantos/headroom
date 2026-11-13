@@ -42,6 +42,7 @@
 		0932D0A2D16DFA3CF38F17D8 /* SignOutRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CC66F004B2B0C3284D9FA6D /* SignOutRecord.swift */; };
 		093B5AEA59CB9ADC0395BC7F /* AccountIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2C9AC8661811E08ACE95D61 /* AccountIdentity.swift */; };
 		09E47216BA8717CC62BC3449 /* CompanionStatusScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = DB790FB7609D11C1F9E66863 /* CompanionStatusScreen.swift */; };
+		0A3FB53646D269F4A4F5354A /* opencode-light.svg in Resources */ = {isa = PBXBuildFile; fileRef = 1024EB05099C953978E14E1C /* opencode-light.svg */; };
 		0A685B2041A3418A5897E50C /* UseItUpLedger.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA5074FABC08F35E2129E57B /* UseItUpLedger.swift */; };
 		0A7E6FC306A8B682679DB334 /* PlanCapsule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61976BDA86182356251A6D79 /* PlanCapsule.swift */; };
 		0B63C0DE1712F05B12FA7F40 /* CompanionSyncCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84C7D3F7DF2A6B4A32A7A494 /* CompanionSyncCodec.swift */; };
@@ -237,6 +238,7 @@
 		4F53646C65B38D4BC258D0F7 /* CompanionSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBF0EAE65138B3BD555EEACD /* CompanionSyncModels.swift */; };
 		5008B2F6E2EF64BBE31CBE01 /* DemoModeUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BE9F956D9F249904E8CE412 /* DemoModeUITests.swift */; };
 		5036E1FD85821EC2297B9BD5 /* UsageLeftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E4AC3EE1854DC187847EF4 /* UsageLeftIntent.swift */; };
+		506CBB0E409822DF4C35BF67 /* opencode-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = 643CAAB84FE1664F464691AC /* opencode-dark.svg */; };
 		5116532FC9BE6318359AE489 /* ProviderStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6FF1909CDDFAD43F6C9736 /* ProviderStyle.swift */; };
 		5272B3EA7F8B4ED5D53400F9 /* HeadroomIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */; };
 		53B77969880F815EE3C2FDC8 /* IdentityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137A0387F87A7EB3FE66ED83 /* IdentityRow.swift */; };
@@ -762,6 +764,7 @@
 		0E245E572B783FA763F21147 /* CopyFeedbackButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyFeedbackButton.swift; sourceTree = "<group>"; };
 		0E589BEF0402B980BC2CDE2C /* ProviderLogoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderLogoView.swift; sourceTree = "<group>"; };
 		0EEC15C0D8442A7F945EC6F0 /* AppearanceSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSection.swift; sourceTree = "<group>"; };
+		1024EB05099C953978E14E1C /* opencode-light.svg */ = {isa = PBXFileReference; path = "opencode-light.svg"; sourceTree = "<group>"; };
 		12CF08DF6A70B0CE97F1C590 /* ClaudeUsageCLIProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeUsageCLIProbe.swift; sourceTree = "<group>"; };
 		130BB6361A694CF7B316C2EA /* SettingsPanes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPanes.swift; sourceTree = "<group>"; };
 		137A0387F87A7EB3FE66ED83 /* IdentityRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IdentityRow.swift; sourceTree = "<group>"; };
@@ -883,6 +886,7 @@
 		628E11DE7E09C84361854B74 /* DemoAccountStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoAccountStorage.swift; sourceTree = "<group>"; };
 		6363CD7CEF7AE42AD7A72544 /* HeadroomWidgetLockScreenBody.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenBody.swift; sourceTree = "<group>"; };
 		63F64121B635592107146CA3 /* WidgetsGallerySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetsGallerySection.swift; sourceTree = "<group>"; };
+		643CAAB84FE1664F464691AC /* opencode-dark.svg */ = {isa = PBXFileReference; path = "opencode-dark.svg"; sourceTree = "<group>"; };
 		647B97436A2026E1B0F66065 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		64DC1DD9F2C0942F7561C239 /* PopoverTuning.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverTuning.swift; sourceTree = "<group>"; };
 		65084FF4FFAFB83B11B7601E /* DemoFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoFixture.swift; sourceTree = "<group>"; };
@@ -1592,6 +1596,8 @@
 				21DE6A53BF9F70EB068EA592 /* cursor-light.svg */,
 				CDC9199DC7DC96DF143A8480 /* grok-dark.svg */,
 				A8BCF00E1D1AB5149D047DD6 /* grok-light.svg */,
+				643CAAB84FE1664F464691AC /* opencode-dark.svg */,
+				1024EB05099C953978E14E1C /* opencode-light.svg */,
 				7422AF9B5364DACBD9ED1198 /* SOURCES.md */,
 			);
 			path = BrandIcons;
@@ -2008,6 +2014,8 @@
 				CA1A83C2FCF419EBC2ABECC1 /* cursor-light.svg in Resources */,
 				33F4E619E256E723243ED1B3 /* grok-dark.svg in Resources */,
 				8D777BAB94EF15B0531B099F /* grok-light.svg in Resources */,
+				506CBB0E409822DF4C35BF67 /* opencode-dark.svg in Resources */,
+				0A3FB53646D269F4A4F5354A /* opencode-light.svg in Resources */,
 				EF3B349C2E4C1D1A7DE56A6E /* vessel-app-icon.svg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

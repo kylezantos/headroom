@@ -14,6 +14,7 @@ public enum HeadroomWidgetStyle {
         case ProviderID.grok.raw: "GrokBrandIcon"
         case ProviderID.cursor.raw: "CursorBrandIcon"
         case ProviderID.copilot.raw: "CopilotBrandIcon"
+        case ProviderID.opencode.raw: "OpenCodeBrandIcon"
         default: nil
         }
     }
@@ -25,6 +26,7 @@ public enum HeadroomWidgetStyle {
         case ProviderID.grok.raw: return Color(widgetInk: HeadroomBrandColorValues.grok)
         case ProviderID.cursor.raw: return Color(widgetInk: HeadroomBrandColorValues.cursor)
         case ProviderID.copilot.raw: return Color(widgetInk: HeadroomBrandColorValues.copilot)
+        case ProviderID.opencode.raw: return Color(widgetInk: HeadroomBrandColorValues.opencode)
         default: return .secondary
         }
     }
@@ -42,6 +44,7 @@ public enum HeadroomWidgetStyle {
         case ProviderID.grok.raw: "atom"
         case ProviderID.cursor.raw: "cursorarrow"
         case ProviderID.copilot.raw: "person.2"
+        case ProviderID.opencode.raw: "rectangle.portrait"
         default: "circle.dashed"
         }
     }

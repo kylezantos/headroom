@@ -1419,7 +1419,7 @@ private final class GrokDeviceCodeSetupHarness {
 /// in both color schemes, rather than hitting the `default:` identity arm.
 @Suite struct ProviderStyleIdentityTests {
     @Test func everyRegisteredProviderHasABrandIdentity() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
             #expect(ProviderStyle.svgResourceName(for: id, scheme: .light) != nil, "\(id.raw) light mark")
             #expect(ProviderStyle.svgResourceName(for: id, scheme: .dark) != nil, "\(id.raw) dark mark")
             #expect(ProviderStyle.accent(for: id) != Color.secondary, "\(id.raw) accent")
@@ -1432,6 +1432,26 @@ private final class GrokDeviceCodeSetupHarness {
         #expect(ProviderStyle.svgResourceName(for: .grok, scheme: .dark) == "grok-dark")
         #expect(ProviderStyle.svgResourceName(for: .cursor, scheme: .light) == "cursor-light")
         #expect(ProviderStyle.svgResourceName(for: .cursor, scheme: .dark) == "cursor-dark")
+        #expect(ProviderStyle.svgResourceName(for: .copilot, scheme: .light) == "copilot-light")
+        #expect(ProviderStyle.svgResourceName(for: .copilot, scheme: .dark) == "copilot-dark")
+        #expect(ProviderStyle.svgResourceName(for: .opencode, scheme: .light) == "opencode-light")
+        #expect(ProviderStyle.svgResourceName(for: .opencode, scheme: .dark) == "opencode-dark")
+    }
+
+    /// U6 (OpenCode plan): the widget families and the Lock Screen read the asset catalog
+    /// through `HeadroomWidgetStyle`, a separate switch from `ProviderStyle`, so a provider
+    /// added to one and not the other would draw the dashed-circle fallback on the widgets.
+    @Test func widgetStyleResolvesEveryRegisteredProvidersMark() {
+        let expected: [(ProviderID, String)] = [
+            (.claude, "ClaudeBrandIcon"), (.codex, "CodexBrandIcon"), (.grok, "GrokBrandIcon"),
+            (.cursor, "CursorBrandIcon"), (.copilot, "CopilotBrandIcon"), (.opencode, "OpenCodeBrandIcon"),
+        ]
+        for (id, asset) in expected {
+            #expect(HeadroomWidgetStyle.assetName(for: id.raw) == asset, "\(id.raw) asset")
+            #expect(HeadroomWidgetStyle.accent(for: id.raw) != Color.secondary, "\(id.raw) accent")
+            #expect(HeadroomWidgetStyle.symbol(for: id.raw) != "circle.dashed", "\(id.raw) symbol")
+        }
+        #expect(HeadroomWidgetStyle.assetName(for: "unknown-provider") == nil)
     }
 }
 

@@ -23,6 +23,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandColorValues.grok == HeadroomRGBColor(red: 0.36, green: 0.40, blue: 0.46))
         #expect(HeadroomBrandColorValues.cursor == HeadroomRGBColor(red: 0.33, green: 0.34, blue: 0.38))
         #expect(HeadroomBrandColorValues.copilot == HeadroomRGBColor(red: 0.34, green: 0.37, blue: 0.43))
+        #expect(HeadroomBrandColorValues.opencode == HeadroomRGBColor(red: 0.35, green: 0.34, blue: 0.34))
     }
 
     /// R2C18: every Claude/Codex brand value is a stop on one constant-hue ramp — accent,
@@ -141,6 +142,42 @@ struct BrandColorValuesTests {
         }
     }
 
+    /// U6 (OpenCode plan): iOS and both widget families never call a light/dark lookup; they
+    /// read one imageset name and rely on its `luminosity` dark appearance. Each monochrome
+    /// imageset must therefore list the light file as its default and the dark file under the
+    /// dark appearance, and carry the same bytes as the Mac bundle copy.
+    @Test(arguments: [
+        ("GrokBrandIcon", "grok"), ("CursorBrandIcon", "cursor"),
+        ("CopilotBrandIcon", "copilot"), ("OpenCodeBrandIcon", "opencode"),
+    ])
+    func monochromeImagesetsPairTheirDarkFileUnderTheLuminosityAppearance(_ pair: (String, String)) throws {
+        let imageset = brandCatalogDirectory.appendingPathComponent("\(pair.0).imageset")
+        let contents = try Data(contentsOf: imageset.appendingPathComponent("Contents.json"))
+        struct Catalog: Decodable {
+            struct Appearance: Decodable { var appearance: String; var value: String }
+            struct Entry: Decodable { var filename: String?; var appearances: [Appearance]? }
+            struct Properties: Decodable { var preservesVector: Bool?
+                enum CodingKeys: String, CodingKey { case preservesVector = "preserves-vector-representation" } }
+            var images: [Entry]
+            var properties: Properties?
+        }
+        let catalog = try JSONDecoder().decode(Catalog.self, from: contents)
+        let plain = catalog.images.filter { ($0.appearances ?? []).isEmpty }
+        let dark = catalog.images.filter {
+            ($0.appearances ?? []).contains { $0.appearance == "luminosity" && $0.value == "dark" }
+        }
+        #expect(plain.map(\.filename) == ["\(pair.1)-light.svg"], "\(pair.0) default image")
+        #expect(dark.map(\.filename) == ["\(pair.1)-dark.svg"], "\(pair.0) dark image")
+        #expect(catalog.properties?.preservesVector == true, "\(pair.0) vector")
+
+        for variant in ["light", "dark"] {
+            let file = "\(pair.1)-\(variant).svg"
+            let catalogCopy = try Data(contentsOf: imageset.appendingPathComponent(file))
+            let bundleCopy = try Data(contentsOf: brandBundleDirectory.appendingPathComponent(file))
+            #expect(catalogCopy == bundleCopy, "\(file) differs between the Mac bundle and the asset catalog")
+        }
+    }
+
     /// R2C15: at critical the *track* takes the critical hue at a fixed lightness, because
     /// the fill's ink area shrinks exactly as severity rises. It is a tint, not a second
     /// value step (it stays close to the neutral track's lightness against the card), and the
@@ -214,6 +251,29 @@ struct BrandColorValuesTests {
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.cursor.raw, dark: true) == HeadroomRGBColor(red: 0.81, green: 0.81, blue: 0.83))
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.copilot.raw, dark: false) == HeadroomRGBColor(red: 0.18, green: 0.20, blue: 0.24))
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.copilot.raw, dark: true) == HeadroomRGBColor(red: 0.79, green: 0.81, blue: 0.86))
+        #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.opencode.raw, dark: false) == HeadroomRGBColor(red: 0.18, green: 0.17, blue: 0.17))
+        #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.opencode.raw, dark: true) == HeadroomRGBColor(red: 0.82, green: 0.81, blue: 0.81))
+    }
+
+    /// U6 (OpenCode plan): the OpenCode title accent clears WCAG AA small text on both raised
+    /// tile stops and every widget container stop, in each scheme.
+    @Test func opencodeTextAccentClearsSmallTextContrastOnEverySurface() throws {
+        for dark in [true, false] {
+            let accent = try #require(HeadroomWidgetColorValues.textAccent(for: ProviderID.opencode.raw, dark: dark))
+            for surface in raisedTileFillColors(dark: dark) + widgetContainerColors(dark: dark) {
+                let measured = contrastRatio(accent, surface)
+                #expect(measured >= 4.5, "opencode accent dark=\(dark): \(measured):1")
+            }
+        }
+    }
+
+    /// U6 (OpenCode plan): OpenCode's own palette is a warm neutral (its mark's inner block is
+    /// `#5A5858`), so its accent stays warm of Cursor's cool neutral and the two read apart.
+    @Test func opencodeAccentIsAWarmNeutralDistinctFromCursor() {
+        let opencode = HeadroomBrandColorValues.opencode
+        #expect(opencode.red >= opencode.blue)
+        #expect(opencode != HeadroomBrandColorValues.cursor)
+        #expect(HeadroomOKLCH(opencode).chroma < 0.02)
     }
 
     /// U6 (Copilot plan): the Copilot title accent clears WCAG AA small text on both raised
@@ -231,7 +291,7 @@ struct BrandColorValuesTests {
     /// Guards the P1 "grey-identity default arm" class of bug: every registered provider
     /// must resolve a real title accent (both schemes), not fall through to `.secondary`.
     @Test func everyRegisteredProviderHasABrandTextAccent() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: false) != nil, "\(id.raw) light")
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: true) != nil, "\(id.raw) dark")
         }
@@ -255,6 +315,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
         let corrections: [(ProviderID, Double)] = [
             (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03), (.copilot, 1.00),
+            (.opencode, 1.00),
         ]
         for (id, correction) in corrections {
             #expect(HeadroomBrandMark.massCorrection(for: id.raw) == correction, "\(id.raw) mass")
@@ -268,7 +329,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw) > 1)
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw) < 1)
         // Grok is the sparsest mark, Codex the densest, so they bound the table.
-        for id in [ProviderID.claude, .codex, .cursor, .copilot] {
+        for id in [ProviderID.claude, .codex, .cursor, .copilot, .opencode] {
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw)
                 >= HeadroomBrandMark.massCorrection(for: id.raw))
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw)
@@ -283,7 +344,7 @@ struct BrandColorValuesTests {
     /// 15pt slot, the aspect is preserved rather than padded back to square, and the shorter
     /// dimension is what shrinks (Grok's slash vertically, Cursor's cube horizontally).
     @Test func markSizeFitsTheLargerInkDimensionAndKeepsAspect() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
             let mark = HeadroomBrandMark.markSize(for: id.raw, slot: 15)
             let box = 13 * HeadroomBrandMark.massCorrection(for: id.raw)
             #expect(abs(max(mark.width, mark.height) - box) < 0.0001, "\(id.raw) larger dimension")
@@ -301,6 +362,10 @@ struct BrandColorValuesTests {
             < 13 * HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw))
         #expect(HeadroomBrandMark.markSize(for: ProviderID.cursor.raw, slot: 15).width
             < 13 * HeadroomBrandMark.massCorrection(for: ProviderID.cursor.raw))
+        // OpenCode's block is a 4:5 portrait: full height, 0.8 of it wide.
+        let opencode = HeadroomBrandMark.markSize(for: ProviderID.opencode.raw, slot: 15)
+        #expect(abs(opencode.height - 13) < 0.0001)
+        #expect(abs(opencode.width - 10.4) < 0.0001)
     }
 
     @Test func markSizeScalesLinearlyWithTheSlot() {
@@ -1005,7 +1070,14 @@ private func distance(_ lhs: HeadroomRGBColor, _ rhs: HeadroomRGBColor) -> Doubl
     max(abs(lhs.red - rhs.red), max(abs(lhs.green - rhs.green), abs(lhs.blue - rhs.blue)))
 }
 
-/// Both shipped copies of each monochrome mark: the SwiftPM resource bundle the Mac popover
+private let repositoryRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()   // HeadroomCoreTests
+    .deletingLastPathComponent()   // Tests
+    .deletingLastPathComponent()   // repo root
+private let brandBundleDirectory = repositoryRoot.appendingPathComponent("Sources/HeadroomApp/Resources/BrandIcons")
+private let brandCatalogDirectory = repositoryRoot.appendingPathComponent("Sources/HeadroomSharedResources/BrandIcons.xcassets")
+
+/// Both shipped copies of each monochrome mark:the SwiftPM resource bundle the Mac popover
 /// reads, and the asset catalog iOS and the widget families read (whose `luminosity` dark
 /// appearance pairing is what makes the light/dark pair adapt natively).
 private let monochromeMarkFiles: [(URL, Bool)] = {
@@ -1028,6 +1100,10 @@ private let monochromeMarkFiles: [(URL, Bool)] = {
         (appIcons.appendingPathComponent("copilot-light.svg"), false),
         (catalog.appendingPathComponent("CopilotBrandIcon.imageset/copilot-dark.svg"), true),
         (catalog.appendingPathComponent("CopilotBrandIcon.imageset/copilot-light.svg"), false),
+        (appIcons.appendingPathComponent("opencode-dark.svg"), true),
+        (appIcons.appendingPathComponent("opencode-light.svg"), false),
+        (catalog.appendingPathComponent("OpenCodeBrandIcon.imageset/opencode-dark.svg"), true),
+        (catalog.appendingPathComponent("OpenCodeBrandIcon.imageset/opencode-light.svg"), false),
     ]
 }()
 

@@ -6,6 +6,7 @@ import HeadroomCore
 /// SM3 → PS1: the live arranger shows a pending arrangement while the pointer is down and
 /// commits once, on drop, through the store's move/add/remove contract. These pin the pure
 /// decisions: where a card lands, where the others sit meanwhile, and what the drop writes.
+@Suite(.sharedAppState)
 struct MenuBarPillArrangerTests {
     private typealias Arranger = PillShelfModel
     private let ids: [ProviderID] = [.claude, .codex, ProviderID("grok"), ProviderID("cursor")]

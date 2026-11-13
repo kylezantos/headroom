@@ -5,6 +5,7 @@ import HeadroomCore
 
 /// `--bench-ui`'s pure pieces: the command line, and the order statistics its reports and
 /// JSON are built from.
+@Suite(.sharedAppState)
 struct UIBenchModelTests {
     private func parse(_ tail: String) throws -> UIBenchOptions {
         try UIBenchOptions.parse(["Headroom", "--bench-ui"] + tail.split(separator: " ").map(String.init))

@@ -15,13 +15,10 @@ struct SharedAppState: TestTrait, SuiteTrait, TestScoping {
     func provideScope(for test: Test, testCase: Test.Case?,
                       performing function: @Sendable () async throws -> Void) async throws {
         await Self.gate.acquire()
-        print("SHARED_APP_SCOPE begin: \(test.name)")
         do {
             try await function()
-            print("SHARED_APP_SCOPE end: \(test.name)")
             await Self.gate.release()
         } catch {
-            print("SHARED_APP_SCOPE error: \(test.name)")
             await Self.gate.release()
             throw error
         }

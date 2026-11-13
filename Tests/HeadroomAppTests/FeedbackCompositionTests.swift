@@ -6,6 +6,7 @@ import HeadroomCore
 /// Feedback plan R8: demos, the render and bench harnesses and this test host read no CLI
 /// versions and open no mail app from the Send Feedback row.
 @MainActor
+@Suite(.sharedAppState)
 struct FeedbackCompositionTests {
     @Test func onlyARealLaunchReadsCLIsAndOpensMail() {
         for arguments in [
@@ -27,6 +28,7 @@ struct FeedbackCompositionTests {
 }
 
 @MainActor
+@Suite(.sharedAppState)
 struct FeedbackMailTests {
     /// R8: an inert launch returns before reading CLIs or opening anything.
     @Test func inertLaunchesSkipWithoutOpeningMail() async {

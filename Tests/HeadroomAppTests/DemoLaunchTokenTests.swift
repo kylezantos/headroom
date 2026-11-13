@@ -6,6 +6,7 @@ import HeadroomCore
 /// The launch-time seams demo captures depend on: which UserDefaults domain a run may touch,
 /// and the two diagnostic style overrides.
 @MainActor
+@Suite(.sharedAppState)
 struct DemoLaunchTokenTests {
     // MARK: Isolated demo defaults
 

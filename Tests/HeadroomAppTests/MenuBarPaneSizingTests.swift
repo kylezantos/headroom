@@ -9,6 +9,7 @@ import HeadroomCore
 /// so its text wrapped a word per line there and demanded ~1,000pt: the split view outgrew
 /// the window, which centred it and clipped both columns' tops under the title bar.
 @MainActor
+@Suite(.sharedAppState)
 struct MenuBarPaneSizingTests {
     @Test func theMenuBarPaneDemandsNoMinimumHeight() {
         let suiteName = "co.zantos.headroom.menu-bar-sizing.\(UUID().uuidString)"

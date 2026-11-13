@@ -5,6 +5,7 @@ import HeadroomCore
 /// The multi-account capture once drew only Claude and Codex: Grok and Cursor surfaces default
 /// OFF and no spend providers were wired (BUGS.md, resolved Oct 2026).
 @MainActor
+@Suite(.sharedAppState)
 struct PopoverRenderHarnessStoreTests {
     @Test func envelopeShowsEveryProviderInTheFixture() {
         let store = PopoverRenderHarness.multiStore(for: .envelope)

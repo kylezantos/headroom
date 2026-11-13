@@ -257,6 +257,10 @@ that name. Still to do:
 - Evidence: `/tmp/headroom-16-vm-short-fresh.png`, `/tmp/headroom-16-vm-short-before.png`,
   `/tmp/headroom-16-vm-short-after.png`, `/tmp/headroom-16-vm-window.log`. Follow up by fitting
   the entire native window to the visible screen height and giving the cards the remaining room.
+- **Six providers (2026-11-12).** OpenCode adds a sixth card to `--demo six-providers`, so the
+  same gap applies with more content (not measured on the short display yet). The OpenCode plan
+  deferred the fix to this entry (R13) rather than solving it per provider count. Check
+  `six-providers` on the short display when this is fixed.
 
 ## SwiftPM tuning import warning (2026-10-13)
 
@@ -1365,3 +1369,100 @@ checklist: `docs/solutions/ui/swiftui-snappiness-offscreen-measurement-and-hot-s
   store with `apiSpendProviders: []`, so `spend-states` / `spend-retained` captures show only the
   provider cards, and the spend card (where the month-label formatter hot spot lived) is never
   rendered or measured there.
+
+## Cursor on-demand spend has no Settings switch (found 2026-11-04)
+
+`cursorAPI` is off by default and only the demo, harness and test paths turn it on. The API Spend
+pane builds its rows from `APIKeyProvider.allCases`, which has no Cursor entry
+(`Sources/HeadroomApp/UI/SettingsPanes.swift`), so `CursorOnDemandSpendProvider` can't be enabled
+in the real app. Add a key-free row to that pane.
+
+## RELEASE BLOCKER: OpenCode has no real Go reading yet (2026-11-12)
+
+Plan: `docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md`. Feasibility record:
+`docs/solutions/opencode-cli-usage-feasibility.md`.
+
+**Do not announce or release OpenCode until a real Go response replaces the stub-derived
+fixtures** in `Tests/HeadroomCoreTests/Fixtures/opencode/`. Every OpenCode result so far comes
+from the official 2.2.5 client against `Scripts/opencode-stub-console.py`, whose Go response
+shape is copied from OpenCode's public source, not from a real account. The live checks still
+open (plan U11 steps 2–5):
+
+- **Free Console account (Kyle).** Sign in through Headroom's real handoff and confirm the live
+  no-Go state. Record whether a new free account always has a workspace (KTD20), and how the
+  device page picks the workspace for a two-workspace account. Inspect the resulting OpenCode
+  log for tokens, workspace IDs and raw responses, and record its permissions and retention (the
+  file is world-readable).
+- **One paid Go month (Kyle, about $5).** Capture one real response by running the pinned client
+  by hand with stdout redirected under `.context/`, never through Headroom; sanitize it as the
+  fixture manifest describes and add it as a fixture; confirm all three windows and their resets
+  in the app. Record how quickly Go appears after purchase, what the usage read returns once the
+  subscription lapses (one 403 on the Go route reads as no Go plan, KTD4), and, if a window
+  reaches its limit, what Go does with requests and whether one limited window stops Go while the
+  others show room. Adjust the red limited sentence if needed.
+- **Kyle's built-in account.** Only when he chooses to run `opencode upgrade --major` on his own
+  install: afterwards recheck log rotation and coexistence with his own OpenCode in
+  `~/.local/share/opencode`.
+- **Live visual acceptance.** Ask Kyle first, then batch light and dark for `six-providers` on the
+  live `MenuBarExtra` in one short run, including the built-in sign-in confirmation dialog.
+
+Also unchecked until then: an extra account running with the user's real `HOME` (QA runs used a
+scratch `HOME`), and whether the real Console rotates refresh tokens on use, which would make an
+abandoned slow refresh (below) leave a stale token.
+
+## OpenCode: simultaneous client starts can fail with "database is locked" (2026-11-12)
+
+Three `--standalone` reads started at the same instant on one signed-in scratch home failed 3
+times in 30: the child server died with `SQLiteError: database is locked`, and the read printed
+"Standalone server exited before reporting readiness" on stdout with exit 1. During a 1.x home's
+first-contact schema migration the same race also failed with `UNIQUE constraint failed:
+migration.id`. Reads while `opencode serve` and a TUI already held the home passed 10 of 10, and a
+read started together with `opencode serve` passed 15 of 15.
+
+Accepted as is: Headroom's OpenCode lane is serial, so it never races itself, and the failure
+reads as temporarily unavailable (`serverStartFailed`) and retries at the next poll. The exposure
+is the user's own OpenCode starting in the same instant as a Headroom read on the built-in home.
+Not characterized: which process loses that race. Only Headroom's reads were counted, so a
+user's own OpenCode start failing because of a Headroom read is not ruled out. Recheck on the
+built-in home after Kyle upgrades.
+
+Related upstream limit found in the same checks: the client waits at most about 5 s for plugin
+activation, which includes a token refresh. A refresh or a user plugin slower than that fails the
+read ("Location plugins did not finish activating", transient), and a user with a permanently slow
+plugin would see "will retry" on every poll. No copy distinguishes that case yet.
+
+## OpenCode: phone write rate misses its target under interleaved pacing (2026-11-12)
+
+KTD16 of the OpenCode plan set a multi-20 average target of at most 6.5 key writes a minute with
+six providers (eight keys per flush at most). The publisher test meets it under its
+provider-by-provider pacing: 4.93 a minute, no minute above 6. Interleaving the four
+multi-account providers' reads, so every key changes every minute, measured 6.93 a minute with a
+busiest minute of 8 (`CompanionPublisherTests`, six-provider multi-20 test). Unresolved: either
+accept 7 as the six-provider target or coalesce harder. Real iCloud KVS throttling is still
+unmeasured (check-now latency spike).
+
+## OpenCode follow-ups (2026-11-12)
+
+- **No-Go on a medium home widget drops its label.** The large widget shows "No Go plan"; the
+  medium widget shows "— monthly left" without it, so the reason for the empty value is lost.
+- **iOS UI test provider lists predate Copilot and OpenCode.**
+  `Tests/HeadroomIOSUITests/LockScreenLayoutUITests.swift` loops over Claude, Codex, Grok and
+  Cursor only, and `ResponsiveLayoutUITests.swift`'s expected identifiers stop at Cursor. Derive
+  them from the known provider list.
+- **The limited sentence drops the time a week or more out.** `UsageLimitSentence` uses the shared
+  `ResetClockFormatter.phrase`, which prints "today/tomorrow/<weekday> at <time>" up to six days
+  out and a bare date ("Dec 1") beyond that. The plan's example read "until Dec 1, 9:00 AM". Kyle
+  to confirm the shared behavior is fine for a monthly window (changing it would change the
+  reminders too).
+- **Build 33 drawing OpenCode with generic art is unverified here.** KTD16 says build 33 reads
+  only the v3 key and draws an unknown provider with generic art; no test in this repo renders
+  that path, so it rests on the frozen decoder accepting the key, not on a look at the phone.
+- **KTD15's tie-break rules are an interpretation.** `CompactAccountRowRecipe.shownWindows`
+  treats an unavailable shown window as having the most room (it is replaced first), never
+  displaces a window that is itself at its limit, and keeps the chosen pair in source order. The
+  plan says "replacing the shown window with the most room" and nothing more. Kyle to confirm.
+- **OpenCode does not follow the default login.** Its readings carry no `AccountIdentity` (the
+  workspace block is never decoded, KTD19), so when the built-in home's Console login changes,
+  the row keeps its name and history. A metadata-only identity from `auth list` (connection
+  method plus an opaque credential digest) would be the candidate; it needs its own check that it
+  never reads a credential.

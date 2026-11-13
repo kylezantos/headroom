@@ -31,7 +31,7 @@ lives, which component does which job, and the rules for extending them.
    drop per 1.8s while waiting on the user, with a 0.45s fall and 0.6s ripple; no scale or
    opacity pulse. Slosh, print, ghost wipe, end hold and drain durations live in
    `HeadroomCore/Widgets/LoadingMotion.swift` (loading-language KTD21).
-7. **Provider parity** (AGENTS.md): styling reaches Claude, Codex, Grok, Cursor, and Copilot alike.
+7. **Provider parity** (AGENTS.md): styling reaches Claude, Codex, Grok, Cursor, Copilot, and OpenCode alike.
    Per-provider values go through `ProviderStyle`. Never special-case one provider's look inline.
 8. **Chrome is restrained and layered.** Low-alpha fill + faint ring + 1pt inset lip + 1pt
    shadow. Never a bright rim (keep it ≤ ~0.15 white in dark). Content tiles are never a

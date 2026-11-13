@@ -2,8 +2,8 @@
 
 A macOS menu bar app that shows how much of your AI-subscription usage remains — the
 5-hour and weekly windows, when each resets, and a manually-entered monthly renewal
-date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, **Cursor**, and **GitHub Copilot**,
-side by side.
+date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, **Cursor**, **GitHub Copilot**,
+and **OpenCode Go**, side by side.
 It can also show optional API dollar spend in a separate section for users who use
 metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium, and large
 glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +
@@ -52,6 +52,17 @@ Existing download, appcast, privacy, and release-note URLs stay unchanged.
   known with its age, and use from VS Code or github.com appears only once the CLI next
   records a quota snapshot or its server count catches up; until then the meter can show more
   room left than you have. Before the first reading the row shows its label with no number.
+- OpenCode: off by default; turn it on in Settings → Accounts. Shows the OpenCode Go 5-hour,
+  weekly and monthly windows for each Console account signed in to the official `opencode` CLI,
+  version 2.2 or newer. Headroom runs the CLI's own usage read
+  (`opencode api --standalone experimental.usage.limits`); the CLI makes the request to OpenCode,
+  and Headroom never reads an OpenCode credential, calls OpenCode itself, or sends a model
+  request. A window OpenCode reports as limited reads as fully used, and the popover card says
+  which limit is reached until when. A workspace without a Go plan says so, with a link to the
+  plans. An OpenCode 1.x install shows **About OpenCode 2** instead: going to 2.x is a one-way
+  upgrade of your OpenCode data, so Headroom never runs the usage read on 1.x and leaves the
+  upgrade to you. Each read adds an ordinary log entry to your OpenCode home. Phones need the
+  matching iPhone build to show OpenCode.
 
 > **First launch:** macOS asks "Headroom would like to access data from other apps" —
 > that's Headroom reading CLI-owned files and driving the official status surfaces. Click
@@ -66,13 +77,15 @@ Existing download, appcast, privacy, and release-note URLs stay unchanged.
 
 ## Multiple subscription accounts
 
-Headroom can show any number of Claude, Codex, and Grok subscriptions side by side, tested up to 20 per provider. Each account is refreshed on its own schedule, so one slow probe delays the others by at most one probe, and Settings → General shows when a provider's accounts run slower than the chosen interval.
-The built-in account keeps using the CLI's normal `~/.claude`, `~/.codex`, or `~/.grok`
-home, so existing installs need no migration. Additional accounts use Headroom-owned,
-owner-only config homes selected with `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, or `GROK_HOME`
-and sign in through the same official CLIs in Terminal; Headroom never copies one account's
-credentials into another home. Codex and Grok also offer device-code sign-in for each
-account. Cursor is deliberately single-account because Cursor Agent has no equivalent
+Headroom can show any number of Claude, Codex, Grok, and OpenCode subscriptions side by side, tested up to 20 per provider. Each account is refreshed on its own schedule, so one slow probe delays the others by at most one probe, and Settings → General shows when a provider's accounts run slower than the chosen interval.
+The built-in account keeps using the CLI's normal `~/.claude`, `~/.codex`, `~/.grok`, or
+`~/.local/share/opencode` home, so existing installs need no migration. Additional accounts use
+Headroom-owned, owner-only config homes selected with `CLAUDE_CONFIG_DIR`, `CODEX_HOME`,
+`GROK_HOME`, or (for OpenCode) the four `XDG_*_HOME` variables, and sign in through the same
+official CLIs in Terminal; Headroom never copies one account's credentials into another home.
+Codex and Grok also offer device-code sign-in for each account; OpenCode signs in with the
+Console device code. OpenCode reports only the active Console workspace, so track a second
+workspace as a second account. Cursor is deliberately single-account because Cursor Agent has no equivalent
 isolated config-home mechanism. Copilot is single-account too: its usage comes from the
 session logs of the CLI's default home, which a separate Headroom-owned home would never
 receive.
@@ -108,6 +121,7 @@ isolated home; running a plain command yourself targets the built-in account.
 | Grok | [Install Grok Build](https://x.ai/news/grok-build). Standard: `grok login`. Device code: `grok login --device-auth`. | `GROK_HOME` | `swift run Headroom --probe-grok` |
 | Cursor | [Install Cursor Agent](https://docs.cursor.com/en/cli/installation). Run `cursor-agent login`. Device-code and additional-account flows are unavailable. | None; one account only | `swift run Headroom --probe-cursor` |
 | Copilot | [Install Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli). Run `copilot login`; Headroom's Terminal handoff clears `COPILOT_HOME`, `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` and `GITHUB_TOKEN` first so it signs in to the default home it reads. "Couldn't read Copilot session logs" retries on its own; choose Check Now after fixing file access. A row with no number means no usage is recorded yet this month: run the CLI once. | None; one account only | `swift run Headroom --probe-copilot` |
+| OpenCode | [Install OpenCode](https://opencode.ai/docs/) 2.2 or newer (Homebrew's `opencode` and npm's `@opencode/cli` are 2.x; the `opencode.ai/install` script and npm's `opencode-ai` are still 1.x). Upgrade a 1.x install with `opencode upgrade --major`. Sign in with `opencode auth login opencode --method device`; for the built-in account Headroom asks first, because this adds a Console login to your own OpenCode and makes it the active one. "Go usage needs OpenCode 2.2 or newer" while a 2.x is installed means an older `opencode` comes first on your login shell's `PATH`. "Sign in to OpenCode Console to see Go usage" means only an API key is connected. Headroom ignores `OPENCODE_*` variables, including `OPENCODE_API_KEY`, and XDG settings from your shell profile. | `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` | `swift run Headroom --probe-opencode` (reads your default OpenCode home with the CLI on your `PATH`; on a 1.x home a 2.x CLI upgrades its data one way) |
 
 ### Where Headroom looks for the Claude CLI
 
@@ -417,7 +431,8 @@ HEADROOM_IOS_UPLOAD=1 \
 ## Status
 
 Working end-to-end: live Claude, Codex, Grok, Cursor, and Copilot subscription usage through their
-documented provider paths, optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
+documented provider paths (OpenCode Go is so far verified only against a local stub Console with
+the official client; a real Go reading is still to be checked), optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
 launch-at-login, the adaptive macOS popover,
 widget cache export, app icon, the bundled macOS widget extension, and the iPhone
 companion/widget targets with live Mac → iPhone iCloud sync. Widget design parity with the

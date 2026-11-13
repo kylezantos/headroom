@@ -6,8 +6,9 @@ changes.
 ## What this is
 
 A native macOS 15+ menu bar app (Swift 6 / SwiftUI) showing remaining AI-subscription
-usage — 5-hour and weekly windows, reset times, manual renewal dates — for **Claude** and
-**ChatGPT/Codex**, behind one provider abstraction so more can be added. Tahoe uses Liquid
+usage — 5-hour and weekly windows, reset times, manual renewal dates — for **Claude**,
+**ChatGPT/Codex**, Grok, Cursor, GitHub Copilot and OpenCode (Go), behind one provider
+abstraction so more can be added. Tahoe uses Liquid
 Glass; Sequoia uses a native material popover surface.
 
 ## Product principles (Sep 2026)
@@ -16,7 +17,7 @@ Glass; Sequoia uses a native material popover surface.
   reliably, and solidly as possible.** A growing number of people rely on Headroom to manage
   their usage; reliability and honesty of the numbers come before new surface area.
 - **Provider parity by default.** Any feature, enhancement, or behavior change applies to all
-  providers (Claude, Codex, Grok, Cursor, Copilot) and to every account of each, unless a provider's
+  providers (Claude, Codex, Grok, Cursor, Copilot, OpenCode) and to every account of each, unless a provider's
   transport or official-client boundary genuinely prevents it. When parity is not possible,
   say so explicitly in the plan, PR, or reply, with the reason, rather than silently scoping
   the change to one provider. "Cheap for this provider" is never a reason to leave it out.
@@ -48,8 +49,9 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
     `MeterStyle`/`MeterRecipe` rendering contract.
   - `Providers/` — `ClaudeProvider` (via `ClaudeUsageSource`), `ClaudeUsageCLIProbe`
     (openpty + posix_spawn), `ClaudeUsageParser`, `CodexProvider` (+ `UsageHTTPClient`,
-    DTOs), `CodexConnection`, shared login-shell `CLIExecutableResolver`, `RedirectBlocker`,
-    `AccountStorage` (per-account config homes).
+    DTOs), `CodexConnection`, the Grok, Cursor and Copilot sources, `OpenCodeProvider` (via
+    `OpenCodeUsageSource`, `OpenCodeConnection`), shared login-shell `CLIExecutableResolver`,
+    `RedirectBlocker`, `AccountStorage` (per-account config homes).
   - `Credentials/` — `CredentialStore` (Codex-only), `CodexAuthReader`, `Redaction`.
   - `Engine/` — `PollingEngine` (wake timer), `LaneSchedule` (pure cadence decisions),
     `AccountProbeScheduler` (per-lane due queue), `UsageStore` (`@MainActor @Observable`).
@@ -135,7 +137,7 @@ Widgets & iPhone previews the styles but never sets them. Plan:
 `HeadroomIOSLockScreenWidget` with its own `HeadroomLockScreenConfigurationIntent`, offers circle,
 rectangle and inline sizes on the iPhone and iPad Lock Screens. Edit Widget offers **Style** (the
 same four names, default **Liquid Level**) and **Provider** (Automatic, Claude, Codex, Grok,
-Cursor, Copilot); there is no Color. Each style draws one approved design per size
+Cursor, Copilot, OpenCode); there is no Color. Each style draws one approved design per size
 (`design/lock-screen-widget-ideas.html`). Every decision — which provider (circle: home R6 pick;
 rectangle and inline: the two widget providers; Tightest First on Automatic: every synced provider),
 the R8 state order, captions, Cursor pool names, demo labels, status forms, inline text candidates
@@ -200,14 +202,19 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
   once per chosen interval; status, account set, main account, titles, display block, intervals
   and widget selection force an immediate flush. Change detection ignores timestamps, but a key is
   rewritten once any observation in it advances by a chosen interval, so "Updated" stays honest.
-  The publisher test at multi-20 on a 2-minute interval averages about 5.4 key writes a minute
-  (target ≤ 6, no single minute above 7, KTD12 of the Copilot plan); real iCloud throttling is
-  unmeasured until the check-now spike runs.
+  With six providers one flush writes at most eight keys (KTD16 of the OpenCode plan, replacing
+  the Copilot plan's seven). The multi-20 publisher test with OpenCode's 20 accounts as the sixth
+  provider, on a 2-minute interval, averages 4.93 key writes a minute with no minute above 6 under
+  the test's provider-by-provider pacing. Interleaving the multi-account providers' reads, so every
+  key changes every minute, measured 6.93 a minute with a busiest minute of 8: above the plan's
+  6.5 average target, and unresolved (BUGS.md). Real iCloud throttling is unmeasured until the
+  check-now spike runs.
 - **Budget ladder (KTD7).** `CompanionPayloadBudget` measures the whole v4 namespace before
   every write (requests and receipt included): 15,000 bytes per provider key, 64,000 for the set.
   Level 1 drops extra accounts' model rows; level 2 caps extras only above 20 per provider. Over
   budget after that, the publisher writes nothing and keeps the last good content. Multi-20 with
-  Spark rows and the single Copilot account measures 27,878 bytes at level 0.
+  Spark rows, the single Copilot account and 20 OpenCode accounts measures 35,124 bytes at level
+  0. OpenCode's monthly window is a window, not a model row, so level 1 keeps it.
 - **Sync off sweeps.** The disabled v3 envelope, then a two-field manifest tombstone, then every
   other key under the namespace. The sweep repeats on every launch while sync is off, which also
   repairs keys a downgraded 1.4.1 Mac cannot delete. Diagnostics (key names and sizes, ladder
@@ -220,7 +227,7 @@ fallback, is in `docs/plans/2026-10-04-ios-parity-sync-field-contract.md`. Durab
 
 ### Multi-account (Jul 2026)
 
-Claude, Codex, and Grok each carry any number of signed-in accounts up to a **tested
+Claude, Codex, Grok and OpenCode each carry any number of signed-in accounts up to a **tested
 envelope** of 20 (`AccountRegistry.testedEnvelope`, Sep 2026 — the bound the suites and the
 `multi-20` demo exercise, not an advertised limit); Cursor is deliberately
 single-account because its CLI exposes no isolated config-home mechanism, and Copilot is
@@ -228,12 +235,16 @@ single-account because a Headroom-owned `COPILOT_HOME` would never receive the s
 its meter reads. Snapshots are keyed
 by `AccountKey` (provider + account); one `UsageProvider` instance exists per account. The
 **built-in** `.primary` account reads the CLI's default config (`~/.claude`, `~/.codex`,
-`~/.grok`) exactly as before — zero migration for existing installs. **Extra** accounts get
+`~/.grok`, `~/.local/share/opencode`) exactly as before — zero migration for existing installs. **Extra** accounts get
 Headroom-owned config homes under `~/Library/Application Support/Headroom/Accounts/…` and
 route the same compliant paths there: the Claude probe runs with `CLAUDE_CONFIG_DIR` set,
 Codex reads the `auth.json` that official `codex login` wrote under that account's
-`CODEX_HOME`, and Grok reads the `auth.json` that `grok login` wrote under `GROK_HOME`.
-Codex and Grok offer account-scoped device-code handoffs as well as standard login. Sign-in
+`CODEX_HOME`, Grok reads the `auth.json` that `grok login` wrote under `GROK_HOME`, and
+OpenCode's usage read runs with `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME` and
+`XDG_STATE_HOME` pointed at `…/Accounts/opencode/<id>/{data,config,cache,state}` (all four, so
+the refresh lock under state always pairs with its data; the built-in account unsets all four).
+Codex and Grok offer account-scoped device-code handoffs as well as standard login; OpenCode's
+only sign-in is the Console device-code flow. Sign-in
 is always a Terminal handoff to the official CLI
 through the account-scoped `SetupSessionCoordinator` — the OAuth
 constraint above applies to every account. An abandoned handoff can be force-cancelled with
@@ -251,7 +262,9 @@ waiting is bounded by a 5-minute timeout whose **Try Again** fronts the open Ter
 resumes. **Open Claude Workspace** (purpose `.trust`), an unreadable CLI version, and an extra
 account below the print-mode floor keep the `interactive` bare launch, which is polled after
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
-Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder.
+Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder. OpenCode's sign-in and
+reset scripts, like Claude's Sign In, end with the login's own status and complete on process
+exit with the same 5-minute timeout (a device login can outlast the ladder).
 
 **Follow the default login (Nov 2026,
 `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`).** Every Claude, Codex, Grok, Cursor and
@@ -274,6 +287,10 @@ kept in the record store and return if that account does. Parity, forced by what
 | Cursor | email from `status`, weak | No (the read runs beside the capture) | Yes | No |
 | Copilot | login, weak, up to an hour old | No | Yes | No |
 | Claude | `accountUuid` + `organizationUuid` from `.claude.json`, strong | Yes | Yes | Yes |
+
+OpenCode is not in this table: its readings carry no identity yet (the usage read's workspace
+block is never decoded, KTD19 of the OpenCode plan), so a change of the built-in home's Console
+login is not followed. Tracked in BUGS.md.
 
 **One row for one account (Phase 3).** When the default login is the same account as exactly
 one added account, every display surface shows one row for the pair: the added account's row
@@ -371,11 +388,12 @@ xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS -destination 'platfor
 ./Scripts/build-app.sh --deps-only && xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests -destination 'platform=macOS' -derivedDataPath ./.xcode-derived test
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
+swift run Headroom --probe-opencode [--opencode-home <dir>] [--opencode-executable <path>]  # one OpenCode usage read: parsed windows or the outcome name only. Without --opencode-home it reads the built-in default home (a 2.x client migrates a 1.x home one way: never run it bare on a home that must stay 1.x). --opencode-executable is DEBUG-only and needs --opencode-home; see docs/solutions/opencode-cli-usage-feasibility.md
 Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
 swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width; `--render-scenario remembered` poses remembered rows, `--render-scenario merged` the one-row merge
-swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|copilot-no-reading|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|six-providers|copilot-no-reading|opencode-no-go|opencode-update|opencode-limited|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; six-providers is the every-provider demo (five-providers stays the five before OpenCode); opencode-no-go, opencode-update and opencode-limited pose the no-Go card, the update-required state and a limited monthly window; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
@@ -564,7 +582,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   poll aggressively. **Polling is per account, not per sweep (Sep 2026).** Every account has
   its own due time (last attempt + the chosen interval, with growing backoff after transient
   failures and a four-interval wait for never-signed-in extras); each CLI lane (Claude, Grok,
-  Cursor, Copilot) drains one probe at a time, primary first then most overdue, behind a **measured
+  Cursor, Copilot, OpenCode) drains one probe at a time, primary first then most overdue, behind a **measured
   duty-cycle gate** — timer probes start only while the lane has been busy for at most half of
   the trailing window of twice the chosen interval. Codex's HTTP lane fetches its due accounts
   concurrently and is not gated. User actions (Refresh, Check Now, Try Again, Make Main, setup
@@ -585,7 +603,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   covers them, so add a case there with any new phone-visible setting.
 - **Per-account isolation is env-var based and verified**: a fresh `CLAUDE_CONFIG_DIR`
   reports "Not logged in · Please run /login" and a fresh `CODEX_HOME` reports "Not
-  logged in"; a fresh `GROK_HOME` is isolated the same way. The CLIs never fall back to
+  logged in"; a fresh `GROK_HOME` is isolated the same way, and a fresh OpenCode home (all four
+  XDG variables set) reads `data: null`, signed out, while a signed-in one reads only its own
+  workspace. The CLIs never fall back to
   the default login. Don't "simplify" account
   probes by dropping the env override; that would silently read the wrong account.
 - **Provider capability stays separate from account login state.** `UsageStore` withholds
@@ -650,10 +670,12 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   `ColorScheme` (`ProviderStyle.svgResourceName(for:scheme:)` → `grok-light`/`grok-dark`,
   `cursor-*`), and the `BrandIcons.xcassets` imagesets carry a `luminosity` dark appearance
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
-  first-pass identity (Phase 2 owns visual density). The every-provider demo is
-  `--demo five-providers` (popover) / the `fiveProviders` `DemoScreenshotData` variant (iOS
-  widget and the Lock Screen demo); `multi-4` and `fourProviders` keep the four providers before
-  Copilot. `multi-5` means five accounts, not five providers.
+  first-pass identity (Phase 2 owns visual density). OpenCode's mark is monochrome too and ships
+  the same pair (`opencode-light`/`opencode-dark`). The every-provider demo is
+  `--demo six-providers` (popover) / the `sixProviders` `DemoScreenshotData` and companion demo
+  variant (iOS widget and the Lock Screen demo); `five-providers`/`fiveProviders` keep the five
+  providers before OpenCode, and `multi-4`/`fourProviders` the four before Copilot. `multi-5`
+  means five accounts, not five providers.
 - Copilot reads the official CLI's own output and never sends a prompt (Nov 2026).
   `CopilotProvider` combines two things the official `copilot` CLI produces: the
   `session.usage_record` and `quotaSnapshots` events in its session logs under
@@ -680,6 +702,61 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
     after the newest log or server evidence, and reminders never evaluate stale rows.
   - Use from other clients (VS Code, github.com) is missing until a quota snapshot or a server
     reading includes it, so the meter can overstate the room left.
+- **OpenCode reads the official 2.x client's own usage read and nothing else (Nov 2026).**
+  `OpenCodeCLIUsageSource` runs `opencode api --standalone experimental.usage.limits` and parses
+  its one JSON line: Go's `rolling`, `weekly` and `monthly` windows, mapped by name to 5-hour,
+  weekly and `.billingPeriod("Monthly", 30 d)`, with `resetsAt` in milliseconds. The client makes
+  the Console requests; Headroom never reads OpenCode's credential store, never calls
+  `opencode.ai` itself, never runs `opencode service`, never runs `opencode auth export`, and never
+  runs any `opencode api` operation other than the usage read and the operation list
+  (`api --standalone GET /openapi.json`, only after an exit-1 run with empty stdout). The one
+  other read is `auth list --standalone --format json` after a `data: null` reading, decoding only
+  each connection's `type` and `method`. `OpenCodeCommand` is that closed set; keep it closed.
+  Rules that are load-bearing:
+  - Every server-backed command passes `--standalone` (a private child server on 127.0.0.1 that
+    refuses any request without its per-run password). Only `--version` runs without it.
+  - The floor is 2.2.0. Below it Headroom shows "Go usage needs OpenCode 2.2 or newer" with
+    **About OpenCode 2** and never runs `api` or `auth`: on 1.x they fall through to the TUI.
+    Even a 1.x `--version` writes to its home, and a 2.x client migrates a 1.x home one way, so
+    never point a 2.x binary at a real 1.x home in testing.
+  - Classify from exit status and stdout only (`OpenCodeUsageClassifier`); stderr is discarded.
+    Error messages match fixed phrases pinned to captured fixtures, and every unmatched case is
+    transient, never a sign-in prompt. The message carries the Console URL: never log or show it.
+  - Every spawn clears all inherited `OPENCODE_*` and XDG variables, then sets only
+    `OPENCODE_DISABLE_MODELS_FETCH=1`, `OPENCODE_DISABLE_AUTOUPDATE=1`, the account's four XDG
+    values and the login PATH, from a working folder outside any git repo. The sign-in script
+    shares that rule (`OpenCodeCLI.shellEnvironmentLines`). A user who signs in only through
+    `OPENCODE_API_KEY` therefore reads as signed out.
+  - A workspace without Go is a `.live` reading with one unavailable Monthly row and
+    `planStatus = .noActivePlan`: setup completes, the card shows "No Go plan on this workspace"
+    with **See Go Plans** and no meter, and the phone shows the plan name "No Go plan".
+  - `limited: true` forces a window to 100% used. The Standard card adds a red
+    `UsageLimitSentence` for a live limited window with a future reset; it never says what Go does
+    at a limit. Compact (KTD15, every provider): a live or stale window at 100% takes a shown slot
+    from the shown window with the most room, and the row stays one line; a usage state never
+    switches it to the Standard section.
+  - Every built-in sign-in path (Sign In, Sign In Again, Try Again, Sign Out & Set Up Again) shows
+    `BuiltInSignInConfirmation` first, every time, because it adds a Console login to the user's
+    own OpenCode and makes it active (a saved key stays saved). Extra accounts never ask.
+  - The DEBUG-only `--opencode-executable <path>` reaches extra accounts and a probe with
+    `--opencode-home`, never the built-in home. Agents test with the official client against
+    `Scripts/opencode-stub-console.py` in scratch homes made by `Scripts/opencode-qa-home.sh`
+    (pinned 2.2.5, SHA-256 checked); demos, harnesses and the XCTest host never start the client
+    (`AppComposition.usesInertOpenCode`).
+  - The response carries a workspace ID, name and Console URL; none is decoded, stored or shown
+    (KTD19), and the privacy policy says so. Each built-in poll leaves OpenCode's normal log entry
+    in `~/.local/share/opencode`.
+  OpenCode reaches the phone, widgets, the Lock Screen provider choice and Siri like the others;
+  phones need the paired iOS build to show it. **The fixtures are stub-derived: OpenCode must not
+  be announced or released until a real Go response replaces them** (BUGS.md). Re-diagnose with
+  `--probe-opencode`; see `docs/solutions/opencode-cli-usage-feasibility.md` and
+  `docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md`. Parity exceptions:
+  - No API spend entry (D1): OpenCode exposes no pay-as-you-go balance.
+  - One workspace per home: the client reports only the active Console workspace, so a second
+    workspace is a second Headroom account.
+  - No limited sentence on the phone: the sync format carries no limited flag, so a limited window
+    reaches the phone, widgets and Lock Screen as 100% used with its reset.
+  - No default-login identity yet (see the table above).
 - **The menu bar sloshes and prints its first live reading (Oct 2026).** A pill's liquid surface travels
   while its provider's main account is being probed, timer polls included
   (`UsageStore.menuBarUpdatingProviders` → `MenuBarSlosh` → `VesselGlyph` wave frames). The

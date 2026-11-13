@@ -21,4 +21,5 @@ you agree to the following:
    permission or they have waived those rights.
 6. **No warranty.** You provide your contribution as is, without warranties of any kind.
 
-You sign this agreement once, by following the CLA Assistant prompt on your first pull request.
+On your first pull request, confirm in its description that you have read and agree to this
+agreement. The maintainer checks this manually; no third-party signing service is used.

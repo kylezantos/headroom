@@ -13,4 +13,5 @@
 For UI changes, add before and after screenshots in light and dark. -->
 
 - [ ] I've read [CONTRIBUTING.md](../CONTRIBUTING.md).
+- [ ] I have read and agree to the [Contributor License Agreement](../CLA.md).
 - [ ] This doesn't read or reuse any provider's sign-in tokens (see "The one rule" in CONTRIBUTING.md).

@@ -83,9 +83,9 @@ A few rules that come up in almost every change:
   uses, such as `fix(codex): read the weekly window on the prolite plan`.
 - Fill in the template: what happened, the fix, and what you ran.
 - Never commit API keys, account emails, CLI auth files or real `/usage` captures. Redact fixtures.
-- On your first pull request, the CLA Assistant bot asks you to sign the
-  [Contributor License Agreement](CLA.md). It's a one-time click. It lets the maintainer keep
-  shipping Headroom on the App Store, which the GPL alone doesn't allow.
+- On your first pull request, confirm in its description that you have read and agree to the
+  [Contributor License Agreement](CLA.md). The maintainer checks this manually. It lets the
+  maintainer keep shipping Headroom on the App Store, which the GPL alone doesn't allow.
 
 ## License and name
 

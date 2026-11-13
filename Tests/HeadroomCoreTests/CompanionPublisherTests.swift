@@ -768,6 +768,97 @@ struct CompanionPublisherTests {
         #expect((setsPerMinute.max() ?? 0) <= 7)
     }
 
+    /// KTD16 (OpenCode plan): the multi-20 envelope with OpenCode as a sixth provider at a
+    /// 2-minute interval. Claude, Codex, Grok and OpenCode carry 20 accounts each (OpenCode
+    /// with its three windows), Cursor and Copilot one: 82 accounts, so a merge lands about
+    /// every 1.5 seconds (82 per 120 s), numbers changing on most merges, for 30 simulated
+    /// minutes. Six provider keys, the manifest and v3 make eight in one flush, so a single
+    /// minute can hold one eight-key flush; the average stays at 6.5 or under. Accounts are
+    /// read provider by provider, as in the five-provider test above. Interleaving the four
+    /// multi-account providers instead (every key changing every minute) measured 6.93 a
+    /// minute with no minute above 8 (2026-11-12), so the 6.5 average holds for this pacing only.
+    @Test func sixProvidersAtMultiTwentyAndATwoMinuteIntervalStayAtOrUnderSixAndAHalfWritesPerMinute() async throws {
+        let h = Harness()
+        await h.bindHeartbeat()
+        var captured: [String: [Int64]] = [:]
+        var remaining: [String: [Double]] = [:]
+        let ids = ["claude", "codex", "grok", "opencode"]
+        for id in ids {
+            captured[id] = Array(repeating: 0, count: 20)
+            remaining[id] = (0..<20).map { Double($0) + 10 }
+        }
+        func extraRows(_ id: String) -> [CompanionSlimWindow] {
+            switch id {
+            case "codex": [Self.row(.other, name: "GPT-5.3-Codex-Spark 5h", spark: true)]
+            case "opencode":
+                [F.window(.billingPeriod, name: "Monthly", duration: 2_592_000, remaining: 70, utilization: 30)]
+            default: []
+            }
+        }
+        func state(at t: Int64) -> CompanionPublishCapture {
+            var providers = ids.map { id in
+                let accounts = (0..<20).map { i in
+                    Self.account(
+                        i == 0 ? "primary" : "\(id)-\(i)", title: "Account \(i + 1)",
+                        captured: captured[id]![i], remaining: remaining[id]![i], extraRows: extraRows(id))
+                }
+                return Self.provider(id, main: accounts[0], extras: Array(accounts.dropFirst()))
+            }
+            providers.insert(Self.provider("cursor", main: Self.account(captured: t)), at: 3)
+            providers.insert(Self.provider("copilot", main: Self.account(captured: t)), at: 4)
+            return Self.capture(at: t, providers: providers)
+        }
+        await h.submit(state(at: 0))
+        h.store.clearLog()
+
+        let cycle = ids.count * 20 + 2
+        var setsPerMinute: [Int] = []
+        var lastCount = 0
+        var flushSizes: [Int] = []
+        var before = 0
+        var merges = 0
+        for second in 1...1_800 {
+            let t = Int64(second)
+            let due = second * cycle / 120
+            if merges < due {
+                while merges < due {
+                    let slot = merges % cycle
+                    merges += 1
+                    if slot < ids.count * 20 {
+                        let id = ids[slot / 20]
+                        let index = slot % 20
+                        captured[id]![index] = t
+                        if merges % 3 != 0 { remaining[id]![index] = Double((merges * 7) % 100) }
+                    }
+                }
+                h.state = state(at: t)
+                await h.advance(1)
+                await h.submit(state(at: t))
+            } else {
+                await h.advance(1)
+            }
+            let count = h.store.setCount
+            if count > before { flushSizes.append(count - before) }
+            before = count
+            if second % 60 == 0 {
+                setsPerMinute.append(count - lastCount)
+                lastCount = count
+            }
+        }
+        let average = Double(h.store.setCount) / 30
+        print("U8-WRITE-RATE merges=\(merges) total=\(h.store.setCount) average=\(average) max=\(setsPerMinute.max() ?? 0) maxFlush=\(flushSizes.max() ?? 0)")
+        var perKey: [String: Int] = [:]
+        for case .set(let key) in h.store.operations { perKey[key, default: 0] += 1 }
+        print("U8-WRITE-RATE keys=\(perKey.sorted { $0.key < $1.key }.map { "\($0.key.split(separator: ".").last!)=\($0.value)" })")
+        #expect(merges >= 1_200)
+        // The sixth provider really is in the flushes: its accounts change in one stretch of
+        // each 2-minute pass, so its key is rewritten about every other flush.
+        #expect((perKey[CompanionSyncKeys.provider("opencode")!] ?? 0) >= 14)
+        #expect(flushSizes.allSatisfy { $0 <= 8 })
+        #expect(average <= 6.5)
+        #expect((setsPerMinute.max() ?? 0) <= 8)
+    }
+
     /// Default-login R12 (review #19): an extra becoming remembered, or returning, changes
     /// only its flag, and that change must reach the phone, so the change fingerprint keeps it.
     @Test func aRememberedFlagChangeAloneChangesTheFingerprint() throws {

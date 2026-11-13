@@ -32,7 +32,7 @@ public struct CompanionSnapshotLoader: Sendable {
         guard let capture = cache.captureScope() else { return Self.unavailable }
         let manifest = store?.data(forKey: CompanionSyncKeys.manifest)
         var providerKeys: [String: Data] = [:]
-        for id in CompanionSyncKeys.knownProviderIDs {
+        for id in CompanionSyncKeys.readerKnownProviderIDs {
             if let key = CompanionSyncKeys.provider(id), let data = store?.data(forKey: key) {
                 providerKeys[id] = data
             }

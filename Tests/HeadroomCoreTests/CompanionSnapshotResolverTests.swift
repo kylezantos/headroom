@@ -572,4 +572,59 @@ struct CompanionSnapshotResolverTests {
             #expect(content.providers.first?.showsWaitingForMac(surfaceDimmed: dimmed) == false)
         }
     }
+
+    // MARK: A phone build that predates OpenCode (OpenCode plan KTD16)
+
+    /// The known-provider list of the phone build shipped before OpenCode (build 44).
+    static let build44KnownProviderIDs = ["claude", "codex", "grok", "cursor", "copilot"]
+
+    /// KTD16: a v4 phone build without `opencode` in its known list skips the OpenCode key
+    /// and its manifest entry without error, shows every other provider in full with no
+    /// compatibility notice, still counts the manifest assembled, and drops an OpenCode
+    /// "last landed" leaf rather than the receipt. The paired build reads the same publish
+    /// in full.
+    @Test func aBuildThatPredatesOpenCodeSkipsItsKeyWithoutError() throws {
+        let claude = F.bytes(F.payload(generation: 4))
+        let opencode = F.bytes(F.payload(
+            "opencode", generation: 6,
+            main: F.account(plan: "No Go plan", windows: [
+                F.window(.billingPeriod, name: "Monthly", duration: 2_592_000, remaining: 100, utilization: 0,
+                         resetAt: nil, freshness: .unavailable, observed: F.date(), since: F.date(-86_400)),
+            ])))
+        let manifest = F.manifest(
+            generation: 9, order: ["claude", "opencode"],
+            entries: ["claude": F.entry(claude, generation: 4), "opencode": F.entry(opencode, generation: 6)],
+            selection: ["opencode", "claude"])
+        let keys = ["claude": claude, "opencode": opencode]
+        let receipt = try CompanionReceipt(
+            sourceID: F.macA, state: .running, requestIDs: [UUID().uuidString], startedAt: F.date(-5),
+            total: 2, completed: 1,
+            lastLanded: CompanionLastLanded(providerID: "opencode", accountID: "primary", live: true))
+        let receiptBytes = F.bytes(receipt)
+
+        try CompanionSyncKeys.$readerKnownProviderIDs.withValue(Self.build44KnownProviderIDs) {
+            #expect(!CompanionSyncKeys.isKnownProvider("opencode"))
+            let resolution = resolve(manifest: manifest, keys: keys)
+            let content = try content(resolution)
+            #expect(content.origin == .v4 && content.notice == nil)
+            #expect(content.providers.map(\.id) == ["claude"])
+            #expect(content.widgetProviderSelection == ["claude"])
+            #expect(content.assembledGeneration == 9)
+            #expect(resolution.cache.providers["opencode"] == nil)
+            #expect(resolution.snapshot.primaryProjection()?.providers.map(\.id) == ["claude"])
+            guard case .value(let decoded) = CompanionSyncCodec.decodeReceipt(receiptBytes) else {
+                Issue.record("the receipt must still decode"); return
+            }
+            #expect(decoded.lastLanded == nil && decoded.completed == 1)
+        }
+
+        let paired = try content(resolve(manifest: manifest, keys: keys))
+        #expect(paired.providers.map(\.id) == ["claude", "opencode"])
+        #expect(paired.providers.last?.mainAccount?.planName == "No Go plan")
+        #expect(paired.widgetProviderSelection == ["opencode", "claude"])
+        guard case .value(let decoded) = CompanionSyncCodec.decodeReceipt(receiptBytes) else {
+            Issue.record("the receipt must decode"); return
+        }
+        #expect(decoded.lastLanded?.providerID == "opencode")
+    }
 }

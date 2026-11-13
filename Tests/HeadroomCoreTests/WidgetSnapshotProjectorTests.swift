@@ -873,6 +873,9 @@ struct CompanionPhoneProjectionTests {
         for banned in [
             "@", "example.com", "/Users/", ".claude", ".codex", "CLAUDE_CONFIG_DIR", "CODEX_HOME",
             "GROK_HOME", "COPILOT_HOME", ".copilot", "Application Support", "accountUuid", "oauthAccount", "auth.json", "email",
+            // KTD10/KTD19 (OpenCode plan): no XDG home, OpenCode path, workspace or Console URL.
+            "XDG_", ".local/share/opencode", ".config/opencode", "Accounts/opencode", "wrk_", "usageURL",
+            "/console/", "opencode.ai",
         ] {
             #expect(!encoded.contains(banned), "\(banned)")
         }
@@ -913,6 +916,196 @@ struct CompanionPhoneProjectionTests {
             "auth.json", "email",
         ] {
             #expect(!remainder.contains(banned), "\(banned)")
+        }
+    }
+}
+
+// MARK: - OpenCode on the phone and widgets (OpenCode plan U8: KTD6, KTD7, KTD16, KTD19)
+
+/// Hand-made OpenCode snapshots shaped the way the provider (U3) builds them: KTD6's window
+/// kinds, a limited window as 100% used, and KTD7's no-Go reading (`.live`, one Monthly
+/// `.unavailable(since: monthStart)` row, `planStatus == .noActivePlan`).
+enum OpenCodePhoneFixture {
+    static let captured = Date(timeIntervalSince1970: 1_790_000_000)
+    static let monthStart = captured.addingTimeInterval(-11 * 86_400)
+    static let monthly = WindowKind.billingPeriod(label: "Monthly", duration: 2_592_000)
+    static let fiveHourReset = captured.addingTimeInterval(3 * 3_600)
+    static let weeklyReset = captured.addingTimeInterval(3 * 86_400)
+    static let monthlyReset = captured.addingTimeInterval(20 * 86_400)
+
+    static func go(monthlyUsed: Double = 62) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: .opencode,
+            windows: [
+                UsageWindow(kind: .fiveHour, utilization: 29, resetsAt: fiveHourReset),
+                UsageWindow(kind: .weekly, utilization: 47, resetsAt: weeklyReset),
+                UsageWindow(kind: monthly, utilization: monthlyUsed, resetsAt: monthlyReset),
+            ],
+            planLabel: nil, capturedAt: captured, freshness: .live)
+    }
+
+    /// AE1's limited monthly window, as U3 maps it: 100% used whatever the reported percent.
+    static func limited() -> UsageSnapshot { go(monthlyUsed: 100) }
+
+    static func noGo() -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: .opencode,
+            windows: [
+                UsageWindow(
+                    kind: monthly, utilization: 0, resetSchedule: .unresolved(.absent),
+                    freshness: .unavailable(since: monthStart))
+            ],
+            planLabel: nil, capturedAt: captured, freshness: .live, planStatus: .noActivePlan)
+    }
+
+    static func project(
+        _ snapshot: UsageSnapshot, context: WidgetProjectionContext = .phoneSync(attention: [:])
+    ) -> WidgetSnapshotEnvelope {
+        WidgetSnapshotProjector.project(
+            snapshots: [.opencode: snapshot], providerOrder: [.opencode],
+            displayNames: [.opencode: "OpenCode"], renewalDate: { _ in nil }, widgetsEnabled: true,
+            generatedAt: captured, context: context)
+    }
+
+    /// One publish as the Mac makes it: the v3 key, the v4 provider key and its manifest,
+    /// resolved by the phone's resolver.
+    static func publish(_ snapshot: UsageSnapshot) throws -> (v3: WidgetSnapshotEnvelope, v4: Data, resolved: CompanionResolution) {
+        let F = CompanionFixtures.self
+        let v3 = project(snapshot)
+        let main = try #require(CompanionPhoneProjection.account(
+            id: .primary, title: "Personal", snapshot: snapshot, attention: nil))
+        let payload = F.payload("opencode", generation: 3, main: main)
+        let bytes = F.bytes(payload)
+        let manifest = F.manifest(
+            generation: 5, order: ["opencode"], entries: ["opencode": F.entry(bytes, generation: 3)])
+        let wrapped = SyncedWidgetSnapshotEnvelope(
+            publishedAt: captured, sourceID: "Mac", sourcePlatform: .macOS, snapshot: v3,
+            companionSourceID: F.macA, companionGeneration: 5)
+        let resolved = CompanionSnapshotResolver.resolve(
+            CompanionResolverInput(
+                manifest: F.bytes(manifest), providerKeys: ["opencode": bytes], v3: F.v3Bytes(wrapped),
+                now: captured.addingTimeInterval(60)))
+        return (v3, bytes, resolved)
+    }
+}
+
+@Suite
+struct OpenCodePhoneProjectionTests {
+    typealias O = OpenCodePhoneFixture
+
+    /// KTD6: monthly reaches every widget as `.other("Monthly")` with its 30-day duration,
+    /// and the weekly window is the widgets' primary.
+    @Test func monthlyProjectsAsOtherWithItsDurationAndWeeklyIsPrimary() throws {
+        for context in [WidgetProjectionContext.localWidget, .phoneSync(attention: [:])] {
+            let provider = try #require(O.project(O.go(), context: context).providers.first)
+            #expect(provider.windows.map(\.kind) == [.fiveHour, .weekly, .other("Monthly")])
+            #expect(provider.windows.map(\.label) == ["5h", "Weekly", "Monthly"])
+            #expect(provider.windows.map(\.billingPeriodDuration) == [nil, nil, 2_592_000])
+            #expect(provider.windows.map(\.displayPercentRemaining) == [71, 53, 38])
+            let recipe = WidgetStyleProviderRecipe(summary: provider)
+            #expect(recipe.primary?.kind == .weekly)
+            #expect(recipe.secondary.map(\.kind) == [.fiveHour, .other("Monthly")])
+        }
+    }
+
+    /// KTD16/KTD21: a limited window reaches the phone as 100% used with its reset. No flag,
+    /// no sentence and no new field: its encoded row has exactly the keys of an unlimited one.
+    @Test func aLimitedWindowReachesThePhoneAsFullyUsedWithItsResetAndNoNewField() throws {
+        let limited = try O.publish(O.limited())
+        let v3Monthly = try #require(limited.v3.providers.first?.windows.last)
+        #expect(v3Monthly.percentRemaining == 0 && v3Monthly.utilization == 100)
+        #expect(v3Monthly.resetSchedule == .scheduled(O.monthlyReset))
+        #expect(v3Monthly.severity == .critical && v3Monthly.freshness == .live)
+
+        let account = try #require(limited.resolved.snapshot.content?.providers.first?.mainAccount)
+        let phoneMonthly = try #require(account.windows.last?.summary)
+        #expect(phoneMonthly.percentRemaining == 0 && phoneMonthly.resetSchedule == .scheduled(O.monthlyReset))
+        #expect(account.freshness == .live)
+        #expect(CompanionCardPresentation.body(for: account, title: "OpenCode") == .meters(dimmed: false))
+
+        func rowKeys(_ data: Data) throws -> [Set<String>] {
+            let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let main = try #require(json["a"] as? [String: Any])
+            let windows = try #require(main["w"] as? [[String: Any]])
+            return windows.map { Set($0.keys) }
+        }
+        let open = try O.publish(O.go())
+        #expect(try rowKeys(limited.v4) == rowKeys(open.v4))
+        let v3Text = String(decoding: try CompanionSyncCodec.encode(limited.v3), as: UTF8.self)
+        #expect(!v3Text.lowercased().contains("limit"))
+        #expect(!String(decoding: limited.v4, as: UTF8.self).lowercased().contains("limit"))
+
+        // Home and Lock Screen draw it as an empty, critical window with its refill time.
+        let lock = LockScreenWidgetRecipe(
+            style: .tightestFirst, family: .rectangle, providerChoice: .opencode,
+            state: .content(limited.v3), now: O.captured)
+        let slot = try #require(lock.slots.first)
+        #expect(slot.primary.window?.kind == .other("Monthly"))
+        #expect(slot.primary.state == .critical && slot.primary.numberText == "0%")
+        #expect(slot.primary.refillText == "Refills in 20d")
+    }
+
+    /// KTD16: a no-Go account carries plan name "No Go plan" in both formats, with no
+    /// schema change; its one row keeps the unavailable treatment everywhere.
+    @Test func aNoGoAccountReadsNoGoPlanOnThePhoneAndUnavailableOnWidgets() throws {
+        let published = try O.publish(O.noGo())
+        let v3 = try #require(published.v3.providers.first)
+        #expect(v3.planLabel == "No Go plan")
+        #expect(v3.freshness == .live)
+        #expect(v3.windows.map(\.freshness) == [.unavailable(since: O.monthStart)])
+
+        let content = try #require(published.resolved.snapshot.content)
+        #expect(content.origin == .v4)
+        let account = try #require(content.providers.first?.mainAccount)
+        #expect(account.planName == "No Go plan")
+        #expect(PlanLabelPresentation.displayName(account.planName, provider: .opencode) == "No Go plan")
+        #expect(CompanionCardPresentation.body(for: account, title: "OpenCode") == .meters(dimmed: false))
+        #expect(account.windows.map(\.summary.freshness) == [.unavailable(since: O.monthStart)])
+        #expect(account.windows.allSatisfy { !$0.summary.hasDisplayValue })
+        // KTD13: the phone's widget projection of v4 agrees with the v3 key exactly.
+        #expect(published.resolved.snapshot.primaryProjection()?.providers == published.v3.providers)
+
+        // The Mac's own widget export carries the same name, so its widgets match the phone's.
+        #expect(O.project(O.noGo(), context: .localWidget).providers.first?.planLabel == "No Go plan")
+
+        let home = WidgetStyleProviderRecipe(summary: v3)
+        #expect(home.primary?.freshness.isUnavailable == true)
+        #expect(!home.hasDisplayValue)
+        for family in LockScreenWidgetFamily.allCases {
+            let lock = LockScreenWidgetRecipe(
+                style: .liquidLevel, family: family, providerChoice: .opencode,
+                state: .content(published.v3), now: O.captured)
+            #expect(lock.slots.first?.primary.state == .unavailable)
+            #expect(lock.slots.first?.primary.numberText == "—")
+        }
+    }
+
+    /// The plan status names a plan only for OpenCode; every other provider keeps its label.
+    @Test func planStatusRenamesThePlanOnlyForOpenCode() {
+        #expect(UsageSnapshot.PlanStatus.noActivePlan.syncedPlanName(for: .opencode) == "No Go plan")
+        for provider in [ProviderID.claude, .codex, .grok, .cursor, .copilot] {
+            #expect(UsageSnapshot.PlanStatus.noActivePlan.syncedPlanName(for: provider) == nil)
+        }
+        #expect(O.go().exportedPlanLabel == nil)
+        #expect(O.noGo().exportedPlanLabel == "No Go plan")
+        #expect(O.noGo().markedStale(.providerSetup(.opencodeTransientCapture)).exportedPlanLabel == "No Go plan")
+    }
+
+    /// KTD19: no workspace ID or name, Console URL, XDG variable or OpenCode path reaches
+    /// the phone. The snapshot has no field for them, so the publish cannot carry them.
+    @Test func thePhonePayloadNeverCarriesAWorkspaceConsoleURLOrXDGPath() throws {
+        var encoded = ""
+        for snapshot in [O.go(), O.limited(), O.noGo()] {
+            let published = try O.publish(snapshot)
+            encoded += String(decoding: published.v4, as: UTF8.self)
+            encoded += String(decoding: try CompanionSyncCodec.encode(published.v3), as: UTF8.self)
+        }
+        for banned in [
+            "wrk_", "Workspace", "workspace", "usageURL", "console", "Console", "opencode.ai", "127.0.0.1",
+            "XDG_", ".local/share/opencode", ".config/opencode", "Accounts/opencode", "/Users/", "@",
+            "budgets", "auth.json",
+        ] {
+            #expect(!encoded.contains(banned), "\(banned)")
         }
     }
 }

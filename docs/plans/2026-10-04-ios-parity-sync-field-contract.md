@@ -8,7 +8,7 @@ Reviewed against existing models/projectors by the U4 preflight agent and the im
 
 - JSON object coding keys below are exact wire names. Logical properties use descriptive Swift names. Encode sorted object keys; preserve explicitly ordered arrays. Dates are signed integer Unix seconds (floor, shared by both phone exports), generations nonnegative `Int64`, counts nonnegative `Int`, UUIDs canonical lowercase strings, finite percentages normalized to one decimal using nearest-or-away-from-zero after clamping to 0–100. Reject wrong primitive types and nonfinite numbers; do not coerce strings to numbers.
 - Unknown fields are ignored. Missing required structural fields make that object unusable, never generate a fabricated account ID, generation or date. Structural corruption may fall back to a checked same-scope cache/v3 under resolver rules; unknown presentation enums use the explicit fallback below. Preserve raw provider bytes for SHA-256; never hash a re-encoding.
-- Known provider IDs are `claude`, `codex`, `grok`, `cursor`, `copilot` (Copilot added 2026-11-02; a phone build that predates it skips the key as unknown). Unknown provider IDs may remain in the manifest's ordering metadata but are skipped by this reader. Account IDs are Headroom local IDs (`primary` or registry-generated IDs), never upstream IDs. Account title is the name the Mac shows (KTD9, amended 2026-11-10): the label or default name, or the captured email when the Mac's "Use email as account name" setting is on and that account has one, then made unique with " · N".
+- Known provider IDs are `claude`, `codex`, `grok`, `cursor`, `copilot`, `opencode` (Copilot added 2026-11-02, OpenCode 2026-11-12; a phone build that predates one skips its key and manifest entry as unknown, and build 33 reads OpenCode only from the v3 key, drawn with generic art; no schema or minimum-reader change, KTD16 of the OpenCode plan). Unknown provider IDs may remain in the manifest's ordering metadata but are skipped by this reader. Account IDs are Headroom local IDs (`primary` or registry-generated IDs), never upstream IDs. Account title is the name the Mac shows (KTD9, amended 2026-11-10): the label or default name, or the captured email when the Mac's "Use email as account name" setting is on and that account has one, then made unique with " · N".
 - A main account carries its complete window set; extra accounts use the same compact window shape and may lose model rows only through KTD7's ladder. “Full windows” means the full set, not `WidgetWindowSummary`'s verbose JSON layout. No repeated main account inside extras, no encoded window ID/severity/label/resetLabel/resetTimeZoneIdentifier. `kindName` is the semantic name associated with `.other` or `.billingPeriod`, from which the label and ID derive.
 - Preserve exact canonical utilization in a separate optional field: rounded remaining is insufficient to reconstruct it. Source `UsageWindow` precision and reset provenance remain intact. U5 canonicalizes non-visible `resetLabel` and `resetTimeZoneIdentifier` to nil in both v3 and v4-derived projections, with full-envelope parity tests. Main/extra derived labels must still equal `WindowKind.shortLabel`; verify that with all demo variants.
 - No account scope/token, host/device name, config path, credential, source raw error, raw CLI output or API response can enter these types. An email enters only as an account title, and only when it is the Mac's displayed name (the user typed it as a label or turned on "Use email as account name"); it is never its own field and never part of an ID. Privacy copy says so: “If you use an email address as an account name, that address syncs as the name.” (Amended 2026-11-10; the earlier rule kept every captured email off the phone.)
@@ -22,6 +22,8 @@ Reviewed against existing models/projectors by the U4 preflight agent and the im
 | `headroom.sync.v4.provider.<providerID>` | `ProviderPayload` JSON bytes | Same-source checked last complete copy, then matching v3 main, then skeleton; no joining partial accounts | 6.2–4, 7, 13 |
 | `headroom.sync.v4.request.<deviceUUID>` | `Request` JSON bytes | No request; unknown UUID suffix rejected | 5, 14 |
 | `headroom.sync.v4.receipt` | `Receipt` JSON bytes | No acknowledgement; never complete by clock comparison | 5, 14 |
+
+One flush writes the changed provider keys, the manifest and the v3 key together, at most once per 60 s. With six known providers that is at most eight keys, so no minute holds more than eight writes (OpenCode plan KTD16, replacing the Copilot plan's seven). The multi-20 publisher test, with OpenCode's 20 accounts as the sixth provider at a 2-minute interval, averages 4.9 writes a minute (target ≤ 6.5) when accounts are read provider by provider, and 6.9 when the four multi-account providers' reads interleave so every key changes every minute; real iCloud throttling remains unmeasured. A limited OpenCode window reaches the phone as 100% used with its reset; no limited flag exists on the wire. OpenCode's monthly window is a `billingPeriod` window, not a model row, so ladder level 1 keeps it.
 
 Each emitted key must pass a UTF-8 length assertion ≤64 bytes. The canonical 36-character request UUID yields 61 bytes (25-byte prefix + 36). Future provider IDs must pass the same limit. Request key suffix is per-install random device UUID shared through the App Group. Each provider value ≤15 KB; whole v4 set ≤64 KB at the 20-per-provider envelope with Spark rows. The complete observed v4 namespace includes request and receipt values. Limits are exactly 15,000 bytes per provider and 64,000 bytes for the observed set; overflow stops the write after the permitted ladder. See the budget decision and its cross-device limitation below.
 
@@ -88,7 +90,7 @@ Rule summary carries no rule UUID or firing key, because phone Settings only ren
 | payload.apiSpend / `s` | Spend? | nil → no spend row | 6.1, 13 |
 | account.id / `i` | Headroom account ID String | Required; no fabricated default for missing IDs | 6.3, 9, 14 |
 | account.title / `t` | String: the Mac's displayed name (label, default name, or captured email when "Use email as account name" is on), Mac-disambiguated | Required; empty title uses provider-safe generic account noun; a captured email only as the displayed name | 9, 10, 22 |
-| account.planName / `p` | String? | nil; render no plan claim | 6.1, 22 |
+| account.planName / `p` | String? | nil; render no plan claim. A Mac plan status with a name of its own replaces the source label in both formats (`UsageSnapshot.exportedPlanLabel`): an OpenCode workspace without Go reads `No Go plan` (OpenCode plan KTD7, KTD16) | 6.1, 22 |
 | account.freshness / `f` | omitted/live, `pending`, `stale` String | Omitted = live only for structurally complete captured account; unknown → unavailable | 6.7, 10, 15 |
 | account.capturedAt / `c` | epoch seconds Int64? | nil for pending or stale without a retained successful reading; required for live/retained content; no invented stamp | 6.2, 8, 15 |
 | account.attention / `a` | Attention String? | nil = no attention; unknown string → generic needs-attention | 10 |
@@ -311,6 +313,13 @@ The table writes NBSP as `\u00a0` visibly to specify exact Swift text escaping i
 | copilotCLIMissing | cliMissing |
 | copilotSignedOut | signInRequired |
 | copilotLogsUnreadable | retrying |
+| opencodeCLIMissing | cliMissing |
+| opencodeUpdateRequired | cliUpdateRequired |
+| opencodeSignedOut | signInRequired |
+| opencodeConsoleSignInRequired | signInRequired |
+| opencodeSignInExpired | signInAgain |
+| opencodeFormatChanged | retrying |
+| opencodeTransientCapture | retrying |
 
 `UnsafePermissions` maps to sign-in-again recovery, matching current source recovery; do not export permission bits/path. Malformed data remains a separate typed unreadable category. Credential IO is retryable, never proof credentials are rejected. CallbackIncomplete maps setupFailed, not falsely “currently finishing sign-in” without an active typed session.
 

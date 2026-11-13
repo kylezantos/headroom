@@ -278,6 +278,36 @@ struct PhoneExportTriggerTests {
         #expect(phone.last?.providers.isEmpty == true)
     }
 
+    /// OpenCode plan U8 (KTD16): the OpenCode subscription switch exports like every other
+    /// provider's, and a no-Go account (KTD7) reaches the phone capture named "No Go plan".
+    @Test func theOpenCodeSwitchExportsAndANoGoAccountReachesThePhoneAsNoGoPlan() async throws {
+        let defaults = freshDefaults()
+        let preferences = Preferences(defaults: defaults)
+        preferences.syncToIPhoneEnabled = true
+        let phone = SpyPhoneSync()
+        let store = UsageStore(
+            providers: [
+                DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: live(.claude, used: 20)),
+                DemoUsageProvider(id: .opencode, displayName: "OpenCode", snapshot: OpenCodePhoneFixture.noGo()),
+            ],
+            preferences: preferences, phoneSyncExporter: phone)
+        var count = phone.captures.count
+        store.setSurfaceEnabled(true, for: .opencodeSubscription)
+        #expect(phone.captures.count == count + 1)
+        await store.refreshAll()
+        let opencode = try #require(phone.last?.providers.first { $0.providerID == "opencode" })
+        #expect(opencode.mainAccount?.planName == "No Go plan")
+        #expect(opencode.mainAccount?.windows.map(\.freshness) == [.unavailable])
+        #expect(phone.last?.providerOrder == ["claude", "opencode"])
+        let v3 = try #require(phone.last?.v3.providers.first { $0.id == "opencode" })
+        #expect(v3.planLabel == "No Go plan")
+
+        count = phone.captures.count
+        store.setSurfaceEnabled(false, for: .opencodeSubscription)
+        #expect(phone.captures.count == count + 1)
+        #expect(phone.last?.providerOrder == ["claude"])
+    }
+
     @Test func syncOffCapturesNoAccountContent() async throws {
         let (f, _) = fixture()
         await f.store.refreshAll()

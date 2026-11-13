@@ -484,6 +484,11 @@ public struct UsageSnapshot: Sendable, Equatable {
         case noActivePlan
     }
 
+    /// KTD16 (OpenCode plan): the plan text every widget and phone export carries. A plan
+    /// status with a name of its own wins over the source label, so a no-Go account reads
+    /// "No Go plan" on the phone and its widgets with no sync field added.
+    public var exportedPlanLabel: String? { planStatus?.syncedPlanName(for: providerID) ?? planLabel }
+
     public init(
         providerID: ProviderID,
         windows: [UsageWindow],
@@ -956,5 +961,17 @@ public struct APISpendSnapshot: Sendable, Equatable {
             capturedAt: capturedAt,
             freshness: .stale(reason)
         )
+    }
+}
+
+extension UsageSnapshot.PlanStatus {
+    /// KTD16 (OpenCode plan): the plan name exported for this status. The Mac card says it
+    /// in its own action row (KTD7) and draws no plan capsule; the phone has no such row, so
+    /// it prints the status as the plan name. Nil for a provider that has no name for it.
+    public func syncedPlanName(for provider: ProviderID) -> String? {
+        switch (self, provider) {
+        case (.noActivePlan, .opencode): "No Go plan"
+        default: nil
+        }
     }
 }

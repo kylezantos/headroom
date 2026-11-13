@@ -156,6 +156,41 @@ struct Build33DecoderGoldenTests {
         #expect(frozen.generatedAt == Self.t0)
     }
 
+    /// KTD16 (OpenCode plan): build 33 reads only the v3 key and knows no OpenCode. The phone
+    /// export of a live, a limited and a no-Go OpenCode account beside Claude decodes in the
+    /// frozen reader; OpenCode arrives as an unknown provider ID that build 33 draws with its
+    /// generic art, its monthly row as a 30-day `other` window, and the limited window as 0% left.
+    @Test func openCodeInTheV3KeyDecodesInTheFrozenReaderAsAnUnknownProvider() throws {
+        let claude = UsageSnapshot(
+            providerID: .claude,
+            windows: [UsageWindow(kind: .fiveHour, utilization: 40, resetsAt: Self.t0.addingTimeInterval(3_600))],
+            planLabel: "Max", capturedAt: Self.t0, freshness: .live)
+        for (name, opencode, remaining) in [
+            ("go", OpenCodePhoneFixture.go(), [71.0, 53, 38]),
+            ("limited", OpenCodePhoneFixture.limited(), [71.0, 53, 0]),
+            ("noGo", OpenCodePhoneFixture.noGo(), [100.0]),
+        ] {
+            let projected = WidgetSnapshotProjector.project(
+                snapshots: [.claude: claude, .opencode: opencode], providerOrder: [.claude, .opencode],
+                displayNames: [:], renewalDate: { _ in nil }, widgetsEnabled: true, generatedAt: Self.t0,
+                context: .phoneSync(attention: [:]))
+            let bytes = try SyncedWidgetSnapshotCodec.encode(
+                SyncedWidgetSnapshotEnvelope(
+                    publishedAt: Self.t0, sourceID: "Mac", sourcePlatform: .macOS, snapshot: projected,
+                    companionSourceID: Self.macID, companionGeneration: 11))
+            let frozen = try #require(Build33Codec.decode(bytes).envelope, "\(name)")
+            #expect(frozen.snapshot.providers.map(\.id) == ["claude", "opencode"], "\(name)")
+            let row = try #require(frozen.snapshot.providers.last)
+            #expect(row.displayName == "OpenCode")
+            #expect(row.windows.map(\.percentRemaining) == remaining, "\(name)")
+            #expect(row.windows.last?.billingPeriodDuration == 2_592_000, "\(name)")
+            if name == "noGo" { #expect(row.planLabel == "No Go plan") }
+            if name == "limited" {
+                #expect(row.windows.last?.resetSchedule == .scheduled(OpenCodePhoneFixture.monthlyReset))
+            }
+        }
+    }
+
     private func encodedV3(
         snapshots: [ProviderID: UsageSnapshot], order: [ProviderID],
         spend: [ProviderID: APISpendSnapshot] = [:]

@@ -55,6 +55,51 @@ struct LockScreenWidgetRecipeTests {
         }
     }
 
+    @Test func pinnedOpenCodeWithNoSyncedOpenCodeShowsOffAndNeverFallsBack() throws {
+        for style in WidgetLayoutStyle.allCases {
+            for family in LockScreenWidgetFamily.allCases {
+                let r = recipe(style, family, [F.claude(), F.codex(), F.grok()], choice: .opencode)
+                let slot = try #require(r.slots.first)
+                #expect(r.slots.count == 1)
+                #expect(slot.providerID == "opencode")
+                #expect(slot.primary.state == .off)
+                #expect(slot.primary.numberText == "—")
+                #expect(r.inlineTextCandidates.first == "OpenCode · Off")
+            }
+        }
+    }
+
+    /// KTD15 (OpenCode plan): OpenCode's three windows project from the Mac (KTD6) with
+    /// weekly as the primary; a family with less room sheds the monthly window, the last
+    /// secondary, and never relabels it.
+    @Test func openCodeSecondariesDropMonthlyByFamilyWithoutRelabelling() throws {
+        let envelope = OpenCodePhoneFixture.project(OpenCodePhoneFixture.go())
+        for style in WidgetLayoutStyle.allCases where style != .tightestFirst {
+            for family in LockScreenWidgetFamily.allCases {
+                let r = LockScreenWidgetRecipe(
+                    style: style, family: family, providerChoice: .opencode,
+                    state: .content(envelope), now: OpenCodePhoneFixture.captured)
+                let slot = try #require(r.slots.first)
+                #expect(slot.primary.window?.kind == .weekly, "\(style) \(family)")
+                let kinds = slot.secondary.map(\.window?.kind)
+                let order: [WidgetWindowKind?] = [.fiveHour, .other("Monthly")]
+                #expect(Array(order.prefix(kinds.count)) == kinds, "\(style) \(family)")
+                if let monthly = slot.secondary.first(where: { $0.window?.kind == .other("Monthly") }) {
+                    #expect(monthly.window?.label == "Monthly")
+                    #expect(monthly.caption.contains("Month") || monthly.caption.contains("Mo"), "\(monthly.caption)")
+                }
+            }
+        }
+        let liquid = LockScreenWidgetRecipe(
+            style: .liquidLevel, family: .rectangle, providerChoice: .opencode,
+            state: .content(envelope), now: OpenCodePhoneFixture.captured)
+        #expect(liquid.slots.first?.secondary.map(\.window?.kind) == [.fiveHour])
+        let nested = LockScreenWidgetRecipe(
+            style: .nestedMeter, family: .rectangle, providerChoice: .opencode,
+            state: .content(envelope), now: OpenCodePhoneFixture.captured)
+        #expect(nested.slots.first?.secondary.map(\.window?.kind) == [.fiveHour, .other("Monthly")])
+    }
+
     @Test func unavailableWeeklyRemainsPrimary() throws {
         let claude = F.provider("claude", "Claude", [
             F.window(.fiveHour, label: "5h", percent: 72),

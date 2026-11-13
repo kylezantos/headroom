@@ -76,7 +76,7 @@ public enum WidgetSnapshotProjector {
             return WidgetProviderSummary(
                 id: id.raw,
                 displayName: displayName,
-                planLabel: snapshot.planLabel,
+                planLabel: snapshot.exportedPlanLabel,
                 freshness: freshness(snapshot.freshness),
                 windows: snapshot.windows.compactMap {
                     windowSummary(
@@ -105,7 +105,7 @@ public enum WidgetSnapshotProjector {
                 message: CompanionAttentionCopy.account(typed), needsAttention: reason.isPermanent)
         }
         return WidgetProviderSummary(
-            id: id.raw, displayName: id.displayName, planLabel: snapshot.planLabel,
+            id: id.raw, displayName: id.displayName, planLabel: snapshot.exportedPlanLabel,
             freshness: projectedFreshness, windows: windows, renewalDate: nil)
     }
 
@@ -354,7 +354,7 @@ public enum CompanionPhoneProjection {
         let windows = freshness == .pending ? [] : self.windows(of: snapshot).map(\.slim)
         let captured = snapshot.capturedAt.flatMap(CompanionWireDate.init(date:))
         return try? CompanionAccountSummary(
-            id: id.raw, title: title, planName: snapshot.planLabel, freshness: freshness,
+            id: id.raw, title: title, planName: snapshot.exportedPlanLabel, freshness: freshness,
             capturedAt: freshness == .pending ? nil : captured,
             attention: attention,
             needsAttention: needsAttention, bankedResets: snapshot.bankedResets,

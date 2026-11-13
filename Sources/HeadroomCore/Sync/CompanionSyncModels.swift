@@ -941,9 +941,17 @@ public enum CompanionSyncKeys {
     /// `namespace` so no v4 prefix sweep, sync-off cleanup or launch scan ever removes it.
     public static let scopeMarker = "headroom.scope.v1"
     /// Contract: known providers; unknown IDs may sit in ordering metadata but are skipped.
-    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor", "copilot"]
+    /// KTD16 (OpenCode plan): a phone build that predates an ID skips its key, and build 33
+    /// reads only v3, so adding one needs no schema or reader-version change.
+    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor", "copilot", "opencode"]
 
-    public static func isKnownProvider(_ id: String) -> Bool { knownProviderIDs.contains(id) }
+    /// The IDs this reader treats as known. Always `knownProviderIDs` in the app; tests bind
+    /// an older phone build's list to pin how that build reads a newer Mac (KTD16, OpenCode
+    /// plan). Every reader-side check goes through it: the loader's key reads, manifest
+    /// ordering and the landed-row leaf.
+    @TaskLocal static var readerKnownProviderIDs: [String] = knownProviderIDs
+
+    public static func isKnownProvider(_ id: String) -> Bool { readerKnownProviderIDs.contains(id) }
 
     /// Nil for an empty or over-long identifier rather than a truncated, colliding key.
     public static func provider(_ providerID: String) -> String? {

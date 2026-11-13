@@ -14,7 +14,7 @@ struct LockScreenWidgetChoicesTests {
 
     @Test func choicesRoundTripWithStableIdentifiers() {
         #expect(LockScreenWidgetFamily.allCases == [.circle, .rectangle, .inline])
-        #expect(LockScreenProviderChoice.allCases.map(\.rawValue) == ["automatic", "claude", "codex", "grok", "cursor", "copilot"])
+        #expect(LockScreenProviderChoice.allCases.map(\.rawValue) == ["automatic", "claude", "codex", "grok", "cursor", "copilot", "opencode"])
         for choice in LockScreenProviderChoice.allCases {
             #expect(LockScreenProviderChoice(storedValue: choice.rawValue) == choice)
             if let id = choice.providerID { #expect(choice.rawValue == id.raw) }

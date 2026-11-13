@@ -87,6 +87,22 @@ struct CompanionPayloadBudgetTests {
                 mainAccount: try CompanionAccountSummary(
                     id: "primary", title: "Personal", capturedAt: F.date(),
                     windows: [row(.billingPeriod, "Monthly", 0, duration: 2_592_000)])))
+        // KTD16 (OpenCode plan): OpenCode carries the full envelope, three windows each (KTD6:
+        // rolling → 5-hour, weekly → weekly, monthly → a 30-day billing period). It has no
+        // spend row (D1) and no plan label, so the payload is no heavier than it will be.
+        let opencode = try (0..<accountsPerProvider).map { i -> CompanionAccountSummary in
+            try CompanionAccountSummary(
+                id: i == 0 ? "primary" : id(5, i), title: title?("opencode", i) ?? label(i),
+                capturedAt: F.date(-Int64(i) * 13),
+                windows: [
+                    row(.fiveHour, nil, i), row(.weekly, nil, i),
+                    row(.billingPeriod, "Monthly", i, duration: 2_592_000, stale: i % 4 == 0),
+                ])
+        }
+        payloads.append(
+            try CompanionProviderPayload(
+                sourceID: F.macA, providerID: "opencode", payloadGeneration: 4_000_000_005,
+                mode: .subscription, mainAccount: opencode[0], accounts: Array(opencode.dropFirst())))
         return payloads
     }
 
@@ -127,7 +143,8 @@ struct CompanionPayloadBudgetTests {
             CompanionManifest.active(
                 try CompanionActiveManifest(
                     sourceID: F.macA, generation: 4_000_000_123, generatedAt: F.date(),
-                    macAppVersion: "1.5 (40)", providerOrder: ["claude", "codex", "grok", "cursor"],
+                    macAppVersion: "1.5 (40)",
+                    providerOrder: ["claude", "codex", "grok", "cursor", "copilot", "opencode"],
                     providers: entries, spendOrder: ["claude", "codex", "grok", "cursor"],
                     chosenIntervalSeconds: 300,
                     display: CompanionDisplayBlock(
@@ -143,7 +160,7 @@ struct CompanionPayloadBudgetTests {
     /// V9 and the KTD7 stop condition: at the envelope every account reaches the phone.
     @Test func multiTwentyWithSparkRowsFitsWithoutCappingAnyAccount() throws {
         let payloads = try Self.envelopeFixture()
-        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1])
+        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20])
         let protocolValues = try Self.protocolValues(devices: 5)
         var levels: [Int: CompanionBudgetMeasurement] = [:]
         for level in 0...1 {
@@ -151,7 +168,7 @@ struct CompanionPayloadBudgetTests {
                 payloads: payloads, protocolValues: protocolValues, minimumLevel: level,
                 manifest: Self.manifest)
             levels[fit.ladderLevel] = fit.measurement
-            #expect(fit.payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1])
+            #expect(fit.payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20])
             #expect(fit.payloads.allSatisfy { $0.omittedAccountCount == 0 })
             for (key, bytes) in fit.measurement.valueBytes.sorted(by: { $0.key < $1.key }) {
                 print("U4-BUDGET level=\(fit.ladderLevel) key=\(key) bytes=\(bytes)")
@@ -177,7 +194,7 @@ struct CompanionPayloadBudgetTests {
             "alexandra.rivera-\(provider)\(index + 1)@northwind-research.example.com"
         }
         let payloads = try Self.envelopeFixture(title: email)
-        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1])
+        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20])
         #expect(payloads[0].allAccounts.allSatisfy { $0.title.count >= 50 })
         let fit = try CompanionPayloadBudget.fit(
             payloads: payloads, protocolValues: try Self.protocolValues(devices: 5), manifest: Self.manifest)
@@ -226,7 +243,7 @@ struct CompanionPayloadBudgetTests {
                 accounts: base.accounts + (0..<20).map { try remembered(base.providerID, $0) },
                 apiSpend: base.apiSpend)
         }
-        #expect(payloads.map(\.allAccounts.count) == [40, 40, 20, 1, 1])
+        #expect(payloads.map(\.allAccounts.count) == [40, 40, 20, 1, 1, 20])
         let protocolValues = try Self.protocolValues(devices: 5)
 
         let fit = try CompanionPayloadBudget.fit(
@@ -266,7 +283,8 @@ struct CompanionPayloadBudgetTests {
             payloads: payloads, protocolValues: try Self.protocolValues(devices: 5), manifest: Self.manifest)
         #expect(fit.ladderLevel == 2)
         #expect(fit.payloads.prefix(3).allSatisfy { $0.allAccounts.count == 20 && $0.omittedAccountCount == 100 })
-        #expect(fit.payloads.suffix(2).allSatisfy { $0.allAccounts.count == 1 })
+        #expect(fit.payloads.dropFirst(3).prefix(2).allSatisfy { $0.allAccounts.count == 1 })
+        #expect(fit.payloads.last.map { $0.allAccounts.count == 20 && $0.omittedAccountCount == 100 } == true)
     }
 
     /// Decision 3: protocol overflow stops the write; it never caps accounts at or below 20.
@@ -308,10 +326,25 @@ struct CompanionPayloadBudgetTests {
         for banned in [
             "@", "example.com", "/Users/", ".claude", ".codex", ".grok", "CLAUDE_CONFIG_DIR",
             "CODEX_HOME", "GROK_HOME", "COPILOT_HOME", ".copilot", "Application Support", "accountUuid", "oauthAccount",
+            // KTD10/KTD19 (OpenCode plan): no XDG home, OpenCode path, workspace or Console URL.
+            "XDG_", ".local/share/opencode", ".config/opencode", "Accounts/opencode", "wrk_",
+            "usageURL", "/console/", "opencode.ai",
             "access_token", "refresh_token", "auth.json", "Claude Code-credentials", "Authorization",
             "x-api-key", "email",
         ] {
             #expect(!encoded.contains(banned), "\(banned)")
         }
+    }
+
+    /// KTD16 (OpenCode plan): the monthly window is a window, not a model row, so ladder
+    /// level 1 (extras lose model rows) keeps every OpenCode account's three windows.
+    @Test func ladderLevelOneKeepsEveryOpenCodeWindowIncludingMonthly() throws {
+        let payloads = try Self.envelopeFixture()
+        let opencode = try #require(payloads.first { $0.providerID == "opencode" })
+        let trimmed = try CompanionPayloadBudget.apply(level: 1, to: opencode)
+        #expect(trimmed.allAccounts.count == 20)
+        #expect(trimmed.allAccounts.allSatisfy { $0.windows.map(\.kind) == [.fiveHour, .weekly, .billingPeriod] })
+        #expect(trimmed.allAccounts.allSatisfy { $0.windows.last?.kindName == "Monthly" })
+        #expect(try CompanionSyncCodec.encode(trimmed) == CompanionSyncCodec.encode(opencode))
     }
 }

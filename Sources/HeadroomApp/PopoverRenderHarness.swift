@@ -97,6 +97,21 @@ enum PopoverRenderHarness {
                     ) {
                         print("✓ \(shelfURL.path)")
                     } else { failedPaths.append(shelfURL.path) }
+                    // Every pill at "100%", the widest value a card holds, at the window floor
+                    // and the default width.
+                    for compactWindow in [false, true] {
+                        let fullURL = outDir.appendingPathComponent(
+                            "settings-menuBar-full-\(compactWindow ? "compact" : "regular")-\(dark ? "dark" : "light").png"
+                        )
+                        if await renderSettings(
+                            pane: .menuBar, percentageMode: .remaining, dark: dark,
+                            height: compactWindow ? 632 : nil,
+                            width: compactWindow ? 720 : nil,
+                            menuBarPercentages: true, menuBarFullValues: true, to: fullURL
+                        ) {
+                            print("✓ \(fullURL.path)")
+                        } else { failedPaths.append(fullURL.path) }
+                    }
                 }
                 for path in failedPaths { print("✗ Failed to render \(path)") }
                 exit(failedPaths.isEmpty ? 0 : 1)
@@ -608,6 +623,7 @@ enum PopoverRenderHarness {
         width widthOverride: CGFloat? = nil,
         menuBarPercentages: Bool? = nil,
         menuBarShelf: Bool = false,
+        menuBarFullValues: Bool = false,
         notifications: NotificationsRenderState = .firstOpen,
         softwareUpdates: SoftwareUpdateControlling = DisabledSoftwareUpdateController(),
         to url: URL
@@ -681,15 +697,27 @@ enum PopoverRenderHarness {
             store.refreshNow()
             try? await Task.sleep(for: .milliseconds(300))
         } else {
+            // A fresh, untouched week reads "100%" left: the widest value a pill card holds.
+            func snapshot(_ id: ProviderID, _ fixture: UsageSnapshot) -> UsageSnapshot {
+                guard menuBarFullValues else { return fixture }
+                return UsageSnapshot(
+                    providerID: id,
+                    windows: [UsageWindow(kind: .weekly, utilization: 0,
+                                          resetsAt: Date().addingTimeInterval(6 * 86_400), resetLabel: "Resets in 6d")],
+                    planLabel: nil,
+                    capturedAt: Date().addingTimeInterval(-60),
+                    freshness: .live
+                )
+            }
             store = UsageStore(
                 providers: [
-                    DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: DemoFixture.claudeSnapshot),
-                    DemoUsageProvider(id: .codex, displayName: "Codex", snapshot: DemoFixture.codexSnapshot),
+                    DemoUsageProvider(id: .claude, displayName: "Claude", snapshot: snapshot(.claude, DemoFixture.claudeSnapshot)),
+                    DemoUsageProvider(id: .codex, displayName: "Codex", snapshot: snapshot(.codex, DemoFixture.codexSnapshot)),
                 ] + (pane == .menuBar ? [
-                    DemoUsageProvider(id: .grok, displayName: "Grok", snapshot: DemoFixture.grokSnapshot),
-                    DemoUsageProvider(id: .cursor, displayName: "Cursor", snapshot: DemoFixture.cursorSnapshot),
-                    DemoUsageProvider(id: .copilot, displayName: "Copilot", snapshot: DemoFixture.copilotSnapshot),
-                    DemoUsageProvider(id: .opencode, displayName: "OpenCode", snapshot: DemoFixture.opencodeSnapshot),
+                    DemoUsageProvider(id: .grok, displayName: "Grok", snapshot: snapshot(.grok, DemoFixture.grokSnapshot)),
+                    DemoUsageProvider(id: .cursor, displayName: "Cursor", snapshot: snapshot(.cursor, DemoFixture.cursorSnapshot)),
+                    DemoUsageProvider(id: .copilot, displayName: "Copilot", snapshot: snapshot(.copilot, DemoFixture.copilotSnapshot)),
+                    DemoUsageProvider(id: .opencode, displayName: "OpenCode", snapshot: snapshot(.opencode, DemoFixture.opencodeSnapshot)),
                 ] : []),
                 apiSpendProviders: [
                     DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),

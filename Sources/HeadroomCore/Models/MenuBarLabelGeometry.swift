@@ -73,7 +73,9 @@ public enum MenuBarLabelGeometry {
         vesselX + vesselWidth - attentionDotInset + attentionDotDiameter
     }
 
-    public static func layout(items: [Item], showsPercentage: Bool) -> Layout {
+    /// `vesselTextGap` is overridable only for the Settings pill card's compact step; the
+    /// status item always uses the standard gap.
+    public static func layout(items: [Item], showsPercentage: Bool, vesselTextGap: Double = vesselTextGap) -> Layout {
         let gap = meterGap(showsPercentage: showsPercentage)
         var cursor: Double = 0
         var extent: Double = 0

@@ -894,11 +894,15 @@ struct OpenCodeUsageSourceProcessTests {
     @Test func clientThatNeverExitsIsKilledAtTheDeadlineWithItsGroup() async throws {
         let fake = try FakeOpenCode()
         defer { fake.remove() }
-        try fake.hook("usage", pre: "sleep 30 &\necho $! > \"$dir/child.pid\"\nwait\n")
+        // The child would outlive the test by minutes on its own, so returning well before it
+        // could exit proves the deadline ended the run. The bound is 10× the 3 s deadline: a
+        // tight one (< 5 s on a 1 s deadline) failed once under a loaded parallel run without
+        // any bug, and 3 s gives a slow-starting shell time to record its pids before the kill.
+        try fake.hook("usage", pre: "sleep 120 &\necho $! > \"$dir/child.pid\"\nwait\n")
         let started = Date()
-        let result = await fake.source(deadline: 1).capture(home: .builtIn)
+        let result = await fake.source(deadline: 3).capture(home: .builtIn)
         #expect(result == .failed(.transient(.deadline)))
-        #expect(Date().timeIntervalSince(started) < 5)
+        #expect(Date().timeIntervalSince(started) < 30)
         let leader = try #require(fake.pids("usage").first)
         let child = try #require(pid_t(fake.text("child.pid")))
         #expect(!isRunning(leader))

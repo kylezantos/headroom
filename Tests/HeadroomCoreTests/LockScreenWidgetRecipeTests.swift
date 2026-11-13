@@ -380,6 +380,26 @@ struct LockScreenWidgetRecipeTests {
         #expect(live.displayName(forSlotAt: 5) == "")
     }
 
+    /// U9 follow-up: "Demo · OpenCode" overflowed Vessel Hero's single column, which never
+    /// shrinks sideways. A name not verified to fit the prefix reads "Demo", as a pair's
+    /// first slot does, and its mark still names the provider.
+    @Test func aLongDemoNameDropsToDemoInEveryRectangle() throws {
+        let envelope = OpenCodePhoneFixture.project(OpenCodePhoneFixture.go())
+        for style in WidgetLayoutStyle.allCases where style != .tightestFirst {
+            let demo = LockScreenWidgetRecipe(
+                style: style, family: .rectangle, providerChoice: .opencode,
+                state: .demo(envelope), now: OpenCodePhoneFixture.captured)
+            #expect(demo.slots.map(\.providerID) == ["opencode"], "\(style)")
+            #expect(demo.displayName(forSlotAt: 0) == "Demo", "\(style)")
+            let live = LockScreenWidgetRecipe(
+                style: style, family: .rectangle, providerChoice: .opencode,
+                state: .content(envelope), now: OpenCodePhoneFixture.captured)
+            #expect(live.displayName(forSlotAt: 0) == "OpenCode", "\(style)")
+        }
+        #expect(recipe(.vesselHero, .rectangle, [F.claude()], choice: .claude, demo: true).displayName(forSlotAt: 0) == "Demo · Claude")
+        #expect(recipe(.vesselHero, .rectangle, [F.claude(), F.codex()], choice: .codex, demo: true).displayName(forSlotAt: 0) == "Demo · Codex")
+    }
+
     @Test func cursorTitleNamesThePoolWhereNoCaptionDoes() {
         let cursor = recipe(.nestedMeter, .rectangle, [F.cursor()], choice: .cursor)
         #expect(["Cursor Models", "Other Models"].contains(cursor.title(forSlotAt: 0)))

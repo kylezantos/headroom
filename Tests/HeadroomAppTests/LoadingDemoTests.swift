@@ -33,7 +33,9 @@ struct LoadingDemoTests {
             owner.clock.set(owner.clock.now().addingTimeInterval(1))
             let account = try #require(store.primaryAccount(for: id))
             await owner.preparation.hold()
-            SetupSessions.resetSetup(for: account)
+            // D7 (OpenCode plan): a built-in OpenCode reset first asks for confirmation, which
+            // AccountsSettingsInteractionTests covers; this test starts past that dialog.
+            SetupSessions.resetSetup(for: account, confirmed: true)
             #expect(SetupSessions.state(for: account) == .preparing)
             try await waitUntil { await owner.preparation.waiterCount == 1 }
             await owner.preparation.release()

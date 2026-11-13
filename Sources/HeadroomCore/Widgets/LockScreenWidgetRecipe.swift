@@ -183,8 +183,15 @@ public struct LockScreenWidgetRecipe: Sendable, Equatable {
         let name = slots[index].providerName
         guard isDemo else { return name }
         if slots.count > 1 { return index == 0 ? "Demo" : name }
+        guard Self.demoPrefixedProviders.contains(slots[index].providerID) else { return "Demo" }
         return headingPrefix + name
     }
+
+    /// Providers whose "Demo · <name>" the render sweep shows fitting the narrowest heading,
+    /// Vessel Hero's single column on iPhone SE, which never shrinks sideways. "Demo ·
+    /// OpenCode" did not (U9), so any other provider reads "Demo" beside its mark, as a pair's
+    /// first slot does, until a sweep proves its prefixed name fits.
+    static let demoPrefixedProviders: Set<String> = ["claude", "codex", "grok", "cursor", "copilot"]
 
     /// R11: a title line that stands for the main window (Nested Rows, which prints no
     /// caption) names Cursor's pool, never a bare "Cursor N%".

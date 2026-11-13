@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import Testing
 import HeadroomCore
@@ -175,5 +176,102 @@ struct MenuBarPillArrangerTests {
         #expect(width == 63)
         #expect(2 * PillShelfModel.wellPadding + 6 * width + 5 * PillShelfModel.spacing <= 436)
         #expect(PillShelfModel.cardWidth(forWidth: 516, count: 6) == 76)
+    }
+
+    // MARK: Card geometry (six cards at the window floor)
+
+    /// The well widths at the 720pt floor and the default 800pt window.
+    private static let floorWell: CGFloat = 436
+    private static let defaultWell: CGFloat = 516
+
+    /// Characterization: every card that already fit its pill keeps today's pill exactly —
+    /// 13.5pt numeral, 7pt gap and plate, carets — at both window widths.
+    @Test func cardsThatFitTheirPillKeepTheStandardGeometry() {
+        let today = PillCardGeometry(pill: .standard, showsCarets: true)
+        #expect(MenuBarPillMetrics.standard.numeralSize == 13.5)
+        #expect(MenuBarPillMetrics.standard.vesselTextGap == 7)
+        #expect(MenuBarPillMetrics.standard.plateHorizontalPadding == 7)
+        for count in 1...4 {
+            let width = PillShelfModel.cardWidth(forWidth: Self.floorWell, count: count)
+            #expect(PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: true) == today)
+        }
+        for count in 1...5 {
+            let width = PillShelfModel.cardWidth(forWidth: Self.defaultWell, count: count)
+            #expect(PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: true) == today)
+        }
+        // Pills only: the bare vessel fits every card at full size, carets included.
+        for count in 1...6 {
+            for well in [Self.floorWell, Self.defaultWell] {
+                let width = PillShelfModel.cardWidth(forWidth: well, count: count)
+                let geometry = PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: false)
+                #expect(geometry.pill == .standard && geometry.showsCarets)
+            }
+        }
+    }
+
+    /// A card's widest pill ("100%") stays inside the card at every width from the 720pt
+    /// floor up, for one to six cards, and the carets show only where they clear it. The
+    /// row itself never overlaps: every card sits in its own slot.
+    @Test func everyCardHoldsItsWidestPill() {
+        for count in 1...6 {
+            for well in stride(from: Self.floorWell, through: 1_200, by: 1) {
+                let width = PillShelfModel.cardWidth(forWidth: well, count: count)
+                #expect(2 * PillShelfModel.wellPadding + CGFloat(count) * width
+                    + CGFloat(count - 1) * PillShelfModel.spacing <= well)
+                for showsPercentage in [false, true] {
+                    let geometry = PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: showsPercentage)
+                    let pill = geometry.pill.widestPillWidth(showsPercentage: showsPercentage)
+                    #expect(pill <= width, "count \(count) well \(well): \(pill) in \(width)")
+                    if geometry.showsCarets {
+                        #expect(pill + 2 * PillShelfModel.caretReserve <= width,
+                                "count \(count) well \(well): carets collide")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Six cards: compact with carets at the default window (76pt), compact without them at
+    /// the floor (63pt), standard again once the window gives each card 91pt.
+    @Test func sixCardsStepDownAtNarrowWindows() {
+        let floor = PillShelfModel.cardGeometry(
+            cardWidth: PillShelfModel.cardWidth(forWidth: Self.floorWell, count: 6), showsPercentage: true)
+        #expect(floor == PillCardGeometry(pill: .compact, showsCarets: false, showsName: false))
+        let standard = PillShelfModel.cardGeometry(
+            cardWidth: PillShelfModel.cardWidth(forWidth: Self.defaultWell, count: 6), showsPercentage: true)
+        #expect(standard == PillCardGeometry(pill: .compact, showsCarets: true))
+        #expect(PillShelfModel.cardGeometry(cardWidth: 90, showsPercentage: true).pill == .compact)
+        #expect(PillShelfModel.cardGeometry(cardWidth: 91, showsPercentage: true)
+            == PillCardGeometry(pill: .standard, showsCarets: true))
+        #expect(MenuBarPillMetrics.compact.widestPillWidth(showsPercentage: true) <= PillShelfModel.minimumCardWidth)
+    }
+
+    /// The name leaves the header only where it would be a bare ellipsis; every card of up to
+    /// five providers, and six at the default window, keeps it.
+    @Test func theNameLeavesOnlyTheNarrowestCards() {
+        for count in 1...6 {
+            for well in [Self.floorWell, Self.defaultWell] {
+                let width = PillShelfModel.cardWidth(forWidth: well, count: count)
+                let expected = !(count == 6 && well == Self.floorWell)
+                #expect(PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: true).showsName == expected)
+                #expect(PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: false).showsName == expected)
+            }
+        }
+    }
+}
+
+/// The widest-numeral constants are measured, not guessed: the real font's "100%" must round
+/// up to them, and no two-digit value may be wider.
+@MainActor
+struct MenuBarPillMetricsTests {
+    @Test func widestNumeralMatchesTheFont() {
+        for metrics in [MenuBarPillMetrics.standard, .compact] {
+            let font = NSFont.monospacedDigitSystemFont(ofSize: metrics.numeralSize, weight: .medium)
+            func width(_ text: String) -> CGFloat { ceil((text as NSString).size(withAttributes: [.font: font]).width) }
+            #expect(width("100%") == metrics.widestNumeralWidth)
+            for value in [0, 8, 38, 88, 99] {
+                #expect(width("\(value)%") <= metrics.widestNumeralWidth)
+            }
+        }
     }
 }

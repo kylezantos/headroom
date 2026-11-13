@@ -39,6 +39,8 @@ struct MenuBarLabel: View {
     var motionEnabled = false
     var sourceAccounts: [ProviderID: AccountKey] = [:]
     var probeEndTimes: [ProviderID: Date] = [:]
+    /// The status item always draws `.standard`; a narrow Settings pill card passes `.compact`.
+    var metrics: MenuBarPillMetrics = .standard
 
     @State private var slosh = MenuBarSlosh()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -57,7 +59,7 @@ struct MenuBarLabel: View {
                 : MenuBarSlosh.staticPresentation(for: meter))
         }, uniquingKeysWith: { _, latest in latest })
         let result = MenuBarLabelRenderer.render(meters: meters, showsPercentage: showsPercentage,
-            palette: palette, automatic: automatic, presentations: presentations)
+            palette: palette, automatic: automatic, presentations: presentations, metrics: metrics)
         Image(nsImage: result.image)
             .accessibilityLabel(result.accessibilityLabel)
             .help(result.tooltip)
@@ -220,6 +222,44 @@ final class MenuBarAppearanceMonitor {
     }
 }
 
+/// The type and spacing a menu-bar pill is drawn with. The status item always uses
+/// `standard`; only a Settings pill card narrower than the standard pill takes `compact`,
+/// chosen by `PillShelfModel.cardGeometry` (KTD14 follow-up: six cards share one row).
+struct MenuBarPillMetrics: Equatable, Sendable {
+    /// The percentage's point size (monospaced digits, medium).
+    let numeralSize: CGFloat
+    /// The gap between the vessel and its percentage.
+    let vesselTextGap: CGFloat
+    /// The preview plate's inset on each side of the label.
+    let plateHorizontalPadding: CGFloat
+    /// "100%", the widest value a pill shows, at `numeralSize`, rounded up the way the
+    /// renderer rounds it. `MenuBarPillMetricsTests` measures the real font against it.
+    let widestNumeralWidth: CGFloat
+
+    static let standard = MenuBarPillMetrics(
+        numeralSize: 13.5,
+        vesselTextGap: CGFloat(MenuBarLabelGeometry.vesselTextGap),
+        plateHorizontalPadding: 7,
+        widestNumeralWidth: 39
+    )
+
+    /// One deliberate step down: about 80% type, with the plate and gap tightened to match,
+    /// so "100%" fits a 62pt card with room to spare.
+    static let compact = MenuBarPillMetrics(
+        numeralSize: 11,
+        vesselTextGap: 4,
+        plateHorizontalPadding: 4,
+        widestNumeralWidth: 33
+    )
+
+    /// The widest plate this pill can draw: a single meter showing "100%", or the bare vessel.
+    func widestPillWidth(showsPercentage: Bool) -> CGFloat {
+        let vessel = CGFloat(MenuBarLabelGeometry.vesselWidth)
+        let text = showsPercentage ? vesselTextGap + widestNumeralWidth : 0
+        return 2 * plateHorizontalPadding + vessel + text
+    }
+}
+
 @MainActor
 struct MenuBarLabelRenderResult {
     let image: NSImage
@@ -234,19 +274,30 @@ enum MenuBarLabelRenderer {
     // dot's 3pt overhang was drawn but never measured, clipping it on the trailing mark).
     private static let height = CGFloat(MenuBarLabelGeometry.height)
     private static let vesselWidth = CGFloat(MenuBarLabelGeometry.vesselWidth)
-    private static let font = NSFont.monospacedDigitSystemFont(ofSize: 13.5, weight: .medium)
+    private static let font = NSFont.monospacedDigitSystemFont(ofSize: MenuBarPillMetrics.standard.numeralSize, weight: .medium)
+    private static let compactFont = NSFont.monospacedDigitSystemFont(ofSize: MenuBarPillMetrics.compact.numeralSize, weight: .medium)
+
+    private static func font(for metrics: MenuBarPillMetrics) -> NSFont {
+        switch metrics.numeralSize {
+        case MenuBarPillMetrics.standard.numeralSize: font
+        case MenuBarPillMetrics.compact.numeralSize: compactFont
+        default: NSFont.monospacedDigitSystemFont(ofSize: metrics.numeralSize, weight: .medium)
+        }
+    }
 
     static func render(
         meters: [MenuBarMeter],
         showsPercentage: Bool,
         palette: MenuBarPalette,
         automatic: Bool = false,
-        presentations: [MenuBarSlosh.MeterKey: MenuBarSlosh.Presentation] = [:]
+        presentations: [MenuBarSlosh.MeterKey: MenuBarSlosh.Presentation] = [:],
+        metrics: MenuBarPillMetrics = .standard
     ) -> MenuBarLabelRenderResult {
+        let numeralFont = font(for: metrics)
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
         let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?) in
             guard showsPercentage, !meter.summary.isNeutral else { return (meter, nil) }
-            return (meter, textSize(for: meter.summary.text))
+            return (meter, (meter.summary.text as NSString).size(withAttributes: [.font: numeralFont]))
         }
         let layout = MenuBarLabelGeometry.layout(
             items: measured.map {
@@ -255,7 +306,8 @@ enum MenuBarLabelRenderer {
                     needsAttention: $0.meter.summary.needsAttention
                 )
             },
-            showsPercentage: showsPercentage
+            showsPercentage: showsPercentage,
+            vesselTextGap: Double(metrics.vesselTextGap)
         )
         let image = NSImage(
             size: NSSize(width: layout.imageWidth, height: height),
@@ -294,7 +346,7 @@ enum MenuBarLabelRenderer {
                         height: textHeight
                     )
                     item.meter.summary.text.draw(in: rect, withAttributes: [
-                        .font: font,
+                        .font: numeralFont,
                         .foregroundColor: textColor(for: item.meter.summary, palette: palette)
                     ])
                 }
@@ -308,10 +360,6 @@ enum MenuBarLabelRenderer {
             accessibilityLabel: accessibilityLabel,
             tooltip: accessibilityLabel
         )
-    }
-
-    private static func textSize(for text: String) -> NSSize {
-        (text as NSString).size(withAttributes: [.font: font])
     }
 
     private static func accessibilityLabel(for meters: [MenuBarMeter]) -> String {

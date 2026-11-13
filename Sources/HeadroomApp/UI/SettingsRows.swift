@@ -621,6 +621,8 @@ private struct SettingsPaneTransitionModifier: ViewModifier {
 struct MenuBarPreviewPill: View {
     let meters: [MenuBarMeter]
     let showsPercentage: Bool
+    /// `.compact` only in a pill card too narrow for the standard pill.
+    var metrics: MenuBarPillMetrics = .standard
 
     var body: some View {
         // PB13: read inside `body` so the observation registers here and the plate repaints
@@ -628,8 +630,9 @@ struct MenuBarPreviewPill: View {
         let darkMenuBar = MenuBarAppearanceMonitor.shared.isDarkMenuBar
         // KTD13: pending mains preview the static ghost; real readings and value-choice
         // specimens keep their meaningful fills. Palette follows the bar, motion never does.
-        return MenuBarLabel(meters: meters, showsPercentage: showsPercentage, appearance: .menuBar, motionEnabled: false)
-            .menuBarPreviewPlate(darkMenuBar: darkMenuBar)
+        return MenuBarLabel(meters: meters, showsPercentage: showsPercentage, appearance: .menuBar,
+                            motionEnabled: false, metrics: metrics)
+            .menuBarPreviewPlate(darkMenuBar: darkMenuBar, horizontalPadding: metrics.plateHorizontalPadding)
     }
 }
 
@@ -642,9 +645,12 @@ extension View {
     /// `.menuBar` explicitly and swap the plate underneath with the same flag, so dark ink on
     /// a light bar still lands on a light plate. Shared by the Menu Bar pane and the
     /// Appearance specimen so the two strips cannot drift.
-    func menuBarPreviewPlate(darkMenuBar: Bool) -> some View {
+    func menuBarPreviewPlate(
+        darkMenuBar: Bool,
+        horizontalPadding: CGFloat = MenuBarPillMetrics.standard.plateHorizontalPadding
+    ) -> some View {
         self
-            .padding(.horizontal, 7)
+            .padding(.horizontal, horizontalPadding)
             .padding(.vertical, 3)
             .background(
                 darkMenuBar ? Color(white: 0.15) : Color(white: 0.93),

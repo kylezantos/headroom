@@ -458,8 +458,9 @@ struct MenuBarSettingsPane: View {
                 notShownHelp: isAuto
                     ? "Each value sets what the summary follows for that provider."
                     : "Drag one up, or press +.",
+                showsPercentage: store.showMenuBarPercentage,
                 onCommit: commit,
-                card: { id, presentation in providerCard(id, presentation: presentation) }
+                card: { id, presentation, geometry in providerCard(id, presentation: presentation, geometry: geometry) }
             )
             // The arranger lifts a picked-up card past its own bounds, so nothing clips it.
             .padding(1)
@@ -494,11 +495,13 @@ struct MenuBarSettingsPane: View {
 
     /// `presentation` is the row whose form this card takes. It is the provider's row, except
     /// that a dropped card takes its drop row's form as soon as it is let go (PS8).
-    @ViewBuilder private func providerCard(_ id: ProviderID, presentation: PillShelf) -> some View {
+    @ViewBuilder private func providerCard(
+        _ id: ProviderID, presentation: PillShelf, geometry: PillCardGeometry
+    ) -> some View {
         if store.providerOrder.contains(id) {
-            pillCard(id, inMenuBar: presentation == .menuBar)
+            pillCard(id, inMenuBar: presentation == .menuBar, geometry: geometry)
         } else {
-            offCard(id)
+            offCard(id, geometry: geometry)
         }
     }
 
@@ -516,17 +519,19 @@ struct MenuBarSettingsPane: View {
     /// working menu, so a card reads the same in both rows and a pill's value can be chosen
     /// before it is added. The grip went (the whole card drags) and the move arrows became
     /// carets in the pill's empty flanks, shown on hover.
-    private func pillCard(_ id: ProviderID, inMenuBar: Bool) -> some View {
+    private func pillCard(_ id: ProviderID, inMenuBar: Bool, geometry: PillCardGeometry) -> some View {
         let shape = RoundedRectangle(cornerRadius: 11, style: .continuous)
         let hovered = hoveredCard == id
         return VStack(spacing: 0) {
-            cardHeader(id, dimmed: !inMenuBar)
+            cardHeader(id, dimmed: !inMenuBar, showsName: geometry.showsName)
             cardBody {
-                cardPill(id)
+                cardPill(id, metrics: geometry.pill)
                     .opacity(inMenuBar ? 1 : 0.75)
             }
             .overlay {
-                if inMenuBar {
+                // Six cards at the window floor leave no flank beside the pill; there the card
+                // moves by drag and VoiceOver's move actions only (`PillShelfModel.cardGeometry`).
+                if inMenuBar, geometry.showsCarets {
                     HStack(spacing: 0) {
                         caret(id, offset: -1, visible: hovered)
                         Spacer(minLength: 0)
@@ -631,12 +636,12 @@ struct MenuBarSettingsPane: View {
     /// A provider that is switched off. It cannot be picked up; the whole card opens
     /// Accounts, where its switch lives. PC2: the same three bands as `pillCard`, with
     /// "Off ›" in the value's place, so it sits at its neighbours' height.
-    private func offCard(_ id: ProviderID) -> some View {
+    private func offCard(_ id: ProviderID, geometry: PillCardGeometry) -> some View {
         Button(action: onOpenAccounts) {
             VStack(spacing: 0) {
-                cardHeader(id, dimmed: true)
+                cardHeader(id, dimmed: true, showsName: geometry.showsName)
                 cardBody {
-                    cardPill(id)
+                    cardPill(id, metrics: geometry.pill)
                         .opacity(0.35)
                 }
                 HStack(spacing: 3) {
@@ -678,15 +683,17 @@ struct MenuBarSettingsPane: View {
     /// the header's own descender room, so it reads centred between header and footer.
     private static let pillDrop: CGFloat = 2
 
-    private func cardHeader(_ id: ProviderID, dimmed: Bool) -> some View {
+    private func cardHeader(_ id: ProviderID, dimmed: Bool, showsName: Bool) -> some View {
         // The mark hugs its ink, so this 4 is the whole gap for every provider.
         HStack(spacing: 4) {
             ProviderLogoView(providerID: id, size: 12, hugsInk: true)
-            Text(name(id))
-                .font(SettingsType.help.weight(.semibold))
-                .foregroundStyle(dimmed ? .secondary : .primary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            if showsName {
+                Text(name(id))
+                    .font(SettingsType.help.weight(.semibold))
+                    .foregroundStyle(dimmed ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
             Spacer(minLength: 0)
         }
         .frame(height: 16)
@@ -701,9 +708,16 @@ struct MenuBarSettingsPane: View {
             .frame(height: Self.bodyHeight)
     }
 
-    private func cardPill(_ id: ProviderID) -> some View {
-        MenuBarPreviewPill(meters: [store.providerMenuBarMeter(for: id)], showsPercentage: store.showMenuBarPercentage)
-            .frame(height: 25)
+    private func cardPill(_ id: ProviderID, metrics: MenuBarPillMetrics) -> some View {
+        MenuBarPreviewPill(
+            meters: [store.providerMenuBarMeter(for: id)],
+            showsPercentage: store.showMenuBarPercentage,
+            metrics: metrics
+        )
+        .frame(height: 25)
+        // The pill may use the card's side padding: the geometry keeps it inside the card
+        // itself, and the card never grows to fit it, so it cannot spill into a neighbour.
+        .padding(.horizontal, -Self.cardInset)
     }
 
     /// PC2: a move caret in the pill's flank. Always laid out so the pill never shifts; shown

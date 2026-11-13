@@ -9,20 +9,35 @@ struct StdioChildProcess {
     private let stdin: Int32
     private let stdout: Int32
 
+    /// What the child reads. `.pipe` is the default every server-style caller writes to;
+    /// `.nullDevice` gives a run-and-exit CLI end of file at once, so a client that ever reads
+    /// stdin cannot sit on a pipe nobody writes until its deadline.
+    enum Stdin {
+        case pipe
+        case nullDevice
+    }
+
     static func spawn(
         path: String,
         arguments: [String],
         environment: [String: String],
-        workingDirectory: String
+        workingDirectory: String,
+        stdin stdinMode: Stdin = .pipe
     ) -> StdioChildProcess? {
         var input = [Int32](repeating: -1, count: 2)
         var output = [Int32](repeating: -1, count: 2)
-        guard pipe(&input) == 0 else { return nil }
+        switch stdinMode {
+        case .pipe:
+            guard pipe(&input) == 0 else { return nil }
+        case .nullDevice:
+            input[0] = open("/dev/null", O_RDONLY)
+            guard input[0] >= 0 else { return nil }
+        }
         guard pipe(&output) == 0 else {
-            close(input[0]); close(input[1])
+            for fd in input where fd >= 0 { close(fd) }
             return nil
         }
-        guard fcntl(input[1], F_SETNOSIGPIPE, 1) != -1 else {
+        guard input[1] < 0 || fcntl(input[1], F_SETNOSIGPIPE, 1) != -1 else {
             close(input[0]); close(input[1]); close(output[0]); close(output[1])
             return nil
         }
@@ -60,14 +75,16 @@ struct StdioChildProcess {
         close(input[0]); close(output[1])
         if devNull >= 0 { close(devNull) }
         guard spawnStatus == 0 else {
-            close(input[1]); close(output[0])
+            if input[1] >= 0 { close(input[1]) }
+            close(output[0])
             return nil
         }
         return StdioChildProcess(pid: pid, stdin: input[1], stdout: output[0])
     }
 
     func write(_ data: Data) -> Bool {
-        data.withUnsafeBytes { rawBuffer in
+        guard stdin >= 0 else { return false }
+        return data.withUnsafeBytes { rawBuffer in
             guard var pointer = rawBuffer.baseAddress else { return false }
             var remaining = rawBuffer.count
             while remaining > 0 {
@@ -112,7 +129,7 @@ struct StdioChildProcess {
     }
 
     func terminate() {
-        close(stdin)
+        if stdin >= 0 { close(stdin) }
         close(stdout)
         Self.terminateProcessGroup(pid)
     }

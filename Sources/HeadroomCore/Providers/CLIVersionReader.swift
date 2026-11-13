@@ -7,7 +7,7 @@ import Foundation
 public enum CLIVersionReader {
     public typealias Resolve = @Sendable (ProviderID) -> String?
     public typealias LoginPath = @Sendable () -> String
-    public typealias Run = @Sendable (_ executablePath: String, _ loginPath: String) -> String?
+    public typealias Run = @Sendable (_ providerID: ProviderID, _ executablePath: String, _ loginPath: String) -> String?
 
     /// The order the diagnostics block lists CLIs in.
     public static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
@@ -20,8 +20,8 @@ public enum CLIVersionReader {
         let paths = await concurrently(providers) { resolve($0) }
         // One login-shell PATH lookup for every CLI, and none when nothing is installed.
         let path = paths.contains { $0 != nil } ? await offCooperativePool(loginPath) : ""
-        let outputs = await concurrently(paths) { executable in
-            executable.flatMap { run($0, path) }
+        let outputs = await concurrently(Array(zip(providers, paths))) { providerID, executable in
+            executable.flatMap { run(providerID, $0, path) }
         }
         return providers.indices.map { index in
             FeedbackDiagnostics.CLI(
@@ -52,23 +52,59 @@ public enum CLIVersionReader {
         )
     }
 
-    public static let defaultRun: Run = { path, loginPath in
-        runVersion(executablePath: path, loginPath: loginPath, deadline: 5)
+    public static let defaultRun: Run = { providerID, path, loginPath in
+        runVersion(providerID: providerID, executablePath: path, loginPath: loginPath, deadline: 5)
+    }
+
+    /// The environment and working folder one provider's `--version` runs with.
+    struct Launch: Sendable, Equatable {
+        var environment: [String: String]
+        var workingDirectory: String
+        /// OpenCode's spawns all read `/dev/null`; the other CLIs keep the pipe they had.
+        var readsNullStdin = false
+    }
+
+    /// Every provider but OpenCode inherits the app's environment from the home folder. OpenCode
+    /// gets the same rule as every other spawn of it (KTD2, KTD10): `OPENCODE_*` and XDG cleared,
+    /// the two fixed flags set, the Headroom-owned probe folder. An inherited `OPENCODE_CONFIG`
+    /// or XDG value could otherwise point even this local print at another home, and a 2.x
+    /// client migrates a 1.x home one way.
+    static func launch(for providerID: ProviderID, loginPath: String, inherited: [String: String]) -> Launch {
+        if providerID == .opencode {
+            return Launch(
+                environment: OpenCodeCLI.environment(inherited: inherited, home: .builtIn, loginPath: loginPath),
+                workingDirectory: OpenCodeCLI.defaultWorkingDirectory.path,
+                readsNullStdin: true
+            )
+        }
+        var environment = inherited
+        // Node-based CLIs (`#!/usr/bin/env node`) need the login PATH from a Finder launch.
+        environment["PATH"] = loginPath
+        return Launch(environment: environment, workingDirectory: NSHomeDirectory())
     }
 
     /// Nil when the CLI can't launch, exits non-zero, or misses the deadline. Stderr is
     /// discarded: nothing it prints may reach the email. `StdioChildProcess` rather than
     /// `Process`: its exit is read with `waitpid`, not a GCD-delivered termination handler,
     /// and its cleanup ends the whole process group if the CLI leaves a helper behind.
-    static func runVersion(executablePath: String, loginPath: String, deadline: TimeInterval) -> String? {
-        var environment = ProcessInfo.processInfo.environment
-        // Node-based CLIs (`#!/usr/bin/env node`) need the login PATH from a Finder launch.
-        environment["PATH"] = loginPath
+    /// `interpreter` is for tests only: a fake CLI runs as `/bin/sh <script>` and never hits
+    /// the "text file busy" race (BUGS.md).
+    static func runVersion(
+        providerID: ProviderID = .claude,
+        executablePath: String,
+        loginPath: String,
+        inherited: [String: String] = ProcessInfo.processInfo.environment,
+        interpreter: String? = nil,
+        deadline: TimeInterval
+    ) -> String? {
+        let launch = launch(for: providerID, loginPath: loginPath, inherited: inherited)
+        try? FileManager.default.createDirectory(atPath: launch.workingDirectory, withIntermediateDirectories: true)
         guard let process = StdioChildProcess.spawn(
-            path: executablePath,
-            arguments: [executablePath, "--version"],
-            environment: environment,
-            workingDirectory: NSHomeDirectory()
+            path: interpreter ?? executablePath,
+            arguments: (interpreter.map { [$0, executablePath] } ?? [executablePath]) + ["--version"],
+            environment: launch.environment,
+            workingDirectory: launch.workingDirectory,
+            stdin: launch.readsNullStdin ? .nullDevice : .pipe
         ) else { return nil }
         defer { process.terminate() }
 

@@ -188,6 +188,9 @@ extension UsageStore {
     /// changed login.
     public func invalidateUsageForHandoffBoundary(_ key: AccountKey) {
         attachmentGenerations[key, default: 0] &+= 1
+        // KTD8 (OpenCode plan): the check after the exit must start a fresh read, not join
+        // one that began before it and whose result the generation bump already rejects.
+        providers.first { $0.accountKey == key }?.invalidateInFlightUsage()
     }
 
     public func canAddAccount(for providerID: ProviderID) -> Bool {

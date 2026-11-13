@@ -1989,6 +1989,28 @@ private enum SeededHomeOpenCodeScript {
         await refresh.value
     }
 
+    /// KTD9 of the sign-in plan and KTD8: a Terminal exit's handoff boundary drops the
+    /// in-flight entry too, so the follow-up check after sign-in never joins a read that began
+    /// before it and would be rejected anyway.
+    @Test func handoffBoundaryInvalidatesTheInFlightRead() async {
+        let source = HoldingOpenCodeSource()
+        let cache = OpenCodeUsageCaptureCache(source: source)
+        let (store, _, _) = makeHeldStore(source: source, cache: cache)
+        let builtInKey = AccountKey(providerID: .opencode, accountID: .primary)
+        await source.hold(.builtIn)
+        let refresh = Task { await store.refreshAccount(builtInKey) }
+        await waitUntil { await source.waiting(.builtIn) == 1 }
+
+        store.invalidateUsageForHandoffBoundary(builtInKey)
+        let next = Task { await cache.capture(home: .builtIn) }
+        await waitUntil { await source.startCount(.builtIn) == 2 }
+        #expect(await source.startCount(.builtIn) == 2)
+
+        await source.releaseAll()
+        _ = await next.value
+        await refresh.value
+    }
+
     /// KTD12: twenty accounts behind 16-second captures. The launch's user pass reaches every
     /// account (user work bypasses the gate); after it, no timer probe starts while the lane
     /// has been busy for more than half of the trailing window, the lane never runs two reads

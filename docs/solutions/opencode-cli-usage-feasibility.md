@@ -38,9 +38,15 @@ has not been captured yet; see "Still unverified" and the release-blocker entry 
   release's published digest). Newer releases exist (2.2.6, 2.2.7); the QA pin stays at 2.2.5.
 - The usage read was added in 2.2.0 (PR #58694). Headroom gates on **2.2.0 or newer** and never
   runs `api` on anything older: on 1.x, `opencode api …` falls through to the TUI. 1.x prints a
-  bare version (`1.1.53`); both forms parse with `^(?:opencode )?v?(\d+)\.(\d+)\.(\d+)`. A passing
-  version is memoized per symlink-resolved path plus modification date; a below-floor or
-  unreadable version is never memoized, and a deadline, overflow or non-JSON stdout clears the memo.
+  bare version (`1.1.53`); both forms parse with `^(?:opencode )?v?(\d+)\.(\d+)\.(\d+)`. The
+  verdict is memoized per symlink-resolved path plus modification date, both ways. A passing
+  version skips `--version` until the key changes; a deadline, overflow or non-JSON stdout clears
+  that memo. A below-floor version returns update required without spawning while the key is
+  unchanged, because a 1.x `--version` is not side-effect free (it appends to the user's real
+  OpenCode log and can reset `~/.cache/opencode`, observed 2026-11-12); a user request (Check Now,
+  a setup check) always runs it again. An unreadable version is never memoized. Limit: a
+  version-manager shim whose own file does not change when it switches versions is noticed only
+  on a user request.
 - Source references below are at tag `v2.2.5` of `anomalyco/opencode`.
 
 ## How a read runs (KTD2, as built)
@@ -75,7 +81,10 @@ shared environment rule in `OpenCodeCLI` (`OpenCodeConnection.swift`):
   connection's `type` and `method` are decoded, never labels. An `opencode` connection with method
   `oauth` or `external` (or type `external`) is a Console sign-in with no workspace and reads as
   no Go plan. Any other connection on `opencode` or `opencode-go` (a stored key) reads as "sign in
-  to OpenCode Console". No connection, or a failed read, reads as signed out.
+  to OpenCode Console". No connection reads as signed out. A failed read (non-zero exit,
+  deadline, overflow or undecodable output) is transient (`authListUnreadable`), never signed
+  out: every `--standalone` command can fail on its own (see "Concurrency"), and signed out is
+  a permanent "Sign in" state.
 - **After exit 1 with empty stdout** (KTD4), once: `opencode api --standalone GET /openapi.json`
   (about 350 KB on 2.2.5). The client resolves operation names from this same document
   (`packages/cli/src/commands/handlers/api.ts:62-76`), and a missing operation prints
@@ -89,11 +98,11 @@ Exit status and stdout only. Every unmatched case is transient, never a sign-in 
 
 | Exit | stdout (captured on 2.2.5 against the stub) | Result |
 |---|---|---|
-| 0 | `{"location":{…},"data":null}` | follow-up `auth list` (above): signed out, Console sign-in required, or no Go plan |
+| 0 | `{"location":{…},"data":null}` | follow-up `auth list` (above): signed out, Console sign-in required or no Go plan from a decoded list; transient (`authListUnreadable`) when the list read fails |
 | 0 | `data` with a `go` block of `rolling`, `weekly`, `monthly` | live, three windows |
 | 0 | `data` with `workspace` and `budgets` but no `go` (the Go route answered 403) | live, no Go plan |
 | 0 | a `go` block whose percentage or `resetsAt` is not finite and positive | format changed (`usageValues`) |
-| 0 | anything not decodable as the envelope | format changed (`usageOutput`) |
+| 0 | no line decodable as the envelope (the whole stdout is tried first, then each non-empty line from the last; a plugin on the built-in home can print text before the client's line) | format changed (`usageOutput`) |
 | 1 | message contains `Reconnect OpenCode Console` (`"Reconnect OpenCode Console to continue."`, refresh grant rejected) or `(401 GET` (`…(401 GET …/zen/go/v1/usage)`; revoked also fails `…(401 GET …/current-budgets)` first) | sign-in expired (permanent) |
 | 1 | message contains `Location plugins did not finish activating` (`"service":"plugin"`) | transient (`pluginsNotActivated`) |
 | 1 | message contains `timed out` (`"OpenCode Console usage limits timed out"`), `Transport error` (`…budgets are unavailable: Transport error (GET …)`), or `(5` + two digits + space (`…(500 GET …)`) | transient (`consoleUnavailable`) |
@@ -101,7 +110,8 @@ Exit status and stdout only. Every unmatched case is transient, never a sign-in 
 | 1 | stdout begins `Error: Standalone server exited before reporting readiness` followed by a stack (not JSON; the child server died, see "Concurrency") | transient (`serverStartFailed`) |
 | 1 | empty stdout | follow-up operation list (above) |
 | 1 | any other JSON `message` | transient (`unrecognizedError`) |
-| 1 | non-empty stdout that is neither of the above | format changed (`usageOutput`) |
+| 1 | JSON of another shape (no `message`) | format changed (`usageOutput`) |
+| 1 | non-empty stdout that is not JSON (a crash stack from ENOSPC, EACCES…) | transient (`clientFailed`) |
 | none | still running at 50 s, valid line already printed | that line's result |
 | none | still running at 50 s, otherwise | transient (`deadline`) |
 | other | anything | transient (`unexpectedExit`) |

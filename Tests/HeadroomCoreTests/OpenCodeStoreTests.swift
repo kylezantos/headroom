@@ -63,22 +63,28 @@ private actor ScriptedOpenCodeSource: OpenCodeUsageSource {
     private let work = OpenCodeAccountHome.isolated(root: "/tmp/opencode-work")
     private let builtInKey = AccountKey(providerID: .opencode, accountID: .primary)
 
-    private func makeStore(source: ScriptedOpenCodeSource) -> (UsageStore, ProviderAccount) {
+    private func makeStore(
+        source: ScriptedOpenCodeSource,
+        clock: MutableDateSource? = nil,
+        otherProviders: [any UsageProvider] = []
+    ) -> (UsageStore, ProviderAccount) {
         let defaults = freshDefaults()
         let registry = AccountRegistry(defaults: defaults)
         let extra = registry.addAccount(for: .opencode)!
         let work = work
+        let now: @Sendable () -> Date = { clock?.now() ?? Date() }
         let store = UsageStore(
             providers: [
-                OpenCodeProvider(source: source, accountID: .primary, home: .builtIn),
-                OpenCodeProvider(source: source, accountID: extra.id, home: work),
-            ],
+                OpenCodeProvider(source: source, accountID: .primary, home: .builtIn, now: now),
+                OpenCodeProvider(source: source, accountID: extra.id, home: work, now: now),
+            ] + otherProviders,
             preferences: Preferences(defaults: defaults),
             accountRegistry: registry,
             accountStorage: NoopStorage(),
             providerFactory: { account in
-                OpenCodeProvider(source: source, accountID: account.id, home: work)
-            }
+                OpenCodeProvider(source: source, accountID: account.id, home: work, now: now)
+            },
+            now: now
         )
         return (store, extra)
     }
@@ -165,6 +171,34 @@ private actor ScriptedOpenCodeSource: OpenCodeUsageSource {
         #expect(await source.count(.builtIn) == 2)
     }
 
+    /// The armed re-check is a user-origin request, so it raises `isRefreshing`; it must not
+    /// make the open skip the ordinary wake for another provider's due account. (Accounts in
+    /// OpenCode's own lane wait for the lane's next pass either way: a draining lane is left
+    /// alone by `dispatchDue`.)
+    @Test func anArmedRecheckNeverSuppressesThePopoverOpenWakeForOtherProviders() async {
+        let clock = MutableDateSource(Date(timeIntervalSince1970: 2_000_000_000))
+        let claude = ClockedClaudeProvider(clock: clock)
+        let source = ScriptedOpenCodeSource([.builtIn: [.noGoPlan, go], work: [go]])
+        let (store, extra) = makeStore(source: source, clock: clock, otherProviders: [claude])
+        let claudeKey = AccountKey(providerID: .claude, accountID: .primary)
+        store.setSurfaceEnabled(true, for: .opencodeSubscription)
+        await store.refreshAccount(builtInKey)
+        await store.refreshAccount(extra.key)
+        await store.refreshAccount(claudeKey)
+        #expect(claude.fetchCount == 1)
+
+        // Every capture has aged a full interval, so this open wakes the queue.
+        clock.set(clock.now().addingTimeInterval(Double(Preferences.defaultIntervalMinutes) * 60 + 1))
+        store.armRecheckOnNextPopoverOpen(builtInKey)
+        store.refreshOnPopoverOpen()
+        for _ in 0..<2_000 {
+            if claude.fetchCount >= 2, store.snapshot(for: builtInKey).planStatus == nil { break }
+            await Task.yield()
+        }
+        #expect(store.snapshot(for: builtInKey).planStatus == nil, "the armed re-check ran")
+        #expect(claude.fetchCount == 2, "the other provider's due account was woken too")
+    }
+
     @Test func aCaptureThatLandsAfterRemovalNeverResurrectsTheRow() async {
         let source = ScriptedOpenCodeSource([.builtIn: [go], work: [.noGoPlan]])
         let (store, extra) = makeStore(source: source)
@@ -178,5 +212,32 @@ private actor ScriptedOpenCodeSource: OpenCodeUsageSource {
         await yieldALot()
         #expect(!store.accounts(for: .opencode).contains { $0.key == extra.key })
         #expect(store.snapshots[extra.key] == nil)
+    }
+}
+
+/// A Claude account on its own lane whose capture time is the test's clock, so capture age,
+/// which the popover-open gate reads, is deterministic.
+private final class ClockedClaudeProvider: UsageProvider, @unchecked Sendable {
+    let id: ProviderID = .claude
+    let accountID: AccountID = .primary
+    let displayName = "Claude"
+    let pollingLane: ProviderPollingLane = .serial("claude-cli")
+    private let clock: MutableDateSource
+    private let lock = NSLock()
+    private var count = 0
+
+    init(clock: MutableDateSource) { self.clock = clock }
+
+    var fetchCount: Int { lock.withLock { count } }
+
+    func fetchSnapshot() async -> UsageSnapshot {
+        lock.withLock { count += 1 }
+        return UsageSnapshot(
+            providerID: id,
+            windows: [UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: clock.now().addingTimeInterval(3_600))],
+            planLabel: nil,
+            capturedAt: clock.now(),
+            freshness: .live
+        )
     }
 }

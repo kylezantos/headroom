@@ -79,7 +79,7 @@ struct CLIVersionReaderTests {
         let versions = await CLIVersionReader.versions(
             resolve: { $0 == .grok ? nil : "/fake/\($0.raw)" },
             loginPath: { "/login/bin" },
-            run: { path, loginPath in
+            run: { _, path, loginPath in
                 #expect(loginPath == "/login/bin")
                 return path.hasSuffix("cursor") ? nil : "\(path.split(separator: "/").last!) 1.2.3"
             }
@@ -94,9 +94,86 @@ struct CLIVersionReaderTests {
         let versions = await CLIVersionReader.versions(
             resolve: { _ in nil },
             loginPath: { Issue.record("login PATH looked up with no CLI installed"); return "" },
-            run: { _, _ in Issue.record("ran a CLI that isn't installed"); return nil }
+            run: { _, _, _ in Issue.record("ran a CLI that isn't installed"); return nil }
         )
         #expect(versions.allSatisfy { $0.version == .notInstalled })
+    }
+
+    @Test func eachRunIsToldWhichProviderItReads() async {
+        let seen = SeenProviders()
+        _ = await CLIVersionReader.versions(
+            resolve: { "/fake/\($0.raw)" },
+            loginPath: { "/login/bin" },
+            run: { providerID, path, _ in
+                #expect(path == "/fake/\(providerID.raw)")
+                seen.insert(providerID)
+                return nil
+            }
+        )
+        #expect(seen.values == Set(CLIVersionReader.providers))
+    }
+
+    private static let inherited = [
+        "FOO": "bar",
+        "OPENCODE_API_KEY": "sk-secret",
+        "OPENCODE_CONFIG": "/elsewhere/opencode.json",
+        "OPENCODE_DISABLE_AUTOUPDATE": "0",
+        "XDG_DATA_HOME": "/custom/data",
+        "XDG_CONFIG_HOME": "/custom/config",
+        "XDG_CACHE_HOME": "/custom/cache",
+        "XDG_STATE_HOME": "/custom/state",
+    ]
+
+    /// The feedback window's OpenCode `--version` follows the rule every other OpenCode spawn
+    /// does (KTD2, KTD10), so no inherited variable can point it at another home.
+    @Test func openCodeVersionRunsWithTheOpenCodeRuleInTheProbeFolder() throws {
+        let launch = CLIVersionReader.launch(for: .opencode, loginPath: "/login/bin", inherited: Self.inherited)
+        #expect(launch.environment == OpenCodeCLI.environment(inherited: Self.inherited, home: .builtIn, loginPath: "/login/bin"))
+        #expect(launch.workingDirectory == OpenCodeCLI.defaultWorkingDirectory.path)
+        #expect(launch.readsNullStdin)
+
+        // The spawn itself: a fake `opencode` run as `/bin/sh <script>` prints what it got.
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-version-env-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let script = directory.appendingPathComponent("opencode")
+        try Data("env\necho \"HEADROOM_PWD=$(pwd -P)\"\n".utf8).write(to: script)
+
+        let output = try #require(CLIVersionReader.runVersion(
+            providerID: .opencode,
+            executablePath: script.path,
+            loginPath: "/usr/bin:/bin",
+            inherited: Self.inherited,
+            interpreter: "/bin/sh",
+            deadline: 5
+        ))
+        let lines = output.split(separator: "\n").map(String.init)
+        let environment = Dictionary(lines.compactMap { line -> (String, String)? in
+            guard let equals = line.firstIndex(of: "=") else { return nil }
+            return (String(line[..<equals]), String(line[line.index(after: equals)...]))
+        }, uniquingKeysWith: { $1 })
+        #expect(environment.keys.filter { $0.hasPrefix("OPENCODE_") }.sorted() == OpenCodeTestExpectations.fixedNames)
+        #expect(environment["OPENCODE_DISABLE_MODELS_FETCH"] == "1")
+        #expect(environment["OPENCODE_DISABLE_AUTOUPDATE"] == "1")
+        #expect(!environment.keys.contains { $0.hasPrefix("XDG_") })
+        #expect(environment["PATH"] == "/usr/bin:/bin")
+        #expect(environment["FOO"] == "bar")
+        let expectedFolder = try #require(realpath(OpenCodeCLI.defaultWorkingDirectory.path, nil))
+        defer { free(expectedFolder) }
+        #expect(environment["HEADROOM_PWD"] == String(cString: expectedFolder))
+        #expect(environment["HEADROOM_PWD"] != NSHomeDirectory())
+    }
+
+    /// Every other provider's read is unchanged: the inherited environment with the login PATH,
+    /// from the home folder.
+    @Test func otherProvidersKeepTheInheritedEnvironment() {
+        for providerID in CLIVersionReader.providers where providerID != .opencode {
+            let launch = CLIVersionReader.launch(for: providerID, loginPath: "/login/bin", inherited: Self.inherited)
+            #expect(launch.environment == Self.inherited.merging(["PATH": "/login/bin"]) { $1 }, "\(providerID.raw)")
+            #expect(launch.workingDirectory == NSHomeDirectory())
+            #expect(!launch.readsNullStdin)
+        }
     }
 
     /// `yes --version` prints forever and never exits, so this is the deadline path, and
@@ -118,4 +195,11 @@ struct CLIVersionReaderTests {
         #expect(CLIVersionReader.runVersion(executablePath: "/usr/bin/false", loginPath: "/usr/bin:/bin", deadline: 5) == nil)
         #expect(CLIVersionReader.runVersion(executablePath: "/nonexistent/headroom-cli", loginPath: "/usr/bin:/bin", deadline: 5) == nil)
     }
+}
+
+private final class SeenProviders: @unchecked Sendable {
+    private let lock = NSLock()
+    private var set: Set<ProviderID> = []
+    func insert(_ id: ProviderID) { lock.withLock { _ = set.insert(id) } }
+    var values: Set<ProviderID> { lock.withLock { set } }
 }

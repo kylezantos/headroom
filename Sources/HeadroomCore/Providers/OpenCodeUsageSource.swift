@@ -60,10 +60,15 @@ public enum OpenCodeTransientCause: String, Sendable, Equatable {
     /// "Standalone server exited before reporting readiness": the child server died, for
     /// example on a locked database when another client started at the same instant (U12).
     case serverStartFailed
-    /// Exit 1 with empty stdout while the operation still exists (KTD4 follow-up).
+    /// Exit 1 with empty stdout while the operation still exists (KTD4 follow-up), or exit 1
+    /// with stdout that is not JSON at all, such as a crash stack from a full disk.
     case clientFailed
     /// The operation-list follow-up itself failed.
     case operationListUnreadable
+    /// The `auth list` follow-up after a `data: null` reading failed (exit, deadline, overflow
+    /// or undecodable output). Every `--standalone` command can fail transiently (U12), so a
+    /// failed list never decides signed out, a permanent state.
+    case authListUnreadable
     /// An exit-1 message no rule recognises. Never a sign-in prompt (KTD4).
     case unrecognizedError
 }
@@ -200,9 +205,7 @@ enum OpenCodeUsageClassifier {
         case nil where output.timedOut:
             // KTD5: a client that printed its reading and then hung still returns it. Any other
             // output at the deadline is not trusted.
-            if let envelope = try? JSONDecoder().decode(OpenCodeUsageEnvelopeDTO.self, from: stdout) {
-                return step(for: envelope)
-            }
+            if let envelope = decodeEnvelope(stdout) { return step(for: envelope) }
             return .done(.failed(.transient(.deadline)))
         case 1:
             return classifyErrorLine(stdout)
@@ -212,10 +215,25 @@ enum OpenCodeUsageClassifier {
     }
 
     private static func classifySuccessLine(_ stdout: Data) -> UsageStep {
-        guard let envelope = try? JSONDecoder().decode(OpenCodeUsageEnvelopeDTO.self, from: stdout) else {
-            return .done(.failed(.formatChanged(.usageOutput)))
-        }
+        guard let envelope = decodeEnvelope(stdout) else { return .done(.failed(.formatChanged(.usageOutput))) }
         return step(for: envelope)
+    }
+
+    /// On the built-in home the client loads the user's plugins, and one may print to stdout
+    /// before the client's own line. The last non-empty line that decodes as the envelope is
+    /// the reading; the whole stdout is tried first, for a client that pretty-prints.
+    static func decodeEnvelope(_ stdout: Data) -> OpenCodeUsageEnvelopeDTO? {
+        decodeLastLine(OpenCodeUsageEnvelopeDTO.self, from: stdout)
+    }
+
+    private static func decodeLastLine<T: Decodable>(_ type: T.Type, from stdout: Data) -> T? {
+        let decoder = JSONDecoder()
+        if let whole = try? decoder.decode(type, from: stdout) { return whole }
+        let lines = String(decoding: stdout, as: UTF8.self).split(whereSeparator: \.isNewline)
+        for line in lines.reversed() where !line.allSatisfy(\.isWhitespace) {
+            if let value = try? decoder.decode(type, from: Data(line.utf8)) { return value }
+        }
+        return nil
     }
 
     private static func step(for envelope: OpenCodeUsageEnvelopeDTO) -> UsageStep {
@@ -232,10 +250,15 @@ enum OpenCodeUsageClassifier {
             return .needsOperationList
         }
         if text.hasPrefix(serverStartFailurePrefix) { return .done(.failed(.transient(.serverStartFailed))) }
-        guard let message = (try? JSONDecoder().decode(OpenCodeErrorDTO.self, from: stdout))?.message else {
+        if let message = decodeLastLine(OpenCodeErrorDTO.self, from: stdout)?.message {
+            return .done(.failed(classifyErrorMessage(message)))
+        }
+        // JSON of another shape is a changed contract. Anything else (a crash stack from a full
+        // disk or a permission error) is the client failing: transient, never "Contact support".
+        if (try? JSONSerialization.jsonObject(with: stdout)) != nil {
             return .done(.failed(.formatChanged(.usageOutput)))
         }
-        return .done(.failed(classifyErrorMessage(message)))
+        return .done(.failed(.transient(.clientFailed)))
     }
 
     /// Fixed phrases only, each pinned to a U12 capture. The message itself never leaves here.
@@ -259,11 +282,12 @@ enum OpenCodeUsageClassifier {
     /// KTD20, after a `data: null` reading. An `opencode` Console sign-in wins over any stored
     /// key (a sign-in adds a credential and keeps the old key, U12), then any key on either
     /// integration needs a Console sign-in, and otherwise the home is signed out. A failed read
-    /// is signed out too.
+    /// is transient: signed out is a permanent state, and every `--standalone` command can fail
+    /// on its own (a child server that died, plugins that did not activate, the deadline).
     static func classifyAuthList(_ output: OpenCodeRunOutput?) -> OpenCodeCapture {
         guard let output, output.exitCode == 0, !output.overflowed,
               let integrations = try? JSONDecoder().decode([OpenCodeAuthIntegrationDTO].self, from: output.stdout)
-        else { return .failed(.signedOut) }
+        else { return .failed(.transient(.authListUnreadable)) }
 
         let console = integrations.filter { $0.id == consoleIntegration }.flatMap(\.connections)
         if console.contains(where: { connection in
@@ -299,6 +323,8 @@ enum OpenCodeUsageClassifier {
         if output.timedOut || output.overflowed { return true }
         let trimmed = String(decoding: output.stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
+        // Plugin text before a readable envelope is not another client.
+        if decodeEnvelope(output.stdout) != nil { return false }
         return (try? JSONSerialization.jsonObject(with: Data(trimmed.utf8))) == nil
     }
 }
@@ -334,6 +360,12 @@ public actor OpenCodeCLIUsageSource: OpenCodeUsageSource {
 
     private var resolved: (executable: String, loginPath: String)?
     private var passingVersion: VersionMemoKey?
+    /// The binary last read as below the floor. A 1.x `--version` is not side-effect free (it
+    /// appends to the user's real log and can reset `~/.cache/opencode`), so an unchanged
+    /// too-old binary is not asked again on a timer poll. A user request always asks again,
+    /// which is the only way a version-manager shim that swaps the version behind an
+    /// unchanged file is noticed.
+    private var tooOldVersion: VersionMemoKey?
 
     public init(
         resolveExecutable: @escaping @Sendable () -> String? = { OpenCodeCLI.resolveExecutable() },
@@ -382,10 +414,18 @@ public actor OpenCodeCLIUsageSource: OpenCodeUsageSource {
         try? FileManager.default.createDirectory(atPath: workingDirectory, withIntermediateDirectories: true)
 
         let memoKey = Self.memoKey(for: executable)
+        if let memoKey, memoKey == tooOldVersion, !UserRequestedProbeContext.isUserRequested {
+            return .failed(.updateRequired)
+        }
         if memoKey == nil || memoKey != passingVersion {
             passingVersion = nil
+            tooOldVersion = nil
             let version = await run(.version, executable: executable, environment: environment)
-            if let failure = OpenCodeUsageClassifier.classifyVersion(version) { return .failed(failure) }
+            if let failure = OpenCodeUsageClassifier.classifyVersion(version) {
+                // An unreadable version stays unmemoized: it is transient by definition.
+                if failure == .updateRequired { tooOldVersion = memoKey }
+                return .failed(failure)
+            }
             passingVersion = memoKey
         }
 
@@ -473,7 +513,8 @@ public actor OpenCodeCLIUsageSource: OpenCodeUsageSource {
 }
 
 /// One spawn of the client through `StdioChildProcess`, following `CLIVersionReader.runVersion`:
-/// its own session, stderr discarded, a size cap and a whole-group terminate.
+/// its own session, stdin from `/dev/null`, stderr discarded, a size cap and a whole-group
+/// terminate.
 enum OpenCodeProcessRunner {
     static func run(
         _ command: OpenCodeCommand,
@@ -489,7 +530,9 @@ enum OpenCodeProcessRunner {
             path: launchPath,
             arguments: arguments,
             environment: environment,
-            workingDirectory: workingDirectory
+            workingDirectory: workingDirectory,
+            // Nothing is ever written to the client, and the QA script runs it the same way.
+            stdin: .nullDevice
         ) else { return nil }
         defer { process.terminate() }
 

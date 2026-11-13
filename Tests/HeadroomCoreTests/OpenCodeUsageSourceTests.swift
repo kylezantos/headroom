@@ -208,7 +208,8 @@ struct OpenCodeUsageClassifierTests {
 
     @Test func undecodableNonEmptyStdoutIsFormatChanged() {
         #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 0, "hello\n")) == .done(.failed(.formatChanged(.usageOutput))))
-        #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 1, "hello\n")) == .done(.failed(.formatChanged(.usageOutput))))
+        // Exit 1 with non-JSON stdout is a client failure (below), not a format change.
+        #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 1, "hello\n")) == .done(.failed(.transient(.clientFailed))))
         // Exit 0 JSON with no `data` key is another contract, not a null reading.
         #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 0, #"{"location":{}}"#))
             == .done(.failed(.formatChanged(.usageOutput))))
@@ -220,6 +221,44 @@ struct OpenCodeUsageClassifierTests {
         #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 0, noMonthly)) == .done(.failed(.formatChanged(.usageOutput))))
         let noReset = goWindowsLine.replacingOccurrences(of: #","resetsAt":1796030879409"#, with: "")
         #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 0, noReset)) == .done(.failed(.formatChanged(.usageOutput))))
+    }
+
+    /// The built-in home loads the user's plugins, and a plugin can print to stdout before the
+    /// client prints its one JSON line. That line still decides the reading.
+    @Test func pluginTextBeforeTheEnvelopeStillReads() throws {
+        let go = try OpenCodeFixture.load("go")
+        let noisy = Data("[my-plugin] loaded 3 tools\n{not json either\n".utf8) + go.stdout
+        let run = OpenCodeRunOutput(exitCode: 0, stdout: noisy, overflowed: false, timedOut: false)
+        guard case .done(.goUsage(let usage)) = OpenCodeUsageClassifier.classifyUsage(run) else {
+            Issue.record("a plugin line before the envelope lost the reading")
+            return
+        }
+        #expect([usage.rolling.percentUsed, usage.weekly.percentUsed, usage.monthly.percentUsed] == [29, 47, 63])
+        #expect(!OpenCodeUsageClassifier.clearsVersionMemo(run), "plugin text is not another client")
+
+        let nullReading = try OpenCodeFixture.load("signed-out")
+        let noisyNull = OpenCodeRunOutput(
+            exitCode: 0, stdout: Data("plugin hello\n".utf8) + nullReading.stdout, overflowed: false, timedOut: false)
+        #expect(OpenCodeUsageClassifier.classifyUsage(noisyNull) == .needsAuthList)
+
+        // No envelope line at all stays format changed on exit 0.
+        let noEnvelope = output(exit: 0, "plugin hello\n{\"location\":{}}\n")
+        #expect(OpenCodeUsageClassifier.classifyUsage(noEnvelope) == .done(.failed(.formatChanged(.usageOutput))))
+    }
+
+    /// A crash stack (ENOSPC, EACCES…) is a client failure: transient, never "Contact support".
+    @Test func crashStackOnExitOneIsTransient() {
+        let stack = """
+        Error: ENOSPC: no space left on device, write
+            at writeSync (node:fs:936:3)
+            at <anonymous> (/$bunfs/root/chunk-abc.js:2:1020)
+
+        """
+        #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 1, stack)) == .done(.failed(.transient(.clientFailed))))
+        // Still: the captured decode errors are format changed, and empty stdout asks for the list.
+        let malformed = try? OpenCodeFixture.load("malformed")
+        #expect(malformed.map { OpenCodeUsageClassifier.classifyUsage($0.output) } == .done(.failed(.formatChanged(.clientDecode))))
+        #expect(OpenCodeUsageClassifier.classifyUsage(output(exit: 1, "")) == .needsOperationList)
     }
 
     @Test func invalidResetFailsTheWholeReading() {
@@ -290,7 +329,9 @@ struct OpenCodeUsageClassifierTests {
 
     // MARK: Follow-ups
 
-    @Test func failedAuthListReadsAsSignedOut() {
+    /// Every `--standalone` command can fail transiently (U12), and signed out is a permanent
+    /// "Sign in" state, so only a decoded list may decide it.
+    @Test func failedAuthListIsTransientNeverSignedOut() {
         let failures: [OpenCodeRunOutput?] = [
             nil,
             output(exit: 1, "[]"),
@@ -300,8 +341,15 @@ struct OpenCodeUsageClassifierTests {
             output(exit: 0, "", overflowed: true),
         ]
         for run in failures {
-            #expect(OpenCodeUsageClassifier.classifyAuthList(run) == .failed(.signedOut))
+            #expect(OpenCodeUsageClassifier.classifyAuthList(run) == .failed(.transient(.authListUnreadable)))
         }
+    }
+
+    @Test(arguments: ["standalone-start-failed", "plugins-not-activated"])
+    func authListThatHitsATransientClientFailureIsTransient(name: String) throws {
+        let captured = try OpenCodeFixture.load(name)
+        let run = OpenCodeRunOutput(exitCode: 1, stdout: captured.stdout, overflowed: false, timedOut: false)
+        #expect(OpenCodeUsageClassifier.classifyAuthList(run) == .failed(.transient(.authListUnreadable)))
     }
 
     @Test func authListReadsOnlyTheTwoConsoleIntegrations() {
@@ -762,9 +810,60 @@ struct OpenCodeUsageSourceProcessTests {
             let source = fake.source()
             #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
             #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
-            // Never memoized, so an upgrade is seen at the next poll; `api` never ran.
-            #expect(fake.argv == ["--version", "--version"])
+            // `api` never ran, and the too-old verdict was not spawned again (below).
+            #expect(fake.argv == ["--version"])
         }
+    }
+
+    /// A 1.x `--version` appends to the user's real log and can reset their cache, so an
+    /// unchanged too-old binary is not asked again on every poll.
+    @Test func tooOldVerdictIsNotRespawnedForAnUnchangedBinary() async throws {
+        let fake = try FakeOpenCode(privateScript: true)
+        defer { fake.remove() }
+        try fake.set("version", stdout: "1.1.53\n", exit: 0)
+        let source = fake.source()
+        for _ in 0..<3 {
+            #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
+        }
+        #expect(await source.capture(home: .isolated(root: fake.directory.path)) == .failed(.updateRequired))
+        #expect(fake.count(OpenCodeCommand.version.arguments) == 1)
+    }
+
+    @Test func tooOldVerdictIsCheckedAgainOnAUserRequest() async throws {
+        let fake = try FakeOpenCode(privateScript: true)
+        defer { fake.remove() }
+        try fake.set("version", stdout: "1.1.53\n", exit: 0)
+        let source = fake.source()
+        #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
+        #expect(await userRequested(source) == .failed(.updateRequired))
+        #expect(fake.count(OpenCodeCommand.version.arguments) == 2)
+        // A version-manager shim swapped behind an unchanged file is seen on Check Now.
+        try fake.set("version", stdout: "opencode v2.2.5\n", exit: 0)
+        try fake.set("usage", fixture: "nogo")
+        #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
+        #expect(await userRequested(source) == .noGoPlan)
+    }
+
+    @Test func tooOldVerdictIsCheckedAgainWhenTheBinaryChanges() async throws {
+        let fake = try FakeOpenCode(privateScript: true)
+        defer { fake.remove() }
+        try fake.set("version", stdout: "opencode v2.1.4\n", exit: 0)
+        let source = fake.source()
+        #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -3_600)], ofItemAtPath: fake.script
+        )
+        #expect(await source.capture(home: .builtIn) == .failed(.updateRequired))
+        #expect(fake.count(OpenCodeCommand.version.arguments) == 2)
+
+        // Upgraded in place: a new modification date and a 2.x version pass.
+        try fake.set("version", stdout: "opencode v2.2.5\n", exit: 0)
+        try fake.set("usage", fixture: "nogo")
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date(timeIntervalSinceNow: -60)], ofItemAtPath: fake.script
+        )
+        #expect(await source.capture(home: .builtIn) == .noGoPlan)
+        #expect(fake.count(OpenCodeCommand.version.arguments) == 3)
     }
 
     @Test func unreadableVersionIsTransientAndNotMemoized() async throws {
@@ -934,6 +1033,22 @@ struct OpenCodeUsageSourceProcessTests {
         }
     }
 
+    /// The client gets `/dev/null` as stdin, as the QA script runs it, so a client that ever
+    /// reads stdin sees end of file at once instead of waiting out the 50-second deadline.
+    @Test func aClientThatReadsStdinSeesEndOfFileAndExitsPromptly() async throws {
+        let fake = try FakeOpenCode()
+        defer { fake.remove() }
+        try fake.set("usage", fixture: "go")
+        try fake.hook("version", pre: "cat > /dev/null\n")
+        try fake.hook("usage", pre: "cat > /dev/null\n")
+        let started = Date()
+        guard case .goUsage = await fake.source(deadline: 8).capture(home: .builtIn) else {
+            Issue.record("a client reading stdin did not finish with its reading")
+            return
+        }
+        #expect(Date().timeIntervalSince(started) < 5)
+    }
+
     @Test func refreshBadIsSignInExpired() async throws {
         let fake = try FakeOpenCode()
         defer { fake.remove() }
@@ -990,12 +1105,14 @@ struct OpenCodeUsageSourceProcessTests {
         #expect(fake.argv == ["--version", "api --standalone experimental.usage.limits", "auth list --standalone --format json"])
     }
 
-    @Test func failedAuthListIsSignedOut() async throws {
+    @Test func failedAuthListIsTransient() async throws {
         let fake = try FakeOpenCode()
         defer { fake.remove() }
         try fake.set("usage", fixture: "api-key")
         try fake.set("auth", stdout: "", exit: 1)
-        #expect(await fake.source().capture(home: .builtIn) == .failed(.signedOut))
+        #expect(await fake.source().capture(home: .builtIn) == .failed(.transient(.authListUnreadable)))
+        try fake.set("auth", fixture: "standalone-start-failed")
+        #expect(await fake.source().capture(home: .builtIn) == .failed(.transient(.authListUnreadable)))
     }
 
     @Test func terminalSignInBetweenTwoNullReadingsShowsAtTheNextPoll() async throws {

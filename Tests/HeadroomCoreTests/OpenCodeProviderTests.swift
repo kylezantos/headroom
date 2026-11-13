@@ -244,6 +244,17 @@ struct OpenCodeProviderTests {
         #expect(transient.planStatusRecovery?.primaryAction == .seeOpenCodeGoPlans)
     }
 
+    /// A format change is not permanent, but its Contact Support row is the one thing the user
+    /// can do, so it replaces the no-Go row rather than hiding behind it.
+    @Test func aFormatChangeWinsOverARetainedNoPlanStatus() async {
+        let noGo = await fetch(.noGoPlan)
+        let changed = UsageContinuityPolicy.mergedSnapshot(
+            .stale(for: .opencode, reason: .providerSetup(.opencodeFormatChanged)), with: noGo, at: now)
+        #expect(changed.planStatus == .noActivePlan)
+        #expect(changed.planStatusRecovery == nil)
+        #expect(ProviderSetupOutcome.opencodeFormatChanged.recoveryPresentation.primaryAction == .contactSupport)
+    }
+
     // MARK: - Failures
 
     @Test func everyFailureIsTheMatchingStaleSnapshot() async {

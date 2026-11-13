@@ -1095,6 +1095,19 @@ struct OpenCodePhoneProjectionTests {
         #expect(O.go().exportedPlanLabel == nil)
         #expect(O.noGo().exportedPlanLabel == "No Go plan")
         #expect(O.noGo().markedStale(.providerSetup(.opencodeTransientCapture)).exportedPlanLabel == "No Go plan")
+        #expect(O.noGo().markedStale(.providerSetup(.opencodeFormatChanged)).exportedPlanLabel == "No Go plan")
+    }
+
+    /// A permanent failure says nothing about the plan any more (the home may be signed out or
+    /// another login), so the phone and widgets stop printing "No Go plan".
+    @Test func aPermanentFailureStopsExportingTheNoGoPlanName() {
+        let permanent: [ProviderSetupOutcome] = [
+            .opencodeSignedOut, .opencodeSignInExpired, .opencodeCLIMissing, .opencodeUpdateRequired,
+            .opencodeConsoleSignInRequired,
+        ]
+        for outcome in permanent {
+            #expect(O.noGo().markedStale(.providerSetup(outcome)).exportedPlanLabel == nil, "\(outcome)")
+        }
     }
 
     /// KTD19: no workspace ID or name, Console URL, XDG variable or OpenCode path reaches

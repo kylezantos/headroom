@@ -494,8 +494,14 @@ public struct UsageSnapshot: Sendable, Equatable {
 
     /// KTD16 (OpenCode plan): the plan text every widget and phone export carries. A plan
     /// status with a name of its own wins over the source label, so a no-Go account reads
-    /// "No Go plan" on the phone and its widgets with no sync field added.
-    public var exportedPlanLabel: String? { planStatus?.syncedPlanName(for: providerID) ?? planLabel }
+    /// "No Go plan" on the phone and its widgets with no sync field added. Only while the
+    /// status can still be true: after a permanent failure (signed out, sign-in expired, CLI
+    /// missing, update required) the home may hold another login or none, so the retained
+    /// status names no plan there.
+    public var exportedPlanLabel: String? {
+        if case .stale(let reason) = freshness, reason.isPermanent { return planLabel }
+        return planStatus?.syncedPlanName(for: providerID) ?? planLabel
+    }
 
     public init(
         providerID: ProviderID,

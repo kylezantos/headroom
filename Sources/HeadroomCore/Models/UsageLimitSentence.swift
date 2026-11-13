@@ -63,13 +63,22 @@ public struct UsageLimitSentence: Sendable, Equatable {
 public extension UsageSnapshot {
     /// KTD7/D2: the no-plan row the Standard card draws in place of its meters, or nil.
     /// A permanent failure (signed out, CLI missing…) wins over a retained plan status: its
-    /// own recovery is what the user needs first. A transient failure keeps the row, since a
-    /// failed poll says nothing about the plan.
+    /// own recovery is what the user needs first. So does a format change: it retries, but
+    /// only a Headroom update can fix it, and its Contact Support row is the only way the user
+    /// learns that. A plain transient failure keeps the row, since a failed poll says nothing
+    /// about the plan.
     var planStatusRecovery: ProviderRecoveryPresentation? {
         switch freshness {
         case .pending: return nil
-        case .stale(let reason) where reason.isPermanent: return nil
+        case .stale(let reason) where reason.isPermanent || reason.outranksPlanStatus: return nil
         case .live, .stale: return planStatus?.recoveryPresentation(for: providerID)
         }
+    }
+}
+
+extension FailureReason {
+    /// A non-permanent failure whose own recovery row must replace a retained plan status.
+    var outranksPlanStatus: Bool {
+        providerSetupOutcome == .opencodeFormatChanged
     }
 }

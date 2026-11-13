@@ -718,7 +718,10 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   - The floor is 2.2.0. Below it Headroom shows "Go usage needs OpenCode 2.2 or newer" with
     **About OpenCode 2** and never runs `api` or `auth`: on 1.x they fall through to the TUI.
     Even a 1.x `--version` writes to its home, and a 2.x client migrates a 1.x home one way, so
-    never point a 2.x binary at a real 1.x home in testing.
+    never point a 2.x binary at a real 1.x home in testing. The version verdict is memoized per
+    symlink-resolved path and modification date both ways, so an unchanged too-old binary is not
+    asked again on timer polls; a user request (Check Now, setup checks) always asks again, which
+    is the only way a version-manager shim that swaps versions behind an unchanged file is seen.
   - Classify from exit status and stdout only (`OpenCodeUsageClassifier`); stderr is discarded.
     Error messages match fixed phrases pinned to captured fixtures, and every unmatched case is
     transient, never a sign-in prompt. The message carries the Console URL: never log or show it.

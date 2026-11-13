@@ -497,9 +497,12 @@ public final class UsageStore {
     public func refreshOnPopoverOpen() {
         // KTD10: a remembered row shows its age as of this open, before any guard below.
         ageRememberedSnapshots()
+        // Read before the re-checks: they are user-origin requests that raise `isRefreshing`
+        // themselves, and must never cost the other accounts this open's wake.
+        let userRefreshInFlight = isRefreshing
         runPopoverOpenRechecks()
         // A user refresh already in flight is freshening the data by itself.
-        guard !isRefreshing else { return }
+        guard !userRefreshInFlight else { return }
         guard Self.shouldRefreshOnPopoverOpen(
             oldestLiveCapture: oldestLiveCapture,
             now: now(),

@@ -1466,3 +1466,21 @@ unmeasured (check-now latency spike).
   the row keeps its name and history. A metadata-only identity from `auth list` (connection
   method plus an opaque credential digest) would be the candidate; it needs its own check that it
   never reads a credential.
+
+## OpenCode: removing an extra account can leave folders behind (found 2026-11-12, review)
+
+Removing an extra OpenCode account deletes its home while a usage read for that home may still be
+running. Nothing can stop the running client (`OpenCodeProcessRunner` runs on a detached thread with
+no handle back to the source), so it can recreate folders under
+`~/Library/Application Support/Headroom/Accounts/opencode/<id>` after the removal. The in-flight
+result is already discarded. A fix needs a per-home process registry in `OpenCodeCLIUsageSource`, a
+terminate passthrough in `OpenCodeUsageCaptureCache`, and a hook called off the main actor before
+`accountStorage.removeDirectories`.
+
+## Compact: a limit on the first account changes the card's column headers (found 2026-11-12, review)
+
+In a multi-account Compact card the column headers come from the first account's shown windows
+(`Sources/HeadroomApp/UI/ProviderCardView.swift`). Since KTD15 a window at its limit takes a shown
+slot, so when the first account hits a limit the headers change (for example "5h left" becomes
+"mo left") and the other accounts' cells print their own short labels. Deriving the headers from
+the windows before promotion would keep them still. Owner to decide; applies to every provider.

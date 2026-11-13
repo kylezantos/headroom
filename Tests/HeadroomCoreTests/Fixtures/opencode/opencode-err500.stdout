@@ -1,0 +1,1 @@
+{"_tag":"ServiceUnavailableError","message":"OpenCode Go usage is unavailable: StatusCode: non 2xx status code (500 GET http://127.0.0.1:48765/zen/go/v1/usage)","service":"opencode"}

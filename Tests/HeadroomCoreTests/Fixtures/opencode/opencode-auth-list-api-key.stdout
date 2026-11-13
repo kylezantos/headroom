@@ -1,0 +1,14 @@
+[
+  {
+    "id": "opencode",
+    "name": "OpenCode Console",
+    "connections": [
+      {
+        "type": "credential",
+        "id": "cred_stub_opencode",
+        "label": "stub",
+        "method": "key"
+      }
+    ]
+  }
+]

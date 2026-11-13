@@ -1,0 +1,14 @@
+[
+  {
+    "id": "opencode",
+    "name": "OpenCode Console",
+    "connections": [
+      {
+        "type": "credential",
+        "id": "cred_fixture_oauth_2",
+        "label": "OpenCode Console",
+        "method": "oauth"
+      }
+    ]
+  }
+]

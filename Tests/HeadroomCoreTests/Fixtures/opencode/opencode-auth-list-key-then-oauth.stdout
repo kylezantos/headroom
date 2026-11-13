@@ -1,0 +1,20 @@
+[
+  {
+    "id": "opencode",
+    "name": "OpenCode Console",
+    "connections": [
+      {
+        "type": "credential",
+        "id": "cred_fixture_oauth_3",
+        "label": "Stub Device Workspace",
+        "method": "oauth"
+      },
+      {
+        "type": "credential",
+        "id": "cred_stub_opencode",
+        "label": "stub",
+        "method": "key"
+      }
+    ]
+  }
+]

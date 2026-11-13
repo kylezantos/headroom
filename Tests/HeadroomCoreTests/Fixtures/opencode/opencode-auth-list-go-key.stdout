@@ -1,0 +1,14 @@
+[
+  {
+    "id": "opencode-go",
+    "name": "OpenCode Go",
+    "connections": [
+      {
+        "type": "credential",
+        "id": "cred_stub_opencode_go",
+        "label": "stub",
+        "method": "key"
+      }
+    ]
+  }
+]

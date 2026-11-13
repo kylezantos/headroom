@@ -1,0 +1,1 @@
+{"location":{"directory":"/headroom-fixture/cwd"},"data":{"workspace":{"id":"wrk_fixture","name":"Fixture Workspace","usageURL":"http://127.0.0.1:48765/console/wrk_fixture/activity/overview"},"budgets":[{"id":"rule_stub_monthly","limit":50,"spent":12.5,"scope":"each","per":"set","coverage":"all","models":[],"vendors":[],"picked":false,"shared":false,"resetsAt":1796030882125}]}}

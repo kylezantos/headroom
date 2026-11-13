@@ -1,0 +1,1 @@
+{"_tag":"ServiceUnavailableError","message":"OpenCode Console budgets are unavailable: Transport error (GET http://127.0.0.1:48765/console/api/policies/current-budgets)","service":"opencode"}

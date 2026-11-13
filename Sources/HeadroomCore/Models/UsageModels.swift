@@ -274,6 +274,11 @@ public struct UsageWindow: Sendable, Equatable {
     /// Original source observation anchor. It survives stale/unavailable transitions;
     /// publication and migration timestamps never replace it.
     public let observedAt: Date?
+    /// The source itself said this window is at its limit (OpenCode's `limited`, KTD6/D3 of
+    /// the OpenCode plan), which is the authority for the card's limited sentence; a window
+    /// that merely reads 100% is not. False for every other provider. Mac-local: never
+    /// persisted or synced, because the sentence shows only on a live window.
+    public let isLimited: Bool
 
     public init(
         kind: WindowKind,
@@ -282,7 +287,8 @@ public struct UsageWindow: Sendable, Equatable {
         resetLabel: String? = nil,
         resetTimeZoneIdentifier: String? = nil,
         freshness: UsageWindowFreshness = .live,
-        observedAt: Date? = nil
+        observedAt: Date? = nil,
+        isLimited: Bool = false
     ) {
         self.kind = kind
         self.utilization = utilization
@@ -291,6 +297,7 @@ public struct UsageWindow: Sendable, Equatable {
         self.resetTimeZoneIdentifier = resetTimeZoneIdentifier
         self.freshness = freshness
         self.observedAt = observedAt ?? freshness.observedAt
+        self.isLimited = isLimited
     }
 
     /// Convenience for providers that receive an exact machine deadline.
@@ -337,7 +344,8 @@ public struct UsageWindow: Sendable, Equatable {
             resetLabel: resetLabel,
             resetTimeZoneIdentifier: resetTimeZoneIdentifier,
             freshness: freshness,
-            observedAt: observedAt
+            observedAt: observedAt,
+            isLimited: isLimited
         )
     }
 }

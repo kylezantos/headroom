@@ -606,6 +606,19 @@ struct RememberedRowPresentationTests {
         #expect(AccountSectionContent(freshness: .live, kind: .engine) == .meters)
     }
 
+    /// KTD7/D2 (OpenCode plan): the no-plan row draws its sentence and button, no meters; a
+    /// permanent failure still wins, and a remembered row has no live control to offer.
+    @Test func theNoPlanRowDrawsTheActionNotTheMeters() throws {
+        let presentation = try #require(UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: .opencode))
+        #expect(AccountSectionContent(freshness: .live, kind: .engine, planRecovery: presentation)
+            == .planStatus(presentation))
+        #expect(AccountSectionContent(freshness: .stale(.providerSetup(.opencodeTransientCapture)), kind: .engine,
+                                      planRecovery: presentation) == .planStatus(presentation))
+        #expect(AccountSectionContent(freshness: .stale(.providerSetup(.opencodeSignedOut)), kind: .engine,
+                                      planRecovery: presentation) == .signIn(.providerSetup(.opencodeSignedOut)))
+        #expect(AccountSectionContent(freshness: .live, kind: .remembered, planRecovery: presentation) == .meters)
+    }
+
     @Test func voiceOverSaysLastReadAndWhenForARememberedRow() {
         let shown = presentation(entry(.remembered, readAgo: 2 * 86_400))
         let label = IdentityRowText.accessibilityParts(

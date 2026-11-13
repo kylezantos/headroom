@@ -255,6 +255,10 @@ public final class UsageStore {
     private(set) var engine: PollingEngine?
     private var isStarting = false
     @ObservationIgnored var removingAccounts: Set<AccountKey> = []
+    /// KTD7 (OpenCode plan): accounts whose no-plan row sent the user to the plans page. The
+    /// next popover open re-checks each one once, so a plan bought there shows up without a
+    /// click and without raising any cadence.
+    @ObservationIgnored var popoverOpenRechecks: Set<AccountKey> = []
     @ObservationIgnored private var capabilityGenerations: [ProviderID: UInt64] = [:]
     /// Per-key attach/detach epoch. A fetch result is only merged when the attachment
     /// it started against is still current; a stop-track/remove bumps the epoch so a
@@ -493,6 +497,7 @@ public final class UsageStore {
     public func refreshOnPopoverOpen() {
         // KTD10: a remembered row shows its age as of this open, before any guard below.
         ageRememberedSnapshots()
+        runPopoverOpenRechecks()
         // A user refresh already in flight is freshening the data by itself.
         guard !isRefreshing else { return }
         guard Self.shouldRefreshOnPopoverOpen(
@@ -503,6 +508,26 @@ public final class UsageStore {
         // KTD6: wake the queue for whatever is due instead of forcing every account; the
         // lane's pass-end rephase moves the next tick a full interval past the fresh data.
         scheduler.dispatchDue()
+    }
+
+    /// KTD7 (OpenCode plan): after **See Go Plans**, arm one re-check of that account for the
+    /// next popover open. Arming again before that open is still one re-check.
+    public func armRecheckOnNextPopoverOpen(_ key: AccountKey) {
+        popoverOpenRechecks.insert(key)
+    }
+
+    /// Spends every armed re-check, whatever happens to it: one open, one probe per account.
+    /// It is a front-of-queue request like Check Now, so the duty-cycle gate does not hold it
+    /// and the account's own row shows the work. An account that has since left the no-plan
+    /// state, been removed or switched off has nothing to re-check.
+    private func runPopoverOpenRechecks() {
+        guard !popoverOpenRechecks.isEmpty else { return }
+        let armed = popoverOpenRechecks
+        popoverOpenRechecks.removeAll()
+        for key in armed.sorted(by: { $0.description < $1.description })
+        where snapshots[key]?.planStatus != nil && schedulerIsEligible(key) {
+            refreshAccountNow(key)
+        }
     }
 
     /// Oldest capture time among snapshots that are actually live. Permanently stale rows

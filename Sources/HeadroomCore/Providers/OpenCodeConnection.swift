@@ -37,9 +37,14 @@ public enum OpenCodeCLI {
     /// KTD10: set for an extra account, unset for the built-in one.
     public static let xdgVariables = ["XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_STATE_HOME"]
 
-    /// KTD2 step 2: the only `OPENCODE_*` value a child gets. Without it every run downloads an
-    /// 11 MB model catalog that is cached for only five minutes.
-    public static let fixedVariables = ["OPENCODE_DISABLE_MODELS_FETCH": "1"]
+    /// KTD2 step 2: the only `OPENCODE_*` values a child gets. Without the models flag every
+    /// run downloads an 11 MB model catalog that is cached for only five minutes. Without the
+    /// autoupdate flag a background poll could upgrade the user's own CLI behind their back;
+    /// the 2.2.5 binary reads it.
+    public static let fixedVariables = [
+        "OPENCODE_DISABLE_MODELS_FETCH": "1",
+        "OPENCODE_DISABLE_AUTOUPDATE": "1",
+    ]
 
     public static func resolveExecutable() -> String? {
         CLIExecutableResolver.resolve(named: executableName, fallbackPaths: fallbackPaths)
@@ -59,7 +64,7 @@ public enum OpenCodeCLI {
     }
 
     /// The child environment for one account (KTD2, KTD10): the inherited environment with
-    /// every `OPENCODE_*` and XDG variable removed, then only the fixed flag, the account's own
+    /// every `OPENCODE_*` and XDG variable removed, then only the fixed flags, the account's own
     /// XDG values (none for the built-in account) and the login-shell PATH set.
     public static func environment(
         inherited: [String: String],

@@ -311,6 +311,209 @@ struct CompactAccountRowRecipeTests {
         let result = recipe(snapshot(.codex, [window(.fiveHour, used: 1, resetIn: 45 * 60)]))
         #expect(result.tooltip.hasSuffix(line!.tooltip))
     }
+
+    // MARK: - KTD15 characterization (pinned before the at-limit rule)
+
+    /// The shown labels and overflow count, the part of the recipe KTD15 may move.
+    private func pin(_ result: CompactAccountRowRecipe) -> String {
+        result.shownWindows.map(\.shortLabel).joined(separator: ",") + " +\(result.overflowCount)"
+    }
+
+    /// Today's output for every provider shape, with windows near but below their limit.
+    /// KTD15 must leave each of these exactly as it is: labels never move until a limit is hit.
+    @Test func characterizationBelowTheLimitNothingMoves() {
+        let cases: [(UsageSnapshot, String)] = [
+            (snapshot(.codex, [
+                window(.fiveHour, used: 99, resetIn: 3 * hour),
+                window(.weekly, used: 10, resetIn: 4 * day),
+            ]), "5h,wk +0"),
+            (snapshot(.claude, [
+                window(.fiveHour, used: 10, resetIn: 2 * hour),
+                window(.weekly, used: 20, resetIn: 3 * day),
+                window(.other("Weekly (Fable)"), used: 99.9, resetIn: 3 * day),
+            ]), "5h,wk +1"),
+            (snapshot(.claude, [
+                window(.weekly, used: 20, resetIn: 3 * day),
+                window(.fiveHour, used: 10, resetIn: 2 * hour),
+                window(.other("Weekly (Fable)"), used: 30, resetIn: 3 * day),
+                window(.other("Weekly (Opus)"), used: 99, resetIn: 3 * day),
+            ]), "5h,wk +2"),
+            (snapshot(.cursor, [
+                window(.billingPeriod(label: "Cursor Models", duration: 30 * day), used: 1, resetIn: 12 * day),
+                window(.billingPeriod(label: "Other Models", duration: 30 * day), used: 3, resetIn: 12 * day),
+            ]), "Models,Other +0"),
+            (snapshot(.cursor, [
+                window(.billingPeriod(label: "Cursor Models", duration: 30 * day), used: 1, resetIn: 12 * day),
+                window(.billingPeriod(label: "Other Models", duration: 30 * day), used: 3, resetIn: 12 * day),
+                window(.billingPeriod(label: "Included", duration: 30 * day), used: 98, resetIn: 12 * day),
+            ]), "Models,Other +1"),
+            (snapshot(.grok, [
+                window(.billingPeriod(label: "Monthly", duration: 30 * day), used: 99, resetIn: 9 * day),
+            ]), "mo +0"),
+            (snapshot(.opencode, [
+                window(.fiveHour, used: 10, resetIn: 2 * hour),
+                window(.weekly, used: 50, resetIn: 3 * day),
+                window(.billingPeriod(label: "Monthly", duration: 30 * day), used: 99, resetIn: 20 * day),
+            ]), "5h,wk +1"),
+        ]
+        for (snapshot, expected) in cases {
+            let result = recipe(snapshot)
+            #expect(pin(result) == expected, "\(snapshot.providerID)")
+            #expect(result.content == .meters)
+        }
+    }
+
+    /// Two-window providers already show everything, so a window at its limit changes nothing.
+    @Test func characterizationTwoWindowProvidersAtTheLimitStayPut() {
+        let codex = recipe(snapshot(.codex, [
+            window(.fiveHour, used: 100, resetIn: 3 * hour),
+            window(.weekly, used: 10, resetIn: 4 * day),
+        ]))
+        #expect(pin(codex) == "5h,wk +0")
+        let cursor = recipe(snapshot(.cursor, [
+            window(.billingPeriod(label: "Cursor Models", duration: 30 * day), used: 1, resetIn: 12 * day),
+            window(.billingPeriod(label: "Other Models", duration: 30 * day), used: 100, resetIn: 12 * day),
+        ]))
+        #expect(pin(cursor) == "Models,Other +0")
+    }
+
+    // MARK: - KTD15: a window at its limit takes a slot (every provider)
+
+    private let monthly = OpenCodeProvider.monthlyKind
+
+    private func limited(_ kind: WindowKind, resetIn: TimeInterval, freshness: UsageWindowFreshness = .live) -> UsageWindow {
+        UsageWindow(kind: kind, utilization: 100, resetSchedule: .scheduled(now.addingTimeInterval(resetIn)),
+                    freshness: freshness, isLimited: true)
+    }
+
+    @Test func aLimitedMonthlyTakesTheRoomiestSlotAndTheRowStaysMeters() {
+        let result = recipe(snapshot(.opencode, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour),
+            window(.weekly, used: 50, resetIn: 3 * day),
+            limited(monthly, resetIn: 20 * day),
+        ]))
+        // 5-hour has the most room (90% left), so it goes behind "+1".
+        #expect(pin(result) == "wk,mo +1")
+        #expect(result.content == .meters)
+        #expect(!result.fallsBackToStandard)
+        #expect(result.shownWindows.last?.displayedPercentage == 0)
+        // The overflowed window still reads in the tooltip.
+        #expect(result.tooltip.contains("5-hour: 90% left"))
+    }
+
+    @Test func theRoomiestShownWindowIsTheOneReplaced() {
+        let result = recipe(snapshot(.opencode, [
+            window(.fiveHour, used: 50, resetIn: 2 * hour),
+            window(.weekly, used: 10, resetIn: 3 * day),
+            limited(monthly, resetIn: 20 * day),
+        ]))
+        #expect(pin(result) == "5h,mo +1")
+    }
+
+    @Test func aStaleWindowAtItsLimitTakesASlotButAnUnavailableOneNever() {
+        let observed = now.addingTimeInterval(-10 * 60)
+        let stale = recipe(snapshot(.opencode, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour, freshness: .stale(observedAt: observed)),
+            window(.weekly, used: 50, resetIn: 3 * day, freshness: .stale(observedAt: observed)),
+            limited(monthly, resetIn: 20 * day, freshness: .stale(observedAt: observed)),
+        ], freshness: .stale(.transient("x"))))
+        #expect(pin(stale) == "wk,mo +1")
+
+        let unavailable = recipe(snapshot(.opencode, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour),
+            window(.weekly, used: 50, resetIn: 3 * day),
+            limited(monthly, resetIn: 20 * day, freshness: .unavailable(since: observed)),
+        ]))
+        #expect(pin(unavailable) == "5h,wk +1")
+    }
+
+    @Test func atOneHundredWithoutTheLimitedFlagStillTakesASlot() {
+        // KTD15 keys on 100% used ("a limited window included"), not on the flag.
+        let result = recipe(snapshot(.opencode, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour),
+            window(.weekly, used: 50, resetIn: 3 * day),
+            window(monthly, used: 100, resetIn: 20 * day),
+        ]))
+        #expect(pin(result) == "wk,mo +1")
+    }
+
+    @Test func allThreeLimitedKeepSourceOrder() {
+        let result = recipe(snapshot(.opencode, [
+            limited(.fiveHour, resetIn: 2 * hour),
+            limited(.weekly, resetIn: 3 * day),
+            limited(monthly, resetIn: 20 * day),
+        ]))
+        #expect(pin(result) == "5h,wk +1")
+        #expect(result.content == .meters)
+    }
+
+    @Test func theSameRuleMovesAClaudeModelRowAndAThirdCursorPool() {
+        let claude = recipe(snapshot(.claude, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour),
+            window(.weekly, used: 20, resetIn: 3 * day),
+            window(.other("Weekly (Fable)"), used: 100, resetIn: 3 * day),
+        ]))
+        #expect(pin(claude) == "wk,Fable +1")
+        #expect(claude.content == .meters)
+
+        let cursor = recipe(snapshot(.cursor, [
+            window(.billingPeriod(label: "Cursor Models", duration: 30 * day), used: 40, resetIn: 12 * day),
+            window(.billingPeriod(label: "Other Models", duration: 30 * day), used: 3, resetIn: 12 * day),
+            window(.billingPeriod(label: "Included", duration: 30 * day), used: 100, resetIn: 12 * day),
+        ]))
+        #expect(pin(cursor) == "Models,Included +1")
+    }
+
+    @Test func twoOverflowedLimitsFillBothSlots() {
+        let result = recipe(snapshot(.claude, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour),
+            window(.weekly, used: 20, resetIn: 3 * day),
+            window(.other("Weekly (Fable)"), used: 100, resetIn: 3 * day),
+            window(.other("Weekly (Opus)"), used: 100, resetIn: 3 * day),
+        ]))
+        #expect(pin(result) == "Fable,Opus +2")
+    }
+
+    // MARK: - KTD7: the no-plan row keeps the Standard section (it carries an action)
+
+    @Test func theNoGoRowFallsBackToStandard() {
+        let noGo = UsageSnapshot(
+            providerID: .opencode,
+            windows: [UsageWindow(kind: monthly, utilization: 0, resetSchedule: .unresolved(.absent),
+                                  freshness: .unavailable(since: now.addingTimeInterval(-day)))],
+            planLabel: nil, capturedAt: now, freshness: .live, planStatus: .noActivePlan
+        )
+        #expect(recipe(noGo).content == .standardFallback)
+        // A transient failure keeps the plan status and the fallback with it.
+        #expect(recipe(noGo.markedStale(.providerSetup(.opencodeTransientCapture))).content == .standardFallback)
+        // The same windows without the status are an ordinary row.
+        #expect(recipe(noGo.replacingWindows(noGo.windows).withoutPlanStatusForTest()).content == .meters)
+    }
+
+    // MARK: - Header columns: a window under another kind's column names itself
+
+    @Test func aWindowUnderAnotherColumnLabelsItself() {
+        let result = recipe(snapshot(.opencode, [
+            window(.fiveHour, used: 10, resetIn: 2 * hour),
+            window(.weekly, used: 50, resetIn: 3 * day),
+            limited(monthly, resetIn: 20 * day),
+        ]))
+        // A neighbour's row set the header to 5h, wk.
+        let cells = result.placedWindows(columns: [.fiveHour, .weekly])
+        #expect(cells.map { $0?.window.window.kind } == [monthly, .weekly])
+        #expect(cells.map { $0?.ownLabel } == ["mo", nil])
+
+        let matching = result.placedWindows(columns: [.weekly, monthly])
+        #expect(matching.map { $0?.ownLabel } == [nil, nil])
+        #expect(result.placedWindows(columns: []).map { $0?.ownLabel } == [nil, nil])
+    }
+}
+
+private extension UsageSnapshot {
+    func withoutPlanStatusForTest() -> UsageSnapshot {
+        UsageSnapshot(providerID: providerID, windows: windows, planLabel: planLabel, capturedAt: capturedAt,
+                      freshness: freshness)
+    }
 }
 
 // MARK: - Remembered rows (default-login plan U8)

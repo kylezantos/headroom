@@ -431,6 +431,69 @@ struct UsageContinuityCacheTests {
         #expect(UsagePercentageMode.remaining.displayedPercentage(for: window) == nil)
     }
 
+    // MARK: - KTD7 (OpenCode plan): the no-plan status survives continuity
+
+    private func noGoSnapshot(at capturedAt: Date) -> UsageSnapshot {
+        UsageSnapshot(
+            providerID: .opencode,
+            windows: [UsageWindow(
+                kind: OpenCodeProvider.monthlyKind, utilization: 0, resetSchedule: .unresolved(.absent),
+                freshness: .unavailable(since: capturedAt.addingTimeInterval(-86_400))
+            )],
+            planLabel: nil, capturedAt: capturedAt, freshness: .live, planStatus: .noActivePlan
+        )
+    }
+
+    @Test func aFailedPollKeepsTheNoPlanStatus() {
+        let capturedAt = Date(timeIntervalSince1970: 2_000_000)
+        let merged = UsageContinuityPolicy.mergedSnapshot(
+            .stale(for: .opencode, reason: .providerSetup(.opencodeTransientCapture)),
+            with: noGoSnapshot(at: capturedAt),
+            at: capturedAt.addingTimeInterval(300)
+        )
+        #expect(merged.planStatus == .noActivePlan)
+        #expect(merged.freshness == .stale(.providerSetup(.opencodeTransientCapture)))
+        #expect(merged.windows.count == 1)
+    }
+
+    @Test func aGoReadingClearsTheNoPlanStatus() {
+        let capturedAt = Date(timeIntervalSince1970: 2_000_000)
+        let go = UsageSnapshot.live(.opencode, windows: [
+            UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: capturedAt.addingTimeInterval(3_600)),
+        ], at: capturedAt.addingTimeInterval(300))
+        #expect(UsageContinuityPolicy.mergedSnapshot(go, with: noGoSnapshot(at: capturedAt), at: go.capturedAt!)
+            .planStatus == nil)
+        // And the other way: a Go workspace that loses its plan reads no-Go at once.
+        let noGo = noGoSnapshot(at: capturedAt.addingTimeInterval(600))
+        #expect(UsageContinuityPolicy.mergedSnapshot(noGo, with: go, at: noGo.capturedAt!).planStatus == .noActivePlan)
+    }
+
+    @Test func aRelaunchKeepsTheNoPlanStatus() throws {
+        let defaults = freshDefaults()
+        let key = AccountKey(providerID: .opencode, accountID: AccountID("work"))
+        let capturedAt = Date(timeIntervalSince1970: 2_000_000)
+        UsageContinuityCache(defaults: defaults).save(noGoSnapshot(at: capturedAt), for: key)
+
+        let loaded = try #require(UsageContinuityCache(defaults: defaults).load()[key])
+        #expect(loaded.planStatus == .noActivePlan)
+        let restored = UsageContinuityPolicy.restoredSnapshot(loaded, for: .opencode, at: capturedAt.addingTimeInterval(60))
+        #expect(restored.planStatus == .noActivePlan)
+        #expect(restored.planStatusRecovery?.primaryAction == .seeOpenCodeGoPlans)
+    }
+
+    @Test func anOlderRecordHasNoPlanStatusAndAnUnknownOneReadsNil() throws {
+        let defaults = freshDefaults()
+        let key = AccountKey(providerID: .codex, accountID: .primary)
+        defaults.set(try envelope(bankedResets: nil, extra: ""), forKey: "usageContinuitySnapshots.v2")
+        #expect(try #require(UsageContinuityCache(defaults: defaults).load()[key]).planStatus == nil)
+        // A value a later build adds must not fail the record on rollback.
+        defaults.set(try envelope(bankedResets: 1, extra: #", "planStatus": "someFutureStatus""#),
+                     forKey: "usageContinuitySnapshots.v2")
+        let restored = try #require(UsageContinuityCache(defaults: defaults).load()[key])
+        #expect(restored.planStatus == nil)
+        #expect(restored.bankedResets == 1)
+    }
+
     private var copilotOctoberWindow: UsageWindow {
         UsageWindow(
             kind: .billingPeriod(label: "Monthly", duration: 30 * 24 * 60 * 60),

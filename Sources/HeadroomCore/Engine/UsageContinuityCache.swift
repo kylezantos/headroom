@@ -134,6 +134,11 @@ struct StoredSnapshot: Codable, Equatable, Sendable {
     let identityDigest: String?
     let identityDigestVersion: Int?
     let identityStrength: AccountIdentity.Strength?
+    /// KTD7 (OpenCode plan): the no-Go status, so a relaunch keeps the "No Go plan" row
+    /// rather than a bare unavailable meter. Optional, same schema: an earlier build has no
+    /// key and drops it on rewrite. Stored as the raw string and mapped leniently, so a value
+    /// a later build adds reads as nil here instead of failing the whole record on rollback.
+    let planStatus: String?
 
     init(key: AccountKey, snapshot: UsageSnapshot) {
         self.key = key
@@ -146,6 +151,7 @@ struct StoredSnapshot: Codable, Equatable, Sendable {
         self.identityDigest = identity?.digest
         self.identityDigestVersion = identity?.digestVersion
         self.identityStrength = identity?.strength
+        self.planStatus = snapshot.planStatus?.rawValue
     }
 
     private var identity: AccountIdentityOutcome? {
@@ -170,6 +176,7 @@ struct StoredSnapshot: Codable, Equatable, Sendable {
         self.identityDigest = nil
         self.identityDigestVersion = nil
         self.identityStrength = nil
+        self.planStatus = nil
     }
 
     var snapshot: UsageSnapshot? {
@@ -183,7 +190,8 @@ struct StoredSnapshot: Codable, Equatable, Sendable {
             bankedResets: bankedResets,
             capturedAt: capturedAt,
             freshness: .stale(.transient("Last known usage — refreshing")),
-            identity: identity
+            identity: identity,
+            planStatus: planStatus.flatMap(UsageSnapshot.PlanStatus.init(rawValue:))
         )
     }
 }
@@ -385,7 +393,8 @@ enum UsageContinuityPolicy {
             bankedResets: cached.bankedResets,
             capturedAt: cached.capturedAt,
             freshness: .stale(.transient("Last known usage — refreshing")),
-            identity: cached.identity
+            identity: cached.identity,
+            planStatus: cached.planStatus
         )
     }
 
@@ -457,7 +466,9 @@ enum UsageContinuityPolicy {
             bankedResets: prior.bankedResets,
             capturedAt: prior.capturedAt,
             freshness: .stale(reason),
-            identity: prior.identity
+            identity: prior.identity,
+            // KTD7: a failed poll says nothing about the plan, so the no-Go row survives it.
+            planStatus: prior.planStatus
         )
     }
 
@@ -560,7 +571,8 @@ enum UsageContinuityPolicy {
             bankedResets: fresh.bankedResets,
             capturedAt: fresh.capturedAt,
             freshness: .live,
-            identity: fresh.identity
+            identity: fresh.identity,
+            planStatus: fresh.planStatus
         )
     }
 

@@ -485,6 +485,11 @@ enum SetupSessions {
         for account: ProviderAccount,
         onRetry: @escaping () -> Void
     ) {
+        // KTD7 (OpenCode plan): the plans page may sell the user a Go plan, so the next
+        // popover open re-checks this account once instead of waiting out the interval.
+        if action == .seeOpenCodeGoPlans {
+            store?.armRecheckOnNextPopoverOpen(account.key)
+        }
         switch recoveryRoute(for: action) {
         case .documentation(let url), .privacyGuidance(let url):
             NSWorkspace.shared.open(url)

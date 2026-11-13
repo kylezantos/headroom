@@ -222,6 +222,25 @@ struct UseItUpEvaluatorTests {
         #expect(evaluate(pools).count == 2)
     }
 
+    /// U3 (OpenCode plan): Go's monthly billing-period window is evaluated like the others,
+    /// and its 5-hour and weekly windows follow their own ticks.
+    @Test func openCodeMonthlyFiresLikeAnyBillingPeriod() {
+        #expect(UseItUpEvaluator.scope(for: OpenCodeProvider.monthlyKind, providerID: .opencode) == .billingPeriod)
+        let go = snapshot(.opencode, [
+            window(.fiveHour, left: 90, resetsIn: 3 * hour),
+            window(.weekly, left: 70, resetsIn: 20 * hour),
+            window(OpenCodeProvider.monthlyKind, left: 80, resetsIn: 20 * hour),
+        ])
+        #expect(evaluate(go).count == 2)
+        #expect(evaluate(go, settings: settings(scope: [.billingPeriod])).count == 1)
+        // The no-plan row is unavailable and has no reset: it never fires.
+        let noGo = snapshot(.opencode, [UsageWindow(
+            kind: OpenCodeProvider.monthlyKind, utilization: 0, resetSchedule: .unresolved(.absent),
+            freshness: .unavailable(since: now.addingTimeInterval(-day))
+        )])
+        #expect(evaluate(noGo).isEmpty)
+    }
+
     @Test func classificationFollowsKTD3() {
         #expect(UseItUpEvaluator.scope(for: .weekly, providerID: .claude) == .weekly)
         #expect(UseItUpEvaluator.scope(for: .fiveHour, providerID: .codex) == .fiveHour)

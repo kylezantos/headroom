@@ -160,7 +160,9 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         let content = Self.content(
             freshness: snapshot.freshness,
             hasWindows: !windows.isEmpty,
-            requiresStandardSection: requiresStandardSection
+            // KTD7 (OpenCode plan): the no-plan row's See Go Plans is an action Compact
+            // cannot draw, so it keeps the Standard section like any other recovery row.
+            requiresStandardSection: requiresStandardSection || snapshot.planStatusRecovery != nil
         )
         guard content == .meters else {
             self.content = content
@@ -172,7 +174,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         }
 
         self.content = content
-        let shown = windows.prefix(Self.maximumShownWindows)
+        let shown = Self.shownWindows(from: windows)
         self.shownWindows = shown.map { window in
             CompactAccountRowWindow(
                 window: window,
@@ -198,6 +200,33 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         }
         self.tooltip = lines.map(\.tooltip).joined(separator: "\n")
         self.accessibilityValue = lines.map(\.spoken).joined(separator: "; ")
+    }
+
+    /// One Compact cell under a header column. `ownLabel` is set when the window sits under a
+    /// column that names another kind (a neighbour's row chose the header), so the cell names
+    /// itself instead of reading as the column's window (KTD15: a limit can move a window
+    /// into a slot its neighbours don't show).
+    public struct PlacedCell: Sendable, Equatable {
+        public let window: CompactAccountRowWindow
+        public let ownLabel: String?
+    }
+
+    /// The shown windows under the card header's columns: each under its own kind, then any
+    /// left over in the first empty column, so nothing the recipe shows is dropped. With no
+    /// columns, the shown windows in order with no labels of their own.
+    public func placedWindows(columns: [WindowKind]) -> [PlacedCell?] {
+        guard !columns.isEmpty else { return shownWindows.map { PlacedCell(window: $0, ownLabel: nil) } }
+        var placed: [PlacedCell?] = columns.map { kind in
+            shownWindows.first { $0.window.kind.persistentID == kind.persistentID }
+                .map { PlacedCell(window: $0, ownLabel: nil) }
+        }
+        let used = Set(placed.compactMap { $0?.window.window.kind.persistentID })
+        for leftover in shownWindows where !used.contains(leftover.window.kind.persistentID) {
+            if let gap = placed.firstIndex(where: { $0 == nil }) {
+                placed[gap] = PlacedCell(window: leftover, ownLabel: leftover.shortLabel)
+            }
+        }
+        return placed
     }
 
     // MARK: - Decisions
@@ -232,6 +261,32 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
             // Standard's "No usage data" line has no Compact equivalent to draw.
             return hasWindows ? .meters : .standardFallback
         }
+    }
+
+    /// KTD15: two windows in source order, except that a live or stale window at 100% used
+    /// (a limited one included) takes a shown slot from the shown window with the most room.
+    /// With nothing at its limit this is exactly the first two, so labels never move until a
+    /// limit is hit. Unavailable windows never take a slot, and a window at its limit is never
+    /// displaced. The chosen pair keeps source order. The row stays one line either way: a
+    /// usage state never sends it to the Standard section.
+    static func shownWindows(from windows: [UsageWindow]) -> [UsageWindow] {
+        var shown = Array(windows.indices.prefix(maximumShownWindows))
+        for candidate in windows.indices.dropFirst(maximumShownWindows) where isAtLimit(windows[candidate]) {
+            let replaceable = shown.indices.filter { !isAtLimit(windows[shown[$0]]) }
+            // An unavailable shown window has no number to keep, so it counts as all room.
+            guard let roomiest = replaceable.max(by: { room(windows[shown[$0]]) < room(windows[shown[$1]]) })
+            else { break }
+            shown[roomiest] = candidate
+        }
+        return shown.sorted().map { windows[$0] }
+    }
+
+    static func isAtLimit(_ window: UsageWindow) -> Bool {
+        !window.freshness.isUnavailable && window.utilization.isFinite && window.utilization >= 100
+    }
+
+    private static func room(_ window: UsageWindow) -> Double {
+        window.freshness.isUnavailable || !window.utilization.isFinite ? .infinity : window.percentRemaining
     }
 
     /// The Standard stack's windows in the popover's order: `appDisplaySnapshot(for:)` drops

@@ -91,16 +91,18 @@ struct CompactAccountRow: View {
         HStack(spacing: Self.cellGap) {
             switch recipe.content {
             case .meters:
-                ForEach(Array(placedWindows.enumerated()), id: \.offset) { _, shown in
-                    if let shown {
+                ForEach(Array(recipe.placedWindows(columns: columns).enumerated()), id: \.offset) { _, cell in
+                    if let cell {
                         UsageBarView(
-                            window: shown.window,
+                            window: cell.window.window,
                             percentageMode: percentageMode,
                             now: now,
                             meterStyle: recipe.meterStyle,
                             dimmed: recipe.isDimmed,
                             arrivalKey: arrivalKey,
-                            compactLabel: ""
+                            // KTD15: a window under another kind's header column names itself,
+                            // so a limit-promoted "mo" never reads as the column's "5h".
+                            compactLabel: cell.ownLabel ?? ""
                         )
                         .frame(width: Self.cellWidth, alignment: .trailing)
                     } else {
@@ -114,20 +116,6 @@ struct CompactAccountRow: View {
                 }
             }
         }
-    }
-
-    /// The shown windows under their header columns; a window whose kind no column names
-    /// takes the first empty one, so nothing the recipe shows is dropped.
-    private var placedWindows: [CompactAccountRowWindow?] {
-        guard !columns.isEmpty else { return recipe.shownWindows }
-        var placed: [CompactAccountRowWindow?] = columns.map { kind in
-            recipe.shownWindows.first { $0.window.kind.persistentID == kind.persistentID }
-        }
-        let used = Set(placed.compactMap { $0?.window.kind.persistentID })
-        for leftover in recipe.shownWindows where !used.contains(leftover.window.kind.persistentID) {
-            if let gap = placed.firstIndex(where: { $0 == nil }) { placed[gap] = leftover }
-        }
-        return placed
     }
 
     private var tooltip: String {

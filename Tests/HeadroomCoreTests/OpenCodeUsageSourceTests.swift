@@ -420,6 +420,12 @@ struct OpenCodeUsageClassifierTests {
 
 // MARK: - Environment
 
+/// KTD2 step 2: the two fixed `OPENCODE_*` values every child gets, and nothing else.
+enum OpenCodeTestExpectations {
+    static let fixedNames = ["OPENCODE_DISABLE_AUTOUPDATE", "OPENCODE_DISABLE_MODELS_FETCH"]
+    static let fixedLines = ["OPENCODE_DISABLE_AUTOUPDATE=1", "OPENCODE_DISABLE_MODELS_FETCH=1"]
+}
+
 struct OpenCodeEnvironmentTests {
     private let inherited = [
         "HOME": "/Users/someone",
@@ -429,14 +435,17 @@ struct OpenCodeEnvironmentTests {
         "OPENCODE_CONFIG": "/elsewhere/opencode.json",
         "OPENCODE_SERVER_PASSWORD": "pw",
         "OPENCODE_DISABLE_MODELS_FETCH": "0",
+        "OPENCODE_DISABLE_AUTOUPDATE": "0",
         "XDG_DATA_HOME": "/custom/data",
         "XDG_STATE_HOME": "/custom/state",
     ]
 
     @Test func builtInAccountClearsEveryOpenCodeAndXDGVariable() {
         let result = OpenCodeCLI.environment(inherited: inherited, home: .builtIn, loginPath: "/login/bin:/usr/bin")
-        #expect(result.keys.filter { $0.hasPrefix("OPENCODE_") } == ["OPENCODE_DISABLE_MODELS_FETCH"])
+        #expect(result.keys.filter { $0.hasPrefix("OPENCODE_") }.sorted() == OpenCodeTestExpectations.fixedNames)
         #expect(result["OPENCODE_DISABLE_MODELS_FETCH"] == "1")
+        // A background poll must never self-update the user's CLI, whatever their shell set.
+        #expect(result["OPENCODE_DISABLE_AUTOUPDATE"] == "1")
         #expect(OpenCodeCLI.xdgVariables.allSatisfy { result[$0] == nil })
         #expect(result["PATH"] == "/login/bin:/usr/bin")
         #expect(result["HOME"] == "/Users/someone")
@@ -477,7 +486,7 @@ struct OpenCodeEnvironmentTests {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
             let lines = String(decoding: data, as: UTF8.self).split(separator: "\n").map(String.init)
-            #expect(lines.filter { $0.hasPrefix("OPENCODE_") } == ["OPENCODE_DISABLE_MODELS_FETCH=1"])
+            #expect(lines.filter { $0.hasPrefix("OPENCODE_") }.sorted() == OpenCodeTestExpectations.fixedLines)
             if expectXDG {
                 #expect(lines.contains("XDG_DATA_HOME=/tmp/it's here/data"))
                 #expect(lines.contains("XDG_STATE_HOME=/tmp/it's here/state"))
@@ -844,8 +853,9 @@ struct OpenCodeUsageSourceProcessTests {
         #expect(await source.capture(home: .builtIn) == .failed(.signedOut))
         for command in ["version", "usage", "auth"] {
             let env = fake.environment(command)
-            #expect(env.keys.filter { $0.hasPrefix("OPENCODE_") } == ["OPENCODE_DISABLE_MODELS_FETCH"], "\(command)")
+            #expect(env.keys.filter { $0.hasPrefix("OPENCODE_") }.sorted() == OpenCodeTestExpectations.fixedNames, "\(command)")
             #expect(env["OPENCODE_DISABLE_MODELS_FETCH"] == "1")
+            #expect(env["OPENCODE_DISABLE_AUTOUPDATE"] == "1")
             #expect(!env.keys.contains { $0.hasPrefix("XDG_") }, "\(command)")
             #expect(env["PATH"] == "/usr/bin:/bin")
             #expect(env["FOO"] == "bar")
@@ -859,7 +869,7 @@ struct OpenCodeUsageSourceProcessTests {
             #expect(env["XDG_CONFIG_HOME"] == root + "/config")
             #expect(env["XDG_CACHE_HOME"] == root + "/cache")
             #expect(env["XDG_STATE_HOME"] == root + "/state")
-            #expect(env.keys.filter { $0.hasPrefix("OPENCODE_") } == ["OPENCODE_DISABLE_MODELS_FETCH"])
+            #expect(env.keys.filter { $0.hasPrefix("OPENCODE_") }.sorted() == OpenCodeTestExpectations.fixedNames)
         }
     }
 

@@ -165,6 +165,9 @@ struct PopoverView: View {
                     // title belongs to the content below it more than cards belong to
                     // each other.
                     .padding(.bottom, tuning.values.headerGap - tuning.values.cardGap)
+                    // CS1: the list below no longer clips itself, so the header and footer sit
+                    // above it and a card scrolled out of view can never take their clicks.
+                    .zIndex(1)
                 // Cards scroll once many accounts push past a comfortable popover
                 // height; below the cap the height tracks the measured stack, so the
                 // common case is untouched. Header and footer stay pinned.
@@ -264,6 +267,7 @@ struct PopoverView: View {
                     maxHeight: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap)
                 )
                 footer(now: now)
+                    .zIndex(1)
             }
             // M9C (Sep 2026): no entrance motion at all, not even on the first open. Kyle
             // reviewed the once-per-session fade in the live build and called for instant —

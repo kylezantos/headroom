@@ -33,8 +33,10 @@ with a strong identity.
   so a transient failure on that account dims the row. KTD11 keeps the merge through a transient
   failure so the row does not split and rejoin on every blip.
 - **Gate V1 passed for `claude auth login` (with and without a session left running,
-  2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** Not run: Claude Desktop signing in, and any
-  other switcher. A switcher that leaves `.claude.json` alone would put readings under the
+  2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** Closed without a run (Kyle, 2026-11-12):
+  Claude Desktop signing in. Not run: any other switcher (five more were read in source and
+  swap the credential and the account block together), and a Codex switch (id and token share
+  one `auth.json`). A switcher that leaves `.claude.json` alone would put readings under the
   wrong account.
 - **Review residuals, Phase 3 and Claude (2026-11-11).** Not fixed: an added account that changes
   to another login while merged sets its reminder state aside under the old account, and the
@@ -58,8 +60,9 @@ with a strong identity.
   account's numbers and "Main", and the account it left stayed as a dimmed "Last read" row with
   its own last reading. Not run for Codex. Seen there: the two accounts' remembered names were
   "Account 2" and "Account 3", each stable, so a two-account rotation never shows "Account 1"
-  and the second remembered account reads "Account 3". Not changed; decide whether numbering
-  should count only the rows shown.
+  and the second remembered account reads "Account 3". Decided, not a bug (Kyle, 2026-11-12):
+  a number stays with its account, so a label never means one account now and another later.
+  A rename, or "Use email as account name", replaces it.
 - **Live looks so far.** Popover with remembered and merged rows: macOS 26 (dark) and macOS
   15.7.7 (light), Standard and Compact. Settings › Accounts with a merged pair and a remembered
   row: macOS 15.7.7 in the `merged` demo. iPhone remembered rows, with the "Last read" tag and the
@@ -1313,6 +1316,14 @@ From the popover account layout plan.
   popover` builds a fresh view per open, so every one of its warm opens pays it. A fix would
   persist the last plan (column count and split, keyed by the item IDs) and seed the model with
   it on launch.
+- **The first open's column split depends on whether data had landed.** Found 2026-11-12
+  capturing `--demo multi-20` live: across eleven launches the second column began at Account
+  9, 10 or 13. The first plan is made from whatever heights the first layout reports, and a
+  still-pending account draws a skeleton of a different height (Claude 67pt against 75pt live,
+  Grok 67 against 44, the spend card 104 against 51). R6 then keeps that split until the
+  popover closes, by design. Real launches restore snapshots first, so this needs an open
+  before the first reading; demos hit it because their fixtures land a few seconds in.
+  Persisting the last plan, as above, would cover returning users without touching R6.
 - **Hosted App tests quit while the installed Headroom is running.** `HeadroomApp.main`'s
   single-instance guard runs before the XCTest host is recognised, so `xcodebuild test` for
   `HeadroomAppTests` exits at launch ("Headroom is already running … Quit it first") whenever

@@ -165,6 +165,9 @@ struct PopoverView: View {
                     // title belongs to the content below it more than cards belong to
                     // each other.
                     .padding(.bottom, tuning.values.headerGap - tuning.values.cardGap)
+                    // CS1: the list below no longer clips itself, so the header and footer sit
+                    // above it and a card scrolled out of view can never take their clicks.
+                    .zIndex(1)
                 // Cards scroll once many accounts push past a comfortable popover
                 // height; below the cap the height tracks the measured stack, so the
                 // common case is untouched. Header and footer stay pinned.
@@ -226,6 +229,11 @@ struct PopoverView: View {
                 // and the cards are the same width again.
                 .scrollIndicators(.hidden)
                 .scrollBounceBehavior(.basedOnSize)
+                // CS1 (2026-11-10): the viewport is exactly as wide as the cards, so its clip
+                // sliced every card's shadow at the card's own side edges and squared off the
+                // corners. The scroll view no longer clips; the mask below does, and bleeds
+                // into the shell gutter.
+                .scrollClipDisabled()
                 // A soft fade while content continues past the bottom of the cap — the flat
                 // clip alone read as a card with missing data (impeccable audit P2). Gated so
                 // the common non-scrolling popover keeps its crisp last card edge.
@@ -246,7 +254,7 @@ struct PopoverView: View {
                     scroll.update(metrics)
                 }
                 // FA1: the feather animates its own opacity only (see `PopoverScrollFeather`).
-                .mask { PopoverScrollFeather(model: scroll) }
+                .mask { PopoverScrollFeather(model: scroll, bleed: tuning.values.shellMargin) }
                 // Applied outside the mask so the indicator never feathers at the ends,
                 // and outside the feather animations so its position tracks the scroll 1:1.
                 .overlay(alignment: .topTrailing) { PopoverScrollIndicator(model: scroll) }
@@ -259,6 +267,7 @@ struct PopoverView: View {
                     maxHeight: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap)
                 )
                 footer(now: now)
+                    .zIndex(1)
             }
             // M9C (Sep 2026): no entrance motion at all, not even on the first open. Kyle
             // reviewed the once-per-session fade in the live build and called for instant —
@@ -994,6 +1003,7 @@ private struct PopoverScrollMetrics: Equatable {
 
     var overflows: Bool { viewport > 0 && content > viewport + 1 }
     var continuesBelow: Bool { offset + viewport < content - 4 }
+    var continuesAbove: Bool { offset > 1 }
 }
 
 /// SC1: the scroll chrome's state, out of `PopoverView`'s body. Each property is written
@@ -1006,6 +1016,8 @@ private final class PopoverScrollModel {
     /// Content extends past the scroll cap and isn't scrolled to the bottom — gates the
     /// bottom fade so it never softens a fully visible last card.
     private(set) var continuesBelow = false
+    /// Scrolled off the top: cards are passing under the header, so the top edge clips hard.
+    private(set) var continuesAbove = false
     private(set) var indicatorVisible = false
     @ObservationIgnored private var indicatorHideTask: Task<Void, Never>?
 
@@ -1013,6 +1025,7 @@ private final class PopoverScrollModel {
     func update(_ metrics: PopoverScrollMetrics) {
         self.metrics = metrics
         if continuesBelow != metrics.continuesBelow { continuesBelow = metrics.continuesBelow }
+        if continuesAbove != metrics.continuesAbove { continuesAbove = metrics.continuesAbove }
         flashIndicator(overflows: metrics.overflows)
     }
 
@@ -1042,6 +1055,10 @@ private final class PopoverScrollModel {
 /// the entrance M9C removed — re-rendering the popover on each frame.
 private struct PopoverScrollFeather: View {
     let model: PopoverScrollModel
+    /// CS1: how far the mask reaches past the viewport so card shadows draw whole. Always at
+    /// the sides; at the top and bottom only while no card is cut there, so a scrolled list
+    /// keeps its hard top edge under the header (TF2) and its bottom fade inside the viewport.
+    let bleed: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// R2C23: 14pt, down from 26 — the old band was taller than a whole Micro meter row, so
@@ -1076,6 +1093,9 @@ private struct PopoverScrollFeather: View {
             }
             .frame(height: Self.featherHeight)
         }
+        .padding(.horizontal, -bleed)
+        .padding(.top, model.continuesAbove ? 0 : -bleed)
+        .padding(.bottom, fadesOut ? 0 : -bleed)
     }
 }
 

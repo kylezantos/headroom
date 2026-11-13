@@ -43,6 +43,8 @@ public enum DemoScreenshotData {
             return fourProvidersEnvelope
         case "fiveProviders":
             return fiveProvidersEnvelope
+        case "sixProviders":
+            return sixProvidersEnvelope
         default:
             // U7: a v4 variant chosen in Explore Demo reaches build-33 hosts as its
             // main-account projection (KTD13) until they adopt the resolved snapshot.
@@ -390,6 +392,39 @@ public enum DemoScreenshotData {
         )
     }
 
+    /// `sixProviders` (OpenCode plan U9, KTD14): the five-provider moment plus OpenCode Go's
+    /// three windows, with no plan label (KTD19) and no spend row. Numbers mirror
+    /// `DemoFixture.opencodeSnapshot`. The Lock Screen demo reads this envelope, so a widget
+    /// pinned to OpenCode shows a reading rather than "Off".
+    private static var sixProvidersEnvelope: WidgetSnapshotEnvelope {
+        let five = fiveProvidersEnvelope
+        let opencode = WidgetProviderSummary(
+            id: ProviderID.opencode.raw,
+            displayName: "OpenCode",
+            planLabel: nil,
+            freshness: .live,
+            windows: [
+                window(.fiveHour, label: "5h", percent: 82, reset: "Resets 1:40pm", severity: .healthy),
+                window(.weekly, label: "Weekly", percent: 53, reset: "Resets in 3d 6h", severity: .healthy),
+                window(
+                    .other("Monthly"),
+                    label: "Monthly",
+                    percent: 29,
+                    reset: "Resets Dec 1",
+                    severity: .low,
+                    billingPeriodDuration: 30 * 24 * 60 * 60
+                ),
+            ],
+            renewalDate: day(month: 12, day: 4)
+        )
+        return WidgetSnapshotEnvelope(
+            generatedAt: five.generatedAt,
+            status: five.status,
+            providers: five.providers + [opencode],
+            apiSpendProviders: five.apiSpendProviders
+        )
+    }
+
     // MARK: - Settings preview
 
     /// L9P: the frozen envelope behind the Settings › Widgets & iPhone preview strip.
@@ -458,6 +493,7 @@ public enum DemoScreenshotData {
         "claudeCodex", "claudeGrok", "codexCursor", "grokCursor", "tightClaudeCursor",
         "sparkOn", "staleUnavailable", "pending", "firstPending", "pendingAll", "pendingPools", "pendingCodex", "pendingCursor",
         "signedOut", "cursorOnly", "spend", "claudeCopilot", "copilotNoReading",
+        "claudeOpenCode", "openCodeLimited", "openCodeNoGo",
     ]
 
     public static func styleFixture(_ name: String, now: Date) -> WidgetSnapshotEnvelope? {
@@ -514,6 +550,21 @@ public enum DemoScreenshotData {
                 w(.other("Monthly"), "Monthly", a, resetIn: 18.2 * day, freshness: freshness, pool: 30 * day),
             ], renewalDate: nil)
         }
+        // OpenCode plan U9: Go's three windows, no plan label (KTD19). A no-Go workspace sends
+        // the plan name "No Go plan" and one unavailable Monthly row (KTD7, KTD16); a limited
+        // window reaches widgets only as 0% left with its reset (KTD21: no limited flag).
+        func opencode(_ a: Double, _ b: Double, _ c: Double) -> WidgetProviderSummary {
+            WidgetProviderSummary(id: ProviderID.opencode.raw, displayName: "OpenCode", planLabel: nil, freshness: .live, windows: [
+                w(.fiveHour, "5h", a, resetIn: 2.7 * hour),
+                w(.weekly, "Weekly", b, resetIn: 3.25 * day),
+                w(.other("Monthly"), "Monthly", c, resetIn: 19 * day, pool: 30 * day),
+            ], renewalDate: nil)
+        }
+        let opencodeNoGo = WidgetProviderSummary(
+            id: ProviderID.opencode.raw, displayName: "OpenCode", planLabel: "No Go plan", freshness: .live, windows: [
+                w(.other("Monthly"), "Monthly", 100, resetIn: 19 * day,
+                  freshness: .unavailable(since: now.addingTimeInterval(-11 * day)), pool: 30 * day),
+            ], renewalDate: nil)
         func spendRow(_ id: ProviderID, _ name: String, _ amount: Double) -> WidgetAPISpendSummary {
             WidgetAPISpendSummary(id: id.raw, displayName: name, amount: amount, currency: "usd",
                                   periodLabel: "Current month", capturedAt: now, freshness: .live)
@@ -560,6 +611,9 @@ public enum DemoScreenshotData {
         case "claudeCopilot": return envelope([claude(72, 38, 54), copilot(76)])
         case "copilotNoReading":
             return envelope([claude(72, 38, 54), copilot(100, freshness: .unavailable(since: now.addingTimeInterval(-day)))])
+        case "claudeOpenCode": return envelope([claude(72, 38, 54), opencode(82, 53, 29)])
+        case "openCodeLimited": return envelope([opencode(78, 36, 0), codex(41, 64)])
+        case "openCodeNoGo": return envelope([claude(72, 38, 54), opencodeNoGo])
         default: return nil
         }
     }
@@ -589,8 +643,8 @@ public enum DemoScreenshotData {
         }
         switch name {
         case "full", "empty":
-            return envelope(["claude", "codex", "grok", "cursor", "copilot"].map { id in
-                WidgetProviderSummary(id: id, displayName: id.capitalized, planLabel: nil,
+            return envelope(["claude", "codex", "grok", "cursor", "copilot", "opencode"].map { id in
+                WidgetProviderSummary(id: id, displayName: ProviderID(id).displayName, planLabel: nil,
                     freshness: .live, windows: [WidgetWindowSummary(kind: .weekly, label: "Weekly",
                         percentRemaining: name == "full" ? 100 : 0,
                         resetSchedule: .scheduled(now.addingTimeInterval(86_400)), resetLabel: nil,

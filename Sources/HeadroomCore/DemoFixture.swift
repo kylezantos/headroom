@@ -25,6 +25,11 @@ public enum DemoFixture {
                        UsageWindow(kind: .weekly, utilization: 62, resetsAt: date.addingTimeInterval(345_600))]
         case .codex:
             windows = [UsageWindow(kind: .weekly, utilization: 36, resetsAt: date.addingTimeInterval(540_000))]
+        case .opencode:
+            // OpenCode plan KTD6: Go's three windows, in the order the card reads them.
+            windows = [UsageWindow(kind: .fiveHour, utilization: 18, resetsAt: date.addingTimeInterval(9_600)),
+                       UsageWindow(kind: .weekly, utilization: 47, resetsAt: date.addingTimeInterval(281_000)),
+                       UsageWindow(kind: OpenCodeProvider.monthlyKind, utilization: 71, resetsAt: date.addingTimeInterval(1_641_600))]
         default:
             windows = [UsageWindow(kind: .billingPeriod(label: "Monthly", duration: 2_592_000),
                                    utilization: 44, resetsAt: date.addingTimeInterval(1_036_800))]
@@ -150,6 +155,73 @@ public enum DemoFixture {
                     utilization: 0,
                     resetSchedule: .unresolved(.absent),
                     freshness: .unavailable(since: monthStart)
+                ),
+            ],
+            planLabel: nil,
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live
+        )
+    }
+
+    /// OpenCode plan U9: a Go workspace's three windows, shaped the way `OpenCodeProvider`
+    /// builds them (KTD6): 5-hour, weekly and a 30-day Monthly pool, with distinct values so
+    /// a render tells them apart. Go reports no plan name, workspace or email (KTD19).
+    public static var opencodeSnapshot: UsageSnapshot {
+        UsageSnapshot(
+            providerID: .opencode,
+            windows: [
+                // 18% used → 82% left: healthy.
+                UsageWindow(kind: .fiveHour, utilization: 18, resetsAt: soon(hours: 2, minutes: 40, seconds: 30), resetLabel: "Resets 1:40pm"),
+                // 47% used → 53% left: healthy, just above the low band.
+                UsageWindow(kind: .weekly, utilization: 47, resetsAt: soon(days: 3, hours: 6, minutes: 30), resetLabel: "Resets in 3d 6h"),
+                // 71% used → 29% left: low.
+                UsageWindow(kind: OpenCodeProvider.monthlyKind, utilization: 71, resetsAt: soon(days: 19, minutes: 30), resetLabel: "Resets Dec 1"),
+            ],
+            planLabel: nil,
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live
+        )
+    }
+
+    /// OpenCode plan U9 (KTD7): signed in to a workspace with no Go plan. Exactly what
+    /// `OpenCodeProvider` returns: live, one Monthly row unavailable since the UTC month
+    /// start, and `planStatus` `.noActivePlan`. The card draws "No Go plan on this workspace"
+    /// with See Go Plans and no meter; the phone reads the plan name "No Go plan".
+    public static var opencodeNoGoSnapshot: UsageSnapshot {
+        let monthStart = CopilotLedgerCalculator.utcMonth(containing: Date()).lowerBound
+        return UsageSnapshot(
+            providerID: .opencode,
+            windows: [
+                UsageWindow(
+                    kind: OpenCodeProvider.monthlyKind,
+                    utilization: 0,
+                    resetSchedule: .unresolved(.absent),
+                    freshness: .unavailable(since: monthStart)
+                ),
+            ],
+            planLabel: nil,
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live,
+            planStatus: .noActivePlan
+        )
+    }
+
+    /// OpenCode plan U9 (KTD6, KTD15, KTD21): the monthly window at its limit, with the
+    /// source's own `limited` word and a future reset, so Standard draws the red limited
+    /// sentence under the identity row and Compact gives the monthly window a slot (it would
+    /// otherwise sit behind "+1"). The other two windows still have room.
+    public static var opencodeLimitedSnapshot: UsageSnapshot {
+        UsageSnapshot(
+            providerID: .opencode,
+            windows: [
+                UsageWindow(kind: .fiveHour, utilization: 22, resetsAt: soon(hours: 4, minutes: 10, seconds: 30), resetLabel: "Resets 3:10pm"),
+                UsageWindow(kind: .weekly, utilization: 64, resetsAt: soon(days: 2, hours: 3, minutes: 30), resetLabel: "Resets in 2d 3h"),
+                UsageWindow(
+                    kind: OpenCodeProvider.monthlyKind,
+                    utilization: 100,
+                    resetSchedule: .scheduled(soon(days: 9, minutes: 30)),
+                    resetLabel: "Resets Nov 21",
+                    isLimited: true
                 ),
             ],
             planLabel: nil,
@@ -346,6 +418,7 @@ public enum DemoFixture {
         case .grok: return day(month: 8, day: 4)
         case .cursor: return day(month: 9, day: 1)
         case .copilot: return day(month: 12, day: 1)
+        case .opencode: return day(month: 12, day: 4)
         default: return nil
         }
     }
@@ -434,6 +507,20 @@ extension DemoFixture {
         /// Copilot plan U7: a signed-in Copilot account before its first usage reading, beside
         /// a live Claude account. The Copilot row shows its label and no number.
         case copilotNoReading = "copilot-no-reading"
+        /// OpenCode plan U9 (KTD14): every registered provider, one built-in account each.
+        /// `five-providers` stays the five providers before OpenCode.
+        case sixProviders = "six-providers"
+        /// OpenCode plan U9 (KTD7): a Console sign-in whose workspace has no Go plan, beside a
+        /// live Claude account. The card shows the sentence and See Go Plans, with no meter.
+        case opencodeNoGo = "opencode-no-go"
+        /// OpenCode plan U9 (KTD3, KTD21): an installed OpenCode older than 2.2, beside a live
+        /// Claude account: "Go usage needs OpenCode 2.2 or newer" with About OpenCode 2.
+        case opencodeUpdate = "opencode-update"
+        /// OpenCode plan U9 (KTD15, KTD21): two OpenCode accounts, a healthy built-in and an
+        /// extra whose monthly window is limited, beside a live Claude account. Standard shows
+        /// the red limited sentence; Compact gives the limited monthly window a slot, where it
+        /// names itself under the healthy row's 5-hour header column.
+        case opencodeLimited = "opencode-limited"
         /// Default-login plan U11 (mock scenario A, steps 2 and 4; AE1, AE2): Claude and
         /// Codex each show a live default ("Personal") and two accounts the default login
         /// left. "Work" was read two minutes ago and is before both resets, so it is dimmed
@@ -453,7 +540,7 @@ extension DemoFixture {
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
     /// Parity checks derive their expected provider list from this instead of hardcoding a
     /// Claude/Codex literal (KTD9 switch-site inventory).
-    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot]
+    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
 
     /// One scenario resolved to its accounts + one fixture provider per account.
     public struct MultiAccountFixture: Sendable {
@@ -723,6 +810,36 @@ extension DemoFixture {
             pairs = [
                 demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
                 builtInProviderPair(provider: .copilot, snapshot: copilotNoReadingSnapshot),
+            ]
+        case .sixProviders:
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
+                builtInProviderPair(provider: .grok, snapshot: grokSnapshot),
+                builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+                builtInProviderPair(provider: .copilot, snapshot: copilotSnapshot),
+                builtInProviderPair(provider: .opencode, snapshot: opencodeSnapshot),
+            ]
+        case .opencodeNoGo:
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                builtInProviderPair(provider: .opencode, snapshot: opencodeNoGoSnapshot),
+            ]
+        case .opencodeUpdate:
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                builtInProviderPair(
+                    provider: .opencode,
+                    snapshot: .stale(for: .opencode, reason: .providerSetup(.opencodeUpdateRequired))
+                ),
+            ]
+        case .opencodeLimited:
+            let work = ProviderAccount(id: AccountID("opencode-work"), providerID: .opencode, label: "Work")
+            pairs = [
+                demoAccount(provider: .claude, id: "personal", label: "Personal", plan: "Max", fiveHour: 28, weekly: 62, builtIn: true),
+                builtInProviderPair(provider: .opencode, snapshot: opencodeSnapshot, label: "Personal"),
+                (work, DemoUsageProvider(id: .opencode, displayName: ProviderID.opencode.displayName,
+                                         snapshot: opencodeLimitedSnapshot, accountID: work.id)),
             ]
         case .remembered:
             // Mock scenario A: the default login moved to the personal account. Its live

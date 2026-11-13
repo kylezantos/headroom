@@ -78,31 +78,38 @@ enum WidgetRenderHarness {
         var overflows: [String] = []
         var stress: [String] = []
         var rendered: [(Job, String)] = []
+        // OpenCode plan U9: one autorelease pool per tile. Without it every renderer's bitmaps
+        // stay alive for the whole sweep, and past about 14,000 tiles the PNG writes began
+        // failing ("CGImageDestinationFinalize failed", 1,797 "render failed" rows at the tail).
         for job in jobs {
-            let (image, problems) = render(job)
-            let url = outDir.appendingPathComponent(job.fileName)
-            if let image, write(image, to: url) {
-                rendered.append((job, job.fileName))
-            } else {
-                overflows.append("\(job.fileName): render failed")
-            }
-            // The shrunk pass is a stress stand-in for xxLarge text, not a real tile size, so
-            // its findings are warnings to review by eye rather than failures.
-            if job.shrink != 1 {
-                stress += problems.map { "\(job.fileName): \($0)" }
-            } else {
-                overflows += problems.map { "\(job.fileName): \($0)" }
+            autoreleasepool {
+                let (image, problems) = render(job)
+                let url = outDir.appendingPathComponent(job.fileName)
+                if let image, write(image, to: url) {
+                    rendered.append((job, job.fileName))
+                } else {
+                    overflows.append("\(job.fileName): render failed")
+                }
+                // The shrunk pass is a stress stand-in for xxLarge text, not a real tile size, so
+                // its findings are warnings to review by eye rather than failures.
+                if job.shrink != 1 {
+                    stress += problems.map { "\(job.fileName): \($0)" }
+                } else {
+                    overflows += problems.map { "\(job.fileName): \($0)" }
+                }
             }
         }
         var lockRendered: [(LockJob, String)] = []
         for job in lockJobs {
-            let (image, problems) = renderLock(job)
-            if let image, write(image, to: outDir.appendingPathComponent(job.fileName)) {
-                lockRendered.append((job, job.fileName))
-            } else {
-                overflows.append("\(job.fileName): render failed")
+            autoreleasepool {
+                let (image, problems) = renderLock(job)
+                if let image, write(image, to: outDir.appendingPathComponent(job.fileName)) {
+                    lockRendered.append((job, job.fileName))
+                } else {
+                    overflows.append("\(job.fileName): render failed")
+                }
+                overflows += problems.map { "\(job.fileName): \($0)" }
             }
-            overflows += problems.map { "\(job.fileName): \($0)" }
         }
         writeContactSheet(rendered, lockRendered: lockRendered, overflows: overflows + stress, to: outDir.appendingPathComponent("index.html"))
         let report = overflows.isEmpty ? "No overflow.\n" : overflows.joined(separator: "\n") + "\n"
@@ -438,7 +445,7 @@ private extension WidgetRenderHarness {
                 DemoScreenshotData.lockScreenFixture(name, now: now).map(IOSWidgetSnapshotState.content)
             case .demo:
                 // KTD10: Lock Screen demo always reads the every-provider envelope.
-                .demo(DemoScreenshotData.envelope(for: "fiveProviders"))
+                .demo(DemoScreenshotData.envelope(for: "sixProviders"))
             case .status(let name):
                 switch name {
                 case "disabled": .disabled

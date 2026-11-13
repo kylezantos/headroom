@@ -104,6 +104,10 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .bankedResets).accounts.count == 4)
         #expect(DemoFixture.multiFixture(for: .fiveProviders).accounts.count == 5)
         #expect(DemoFixture.multiFixture(for: .copilotNoReading).accounts.count == 2)
+        #expect(DemoFixture.multiFixture(for: .sixProviders).accounts.count == 6)
+        #expect(DemoFixture.multiFixture(for: .opencodeNoGo).accounts.count == 2)
+        #expect(DemoFixture.multiFixture(for: .opencodeUpdate).accounts.count == 2)
+        #expect(DemoFixture.multiFixture(for: .opencodeLimited).accounts.count == 3)
         // Default-login U11: the engine holds only each provider's live default; the two
         // remembered rows per provider come from the record store.
         #expect(DemoFixture.multiFixture(for: .remembered).accounts.count == 2)
@@ -201,17 +205,134 @@ struct DemoFixtureTests {
     /// U12 parity, Copilot plan U7: the five-provider scenario's provider list equals the
     /// registry order. `multi-4` keeps the four providers before Copilot, because its spend
     /// variants pose four API rows and `multi-5` already means five accounts.
+    /// OpenCode plan U9 (KTD14): `five-providers` stays the five providers before OpenCode.
     @Test func fiveProviderScenarioMatchesRegistryOrder() async {
         let fixture = DemoFixture.multiFixture(for: .fiveProviders)
-        #expect(fixture.accounts.map(\.providerID) == DemoFixture.registeredProviderOrder)
-        #expect(fixture.providers.map(\.id) == DemoFixture.registeredProviderOrder)
-        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .copilot])
+        let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode }
+        #expect(fixture.accounts.map(\.providerID) == beforeOpenCode)
+        #expect(fixture.providers.map(\.id) == beforeOpenCode)
+        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .copilot, .opencode])
         #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.map(\.providerID)
-            == DemoFixture.registeredProviderOrder.filter { $0 != .copilot })
+            == beforeOpenCode.filter { $0 != .copilot })
         // Single-account like Cursor: the demo must not offer "Add Account…" for Copilot.
         let copilot = fixture.providers.first { $0.id == .copilot }
         #expect(copilot?.accountCapacity == 1)
         #expect(await copilot?.fetchSnapshot().planLabel == nil)
+    }
+
+    /// OpenCode plan U9: the demo registry is the same list the phone treats as known, so a
+    /// provider the Mac can register cannot be missing from the demos (PR #189 found harness
+    /// stores that silently drew two providers). The App suite ties it to the composition
+    /// registry itself.
+    @Test func demoRegistryMatchesEveryKnownProvider() {
+        #expect(DemoFixture.registeredProviderOrder.map(\.raw) == CompanionSyncKeys.knownProviderIDs)
+    }
+
+    /// OpenCode plan U9 (KTD14): `six-providers` poses every registered provider, one live
+    /// built-in each, so a provider added to the registry without a fixture fails here.
+    @Test func sixProviderScenarioCoversTheRegistry() async {
+        let fixture = DemoFixture.multiFixture(for: .sixProviders)
+        #expect(fixture.accounts.map(\.providerID) == DemoFixture.registeredProviderOrder)
+        #expect(fixture.providers.map(\.id) == DemoFixture.registeredProviderOrder)
+        #expect(fixture.accounts.allSatisfy { $0.isBuiltIn })
+        for provider in fixture.providers {
+            let snapshot = await provider.fetchSnapshot()
+            #expect(snapshot.providerID == provider.id)
+            #expect(snapshot.freshness == .live, "\(provider.id)")
+            #expect(!snapshot.windows.isEmpty, "\(provider.id)")
+        }
+        #expect(DemoFixture.scenarioRequest(arguments: ["Headroom", "--demo", "six-providers"])
+            == .multiAccount(.sixProviders))
+    }
+
+    /// OpenCode plan U9 (KTD6): the six-provider OpenCode row is realistic: Go's three
+    /// windows in card order, distinct values, future resets, no plan label (KTD19), and the
+    /// same tested-envelope capacity as the registry (KTD10).
+    @Test func openCodeDemoSnapshotHasGosThreeWindows() async throws {
+        let snapshot = DemoFixture.opencodeSnapshot
+        #expect(snapshot.windows.map(\.kind) == [.fiveHour, .weekly, OpenCodeProvider.monthlyKind])
+        let left = snapshot.windows.map { UsagePercentageMode.remaining.roundedPercentage(for: $0) }
+        #expect(left == [82, 53, 29])
+        #expect(Set(left).count == 3)
+        #expect(snapshot.windows.allSatisfy { ($0.resetSchedule.deadline ?? .distantPast) > Date() })
+        #expect(snapshot.windows.allSatisfy { !$0.isLimited })
+        #expect(snapshot.planLabel == nil)
+        #expect(snapshot.planStatus == nil)
+        #expect(snapshot.accountEmail == nil)
+        let provider = try #require(DemoFixture.multiFixture(for: .sixProviders).providers.first { $0.id == .opencode })
+        #expect(provider.accountCapacity == AccountRegistry.testedEnvelope)
+        #expect(UsageLimitSentence(snapshot: await provider.fetchSnapshot(), now: Date()) == nil)
+    }
+
+    /// OpenCode plan U9 (KTD7): the no-Go pose is the provider's own no-Go reading. Live,
+    /// one Monthly row with no number, the See Go Plans row in Standard, the Standard
+    /// section in Compact, and "No Go plan" as the exported plan name.
+    @Test func openCodeNoGoPoseIsTheProvidersNoGoReading() async throws {
+        let fixture = DemoFixture.multiFixture(for: .opencodeNoGo)
+        #expect(fixture.accounts.map(\.providerID) == [.claude, .opencode])
+        let provider = try #require(fixture.providers.first { $0.id == .opencode })
+        let snapshot = await provider.fetchSnapshot()
+        #expect(snapshot.freshness == .live)
+        #expect(snapshot.planStatus == .noActivePlan)
+        #expect(snapshot.exportedPlanLabel == "No Go plan")
+        let window = try #require(snapshot.windows.first)
+        #expect(snapshot.windows.count == 1)
+        #expect(window.kind == OpenCodeProvider.monthlyKind)
+        #expect(window.freshness.isUnavailable)
+        let recovery = try #require(snapshot.planStatusRecovery)
+        #expect(recovery.status == "No Go plan on this workspace")
+        #expect(recovery.primaryLabel == "See Go Plans")
+        let compact = CompactAccountRowRecipe(
+            snapshot: snapshot, meterStyle: .default, percentageMode: .remaining, now: Date(),
+            requiresStandardSection: false, showsCodexSparkCounters: false)
+        #expect(compact.fallsBackToStandard)
+    }
+
+    /// OpenCode plan U9 (KTD3, KTD21): the too-old-CLI pose carries the typed outcome, so the
+    /// card reads "Go usage needs OpenCode 2.2 or newer" with About OpenCode 2 and Check Now.
+    @Test func openCodeUpdatePoseCarriesTheUpdateOutcome() async throws {
+        let fixture = DemoFixture.multiFixture(for: .opencodeUpdate)
+        #expect(fixture.accounts.map(\.providerID) == [.claude, .opencode])
+        let provider = try #require(fixture.providers.first { $0.id == .opencode })
+        let snapshot = await provider.fetchSnapshot()
+        #expect(snapshot.freshness == .stale(.providerSetup(.opencodeUpdateRequired)))
+        #expect(snapshot.windows.isEmpty)
+        let recovery = ProviderSetupOutcome.opencodeUpdateRequired.recoveryPresentation
+        #expect(recovery.status == "Go usage needs OpenCode 2.2 or newer")
+        #expect(recovery.primaryLabel == "About OpenCode 2")
+        #expect(recovery.secondaryLabel == "Check Now")
+    }
+
+    /// OpenCode plan U9 (KTD15, KTD21): the limited pose has a live, limited monthly window
+    /// with a future reset beside a healthy OpenCode built-in. Standard gets the limited
+    /// sentence; Compact keeps one line and gives the monthly window a slot, which names
+    /// itself under the healthy row's 5-hour column.
+    @Test func openCodeLimitedPoseDrawsTheSentenceAndTheCompactSlot() async throws {
+        let fixture = DemoFixture.multiFixture(for: .opencodeLimited)
+        #expect(fixture.accounts.map(\.providerID) == [.claude, .opencode, .opencode])
+        #expect(fixture.accounts.map(\.label) == ["Personal", "Personal", "Work"])
+        #expect(Set(fixture.accounts.map(\.key)).count == 3)
+        let now = Date()
+        let healthy = await fixture.providers[1].fetchSnapshot()
+        let limited = await fixture.providers[2].fetchSnapshot()
+        #expect(UsageLimitSentence(snapshot: healthy, now: now) == nil)
+        let sentence = try #require(UsageLimitSentence(snapshot: limited, now: now))
+        #expect(sentence.window.kind == OpenCodeProvider.monthlyKind)
+        #expect(sentence.text.hasPrefix("Go’s monthly limit is reached until "))
+
+        func recipe(_ snapshot: UsageSnapshot) -> CompactAccountRowRecipe {
+            CompactAccountRowRecipe(
+                snapshot: snapshot, meterStyle: .default, percentageMode: .remaining, now: now,
+                requiresStandardSection: false, showsCodexSparkCounters: false)
+        }
+        let healthyRow = recipe(healthy), limitedRow = recipe(limited)
+        #expect(!limitedRow.fallsBackToStandard)
+        #expect(healthyRow.shownWindows.map(\.window.kind) == [.fiveHour, .weekly])
+        #expect(limitedRow.shownWindows.map(\.window.kind) == [.weekly, OpenCodeProvider.monthlyKind])
+        let placed = limitedRow.placedWindows(columns: healthyRow.shownWindows.map(\.window.kind))
+        #expect(placed.map { $0?.window.window.kind } == [OpenCodeProvider.monthlyKind, .weekly])
+        #expect(placed.first??.ownLabel != nil)
+        #expect(placed.last??.ownLabel == nil)
     }
 
     /// Copilot plan U7: before the first usage reading the row is unavailable. It keeps its

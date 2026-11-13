@@ -46,7 +46,7 @@ struct HeadroomLockScreenTimelineProvider: AppIntentTimelineProvider {
 
     /// KTD10: Lock Screen demo always shows the every-provider envelope, so every pinned
     /// provider has data, whichever demo variant the Home Screen widgets show.
-    private static var demoEnvelope: WidgetSnapshotEnvelope { DemoScreenshotData.envelope(for: "fiveProviders") }
+    private static var demoEnvelope: WidgetSnapshotEnvelope { DemoScreenshotData.envelope(for: "sixProviders") }
 
     private struct Load {
         let state: IOSWidgetSnapshotState

@@ -862,12 +862,18 @@ struct CompanionPhoneProjectionTests {
 
     /// V8 / KTD22: with "Use email as account name" off (the default), captured emails,
     /// credentials and config paths never encode anywhere in the publish.
-    @Test func encodedPhoneSyncCarriesNoEmailOrUpstreamIdentity() async throws {
-        let store = await PhoneDemoStores.store(.duplicateLabels, widgetSpark: true)
+    /// OpenCode plan U9: also over `six-providers`, so an OpenCode key is in the scan.
+    @Test(arguments: [DemoFixture.MultiAccountScenario.duplicateLabels, .sixProviders])
+    func encodedPhoneSyncCarriesNoEmailOrUpstreamIdentity(_ scenario: DemoFixture.MultiAccountScenario) async throws {
+        let store = await PhoneDemoStores.store(scenario, widgetSpark: true)
         #expect(store.accounts(for: .claude).contains { store.snapshot(for: $0.key).accountEmail != nil })
         var capture = store.companionCapture()
         capture.generation = 3
         let image = try CompanionPublishImage.fullImage(capture: capture, sourceID: F.macA)
+        if scenario == .sixProviders {
+            #expect(capture.providers.map(\.providerID) == DemoFixture.registeredProviderOrder.map(\.raw))
+            #expect(image.providers.keys.contains { $0.hasSuffix(ProviderID.opencode.raw) })
+        }
         let encoded = ([image.manifest, image.v3] + Array(image.providers.values))
             .map { String(decoding: $0, as: UTF8.self) }.joined()
         for banned in [

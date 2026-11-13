@@ -15,6 +15,9 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
     /// Every registered provider, one account each: the four above plus Copilot's monthly
     /// credit pool (`--demo five-providers`).
     case fiveProviders
+    /// OpenCode plan U9 (KTD14): every registered provider, one account each: the five above
+    /// plus OpenCode Go's three windows (`--demo six-providers`).
+    case sixProviders
     /// Codex banked resets: two, one on a Critical account, and a reported zero
     /// (`--demo banked-resets`).
     case bankedResets
@@ -58,6 +61,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
         "multi-3": .multiAccount,
         "multi-4": .fourProviders,
         "five-providers": .fiveProviders,
+        "six-providers": .sixProviders,
         "banked-resets": .bankedResets,
         "multi-20": .multi20,
         "remembered": .remembered,
@@ -82,6 +86,7 @@ public enum CompanionDemoVariant: String, CaseIterable, Sendable, Identifiable {
         case .multiAccount: "Multiple accounts"
         case .fourProviders: "Four providers"
         case .fiveProviders: "Five providers"
+        case .sixProviders: "Six providers"
         case .bankedResets: "Banked resets"
         case .displayChoices: "Display choices"
         case .dimmed: "No recent update"
@@ -295,6 +300,11 @@ public enum CompanionDemoData {
         case .fiveProviders:
             var state = try fourProvidersState(clock: clock, generation: g)
             state.providers.append(try payload("copilot", g, main: copilotAccount(clock)))
+            return state
+        case .sixProviders:
+            var state = try fourProvidersState(clock: clock, generation: g)
+            state.providers.append(try payload("copilot", g, main: copilotAccount(clock)))
+            state.providers.append(try payload("opencode", g, main: opencodeAccount(clock)))
             return state
         case .bankedResets:
             return MacState(providers: [
@@ -601,6 +611,19 @@ public enum CompanionDemoData {
             windows: [
                 window(.billingPeriod, name: "Monthly", period: 30 * day, utilization: 24,
                        resetIn: 18 * day + 30 * minute, clock),
+            ])
+    }
+
+    /// `DemoFixture.opencodeSnapshot`: Go's 5-hour, weekly and Monthly windows, no plan name
+    /// (KTD19) and no spend (D1).
+    static func opencodeAccount(_ clock: DemoClock) throws -> CompanionAccountSummary {
+        try CompanionAccountSummary(
+            id: "primary", title: "OpenCode", capturedAt: clock.captured,
+            windows: [
+                window(.fiveHour, utilization: 18, resetIn: 2 * hour + 40 * minute + 30, clock),
+                window(.weekly, utilization: 47, resetIn: 3 * day + 6 * hour + 30 * minute, clock),
+                window(.billingPeriod, name: "Monthly", period: 30 * day, utilization: 71,
+                       resetIn: 19 * day + 30 * minute, clock),
             ])
     }
 

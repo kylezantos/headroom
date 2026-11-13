@@ -251,11 +251,13 @@ struct DemoScreenshotDataVariantsTests {
     @Test(arguments: CompanionDemoVariant.allCases)
     func planLabelsAreStoredInDisplayForm(_ variant: CompanionDemoVariant) {
         let content = CompanionDemoData.snapshot(variant, now: now).content
-        for account in content?.providers.flatMap(\.accounts) ?? [] {
+        for (providerID, account) in content?.providers.flatMap({ p in p.accounts.map { (p.id, $0) } }) ?? [] {
             let plan = account.planName
-            // U8's never-signed-in account has no plan to report, and Copilot's CLI reports
-            // none (Copilot plan parity exception); every other account does.
-            if account.attention != .neverOnboarded, account.title != "Copilot" { #expect(plan != nil) }
+            // U8's never-signed-in account has no plan to report, Copilot's CLI reports none
+            // (Copilot plan parity exception), and a Go reading carries none (OpenCode plan
+            // KTD19); every other account does.
+            let reportsPlan = providerID != ProviderID.copilot.raw && providerID != ProviderID.opencode.raw
+            if account.attention != .neverOnboarded, reportsPlan { #expect(plan != nil) }
             #expect(PlanLabelPresentation.displayName(plan) == plan)
         }
     }
@@ -297,7 +299,7 @@ struct DemoScreenshotDataVariantsTests {
     /// plan name and no spend row.
     @Test func fiveProvidersAddsCopilotsMonthlyPool() throws {
         let content = try content(.fiveProviders)
-        #expect(content.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
+        #expect(content.providers.map(\.id) == DemoFixture.registeredProviderOrder.filter { $0 != .opencode }.map(\.raw))
         let copilot = try provider("copilot", in: content)
         #expect(copilot.accounts.count == 1)
         #expect(copilot.mainAccount?.planName == nil)
@@ -305,6 +307,25 @@ struct DemoScreenshotDataVariantsTests {
         #expect(copilot.mainAccount?.windows.map(\.summary.roundedPercentRemaining) == [76])
         #expect(content.apiSpend.map(\.id) == ["claude", "codex"])
         #expect(CompanionDemoVariant.resolving("five-providers") == .fiveProviders)
+    }
+
+    /// OpenCode plan U9 (KTD14): the six-provider moment decodes on the phone through the
+    /// real v4 codec and resolver, and adds OpenCode Go's three windows with no plan name and
+    /// no spend row. It also resolves from the Mac scenario's name.
+    @Test func sixProvidersAddsOpenCodesThreeWindows() throws {
+        let content = try content(.sixProviders)
+        #expect(content.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
+        let opencode = try provider("opencode", in: content)
+        #expect(opencode.accounts.count == 1)
+        #expect(opencode.mainAccount?.title == "OpenCode")
+        #expect(opencode.mainAccount?.planName == nil)
+        #expect(opencode.mainAccount?.windows.map(\.summary.label) == ["5h", "Weekly", "Monthly"])
+        #expect(opencode.mainAccount?.windows.map(\.summary.roundedPercentRemaining) == [82, 53, 29])
+        #expect(opencode.mainAccount?.windows.last?.summary.isBillingPeriod == true)
+        #expect(content.apiSpend.map(\.id) == ["claude", "codex"])
+        #expect(CompanionDemoVariant.resolving("six-providers") == .sixProviders)
+        let projection = try #require(CompanionDemoData.snapshot(.sixProviders, now: Date()).primaryProjection())
+        #expect(projection.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
     }
 
     /// U8 (V12, V13): a never-signed-in extra, a shared long name with its " · 2" twin,

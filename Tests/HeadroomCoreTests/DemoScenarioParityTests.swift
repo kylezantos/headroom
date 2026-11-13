@@ -39,12 +39,15 @@ struct DemoScenarioParityTests {
     /// U12, Copilot plan U7: the five-provider demo envelope's provider list equals the
     /// registry order, so a screenshot/QA scenario exercises every registered provider rather
     /// than a literal. The four-provider envelope stays the registry without Copilot.
+    /// OpenCode plan U9 (KTD14): the five-provider envelope stays the registry without
+    /// OpenCode; `sixProviders` is the every-provider envelope.
     @Test func fiveProviderDemoEnvelopeCoversTheRegistry() {
         let envelope = DemoScreenshotData.envelope(for: "fiveProviders")
+        let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode }
         #expect(envelope.status == .enabled)
-        #expect(envelope.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
+        #expect(envelope.providers.map(\.id) == beforeOpenCode.map(\.raw))
         #expect(DemoScreenshotData.envelope(for: "fourProviders").providers.map(\.id)
-            == DemoFixture.registeredProviderOrder.filter { $0 != .copilot }.map(\.raw))
+            == beforeOpenCode.filter { $0 != .copilot }.map(\.raw))
         let copilot = envelope.providers.first { $0.id == ProviderID.copilot.raw }
         #expect(copilot?.planLabel == nil)
         #expect(copilot?.windows.map(\.label) == ["Monthly"])
@@ -61,6 +64,27 @@ struct DemoScenarioParityTests {
         #expect(cursor?.windows.allSatisfy(\.isBillingPeriod) == true)
         #expect(cursor?.windows.map(\.displayPercentRemaining) == [69, 37])
         #expect(cursor?.primarySubscriptionWindow?.label == "Other Models")
+    }
+
+    /// OpenCode plan U9 (KTD14): the every-provider envelope covers the registry, and its
+    /// OpenCode row is the Mac's own projection of `DemoFixture.opencodeSnapshot`, so the
+    /// Lock Screen demo pinned to OpenCode shows that reading rather than "Off".
+    @Test func sixProviderDemoEnvelopeCoversTheRegistry() throws {
+        let envelope = DemoScreenshotData.envelope(for: "sixProviders")
+        #expect(envelope.status == .enabled)
+        #expect(envelope.providers.map(\.id) == DemoFixture.registeredProviderOrder.map(\.raw))
+        let five = DemoScreenshotData.envelope(for: "fiveProviders")
+        #expect(Array(envelope.providers.prefix(5)).map(\.id) == five.providers.map(\.id))
+        let opencode = try #require(envelope.providers.first { $0.id == ProviderID.opencode.raw })
+        #expect(opencode.displayName == "OpenCode")
+        #expect(opencode.planLabel == nil)
+        let projected = try #require(WidgetSnapshotProjector.project(
+            snapshots: [.opencode: DemoFixture.opencodeSnapshot], providerOrder: [.opencode],
+            displayNames: [.opencode: "OpenCode"], renewalDate: { _ in nil }, widgetsEnabled: true
+        ).providers.first)
+        #expect(opencode.windows.map(RowSignature.init) == projected.windows.map(RowSignature.init))
+        #expect(opencode.windows.map(\.displayPercentRemaining) == [82, 53, 29])
+        #expect(opencode.primarySubscriptionWindow != nil)
     }
 
     @Test func encodedIOSDemoContainsNoSensitiveSentinels() throws {
@@ -86,6 +110,7 @@ struct DemoScenarioParityTests {
         (.multiAccount, .multiThree),
         (.fourProviders, .multiProviders),
         (.fiveProviders, .fiveProviders),
+        (.sixProviders, .sixProviders),
         (.bankedResets, .bankedResets),
         (.multi20, .envelope),
     ]

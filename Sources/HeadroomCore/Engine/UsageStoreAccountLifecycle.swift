@@ -163,6 +163,8 @@ extension UsageStore {
     /// so the next accepted result cannot merge windows from the previous login.
     public func invalidateUsageForAccountReset(_ key: AccountKey) {
         attachmentGenerations[key, default: 0] &+= 1
+        // KTD8 (OpenCode plan): the next read after the reset must not join one in flight.
+        providers.first { $0.accountKey == key }?.invalidateInFlightUsage()
         // KTD14 (2026-09-19 sign-in plan): a deliberate sign-out is not an observed
         // change. Clearing the flag at the reset boundary — rather than reading the
         // coordinator's session purpose, which Stop Waiting and a settled failure both
@@ -381,6 +383,8 @@ extension UsageStore {
         sessionReliabilityRecord?.endObservation(for: key)
         bankedResetAcknowledgements?.purge(for: key)
         notificationCoordinator?.purge(for: key)
+        // KTD8 (OpenCode plan): a capture still running for the removed row is never joined.
+        providers.first { $0.accountKey == key }?.invalidateInFlightUsage()
         providers.removeAll { $0.accountKey == key }
         scheduler.unregister(key)
         snapshots.removeValue(forKey: key)

@@ -107,3 +107,87 @@ public enum OpenCodeCLI {
         "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
+
+// MARK: - Test-client seams (KTD18)
+
+/// What `--probe-opencode` reads: which home, and which executable. A nil executable means
+/// the normal resolution (`OpenCodeCLI.resolveExecutable`).
+public struct OpenCodeProbeTarget: Sendable, Equatable {
+    public let home: OpenCodeAccountHome
+    public let executable: String?
+
+    public init(home: OpenCodeAccountHome, executable: String?) {
+        self.home = home
+        self.executable = executable
+    }
+}
+
+/// KTD18: the launch arguments that let an agent run a downloaded 2.x client against the
+/// stub Console while the user's PATH still has 1.x. `--opencode-executable` exists in DEBUG
+/// builds only. It reaches extra-account homes and a probe that names `--opencode-home`,
+/// never the built-in home: 2.x migrates a 1.x home one way on first use.
+public enum OpenCodeLaunchArguments {
+    public static let probeFlag = "--probe-opencode"
+    public static let homeFlag = "--opencode-home"
+    public static let executableFlag = "--opencode-executable"
+
+    public static var buildAllowsExecutableOverride: Bool {
+        #if DEBUG
+        true
+        #else
+        false
+        #endif
+    }
+
+    /// The override path, or nil in a release build, when absent, or when the flag has no
+    /// value. Callers must still keep it away from the built-in home
+    /// (`OpenCodeExecutableOverrideRouter`, `probeTarget`).
+    public static func executableOverride(
+        arguments: [String],
+        buildAllowsOverride: Bool = buildAllowsExecutableOverride
+    ) -> String? {
+        guard buildAllowsOverride, let value = value(after: executableFlag, in: arguments) else { return nil }
+        return URL(fileURLWithPath: value).standardizedFileURL.path
+    }
+
+    /// Nil when `--opencode-home` is present without a value: the probe must not fall back
+    /// to the built-in home when an isolated one was asked for.
+    public static func probeTarget(
+        arguments: [String],
+        buildAllowsOverride: Bool = buildAllowsExecutableOverride
+    ) -> OpenCodeProbeTarget? {
+        guard arguments.contains(homeFlag) else {
+            return OpenCodeProbeTarget(home: .builtIn, executable: nil)
+        }
+        guard let root = value(after: homeFlag, in: arguments) else { return nil }
+        return OpenCodeProbeTarget(
+            home: .isolated(root: URL(fileURLWithPath: root, isDirectory: true).standardizedFileURL.path),
+            executable: executableOverride(arguments: arguments, buildAllowsOverride: buildAllowsOverride)
+        )
+    }
+
+    private static func value(after flag: String, in arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: flag), arguments.indices.contains(index + 1) else { return nil }
+        let value = arguments[index + 1]
+        return value.isEmpty || value.hasPrefix("--") ? nil : value
+    }
+}
+
+/// KTD18: sends extra-account homes to the overridden client and the built-in home to the
+/// normal one, whatever the override says. Sits under the one shared capture cache (KTD8).
+public struct OpenCodeExecutableOverrideRouter: OpenCodeUsageSource {
+    private let standard: any OpenCodeUsageSource
+    private let overridden: any OpenCodeUsageSource
+
+    public init(standard: any OpenCodeUsageSource, overridden: any OpenCodeUsageSource) {
+        self.standard = standard
+        self.overridden = overridden
+    }
+
+    public func capture(home: OpenCodeAccountHome) async -> OpenCodeCapture {
+        switch home {
+        case .builtIn: await standard.capture(home: home)
+        case .isolated: await overridden.capture(home: home)
+        }
+    }
+}

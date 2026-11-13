@@ -7,8 +7,8 @@ import WidgetKit
 import HeadroomCore
 
 /// Entry point. Supports hidden diagnostics: `--probe-claude` / `--probe-codex` /
-/// `--probe-grok` / `--probe-cursor` / `--probe-copilot` run the real provider capture once
-/// and print parsed windows; `--probe-spend <openai|anthropic|xai> [--key-file <path>]` verifies a key-based
+/// `--probe-grok` / `--probe-cursor` / `--probe-copilot` / `--probe-opencode` run the real
+/// provider capture once and print parsed windows; `--probe-spend <openai|anthropic|xai> [--key-file <path>]` verifies a key-based
 /// API-spend path; `--dump-phone-sync` decodes the iCloud KVS payload the Mac published for
 /// the iPhone; `--bench-ui` measures the popover and Settings offscreen (`UIBenchHarness`).
 /// All run without launching the menu bar UI.
@@ -33,6 +33,10 @@ enum Entry {
         }
         if CommandLine.arguments.contains("--probe-copilot") {
             runCopilotProbe()
+            return
+        }
+        if CommandLine.arguments.contains(OpenCodeLaunchArguments.probeFlag) {
+            runOpenCodeProbe()
             return
         }
         if CommandLine.arguments.contains("--probe-spend") {
@@ -318,6 +322,61 @@ enum Entry {
                 print("RESULT: Grok sign-in expired")
             case .failure(let reason):
                 print("RESULT: Grok probe failed: \(reason.message)")
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+    }
+
+    /// `--probe-opencode [--opencode-home <dir>]`: one usage read through the official client
+    /// (KTD1). `<dir>` is an isolated home root holding `data`, `config`, `cache` and `state`;
+    /// without it the built-in default home is read. Prints the parsed windows or the outcome
+    /// name only: never a workspace ID, name or Console URL, an email, a token, raw output or
+    /// anything inside the home. KTD18: a DEBUG build also takes `--opencode-executable
+    /// <path>`, and only together with `--opencode-home`.
+    private static func runOpenCodeProbe() {
+        let arguments = CommandLine.arguments
+        guard let target = OpenCodeLaunchArguments.probeTarget(arguments: arguments) else {
+            print("Usage: --probe-opencode [--opencode-home <dir>]")
+            return
+        }
+        print("account home: \(target.home == .builtIn ? "built-in" : "isolated")")
+        if target.executable != nil {
+            print("executable: override")
+        } else if arguments.contains(OpenCodeLaunchArguments.executableFlag) {
+            print(OpenCodeLaunchArguments.buildAllowsExecutableOverride
+                ? "executable: resolved (override ignored: never used for the built-in home)"
+                : "executable: resolved (override ignored: release build)")
+        } else {
+            print("executable: resolved")
+        }
+
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            let source = target.executable.map { path in OpenCodeCLIUsageSource(resolveExecutable: { path }) }
+                ?? OpenCodeCLIUsageSource()
+            let capture = await source.capture(home: target.home)
+            switch capture {
+            case .goUsage:
+                let snapshot = await OpenCodeProvider(
+                    source: CapturedOpenCodeUsageSource(capture: capture),
+                    home: target.home
+                ).fetchSnapshot()
+                print("RESULT: live OpenCode snapshot, parsed \(snapshot.windows.count) window(s):")
+                for window in snapshot.windows {
+                    let limited = window.isLimited ? "  limited" : ""
+                    print("  • \(window.kind.shortLabel)  \(Int(window.percentUsed.rounded()))% used\(limited)  \(ResetDiagnostic.line(for: window.resetSchedule, observedAt: window.observedAt ?? snapshot.capturedAt, now: Date()))")
+                }
+            case .noGoPlan:
+                print("RESULT: noGoPlan (signed in, no Go plan on the active workspace)")
+            case .failed(let failure):
+                let detail: String
+                switch failure {
+                case .formatChanged(let stage): detail = " (stage: \(stage.rawValue))"
+                case .transient(let cause): detail = " (cause: \(cause.rawValue))"
+                default: detail = ""
+                }
+                print("RESULT: \(failure.outcome)\(detail)")
             }
             semaphore.signal()
         }
@@ -939,7 +998,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 /// Composition root (R13): the one place concrete providers are wired to the engine.
 /// Adding a third provider is a one-line append here plus a card — no engine change.
 enum AppComposition {
-    private struct SubscriptionProviderRegistration {
+    struct SubscriptionProviderRegistration {
         let id: ProviderID
         /// KTD10 (2026-09-19 polling plan): the registry is read before any provider instance
         /// exists, so the capacity that truncates it lives here and must match the provider's.
@@ -948,6 +1007,43 @@ enum AppComposition {
     }
 
     private static let cursorUsageSource = CursorUsageCaptureCache(source: CursorUsageCLIProbe())
+
+    /// KTD8: the one OpenCode read path per launch. Every OpenCode account, built-in and extra,
+    /// shares this cache and the one client source under it, so the resolved executable and
+    /// the version memo are shared and a user request joins a timer read of the same home.
+    static let openCodeUsageSource = OpenCodeUsageCaptureCache(source: makeOpenCodeCLISource())
+
+    /// The launches that must never start the OpenCode client: demo runs, the render and
+    /// bench harnesses and the XCTest host. Their stores are fixtures or must not touch the
+    /// user's real OpenCode home (a 1.x client writes to it even for `--version`).
+    static func usesInertOpenCode(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        usesInertPhoneSync(arguments: arguments, environment: environment)
+    }
+
+    /// KTD18: a DEBUG launch with `--opencode-executable <path>` reads extra accounts through
+    /// that client; the built-in account always resolves the user's own (the router decides
+    /// by home, below the cache). Release builds never read the flag.
+    static func makeOpenCodeCLISource(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        buildAllowsOverride: Bool = OpenCodeLaunchArguments.buildAllowsExecutableOverride
+    ) -> any OpenCodeUsageSource {
+        guard !usesInertOpenCode(arguments: arguments, environment: environment) else {
+            return InertOpenCodeUsageSource()
+        }
+        let standard = OpenCodeCLIUsageSource()
+        guard let path = OpenCodeLaunchArguments.executableOverride(
+            arguments: arguments,
+            buildAllowsOverride: buildAllowsOverride
+        ) else { return standard }
+        return OpenCodeExecutableOverrideRouter(
+            standard: standard,
+            overridden: OpenCodeCLIUsageSource(resolveExecutable: { path })
+        )
+    }
     static let claudeExecutableLocator = CLIExecutableLocator.claude()
 
     /// The one UserDefaults domain a launch may read or write. `.standard` in the shipping
@@ -1001,7 +1097,7 @@ enum AppComposition {
     /// account management, polling, and presentation discover the resulting order from
     /// the store instead of maintaining parallel provider literals.
     @MainActor
-    private static var subscriptionProviderRegistry: [SubscriptionProviderRegistration] {
+    static var subscriptionProviderRegistry: [SubscriptionProviderRegistration] {
         [
             SubscriptionProviderRegistration(id: .claude, accountCapacity: AccountRegistry.testedEnvelope, factory: makeClaudeProvider),
             SubscriptionProviderRegistration(id: .codex, accountCapacity: AccountRegistry.testedEnvelope, factory: makeCodexProvider),
@@ -1011,6 +1107,9 @@ enum AppComposition {
             // A Headroom-owned COPILOT_HOME never receives the session logs the meter reads, so
             // Copilot stays single-account (matches `CopilotProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .copilot, accountCapacity: 1, factory: makeCopilotProvider),
+            // KTD10: each extra gets its own four XDG folders, so OpenCode carries the tested
+            // envelope like Grok (matches `OpenCodeProvider.accountCapacity`).
+            SubscriptionProviderRegistration(id: .opencode, accountCapacity: AccountRegistry.testedEnvelope, factory: makeOpenCodeProvider),
         ]
     }
 
@@ -1262,9 +1361,10 @@ enum AppComposition {
     }
 
     /// The concrete provider for one account. Built-in accounts read the CLI's default
-    /// config (`~/.claude` / `~/.codex` / `~/.grok`) exactly as before; extra accounts
-    /// route the same paths at their Headroom-owned config home (`CLAUDE_CONFIG_DIR` /
-    /// `CODEX_HOME` / `GROK_HOME`) that the user signed into via the official CLI.
+    /// config (`~/.claude` / `~/.codex` / `~/.grok` / `~/.local/share/opencode`) exactly as
+    /// before; extra accounts route the same paths at their Headroom-owned config home
+    /// (`CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `GROK_HOME` / the four OpenCode XDG folders) that
+    /// the user signed into via the official CLI.
     @MainActor
     static func provider(
         for account: ProviderAccount,
@@ -1368,6 +1468,21 @@ enum AppComposition {
             accountID: account.id,
             emailSource: GrokCredentialEmailReader(authReader: authReader)
         )
+    }
+
+    /// KTD10: the built-in account reads the default home (all four XDG variables unset); an
+    /// extra reads only its own `…/Accounts/opencode/<id>/` folders. `OpenCodeProvider.home` has
+    /// no default, so an extra can never fall back to the built-in home.
+    @MainActor
+    private static func makeOpenCodeProvider(
+        account: ProviderAccount,
+        credentials _: CredentialStore,
+        builtInClaudeWorkspace _: URL
+    ) -> any UsageProvider {
+        guard let home = ProviderAccountConfiguration.make(for: account).opencodeHome else {
+            return UnavailableAccountProvider(account: account)
+        }
+        return OpenCodeProvider(source: openCodeUsageSource, accountID: account.id, home: home)
     }
 
     @MainActor
@@ -1610,6 +1725,18 @@ private struct UnavailableAccountProvider: UsageProvider {
     func fetchSnapshot() async -> UsageSnapshot {
         .stale(for: id, reason: .transient("This provider is not available in this Headroom build"))
     }
+}
+
+/// `--probe-opencode` turns its one capture into a snapshot without a second spawn.
+private struct CapturedOpenCodeUsageSource: OpenCodeUsageSource {
+    let capture: OpenCodeCapture
+    func capture(home _: OpenCodeAccountHome) async -> OpenCodeCapture { capture }
+}
+
+/// What an inert launch (`AppComposition.usesInertOpenCode`) reads instead of the client. No
+/// process is started; the row simply stays "will retry".
+struct InertOpenCodeUsageSource: OpenCodeUsageSource {
+    func capture(home _: OpenCodeAccountHome) async -> OpenCodeCapture { .failed(.transient(.spawnFailed)) }
 }
 
 private struct CapturedGrokUsageSource: GrokUsageSource {

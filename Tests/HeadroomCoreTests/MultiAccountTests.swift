@@ -1730,3 +1730,324 @@ private final class IgnoringSetupScheduler: SetupRetryScheduling {
         #expect(accounts[0].isBuiltIn)
     }
 }
+
+// MARK: - OpenCode accounts (U4 of the OpenCode plan: R9, R10, KTD8, KTD10, KTD12)
+
+/// A source whose captures for a home can be held open, counting starts per home.
+private actor HoldingOpenCodeSource: OpenCodeUsageSource {
+    private var holds: Set<OpenCodeAccountHome> = []
+    private var waiters: [OpenCodeAccountHome: [CheckedContinuation<Void, Never>]] = [:]
+    private(set) var starts: [OpenCodeAccountHome: Int] = [:]
+
+    func hold(_ home: OpenCodeAccountHome) { holds.insert(home) }
+    func startCount(_ home: OpenCodeAccountHome) -> Int { starts[home, default: 0] }
+    func waiting(_ home: OpenCodeAccountHome) -> Int { waiters[home]?.count ?? 0 }
+    func releaseAll() {
+        holds.removeAll()
+        waiters.values.flatMap { $0 }.forEach { $0.resume() }
+        waiters.removeAll()
+    }
+
+    func capture(home: OpenCodeAccountHome) async -> OpenCodeCapture {
+        starts[home, default: 0] += 1
+        if holds.contains(home) {
+            await withCheckedContinuation { waiters[home, default: []].append($0) }
+        }
+        return .noGoPlan
+    }
+}
+
+/// A clock only ever moved forward, so a probe and the test loop can both advance it.
+private final class ForwardClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: Date
+    init(_ value: Date) { self.value = value }
+    func now() -> Date { lock.withLock { value } }
+    @discardableResult
+    func advance(by seconds: TimeInterval) -> (start: Date, end: Date) {
+        lock.withLock {
+            let start = value
+            value = value.addingTimeInterval(seconds)
+            return (start, value)
+        }
+    }
+}
+
+/// KTD12's slow Console: every capture takes `duration` seconds of the test's clock.
+private final class SlowOpenCodeSource: OpenCodeUsageSource, @unchecked Sendable {
+    struct Run: Equatable {
+        let home: OpenCodeAccountHome
+        let span: LaneSchedule.ProbeSpan
+        let userRequested: Bool
+    }
+
+    private let lock = NSLock()
+    private var recorded: [Run] = []
+    private let clock: ForwardClock
+    private let duration: TimeInterval
+    private let resetsAt: Date
+
+    init(clock: ForwardClock, duration: TimeInterval, resetsAt: Date) {
+        self.clock = clock
+        self.duration = duration
+        self.resetsAt = resetsAt
+    }
+
+    var runs: [Run] { lock.withLock { recorded } }
+
+    func capture(home: OpenCodeAccountHome) async -> OpenCodeCapture {
+        let userRequested = UserRequestedProbeContext.isUserRequested
+        let (start, end) = clock.advance(by: duration)
+        lock.withLock {
+            recorded.append(Run(home: home, span: .init(start: start, end: end), userRequested: userRequested))
+        }
+        let window = OpenCodeGoWindow(percentUsed: 10, isLimited: false, resetsAt: resetsAt)
+        return .goUsage(OpenCodeGoUsage(rolling: window, weekly: window, monthly: window))
+    }
+}
+
+/// AE4's fake `opencode`: written once for the suite and run as `/bin/sh <script>` (KTD17).
+/// Like the real client it reads `${XDG_DATA_HOME:-$HOME/.local/share}/opencode`, and it is
+/// signed in only when that folder holds a `seeded` file.
+private enum SeededHomeOpenCodeScript {
+    static let body = #"""
+    data="${XDG_DATA_HOME:-$HOME/.local/share}"
+    case "$*" in
+      "--version") echo "opencode v2.2.5"; exit 0 ;;
+      "api --standalone experimental.usage.limits")
+        if [ -f "$data/opencode/seeded" ]; then
+          r=$(( ($(date +%s) + 3600) * 1000 ))
+          printf '{"location":{"directory":"/x"},"data":{"go":{"rolling":{"percent":29,"limited":false,"resetsAt":%s},"weekly":{"percent":47,"limited":false,"resetsAt":%s},"monthly":{"percent":63,"limited":false,"resetsAt":%s}}}}\n' "$r" "$r" "$r"
+        else
+          echo '{"location":{"directory":"/x"},"data":null}'
+        fi
+        exit 0 ;;
+      "auth list --standalone --format json") echo '[]'; exit 0 ;;
+      *) exit 2 ;;
+    esac
+    """#
+
+    static let path: String = {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-opencode-seeded-fake-\(UUID().uuidString)", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("opencode")
+        try? Data(("#!/bin/sh\n" + body + "\n").utf8).write(to: url)
+        // The source checks the path is executable before it spawns `/bin/sh <script>`.
+        try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
+        return url.path
+    }()
+}
+
+@MainActor
+@Suite struct OpenCodeMultiAccountTests {
+    private func openCodeDefaults() -> UserDefaults { freshDefaults() }
+
+    @Test func registrationCapacityAndProviderCapacityAgree() {
+        let provider = OpenCodeProvider(source: HoldingOpenCodeSource(), home: .builtIn)
+        #expect(provider.accountCapacity == AccountRegistry.testedEnvelope)
+        #expect(provider.pollingLane == .serial("opencode-cli"))
+        let defaults = openCodeDefaults()
+        let registry = AccountRegistry(defaults: defaults)
+        let store = UsageStore(
+            providers: [provider],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: NoopAccountStorage(),
+            providerFactory: { account in
+                OpenCodeProvider(source: HoldingOpenCodeSource(), accountID: account.id, home: .isolated(root: "/tmp/\(account.id.raw)"))
+            }
+        )
+        #expect(store.accountCapacity(for: .opencode) == AccountRegistry.testedEnvelope)
+        for _ in 1..<AccountRegistry.testedEnvelope { #expect(store.addAccount(for: .opencode) != nil) }
+        #expect(store.accounts(for: .opencode).count == AccountRegistry.testedEnvelope)
+        #expect(!store.canAddAccount(for: .opencode))
+    }
+
+    /// AE4 / R10: a new extra account whose home is empty reads as signed out while the
+    /// built-in account, on the default home, is live. Then seeding the extra's own data
+    /// folder signs only it in.
+    @Test func emptyExtraHomeIsSignedOutWhileTheBuiltInIsLive() async throws {
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-opencode-ae4-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        let userHome = scratch.appendingPathComponent("home", isDirectory: true)
+        let defaultData = userHome.appendingPathComponent(".local/share/opencode", isDirectory: true)
+        try FileManager.default.createDirectory(at: defaultData, withIntermediateDirectories: true)
+        try Data().write(to: defaultData.appendingPathComponent("seeded"))
+        let accountsBase = scratch.appendingPathComponent("Accounts", isDirectory: true)
+
+        let script = SeededHomeOpenCodeScript.path
+        let cli = OpenCodeCLIUsageSource(
+            resolveExecutable: { script },
+            resolveLoginPath: { "/usr/bin:/bin" },
+            inheritedEnvironment: { ["HOME": userHome.path, "XDG_DATA_HOME": "/nonexistent-shell-profile"] },
+            workingDirectory: scratch.appendingPathComponent("OpenCodeProbe").path,
+            deadline: 10,
+            versionDeadline: 5,
+            interpreter: "/bin/sh"
+        )
+        let cache = OpenCodeUsageCaptureCache(source: cli)
+        let extra = ProviderAccount(id: AccountID("work"), providerID: .opencode, label: "Work")
+        try AccountStorage.ensureDirectories(for: extra, baseDirectoryURL: accountsBase)
+        let extraHome = try #require(ProviderAccountConfiguration.make(for: extra, accountsBase: accountsBase).opencodeHome)
+        let builtInHome = try #require(ProviderAccountConfiguration.make(for: .builtIn(for: .opencode), accountsBase: accountsBase).opencodeHome)
+        #expect(builtInHome == .builtIn)
+
+        let defaults = openCodeDefaults()
+        let store = UsageStore(
+            providers: [
+                OpenCodeProvider(source: cache, home: builtInHome),
+                OpenCodeProvider(source: cache, accountID: extra.id, home: extraHome),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accounts: [.builtIn(for: .opencode), extra]
+        )
+        store.setSurfaceEnabled(true, for: .opencodeSubscription)
+        await store.refreshAll()
+
+        let builtInKey = AccountKey(providerID: .opencode, accountID: .primary)
+        #expect(store.snapshot(for: builtInKey).freshness == .live)
+        #expect(store.snapshot(for: builtInKey).windows.map(\.percentUsed) == [29, 47, 63])
+        #expect(store.snapshot(for: extra.key).freshness == .stale(.providerSetup(.opencodeSignedOut)))
+
+        guard case .isolated(let root) = extraHome else { Issue.record("extra must be isolated"); return }
+        let extraData = URL(fileURLWithPath: root).appendingPathComponent("data/opencode", isDirectory: true)
+        try FileManager.default.createDirectory(at: extraData, withIntermediateDirectories: true)
+        try Data().write(to: extraData.appendingPathComponent("seeded"))
+        await store.refreshAll()
+        #expect(store.snapshot(for: extra.key).freshness == .live)
+    }
+
+    private func makeHeldStore(source: HoldingOpenCodeSource, cache: OpenCodeUsageCaptureCache)
+        -> (UsageStore, ProviderAccount, OpenCodeAccountHome) {
+        let defaults = openCodeDefaults()
+        let registry = AccountRegistry(defaults: defaults)
+        let extra = registry.addAccount(for: .opencode)!
+        let extraHome = OpenCodeAccountHome.isolated(root: "/tmp/headroom-opencode-\(extra.id.raw)")
+        let store = UsageStore(
+            providers: [
+                OpenCodeProvider(source: cache, home: .builtIn),
+                OpenCodeProvider(source: cache, accountID: extra.id, home: extraHome),
+            ],
+            preferences: Preferences(defaults: defaults),
+            accountRegistry: registry,
+            accountStorage: NoopAccountStorage(),
+            providerFactory: { account in
+                OpenCodeProvider(source: cache, accountID: account.id, home: .isolated(root: "/tmp/\(account.id.raw)"))
+            }
+        )
+        store.setSurfaceEnabled(true, for: .opencodeSubscription)
+        return (store, extra, extraHome)
+    }
+
+    private func waitUntil(_ condition: () async -> Bool) async {
+        for _ in 0..<500 {
+            if await condition() { return }
+            try? await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    /// KTD8: removal drops the in-flight entry, so a later read for the home never joins
+    /// the capture that began before the removal.
+    @Test func removingAnAccountMidCaptureInvalidatesItsInFlightRead() async {
+        let source = HoldingOpenCodeSource()
+        let cache = OpenCodeUsageCaptureCache(source: source)
+        let (store, extra, extraHome) = makeHeldStore(source: source, cache: cache)
+        await source.hold(extraHome)
+        let refresh = Task { await store.refreshAccount(extra.key) }
+        await waitUntil { await source.waiting(extraHome) == 1 }
+
+        #expect(await store.removeAccount(extra.key) == .removed)
+        let next = Task { await cache.capture(home: extraHome) }
+        await waitUntil { await source.startCount(extraHome) == 2 }
+        #expect(await source.startCount(extraHome) == 2)
+
+        await source.releaseAll()
+        _ = await next.value
+        await refresh.value
+    }
+
+    /// KTD8: the reset boundary drops the in-flight entry too, so the first reading after a
+    /// sign-out and sign-in is a fresh read of the new login.
+    @Test func accountResetInvalidatesTheInFlightRead() async {
+        let source = HoldingOpenCodeSource()
+        let cache = OpenCodeUsageCaptureCache(source: source)
+        let (store, _, _) = makeHeldStore(source: source, cache: cache)
+        let builtInKey = AccountKey(providerID: .opencode, accountID: .primary)
+        await source.hold(.builtIn)
+        let refresh = Task { await store.refreshAccount(builtInKey) }
+        await waitUntil { await source.waiting(.builtIn) == 1 }
+
+        store.invalidateUsageForAccountReset(builtInKey)
+        let next = Task { await cache.capture(home: .builtIn) }
+        await waitUntil { await source.startCount(.builtIn) == 2 }
+        #expect(await source.startCount(.builtIn) == 2)
+
+        await source.releaseAll()
+        _ = await next.value
+        await refresh.value
+    }
+
+    /// KTD12: twenty accounts behind 16-second captures. The launch's user pass reaches every
+    /// account (user work bypasses the gate); after it, no timer probe starts while the lane
+    /// has been busy for more than half of the trailing window, the lane never runs two reads
+    /// at once, and every account keeps being reached in turn.
+    @Test func twentySlowAccountsStayWithinTheDutyCycleGate() async {
+        let t0 = Date(timeIntervalSince1970: 2_000_000_000)
+        let clock = ForwardClock(t0)
+        let source = SlowOpenCodeSource(clock: clock, duration: 16, resetsAt: t0.addingTimeInterval(60 * 24 * 3_600))
+        let cache = OpenCodeUsageCaptureCache(source: source)
+        let accounts = [ProviderAccount.builtIn(for: .opencode)]
+            + (1..<AccountRegistry.testedEnvelope).map {
+                ProviderAccount(id: AccountID("extra-\($0)"), providerID: .opencode, label: "Extra \($0)")
+            }
+        let homes = Dictionary(uniqueKeysWithValues: accounts.map { account in
+            (account.key, account.isBuiltIn ? OpenCodeAccountHome.builtIn : .isolated(root: "/tmp/\(account.id.raw)"))
+        })
+        let prefs = Preferences(defaults: openCodeDefaults())
+        prefs.pollIntervalMinutes = 5
+        let store = UsageStore(
+            providers: accounts.map { OpenCodeProvider(source: cache, accountID: $0.id, home: homes[$0.key]!, now: clock.now) },
+            preferences: prefs,
+            accounts: accounts,
+            now: clock.now
+        )
+        store.setSurfaceEnabled(true, for: .opencodeSubscription)
+
+        await store.refreshAll()
+        #expect(Set(source.runs.map(\.home)) == Set(homes.values))
+        #expect(source.runs.count == accounts.count)
+
+        // Ninety simulated minutes of five-second timer wakes.
+        for _ in 0..<(90 * 12) {
+            clock.advance(by: 5)
+            store.dispatchDueNow()
+            for _ in 0..<3 { await Task.yield() }
+            await store.waitForAccountProbesToFinish()
+        }
+
+        let runs = source.runs
+        let chosen: TimeInterval = 5 * 60
+        let window = LaneSchedule.window(chosen: chosen)
+        for (index, run) in runs.enumerated() where !run.userRequested {
+            let earlier = runs[..<index].map(\.span)
+            let busy = LaneSchedule.busyTime(log: earlier, now: run.span.start, window: window)
+            #expect(busy <= window * LaneSchedule.dutyCycleCeiling, "timer probe \(index) started with \(busy) s busy")
+        }
+        for (previous, next) in zip(runs, runs.dropFirst()) {
+            #expect(next.span.start >= previous.span.end, "the serial lane ran two reads at once")
+        }
+        let timerRuns = runs.filter { !$0.userRequested }
+        let perHome = Dictionary(grouping: timerRuns, by: \.home).mapValues(\.count)
+        #expect(perHome.count == accounts.count, "an account was never reached by the timer")
+        let counts = perHome.values
+        #expect((counts.max() ?? 0) - (counts.min() ?? 0) <= 1, "accounts were not reached in turn: \(perHome.values.sorted())")
+        // KTD12 measures it: 20 × 16 s exceeds half of a 10-minute window, so the lane runs
+        // slower than the chosen 5 minutes and Settings says so. Measured on 2026-11-12: the
+        // longest on-cadence gap is 16 minutes (960 s); one minute of slack for wake order.
+        let cadence = store.pollCadence(for: .opencode)
+        #expect(cadence.isStretched)
+        #expect(cadence.effectiveInterval <= 17 * 60, "effective interval \(cadence.effectiveInterval)")
+    }
+}

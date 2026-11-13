@@ -332,6 +332,9 @@ struct AccountsSettingsTile: View {
                 .help("Track the account your CLI is signed into again")
                 .padding(.leading, 16)
             }
+            if let note = AccountsSettingsInteractions.providerGroupNote(for: providerID) {
+                SettingsHelpText(text: note)
+            }
             if let offHelpText = presentation.offHelpText {
                 // R11: one line naming the only consequence of "off". Without it, an
                 // account added while the surface is off would look broken rather than

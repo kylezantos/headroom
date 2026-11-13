@@ -182,6 +182,12 @@ enum AccountsSettingsInteractions {
         )
     }
 
+    /// A provider's standing help line under its group, shown whether or not it is fetched.
+    /// Only OpenCode has one (KTD21): each home reads one Console workspace.
+    static func providerGroupNote(for providerID: ProviderID) -> String? {
+        providerID == .opencode ? SettingsCopy.opencodeWorkspaceScope : nil
+    }
+
     static func providerGroupPresentation(
         providerDisplayName: String,
         accounts: [ProviderAccount],

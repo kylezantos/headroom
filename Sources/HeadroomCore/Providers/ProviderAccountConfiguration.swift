@@ -11,6 +11,20 @@ public struct ProviderAccountConfiguration: Sendable, Equatable {
     public let codexAuthFile: URL?
     public let grokHomeDirectory: URL?
     public let grokAuthFile: URL?
+    /// KTD10: `.builtIn` for the built-in OpenCode account (its four XDG variables are unset,
+    /// so it reads the default home a plain Terminal `opencode` uses), `.isolated` for an
+    /// extra, nil for every other provider.
+    public private(set) var opencodeHome: OpenCodeAccountHome? = nil
+
+    /// The four XDG folders an extra OpenCode account exports; nil for the built-in account.
+    public var opencodeDataHome: URL? { opencodeXDGDirectory("XDG_DATA_HOME") }
+    public var opencodeConfigHome: URL? { opencodeXDGDirectory("XDG_CONFIG_HOME") }
+    public var opencodeCacheHome: URL? { opencodeXDGDirectory("XDG_CACHE_HOME") }
+    public var opencodeStateHome: URL? { opencodeXDGDirectory("XDG_STATE_HOME") }
+
+    private func opencodeXDGDirectory(_ variable: String) -> URL? {
+        opencodeHome?.xdgValues[variable].map { URL(fileURLWithPath: $0, isDirectory: true) }
+    }
 
     public static func make(
         for account: ProviderAccount,
@@ -84,6 +98,17 @@ public struct ProviderAccountConfiguration: Sendable, Equatable {
                 codexAuthFile: nil,
                 grokHomeDirectory: root,
                 grokAuthFile: root.appendingPathComponent("auth.json")
+            )
+        case .opencode:
+            return .init(
+                accountKey: account.key,
+                claudeConfigDirectory: nil,
+                claudeWorkspaceDirectory: nil,
+                codexHomeDirectory: nil,
+                codexAuthFile: nil,
+                grokHomeDirectory: nil,
+                grokAuthFile: nil,
+                opencodeHome: AccountStorage.opencodeAccountHome(for: account, baseDirectoryURL: accountsBase)
             )
         default:
             return .init(

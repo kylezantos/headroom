@@ -105,6 +105,14 @@ public enum OpenCodeCapture: Sendable, Equatable {
 /// which client state the read uses.
 public protocol OpenCodeUsageSource: Sendable {
     func capture(home: OpenCodeAccountHome) async -> OpenCodeCapture
+    /// KTD8: drop any in-flight read for the home, so the next capture starts a fresh one.
+    /// Synchronous, so a removal or reset boundary is in force before the store's next
+    /// request can join the old read. Only the capture cache keeps anything to drop.
+    func invalidate(home: OpenCodeAccountHome)
+}
+
+public extension OpenCodeUsageSource {
+    func invalidate(home: OpenCodeAccountHome) {}
 }
 
 // MARK: - Commands
@@ -546,31 +554,45 @@ public struct OpenCodeVersion: Sendable, Equatable, Comparable {
 public actor OpenCodeUsageCaptureCache: OpenCodeUsageSource {
     private struct Entry {
         let id: UUID
+        let generation: UInt64
         let task: Task<OpenCodeCapture, Never>
+    }
+
+    /// Per-home invalidation counters, outside the actor so `invalidate` is synchronous: the
+    /// boundary holds from the moment the store draws it (KTD8).
+    private final class Generations: @unchecked Sendable {
+        private let lock = NSLock()
+        private var values: [OpenCodeAccountHome: UInt64] = [:]
+        func current(_ home: OpenCodeAccountHome) -> UInt64 { lock.withLock { values[home, default: 0] } }
+        func advance(_ home: OpenCodeAccountHome) { lock.withLock { values[home, default: 0] &+= 1 } }
     }
 
     private let source: any OpenCodeUsageSource
     private var inFlight: [OpenCodeAccountHome: Entry] = [:]
+    private nonisolated let generations = Generations()
 
     public init(source: any OpenCodeUsageSource) {
         self.source = source
     }
 
     public func capture(home: OpenCodeAccountHome) async -> OpenCodeCapture {
-        if let entry = inFlight[home] { return await entry.task.value }
+        let generation = generations.current(home)
+        // An entry from before an invalidation is never joined; it finishes on its own.
+        if let entry = inFlight[home], entry.generation == generation { return await entry.task.value }
         let id = UUID()
         let source = source
         let task = Task { await source.capture(home: home) }
-        inFlight[home] = Entry(id: id, task: task)
+        inFlight[home] = Entry(id: id, generation: generation, task: task)
         let result = await task.value
         // A removal or reset may have dropped this entry and a newer capture taken its place.
         if inFlight[home]?.id == id { inFlight[home] = nil }
         return result
     }
 
-    /// Account removal and `invalidateUsageForAccountReset` call this, so the next capture for
-    /// the home starts a fresh read rather than joining one that began before the change.
-    public func invalidate(home: OpenCodeAccountHome) {
-        inFlight[home] = nil
+    /// Account removal and `invalidateUsageForAccountReset` call this (through
+    /// `UsageProvider.invalidateInFlightUsage`), so the next capture for the home starts a
+    /// fresh read rather than joining one that began before the change.
+    public nonisolated func invalidate(home: OpenCodeAccountHome) {
+        generations.advance(home)
     }
 }

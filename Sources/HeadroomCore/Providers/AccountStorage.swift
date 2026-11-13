@@ -10,6 +10,8 @@ import Darwin
 ///   there and Headroom only ever reads it (KTD3 unchanged).
 /// - Grok: `GROK_HOME` pointed at `…/grok/<id>`; `grok login` writes `auth.json`
 ///   there and the official CLI does not fall back to the built-in account.
+/// - OpenCode: the four XDG variables pointed at `…/opencode/<id>/{data,config,cache,state}`
+///   (KTD10); the official 2.x client keeps its credential and token-refresh lock there.
 ///
 /// The built-in `.primary` account never routes through here — it uses the CLI's own
 /// default config so existing installs keep working untouched.
@@ -132,6 +134,26 @@ public enum AccountStorage {
     public static func grokAuthFileURL(for account: ProviderAccount) -> URL {
         grokHomeDirectoryURL(for: account).appendingPathComponent("auth.json")
     }
+
+    /// The root holding an extra OpenCode account's `data`, `config`, `cache` and `state`
+    /// folders (KTD10). Data and state always come from this one root, because the client's
+    /// token-refresh lock lives under state.
+    public static func opencodeHomeDirectoryURL(for account: ProviderAccount) -> URL {
+        accountDirectoryURL(for: account)
+    }
+
+    /// KTD10: the built-in account reads the default home; every extra reads only its own.
+    public static func opencodeAccountHome(for account: ProviderAccount) -> OpenCodeAccountHome {
+        opencodeAccountHome(for: account, baseDirectoryURL: baseDirectoryURL)
+    }
+
+    static func opencodeAccountHome(for account: ProviderAccount, baseDirectoryURL: URL) -> OpenCodeAccountHome {
+        guard !account.isBuiltIn else { return .builtIn }
+        return .isolated(root: accountDirectoryURL(for: account, baseDirectoryURL: baseDirectoryURL).path)
+    }
+
+    /// The four XDG folders `ensureDirectories` creates for an extra OpenCode account.
+    static let opencodeXDGFolderNames = ["data", "config", "cache", "state"]
 
     /// Single source of truth for setup-handoff marker paths, for ANY account.
     /// Extra accounts keep their markers inside their Headroom-owned config home.
@@ -702,6 +724,11 @@ public enum AccountStorage {
         if account.providerID == .claude {
             targets.append(directory.appendingPathComponent("config", isDirectory: true))
             targets.append(directory.appendingPathComponent("workspace", isDirectory: true))
+        }
+        if account.providerID == .opencode {
+            // KTD10: all four, so the client never creates one with its own permissions and
+            // data and state can never come from different roots.
+            targets += opencodeXDGFolderNames.map { directory.appendingPathComponent($0, isDirectory: true) }
         }
         for url in targets {
             try FileManager.default.createDirectory(

@@ -47,6 +47,11 @@ public struct OpenCodeProvider: UsageProvider {
         }
     }
 
+    /// KTD8: removal, stop-tracking and the reset boundary drop this home's in-flight read.
+    public func invalidateInFlightUsage() {
+        source.invalidate(home: home)
+    }
+
     /// KTD6: by name, in the order the card reads them. A limited window already reads 100%
     /// (U2); `isLimited` keeps the source's own word for the limited sentence (D3).
     private func reading(_ usage: OpenCodeGoUsage) -> UsageSnapshot {

@@ -99,6 +99,10 @@ public protocol UsageProvider: Sendable {
     var reusesCachedStatusOnTimerProbes: Bool { get }
     func fetchSnapshot() async -> UsageSnapshot
     func fetchResult() async -> UsageProviderFetchResult
+    /// Called synchronously when the store removes, stops tracking or resets this account,
+    /// so a provider that coalesces in-flight reads (OpenCode, KTD8) never lets a later
+    /// request join a read that began before the boundary. Most providers keep nothing.
+    func invalidateInFlightUsage()
 }
 
 public extension UsageProvider {
@@ -111,6 +115,7 @@ public extension UsageProvider {
     func fetchResult() async -> UsageProviderFetchResult {
         UsageProviderFetchResult(snapshot: await fetchSnapshot())
     }
+    func invalidateInFlightUsage() {}
 }
 
 /// Money-based API cost providers are intentionally separate from subscription quota

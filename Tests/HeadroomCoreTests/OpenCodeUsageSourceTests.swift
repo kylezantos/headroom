@@ -589,7 +589,7 @@ struct OpenCodeUsageCaptureCacheTests {
         let home = OpenCodeAccountHome.isolated(root: "/removed")
         async let stale = cache.capture(home: home)
         await waitUntil { await source.waiting == 1 }
-        await cache.invalidate(home: home)
+        cache.invalidate(home: home)
         async let fresh = cache.capture(home: home)
         await waitUntil { await source.waiting == 2 }
         #expect(await source.startCount == 2)

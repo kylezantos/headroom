@@ -202,6 +202,11 @@ enum SettingsCopy {
     /// retyped so VoiceOver and the tooltip stay one sentence.
     static let providerOffAccessibilityLabel =
         "Off — " + providerOffNotice.prefix(1).lowercased() + providerOffNotice.dropFirst()
+
+    /// KTD21 (OpenCode plan): one OpenCode home sees only the Console workspace its client has
+    /// active. Visible help under the OpenCode group in Settings › Accounts, and the planned
+    /// tooltip on the no-Go row; one constant so the two never drift.
+    static let opencodeWorkspaceScope = "OpenCode reports only the active Console workspace"
 }
 
 /// One material for every section: the popover's card language — `RaisedTile` at

@@ -54,6 +54,52 @@ import Testing
         #expect(FileManager.default.fileExists(atPath: siblingURL.path))
     }
 
+    @Test func openCodeExtraGetsFourOwnerOnlyXDGFoldersAndRemovalIsExact() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-opencode-storage-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let selected = ProviderAccount(id: AccountID("selected"), providerID: .opencode, label: "Selected")
+        let sibling = ProviderAccount(id: AccountID("sibling"), providerID: .opencode, label: "Sibling")
+        let selectedURL = try AccountStorage.ensureDirectories(for: selected, baseDirectoryURL: root)
+        let siblingURL = try AccountStorage.ensureDirectories(for: sibling, baseDirectoryURL: root)
+
+        #expect(selectedURL.path.hasSuffix("/opencode/selected"))
+        for name in ["data", "config", "cache", "state"] {
+            let url = selectedURL.appendingPathComponent(name, isDirectory: true)
+            var isDirectory: ObjCBool = false
+            #expect(FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && isDirectory.boolValue, "\(name)")
+            let mode = try #require(FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? NSNumber)
+            #expect(mode.intValue & 0o077 == 0, "\(name)")
+        }
+        #expect(AccountStorage.opencodeAccountHome(for: selected, baseDirectoryURL: root) == .isolated(root: selectedURL.path))
+        #expect(AccountStorage.opencodeAccountHome(for: .builtIn(for: .opencode), baseDirectoryURL: root) == .builtIn)
+
+        try AccountStorage.removeDirectories(for: selected, baseDirectoryURL: root)
+        #expect(!FileManager.default.fileExists(atPath: selectedURL.path))
+        #expect(FileManager.default.fileExists(atPath: siblingURL.appendingPathComponent("state").path))
+    }
+
+    @Test func openCodeRemovalIsRefusedWhileAHandoffIsActive() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("headroom-opencode-storage-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let account = ProviderAccount(id: AccountID("selected"), providerID: .opencode, label: "Selected")
+        let accountURL = try AccountStorage.ensureDirectories(for: account, baseDirectoryURL: root)
+        let marker = SetupCompletionMarker(
+            pendingPath: accountURL.appendingPathComponent(".headroom-setup-pending").path,
+            completedPath: accountURL.appendingPathComponent(".headroom-setup-complete").path
+        )
+        _ = try AccountStorage.prepareSetupCompletionMarker(marker)
+        #expect(throws: (any Error).self) {
+            try AccountStorage.removeDirectories(for: account, baseDirectoryURL: root)
+        }
+        #expect(FileManager.default.fileExists(atPath: accountURL.appendingPathComponent("data").path))
+
+        AccountStorage.clearSetupCompletionMarkers(marker)
+        try AccountStorage.removeDirectories(for: account, baseDirectoryURL: root)
+        #expect(!FileManager.default.fileExists(atPath: accountURL.path))
+    }
+
     @Test func credentialPermissionCheckRejectsGroupOrWorldReadableFiles() throws {
         let file = FileManager.default.temporaryDirectory
             .appendingPathComponent("headroom-auth-\(UUID().uuidString)")

@@ -3,14 +3,14 @@ import Testing
 @testable import HeadroomCore
 
 struct ReprintRecipeTests {
-    private let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot]
+    private let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
     private func date(_ seconds: Double) -> Date { Date(timeIntervalSince1970: seconds) }
     private func key(_ id: ProviderID, _ account: AccountID = .primary) -> AccountKey {
         AccountKey(providerID: id, accountID: account)
     }
     private func meters(_ selected: [ProviderID]) -> [MenuBarMeter] {
         selected.enumerated().map { index, id in
-            MenuBarMeter(summary: .init(text: "50%", providerID: id, detail: nil, isNeutral: false), fill: 0.2 + Double(index) * 0.2)
+            MenuBarMeter(summary: .init(text: "50%", providerID: id, detail: nil, isNeutral: false), fill: 0.2 + Double(index) * 0.15)
         }
     }
     private func entry(_ outcome: UserRefreshOutcome? = nil, at time: Double? = nil, origin: UserRefreshOrigin = .fullRefresh) -> UserRefreshEntry {
@@ -68,9 +68,10 @@ struct ReprintRecipeTests {
         #expect(printing.coverage(at: 0.8) == 1)
     }
 
-    /// U6 (Copilot plan): five providers draw five pills, and four or five are slim.
-    @Test func oneToFivePillsKeepMenuBarOrderAndFourOrMoreAreSlim() {
-        for count in 1...5 {
+    /// U6 (Copilot plan), U7 (OpenCode plan): six providers draw six pills, and four or more
+    /// are slim.
+    @Test func oneToSixPillsKeepMenuBarOrderAndFourOrMoreAreSlim() {
+        for count in 1...6 {
             let selected = Array(ids.reversed().prefix(count))
             let result = recipe([key(.cursor): entry()], at: 0.3, selected: selected)
             #expect(result.pills.map(\.id) == selected.map(\.raw))

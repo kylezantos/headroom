@@ -35,7 +35,7 @@ struct MiniPillTests {
     }
 
     @Test func allRowCountsFitAndKeepTheirInputOrder() {
-        for count in 1...5 {
+        for count in 1...6 {
             let layout = HalftonePillRow.Layout(count: count)
             #expect(layout.origins.count == count)
             #expect(layout.origins == layout.origins.sorted())
@@ -50,7 +50,44 @@ struct MiniPillTests {
     /// U6 (Copilot plan): five pills draw five, and none is dropped.
     @Test func fivePillsDrawFiveAndDropNone() {
         #expect(HalftonePillRow.Layout(count: 5).origins.count == 5)
-        #expect(HalftonePillRow.Layout(count: 6).origins.count == HalftonePillRow.Layout.maximumCount)
+    }
+
+    /// U7 (OpenCode plan): the one-to-five rows are pinned to the geometry they had before a
+    /// sixth provider, so adding six moves none of them.
+    @Test func oneToFivePillRowsKeepTheirGeometry() {
+        let expected: [Int: (width: Double, gap: Double, columns: Int, origins: [Double])] = [
+            1: (10, 7, 4, [17]),
+            2: (10, 7, 4, [8.5, 25.5]),
+            3: (10, 7, 4, [0, 17, 34]),
+            4: (8.6, 3.2, 3, [0, 11.8, 23.6, 35.4]),
+            5: (7.2, 2, 3, [0, 9.2, 18.4, 27.6, 36.8]),
+        ]
+        for (count, pinned) in expected {
+            let layout = HalftonePillRow.Layout(count: count)
+            #expect(layout.width == 44)
+            #expect(layout.pillWidth == pinned.width)
+            #expect(abs(layout.gap - pinned.gap) < 0.0001)
+            #expect(layout.columns == pinned.columns)
+            #expect(layout.origins.count == pinned.origins.count)
+            for (origin, want) in zip(layout.origins, pinned.origins) { #expect(abs(origin - want) < 0.0001) }
+        }
+    }
+
+    /// U7 (OpenCode plan, KTD14): six 6pt pills with 1.6pt gaps fill the same 44pt slot, so
+    /// the Refresh button keeps its size; a seventh is never drawn.
+    @Test func sixPillsAreSixPointsWideInsideTheSameSlot() {
+        let layout = HalftonePillRow.Layout(count: 6)
+        #expect(HalftonePillRow.Layout.maximumCount == 6)
+        #expect(layout.width == 44)
+        #expect(layout.pillWidth == 6)
+        #expect(abs(layout.gap - 1.6) < 0.0001)
+        #expect(layout.columns == 3)
+        #expect(layout.origins.count == 6)
+        for (index, origin) in layout.origins.enumerated() {
+            #expect(abs(origin - Double(index) * 7.6) < 0.0001)
+        }
+        #expect(abs(layout.origins.last! + layout.pillWidth - 44) < 0.0001)
+        #expect(HalftonePillRow.Layout(count: 7).origins.count == 6)
     }
 
     @Test nonisolated func timelinePausesWhenStillPinnedOrAfterItsTail() {

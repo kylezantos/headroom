@@ -153,4 +153,27 @@ struct MenuBarPillArrangerTests {
         #expect(width == 77)
         #expect(2 * PillShelfModel.wellPadding + 5 * width + 4 * PillShelfModel.spacing <= 436)
     }
+
+    /// U7 (OpenCode plan): one to five cards keep the widths they had before a sixth provider,
+    /// at the 720pt floor (436pt well) and the default 800pt window (516pt well).
+    @Test func oneToFiveCardsKeepTheirWidths() {
+        let floor: [Int: CGFloat] = [1: 100, 2: 100, 3: 100, 4: 98, 5: 77]
+        let standard: [Int: CGFloat] = [1: 100, 2: 100, 3: 100, 4: 100, 5: 93]
+        for count in 1...5 {
+            #expect(PillShelfModel.cardWidth(forWidth: 436, count: count) == floor[count])
+            #expect(PillShelfModel.cardWidth(forWidth: 516, count: count) == standard[count])
+            #expect(PillShelfModel.cardWidth(forWidth: 436, count: count) > 62)
+        }
+    }
+
+    /// U7 (OpenCode plan, KTD14): six cards share one row at the 720pt floor. Each is at
+    /// least the 62pt minimum and the row fits the well; at the default window they get 76.
+    @Test func sixCardsFitOneRowAtTheWindowFloor() {
+        #expect(PillShelfModel.minimumCardWidth == 62)
+        let width = PillShelfModel.cardWidth(forWidth: 436, count: 6)
+        #expect(width >= PillShelfModel.minimumCardWidth)
+        #expect(width == 63)
+        #expect(2 * PillShelfModel.wellPadding + 6 * width + 5 * PillShelfModel.spacing <= 436)
+        #expect(PillShelfModel.cardWidth(forWidth: 516, count: 6) == 76)
+    }
 }

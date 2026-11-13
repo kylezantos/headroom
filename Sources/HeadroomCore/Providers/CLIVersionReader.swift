@@ -41,16 +41,7 @@ public enum CLIVersionReader {
         case .grok: GrokCLI.resolveExecutable()
         case .cursor: CursorCLI.resolveExecutable()
         case .copilot: CopilotCLI.resolveExecutable()
-        // U1 placeholder until U2's OpenCode resolver exists: the same login-shell lookup,
-        // plus the official install script's `~/.opencode/bin`.
-        case .opencode:
-            CLIExecutableResolver.resolve(named: "opencode", fallbackPaths: [
-                "\(NSHomeDirectory())/.opencode/bin/opencode",
-                "/opt/homebrew/bin/opencode",
-                "/usr/local/bin/opencode",
-                "\(NSHomeDirectory())/.local/bin/opencode",
-                "\(NSHomeDirectory())/.npm-global/bin/opencode",
-            ])
+        case .opencode: OpenCodeCLI.resolveExecutable()
         default: nil
         }
     }

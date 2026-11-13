@@ -155,7 +155,7 @@ import Testing
     @Test func openCodeRecoveryCopyMatchesTheKTD21Table() {
         let rows: [(ProviderSetupOutcome, String, String, String?)] = [
             (.opencodeCLIMissing, "OpenCode CLI isn’t installed on this Mac", "Install OpenCode CLI", "Check Now"),
-            (.opencodeUpdateRequired, "Update OpenCode to 2.2 or newer, a major upgrade", "Update OpenCode", "Check Now"),
+            (.opencodeUpdateRequired, "Go usage needs OpenCode 2.2 or newer", "About OpenCode 2", "Check Now"),
             (.opencodeSignedOut, "Sign in with the official OpenCode CLI", "Sign In", "Check Now"),
             (.opencodeConsoleSignInRequired, "Sign in to OpenCode Console to see Go usage", "Sign In", "Check Now"),
             (.opencodeSignInExpired, "Sign in again with the official OpenCode CLI", "Sign In Again", "Check Now"),

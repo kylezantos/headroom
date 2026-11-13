@@ -237,7 +237,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .copilotLogsUnreadable: "Couldn’t read Copilot session logs\u{00A0}—\u{00A0}will retry"
         // KTD21's copy table.
         case .opencodeCLIMissing: ProviderSignInCopy.cliMissing(for: .opencode)
-        case .opencodeUpdateRequired: "Update OpenCode to 2.2 or newer, a major upgrade"
+        case .opencodeUpdateRequired: "Go usage needs OpenCode 2.2 or newer"
         case .opencodeSignedOut: ProviderSignInCopy.status(for: .opencode)
         case .opencodeConsoleSignInRequired: "Sign in to OpenCode Console to see Go usage"
         case .opencodeSignInExpired: ProviderSignInCopy.status(for: .opencode, again: true)
@@ -386,9 +386,11 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .opencodeCLIMissing:
             .init(status: message, primaryLabel: "Install OpenCode CLI", primaryAction: .installOpenCodeCLI,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
-        // KTD3: a 1.x install needs a major upgrade, which only the user can run.
+        // KTD3: a 1.x install needs a major upgrade, which only the user can run. U12 found
+        // the default curl and npm installs still give 1.x, so the action explains OpenCode 2
+        // rather than promising a one-step update.
         case .opencodeUpdateRequired:
-            .init(status: message, primaryLabel: "Update OpenCode", primaryAction: .updateOpenCode,
+            .init(status: message, primaryLabel: "About OpenCode 2", primaryAction: .updateOpenCode,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .opencodeSignedOut, .opencodeConsoleSignInRequired:
             .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectOpenCode,

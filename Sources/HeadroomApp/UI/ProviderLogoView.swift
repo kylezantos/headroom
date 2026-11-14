@@ -53,7 +53,7 @@ struct ProviderLogoView: View {
     }
 }
 
-private enum BrandIconImage {
+enum BrandIconImage {
     /// PA15: the bake below is a bundle lookup, an SVG decode, and a 256px offscreen
     /// rasterization, and it ran from `body` — up to ~24 marks every time the popover opens,
     /// on a surface whose entrance animation was deleted because any delay there reads as
@@ -73,6 +73,26 @@ private enum BrandIconImage {
         guard let baked = bake(for: providerID, scheme: scheme) else { return nil }
         cache[key] = baked
         return baked
+    }
+
+    /// CA-MB1: the decoded vector artwork itself, unbaked, for the menu-bar label, which
+    /// draws it into its own image at the bar's backing scale and only reads its coverage.
+    @MainActor private static var vectors: [Key: NSImage] = [:]
+    @MainActor private static var missing: Set<Key> = []
+
+    @MainActor
+    static func vector(for providerID: ProviderID, isDark: Bool) -> NSImage? {
+        let key = Key(providerID: providerID.raw, isDark: isDark)
+        if let cached = vectors[key] { return cached }
+        guard !missing.contains(key) else { return nil }
+        guard let name = ProviderStyle.svgResourceName(for: providerID, scheme: isDark ? .dark : .light),
+              let url = url(forResource: name),
+              let svg = NSImage(contentsOf: url) else {
+            missing.insert(key)
+            return nil
+        }
+        vectors[key] = svg
+        return svg
     }
 
     private static func bake(for providerID: ProviderID, scheme: ColorScheme) -> NSImage? {

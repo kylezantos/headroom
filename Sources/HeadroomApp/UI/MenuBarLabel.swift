@@ -43,7 +43,8 @@ struct MenuBarLabel: View {
     var metrics: MenuBarPillMetrics = .standard
     /// CA-MB1 (KTD7): whether explicit pills carry their provider's mark
     /// (`UsageStore.menuBarShowsMarks`). The automatic summary is marked regardless
-    /// (`MenuBarMeter.showsMark`). Off by default; nothing is drawn for it yet.
+    /// (`MenuBarMeter.showsMark`). Off by default. The mark is drawn into the same image as
+    /// the vessel and numeral, so it hard-cuts with them on the same poll (M10A).
     var showsMarks = false
 
     @State private var slosh = MenuBarSlosh()
@@ -258,11 +259,13 @@ struct MenuBarPillMetrics: Equatable, Sendable {
         widestNumeralWidth: 33
     )
 
-    /// The widest plate this pill can draw: a single meter showing "100%", or the bare vessel.
-    func widestPillWidth(showsPercentage: Bool) -> CGFloat {
+    /// The widest plate this pill can draw: a single meter showing "100%", or the bare vessel,
+    /// plus its provider mark's box and gap when it carries one (CA-MB1).
+    func widestPillWidth(showsPercentage: Bool, showsMark: Bool = false) -> CGFloat {
         let vessel = CGFloat(MenuBarLabelGeometry.vesselWidth)
         let text = showsPercentage ? vesselTextGap + widestNumeralWidth : 0
-        return 2 * plateHorizontalPadding + vessel + text
+        let mark = showsMark ? CGFloat(MenuBarLabelGeometry.markBoxSize + MenuBarLabelGeometry.markVesselGap) : 0
+        return 2 * plateHorizontalPadding + mark + vessel + text
     }
 }
 
@@ -302,15 +305,21 @@ enum MenuBarLabelRenderer {
     ) -> MenuBarLabelRenderResult {
         let numeralFont = font(for: metrics)
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
-        let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?) in
-            guard showsPercentage, !meter.summary.isNeutral else { return (meter, nil) }
-            return (meter, (meter.summary.text as NSString).size(withAttributes: [.font: numeralFont]))
+        let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?, mark: NSImage?) in
+            // CA-MB1/CA-MB2 (KTD7): the automatic summary is marked whatever `showsMarks`
+            // says; a provider with no artwork reserves no box.
+            let mark = meter.showsMark(explicitPillsMarked: showsMarks)
+                ? meter.providerID.flatMap { BrandIconImage.vector(for: $0, isDark: palette.isDarkMenuBar) }
+                : nil
+            guard showsPercentage, !meter.summary.isNeutral else { return (meter, nil, mark) }
+            return (meter, (meter.summary.text as NSString).size(withAttributes: [.font: numeralFont]), mark)
         }
         let layout = MenuBarLabelGeometry.layout(
             items: measured.map {
                 MenuBarLabelGeometry.Item(
                     textWidth: $0.textSize.map { Double(ceil($0.width)) },
-                    needsAttention: $0.meter.summary.needsAttention
+                    needsAttention: $0.meter.summary.needsAttention,
+                    hasMark: $0.mark != nil
                 )
             },
             showsPercentage: showsPercentage,
@@ -321,6 +330,9 @@ enum MenuBarLabelRenderer {
             flipped: false
         ) { bounds in
             for (item, placement) in zip(measured, layout.placements) {
+                if let mark = item.mark, let markX = placement.markX, let provider = item.meter.providerID {
+                    drawMark(mark, providerID: provider, boxX: bounds.minX + CGFloat(markX), palette: palette)
+                }
                 let x = bounds.minX + CGFloat(placement.vesselX)
                 let vessel = VesselGlyph.menuBarImage(
                     fill: item.meter.fill,
@@ -367,6 +379,63 @@ enum MenuBarLabelRenderer {
             accessibilityLabel: accessibilityLabel,
             tooltip: accessibilityLabel
         )
+    }
+
+    /// CA-MB1 (KTD7): one provider mark, drawn as single ink. The artwork only supplies
+    /// coverage; `sourceIn` replaces its colours (Claude's orange, Codex's gradient, the
+    /// monochrome greys) with `markInk`, so severity stays the only colour in the bar. Drawn
+    /// from the vector at the bar's backing scale, so 1× and 2× each rasterize it natively.
+    /// The ink takes the shared `HeadroomBrandMark` size for a 13pt slot (the popover's
+    /// rule, mass-corrected per provider) and is centred on the vessel's middle, which is the
+    /// image's vertical middle. It reads no slosh or print state, so it never moves.
+    private static func drawMark(_ mark: NSImage, providerID: ProviderID, boxX: CGFloat, palette: MenuBarPalette) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let box = CGFloat(MenuBarLabelGeometry.markBoxSize)
+        let ink = HeadroomBrandMark.markSize(for: providerID.raw, slot: Double(box))
+        let rect = NSRect(x: boxX + (box - CGFloat(ink.width)) / 2, y: (height - CGFloat(ink.height)) / 2,
+                          width: CGFloat(ink.width), height: CGFloat(ink.height))
+        context.saveGState()
+        context.beginTransparencyLayer(in: rect.insetBy(dx: -1, dy: -1), auxiliaryInfo: nil)
+        mark.draw(in: rect)
+        if providerID == .codex, abs(context.userSpaceToDeviceSpaceTransform.a) < 1.5 {
+            openCodexPrompt(in: rect, context: context)
+        }
+        context.setBlendMode(.sourceIn)
+        context.setFillColor(palette.markInk.menuBarColor.cgColor)
+        context.fill(rect.insetBy(dx: -1, dy: -1))
+        context.endTransparencyLayer()
+        context.restoreGState()
+    }
+
+    /// CA-MB1: Codex's `>_` cut-out is 0.6 artwork units wide, about 0.7pt in the 13pt slot,
+    /// so on a 1× bar it rasterizes to grey speckles and the mark reads as a plain blob. On
+    /// 1× only, the chevron and underscore are knocked out again at `codexPromptStroke`
+    /// points, the chevron opened a little wider than the artwork's (its 0.8pt depth
+    /// collapsed into a vertical bar), which keeps the prompt open as whole pixels. 2× draws
+    /// the artwork untouched. Points are the artwork's own coordinates (its viewBox is
+    /// 0.498…9.502 on both axes, y down).
+    private static let codexPromptStroke: CGFloat = 1.15
+
+    private static func openCodexPrompt(in rect: NSRect, context: CGContext) {
+        let origin = 0.498, span = 9.0039
+        func point(_ u: Double, _ v: Double) -> CGPoint {
+            CGPoint(x: rect.minX + CGFloat((u - origin) / span) * rect.width,
+                    y: rect.maxY - CGFloat((v - origin) / span) * rect.height)
+        }
+        let prompt = CGMutablePath()
+        prompt.move(to: point(2.70, 3.80))
+        prompt.addLine(to: point(3.85, 5.05))
+        prompt.addLine(to: point(2.70, 6.30))
+        prompt.move(to: point(5.27, 6.27))
+        prompt.addLine(to: point(7.09, 6.27))
+        context.saveGState()
+        context.setBlendMode(.clear)
+        context.setLineWidth(codexPromptStroke)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.addPath(prompt)
+        context.strokePath()
+        context.restoreGState()
     }
 
     private static func accessibilityLabel(for meters: [MenuBarMeter]) -> String {

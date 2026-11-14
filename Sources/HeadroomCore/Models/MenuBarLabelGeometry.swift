@@ -25,16 +25,28 @@ public enum MenuBarLabelGeometry {
     /// How far the dot's leading edge sits *inside* the vessel's trailing edge; the rest of
     /// the diameter hangs past it.
     public static let attentionDotInset: Double = 2
+    /// CA-MB1 (KTD7): a provider mark's square optical box, 13pt so it carries about the
+    /// vessel's weight (at 11pt it read as a speck beside it).
+    public static let markBoxSize: Double = 13
+    /// The space between a mark's box and its own vessel.
+    public static let markVesselGap: Double = 3
+    /// CA-MB1: added to the pill-to-pill gap in front of a marked pill (icon-only 8 → 10,
+    /// with percentages 16 → 18), so a mark attaches to its own vessel and not to the
+    /// previous pill's numeral.
+    public static let markedMeterGapExtra: Double = 2
 
     /// The part of a meter this layout cannot derive on its own: whether it draws a
-    /// percentage (and how wide that text measured) and whether it carries the attention dot.
+    /// percentage (and how wide that text measured), whether it carries the attention dot,
+    /// and whether it draws its provider's mark (CA-MB1).
     public struct Item: Sendable, Equatable {
         public let textWidth: Double?
         public let needsAttention: Bool
+        public let hasMark: Bool
 
-        public init(textWidth: Double?, needsAttention: Bool) {
+        public init(textWidth: Double?, needsAttention: Bool, hasMark: Bool = false) {
             self.textWidth = textWidth
             self.needsAttention = needsAttention
+            self.hasMark = hasMark
         }
     }
 
@@ -43,10 +55,13 @@ public enum MenuBarLabelGeometry {
         public let vesselX: Double
         /// Leading edge of the percentage, when the meter draws one.
         public let textX: Double?
+        /// Leading edge of the mark's `markBoxSize` box, when the meter draws one (CA-MB1).
+        public let markX: Double?
 
-        public init(vesselX: Double, textX: Double?) {
+        public init(vesselX: Double, textX: Double?, markX: Double? = nil) {
             self.vesselX = vesselX
             self.textX = textX
+            self.markX = markX
         }
     }
 
@@ -83,7 +98,14 @@ public enum MenuBarLabelGeometry {
         placements.reserveCapacity(items.count)
 
         for item in items {
-            if cursor > 0 { cursor += gap }
+            if cursor > 0 { cursor += gap + (item.hasMark ? markedMeterGapExtra : 0) }
+            // CA-MB1: the mark is measured in this pass, like the attention dot (PB5), so a
+            // drawn mark can never fall outside the image.
+            var markX: Double?
+            if item.hasMark {
+                markX = cursor
+                cursor += markBoxSize + markVesselGap
+            }
             let vesselX = cursor
             cursor += vesselWidth
             var textX: Double?
@@ -92,7 +114,7 @@ public enum MenuBarLabelGeometry {
                 textX = cursor
                 cursor += textWidth
             }
-            placements.append(Placement(vesselX: vesselX, textX: textX))
+            placements.append(Placement(vesselX: vesselX, textX: textX, markX: markX))
             extent = max(extent, cursor)
             if item.needsAttention {
                 extent = max(extent, attentionDotTrailingEdge(vesselX: vesselX))

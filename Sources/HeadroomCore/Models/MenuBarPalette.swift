@@ -35,6 +35,13 @@ public struct MenuBarPalette: Sendable, Equatable {
             : HeadroomTint(color: .black, opacity: 0.85)
     }
 
+    /// CA-MB1 (KTD7): a provider mark, the ink at 0.90, one step under the numeral so the
+    /// number still leads. Monochrome on purpose: severity stays the only colour in the bar
+    /// (DESIGN rule 4).
+    public var markInk: HeadroomTint {
+        HeadroomTint(color: ink.color, opacity: ink.opacity * 0.90)
+    }
+
     /// Liquid for a vessel with no severity to report (automatic fill, or no data yet): the
     /// ink knocked back to 0.62 so the level reads as decoration rather than as status.
     public var neutralLiquid: HeadroomTint {

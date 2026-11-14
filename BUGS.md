@@ -377,12 +377,17 @@ that name. Still to do:
 
 ## iPhone usage screen follow-ups (2026-10-05, iPhone parity U21/U9/U11)
 
-- **Meter labels truncate to "…" at accessibility text sizes on a 390pt phone.** The shared
+- ~~**Meter labels truncate to "…" at accessibility text sizes on a 390pt phone.**~~ Resolved
+  2026-11-14 (craft audit CA-I3): on iOS the Micro row drops its gauge, then its countdown, before
+  the label truncates (`UsageBarView.microRow`). Simulator captures at xxxLarge are part of the
+  craft audit's U11 acceptance. Original note: The shared
   Micro row's last rung truncates its label once `PhoneScale` clamps at xxxLarge, so "5-hour"
   and "Weekly" read "…" beside their countdowns (17e capture, AccessibilityXXXL). Pre-dates
   U21; the spend title now wraps by word instead. Needs a phone rung that drops the gauge or
   stacks the countdown before the label gives up.
-- **Spend chip placement is decided per row.** On a 402pt phone at the default size "OpenAI
+- ~~**Spend chip placement is decided per row.**~~ Resolved 2026-11-14 (craft audit CA-I5): the
+  phone's spend card decides chip placement once for every row (`PhoneSpendCard`). A stale
+  sentence now skews that decision; see the craft audit section below. Original note: On a 402pt phone at the default size "OpenAI
   API" holds its chip inline while "Anthropic API" drops it to the subline (KTD3's measured
   fit). A card-wide decision would read calmer; it needs the card's width before layout.
 - **V38 has no one- or three-provider demo fixture.** The flowing-columns capture pass covers
@@ -1091,8 +1096,10 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   (PS1, pill shelf):* the summary state now lists every provider as a card on the "Not shown"
   shelf with its own + and a "Drag a provider up" line, so the exit is visible. The switch still
   discards the arranged list, so restoring several pills is still one add per provider.
-- **An Accounts row's actions can wrap onto a line of their own (type audit, 2026-09-24).**
-  In the `accounts-multi` render, the Studio row (needs sign-in, capability recovery showing)
+- ~~**An Accounts row's actions can wrap onto a line of their own (type audit, 2026-09-24).**~~
+  Resolved 2026-11-14 (craft audit CA-S3): every row is three fixed slots and a second recovery
+  action is the first item of the row's "…" menu, so no button drops below a row
+  (`AccountRowSlotsLayout`). Original note: In the `accounts-multi` render, the Studio row (needs sign-in, capability recovery showing)
   pushes **Sign In** and **Check Now** below the row, right-aligned under the status sentence,
   where they read as belonging to no row. Out of scope for the type/spacing pass; the row's
   trailing cluster needs a stacking rule of its own.
@@ -1209,7 +1216,10 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   pill on the Accounts `•••` `Menu` (R2C21), swatch hover/press bands (R2M6), sidebar focus on
   open (R2M8), and the dark menu-bar vessel, which brightens with the R2C4b dark critical fill.
 - **Reduce Motion pass is Kyle's** (agents do not change accessibility settings).
-- **Setup body prose still says "connect"** as Headroom's own act. The Claude approval body was
+- ~~**Setup body prose still says "connect"** as Headroom's own act.~~ Resolved 2026-11-14 (craft
+  audit CA-P9): both Codex sentences now come from Core `ProviderSignInCopy`
+  (`codexSignedOutBody`, `codexBrowserWaitingBody`, `codexDeviceCodeWaitingBody`), and the setup
+  copy tests reject "reconnect". Original note: The Claude approval body was
   fixed 2026-09-19 ("Headroom continues as soon as you approve"), when waiting copy came under the
   copy-rule tests. Still open in `CodexSetupViews.swift`: "Headroom reconnects automatically" and
   "Headroom will reconnect when Codex confirms it." One-line fixes if the verb should go everywhere.
@@ -1269,8 +1279,11 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 - **The Settings gallery previews Always colored only.** Color mode is not previewed.
 - **The status card's vessel keeps its old drawing.** `HeadroomVesselMark` fills by outer height
   and frames at 12×20, unlike `WidgetVesselGeometry` (11:18, inner-height liquid).
-- **Liquid Level large can seat a countdown on the wash's top edge.** In the render sweep,
-  Codex's "3d 2h" sits on the bright edge line when its level lands at that row's height.
+- ~~**Liquid Level large can seat a countdown on the wash's top edge.**~~ Resolved 2026-11-14
+  (craft audit CA-W1): the recipe drops the bright edge for any segment whose surface falls
+  inside a text band, on every family (`WidgetWashSegment.showsEdge`). Original note: In the
+  render sweep, Codex's "3d 2h" sits on the bright edge line when its level lands at that row's
+  height.
 - **AppEnum options mirror Core by hand.** `HeadroomWidgetStyleOption`/`ColorOption` raw values
   must equal `WidgetLayoutStyle`/`WidgetColorMode`; the intent compiles only into the extensions,
   so no test catches a missing case (it renders the default style). The Lock Screen intent
@@ -1501,3 +1514,60 @@ In a multi-account Compact card the column headers come from the first account's
 slot, so when the first account hits a limit the headers change (for example "5h left" becomes
 "mo left") and the other accounts' cells print their own short labels. Deriving the headers from
 the windows before promotion would keep them still. Owner to decide; applies to every provider.
+
+## Craft audit follow-ups (2026-11-14, CA-)
+
+Deferred from `docs/plans/2026-11-13-1929-feat-craft-audit-refinements-plan.md`. Anchors are the
+options doc's area ids, written `CA-<area>` in code.
+
+- **Menu-bar Codex mark at 1× (CA-MB1).** On a 1× bar the `>_` cut-out is knocked out again by
+  `openCodexPrompt` (`MenuBarLabel.swift`), but the mark still reads as a soft blob at roughly
+  10px. Check it on a real non-Retina display before advertising marks there. Grok's thin
+  strokes also read lighter than the other five marks.
+- **First-open arrival cap removed (CA-M6).** Staging the first-open draw-in for only the first 8
+  accounts cut `multi20`'s cold post-open main-thread CPU by about 40–140ms, but it added a
+  second body pass (about 72 `UsageBarView` bodies, about +90ms CPU) to every warm reopen, so the
+  staging and its `HeadroomMotion.arrivalAccountCap` token were taken out. Find why a row with a nil
+  `arrivalKey` re-renders on reopen before trying the cap again.
+- **Nested Meter large still sheds rows on a 354pt iPhone (CA-W5).** When two providers need four
+  secondary rows (`sparkOn`, `claudeOpenCode` fixtures) the approved 10pt / 9pt spacing cannot fit
+  them, so large still shows fewer windows than medium there.
+- **Widgets & iPhone preview well corners (CA-S7).** The preview well (r28) sits inside the r10
+  "Widget styles" tile, so the inner corner is rounder than the outer one. Revisit together with
+  the Menu Bar pane's wells (r20 and r14 inside an r10 tile), which the plan also deferred.
+- **Phone spend card: a stale sentence forces every chip to a subline (CA-I5).** The card-level
+  fit check counts the stale sentence's single-line width, so one stale row moves every row's
+  chip under its title.
+- **Menu Bar pane pill cards truncate provider names with six providers.** They read "Cla…",
+  "Co…", "Co…", so Codex and Copilot cannot be told apart by name.
+- **Liquid Level's surface line can drop early near text (CA-W1).** The text-band rule covers the
+  whole 14–18pt `washContentInset` range on every host, so the edge can disappear a few points
+  before it would actually touch type.
+- **Stale healthy under the Glass fill keeps the green hedge (CA-P1).** Glass's live healthy cap
+  is coloured, so a stale healthy Glass meter keeps the faint green 35% hedge while its live body
+  is neutral. Only "Only when low" uses the half-alpha neutral (`livePaintsHealthyNeutral`).
+  Owner decision pending.
+- **Live Liquid Glass acceptance is pending (KTD9).** The dark card edge (CA-P2) and the footer
+  buttons (CA-P6) are checked offscreen only, and the menu-bar marks have not been looked at in a
+  real menu bar on dark and light bars.
+- **Header status baseline needs a live check (CA-P12).** The 0.75pt correction was removed
+  because offscreen 2× renders show the status and the 17pt title's cap centres aligned without
+  it. The original live capture differed from offscreen by about 0.5pt for the old 20pt title, so
+  confirm on the live popover with a setup status showing.
+- **Settings line for a broken Codex or Grok sign-in (CA-P5).** An unreadable or exposed sign-in
+  file now reads "Signed out" in Settings › Accounts, with the cause only in the tooltip. Decide
+  whether Settings, which has more room, should keep a cause line.
+- **Segmented travel costs CPU during a data-change refresh (CA-M4).** With
+  `--bench-ui counts --meter-style full.segmented.event`, a refresh with a data change used 15–21%
+  more main-thread CPU over its 600ms window (146 → 177ms at `multi5`, 406 → 467ms at `multi20`,
+  single runs, identical body counts) and opening cost about 5–7% more. Nothing runs after the
+  spring settles. The "after" build includes every craft-audit unit, so isolate the travel before
+  tuning it.
+- **Widget sweep's shrunk xxLarge stand-in reports 184 advisory findings.** The sweep exits zero.
+  U9 matched the 184 against a base-commit sweep; the fix pass did not re-run that baseline.
+- **Em dashes left outside this audit's surfaces.** The banked-reset tooltip and VoiceOver phrase
+  (`PlanCapsulePresentation`), the menu-bar accessibility label "AI usage — a provider needs
+  sign-in", and the phone demo banner "Sample data — …".
+- **`CLIExecutableLocatorTests.staleGenerationCompletionJoinsReplacementWithoutStartingThirdSearch`
+  is timing-sensitive.** It failed once in four full-suite runs on 2026-11-14 and passed alone;
+  the locator and its tests were not changed by the craft audit.

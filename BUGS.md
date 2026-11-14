@@ -6,7 +6,7 @@ official `claude` CLI's `/usage` panel instead.
 
 ## Follow the default login: open items (2026-11-10)
 
-Plan: `docs/plans/2026-11-10-1315-feat-follow-default-login-plan.md`. Phase 1 covers Claude,
+Phase 1 covers Claude,
 Codex, Grok, Cursor and Copilot. Phases 2 (remembered-account rows on the Mac and the phone) and
 3 (one row for the default login and a matching extra) cover Claude and Codex, the providers
 with a strong identity.
@@ -33,8 +33,7 @@ with a strong identity.
   so a transient failure on that account dims the row. KTD11 keeps the merge through a transient
   failure so the row does not split and rejoin on every blip.
 - **Gate V1 passed for `claude auth login` (with and without a session left running,
-  2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** See
-  `docs/qa/2026-11-11-default-login-gate-v1.md`. Closed without a run (Kyle, 2026-11-12):
+  2026-11-11) and for one switcher, `errhythm/ccswap` at `8bf7b9b` (2026-11-12, in a VM).** Closed without a run (Kyle, 2026-11-12):
   Claude Desktop signing in. Not run: any other switcher (five more were read in source and
   swap the credential and the account block together), and a Codex switch (id and token share
   one `auth.json`). A switcher that leaves `.claude.json` alone would put readings under the
@@ -333,9 +332,9 @@ that name. Still to do:
   manageable, so it is not a spike failure. 1.5 takes the R29 path: reminders stay Mac-only, the
   phone's Reminders section says "Reminders come from Headroom on your Mac", and the listing
   copy makes no phone-reminder claim. U16 doesn't run in 1.5. Pick the work up again from
-  U15/U16 and KTD19 in `docs/plans/2026-10-04-0923-feat-ios-parity-round-plan.md`.
-- **Where the spike stopped.** The runbook is `docs/qa/2026-10-cloudkit-reminders-spike.md`, on
-  the unmerged branch `spike/u15-cloudkit-reminders`. Done on 2026-10-05:
+  U15/U16 and KTD19 of the iPhone parity plan.
+- **Where the spike stopped.** The runbook is on the unmerged branch
+  `spike/u15-cloudkit-reminders`. Done on 2026-10-05:
   - The Mac build carries the CloudKit keys with environment `Production`, signed with the G2
     Developer ID identity and the P3 profile.
   - Notarization accepted it (`f46fbc9a…`) and Gatekeeper reports "Notarized Developer ID".
@@ -401,8 +400,7 @@ that name. Still to do:
   (P5 identity gate failed), so phone surfaces resolve the v3 key, the resolver's winner is never
   v4, and `CheckNowClient.pull` answers `.rereadOnly` (KTD14.1). U9's pull shows re-read only
   until adoption flips. The Mac side is live as soon as a 1.5 phone writes a request.
-- **The latency spike has not run.** `docs/qa/2026-10-check-now-latency-spike.md` holds the
-  protocol and empty tables. Its 20-account write-throttling run needs either 20 real accounts
+- **The latency spike has not run.** Its 20-account write-throttling run needs either 20 real accounts
   on a test Mac or a DEBUG publisher harness: `--demo multi-20` never writes iCloud (R37). The
   per-probe constant (30 s) is provisional until then.
 - **A failed answer reuses the not-finished line.** When the Mac's forced flush fails (over
@@ -513,7 +511,7 @@ that name. Still to do:
   pending renewal saves its replacement; the authorized reproduction is posted at
   https://github.com/anthropics/claude-code/issues/102265#issuecomment-6259274517.
   Eight-hour successful usage observation establishes continuity, not a rotation or
-  a measured reduction in sign-outs. See `docs/qa/2026-10-20-safe-provider-session-fixes.md`.
+  a measured reduction in sign-outs.
 
 - **Session diagnostic and attention follow-ups (2026-10-20 review).** Codex's
   unchanged-token 401 keeps Check Now and manual Sign In Again available on the Mac;
@@ -652,7 +650,7 @@ that name. Still to do:
 
 ## Sign-in handoff residuals (2026-09-19)
 
-Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
+Deferred from the Claude sign-in handoff fix.
 
 - **The widget snapshot read blocks the main thread behind a macOS permission prompt.**
   `UsageStore.refreshAll` → `exportWidgetSnapshot` → `WidgetSnapshotCache.write` →
@@ -881,8 +879,7 @@ Deferred from `docs/plans/2026-09-19-1236-fix-claude-sign-in-handoff-plan.md`.
   (Jul 28) moved to schema 2 and today's Mac publishes schema 3 without `resetsAt`, so App Store
   phones paired with an updated Mac show "Snapshot Unreadable" / "Update Needed" — and the
   unreadable copy tells users to "publish a fresh snapshot", which can never help. Fix is shipping
-  a current iPhone build (1.5); found 2026-10-04 (see
-  `docs/plans/2026-10-04-ios-parity-research/repo-patterns.md`). Kyle accepted waiting for 1.5 over a
+  a current iPhone build (1.5); found 2026-10-04. Waiting for 1.5 was accepted over a
   Mac-side schema-1 stopgap because the iPhone app has few users.
 - **A bare `--demo` Mac run publishes demo data to the real iCloud store.** `HeadroomApp.swift`
   (~861-890) wires the phone-sync exporter in demo mode, so a properly signed demo build (e.g. a
@@ -984,8 +981,7 @@ primary findings were applied; these are the demoted coverage/advisory notes):
   stay on the text tier. Residuals: the Ghost recipe's light separation band dropped from
   1.38–1.63 to 1.26–1.55 and needs eyeballing; deepening the light track makes fill contrast
   *worse* (fills are darker than the track) and is now asserted in
-  `noVividLightFillCanClearThreeToOneOnTheLightTrack`; `design/ridd-round4-meter-style.html`
-  carries a dated note but its CSS specimen vars still show the pre-change values.
+  `noVividLightFillCanClearThreeToOneOnTheLightTrack`.
 - **Unavailable rows are still narrower than live rows.** The percent column now reserves
   three digits, but an `.unavailable` row hides the "left"/"used" term entirely, so a card that
   mixes live and unavailable windows still won't share one gauge edge. Reserving the term's width
@@ -1197,9 +1193,6 @@ primary findings were applied; these are the demoted coverage/advisory notes):
 
 ## Widget craft residuals (2026-09-11, WCF1–WCD3)
 
-Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
-`design/widget-craft-options.html` and the folded mock `design/widget-proposed-design.html`.
-
 - **Accented / vibrant rendering is reasoned, not measured (WCM7).** The `widgetAccentable` set was
   recut (bar fill, numeral, spend amounts in; provider names out; marks `.desaturated`) and a
   non-`.fullColor` branch draws fill `.primary` / track `.primary.opacity(0.20)`. Nobody has looked
@@ -1231,11 +1224,9 @@ Plan: `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; decisions in
 
 ### Widget styles (2026-10-02)
 
-Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
-
 - **The Static → App Intent upgrade is unverified on device (KTD1).** Apple documents no
-  supported path; developers report placed iPhone widgets freezing until a reboot. Kyle's spike
-  check is `docs/qa/2026-10-03-widget-config-upgrade-spike.md`. If it fails, the fallback is a
+  supported path; developers report placed iPhone widgets freezing until a reboot. The spike
+  check (upgrade over a placed widget on device) is still open. If it fails, the fallback is a
   release note telling people to remove and re-add the widget.
 - **Liquid Level's wash in accented, vibrant and StandBy is reasoned, not measured (KTD9).** It
   draws `.primary` at 0.12 with an accentable top edge; nobody has seen it on a tinted iPhone, a
@@ -1266,9 +1257,6 @@ Plan: `docs/plans/2026-10-02-1247-feat-widget-styles-plan.md`.
   mode could overflow small tiles while the sweep stays green.
 
 ### Lock Screen widgets (2026-10-04)
-
-Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
-`docs/qa/2026-10-04-lock-screen-spike.md`.
 
 - **Two device answers are still owed (U2).** What the widget shows after a reboot before the
   first unlock (KTD13: add an "Unlock to update" status only if the cache read fails there), and
@@ -1323,7 +1311,7 @@ Plan: `docs/plans/2026-10-04-1138-feat-lock-screen-widgets-plan.md`; QA record
 
 ## Popover account layout follow-ups (2026-10-12)
 
-From `docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
+From the popover account layout plan.
 
 - **The first open after launch draws one column, then two.** The column plan is made as the
   popover closes (the view survives reopening, U1 spike), but the very first open after launch
@@ -1332,6 +1320,14 @@ From `docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`.
   popover` builds a fresh view per open, so every one of its warm opens pays it. A fix would
   persist the last plan (column count and split, keyed by the item IDs) and seed the model with
   it on launch.
+- **The first open's column split depends on whether data had landed.** Found 2026-11-12
+  capturing `--demo multi-20` live: across eleven launches the second column began at Account
+  9, 10 or 13. The first plan is made from whatever heights the first layout reports, and a
+  still-pending account draws a skeleton of a different height (Claude 67pt against 75pt live,
+  Grok 67 against 44, the spend card 104 against 51). R6 then keeps that split until the
+  popover closes, by design. Real launches restore snapshots first, so this needs an open
+  before the first reading; demos hit it because their fixtures land a few seconds in.
+  Persisting the last plan, as above, would cover returning users without touching R6.
 - **Hosted App tests quit while the installed Headroom is running.** `HeadroomApp.main`'s
   single-instance guard runs before the XCTest host is recognised, so `xcodebuild test` for
   `HeadroomAppTests` exits at launch ("Headroom is already running … Quit it first") whenever
@@ -1379,8 +1375,8 @@ in the real app. Add a key-free row to that pane.
 
 ## OpenCode: live checks still open (updated 2026-11-13)
 
-Plan: `docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md`. Feasibility record:
-`docs/solutions/opencode-cli-usage-feasibility.md` ("Live checks, 2026-11-13").
+Feasibility record: `docs/solutions/opencode-cli-usage-feasibility.md` ("Live checks,
+2026-11-13"). KTD anchors below are the OpenCode plan's, kept outside the repo.
 
 This entry was the release blocker "OpenCode has no real Go reading yet". On 2026-11-13 a real Go
 response was captured with client 2.2.7 and added as the `go-real` fixture; it has the shape and

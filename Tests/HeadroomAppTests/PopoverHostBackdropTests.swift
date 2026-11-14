@@ -6,6 +6,7 @@ import Testing
 /// the shell's 22pt corner. On macOS 15 those leaves include the header's own drawing, so
 /// "Usage" drew as "Jsage", the status line lost both ends and the gear became a diamond.
 /// Only a leaf spanning the content is a host backdrop worth rounding.
+@Suite(.sharedAppState)
 struct PopoverHostBackdropTests {
     private let bounds = NSRect(x: 0, y: 0, width: 384, height: 440)
     private let radius: CGFloat = 22

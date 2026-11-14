@@ -6,7 +6,7 @@ import HeadroomCore
 /// recipe. These pin the two properties that make that swap correct — it fires exactly when
 /// the *rendered* meter changes, and never when it doesn't.
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct MeterRecipeKeyTests {
     @Test func everyRenderedDifferenceGetsItsOwnKey() {
         let base = MeterStyle(format: .full, shape: .chip, fill: .solid)

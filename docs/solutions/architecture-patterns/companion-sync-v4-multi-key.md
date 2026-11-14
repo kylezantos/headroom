@@ -21,12 +21,11 @@ tags: [sync, icloud, kvs, ios, widgets, multi-account, digest, lineage, budget, 
 
 Until Oct 2026 the Mac published one primary-only JSON envelope (schema 3) under
 `headroom.syncedWidgetSnapshot`, and the phone showed each provider's main account. The iPhone
-parity round (`docs/plans/2026-10-04-0923-feat-ios-parity-round-plan.md`) needed every account,
+parity round needed every account,
 up to the tested envelope of 20 per provider, plus the Mac's display choices, typed attention and
 a check-now round trip. Optional fields on the old key were rejected: build-33 TestFlight phones
 read it, and a clean contract was wanted for the new data. The design keeps v3 exactly as it
-was and adds a second format, v4, under its own keys. Every field and fallback is in
-`docs/plans/2026-10-04-ios-parity-sync-field-contract.md`.
+was and adds a second format, v4, under its own keys.
 
 ## Guidance
 
@@ -141,8 +140,7 @@ saved in the cache sidecar, inside the same coordinated App Group transaction as
 a mismatch invalidates every cache, and no marker means serve nothing. Only the iPhone app writes
 it, only when absent, never from memory. It lives outside `headroom.sync.v4.` so no sweep or scan
 removes it. It carries no identity, but it does sync, which deviates from KTD22's "never syncs",
-so it needs Kyle's sign-off and its own device check
-(`docs/qa/2026-10-04-companion-identity-candidate-gate.md`). Until both pass,
+so it needs the owner's sign-off and its own device check. Until both pass,
 `CompanionLoaderAdoption.isEnabled` stays `false` and phones load build 33's way.
 
 ## Why This Matters

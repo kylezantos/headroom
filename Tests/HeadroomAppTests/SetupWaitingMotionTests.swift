@@ -2,7 +2,7 @@ import HeadroomCore
 import Testing
 @testable import Headroom
 
-@Suite struct SetupWaitingMotionTests {
+@Suite(.sharedAppState) struct SetupWaitingMotionTests {
     @Test func guidedCardsDistinguishUserWaitFromVerification() {
         let confirming = SetupWaitingPhase.confirming(.signIn, reportedFinished: true)
         for phase in [SetupWaitingPhase.waitingForUser(.signIn), confirming] {

@@ -10,8 +10,8 @@ import HeadroomCore
 /// VoiceOver value (R12, R13). What it shows is `CompactAccountRowRecipe`'s decision; this
 /// only lays it out.
 ///
-/// Kyle approved the HC-D sizes (title 13 semibold, row 26, 12 between cells) with one change
-/// (2026-10-13, `design/popover-compact-header-mockup.html`): the window names and the
+/// The approved HC-D sizes (title 13 semibold, row 26, 12 between cells) carry one change
+/// (2026-10-13): the window names and the
 /// left/used word sit once in the card's `CompactCardHeader`, not in every cell, which gives
 /// names the room to read whole.
 struct CompactAccountRow: View {

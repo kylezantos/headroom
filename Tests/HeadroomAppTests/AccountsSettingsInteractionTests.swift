@@ -5,7 +5,7 @@ import HeadroomCore
 @testable import Headroom
 
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct AccountsSettingsInteractionTests {
     @Test func productionProviderProvisionsBuiltInClaudeWorkspaceBeforePolling() {
         let parent = FileManager.default.temporaryDirectory
@@ -1650,7 +1650,7 @@ private final class GrokDeviceCodeSetupHarness {
 /// Pins the P1 "grey dashed circle" regression: every registered subscription provider
 /// must resolve a real brand mark + accent + non-fallback symbol through `ProviderStyle`,
 /// in both color schemes, rather than hitting the `default:` identity arm.
-@Suite struct ProviderStyleIdentityTests {
+@Suite(.sharedAppState) struct ProviderStyleIdentityTests {
     @Test func everyRegisteredProviderHasABrandIdentity() {
         for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
             #expect(ProviderStyle.svgResourceName(for: id, scheme: .light) != nil, "\(id.raw) light mark")
@@ -1688,7 +1688,7 @@ private final class GrokDeviceCodeSetupHarness {
     }
 }
 
-@Suite struct ProviderCardCapabilityTests {
+@Suite(.sharedAppState) struct ProviderCardCapabilityTests {
     @MainActor @Test func ordinaryWaitingHandoffExposesStopActionOnSettingsAndPopover() async {
         let account = ProviderAccount.builtIn(for: .claude)
         let coordinator = SetupSessionCoordinator(
@@ -1836,7 +1836,7 @@ private final class GrokDeviceCodeSetupHarness {
     }
 }
 
-@Suite struct OpenHandoffRefusalPresentationTests {
+@Suite(.sharedAppState) struct OpenHandoffRefusalPresentationTests {
     @MainActor @Test func blockedRowsExposeRefusalCopyWithoutRecoveryActions() {
         let account = ProviderAccount.builtIn(for: .codex)
         let snapshot = UsageSnapshot.stale(
@@ -1885,7 +1885,7 @@ private final class GrokDeviceCodeSetupHarness {
     }
 }
 
-@Suite struct AccountsCapabilityPresentationTests {
+@Suite(.sharedAppState) struct AccountsCapabilityPresentationTests {
     @MainActor @Test func capabilityFailureDemoDrivesStoreNoticeWithRetainedAndBareRows() async {
         let fixture = DemoFixture.multiFixture(for: .capabilityFailure)
         let suiteName = "co.zantos.headroom.capability-demo.\(UUID().uuidString)"
@@ -1987,7 +1987,7 @@ private final class GrokDeviceCodeSetupHarness {
 }
 
 /// R13/KTD12 (2026-09-19 sign-in plan): the Settings row's controls while a handoff runs.
-@Suite struct SettingsWaitingRowTests {
+@Suite(.sharedAppState) struct SettingsWaitingRowTests {
     private var claudeSnapshot: UsageSnapshot {
         .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))
     }
@@ -2083,7 +2083,7 @@ private final class GrokDeviceCodeSetupHarness {
 
 /// KTD12/R10: Try Again is one handler with two branches, and the announcement it can
 /// trigger speaks once per handoff rather than once per press.
-@Suite struct SetupSessionTryAgainTests {
+@Suite(.sharedAppState) struct SetupSessionTryAgainTests {
     @MainActor @Test func tryAgainFrontsTheTerminalAppAndResumesWhenAHandoffIsOpen() {
         let account = ProviderAccount.builtIn(for: .claude)
         var activated: [String] = []
@@ -2162,7 +2162,7 @@ private final class GrokDeviceCodeSetupHarness {
 
 /// R2B1/R2C6/KTD12: `SetupSessions.failureMessage` lives in the app target, so the copy rules
 /// Core enforces on `ProviderSetupOutcome` are asserted for it here.
-@Suite struct SetupFailureCopyTests {
+@Suite(.sharedAppState) struct SetupFailureCopyTests {
     private let accounts: [ProviderAccount] = [
         .builtIn(for: .claude), .builtIn(for: .codex), .builtIn(for: .grok), .builtIn(for: .cursor),
     ]
@@ -2343,7 +2343,7 @@ private struct RememberedRowFixture {
 }
 
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct RememberedRowInteractionTests {
     private let builtInKey = AccountKey(providerID: .codex, accountID: .primary)
 
@@ -2609,7 +2609,7 @@ private struct MergedRowFixture {
 }
 
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct MergedRowInteractionTests {
     private let builtInKey = AccountKey(providerID: .codex, accountID: .primary)
 

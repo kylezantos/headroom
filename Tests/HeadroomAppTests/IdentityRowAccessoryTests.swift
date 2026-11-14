@@ -3,7 +3,7 @@ import HeadroomCore
 import Testing
 @testable import Headroom
 
-@Suite struct IdentityRowAccessoryTests {
+@Suite(.sharedAppState) struct IdentityRowAccessoryTests {
     private let key = AccountKey(providerID: .grok, accountID: .primary)
     @Test func accountActionsShowOnlyTheirOwnAccessory() {
         let value = AccountLoadingState.resolve(key: key, checking: [key], probing: [key], ends: [:], fullRefresh: false)

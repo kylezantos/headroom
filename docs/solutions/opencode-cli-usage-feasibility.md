@@ -23,8 +23,8 @@ The client fetches the Console config, the Console budgets and the Go allowance
 (`/console/api/v2/config`, `/console/api/policies/current-budgets`, `/zen/go/v1/usage`, one
 request each, as the stub's request log shows), validates them against its own schema and
 prints the result. Headroom never reads OpenCode's credential store, never calls `opencode.ai`
-itself, never starts `opencode service`, and never sends a model request. Plan:
-`docs/plans/2026-11-04-1002-feat-opencode-provider-plan.md` (KTD1–KTD22).
+itself, never starts `opencode service`, and never sends a model request. The KTD1–KTD22
+anchors below are the OpenCode plan's decisions; the plan itself is kept outside the repo.
 
 **Almost everything below was verified against a local stub Console.** The fixtures in
 `Tests/HeadroomCoreTests/Fixtures/opencode/` are stub-derived, with one exception: `go-real`, a

@@ -7,6 +7,7 @@ import HeadroomCore
 /// launch. Demo runs, the render and bench harnesses and this XCTest host never write the
 /// user's iCloud key-value store.
 @MainActor
+@Suite(.sharedAppState)
 struct PhoneSyncCompositionTests {
     @Test func onlyARealLaunchComposesThePhonePublisher() {
         for arguments in [

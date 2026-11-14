@@ -449,6 +449,13 @@ enum PopoverRenderHarness {
         // the real OS-selected surface) via `screencapture -l`. The offscreen `cacheDisplay` path
         // resolves semantic text colors against the wrong appearance, so it's only the
         // fallback when screen capture is unavailable (no Screen Recording permission).
+        // A window grows from its top-left corner, so one opened at the screen's bottom edge
+        // grows off it, and `screencapture -l` returns nothing for the part below the display:
+        // every capture taller than the first 200pt canvas came out blank past it.
+        if let screen = window.screen ?? NSScreen.main, window.frame.minY < screen.frame.minY {
+            window.setFrameOrigin(NSPoint(x: window.frame.minX, y: screen.frame.minY))
+            await settle(hosting, in: window)
+        }
         let captured = capture(window: window, to: url)
         window.orderOut(nil)
         return captured

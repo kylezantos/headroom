@@ -4,7 +4,7 @@ import HeadroomCore
 @testable import Headroom
 
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct LoadingDemoTests {
     private func controller(loading: Bool = true) -> LoadingDemoController {
         LoadingDemoController(loading: loading,

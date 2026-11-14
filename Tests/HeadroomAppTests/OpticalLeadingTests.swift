@@ -7,7 +7,7 @@ import Testing
 /// OA1: the optical-margin corrections that pull the card's text column onto one perceived
 /// edge. These read real CoreText metrics for the system font — deterministic on macOS — so
 /// a font-metric or table change surfaces here rather than as a column that quietly re-jitters.
-@Suite
+@Suite(.sharedAppState)
 struct OpticalLeadingTests {
     private static func semibold15(_ text: String) -> CGFloat {
         OpticalLeading.correction(for: text, size: 15, weight: .semibold)
@@ -129,7 +129,7 @@ struct OpticalLeadingTests {
 /// bottom baseline") and every text element on it now declares its cap-height centre from
 /// real `NSFont` metrics. These pin that offset math — the part a render cannot prove and a
 /// font-metric change would silently move.
-@Suite
+@Suite(.sharedAppState)
 struct OpticalCenteringTests {
     /// The Micro row's four roles, as `UsageBarView` renders them.
     private static let label = (size: CGFloat(13), weight: NSFont.Weight.medium)
@@ -231,7 +231,7 @@ struct OpticalCenteringTests {
 /// `OpticalCentering` for the CoreText helpers in `HeadroomWidgetTypography`. These pin the
 /// swap against the Mac's own metrics at every role the rows render, so the Mac popover keeps
 /// its measurements exactly at scale 1.0.
-@Suite
+@Suite(.sharedAppState)
 struct SharedRowMetricsParityTests {
     private static func appKitWidth(_ text: String, font: NSFont, kerning: CGFloat = 0) -> CGFloat {
         var attributes: [NSAttributedString.Key: Any] = [.font: font]

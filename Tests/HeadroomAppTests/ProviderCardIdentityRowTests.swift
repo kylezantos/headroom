@@ -6,7 +6,7 @@ import Testing
 /// PA12: a just-added account carried an untyped preset, so two never-signed-in rows in one
 /// card described the same state as two different problems with two different fixes. These
 /// pin the substitution — and pin that it is *only* the add-account preset that borrows.
-@Suite
+@Suite(.sharedAppState)
 struct PresentedSetupOutcomeTests {
     @Test func theAddAccountPresetBorrowsItsProvidersNeverSignedInOutcome() {
         let preset = FailureReason.notLoggedIn(UsageStore.finishSignInMessage)
@@ -66,7 +66,7 @@ struct PresentedSetupOutcomeTests {
 
 /// R13/KTD12 (2026-09-19 sign-in plan): the shared sign-in row's chips. The row is one view
 /// for Claude, Codex, Grok and Cursor, so a chip added for one provider appears on all four.
-@Suite
+@Suite(.sharedAppState)
 struct SetupRowChipTests {
     private let providers: [ProviderID] = [.claude, .codex, .grok, .cursor]
 
@@ -205,7 +205,7 @@ struct SetupRowChipTests {
 }
 
 /// KTD11/KTD12: the single-account Claude card's shell and the chips inside it.
-@Suite
+@Suite(.sharedAppState)
 struct ClaudeWaitingCardContentTests {
     /// KTD12: a returning user whose wait timed out must not be handed the first-run
     /// walkthrough. The compact shell keeps the timeout sentence instead.
@@ -359,7 +359,7 @@ struct ClaudeWaitingCardContentTests {
 }
 
 /// PA7 + PB11 on the identity row itself.
-@Suite
+@Suite(.sharedAppState)
 struct IdentityRowMetricsTests {
     /// PA7: C6A unified the six capsules' height but left 9.5 medium / 10 semibold / 10.5
     /// semibold / 11 semibold inside them. One label role, stated once, applied by
@@ -453,7 +453,7 @@ private let everySetupSessionState: [SetupSessionState] = [
     .providerCapability(.inconclusive(.shellTimeout)),
 ].map(SetupSessionState.failed)
 
-@Suite
+@Suite(.sharedAppState)
 struct IdentityRowHelpTests {
     private let banked = "2 banked resets — a full reset refreshes the 5-hour and weekly windows"
 
@@ -484,7 +484,7 @@ struct IdentityRowHelpTests {
 
 /// Default-login plan U8 (R7, R8, R16): a remembered row's popover presentation is keyed on
 /// its kind. An engine row, stale or with an unavailable window, draws exactly as before.
-@Suite
+@Suite(.sharedAppState)
 struct RememberedRowPresentationTests {
     private let now = Date(timeIntervalSince1970: 2_000_000_000)
     private let utc = TimeZone(identifier: "UTC")!
@@ -677,7 +677,7 @@ struct RememberedRowPresentationTests {
 
 /// RI1: meter rows are keyed by window kind, so a row keeps its identity when a window above
 /// it appears or leaves — the regression was "Weekly 40%" rolling into "5-hour 12%".
-@Suite
+@Suite(.sharedAppState)
 struct UsageBarsStackRowKeyTests {
     private func window(_ kind: WindowKind) -> UsageWindow {
         UsageWindow(kind: kind, utilization: 40, resetsAt: Date(timeIntervalSince1970: 20))
@@ -707,7 +707,7 @@ struct UsageBarsStackRowKeyTests {
 /// V13b/V6′ (2026-10-03): an account row's sentence is its primary action. These pin the two
 /// decisions the row makes on its own — which words it marks as the action, and which glyph
 /// (and ↗) an action gets from where it routes.
-@Suite
+@Suite(.sharedAppState)
 @MainActor
 struct CardRowActionTests {
     private func accentedRange(_ message: String, verb: String) -> String? {
@@ -763,7 +763,7 @@ struct CardRowActionTests {
 
 /// U3: the spend row's VoiceOver phrase moved to the shared row with its layout; it still
 /// reads the figure then its direction, and the state only when the row is not live.
-@Suite
+@Suite(.sharedAppState)
 struct APISpendRowAccessibilityTests {
     private func snapshot(_ freshness: Freshness, kind: APISpendKind = .periodSpend) -> APISpendSnapshot {
         APISpendSnapshot(

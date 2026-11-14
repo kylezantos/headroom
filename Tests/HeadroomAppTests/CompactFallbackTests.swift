@@ -8,7 +8,7 @@ import HeadroomCore
 /// The pure overload is exercised with inputs from the same helpers the card uses, so no
 /// shared `SetupSessions` coordinator state is created or left behind.
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct CompactFallbackTests {
     private let account = ProviderAccount(
         id: AccountID("compact-fallback-\(UUID().uuidString)"),

@@ -10,7 +10,7 @@ import Testing
 /// heights change (R6), and splits a provider card so that only the first piece carries a
 /// capability header (R9, KTD6).
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct PopoverColumnsSizingTests {
     // MARK: Plan model
 

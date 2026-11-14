@@ -40,6 +40,17 @@ for (const [device, w, h] of [["iphone", 1320, 2868], ["ipad", 2064, 2752]]) {
   for (let n = 1; n <= 6; n++) {
     await page.goto("file://$COMPOSE?device=" + device + "&frame=" + n);
     await page.waitForFunction(() => document.body.dataset.ready === "1");
+    const fontProblem = await page.evaluate(async () => {
+      for (const [weight, name] of [[400, "Regular"], [500, "Medium"]]) {
+        try {
+          const faces = await document.fonts.load(weight + ' 16px "TX-02"');
+          if (faces.length > 0 && faces.every(face => face.status === "loaded")) continue;
+        } catch {}
+        return "TX-02 " + name + " is not installed. Install your licensed local font before exporting.";
+      }
+      return null;
+    });
+    if (fontProblem) throw new Error(fontProblem);
     await new Promise(r => setTimeout(r, 600));
     const broken = await page.evaluate(() => [...document.images].filter(i => !i.complete || i.naturalWidth === 0).length);
     if (broken) throw new Error(device + " frame " + n + ": " + broken + " image(s) failed to load");

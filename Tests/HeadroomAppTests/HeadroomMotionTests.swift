@@ -6,7 +6,7 @@ import Testing
 /// contract so a future call site can't quietly gate a cross-fade into nothing, and S1A's
 /// single curve family so the retired `easeOut` can't drift back in.
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct HeadroomMotionTests {
     @Test func crossfadeKeepsItsAnimationWhateverReduceMotionSays() {
         #expect(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: true)

@@ -215,7 +215,7 @@ struct PlanStatusActionRow: View {
 }
 
 extension PlanStatusActionRow {
-    /// D2 (OpenCode plan, `design/opencode-provider-decisions.html`): the approved row reads
+    /// D2 (OpenCode plan): the approved row reads
     /// "No Go plan on this workspace. See Go Plans". `CardRowAction` accents an action it finds
     /// in the sentence and otherwise hides the label in the tooltip, which left a row that
     /// never said what the click does. The label joins the sentence here so it is visible.

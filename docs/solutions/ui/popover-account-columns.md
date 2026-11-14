@@ -24,7 +24,7 @@ tags: [swiftui, menubarextra, window-sizing, layout, measurement, popover, colum
 
 ## Context
 
-The popover account layout plan (`docs/plans/2026-10-10-0836-feat-popover-account-layout-plan.md`)
+The popover account layout plan
 lets the popover add a second column (384pt → 750pt) once one column of provider cards would pass
 the 640pt cap. The column count must not change while the popover is open because data loaded
 (R6). A throwaway spike (U1, 2026-10-11) drove the real `MenuBarExtra` window with an env-gated

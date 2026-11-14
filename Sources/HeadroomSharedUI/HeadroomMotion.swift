@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The house motion vocabulary. Every animation in the app target reaches for one of these;
 /// no view declares its own curve, duration, or spring. Decision anchors (`S1A`, `S2A`,
-/// `S3A`, `M1A`, `M7A`, `SM1`–`SM3`) live in `docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md`.
+/// `S3A`, `M1A`, `M7A`, `SM1`–`SM3`) come from the subtle motion system plan.
 public enum HeadroomMotion {
     // MARK: Curves — one family (S1A). The stock `easeOut` press curve was retired because
     // built-in curves are too weak to read at 100–200ms.

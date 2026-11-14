@@ -5,7 +5,7 @@ import Foundation
 /// WidgetKit ships a `WidgetFamily` of its own, so any view file that imports both this
 /// module and WidgetKit must disambiguate — use `HeadroomWidgetFamily` (the alias below) or
 /// spell it `HeadroomCore.WidgetFamily`. The unqualified name stays because the layout
-/// contract in `docs/plans/2026-09-11-001-feat-widget-craft-plan.md` is written against it.
+/// contract of the widget craft plan is written against it.
 public enum WidgetFamily: Sendable, Equatable, CaseIterable {
     case small
     case medium

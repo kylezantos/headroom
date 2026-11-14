@@ -3,7 +3,7 @@ import SwiftUI
 /// Card elevation via the ring-glow technique (Jakub Krehel, "Details that make
 /// interfaces feel better") — elevation is *drawn*, never bordered. A faint uniform ring
 /// replaces the border, a top-rim highlight catches the light in dark mode, and soft
-/// ambient shadows ground the tile. Ports the approved `design/ios-companion.html`
+/// ambient shadows ground the tile. Ports the approved iOS companion mock's
 /// `--tile-shadow` recipe faithfully:
 ///   dark:  0 0 0 1px rgba(255,255,255,.065), inset 0 1px 0 rgba(255,255,255,.07),
 ///          0 1px 2px rgba(0,0,0,.28), 0 10px 26px -14px rgba(0,0,0,.45)

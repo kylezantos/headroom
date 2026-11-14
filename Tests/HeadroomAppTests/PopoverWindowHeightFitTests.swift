@@ -10,7 +10,7 @@ import Testing
 /// gives up the difference. OS-independent: the window here is sized by hand, the way a
 /// `MenuBarExtra` window that grew late or too little would be.
 @MainActor
-@Suite(.serialized)
+@Suite(.sharedAppState, .serialized)
 struct PopoverWindowHeightFitTests {
     // MARK: Hosted popover in a short window
 

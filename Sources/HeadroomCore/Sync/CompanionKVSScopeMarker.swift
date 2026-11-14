@@ -8,7 +8,7 @@ import Foundation
 // documents that an Apple-account change replaces that store, so a different account shows a
 // different marker or none. It syncs, but carries no identity: it says which store a cache came
 // from, never who the person is. It is unverified on device until the "Marker candidate" check
-// in docs/qa/2026-10-04-companion-identity-candidate-gate.md passes, so `CompanionLoaderAdoption`
+// of the companion identity gate passes, so `CompanionLoaderAdoption`
 // stays off.
 
 /// The reader side of the KVS scope marker: every loader (app, widget, Siri, Control) compares

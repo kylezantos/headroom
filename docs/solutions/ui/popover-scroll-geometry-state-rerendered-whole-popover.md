@@ -263,9 +263,7 @@ capsule's opacity are not re-evaluated on every frame.
 - `docs/solutions/ui/popover-feather-animation-scope-grew-card-list.md`: FA1, from the same
   commit. Its open-time grow wrote scroll geometry on every frame, which is how SC1 also hit the
   open.
-- #110: L2A, the bespoke indicator that started the per-frame write
-  (`docs/plans/2026-09-04-001-feat-loom-refinements-plan.md`).
-- `docs/plans/2026-09-09-001-feat-craft-round2-plan.md`: R2C23, the feather.
+- #110: L2A, the bespoke indicator that started the per-frame write.
 - `docs/solutions/popover-scrollview-zero-height.md`: why `cardsHeight` is measured and stays on
   the root.
 - `docs/solutions/ui/menubarextra-window-closures-run-in-app-body.md` — same audit (#157): `MenuBarExtra`'s label closure (and `Window`'s content closure) are evaluated

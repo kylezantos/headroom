@@ -643,7 +643,9 @@ struct HeadroomApp: App {
     init() {
         PopoverTuningModel.startAgent()
         let preferences = AppComposition.launchPreferences
-        let demoController = DemoFixture.isEnabled
+        // Hosted tests supply their own setup boundaries. A launch-time demo controller
+        // would install inert cleanup over tests that stage real handoff fixture scripts.
+        let demoController = DemoFixture.isEnabled && !AppComposition.usesNoOpWidgetExporter()
             ? LoadingDemoController(loading: DemoFixture.scenarioRequest() == .multiAccount(.loading)) : nil
         let store = AppComposition.store(preferences: preferences, demoController: demoController)
         demoController?.configure(store: store)

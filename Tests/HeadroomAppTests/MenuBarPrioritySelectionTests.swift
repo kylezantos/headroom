@@ -5,6 +5,7 @@ import HeadroomCore
 
 /// The Menu Bar pane used to name a provider whose subscription switch is off as the live
 /// priority, while `UsageStore.menuBarMeters` had already dropped it and gone neutral.
+@Suite(.sharedAppState)
 struct MenuBarPrioritySelectionTests {
     private let names: (ProviderID) -> String = { $0.raw.capitalized }
 

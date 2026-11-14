@@ -110,5 +110,3 @@ and gives freshly inserted views their final geometry.
 - PR #139 (the shelf and this fix); PR #137 (the per-limit data model it builds on).
 - `docs/solutions/popover-scrollview-zero-height.md` — the other SwiftUI-in-AppKit layout trap in
   this app (scroll views with no useful ideal height).
-- `docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md` — the SM1–SM3 motion vocabulary
-  the drag springs come from.

@@ -1,0 +1,61 @@
+name: CI
+
+# Runs on pushes to main and on pull requests, including ones from forks. It uses
+# `pull_request` (never `pull_request_target`), so fork code runs without repository secrets,
+# and it needs none: everything builds with signing turned off.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift-package:
+    name: swift build + swift test
+    # GitHub's Xcode 27 image (Apple silicon, macOS 27). The macos-26 and macos-latest labels
+    # still carry Xcode 26, which can't build this project.
+    runs-on: xcode-27
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - run: xcodebuild -version && swift --version
+      - run: swift build
+      - run: swift test
+
+  mac-app-tests:
+    name: Mac app tests
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unpack Sparkle
+        run: ./Scripts/build-app.sh --deps-only
+      - name: Cold-host handoff cleanup
+        run: |
+          xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests \
+            -destination 'platform=macOS' -derivedDataPath ./.xcode-derived \
+            -only-testing:HeadroomAppTests/ClaudeExecutableDiscoveryInteractionTests \
+            CODE_SIGNING_ALLOWED=NO test
+      - name: HeadroomAppTests
+        run: |
+          xcodebuild -project Headroom.xcodeproj -scheme HeadroomAppTests \
+            -destination 'platform=macOS' -derivedDataPath ./.xcode-derived \
+            CODE_SIGNING_ALLOWED=NO test
+
+  ios-build:
+    name: iPhone app and widgets build
+    runs-on: xcode-27
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: HeadroomIOS
+        run: |
+          xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS \
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath ./.ios-derived \
+            CODE_SIGNING_ALLOWED=NO build

@@ -6,7 +6,7 @@ import Foundation
 /// These were per-file literals in four view bodies, which is how the Mac medium tile and the
 /// iPhone medium tile ended up with different margins, different gutters and different
 /// label-to-bar gaps while claiming to be the same design. Every number here is a decision
-/// from `docs/plans/2026-09-11-001-feat-widget-craft-plan.md`; the views own only how they
+/// from the widget craft plan; the views own only how they
 /// are spent.
 public enum WidgetMetrics {
     // MARK: - Margins (WCF4)

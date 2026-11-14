@@ -7,6 +7,7 @@ import HeadroomCore
 /// U5: the UserNotifications adapter and its composition (KTD9–KTD12). Every test runs
 /// against injected bundle, environment, and center seams; none reaches the real center.
 @MainActor
+@Suite(.sharedAppState)
 struct NotificationClientTests {
     private let appBundle = NotificationBundleDescriptor(
         identifier: "co.zantos.headroom",

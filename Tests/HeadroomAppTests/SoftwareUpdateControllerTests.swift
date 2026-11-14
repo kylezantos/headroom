@@ -5,7 +5,7 @@ import Synchronization
 import Testing
 @testable import Headroom
 
-@Suite @MainActor
+@Suite(.sharedAppState) @MainActor
 struct SoftwareUpdateControllerTests {
     private func withPreferencesFixture(
         allowsAutomaticUpdates: Bool = true,

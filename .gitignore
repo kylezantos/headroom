@@ -17,5 +17,8 @@ DerivedData/
 /scratchpad
 /dist
 
+# Licensed fonts stay on the maintainer's machine, outside the source repository.
+/design/appstore/print/assets/brand/TX-02-*.woff2
+
 .claude/
 Headroom.app/

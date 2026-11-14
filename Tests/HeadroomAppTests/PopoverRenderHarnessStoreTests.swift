@@ -6,6 +6,7 @@ import HeadroomCore
 /// The multi-account capture once drew only Claude and Codex: Grok and Cursor surfaces default
 /// OFF and no spend providers were wired (BUGS.md, resolved Oct 2026).
 @MainActor
+@Suite(.sharedAppState)
 struct PopoverRenderHarnessStoreTests {
     /// OpenCode plan U9: the demo registry every parity test derives from is the app's own
     /// composition registry, so registering a provider without demo fixtures fails here.

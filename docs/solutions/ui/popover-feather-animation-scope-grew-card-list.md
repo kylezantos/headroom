@@ -45,7 +45,7 @@ until #157, every open that rebuilt the popover's content grew the list.
   bench's frame-by-frame probe read (samples, abbreviated) 25.7 → 109 → 197 → 244 → 279 → 296 → 307 → 316 → 318 → 319pt
   for one account, and 139 → 580 → 632 → 639 → 640pt over about 5 slow frames at 20 accounts.
 - The popover did not feel snappy at open (the user's report that started the audit), even though M9C (Sep 2026) had set "no entrance motion at
-  all, not even on the first open" (`docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md:28`).
+  all, not even on the first open" (subtle motion system plan).
 - Each grow frame changed the scroll geometry, wrote scroll `@State`, and re-ran the whole popover
   body: the bench counted 4–12 popover root passes after an open that should need none.
 - At 20 accounts the scroll indicator stayed lit longer after open. Each grow frame was a
@@ -215,8 +215,6 @@ outside the closure, so they take their final values at once.
   pins the scroll frame, which is the frame change this scope caught.
 - `docs/solutions/ui/swiftui-layout-owned-drag-position.md` — another case of SwiftUI animating
   everything in a transaction, not just the thing you meant.
-- `docs/plans/2026-09-04-002-feat-subtle-motion-system-plan.md` — M9C and S2A.
-- `docs/plans/2026-09-09-001-feat-craft-round2-plan.md` — R2C23, the feather.
 - `BUGS.md` › "Popover & Settings snappiness residuals (2026-10-03 perf audit)". Before its first layout the popover
   reports 124pt because `cardsHeight` starts at 0; the live check showed `MenuBarExtra` sizes the
   window after that layout (it first appears at its final height), so this does not reach the screen.

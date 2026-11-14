@@ -5,7 +5,7 @@ import HeadroomCore
 @testable import Headroom
 
 @MainActor
-@Suite
+@Suite(.sharedAppState)
 struct MiniPillTests {
     @Test func fallingDropStaysInsideTheVesselAtTheReadableFloor() throws {
         for frame in 0..<14 {

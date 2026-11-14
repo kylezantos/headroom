@@ -128,7 +128,7 @@ Mac 1.5 build that has the iCloud key-value entitlement, on the same Apple ID; r
     or Headroom isn't open." and keeps the last numbers. Five pulls within ten seconds start one
     Mac refresh. A second pull within a minute of a finished check reads "Checked a moment ago".
     In Explore Demo, a pull plays the sample receipt and writes nothing. Timing constants stay
-    provisional until `docs/qa/2026-10-check-now-latency-spike.md` is filled in; record the
+    provisional until the check-now latency spike has run; record the
     observed acknowledgement time.
 13. **Freshness.** Quit Headroom on the Mac. The app dims and says "No update from your Mac
     since <time>" once the Mac has been quiet past max(15 minutes, twice its interval); widgets
@@ -146,7 +146,7 @@ Mac 1.5 build that has the iCloud key-value entitlement, on the same Apple ID; r
 16. **Lock Screen and Control Center [U17].** Add each Lock Screen accessory family and the
     control. They follow the main account, show DEMO in demo, and dim (the small families and the
     control as the dimmed treatment plus the bare time). Repeat
-    `docs/qa/2026-10-03-widget-config-upgrade-spike.md` with the Lock Screen family over a
+    the widget configuration upgrade check with the Lock Screen family over a
     previously placed widget.
 17. **iPad.** On an iPad (or iPad simulator if no device is at hand; say which), cards fill the
     width in flowing columns: 13-inch portrait 2, landscape 3, 11-inch and mini portrait 1. Resize

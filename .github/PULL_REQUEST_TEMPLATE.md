@@ -11,7 +11,8 @@ write "Tiny docs fix" or "Maintainer change" here instead. -->
 ## Fix
 
 <!-- What changed and why this way. Say which providers it covers; if it can't cover every
-supported provider, say why. Stay within the accepted issue's scope. -->
+supported provider, say why. Stay within the accepted issue's scope.
+New providers: describe the read path and evidence using docs/adding-a-provider.md. -->
 
 ## Tests
 

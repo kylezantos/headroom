@@ -23,14 +23,20 @@ The maintainer's own fixes and releases can use internal tracking without a publ
 
 ## The one rule
 
-Headroom only ever reads what a provider's **official client** shows. It never signs in on its
-own, never reuses a CLI's stored tokens, and never calls a provider's private endpoints.
+New subscription providers must read a proven status surface through the provider's **official
+client**, which owns authentication and the request. Polling must not send a model prompt or
+consume allowance. Do not harvest subscription tokens, browser cookies or private dashboard APIs.
+
+Existing Codex and Grok transports have provider-specific boundaries documented in AGENTS.md;
+they are not permission to copy another vendor's credentials or add an unapproved HTTP fallback.
+Follow [Adding a provider](docs/adding-a-provider.md), document the read path and evidence in the
+issue/PR, and discuss a different authentication/data-access mechanism before implementing it.
 
 For Claude, that means usage comes only from running the official `claude` CLI's `/usage` panel.
 Anthropic's policy forbids third-party use of Claude subscription sign-ins and blocks it on the
 server, so pull requests that read the `Claude Code-credentials` Keychain item, call
 `api.anthropic.com/api/oauth/usage`, add a "Sign in with Claude" flow or imitate the CLI's
-User-Agent will be closed. The same boundary applies to every provider; each one's details are in
+User-Agent will be closed. Each provider's approved boundary is documented in
 [AGENTS.md](AGENTS.md).
 
 ## Requirements

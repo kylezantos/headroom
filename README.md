@@ -330,6 +330,7 @@ notarized DMG cut for the Mac download page.
 Outside code PRs need a GitHub contribution proposal labeled `accepted` by the maintainer first.
 Tiny documentation fixes can come directly. Start with [CONTRIBUTING.md](CONTRIBUTING.md);
 [AGENTS.md](AGENTS.md) explains the architecture and the rules every change follows.
+For a new provider, follow [Adding a provider](docs/adding-a-provider.md) before implementation.
 Send bug reports and feature requests to **support@zantos.co**; customer feedback is tracked
 privately. Report security problems as described in [SECURITY.md](SECURITY.md).
 

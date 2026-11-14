@@ -27,6 +27,17 @@ no in-repo definition.
   say so explicitly in the plan, PR, or reply, with the reason, rather than silently scoping
   the change to one provider. "Cheap for this provider" is never a reason to leave it out.
 
+## Adding a provider
+
+Before implementing any new provider, read [docs/adding-a-provider.md](docs/adding-a-provider.md).
+An accepted issue welcomes investigation and implementation within the existing patterns.
+Document the official read path and sanitized evidence in the issue/PR; discuss a different
+authentication/data-access mechanism or significant architecture change before implementing it.
+Reuse the existing provider/source, polling, account/setup, shared UI and phone-sync seams. Do
+not invent token reuse, private HTTP fallbacks, scraping, a second polling engine or a separate
+provider-specific UI.
+If an approved official-client source cannot provide trustworthy quota, stop and report the gap.
+
 ## ⚠️ Hard constraint — do NOT reintroduce Claude subscription-OAuth
 
 Claude usage is read by driving the **official `claude` CLI's `/usage` panel** in a

@@ -87,6 +87,9 @@ struct AccountsSettingsTile: View {
     @State private var removalOrigin: AccountKey?
     @State private var removalInProgress: AccountKey?
     @State private var hoveredLabel: AccountKey?
+    /// CA-S3: the row whose name is showing its rename field; at rest a name is a label
+    /// that truncates with an ellipsis.
+    @State private var editingLabel: AccountKey?
     /// CA-M3: rows whose removal succeeded, held in their slot while their vessel drains.
     @State private var drainingRows: [ProviderID: [SettingsAccountDrainingRow]] = [:]
     @FocusState private var focusedLabel: AccountKey?
@@ -195,10 +198,12 @@ struct AccountsSettingsTile: View {
         // Commit a pending rename when the field loses focus — Enter-only commit
         // silently discarded renames while still displaying the draft (code-review
         // finding).
-        .onChange(of: focusedLabel) { previous, _ in
+        .onChange(of: focusedLabel) { previous, current in
             if let previous, let row = displayRow(for: previous) {
                 commitLabel(for: row)
             }
+            // CA-S3: the field gives way to the truncating label once it loses focus.
+            if let previous, previous == editingLabel, current != previous { editingLabel = nil }
         }
         // R12: leaving Accounts — pane switch or window close — commits a typed rename
         // instead of discarding it. Focus loss already commits, but ⌘W tears the tile
@@ -209,6 +214,7 @@ struct AccountsSettingsTile: View {
             // without this the renamed row reopened wearing its editing chrome while its
             // siblings looked static.
             focusedLabel = nil
+            editingLabel = nil
         }
         // R12: `onDisappear` is not guaranteed on app termination, so ⌘Q with a focused,
         // uncommitted draft could still discard it. Same single commit path, one more trigger.
@@ -592,16 +598,52 @@ struct AccountsSettingsTile: View {
         let account = row.account
         let emailIsName = store.useEmailAsAccountName && email != nil
         VStack(alignment: .leading, spacing: 1) {
-            HStack(spacing: 6) {
+            // CA-S3 (SET-01): the tags follow the name at 6pt on its baseline, as the approved
+            // mock draws them, rather than at a fixed column 158pt in that left short names
+            // apart from their tag. At rest the name takes the row's free width and ends in a
+            // tail ellipsis; the tags never compress, so the name gives way first.
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
                 if emailIsName, let email {
                     Text(email)
                         .font(.system(size: 13))
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .padding(.horizontal, 6).padding(.vertical, 3)
-                        .frame(maxWidth: AccountRowMetrics.nameWidth, alignment: .leading)
                         .help(email)
                         .accessibilityLabel("\(email) account name")
+                } else if editingLabel != account.key && focusedLabel != account.key {
+                    // At rest: a label that truncates with an ellipsis, so a 40-character name
+                    // never clips mid-glyph. A click swaps in the rename field below.
+                    Button { beginRename(account.key) } label: {
+                        Text(account.label)
+                            .font(.system(size: 13))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(
+                                Color.primary.opacity(isEditingLabel ? 0.06 : 0),
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            )
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    // R2M10/S3A: the approach fill, opacity only, so it keeps its timing under
+                    // Reduce Motion.
+                    .animation(
+                        HeadroomMotion.resolved(
+                            isEditingLabel ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
+                            .crossfade,
+                            reduceMotion: reduceMotion
+                        ),
+                        value: isEditingLabel
+                    )
+                    .onHover { hovering in
+                        hoveredLabel = hovering ? account.key : (hoveredLabel == account.key ? nil : hoveredLabel)
+                    }
+                    .help("\(account.label)\nClick to rename this account")
+                    .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
+                    .accessibilityHint("Renames this account")
                 } else {
                     // Quiet at rest, but the affordance reveals on approach: a hover/focus fill
                     // marks the label as editable (impeccable audit P1 — a plain field that
@@ -630,7 +672,14 @@ struct AccountsSettingsTile: View {
                         .onHover { hovering in
                             hoveredLabel = hovering ? account.key : (hoveredLabel == account.key ? nil : hoveredLabel)
                         }
-                        .frame(maxWidth: AccountRowMetrics.nameWidth, alignment: .leading)
+                        // The rename field keeps its editing width; it scrolls a long name.
+                        .frame(width: AccountRowMetrics.nameWidth, alignment: .leading)
+                        .onAppear {
+                            Task { @MainActor in
+                                await Task.yield()
+                                if editingLabel == account.key { focusedLabel = account.key }
+                            }
+                        }
                         .help("Click to rename this account")
                         .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
                 }
@@ -990,6 +1039,8 @@ struct AccountsSettingsTile: View {
         accessibilityLabel: String? = nil
     ) -> some View {
         SettingsPillBadge(text: text)
+            // CA-S3: a tag never compresses; the name beside it truncates first.
+            .fixedSize()
             .help(helpText)
             .accessibilityLabel(accessibilityLabel ?? text)
     }
@@ -1150,6 +1201,12 @@ struct AccountsSettingsTile: View {
         )
     }
 
+    /// CA-S3: a click on a name at rest shows its rename field, which takes focus once it
+    /// is in the hierarchy.
+    private func beginRename(_ key: AccountKey) {
+        editingLabel = key
+    }
+
     private func requestReset(_ account: ProviderAccount) {
         removalOrigin = account.key
         resetCandidate = account
@@ -1195,6 +1252,7 @@ enum AccountRowMetrics {
     static let trailingMinWidth: CGFloat = 96
     /// The `•••` glyph's 22pt frame plus `HoverButtonStyle`'s 2pt each side.
     static let menuSlotWidth: CGFloat = 26
+    /// The rename field's width while editing. At rest a name takes the row's free width.
     static let nameWidth: CGFloat = 158
     /// 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-name axis.
     static let leadingInset: CGFloat = 16
@@ -1237,7 +1295,6 @@ struct SettingsAccountDrainingRowView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.horizontal, 6).padding(.vertical, 3)
-                    .frame(maxWidth: AccountRowMetrics.nameWidth, alignment: .leading)
                 if let detail = item.detail {
                     Text(detail)
                         .font(SettingsType.footnote)

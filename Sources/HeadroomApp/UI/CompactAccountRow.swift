@@ -136,9 +136,10 @@ struct CompactAccountRow: View {
             isMenuBarAccount: isMenuBarAccount,
             bankedHelp: PlanCapsulePresentation.helpLine(count: bankedResets)
         ).map { [$0] } ?? []
-        // U8 (R7): a remembered row names when it was last read where a stale row says
-        // "Stale"; it never says both.
+        // U8 (R7): a remembered row names when it was last read; a dimmed engine row, since
+        // CA-P3, says the same and then why (`rowStateHelp`, the Standard chip's tooltip).
         if let state = recipe.rowStateLabel { lines.append(state) }
+        if let help = recipe.rowStateHelp { lines.append(help) }
         if !recipe.tooltip.isEmpty { lines.append(recipe.tooltip) }
         return lines.joined(separator: "\n")
     }

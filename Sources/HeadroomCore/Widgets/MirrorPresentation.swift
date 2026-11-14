@@ -249,7 +249,8 @@ public struct CompanionSpendRowModel: Equatable, Sendable, Identifiable {
 
     public var id: String { snapshot.providerID.raw }
 
-    public init(_ summary: WidgetAPISpendSummary) {
+    /// `now` dates a retried figure's tag (CA-P3); nil leaves it "Not refreshed".
+    public init(_ summary: WidgetAPISpendSummary, now: Date? = nil) {
         let kind = summary.semanticKind
         let freshness: Freshness = switch summary.freshness {
         case .pending: .pending
@@ -264,7 +265,7 @@ public struct CompanionSpendRowModel: Equatable, Sendable, Identifiable {
             capturedAt: summary.capturedAt, freshness: freshness)
         status = APISpendPresentation.rowStatus(
             freshness: summary.freshness, attention: summary.attention, providerID: ProviderID(summary.id),
-            displayName: summary.displayName, kind: kind)
+            displayName: summary.displayName, kind: kind, readAt: now.map { (summary.capturedAt, $0) })
         let identity = APISpendPresentation.popoverIdentity(displayName: summary.displayName)
         let context = APISpendPresentation.contextLabel(kind: kind, periodLabel: summary.periodLabel)
         title = identity.title

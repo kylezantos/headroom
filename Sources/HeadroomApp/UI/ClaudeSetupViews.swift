@@ -110,7 +110,7 @@ enum ClaudeSetupSession {
             echo "Headroom needs Claude Code to trust this empty folder before it can read /usage."
             echo
             echo "When Claude asks, choose: Yes, I trust this folder"
-            echo "After approving, return to Headroom. It will retry automatically."
+            echo "After approving, return to Headroom. It checks again on its own."
             """
             : """
             echo "Adding another Claude account to Headroom."

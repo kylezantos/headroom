@@ -224,12 +224,16 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
                     switch format {
                     case .full:
                         VStack(alignment: .leading, spacing: 3) {
-                            fragmentCaption
+                            fragmentCaption(shrinksToFit: false)
                             fragmentGauge(format: .full)
                         }
                     case .micro:
+                        // CA-I8 fix pass: the chip's width is fixed and the caption takes what
+                        // is left, shrinking rather than overflowing. "Weekly" (21.8pt) + 4 + a
+                        // 38pt Segmented row is 63.8, wider than the 60pt fragment on the Mac
+                        // and than the phone's narrower one.
                         HStack(spacing: 4) {
-                            fragmentCaption
+                            fragmentCaption(shrinksToFit: true)
                             fragmentGauge(format: .micro)
                         }
                     }
@@ -244,12 +248,16 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 
-    private var fragmentCaption: some View {
-        Text("Weekly")
+    @ViewBuilder private func fragmentCaption(shrinksToFit: Bool) -> some View {
+        let caption = Text("Weekly")
             .font(.system(size: 6))
             .foregroundStyle(.secondary)
             .lineLimit(1)
-            .fixedSize()
+        if shrinksToFit {
+            caption.minimumScaleFactor(0.6).fixedSize(horizontal: false, vertical: true)
+        } else {
+            caption.fixedSize()
+        }
     }
 
     /// PA5: shape and fill ride the live selection (`MeterGauge` resolves Tube to Chip for

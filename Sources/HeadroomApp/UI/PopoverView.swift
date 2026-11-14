@@ -61,8 +61,8 @@ struct PopoverView: View {
     /// CA-P12 (POP-13): 17 semibold, down from 20 bold. The heaviest glyphs in the popover
     /// belonged to a word the user already knows, tying the title with the 18pt numerals; the
     /// figures lead now. The cap-centre maths below reads this font, so it follows.
-    private static let titleFont = NSFont.systemFont(ofSize: 17, weight: .semibold)
-    private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+    static let titleFont = NSFont.systemFont(ofSize: 17, weight: .semibold)
+    static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
     var body: some View {
         let _ = BenchCounters.hit("PopoverView")
@@ -384,9 +384,10 @@ struct PopoverView: View {
                 showsCodexSparkCounters: store.showCodexSparkCountersInApp,
                 menuBarSourceKeys: menuBarSourceKeys,
                 // CA-P14: Stop Waiting on a never-signed-in extra can remove the account it
-                // made. The card offers it only where `stopWaitingRemovesAccount` holds.
+                // made. The card offers it only where `UsageStore.stopWaitingRemovesAccount`
+                // holds; the removal is the one Settings runs.
                 onRemoveAccount: { account in
-                    Task { await store.removeAccount(account.key) }
+                    Task { await AccountsSettingsInteractions.stopWaitingAndRemove(account, from: store) }
                 }
             )
             .id(meterRecipeKey)
@@ -660,13 +661,13 @@ struct PopoverView: View {
         OpticalCentering.capHeightCenter(of: font)
     }
 
-    /// Measured residual on a live 2× capture: with the pure cap-centre difference the 11pt
-    /// stamp's cap centre still sat 0.75pt below the title's (the raised baseline snaps to
-    /// the pixel grid). Re-measure if either font changes.
-    private static let statusBaselineResidual: CGFloat = 0.75
-
-    private static func baselineOffsetMatchingTitle(for font: NSFont) -> CGFloat {
-        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font) + statusBaselineResidual
+    /// How far the status's baseline rises so its cap centre meets the title's, from the two
+    /// fonts' cap heights alone. CA-P12 fix pass: the 0.75pt residual measured for the old
+    /// 20pt bold title is gone; with the 17pt semibold title it lifted the status 1pt above the
+    /// title's cap centre, and the pure difference lands them on one 2× pixel row
+    /// (`PopoverHeaderAlignmentTests`).
+    static func baselineOffsetMatchingTitle(for font: NSFont) -> CGFloat {
+        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font)
     }
 
     private func headerStatusTransition(_ status: PopoverHeaderStatus) -> ContentTransition {

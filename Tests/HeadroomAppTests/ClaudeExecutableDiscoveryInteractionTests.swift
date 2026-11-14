@@ -215,7 +215,7 @@ import HeadroomCore
         #expect(SetupSessions.recoveryRoute(for: recovery!.secondaryAction!) == .checkNow)
         #expect(actions.primaryAccessibilityLabel == "Install Claude Code for Personal")
         #expect(actions.secondaryAccessibilityLabel == "Check Now for Personal")
-        #expect(actions.usesSecondLine)
+        #expect(actions.hasSecondaryAction)
     }
 
     /// AE7: incomplete discovery keeps Check Now + Open Guided Setup and never shows

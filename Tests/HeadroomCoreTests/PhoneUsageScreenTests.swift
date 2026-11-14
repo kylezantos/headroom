@@ -158,7 +158,7 @@ struct PhoneUsageScreenTests {
     // MARK: Spend rows (P45–P53)
 
     @Test func spendRowsResolveThePopoverDecisions() throws {
-        let rows = try content(.multiAccount).apiSpend.map(CompanionSpendRowModel.init)
+        let rows = try content(.multiAccount).apiSpend.map { CompanionSpendRowModel($0) }
         #expect(rows.map(\.title) == ["Anthropic API", "OpenAI API"])
         #expect(rows.map(\.amount) == ["$142.67", "$58.90"])
         #expect(rows.allSatisfy { $0.snapshot.freshness == .live && $0.status.message == nil })
@@ -167,10 +167,10 @@ struct PhoneUsageScreenTests {
     }
 
     @Test func aRetainedSpendRowIsNotLiveAndCarriesItsStaleTag() throws {
-        let rows = try content(.staleSpend).apiSpend.map(CompanionSpendRowModel.init)
+        let rows = try content(.staleSpend).apiSpend.map { CompanionSpendRowModel($0) }
         #expect(rows.count == 2)
         #expect(rows.allSatisfy { $0.snapshot.freshness != .live && $0.snapshot.freshness != .pending })
-        #expect(rows.allSatisfy { $0.status.shortBadge == "Stale" })
+        #expect(rows.allSatisfy { $0.status.shortBadge == Countdown.notRefreshedLabel })
         #expect(rows.allSatisfy { $0.amount != nil }, "a retained figure stays visible")
     }
 

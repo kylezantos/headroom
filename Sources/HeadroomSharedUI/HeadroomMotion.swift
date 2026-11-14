@@ -159,11 +159,6 @@ public enum HeadroomMotion {
     /// never lags the data. Critically damped for the same reason (M1A).
     public static let arrivalSpring = Animation.spring(response: 0.4, dampingFraction: 1.0)
 
-    /// CA-M6 (MOT-06): how many accounts, in display order, stage the first-open draw-in.
-    /// Rows past the cap sit below the popover's fold when it plays, so they paint final and
-    /// write no arrival state. The phone's card-entrance cap is the second site.
-    public static let arrivalAccountCap = 8
-
     // MARK: Window handoff (SW1)
 
     /// SW1 (Kyle, 2026-09-25: opening and closing Settings "feels clunky"). AppKit shows a

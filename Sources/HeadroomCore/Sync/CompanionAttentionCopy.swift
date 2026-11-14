@@ -74,8 +74,9 @@ public enum CompanionAttentionCopy {
         case .signInFileUnreadable: "Sign-in data is unreadable on your Mac"
         case .signInStorageMismatch: "Review where sign-in data is stored on your Mac"
         case .externalToolsApproval: "Review the CLI’s external tools on your Mac"
-        case .retrying: "Couldn’t read usage\u{00A0}—\u{00A0}your Mac will retry"
-        case .cliDiscoveryRetrying: "Couldn’t confirm the official CLI on your Mac\u{00A0}—\u{00A0}will retry"
+        // CA-P9: two sentences, no em dash, like the Mac's retry lines.
+        case .retrying: "Couldn’t read usage. Your Mac will try again."
+        case .cliDiscoveryRetrying: "Your Mac couldn’t find the official CLI. It will try again."
         case .setupScreenUnknown: "Review the official CLI’s setup screen on your Mac"
         case .neverOnboarded: "Sign in to this account on your Mac"
         case .accessDenied: "Review this account’s access on your Mac"
@@ -103,7 +104,7 @@ public enum CompanionAttentionCopy {
         case .missingKey, .setupRequired: "Set up API spend on your Mac"
         case .keyRejected: "Replace the rejected key on your Mac"
         case .keyLacksAccess: "Review the API key’s access on your Mac"
-        case .retryable: "Couldn’t read the amount\u{00A0}—\u{00A0}your Mac will retry"
+        case .retryable: "Couldn’t read the amount. Your Mac will try again."
         case .unknown, nil: generic
         }
     }

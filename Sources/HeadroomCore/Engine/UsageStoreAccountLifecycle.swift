@@ -6,6 +6,25 @@ extension UsageStore {
     /// waiting out a full (possibly 20–30s) probe of an account that isn't signed in yet.
     public nonisolated static let finishSignInMessage = "Finish sign-in to add this account"
 
+    /// CA-P14 (UX-02): whether Stop Waiting on this row offers to remove the account, the one
+    /// rule the popover and Settings both read. Only an added account that has never finished
+    /// a sign-in: the row an abandoned Add Account leaves behind, with no reading, no email and
+    /// a never-signed-in state (the add-account preset included). The built-in row, a
+    /// remembered row and any account that has read before keep today's dialog. A `.pending`
+    /// snapshot is no evidence either way (a restored extra is pending until its first probe),
+    /// so it keeps today's dialog too.
+    public nonisolated static func stopWaitingRemovesAccount(
+        _ account: ProviderAccount,
+        isRemembered: Bool,
+        snapshot: UsageSnapshot
+    ) -> Bool {
+        !account.isBuiltIn
+            && !isRemembered
+            && snapshot.windows.isEmpty
+            && (snapshot.accountEmail ?? "").isEmpty
+            && LaneSchedule.isNeverSignedIn(snapshot.freshness)
+    }
+
     /// The engine list (default-login plan KTD8): the registry accounts with a provider
     /// instance, selected primary first. Merge acceptance, scheduling, setup and the
     /// promote write read membership from it. What a surface lists is `displayAccounts(for:)`.

@@ -57,13 +57,19 @@ struct CopyFeedbackButton: View {
         .accessibilityLabel(copied ? confirmationLabel : label)
     }
 
+    /// CA-M7 (MOT-07): an icon swap recedes deep, to half size behind a 2pt blur, not the
+    /// 0.97 / 1.5pt reveal used for settling rows. One call site, so these stay local
+    /// (DESIGN.md rule 2).
+    private static let swapScale: CGFloat = 0.5
+    private static let swapBlur: CGFloat = 2
+
     /// CA-M7: scale and blur are movement on `valueSpring`, so Reduce Motion drops them and
     /// keeps today's 200ms crossfade (S2A).
     private func swapGlyph(_ systemName: String, shown: Bool) -> some View {
         let receded = !shown && !reduceMotion
         return Image(systemName: systemName)
-            .scaleEffect(receded ? HeadroomMotion.revealScale : 1)
-            .blur(radius: receded ? HeadroomMotion.revealBlur : 0)
+            .scaleEffect(receded ? Self.swapScale : 1)
+            .blur(radius: receded ? Self.swapBlur : 0)
             .animation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
                        value: copied)
             .opacity(shown ? 1 : 0)

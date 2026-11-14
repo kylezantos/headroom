@@ -7,11 +7,13 @@ import SwiftUI
 struct PhoneSpendCard: View {
     let summaries: [WidgetAPISpendSummary]
     let surfaceDimmed: Bool
+    /// CA-P3: the cards' shared clock, so a retried figure's tag says how old it is.
+    let now: Date
     /// KTD3: the host's one `@ScaledMetric` factor.
     let scale: CGFloat
 
     var body: some View {
-        let rows = summaries.map(CompanionSpendRowModel.init)
+        let rows = summaries.map { CompanionSpendRowModel($0, now: now) }
         // Measured once per pass so every row reserves the same column and the amounts share
         // one right edge with each other and with the percentages above (S5A, R2C8).
         let amountWidth = APISpendRowMetrics.amountColumnWidth(for: rows.compactMap(\.amount), scale: scale)

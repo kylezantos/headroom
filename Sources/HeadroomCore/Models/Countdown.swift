@@ -145,6 +145,19 @@ public enum Countdown {
 
     public static let notRefreshedLabel = "Not refreshed"
 
+    /// CA-P3: the same age in the countdown's compact units ("12m ago", "2h ago", "3d ago"),
+    /// for a tag that stands where a short period chip stands (the spend row's identity line,
+    /// X5), which cannot hold "Last read 12 min ago" beside its figure. Nil without a capture
+    /// time.
+    public static func compactReadAge(capturedAt: Date?, now: Date) -> String? {
+        guard let capturedAt else { return nil }
+        let minutes = max(1, Int(max(0, now.timeIntervalSince(capturedAt)) / 60))
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h ago" }
+        return "\(hours / 24)d ago"
+    }
+
     /// CA-P3: a stale window's state words in a meter's tooltip and Full's state label. It
     /// was "Last known 14 min ago", a third name for the chip's "Last read".
     public static func windowReadLabel(observedAt: Date?, now: Date) -> String {

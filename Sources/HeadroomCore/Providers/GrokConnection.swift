@@ -28,7 +28,7 @@ public enum GrokCLI {
     ) -> String {
         let accountExport = grokHome.map { "export GROK_HOME=\(shellQuoted($0))\n" } ?? "unset GROK_HOME\n"
         let accountNote = grokHome == nil ? "" : """
-        echo "Sign in with the Grok account you want to add — this login is kept separate"
+        echo "Sign in with the Grok account you want to add. This login is kept separate"
         echo "from your main Grok Build account."
         echo
         """

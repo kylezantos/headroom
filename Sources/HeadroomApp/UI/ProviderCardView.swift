@@ -125,7 +125,7 @@ func providerCardHasRetainedReading(entries: [ProviderAccountEntry]) -> Bool {
 }
 
 func setupHandoffRefusalMessage(for state: SetupSessionState) -> String? {
-    state == .blockedByOpenHandoff ? "Close setup, then retry" : nil
+    state == .blockedByOpenHandoff ? "Close setup, then try again" : nil
 }
 
 /// R13/KTD12: where a sign-in row's controls come from. Two failures own their action
@@ -1396,7 +1396,7 @@ struct ProviderCapabilityRecoveryView: View {
 
     /// S2B: the triangle is gone from both lines. A missing or unconfirmed CLI is an
     /// attention state, and so is a handoff standing in the way of the retry — the same
-    /// "Close setup, then retry" sentence an account row shows, so it takes the same ink.
+    /// "Close setup, then try again" sentence an account row shows, so it takes the same ink.
     /// Indented only at a card foot, where an identity row sets the 34pt axis above it.
     private var messages: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1573,8 +1573,10 @@ struct StopWaitingConfirmation: Equatable {
 
     var accessibilityLabel: String { "Stop waiting for \(act) for \(accountLabel)" }
 
-    /// Confirm stops the wait, then removes the account when the dialog offered to; Keep
-    /// Waiting changes nothing.
+    /// Confirm stops the wait, or, when the dialog offered removal, hands the account to
+    /// `remove`, which stops the wait itself before removing
+    /// (`AccountsSettingsInteractions.stopWaitingAndRemove`), so the wait is cancelled once.
+    /// Keep Waiting changes nothing.
     func perform(
         _ choice: Choice,
         for account: ProviderAccount,
@@ -1582,26 +1584,17 @@ struct StopWaitingConfirmation: Equatable {
         remove: ((ProviderAccount) -> Void)?
     ) {
         guard choice == .confirm else { return }
-        stop(account)
-        if removesAccount { remove?(account) }
+        if removesAccount, let remove {
+            remove(account)
+        } else {
+            stop(account)
+        }
     }
 }
 
-/// CA-P14: whether Stop Waiting on this row offers to remove the account. Only an extra that
-/// has never produced a reading: its snapshot is still pending, or stale on a never-signed-in
-/// outcome (the add-account preset included), with no retained windows. The built-in row and
-/// any account that has read before keep today's dialog.
+/// CA-P14: the popover's reading of the one Stop Waiting removal rule.
 func stopWaitingRemovesAccount(_ entry: ProviderAccountEntry) -> Bool {
-    guard !entry.account.isBuiltIn, !entry.isRemembered, entry.snapshot.windows.isEmpty else { return false }
-    switch entry.snapshot.freshness {
-    case .pending:
-        return true
-    case .stale(let reason):
-        return LaneSchedule.isNeverSignedIn(entry.snapshot.freshness)
-            || presentedSetupOutcome(for: reason, providerID: entry.account.providerID)?.isNeverSignedIn == true
-    case .live:
-        return false
-    }
+    UsageStore.stopWaitingRemovesAccount(entry.account, isRemembered: entry.isRemembered, snapshot: entry.snapshot)
 }
 
 /// P4C/B3 (Sep 2026): the one action row every card and account section ends with —
@@ -1686,6 +1679,9 @@ struct CardRowAction<Accessory: View>: View {
     /// sentence and label it shortens (`rowHelp`).
     var isOneLine = false
     var rowHelp: String? = nil
+    /// CA-P5: the words the sentence accents. The full label by default; a one-line row's
+    /// short label, so a verb-first sentence ("Approve Headroom’s folder") accents its verb.
+    var accentVerb: String? = nil
 
     init(
         message: String,
@@ -1726,6 +1722,7 @@ struct CardRowAction<Accessory: View>: View {
                   primary: primary, secondary: secondary, leadingInset: leadingInset,
                   trailingInset: trailingInset, accessory: accessory)
         appendedAction = presentation.appendsShortAction ? presentation.primaryShortLabel : nil
+        accentVerb = presentation.primaryShortLabel
         isOneLine = true
         rowHelp = presentation.rowHelp
     }
@@ -1746,11 +1743,13 @@ struct CardRowAction<Accessory: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
             Button(action: primary.perform) {
-                let text = Text(Self.rowText(message, verb: primary.label, appending: appendedAction, ink: actionInk))
+                let text = Text(Self.rowText(message, verb: accentVerb ?? primary.label, appending: appendedAction,
+                                             ink: actionInk, gluesPhrases: isOneLine))
                 if isOneLine {
-                    // CA-P5: one line wherever it fits, which is every sign-in row on every
-                    // provider at the 384pt column. A longer state wraps rather than
-                    // truncating, because an ellipsis would cut off the action it names.
+                    // CA-P5: one line at the 384pt column for every provider and state
+                    // (`RecoveryRowBudgetTests`). Anything wider wraps rather than truncating,
+                    // because an ellipsis would cut off the action it names, and wraps only at
+                    // the " · " (`rowText(gluesPhrases:)`).
                     ViewThatFits(in: .horizontal) {
                         text.fixedSize(horizontal: true, vertical: false)
                         text
@@ -1795,11 +1794,20 @@ struct CardRowAction<Accessory: View>: View {
     }
 
     /// CA-P5: the accented sentence, then " · " and the appended action in the action ink.
-    static func rowText(_ message: String, verb: String, appending action: String?, ink: Color) -> AttributedString {
-        var text = accented(message, verb: verb, ink: ink)
+    /// `gluesPhrases` joins each phrase's words with no-break spaces and keeps the "·" on the
+    /// sentence, so a row that does not fit breaks only before its action, never mid-phrase.
+    static func rowText(
+        _ message: String,
+        verb: String,
+        appending action: String?,
+        ink: Color,
+        gluesPhrases: Bool = false
+    ) -> AttributedString {
+        let glue: (String) -> String = { gluesPhrases ? $0.replacingOccurrences(of: " ", with: "\u{00A0}") : $0 }
+        var text = accented(glue(message), verb: glue(verb), ink: ink)
         guard let action else { return text }
-        text.append(AttributedString(CardRowMetrics.actionSeparator))
-        var suffix = AttributedString(action)
+        text.append(AttributedString(gluesPhrases ? "\u{00A0}· " : CardRowMetrics.actionSeparator))
+        var suffix = AttributedString(glue(action))
         suffix.swiftUI.foregroundColor = ink
         suffix.swiftUI.font = .system(size: CardRowMetrics.fontSize, weight: .semibold)
         text.append(suffix)

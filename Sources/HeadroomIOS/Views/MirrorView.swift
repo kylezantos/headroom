@@ -162,7 +162,8 @@ struct MirrorView: View {
                     .flowingColumnsCard(id: Self.columnsKey(provider))
             }
             if !content.apiSpend.isEmpty {
-                PhoneSpendCard(summaries: content.apiSpend, surfaceDimmed: context.surfaceDimmed, scale: scale)
+                PhoneSpendCard(summaries: content.apiSpend, surfaceDimmed: context.surfaceDimmed, now: context.now,
+                               scale: scale)
                     .phoneCardEntrance(isShown: cardsShown, cardIndex: content.providers.count)
                     .flowingColumnsCard(id: "spend")
             }

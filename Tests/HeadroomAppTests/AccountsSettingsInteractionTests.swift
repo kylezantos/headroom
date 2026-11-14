@@ -280,7 +280,7 @@ struct AccountsSettingsInteractionTests {
         #expect(message == SettingsCopy.opencodeBuiltInResetWarning)
         #expect(AccountsSettingsInteractions.resetDialogMessage(
             for: .builtIn(for: .codex), providerDisplayName: "Codex"
-        ).contains("switches the Codex CLI login"))
+        ).contains("switches the Codex default login"))
     }
 
     /// U12 (b): a Console login adds an OAuth credential and makes it active; a stored key is
@@ -698,7 +698,7 @@ struct AccountsSettingsInteractionTests {
         #expect(off.offHelpText == "Not fetched while this provider is off")
         #expect(off.offHelpText == SettingsCopy.providerOffNotice)
         #expect(SettingsCopy.providerOffAccessibilityLabel
-                == "Off — not fetched while this provider is off")
+                == "Off, not fetched while this provider is off")
         #expect(off.showsAccountCounter)
         #expect(off.showsAddAction)
         #expect(off.subscriptionSwitch.isEnabled)
@@ -1345,7 +1345,7 @@ struct AccountsSettingsInteractionTests {
     }
 
     private func makeFixture(
-        storage: InteractionStorage = InteractionStorage()
+        storage: any AccountStorageManaging = InteractionStorage()
     ) -> InteractionFixture {
         let suiteName = "co.zantos.headroom.app-interactions.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -1536,6 +1536,32 @@ private struct InteractionFixture {
 
     func cleanup() {
         UserDefaults(suiteName: suiteName)?.removePersistentDomain(forName: suiteName)
+    }
+}
+
+/// CA-P14: a storage whose open handoff is the real marker protocol on a temporary path:
+/// `openHandoff` stages a generation the way `SetupSessions` does before Terminal opens, and
+/// `cancelHandoff` writes the tombstone `SetupSessions.forceCancel`'s cleanup writes.
+private final class MarkerBackedHandoffStorage: AccountStorageManaging, @unchecked Sendable {
+    private let directory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("headroom-stop-waiting-\(UUID().uuidString)", isDirectory: true)
+    private var marker: SetupCompletionMarker {
+        SetupCompletionMarker(
+            pendingPath: directory.appendingPathComponent(".headroom-setup-pending").path,
+            completedPath: directory.appendingPathComponent(".headroom-setup-complete").path
+        )
+    }
+
+    func openHandoff() throws { try AccountStorage.prepareSetupCompletionMarker(marker) }
+    func cancelHandoff() { AccountStorage.clearSetupCompletionMarkers(marker) }
+    func cleanup() { try? FileManager.default.removeItem(at: directory) }
+
+    func ensureDirectories(for account: ProviderAccount) -> Result<Void, AccountStorageFailure> { .success(()) }
+    func setupHandoffIsActive(for account: ProviderAccount) async -> Bool {
+        AccountStorage.setupHandoffIsActive(marker: marker)
+    }
+    func removeDirectories(for account: ProviderAccount) async -> Result<Void, AccountStorageFailure> {
+        AccountStorage.setupHandoffIsActive(marker: marker) ? .failure(.setupActive) : .success(())
     }
 }
 
@@ -1822,8 +1848,8 @@ private final class GrokDeviceCodeSetupHarness {
             hasActiveSetupSession: true
         )
         #expect(active != nil)
-        #expect(active?.state(for: .checkNow) == .refused("Close setup, then retry"))
-        #expect(active?.state(for: .openClaudeSetup) == .refused("Close setup, then retry"))
+        #expect(active?.state(for: .checkNow) == .refused("Close setup, then try again"))
+        #expect(active?.state(for: .openClaudeSetup) == .refused("Close setup, then try again"))
         #expect(capabilityRecoveryPresentation(
             state: .available,
             hasActiveSetupSession: false
@@ -1837,7 +1863,7 @@ private final class GrokDeviceCodeSetupHarness {
         )
 
         #expect(active?.state(for: .installClaudeCLI) == .enabled)
-        #expect(active?.state(for: .checkNow) == .refused("Close setup, then retry"))
+        #expect(active?.state(for: .checkNow) == .refused("Close setup, then try again"))
     }
 }
 
@@ -1863,7 +1889,7 @@ private final class GrokDeviceCodeSetupHarness {
             removalState: nil
         )
 
-        #expect(setupHandoffRefusalMessage(for: setupState) == "Close setup, then retry")
+        #expect(setupHandoffRefusalMessage(for: setupState) == "Close setup, then try again")
         #expect(recoveryActions == nil)
         #expect(!status.needsRecovery)
         #expect(setupHandoffRefusalMessage(for: .verifying) == nil)
@@ -2887,15 +2913,15 @@ extension AccountsSettingsInteractionTests {
     @Test func onlyANeverSignedInExtraIsRemovedByStopWaiting() {
         let extra = ProviderAccount(id: AccountID("added"), providerID: .claude, label: "Account 2")
         let justAdded = UsageSnapshot.stale(for: .claude, reason: .notLoggedIn(UsageStore.finishSignInMessage))
-        #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(extra, snapshot: justAdded))
-        #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(
-            extra, snapshot: .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))))
-        #expect(!AccountsSettingsInteractions.stopWaitingRemovesAccount(.builtIn(for: .claude), snapshot: justAdded))
-        #expect(!AccountsSettingsInteractions.stopWaitingRemovesAccount(extra, snapshot: DemoFixture.claudeSnapshot))
+        #expect(UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: justAdded))
+        #expect(UsageStore.stopWaitingRemovesAccount(
+            extra, isRemembered: false, snapshot: .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))))
+        #expect(!UsageStore.stopWaitingRemovesAccount(.builtIn(for: .claude), isRemembered: false, snapshot: justAdded))
+        #expect(!UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: DemoFixture.claudeSnapshot))
         for provider in DemoFixture.registeredProviderOrder {
             let account = ProviderAccount(id: AccountID("added"), providerID: provider, label: "Account 2")
-            #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(
-                account, snapshot: .stale(for: provider, reason: .notLoggedIn(UsageStore.finishSignInMessage))),
+            #expect(UsageStore.stopWaitingRemovesAccount(
+                account, isRemembered: false, snapshot: .stale(for: provider, reason: .notLoggedIn(UsageStore.finishSignInMessage))),
                 "\(provider)")
         }
     }
@@ -2907,8 +2933,8 @@ extension AccountsSettingsInteractionTests {
         let account = try #require(AccountsSettingsInteractions.addAccount(
             for: .claude, to: fixture.store, openSetup: { _ in }
         ))
-        #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(
-            account, snapshot: fixture.store.snapshot(for: account.key)))
+        #expect(UsageStore.stopWaitingRemovesAccount(
+            account, isRemembered: false, snapshot: fixture.store.snapshot(for: account.key)))
 
         // Keep Waiting runs neither callback, so the account stays.
         #expect(fixture.store.accounts(for: .claude).contains(account))
@@ -2921,5 +2947,45 @@ extension AccountsSettingsInteractionTests {
         #expect(cancelled == [account.key])
         #expect(!fixture.store.accounts(for: .claude).contains(account))
         #expect(storage.removedKeys == [account.key])
+    }
+
+    /// CA-P14 end to end, on both surfaces: with a real, file-backed open handoff (the
+    /// marker protocol `DefaultAccountStorage` checks), the store refuses a bare removal, and
+    /// the dialog's Remove Account, which force-cancels first, removes the never-signed-in
+    /// extra. The popover reads the rule through its card entry, Settings through the row
+    /// snapshot; both confirm through `StopWaitingConfirmation` into `stopWaitingAndRemove`.
+    @Test func removeAccountAfterStopWaitingRemovesTheExtraFromThePopoverAndFromSettings() async throws {
+        for surface in ["popover", "settings"] {
+            let storage = MarkerBackedHandoffStorage()
+            defer { storage.cleanup() }
+            let fixture = makeFixture(storage: storage)
+            defer { fixture.cleanup() }
+            let account = try #require(AccountsSettingsInteractions.addAccount(
+                for: .claude, to: fixture.store, openSetup: { _ in }
+            ))
+            try storage.openHandoff()
+            #expect(await fixture.store.removeAccount(account.key) == .setupActive, "\(surface)")
+            #expect(fixture.store.accounts(for: .claude).contains(account), "\(surface)")
+
+            let snapshot = fixture.store.snapshot(for: account.key)
+            let offered = surface == "popover"
+                ? stopWaitingRemovesAccount(ProviderAccountEntry(account: account, snapshot: snapshot))
+                : UsageStore.stopWaitingRemovesAccount(account, isRemembered: false, snapshot: snapshot)
+            #expect(offered, "\(surface)")
+
+            let dialog = StopWaitingConfirmation(accountLabel: account.label, prompt: .signIn, removesAccount: offered)
+            var result: AccountRemovalResult?
+            var removal: Task<Void, Never>?
+            dialog.perform(.confirm, for: account, stop: { _ in Issue.record("stop without removal") }, remove: { removed in
+                removal = Task { @MainActor in
+                    result = await AccountsSettingsInteractions.stopWaitingAndRemove(
+                        removed, from: fixture.store, forceCancel: { _ in storage.cancelHandoff() }
+                    )
+                }
+            })
+            await removal?.value
+            #expect(result == .removed, "\(surface)")
+            #expect(!fixture.store.accounts(for: .claude).contains(account), "\(surface)")
+        }
     }
 }

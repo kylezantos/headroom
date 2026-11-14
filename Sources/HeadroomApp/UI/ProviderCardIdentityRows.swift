@@ -200,8 +200,11 @@ struct PlanStatusActionRow: View {
     let onRetry: () -> Void
 
     var body: some View {
+        // CA-P5 overturns D2's sentence-plus-label row ("No Go plan on this workspace. See Go
+        // Plans"), which wrapped at the 384pt column: the one-line recovery form,
+        // "No Go plan here · See Go Plans", with the full sentence in the tooltip.
         CardRowAction(
-            message: Self.message(for: presentation),
+            presentation: presentation,
             severity: .attention,
             accountLabel: account.label,
             primary: primaryAction,
@@ -217,33 +220,18 @@ struct PlanStatusActionRow: View {
 }
 
 extension PlanStatusActionRow {
-    /// D2 (OpenCode plan): the approved row reads
-    /// "No Go plan on this workspace. See Go Plans". `CardRowAction` accents an action it finds
-    /// in the sentence and otherwise hides the label in the tooltip, which left a row that
-    /// never said what the click does. The label joins the sentence here so it is visible.
-    static func message(for presentation: ProviderRecoveryPresentation) -> String {
-        let status = presentation.status
-        guard status.range(of: presentation.primaryLabel, options: [.caseInsensitive]) == nil else { return status }
-        let sentence = status.hasSuffix(".") ? status : status + "."
-        return "\(sentence) \(rowLabel(for: presentation))"
-    }
-
-    /// The action words never split across lines: at the popover's width the row wraps, and
-    /// "See" alone at the end of the first line read as part of the sentence.
-    static func rowLabel(for presentation: ProviderRecoveryPresentation) -> String {
-        presentation.primaryLabel.replacingOccurrences(of: " ", with: "\u{00A0}")
-    }
-
     /// KTD21: the no-Go row's tooltip says why another workspace's Go plan doesn't show.
     static func primaryHelp(for action: SetupRecoveryAction) -> String? {
         action == .seeOpenCodeGoPlans ? SettingsCopy.opencodeWorkspaceScope : nil
     }
 
     private var primaryAction: CardRowButtonAction {
-        var action = CardRowButtonAction(label: Self.rowLabel(for: presentation), recovery: presentation.primaryAction) {
+        var action = CardRowButtonAction(label: presentation.primaryLabel, recovery: presentation.primaryAction) {
             SetupSessions.performRecovery(presentation.primaryAction, for: account, onRetry: onRetry)
         }
-        action.help = Self.primaryHelp(for: presentation.primaryAction)
+        // CA-P5: the one-line row's tooltip carries the whole sentence it shortens, then
+        // KTD21's workspace note.
+        action.help = Self.primaryHelp(for: presentation.primaryAction).map { "\(presentation.rowHelp) \($0)" }
         return action
     }
 }

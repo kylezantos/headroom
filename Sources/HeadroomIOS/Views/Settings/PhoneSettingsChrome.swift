@@ -51,8 +51,11 @@ struct PhoneMeterStyleChrome: MeterStyleTileChrome {
             labelFont: PhoneSettingsStyle.swatchLabelFont,
             twoLineLabelHeight: PhoneSettingsStyle.twoLineLabelHeight,
             labelMinimumScaleFactor: 1,
-            // The Mac's fragment, whole: it is the subject of the swatch.
-            fragmentWidth: 60
+            // CA-I8 fix pass: the Mac's 3pt inset from the well (its 66pt well holds a 60pt
+            // fragment). At 60 here the fragment ran 1pt from the 62pt well's edge, so the
+            // selected 2pt ring cut "Weekly". The phone has no swatch padding: the well is
+            // the swatch.
+            fragmentWidth: PhoneSettingsStyle.swatchWidth - 2 * 3
         )
     }
 

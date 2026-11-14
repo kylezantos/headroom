@@ -84,11 +84,11 @@ struct HeadroomMotionTests {
         #expect(tuning.valueSpring == HeadroomMotion.valueSpring)
     }
 
-    /// CA-F1/CA-M3/CA-M6: the promoted values, pinned to the literals their call sites carry.
-    @Test func theRevealDrainAndArrivalTokensHoldTheirApprovedValues() {
+    /// CA-F1/CA-M3: the promoted values, pinned to the literals their call sites carry.
+    /// (CA-M6's `arrivalAccountCap` was removed: the bench showed no gain and nothing read it.)
+    @Test func theRevealAndDrainTokensHoldTheirApprovedValues() {
         #expect(HeadroomMotion.revealBlur == 1.5)
         #expect(HeadroomMotion.revealScale == 0.97)
-        #expect(HeadroomMotion.arrivalAccountCap == 8)
         #expect(HeadroomMotion.drain == Animation.linear(duration: LoadingMotionConstants.drainDuration))
     }
 

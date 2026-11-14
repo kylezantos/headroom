@@ -787,8 +787,8 @@ struct AccountsSettingsTile: View {
                     onDismiss: restoreRemovalFocus,
                     // CA-P14 (UX-02): an abandoned Add Account offers to remove the row it
                     // made. Built-in rows and extras that ever signed in keep today's dialog.
-                    onRemoveAccount: AccountsSettingsInteractions.stopWaitingRemovesAccount(
-                        stopWaitingAccount, snapshot: context.snapshot
+                    onRemoveAccount: UsageStore.stopWaitingRemovesAccount(
+                        stopWaitingAccount, isRemembered: row.isRemembered, snapshot: context.snapshot
                     ) ? { removeAfterStoppingWait(row, account: $0) } : nil
                 )
             }
@@ -813,7 +813,7 @@ struct AccountsSettingsTile: View {
         .foregroundStyle(.secondary)
         .opacity(0.68)
         .accessibilityLabel(
-            "Last known usage. " + snapshot.windows.prefix(2).map { window in
+            "Last reading: " + snapshot.windows.prefix(2).map { window in
                 store.usagePercentageMode.displayedPercentage(for: window).map {
                     "\(window.kind.spokenName) \($0) percent \(store.usagePercentageMode.term)"
                 } ?? "\(window.kind.spokenName) not available"

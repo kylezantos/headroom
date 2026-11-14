@@ -19,6 +19,7 @@ struct UIBenchOptions: Equatable {
         case unknownSection(String)
         case unknownScenario(String)
         case unknownAccountLayout(String)
+        case invalidMeterStyle(String)
         case unknownPane(String)
         case invalidRuns(String)
         case missingValue(flag: String)
@@ -35,6 +36,8 @@ struct UIBenchOptions: Equatable {
                 "Unknown scenario '\(token)'. Valid: \(Scenario.allCases.map(\.rawValue).joined(separator: ", "))."
             case .unknownAccountLayout(let token):
                 "Unknown account layout '\(token)'. Valid: \(AccountLayout.allCases.map(\.rawValue).joined(separator: ", "))."
+            case .invalidMeterStyle(let token):
+                "Invalid --meter-style '\(token)'. Expected <format>.<shape>.<fill>, for example full.segmented.event."
             case .unknownPane(let token):
                 "Unknown pane '\(token)'. Valid: \(SettingsPane.allCases.map(\.rawValue).joined(separator: ", "))."
             case .invalidRuns(let token):
@@ -52,13 +55,17 @@ struct UIBenchOptions: Equatable {
     static let usage = """
         usage: Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all>
                         [--scenario single|multi3|multi5|multi7|multi20] [--pane <settings pane>]
-                        [--account-layout standard|compact] [--runs n] [--json <path>] [--no-animated]
+                        [--account-layout standard|compact] [--meter-style <format>.<shape>.<fill>]
+                        [--runs n] [--json <path>] [--no-animated]
         """
 
     var section: Section
     var scenario: Scenario?
     /// The popover's account layout for every store the run builds. Nil seeds the default.
     var accountLayout: AccountLayout?
+    /// CA-M4: the popover meter style for every store the run builds, as `--render-popover`
+    /// takes it. Nil seeds the default (Micro · Chip), which never draws Segmented travel.
+    var meterStyle: MeterStyle?
     var pane: SettingsPane?
     var runs: Int?
     var jsonPath: String?
@@ -90,6 +97,10 @@ struct UIBenchOptions: Equatable {
                 let token = try value(after: flag)
                 guard let layout = AccountLayout(rawValue: token) else { throw ParseError.unknownAccountLayout(token) }
                 options.accountLayout = layout
+            case "--meter-style":
+                let token = try value(after: flag)
+                guard let style = MeterStyle(launchToken: token) else { throw ParseError.invalidMeterStyle(token) }
+                options.meterStyle = style
             case "--pane":
                 let token = try value(after: flag)
                 guard let pane = SettingsPane(rawValue: token) else { throw ParseError.unknownPane(token) }

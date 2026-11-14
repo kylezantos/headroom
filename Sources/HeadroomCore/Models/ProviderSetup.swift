@@ -320,9 +320,8 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
 
     /// CA-P5: the one-line recovery row's sentence, short enough that the row's appended
     /// action fits beside it ("Claude Code not found · Install"). `message` stays the full
-    /// sentence for Settings and the row's tooltip. Nil keeps `message` (it is already short,
-    /// or already names its action).
-    var shortMessage: String? {
+    /// sentence for Settings and the row's tooltip.
+    var shortMessage: String {
         switch self {
         case .claudeLoginRequired: ProviderSignInCopy.shortStatus(for: .claude)
         case .codexAuthAbsent: ProviderSignInCopy.shortStatus(for: .codex)
@@ -330,37 +329,48 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .cursorAuthAbsent: ProviderSignInCopy.shortStatus(for: .cursor)
         case .copilotSignedOut: ProviderSignInCopy.shortStatus(for: .copilot)
         case .opencodeSignedOut: ProviderSignInCopy.shortStatus(for: .opencode)
-        case .codexRejectedAuth: ProviderSignInCopy.shortStatus(for: .codex, again: true)
-        case .grokRejectedAuth: ProviderSignInCopy.shortStatus(for: .grok, again: true)
+        // CA-P5: an unreadable or exposed sign-in file has the rejected sign-in's fix, and its
+        // cause ("…is unreadable · Sign In Again") wrapped at the 384pt column. The cause
+        // stays in the tooltip (`rowHelp`).
+        case .codexRejectedAuth, .codexMalformedAuth, .codexUnsafePermissions:
+            ProviderSignInCopy.shortStatus(for: .codex, again: true)
+        case .grokRejectedAuth, .grokMalformedAuth, .grokUnsafePermissions:
+            ProviderSignInCopy.shortStatus(for: .grok, again: true)
         case .opencodeSignInExpired: ProviderSignInCopy.shortStatus(for: .opencode, again: true)
         case .claudeCLIMissing: ProviderSignInCopy.cliMissingShort(for: .claude)
+        // CA-P5: a verb-first sentence already names its act, so nothing is appended
+        // ("Approve" opens Terminal, where the CLI asks about the folder).
         case .claudeTrustRequired, .cursorTrustRequired: "Approve Headroom’s folder"
-        case .claudeUnknownUI: "Claude showed an unknown screen"
-        case .claudeStartupQuestion: "Claude Code has a question"
-        case .claudeTransientCapture: "Couldn’t read Claude usage"
+        // CA-P5: the card already names Claude or Cursor; "Claude showed an unknown screen ·
+        // Check Now" wrapped. The tooltip keeps the product and the cause.
+        case .claudeUnknownUI, .cursorUnknownUI: "Unrecognized screen"
+        case .claudeStartupQuestion: "Answer Claude Code’s question"
+        // CA-P5: one transient family, "Couldn’t read <provider>"; the word "usage" was what
+        // pushed these onto a second line.
+        case .claudeTransientCapture: "Couldn’t read Claude"
         case .codexCLIMissing: ProviderSignInCopy.cliMissingShort(for: .codex)
-        case .codexPermissionDenied: "Codex sign-in is blocked"
-        case .codexUnsafePermissions: "Codex sign-in isn’t private"
-        case .codexMalformedAuth: "Codex sign-in is unreadable"
+        case .codexPermissionDenied: "Codex sign-in blocked"
         case .codexCredentialIO: "Can’t read Codex sign-in"
-        case .codexSessionUnverified: "Can’t verify Codex session"
-        case .codexStorageMismatch: "Codex login saved elsewhere"
+        case .codexSessionUnverified: "Can’t verify Codex"
+        case .codexStorageMismatch: "Codex login is elsewhere"
+        case .codexCallbackIncomplete: "Reopen Codex sign-in"
         case .grokCLIMissing: ProviderSignInCopy.cliMissingShort(for: .grok)
-        case .grokPermissionDenied: "Grok sign-in is blocked"
-        case .grokUnsafePermissions: "Grok sign-in isn’t private"
-        case .grokMalformedAuth: "Grok sign-in is unreadable"
+        case .grokPermissionDenied: "Grok sign-in blocked"
         case .grokCredentialIO: "Can’t read Grok sign-in"
-        case .grokTransientCapture: "Couldn’t read Grok usage"
+        case .grokTransientCapture: "Couldn’t read Grok"
         case .cursorCLIMissing: ProviderSignInCopy.cliMissingShort(for: .cursor)
-        case .cursorUnknownUI: "Cursor showed an unknown screen"
-        case .cursorTransientCapture: "Couldn’t read Cursor usage"
+        case .cursorMCPApprovalRequired: "Review Cursor Agent’s tools"
+        case .cursorTransientCapture: "Couldn’t read Cursor"
         case .copilotCLIMissing: ProviderSignInCopy.cliMissingShort(for: .copilot)
         case .copilotLogsUnreadable: "Couldn’t read Copilot logs"
         case .opencodeCLIMissing: ProviderSignInCopy.cliMissingShort(for: .opencode)
-        case .opencodeUpdateRequired: "Go usage needs OpenCode 2.2"
-        case .opencodeFormatChanged: "Can’t read OpenCode usage"
-        case .opencodeTransientCapture: "Couldn’t read OpenCode usage"
-        default: nil
+        case .opencodeUpdateRequired: "Needs OpenCode 2.2"
+        case .opencodeConsoleSignInRequired: "Sign in to OpenCode Console"
+        // "Can’t" (it stays broken until Headroom updates) against the transient "Couldn’t".
+        case .opencodeFormatChanged: "Can’t read OpenCode"
+        case .opencodeTransientCapture: "Couldn’t read OpenCode"
+        // CA-P5: no default. Every outcome now has a one-line form, so a new outcome has to
+        // choose one (and `RecoveryRowBudgetTests` measures it).
         }
     }
 
@@ -580,9 +590,12 @@ public extension UsageSnapshot.PlanStatus {
     func recoveryPresentation(for providerID: ProviderID) -> ProviderRecoveryPresentation? {
         switch (self, providerID) {
         case (.noActivePlan, .opencode):
+            // CA-P5: "No Go plan on this workspace · See Go Plans" wrapped; the card is the
+            // workspace's own, and the tooltip keeps the full sentence.
             .init(status: "No Go plan on this workspace", primaryLabel: "See Go Plans",
                   primaryAction: .seeOpenCodeGoPlans,
-                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  shortStatus: "No Go plan here")
         default:
             nil
         }
@@ -638,7 +651,12 @@ public struct ProviderRecoveryPresentation: Sendable, Equatable {
              .installCopilotCLI, .installOpenCodeCLI:
             "Install"
         case .showPrivacyGuidance: "Get Help"
-        case .openClaudeWorkspace, .openCursorWorkspace: "Open Terminal"
+        // CA-P5: the act the Terminal launch is for; "Approve Headroom’s folder · Open
+        // Terminal" wrapped, and the row's Terminal glyph already says where it opens.
+        case .openClaudeWorkspace, .openCursorWorkspace: "Approve"
+        // CA-P5: opens the pre-filled support email; "Contact Support" pushed the row onto two
+        // lines.
+        case .contactSupport: "Report"
         case .answerClaudeQuestion: "Answer"
         case .resolveCodexStorage: "Resolve"
         case .reviewCursorTools: "Review"

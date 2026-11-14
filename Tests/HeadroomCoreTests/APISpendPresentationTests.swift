@@ -126,7 +126,7 @@ struct APISpendPresentationTests {
         ) == "Needs setup")
         #expect(APISpendPresentation.companionStatusText(
             freshness: .stale(message: "Temporary issue", needsAttention: false)
-        ) == "Stale")
+        ) == "Not refreshed")
     }
 
     // MARK: - Row status
@@ -336,7 +336,8 @@ struct APISpendPresentationTests {
                 displayName: "Anthropic API"
             )
 
-            #expect(status.badge == "Stale")
+            // CA-P3: no capture time to date it, so it says so plainly.
+            #expect(status.badge == "Not refreshed")
             #expect(status.tone == .neutral)
             #expect(status.message == reason.message)
             // Transient staleness is not a Mac-only fix — the next poll may clear it.
@@ -379,7 +380,7 @@ struct APISpendPresentationTests {
             (.notLoggedIn("Add an admin key in Settings"), "Needs setup", "Setup"),
             (.needsReauth("Anthropic admin key rejected"), "Key rejected", "Rejected"),
             (.scopeDenied("Anthropic key lacks cost report access"), "Key lacks access", "Denied"),
-            (.transient("Network unavailable"), "Stale", "Stale"),
+            (.transient("Network unavailable"), "Not refreshed", "Not refreshed"),
         ]
 
         for copy in expected {
@@ -392,6 +393,35 @@ struct APISpendPresentationTests {
             #expect(status.badge == copy.badge)
             #expect(status.shortBadge == copy.shortBadge)
         }
+    }
+
+    /// CA-P3: a retried figure's tag says how old it is, in the account rows' own phrase, and
+    /// falls back to "Not refreshed" when nothing dates it. It never says "Stale".
+    @Test func aRetriedFigureIsDatedLikeAnAccountRow() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let dated = APISpendPresentation.rowStatus(
+            freshness: .stale(.transient("Network unavailable")), providerID: .claude,
+            displayName: "Anthropic API", readAt: (now.addingTimeInterval(-14 * 60), now))
+        #expect(dated.badge == "Last read 14 min ago")
+        // The identity-line tag stands beside the figure, so it takes the compact age.
+        #expect(dated.shortBadge == "14m ago")
+        let undated = APISpendPresentation.rowStatus(
+            freshness: .stale(.transient("Network unavailable")), providerID: .claude,
+            displayName: "Anthropic API", readAt: (nil, now))
+        #expect(undated.badge == "Not refreshed")
+        let widget = APISpendPresentation.rowStatus(
+            freshness: WidgetProviderFreshness.stale(message: "Temporary issue", needsAttention: false),
+            readAt: (now.addingTimeInterval(-2 * 3600), now))
+        #expect(widget.badge == "Last read 2 hr ago")
+        #expect(widget.shortBadge == "2h ago")
+        #expect(Countdown.compactReadAge(capturedAt: now.addingTimeInterval(-20), now: now) == "1m ago")
+        #expect(Countdown.compactReadAge(capturedAt: now.addingTimeInterval(-3 * 86_400), now: now) == "3d ago")
+        #expect(Countdown.compactReadAge(capturedAt: nil, now: now) == nil)
+        // A key problem keeps its own tag; only the retried figure is dated.
+        let rejected = APISpendPresentation.rowStatus(
+            freshness: .stale(.needsReauth("rejected")), providerID: .claude,
+            displayName: "Anthropic API", readAt: (now, now))
+        #expect(rejected.badge == "Key rejected")
     }
 
     /// A permanent provider-setup failure is not a key condition, but it still needs a tag on

@@ -111,27 +111,28 @@ public enum SetupWaitingPhase: Sendable, Equatable {
             )
         case .workspaceApproval:
             // R2C6: the sentence used to end "Headroom connects as soon as you approve" —
-            // the one verb the sign-in vocabulary retired. The guidance is unchanged.
+            // the one verb the sign-in vocabulary retired. CA-P9: every waiting body now ends
+            // with what the user will see, as the sign-in body does.
             .init(
                 title: "Waiting for approval…",
-                body: "Choose the option below in Terminal. Headroom continues as soon as you approve.",
+                body: "Choose the option below in Terminal. Your usage shows up here when you approve.",
                 token: .init(text: "“Yes, I trust this folder”", isCommand: false)
             )
         case .startupQuestion:
             // No token: Headroom never answers the question, so it names no option to pick.
             .init(
                 title: "Waiting for Claude Code…",
-                body: "Answer Claude Code’s question in Terminal. Headroom continues as soon as Claude Code is ready."
+                body: "Answer Claude Code’s question in Terminal. Your usage shows up here when you’re done."
             )
         case .deviceCode:
             .init(
                 title: "Waiting for device code…",
-                body: "Follow the device-code instructions in Terminal. Headroom continues as soon as the code is accepted."
+                body: "Follow the device-code steps in Terminal. Your usage shows up here when the code is accepted."
             )
         case .deviceCodeAfterSignOut:
             .init(
                 title: "Waiting for device code…",
-                body: "In Terminal, pick the login to sign out, then follow the device-code instructions. Headroom continues as soon as the code is accepted."
+                body: "In Terminal, pick the login to sign out, then follow the device-code steps. Your usage shows up here when the code is accepted."
             )
         }
     }

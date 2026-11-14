@@ -231,7 +231,9 @@ struct APISpendSectionView: View {
                 displayName: snapshot.displayName,
                 // The missing-key line names the figure the key unlocks, and xAI's row is a
                 // prepaid balance rather than period spend.
-                kind: snapshot.kind
+                kind: snapshot.kind,
+                // CA-P3: a retried figure's tag says how old it is.
+                readAt: (snapshot.capturedAt, now)
             ),
             title: identity.title,
             // X5: a balance row's "Remaining balance" outranks the name's qualifier — it is

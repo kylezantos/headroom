@@ -42,7 +42,7 @@ public enum CodexCLI {
     ) -> String {
         let accountExport = codexHome.map { "export CODEX_HOME=\(shellQuoted($0))\n" } ?? "unset CODEX_HOME\n"
         let accountNote = codexHome == nil ? "" : """
-        echo "Sign in with the ChatGPT account you want to add — this login is kept separate"
+        echo "Sign in with the ChatGPT account you want to add. This login is kept separate"
         echo "from your main Codex CLI account."
         echo
         """

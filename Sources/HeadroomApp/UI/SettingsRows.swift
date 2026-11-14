@@ -104,7 +104,7 @@ struct SavedCredentialStatus: View {
 }
 
 /// The row-tag capsule: 10pt medium secondary ink on the step material. Shared so the
-/// Accounts tags ("CLI login", "Same login as X") and the Menu Bar pane's "Off" tag
+/// Accounts tags ("Default", "Same login as X") and the Menu Bar pane's "Off" tag
 /// cannot drift into two badge styles for one role.
 struct SettingsPillBadge: View {
     let text: String
@@ -269,7 +269,7 @@ enum SettingsCopy {
     /// The same notice as a clause after the Menu Bar pane's "Off" tag, derived rather than
     /// retyped so VoiceOver and the tooltip stay one sentence.
     static let providerOffAccessibilityLabel =
-        "Off — " + providerOffNotice.prefix(1).lowercased() + providerOffNotice.dropFirst()
+        "Off, " + providerOffNotice.prefix(1).lowercased() + providerOffNotice.dropFirst()
 
     /// KTD21 (OpenCode plan): one OpenCode home sees only the Console workspace its client has
     /// active. Visible help under the OpenCode group in Settings › Accounts, and the planned

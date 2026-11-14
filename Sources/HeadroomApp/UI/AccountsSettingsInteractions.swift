@@ -17,7 +17,7 @@ struct CapabilityRecoveryPresentation: Equatable {
         guard hasActiveSetupSession else { return .enabled }
         switch action {
         case .checkNow, .openClaudeSetup:
-            return .refused("Close setup, then retry")
+            return .refused("Close setup, then try again")
         default:
             return .enabled
         }
@@ -86,14 +86,10 @@ enum AccountsSettingsInteractions {
             secondaryLabel.map { "\($0) for \(accountLabel)" }
         }
         /// CA-S3: a second recovery action exists. It leads the row's "…" menu; the row
-        /// itself shows one button only.
+        /// itself shows one button only (overturns craft round 2's R2C11 second button line).
         var hasSecondaryAction: Bool {
             secondaryLabel != nil && secondaryAction != nil
         }
-        /// CA-S3 overturns craft round 2's R2C11: no row breaks onto a second button line any
-        /// more. Kept under its old name only because `ClaudeExecutableDiscoveryInteractionTests`
-        /// (outside U4) still reads it; it now means `hasSecondaryAction`.
-        var usesSecondLine: Bool { hasSecondaryAction }
     }
 
     /// R9/R10 (KTD6): the provider group header's subscription switch. The switch is the
@@ -447,7 +443,7 @@ enum AccountsSettingsInteractions {
     private nonisolated static func rowSecondLine(_ input: RowSlotInput, trailing: RowTrailing) -> RowSecondLine? {
         guard !input.isRemembered else { return nil }
         switch input.removalState {
-        case .setupActive: return RowSecondLine(text: "Close setup, then retry", tone: .warning)
+        case .setupActive: return RowSecondLine(text: "Close setup, then try again", tone: .warning)
         case .failed: return RowSecondLine(text: "Removal failed", tone: .warning)
         case .removing: return nil
         case nil: break
@@ -473,7 +469,7 @@ enum AccountsSettingsInteractions {
                 lineLimit: 2
             )
         case .setupActive:
-            return RowSecondLine(text: "Close setup, then retry", tone: .warning)
+            return RowSecondLine(text: "Close setup, then try again", tone: .warning)
         case .needsSignIn:
             guard input.capabilityRow == .standard else { return nil }
             // CA-S3 (UX-04) overturns craft round 2's R2C6, which printed the popover's
@@ -481,8 +477,14 @@ enum AccountsSettingsInteractions {
             // "Sign In": one act said twice in one row. The line now names the state and the
             // button names the act; the sentence stays in the tooltip.
             let presentation = input.recoveryActions?.presentation
+            // CA-P5: only a sign-in row reads "Not signed in" / "Signed out". A verb-first
+            // recovery ("Approve Headroom’s folder") contains its own act, which used to send
+            // it down the sign-in branch.
+            let signsIn = presentation.map {
+                [ProviderSignInCopy.button, ProviderSignInCopy.buttonAgain].contains($0.primaryLabel)
+            } ?? true
             let text: String
-            if let presentation, presentation.appendsShortAction {
+            if let presentation, !signsIn {
                 text = presentation.shortStatus
             } else if presentation?.primaryLabel == ProviderSignInCopy.buttonAgain {
                 text = "Signed out"
@@ -550,17 +552,8 @@ enum AccountsSettingsInteractions {
 
     // MARK: CA-P14: stopping an Add Account removes the row it made
 
-    /// CA-P14 (UX-02): true for an added account that has never finished a sign-in, the row
-    /// an abandoned Add Account leaves behind. Built-in rows and extras that ever read usage
-    /// or reported an email keep today's Stop Waiting dialog.
-    nonisolated static func stopWaitingRemovesAccount(_ account: ProviderAccount, snapshot: UsageSnapshot) -> Bool {
-        !account.isBuiltIn
-            && snapshot.windows.isEmpty
-            && (snapshot.accountEmail ?? "").isEmpty
-            && LaneSchedule.isNeverSignedIn(snapshot.freshness)
-    }
-
-    /// CA-P14: Stop Waiting's "Remove Account". The handoff is abandoned first, so the store's
+    /// CA-P14: Stop Waiting's "Remove Account", on both surfaces (the rule that offers it is
+    /// `UsageStore.stopWaitingRemovesAccount`). The handoff is abandoned first, so the store's
     /// open-handoff guard does not refuse the removal it was asked for.
     static func stopWaitingAndRemove(
         _ account: ProviderAccount,
@@ -776,7 +769,7 @@ enum AccountsSettingsInteractions {
         if account.providerID == .opencode {
             return BuiltInSignInConfirmation.message(for: .reset)
         }
-        return "Signing in again switches the \(providerDisplayName) CLI login across this Mac, including Terminal sessions. If you only want Headroom to show another login, add it as a separate account and use Make Main."
+        return "Signing in again switches the \(providerDisplayName) default login across this Mac, including Terminal sessions. If you only want Headroom to show another login, add it as a separate account and use Make Main."
     }
 
     @discardableResult

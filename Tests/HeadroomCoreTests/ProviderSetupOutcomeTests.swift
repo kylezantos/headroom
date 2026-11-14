@@ -515,7 +515,7 @@ import Testing
         #expect(waiting == .waitingForUser(.startupQuestion))
         #expect(waiting?.copy.title == "Waiting for Claude Code…")
         #expect(waiting?.copy.body
-            == "Answer Claude Code’s question in Terminal. Headroom continues as soon as Claude Code is ready.")
+            == "Answer Claude Code’s question in Terminal. Your usage shows up here when you’re done.")
         #expect(waiting?.copy.token == nil)
 
         let finished = SetupWaitingPhase.resolve(
@@ -637,7 +637,7 @@ import Testing
         #expect(unreadable.appendsShortAction)
 
         let blocked = ProviderSetupOutcome.codexPermissionDenied.recoveryPresentation
-        #expect(blocked.shortStatus == "Codex sign-in is blocked")
+        #expect(blocked.shortStatus == "Codex sign-in blocked")
         #expect(blocked.primaryShortLabel == "Get Help")
         #expect(blocked.rowHelp == "Allow Headroom to read the Codex sign-in file. Privacy & Security Help.")
     }
@@ -650,9 +650,10 @@ import Testing
         #expect(absent?.primaryShortLabel == "Install")
         let retained = ProviderCapabilityState.confirmedAbsent.recoveryPresentation(hasRetainedReading: true)
         #expect(retained?.shortStatus == "Claude Code not found")
-        // A status not yet rewritten (it lives outside this unit) shortens to its cause.
+        // CA-P5: its own short form, so "Couldn’t confirm where Claude Code is" no longer wraps.
         let inconclusive = ProviderCapabilityState.inconclusive(.shellTimeout).recoveryPresentation
-        #expect(inconclusive?.shortStatus == "Couldn’t confirm where Claude Code is")
+        #expect(inconclusive?.shortStatus == "Can’t find Claude Code")
+        #expect(inconclusive?.primaryShortLabel == "Check Now")
     }
 
     /// CA-P5: a sentence that already names its action appends nothing, so a sign-in row
@@ -661,9 +662,14 @@ import Testing
         for outcome in [ProviderSetupOutcome.claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent,
                         .cursorAuthAbsent, .copilotSignedOut, .opencodeSignedOut,
                         .codexRejectedAuth, .grokRejectedAuth, .opencodeSignInExpired,
-                        .cursorMCPApprovalRequired] {
+                        .codexMalformedAuth, .codexUnsafePermissions, .grokMalformedAuth, .grokUnsafePermissions,
+                        .cursorMCPApprovalRequired, .claudeTrustRequired, .cursorTrustRequired,
+                        .claudeStartupQuestion, .codexCallbackIncomplete, .opencodeConsoleSignInRequired] {
             #expect(!outcome.recoveryPresentation.appendsShortAction, "\(outcome)")
         }
+        #expect(ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation.shortStatus == "Approve Headroom’s folder")
+        #expect(ProviderSetupOutcome.codexMalformedAuth.recoveryPresentation.shortStatus
+            == "Sign in again with Codex CLI")
         #expect(ProviderSetupOutcome.claudeLoginRequired.recoveryPresentation.shortStatus == "Sign in with Claude Code")
         #expect(ProviderSetupOutcome.codexRejectedAuth.recoveryPresentation.shortStatus
             == "Sign in again with Codex CLI")
@@ -682,16 +688,17 @@ import Testing
             #expect(outcome.recoveryPresentation.primaryShortLabel == "Install", "\(outcome)")
         }
         let transient: [(ProviderSetupOutcome, String)] = [
-            (.claudeTransientCapture, "Couldn’t read Claude usage"), (.grokTransientCapture, "Couldn’t read Grok usage"),
-            (.cursorTransientCapture, "Couldn’t read Cursor usage"), (.copilotLogsUnreadable, "Couldn’t read Copilot logs"),
-            (.opencodeTransientCapture, "Couldn’t read OpenCode usage"), (.codexSessionUnverified, "Can’t verify Codex session"),
+            (.claudeTransientCapture, "Couldn’t read Claude"), (.grokTransientCapture, "Couldn’t read Grok"),
+            (.cursorTransientCapture, "Couldn’t read Cursor"), (.copilotLogsUnreadable, "Couldn’t read Copilot logs"),
+            (.opencodeTransientCapture, "Couldn’t read OpenCode"), (.codexSessionUnverified, "Can’t verify Codex"),
         ]
         for (outcome, short) in transient {
             #expect(outcome.recoveryPresentation.shortStatus == short, "\(outcome)")
             #expect(outcome.recoveryPresentation.primaryShortLabel == "Check Now", "\(outcome)")
         }
-        #expect(ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation.primaryShortLabel == "Open Terminal")
-        #expect(ProviderSetupOutcome.cursorTrustRequired.recoveryPresentation.primaryShortLabel == "Open Terminal")
+        #expect(ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation.primaryShortLabel == "Approve")
+        #expect(ProviderSetupOutcome.cursorTrustRequired.recoveryPresentation.primaryShortLabel == "Approve")
+        #expect(ProviderSetupOutcome.opencodeFormatChanged.recoveryPresentation.primaryShortLabel == "Report")
         #expect(ProviderSetupOutcome.claudeStartupQuestion.recoveryPresentation.primaryShortLabel == "Answer")
         #expect(ProviderSetupOutcome.codexStorageMismatch.recoveryPresentation.primaryShortLabel == "Resolve")
         #expect(ProviderSetupOutcome.codexCallbackIncomplete.recoveryPresentation.primaryShortLabel == "Reopen")
@@ -716,15 +723,14 @@ import Testing
                 let presentation = outcome.recoveryPresentation
                 return [presentation.shortStatus, presentation.primaryShortLabel, presentation.rowHelp]
             }
-        // The capability card's inconclusive sentence is built outside this unit's files and
-        // keeps its non-breaking dash until that file is reworded (BUGS.md).
-        let inconclusive = ProviderCapabilityState.inconclusive(.shellTimeout).recoveryPresentation?.status
-        for text in strings {
+        // The capability card's sentences are held to the same rules (its inconclusive sentence
+        // lost its dash in CA-P9).
+        let capability = [ProviderCapabilityState.inconclusive(.shellTimeout), .confirmedAbsent]
+            .compactMap(\.recoveryPresentation).flatMap { [$0.status, $0.shortStatus, $0.rowHelp] }
+        for text in strings + capability {
             #expect(!text.localizedCaseInsensitiveContains("reconnect"), "\(text)")
             #expect(!text.localizedCaseInsensitiveContains(" in in "), "\(text)")
-            if text != inconclusive {
-                #expect(!text.contains("\u{2014}"), "\(text) has an em dash")
-            }
+            #expect(!text.contains("\u{2014}"), "\(text) has an em dash")
             #expect(!text.contains("'"), "\(text) carries a straight apostrophe")
         }
     }

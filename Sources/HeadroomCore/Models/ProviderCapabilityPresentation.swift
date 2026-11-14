@@ -29,7 +29,10 @@ public extension ProviderCapabilityState {
                 primaryLabel: "Check Now",
                 primaryAction: .checkNow,
                 secondaryLabel: "Open Guided Setup",
-                secondaryAction: .openClaudeSetup
+                secondaryAction: .openClaudeSetup,
+                // CA-P5: "Couldn’t confirm where Claude Code is · Check Now" wrapped. Check Now,
+                // not Install, keeps it distinct from "Claude Code not found".
+                shortStatus: "Can’t find Claude Code"
             )
         case .confirmedAbsent:
             .init(

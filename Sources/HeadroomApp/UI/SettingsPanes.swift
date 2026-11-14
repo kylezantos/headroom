@@ -362,41 +362,70 @@ struct MenuBarSettingsPane: View {
                     .font(SettingsType.help)
                     .foregroundStyle(.secondary)
             }
-            let previewKey = MenuBarPreviewKey(
-                meters: store.menuBarMeters,
-                showsPercentage: store.showMenuBarPercentage,
-                showsMarks: store.menuBarShowsMarks
-            )
-            ScrollView(.horizontal) {
-                // No invisible percentage-on twin: seeing the width shrink is the
-                // point of the compact choice. Always use the production renderer.
-                // MS2 (2026-09-25 motion audit): the old and new pill crossfade in place,
-                // trailing-aligned, so a pill edit no longer hard-swaps the strip while
-                // the cards below it glide.
-                ZStack(alignment: .trailing) {
-                    MenuBarPreviewPill(
-                        meters: store.menuBarMeters,
-                        showsPercentage: store.showMenuBarPercentage,
-                        showsMarks: store.menuBarShowsMarks
-                    )
-                    .id(previewKey)
-                    .transition(.opacity)
+            // CA-F1 (SET-09) + CA-MB1: the strip sits on the well's trailing edge, where
+            // menu-bar items live (MS2's stated intent). Six marked pills with percentages run
+            // past the well at the standard type, and a trailing anchor then cut the first pill
+            // through its mark. So the strip steps down the way the pill cards and Display
+            // samples do: standard if it fits, the compact metrics if they fit, and only past
+            // that a scrolling strip whose leading edge fades out rather than cutting a glyph.
+            ViewThatFits(in: .horizontal) {
+                previewStrip(metrics: .standard)
+                previewStrip(metrics: .compact)
+                ScrollView(.horizontal) {
+                    previewStrip(metrics: .compact)
                 }
-                .animation(
-                    HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                    value: previewKey
-                )
-                .frame(minHeight: 30)
+                .defaultScrollAnchor(.trailing)
+                .scrollIndicators(.hidden)
+                .mask {
+                    HStack(spacing: 0) {
+                        // Fully clear for the first few points, so the sliver of a pill that
+                        // sits right at the edge at rest is gone, not faintly cut.
+                        LinearGradient(
+                            stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.3),
+                                    .init(color: .black, location: 1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: Self.previewFadeWidth)
+                        Color.black
+                    }
+                }
             }
-            // CA-F1 (SET-09): a horizontal ScrollView proposes no width, so the old leading
-            // `Spacer` collapsed and the pill pinned to the well's leading edge. The scroll
-            // view's own anchor aligns content narrower than the well to its trailing edge,
-            // where menu-bar items live (MS2's stated intent), and still scrolls a wider one.
-            .defaultScrollAnchor(.trailing)
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .frame(height: 30)
-            .scrollIndicators(.automatic)
             .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 6, cornerRadius: 14)
         }
+    }
+
+    /// The scrolling strip's leading fade: enough for a mark to clear before the edge.
+    private static let previewFadeWidth: CGFloat = 16
+
+    /// No invisible percentage-on twin: seeing the width shrink is the point of the compact
+    /// choice. Always the production renderer. MS2 (2026-09-25 motion audit): the old and new
+    /// pill crossfade in place, trailing-aligned, so a pill edit no longer hard-swaps the
+    /// strip while the cards below it glide.
+    private func previewStrip(metrics: MenuBarPillMetrics) -> some View {
+        let previewKey = MenuBarPreviewKey(
+            meters: store.menuBarMeters,
+            showsPercentage: store.showMenuBarPercentage,
+            showsMarks: store.menuBarShowsMarks
+        )
+        return ZStack(alignment: .trailing) {
+            MenuBarPreviewPill(
+                meters: store.menuBarMeters,
+                showsPercentage: store.showMenuBarPercentage,
+                metrics: metrics,
+                showsMarks: store.menuBarShowsMarks
+            )
+            .id(previewKey)
+            .transition(.opacity)
+        }
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: previewKey
+        )
+        .fixedSize()
+        .frame(minHeight: 30)
     }
 
     private var percentageBinding: Binding<Bool> {

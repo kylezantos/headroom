@@ -125,9 +125,10 @@ public enum PhoneSettingsCopy {
     public static let widgetProvidersFooter =
         "Set on your Mac in Settings › Widgets & iPhone. Widgets show each provider’s main account."
     public static let remindersFromMac = "Reminders come from Headroom on your Mac"
-    public static let demoActive = "You are viewing sample data. Your synced snapshot is unchanged."
+    // CA-I6 (COPY-10): "snapshot" is an internal name the widgets already retired.
+    public static let demoActive = "You are viewing sample data. Your real usage is unchanged."
     public static let demoActiveWidgetsUnavailable =
-        "You are viewing sample data in the app. Widgets could not join Demo Mode on this install. Your synced snapshot is unchanged."
+        "You are viewing sample data in the app. Widgets could not join Demo Mode on this install. Your real usage is unchanged."
     public static let demoVariantFooter = "Sample states for trying every screen. Nothing here reads or writes iCloud."
 
     static var all: [String] {

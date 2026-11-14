@@ -97,9 +97,11 @@ public enum SetupWaitingPhase: Sendable, Equatable {
     private static func waitingCopy(for prompt: SetupWaitingPrompt) -> SetupWaitingCopy {
         switch prompt {
         case .signIn:
+            // CA-P9 (COPY-03): "signing in in" read as a typo, and "Headroom continues" did
+            // not say what the user would see.
             .init(
                 title: "Waiting for sign-in…",
-                body: "Finish signing in in your browser. Headroom continues as soon as sign-in ends."
+                body: "Finish signing in with your browser. Your usage shows up here when you’re done."
             )
         case .signInNeedsLoginCommand:
             .init(

@@ -9,7 +9,8 @@ struct CompanionAttentionCopyTests {
         (.signInAgain, "Sign in again on your Mac"),
         (.finishingSignIn, "Finishing sign-in on your Mac"),
         (.setupInProgress, "Finish setup on your Mac"),
-        (.workspaceApproval, "Approve Headroom’s workspace on your Mac"),
+        // CA-P9: the CLI asks about a folder.
+        (.workspaceApproval, "Approve Headroom’s folder on your Mac"),
         (.cliMissing, "Install the official CLI on your Mac"),
         (.cliUpdateRequired, "Update the official CLI on your Mac"),
         (.allowSignInFile, "Allow Headroom to read sign-in data on your Mac"),

@@ -34,8 +34,13 @@ private enum ArrivalRegistry {
 
 /// R2C8: the one suffix recipe every figure in the popover shares. A meter row prints
 /// "used"/"left" after its percentage and a spend row prints "used"/"left" after its
-/// amount, at the same size behind the same gap. CMM12: the term takes its natural width
-/// and the row ends on the trailing axis; rows printing the same word share a numeral edge.
+/// amount, at the same size behind the same gap.
+///
+/// CA-P11 (POP-10, overturns CMM12): the column is reserved at the widest term any figure
+/// prints, so every numeral ends on one x whichever word follows it. CMM12 let each term take
+/// its natural width and end on the trailing axis, which put "72%" ("left") and "$142.67"
+/// ("used") 8pt apart in neighbouring cards. A "left" row now sits about 2pt short of the
+/// axis instead; the figures are what the eye runs down.
 ///
 /// R2B2: the slot is reserved even when there is no term to print — an `.unavailable` row
 /// that dropped its suffix used to pull its gauge and numeral ≈22.5pt right of the rows above
@@ -44,6 +49,14 @@ public enum MeterSuffixColumn {
     public static let size: CGFloat = 11
     /// The gap the numeral cluster already spent between figure and term.
     public static let gap: CGFloat = 5
+    /// CA-P11: every term a figure can print, meters' percentage modes and spend's
+    /// direction words alike. The column is as wide as the widest of them ("used").
+    public static let terms: [String] = {
+        let all = UsagePercentageMode.allCases.map(\.term)
+            + [APISpendPresentation.directionTerm(kind: .periodSpend), APISpendPresentation.directionTerm(kind: .balance)]
+        var seen = Set<String>()
+        return all.filter { seen.insert($0).inserted }
+    }()
 }
 
 /// The suffix itself.
@@ -65,21 +78,29 @@ public struct MeterSuffixLabel: View {
     @Environment(\.colorScheme) private var scheme
 
     public var body: some View {
-        Text(term)
+        // CA-P11 (overturns CMM12): the column is laid out at the widest term, the term
+        // leading-aligned in it, so the numeral before it ends on one x on every row and
+        // card. The reservation is the terms themselves laid out hidden, so the slot keeps a
+        // real line box and baseline, as R2B2's hidden term does.
+        ZStack(alignment: .leading) {
+            ForEach(MeterSuffixColumn.terms.filter { $0 != term }, id: \.self) { reserved in
+                termText(reserved).hidden()
+            }
+            termText(term)
+                .foregroundStyle(isVisible ? ProviderStyle.tertiaryText(scheme: scheme) : Color.clear)
+        }
+        .fixedSize()
+        .accessibilityHidden(!isVisible)
+    }
+
+    private func termText(_ text: String) -> some View {
+        Text(text)
             .font(.system(size: MeterSuffixColumn.size * scale))
-            .foregroundStyle(isVisible ? ProviderStyle.tertiaryText(scheme: scheme) : Color.clear)
             .lineLimit(1)
             // PA6: inert in Full's baseline row; in Micro it puts the term's cap centre on
             // the row's one optical axis. KTD2: CoreText metrics, identical to the Mac's.
             .widgetCapHeightCentered(size: MeterSuffixColumn.size * scale, weight: .regular)
-            // CMM12 (Kyle, 2026-09-10): natural width, no reserved column. The row is
-            // trailing-aligned, so its last glyph always lands on the 34pt axis — evenly
-            // gapped left and right — and rows that print the same word (every meter row in
-            // a popover, since the term comes from one percentage mode) still share a
-            // numeral edge. A fixed column sized to the widest word left "left" rows 8pt
-            // short of the axis whenever "used" was on screen.
             .fixedSize()
-            .accessibilityHidden(!isVisible)
     }
 }
 
@@ -135,6 +156,9 @@ public struct UsageBarView: View {
     /// is what the row draws; the sentence form stays in the tooltip and for VoiceOver. Nil
     /// draws the sentence.
     public var resetNotReadCompactLine: String? = nil
+    /// CA-P4: the provider the row reads, so an empty row's tooltip can say who did not
+    /// report ("Claude didn’t report this limit in its last check."). Nil names nobody.
+    public var providerID: ProviderID? = nil
 
     public func resetLine(peers: [String], compact: String?) -> UsageBarView {
         var copy = self
@@ -154,7 +178,8 @@ public struct UsageBarView: View {
         compactLabel: String? = nil,
         resetNotReadLine: String? = nil,
         showsWindowState: Bool = true,
-        dimsLabels: Bool = false
+        dimsLabels: Bool = false,
+        providerID: ProviderID? = nil
     ) {
         self.reading = reading
         self.percentageMode = percentageMode
@@ -167,6 +192,7 @@ public struct UsageBarView: View {
         self.resetNotReadLine = resetNotReadLine
         self.showsWindowState = showsWindowState
         self.dimsLabels = dimsLabels
+        self.providerID = providerID
     }
 
     /// The Mac's form: the reading is normalized from the actual provider window.
@@ -181,7 +207,8 @@ public struct UsageBarView: View {
         compactLabel: String? = nil,
         resetNotReadLine: String? = nil,
         showsWindowState: Bool = true,
-        dimsLabels: Bool = false
+        dimsLabels: Bool = false,
+        providerID: ProviderID? = nil
     ) {
         self.init(
             reading: UsageMeterReading(window: window),
@@ -194,7 +221,8 @@ public struct UsageBarView: View {
             compactLabel: compactLabel,
             resetNotReadLine: resetNotReadLine,
             showsWindowState: showsWindowState,
-            dimsLabels: dimsLabels
+            dimsLabels: dimsLabels,
+            providerID: providerID
         )
     }
 
@@ -286,12 +314,21 @@ public struct UsageBarView: View {
         switch window.freshness {
         case .live:
             nil
+        // CA-P3: "Last read", the chip's phrase; it was "Last known", a third name for it.
         case .stale(let observedAt):
-            Countdown.updatedLabel(capturedAt: observedAt, now: now)
-                .map { "Last known \($0)" } ?? "Last known"
+            Countdown.windowReadLabel(observedAt: observedAt, now: now)
+        // CA-P4: "No reading yet" or "No current reading", never the bare "Unavailable".
         case .unavailable:
-            "Unavailable"
+            Countdown.unavailableLabel(for: window)
         }
+    }
+
+    /// CA-P4 (overturns M3A′ for this state): what an unavailable Micro row prints in its
+    /// empty countdown slot. M3A′ kept a Micro row's state in its tooltip because a printed
+    /// "· Last known …" pushed the gauge out; an unavailable row has no countdown, so the slot
+    /// is free and the words go there. Stale rows keep M3A′.
+    private var unavailableSlotText: String? {
+        Countdown.unavailableLabel(for: window)
     }
 
     private var resetLine: MeterResetLine? {
@@ -553,17 +590,25 @@ public struct UsageBarView: View {
 
     /// Full keeps the established fit-aware frame: label metadata and numeral above the
     /// full-width gauge, with a reset subline only when a long label cannot share the top row.
+    ///
+    /// CA-I10 (IOS-10): a long model label takes its short name ("GPT-5.3-Codex-Spark ·
+    /// Weekly" → "Spark · Weekly") before the row spends a subline, so the countdown stays
+    /// inline and the row keeps its siblings' two-line anatomy. The subline rung is the last
+    /// resort and keeps the short name too, so "Weekly" is never the part that truncates.
     private var fullRow: some View {
         ViewThatFits(in: .horizontal) {
-            fullMeter(inlineReset: true)
-            fullMeter(inlineReset: false)
+            fullMeter(inlineReset: true, name: label)
+            if let shortName {
+                fullMeter(inlineReset: true, name: shortName)
+            }
+            fullMeter(inlineReset: false, name: shortName ?? label)
         }
     }
 
-    private func fullMeter(inlineReset: Bool) -> some View {
+    private func fullMeter(inlineReset: Bool, name: String) -> some View {
         VStack(alignment: .leading, spacing: rowSpacing) {
             HStack(alignment: .firstTextBaseline, spacing: gap) {
-                labelText
+                labelText(name)
                 stateLabel
                 if inlineReset { resetLabel(fixedSize: true) }
                 Spacer(minLength: gap)
@@ -594,22 +639,48 @@ public struct UsageBarView: View {
     /// its ink by a different amount at each size (0.68pt at 13, 0.36pt at 18), so the label
     /// was sitting ~0.3pt below the numeral it labels. The gauge keeps the default `.center`
     /// guide: its geometric centre is the axis every cap centre is measured against.
+    ///
+    /// CA-I10: a long model label takes its short name before anything is dropped.
+    ///
+    /// CA-I3 (IOS-03): on the phone the gauge goes, then the countdown, before the label
+    /// truncates. At xxxLarge "Weekly" was reduced to "…" beside a full gauge and "3d", which
+    /// left "38% left" of nothing; the numeral and its severity ink already carry the level,
+    /// and the countdown stays in the tooltip and VoiceOver. "Micro is always one row" holds.
+    /// The Mac's popover column never reaches these rungs, so it keeps the original ladder.
     private var microRow: some View {
         ViewThatFits(in: .horizontal) {
-            microLine(short: false, truncatesLabel: false)
-            microLine(short: true, truncatesLabel: false)
-            microLine(short: true, truncatesLabel: true)
+            microLine(short: false, truncatesLabel: false, name: label)
+            microLine(short: true, truncatesLabel: false, name: label)
+            if let shortName {
+                microLine(short: true, truncatesLabel: false, name: shortName)
+            }
+            #if os(iOS)
+            microLine(short: true, truncatesLabel: false, name: shortName ?? label, showsGauge: false)
+            microLine(short: true, truncatesLabel: false, name: shortName ?? label, showsGauge: false, showsCountdown: false)
+            microLine(short: true, truncatesLabel: true, name: shortName ?? label, showsGauge: false, showsCountdown: false)
+            #else
+            microLine(short: true, truncatesLabel: true, name: shortName ?? label)
+            #endif
         }
     }
 
-    private func microLine(short: Bool, truncatesLabel: Bool) -> some View {
+    private func microLine(
+        short: Bool,
+        truncatesLabel: Bool,
+        name: String,
+        showsGauge: Bool = true,
+        showsCountdown: Bool = true
+    ) -> some View {
         HStack(alignment: .center, spacing: gap) {
-            labelCluster(short: short, truncatesLabel: truncatesLabel)
+            labelCluster(short: short, truncatesLabel: truncatesLabel, name: name, showsCountdown: showsCountdown)
             Spacer(minLength: gap)
-            gauge
+            if showsGauge { gauge }
             numeralCluster(capCentred: true)
         }
     }
+
+    /// CA-I10: the window's shorter name, or nil when it has none.
+    private var shortName: String? { CompactAccountRowRecipe.shortDisplayName(for: window.kind) }
 
     /// The Compact cell (R11): label, gauge and numeral on the row's one optical axis, each
     /// at a fixed width so cells line up row to row. Sizes are the options doc's proposal
@@ -643,24 +714,44 @@ public struct UsageBarView: View {
     /// width (the label never truncates) or yields to the proposed width — where the label is
     /// the sole flexible element, so it truncates while the countdown stays whole. `short`
     /// selects the coarse countdown. Cap centres keep the pair on the row's one optical axis.
-    private func labelCluster(short: Bool, truncatesLabel: Bool) -> some View {
+    private func labelCluster(short: Bool, truncatesLabel: Bool, name: String, showsCountdown: Bool) -> some View {
         HStack(alignment: .center, spacing: gap) {
-            labelText
+            labelText(name)
                 .widgetCapHeightCentered(size: labelSize, weight: labelWeight)
-            resetLabel(fixedSize: true, short: short)
+            if showsCountdown {
+                resetLabel(fixedSize: true, short: short)
+                unavailableSlot
+            }
         }
         .fixedSize(horizontal: !truncatesLabel, vertical: false)
     }
 
-    private var labelText: some View {
-        Text(label)
+    /// CA-P4: the countdown's recipe (11pt regular, countdown ink), 6pt after the label, in
+    /// the slot an unavailable row leaves empty. The numeral column keeps its "—".
+    @ViewBuilder
+    private var unavailableSlot: some View {
+        if let unavailableSlotText {
+            Text(unavailableSlotText)
+                .font(.system(size: resetSize))
+                .foregroundStyle(countdownInk)
+                .lineLimit(1)
+                .fixedSize()
+                .widgetCapHeightCentered(size: resetSize, weight: .regular)
+                .transition(.opacity)
+        }
+    }
+
+    private var labelText: some View { labelText(label) }
+
+    private func labelText(_ text: String) -> some View {
+        Text(text)
             .font(.system(size: labelSize, weight: labelWeight))
             .foregroundStyle(labelInk)
             .lineLimit(1)
             .truncationMode(.tail)
             // OA1: "Weekly" (a diagonal) against "5-hour" (a flat stem) is the widest
             // stagger in the card — 1.25pt apart at this size before the correction.
-            .widgetOpticalLeading(label, size: labelSize, weight: labelWeight)
+            .widgetOpticalLeading(text, size: labelSize, weight: labelWeight)
     }
 
     /// M3A′: Full has a row wide enough for the state, so it keeps the label — it fades in
@@ -785,7 +876,9 @@ public struct UsageBarView: View {
 
     /// M3A′: the tooltip is where a Micro row's state lives. It always says something, so the
     /// row keeps one stable view identity rather than gaining and losing a modifier.
+    /// CA-P4 (UX-01): an unavailable row's tooltip says why it has no number.
     private var microHelp: String {
+        if let help = Countdown.unavailableHelp(for: window, providerID: providerID) { return help }
         if showsWindowState, let stateText { return stateText }
         return resetLine?.tooltip ?? "\(spokenLabel) usage"
     }

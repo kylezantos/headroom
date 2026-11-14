@@ -78,6 +78,54 @@ struct CountdownTests {
         #expect(Countdown.resetText(for: staleZeroAbsent, now: now) == "Reset info unavailable")
     }
 
+    // MARK: CA-P3 / CA-P4
+
+    /// CA-P3: a stale row's chip says when it was read, in the remembered row's words.
+    @Test func aStaleReadSaysWhenItWasRead() {
+        #expect(Countdown.staleReadLabel(capturedAt: now.addingTimeInterval(-14 * 60), now: now)
+            == "Last read 14 min ago")
+        #expect(Countdown.staleReadLabel(capturedAt: now.addingTimeInterval(-3 * 3_600), now: now)
+            == "Last read 3 hr ago")
+        #expect(Countdown.staleReadLabel(capturedAt: nil, now: now) == "Not refreshed")
+        #expect(Countdown.staleReadLabel(capturedAt: now.addingTimeInterval(-14 * 60), now: now)
+            == Countdown.lastReadLabel(capturedAt: now.addingTimeInterval(-14 * 60), now: now))
+        #expect(Countdown.windowReadLabel(observedAt: now.addingTimeInterval(-60), now: now) == "Last read 1 min ago")
+        #expect(Countdown.windowReadLabel(observedAt: nil, now: now) == "Last read")
+    }
+
+    @Test func theReadTooltipsSayWhy() {
+        #expect(Countdown.staleReadHelp == "Couldn’t refresh this account. Headroom tries again on its next check.")
+        #expect(Countdown.rememberedReadHelp(for: .claude)
+            == "Not your current Claude login, so Headroom isn’t reading it. Sign in to it again, or add it in Settings › Accounts to keep it live.")
+        for provider in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
+            #expect(Countdown.rememberedReadHelp(for: provider).contains(provider.displayName))
+        }
+    }
+
+    /// CA-P4: never read reads "No reading yet"; aged out reads "No current reading"; neither
+    /// is a number, and neither claims anything about use this month.
+    @Test func anUnavailableWindowSaysWhetherItWasEverRead() {
+        let neverRead = UsageWindow(kind: .weekly, utilization: 0, resetSchedule: .unresolved(.absent),
+                                    freshness: .unavailable(since: now))
+        let agedOut = UsageWindow(kind: .other("Weekly (Fable)"), utilization: 46,
+                                  resetSchedule: .scheduled(now.addingTimeInterval(86_400)),
+                                  freshness: .unavailable(since: now), observedAt: now.addingTimeInterval(-3_600))
+        let live = UsageWindow(kind: .weekly, utilization: 20, resetSchedule: .scheduled(now.addingTimeInterval(60)))
+        #expect(Countdown.unavailableLabel(for: neverRead) == "No reading yet")
+        #expect(Countdown.unavailableLabel(for: agedOut) == "No current reading")
+        #expect(Countdown.unavailableLabel(for: live) == nil)
+        #expect(Countdown.unavailableHelp(for: agedOut, providerID: .claude)
+            == "Claude didn’t report this limit in its last check.")
+        #expect(Countdown.unavailableHelp(for: neverRead, providerID: .copilot)
+            == "Copilot hasn’t reported a number for this limit yet.")
+        #expect(Countdown.unavailableHelp(for: live, providerID: .claude) == nil)
+        for text in [Countdown.noReadingYet, Countdown.noCurrentReading,
+                     Countdown.unavailableHelp(for: neverRead, providerID: .copilot) ?? ""] {
+            #expect(!text.localizedCaseInsensitiveContains("this month"))
+            #expect(text.rangeOfCharacter(from: .decimalDigits) == nil)
+        }
+    }
+
     private func text(after interval: TimeInterval) -> String {
         let window = UsageWindow(
             kind: .weekly,

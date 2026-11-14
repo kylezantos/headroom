@@ -66,7 +66,8 @@ public enum CompanionAttentionCopy {
         case .signInAgain: "Sign in again on your Mac"
         case .finishingSignIn: "Finishing sign-in on your Mac"
         case .setupInProgress: "Finish setup on your Mac"
-        case .workspaceApproval: "Approve Headroom’s workspace on your Mac"
+        // CA-P9: the CLI asks about a folder, so the phone says folder too.
+        case .workspaceApproval: "Approve Headroom’s folder on your Mac"
         case .cliMissing: "Install the official CLI on your Mac"
         case .cliUpdateRequired: "Update the official CLI on your Mac"
         case .allowSignInFile: "Allow Headroom to read sign-in data on your Mac"

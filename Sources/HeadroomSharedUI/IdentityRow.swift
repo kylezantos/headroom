@@ -141,6 +141,9 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
                 // U8: a remembered row's one state chip; it replaces "Stale" rather than
                 // joining it, so the row says what it is once.
                 stateTag(lastReadLabel)
+                    // CA-P3 (UX-01): the chip says why nothing reads the account. Nested
+                    // help wins on macOS, so the row's own tooltip is untouched elsewhere.
+                    .help(Countdown.rememberedReadHelp(for: providerID))
                     .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
                     .accessibilityHidden(containsControls)
             } else if isStale {
@@ -154,6 +157,13 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             if showsConnectedChip {
                 ConnectedChip(scale: scale)
                     .transition(.connectedChip(reduceMotion: reduceMotion))
+            }
+            if isMenuBarAccount {
+                // CA-MB3: which account feeds the pill, said where the user looks when they
+                // wonder. Hosts set `isMenuBarAccount` only when the provider has two or
+                // more accounts (`IdentityRowText.feedsMenuBar`), so one account draws none.
+                MenuBarSourceGlyph(scale: scale)
+                    .accessibilityHidden(true)
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -197,7 +207,20 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             scale: scale
         )
         if let onPlanCapsuleTap {
-            Button(action: onPlanCapsuleTap) { capsule }
+            Button(action: onPlanCapsuleTap) {
+                capsule
+                    // CA-I9 (IOS-09): the phone's only tappable chip was about 21pt tall. The
+                    // hit area reaches 44pt without moving a pixel: padding the content shape
+                    // out, then laying it back in. The leading outset stays inside the gap so
+                    // the title's own button keeps every point it had.
+                    .padding(.vertical, Self.planTapOutsetVertical * scale)
+                    .padding(.leading, Self.planTapOutsetLeading * scale)
+                    .padding(.trailing, Self.planTapOutsetTrailing * scale)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, -Self.planTapOutsetVertical * scale)
+                    .padding(.leading, -Self.planTapOutsetLeading * scale)
+                    .padding(.trailing, -Self.planTapOutsetTrailing * scale)
+            }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Plan")
                 .accessibilityValue(planCapsuleSpokenValue)
@@ -306,9 +329,31 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// transient-stale row renders no sentence at all (`stateContent` keeps its dimmed
     /// meters), so this tag survives as that state's only visible signal. C6A gives it the
     /// same 18pt as the plan pill beside it.
-    private var staleTag: some View {
-        stateTag("Stale")
+    ///
+    /// CA-P3 (COPY-01): with `staleReadAge` set the chip says "Last read 14 min ago", the
+    /// remembered row's own phrase, because "Stale" was the one state with no time on it. Its
+    /// tooltip says what Headroom is doing about it. Nil keeps "Stale" for a host that has not
+    /// passed an age.
+    @ViewBuilder private var staleTag: some View {
+        if staleReadAge != nil {
+            stateTag(staleLabel)
+                .help(Countdown.staleReadHelp)
+        } else {
+            stateTag(staleLabel)
+        }
     }
+
+    /// The stale chip's words, shared with VoiceOver so the two never differ.
+    private var staleLabel: String {
+        guard let staleReadAge else { return IdentityRowText.staleFallbackLabel }
+        return Countdown.staleReadLabel(capturedAt: staleReadAge.capturedAt, now: staleReadAge.now)
+    }
+
+    /// CA-I9: the phone plan capsule's hit outsets. 18pt capsule + 2 × 12 ≈ 44pt at scale 1
+    /// (≈ 48pt at the phone's 1.15 base). The leading 6 matches the row's gap to the title.
+    static var planTapOutsetVertical: CGFloat { 12 }
+    static var planTapOutsetLeading: CGFloat { 6 }
+    static var planTapOutsetTrailing: CGFloat { 8 }
 
     /// The "Stale" capsule's recipe, shared by U8's last-read tag so the two can never drift.
     private func stateTag(_ text: String) -> some View {
@@ -334,7 +379,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             email: email,
             showsConnectedChip: showsConnectedChip,
             bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets),
-            lastReadLabel: lastReadLabel
+            lastReadLabel: lastReadLabel,
+            staleLabel: staleLabel
         )
     }
 
@@ -347,7 +393,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             email: email,
             showsConnectedChip: showsConnectedChip,
             bankedPhrase: PlanCapsulePresentation.accessibilityPhrase(count: bankedResets),
-            lastReadLabel: lastReadLabel
+            lastReadLabel: lastReadLabel,
+            staleLabel: staleLabel
         )
     }
 }
@@ -481,17 +528,33 @@ public enum IdentityRowText {
         email: String?,
         showsConnectedChip: Bool,
         bankedPhrase: String?,
-        lastReadLabel: String? = nil
+        lastReadLabel: String? = nil,
+        staleLabel: String = staleFallbackLabel
     ) -> String {
         let detail = accessibilityDetail(
             planDisplayName: planDisplayName, isMenuBarAccount: isMenuBarAccount, isStale: isStale,
             email: email, showsConnectedChip: showsConnectedChip, bankedPhrase: bankedPhrase,
-            lastReadLabel: lastReadLabel)
+            lastReadLabel: lastReadLabel, staleLabel: staleLabel)
         return detail.isEmpty ? title : "\(title), \(detail)"
     }
 
+    /// The stale chip's words when a host passes no read age.
+    public static let staleFallbackLabel = "Stale"
+
+    /// CA-MB3: whether a row carries the menu-bar source glyph. Only the account that feeds
+    /// a pill, and only when its provider has two or more accounts: with one, the glyph is
+    /// noise. Hosts pass the result as `isMenuBarAccount`.
+    public static func feedsMenuBar(isPillSource: Bool, providerAccountCount: Int) -> Bool {
+        isPillSource && providerAccountCount >= 2
+    }
+
+    /// CA-MB3: the glyph's tooltip.
+    public static let menuBarSourceHelp = "Shown in the menu bar"
+
     /// Everything the identity phrase says after the title, in the same order. U8: a
     /// remembered row's `lastReadLabel` takes the place of "Stale", as its capsule does.
+    /// CA-P3: `staleLabel` is the chip's own words ("Last read 14 min ago"), so VoiceOver
+    /// says what the chip shows.
     public static func accessibilityDetail(
         planDisplayName: String?,
         isMenuBarAccount: Bool,
@@ -499,7 +562,8 @@ public enum IdentityRowText {
         email: String?,
         showsConnectedChip: Bool,
         bankedPhrase: String?,
-        lastReadLabel: String? = nil
+        lastReadLabel: String? = nil,
+        staleLabel: String = staleFallbackLabel
     ) -> String {
         var parts: [String] = []
         if let planDisplayName { parts.append("\(planDisplayName) plan") }
@@ -507,7 +571,7 @@ public enum IdentityRowText {
         if let lastReadLabel {
             parts.append(lastReadLabel)
         } else if isStale {
-            parts.append("Stale")
+            parts.append(staleLabel)
         }
         if let email { parts.append("signed in as \(email)") }
         if showsConnectedChip { parts.append("Connected") }
@@ -526,6 +590,46 @@ private extension AnyTransition {
             insertion: .opacity.combined(with: .scale(scale: 0.96)),
             removal: .opacity
         )
+    }
+}
+
+/// CA-MB3 (MB-F): a 7×11pt copy of the menu-bar vessel, marking the account whose reading
+/// feeds a pill. The wall and the liquid are both tertiary ink at the decorative level the
+/// menu bar uses with no value (`LoadingMotionConstants.decorativeLevel`, `VesselGlyph`'s
+/// `staticFill`), so it never claims a severity or a number. The identity row draws it 6pt
+/// after its last capsule; the Compact row draws it 6pt after the account name.
+public struct MenuBarSourceGlyph: View {
+    public static let size = CGSize(width: 7, height: 11)
+    /// `VesselGlyph`'s 1.6pt wall and 0.6pt liquid gap at 11pt wide, scaled to 7.
+    static let wallWidth: CGFloat = 1
+    static let liquidGap: CGFloat = 0.4
+
+    public var scale: CGFloat = 1
+    @Environment(\.colorScheme) private var scheme
+
+    public init(scale: CGFloat = 1) {
+        self.scale = scale
+    }
+
+    public var body: some View {
+        let ink = ProviderStyle.tertiaryText(scheme: scheme)
+        let wall = Self.wallWidth * scale
+        let inset = wall + Self.liquidGap * scale
+        let width = Self.size.width * scale
+        let height = Self.size.height * scale
+        let innerHeight = height - inset * 2
+        ZStack {
+            Capsule()
+                .strokeBorder(ink, lineWidth: wall)
+            Rectangle()
+                .fill(ink)
+                .frame(height: innerHeight * CGFloat(LoadingMotionConstants.decorativeLevel))
+                .frame(maxHeight: .infinity, alignment: .bottom)
+                .frame(width: width - inset * 2, height: innerHeight)
+                .clipShape(Capsule())
+        }
+        .frame(width: width, height: height)
+        .help(IdentityRowText.menuBarSourceHelp)
     }
 }
 

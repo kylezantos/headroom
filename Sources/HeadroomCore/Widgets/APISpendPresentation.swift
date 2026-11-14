@@ -266,7 +266,7 @@ public enum APISpendPresentation {
 
     /// R2C8 vocabulary again, this time as the noun the missing-key line promises. A balance
     /// row's figure is money *remaining*, so "to see xAI spend" named a number the key would
-    /// never produce — the popover chip on that same row reads "Remaining balance".
+    /// never produce — the popover chip on that same row reads "Balance".
     private static func figureNoun(kind: APISpendKind) -> String {
         switch kind {
         case .periodSpend: "spend"
@@ -404,8 +404,23 @@ public enum APISpendPresentation {
         )
     }
 
+    /// CA-S8 (COPY-12): "Balance", not "Remaining balance": the amount beside it already
+    /// ends in "left", so the chip said it twice.
     public static func contextLabel(kind: APISpendKind, periodLabel: String) -> String {
-        kind == .balance ? "Remaining balance" : periodLabel
+        kind == .balance ? "Balance" : periodLabel
+    }
+
+    /// CA-S8 (COPY-12): a card-foot call to action names its vendor whenever the card holds
+    /// more than one vendor, so a lone "Replace Key" under four rows never leaves the user
+    /// guessing which key. Core's CTAs are all "<Verb> Key", so the vendor slots in before the
+    /// noun; anything else takes a parenthetical. One vendor keeps the short label.
+    public static func cardCallToAction(_ callToAction: String, vendor: String, cardVendorCount: Int) -> String {
+        guard cardVendorCount > 1 else { return callToAction }
+        let verbAndKey = callToAction.split(separator: " ")
+        if verbAndKey.count == 2, verbAndKey[1] == "Key" {
+            return "\(verbAndKey[0]) \(vendor) Key"
+        }
+        return "\(callToAction) (\(vendor))"
     }
 
     /// The exact page where a user tops up prepaid API credits — the billing screen that

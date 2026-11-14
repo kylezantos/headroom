@@ -1975,7 +1975,7 @@ private final class GrokDeviceCodeSetupHarness {
         #expect(dedupe.announcement(
             for: .claude,
             state: .confirmedAbsent
-        ) == "Claude Code availability. Headroom can’t find the Claude Code CLI on this Mac")
+        ) == "Claude Code availability. Headroom can’t find Claude Code on this Mac")
         #expect(dedupe.announcement(for: .claude, state: .confirmedAbsent) == nil)
         #expect(dedupe.announcement(for: .claude, state: .available) == nil)
         #expect(dedupe.announcement(

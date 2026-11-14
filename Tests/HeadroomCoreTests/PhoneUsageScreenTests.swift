@@ -145,14 +145,15 @@ struct PhoneUsageScreenTests {
         #expect(rows.allSatisfy { $0.amount != nil }, "a retained figure stays visible")
     }
 
-    /// X5: a balance row's "Remaining balance" outranks the name's qualifier.
+    /// X5: a balance row's "Balance" (CA-S8, was "Remaining balance") outranks the name's
+    /// qualifier.
     @Test func aBalanceRowKeepsRemainingBalanceOverTheQualifier() {
         let summary = WidgetAPISpendSummary(
             id: "grok", displayName: "xAI prepaid", amount: 12, currency: "usd", periodLabel: "October",
             kind: .balance, capturedAt: now, freshness: .live)
         let row = CompanionSpendRowModel(summary)
         #expect(row.title == "xAI")
-        #expect(row.contextLabel == "Remaining balance")
+        #expect(row.contextLabel == "Balance")
         #expect(APISpendPresentation.popoverIdentity(displayName: "xAI prepaid").chipOverride != nil,
                 "the name does carry a qualifier the balance label outranks")
     }

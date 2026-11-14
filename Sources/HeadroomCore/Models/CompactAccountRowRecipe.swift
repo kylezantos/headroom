@@ -105,16 +105,25 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     public let lastReadLabel: String?
     /// U8: true for a remembered account's row, whatever its freshness.
     public let isRemembered: Bool
+    /// CA-P3: a dimmed engine row's "Last read 14 min ago" (or "Not refreshed"), from the
+    /// snapshot's capture time, the same words its Standard chip prints.
+    public let staleReadLabel: String
 
     public var fallsBackToStandard: Bool { content == .standardFallback }
 
-    /// The row's one state word for its tooltip and VoiceOver label: "Last read …" on a
-    /// remembered row (U8, R7), "Stale" on a dimmed engine row, nil otherwise. A remembered
-    /// row never says "Stale".
+    /// The row's one state phrase for its tooltip and VoiceOver label: "Last read …" on a
+    /// remembered row (U8, R7) and, since CA-P3, on a dimmed engine row too, where it was a
+    /// bare "Stale" with no age. Nil otherwise.
     public var rowStateLabel: String? {
         guard content == .meters else { return nil }
         if isRemembered { return lastReadLabel }
-        return isDimmed ? "Stale" : nil
+        return isDimmed ? staleReadLabel : nil
+    }
+
+    /// CA-P3: the tooltip line that says why the row is old, under `rowStateLabel`.
+    public var rowStateHelp: String? {
+        guard content == .meters, !isRemembered, isDimmed else { return nil }
+        return Countdown.staleReadHelp
     }
 
     /// - Parameters:
@@ -141,6 +150,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         self.meterStyle = Self.microTwin(of: meterStyle)
         self.isDimmed = snapshot.freshness != .live
         self.isRemembered = isRemembered
+        self.staleReadLabel = Countdown.staleReadLabel(capturedAt: snapshot.capturedAt, now: now)
         self.lastReadLabel = isRemembered
             ? Countdown.lastReadLabel(capturedAt: lastReadAt ?? snapshot.capturedAt, now: now)
             : nil
@@ -324,19 +334,32 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         }
     }
 
+    /// CA-I10 (IOS-10): the shorter name a long window label takes before a row gives up a
+    /// line or truncates. A Codex model row "GPT-5.3-Codex-Spark · Weekly" keeps its period
+    /// and the model's last hyphenated part, "Spark · Weekly", the same contraction the
+    /// widget header's `compactLabel` makes. Nil when the name has no shorter form.
+    public static func shortDisplayName(for kind: WindowKind) -> String? {
+        let parts = kind.displayName.components(separatedBy: " · ")
+        guard parts.count == 2,
+              let model = parts[0].split(separator: "-").last.map(String.init),
+              model != parts[0], model.first?.isLetter == true
+        else { return nil }
+        return "\(model) · \(parts[1])"
+    }
+
     // MARK: - Tooltip and VoiceOver
 
-    /// A stale window's state words, as `UsageBarView` prints them.
+    /// A stale window's state words, as `UsageBarView` prints them. CA-P3: "Last read", the
+    /// chip's phrase, where it was "Last known".
     private static func lastKnownState(_ window: UsageWindow, now: Date) -> String {
-        Countdown.updatedLabel(capturedAt: window.freshness.observedAt, now: now).map { "Last known \($0)" }
-            ?? "Last known"
+        Countdown.windowReadLabel(observedAt: window.freshness.observedAt, now: now)
     }
 
     /// R13: the same pieces, wording and reset formatter `UsageBarView` puts in a Micro row's
     /// `.help` and accessibility value — the percentage in the chosen mode, the window's own
-    /// state ("Last known …", "Unavailable") and `meterResetLine(now:)`'s "Resets in …".
+    /// state ("Last read …", "No reading yet") and `meterResetLine(now:)`'s "Resets in …".
     ///
-    /// U8: a remembered row drops the per-window "Last known …" (`showsWindowState: false`);
+    /// U8: a remembered row drops the per-window "Last read …" (`showsWindowState: false`);
     /// the row's own last-read line already says it once.
     private static func windowDescription(
         _ window: UsageWindow,
@@ -353,7 +376,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         case .stale:
             showsWindowState ? lastKnownState(window, now: now) : nil
         case .unavailable:
-            "Unavailable"
+            // CA-P4: the words a Micro row now prints in its countdown slot.
+            Countdown.unavailableLabel(for: window)
         }
         let reset = window.freshness.isUnavailable ? nil : window.resetSchedule.meterResetLine(now: now)?.tooltip
 

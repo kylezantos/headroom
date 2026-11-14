@@ -76,7 +76,8 @@ struct APISpendPresentationTests {
         )
 
         #expect(APISpendPresentation.amountText(balance) == "$42.10 left")
-        #expect(APISpendPresentation.contextLabel(kind: .balance, periodLabel: balance.periodLabel) == "Remaining balance")
+        // CA-S8: "Balance"; the amount already says "left".
+        #expect(APISpendPresentation.contextLabel(kind: .balance, periodLabel: balance.periodLabel) == "Balance")
         #expect(APISpendPresentation.amountText(spend) == "$12.30")
         #expect(APISpendPresentation.contextLabel(kind: .periodSpend, periodLabel: spend.periodLabel) == "Current month")
     }
@@ -564,5 +565,16 @@ struct APISpendPresentationTests {
         #expect(APISpendPresentation.rowStatus(
             freshness: WidgetProviderFreshness.stale(message: "Add API key", needsAttention: true)
         ).message == "Add API key")
+    }
+
+    /// CA-S8 (COPY-12): a card holding more than one vendor always names the key, so a lone
+    /// "Replace Key" under the Cursor row never stands for Anthropic's rejected key.
+    @Test func aMultiVendorCardNamesItsKey() {
+        #expect(APISpendPresentation.cardCallToAction("Replace Key", vendor: "Anthropic", cardVendorCount: 2)
+            == "Replace Anthropic Key")
+        #expect(APISpendPresentation.cardCallToAction("Add Key", vendor: "xAI", cardVendorCount: 4) == "Add xAI Key")
+        #expect(APISpendPresentation.cardCallToAction("Replace Key", vendor: "Anthropic", cardVendorCount: 1)
+            == "Replace Key")
+        #expect(APISpendPresentation.cardCallToAction("Top Up", vendor: "OpenAI", cardVendorCount: 2) == "Top Up (OpenAI)")
     }
 }

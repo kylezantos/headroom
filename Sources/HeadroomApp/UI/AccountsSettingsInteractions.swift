@@ -85,12 +85,15 @@ enum AccountsSettingsInteractions {
         var secondaryAccessibilityLabel: String? {
             secondaryLabel.map { "\($0) for \(accountLabel)" }
         }
-        /// R2C11: two buttons need a line of their own. Only the *buttons* move — the status
-        /// stays pinned in the trailing column in both silhouettes, so one list can't print
-        /// the same state in two different places.
-        var usesSecondLine: Bool {
+        /// CA-S3: a second recovery action exists. It leads the row's "…" menu; the row
+        /// itself shows one button only.
+        var hasSecondaryAction: Bool {
             secondaryLabel != nil && secondaryAction != nil
         }
+        /// CA-S3 overturns craft round 2's R2C11: no row breaks onto a second button line any
+        /// more. Kept under its old name only because `ClaudeExecutableDiscoveryInteractionTests`
+        /// (outside U4) still reads it; it now means `hasSecondaryAction`.
+        var usesSecondLine: Bool { hasSecondaryAction }
     }
 
     /// R9/R10 (KTD6): the provider group header's subscription switch. The switch is the
@@ -246,11 +249,326 @@ enum AccountsSettingsInteractions {
         return .enabled(help: "Sign in another account via the official CLI")
     }
 
-    /// R15 (2026-09-19 polling plan): the header counter reads as a tested envelope, not a
-    /// product limit, once a provider reaches it.
-    nonisolated static func accountCounterText(usedSlots: Int, capacity: Int) -> String {
-        if capacity <= 1 { return "Single account" }
+    /// CA-S5 (SET-07, COPY-11) overturns the multi-account plan's R15 (2026-09-19 polling
+    /// plan), which showed "3 of 20" on every multi-account header: a count with a
+    /// denominator reads as a plan allowance, and 20 is a tested envelope, not a limit. The
+    /// counter now appears only within two of the envelope and reads "Tested up to 20" there.
+    /// Nil hides it; a single-account provider (Cursor, Copilot) never shows one.
+    nonisolated static let accountCounterLeadIn = 2
+
+    nonisolated static func accountCounterText(usedSlots: Int, capacity: Int) -> String? {
+        guard capacity > 1, usedSlots >= capacity - accountCounterLeadIn else { return nil }
         return usedSlots >= capacity ? "Tested up to \(capacity)" : "\(usedSlots) of \(capacity)"
+    }
+
+    // MARK: CA-S5: the default login's words
+
+    /// CA-S5 (COPY-11): the built-in row's badge. "CLI login" named a mechanism; the row is
+    /// the account the provider's CLI in Terminal is signed in to, which CONCEPTS.md and the
+    /// code already call the default login.
+    nonisolated static let defaultLoginBadge = "Default"
+    nonisolated static let defaultLoginSection = "Default login"
+    nonisolated static let showDefaultLoginTitle = "Show Default Login"
+
+    nonisolated static func showDefaultLoginHelp(for providerID: ProviderID) -> String {
+        "Track the account \(ProviderSignInCopy.cliProductName(for: providerID)) in Terminal is signed in to again"
+    }
+
+    /// CA-S9 (COPY-07): what the email-names switch adds beyond its label.
+    nonisolated static let emailNamesHelp =
+        "Shows on this Mac and a synced iPhone or iPad. Turn it off to get your own names back."
+
+    // MARK: CA-S3: three slots per row
+
+    /// CA-S3 (SET-01, UX-04): the one thing a row's trailing slot holds, at a fixed minimum
+    /// width so every row's slot ends on one x. Overturns craft round 2's R2C11, which kept the
+    /// status trailing and dropped a second button onto its own line, so the column moved with
+    /// the number of buttons.
+    enum RowTrailing: Equatable {
+        case connected
+        /// "Fetching…", "Removing…", beside the row's loading vessel.
+        case progress(String)
+        /// The stale clock or a remembered row's tag: "Last read 14 min ago".
+        case lastRead(String, help: String)
+        case waitingForClaudeCode
+        case retainedUsage
+        case stopWaiting
+        case button(RowButton)
+        case none
+    }
+
+    /// The single native small button a row may carry.
+    enum RowButton: Equatable {
+        /// The typed recovery's primary (`RecoveryRowActions.primaryLabel`).
+        case recovery(String)
+        case signIn
+        case continueSetup
+        /// The bounded wait expired, or the CLI is too old (`SetupRowRecovery.tryAgain`).
+        case tryAgainSetup
+        case tryAgainFailedSetup
+        case tryAgainRemoval
+
+        var label: String {
+            switch self {
+            case .recovery(let label): label
+            case .signIn: ProviderSignInCopy.button
+            case .continueSetup: "Continue Setup"
+            // CA-S8 (COPY-09): "Try Again" everywhere. Settings said "Retry…" and "Retry"
+            // where the popover said "Try Again" for the same act.
+            case .tryAgainSetup, .tryAgainFailedSetup, .tryAgainRemoval: SetupRowChip.tryAgain.label
+            }
+        }
+    }
+
+    /// CA-S3: the action that used to be the row's second button. It leads the menu.
+    enum RowMenuLead: Equatable {
+        case secondaryRecovery(String)
+        case tryAgainSetup
+        case cancelRemoval
+
+        var label: String {
+            switch self {
+            case .secondaryRecovery(let label): label
+            case .tryAgainSetup: SetupRowChip.tryAgain.label
+            case .cancelRemoval: "Cancel Removal"
+            }
+        }
+    }
+
+    /// CA-S3: the identity's second line when the row has something to say. Nil leaves the
+    /// account's email there.
+    struct RowSecondLine: Equatable {
+        enum Tone: Equatable {
+            /// R2C5: a lifecycle sentence in the meter-label ink, never the amber ramp.
+            case label
+            case secondary
+            case warning
+        }
+
+        let text: String
+        let tone: Tone
+        var help: String? = nil
+        var lineLimit: Int = 1
+    }
+
+    struct RowSlots: Equatable {
+        let secondLine: RowSecondLine?
+        let trailing: RowTrailing
+        let menuLead: RowMenuLead?
+    }
+
+    struct RowSlotInput {
+        var status: AccountsSettingsTile.AccountStatus
+        var isRemembered = false
+        var rememberedLabel: String? = nil
+        /// The provider is off and the status is fetch state (R11).
+        var hidesStatus = false
+        var capabilityRow: CapabilityRowPresentation = .standard
+        var removalState: AccountRemovalState? = nil
+        var setupRecovery: SetupRowRecovery = .outcomeRecovery
+        var offersStopWaiting = false
+        /// False for a remembered row, which is never probed (R12).
+        var offersRecovery = true
+        var recoveryActions: RecoveryRowActions? = nil
+        var setupFailure: String? = nil
+        var setupWaitingTitle: String? = nil
+        var isDeviceCode = false
+        var providerDisplayName: String
+        /// `Countdown.staleReadLabel(capturedAt:now:)` for this row's reading.
+        var staleLabel: String
+        var setupSentence: String? = nil
+    }
+
+    /// CA-S3: every row, every provider and every state resolves to the same three slots:
+    /// identity (with this second line), one trailing state or button, and the menu.
+    nonisolated static func rowSlots(_ input: RowSlotInput) -> RowSlots {
+        var lead: RowMenuLead?
+        let trailing: RowTrailing
+        let button = rowButton(input)
+        if input.removalState == .removing {
+            trailing = .progress("Removing…")
+        } else if input.offersStopWaiting {
+            // R13: during a handoff the row's one control is Stop Waiting. A timed-out wait
+            // also offers Try Again, which moves into the menu.
+            trailing = .stopWaiting
+            if input.offersRecovery, input.setupRecovery == .tryAgain { lead = .tryAgainSetup }
+        } else if input.removalState == .failed {
+            trailing = .button(.tryAgainRemoval)
+            lead = .cancelRemoval
+        } else if input.isRemembered {
+            trailing = input.rememberedLabel.map {
+                .lastRead($0, help: rememberedStatusHelp)
+            } ?? .none
+        } else if input.capabilityRow == .waitingForClaudeCode {
+            trailing = .waitingForClaudeCode
+        } else if input.capabilityRow == .retainedUsage {
+            trailing = .retainedUsage
+        } else if let button {
+            trailing = .button(button)
+            if case .recovery = button, let actions = input.recoveryActions, actions.hasSecondaryAction,
+               let label = actions.secondaryLabel {
+                lead = .secondaryRecovery(label)
+            }
+        } else if input.hidesStatus {
+            trailing = .none
+        } else {
+            switch input.status {
+            case .connected: trailing = input.setupWaitingTitle == nil ? .connected : .none
+            case .fetching: trailing = .progress("Fetching…")
+            case .stale: trailing = .lastRead(input.staleLabel, help: Countdown.staleReadHelp)
+            default: trailing = .none
+            }
+        }
+        return RowSlots(
+            secondLine: rowSecondLine(input, trailing: trailing),
+            trailing: trailing,
+            menuLead: lead
+        )
+    }
+
+    private nonisolated static func rowButton(_ input: RowSlotInput) -> RowButton? {
+        guard input.offersRecovery, input.capabilityRow == .standard, input.removalState == nil else {
+            return nil
+        }
+        switch input.setupRecovery {
+        case .sessionOnly:
+            return nil
+        case .tryAgain:
+            return .tryAgainSetup
+        case .outcomeRecovery:
+            guard input.status.needsRecovery || input.recoveryActions != nil else { return nil }
+            // R2B1: "Continue Setup" resumes the handoff already open.
+            if input.status == .blocked { return .continueSetup }
+            if let actions = input.recoveryActions { return .recovery(actions.primaryLabel) }
+            return input.status == .setupFailed ? .tryAgainFailedSetup : .signIn
+        }
+    }
+
+    private nonisolated static func rowSecondLine(_ input: RowSlotInput, trailing: RowTrailing) -> RowSecondLine? {
+        guard !input.isRemembered else { return nil }
+        switch input.removalState {
+        case .setupActive: return RowSecondLine(text: "Close setup, then retry", tone: .warning)
+        case .failed: return RowSecondLine(text: "Removal failed", tone: .warning)
+        case .removing: return nil
+        case nil: break
+        }
+        if input.hidesStatus, !input.status.isSetupState { return nil }
+        switch input.status {
+        case .waiting:
+            return RowSecondLine(
+                text: input.setupWaitingTitle
+                    ?? (input.isDeviceCode ? "Waiting for device code…" : "Waiting for sign-in…"),
+                tone: .secondary
+            )
+        case .connected:
+            return input.setupWaitingTitle.map { RowSecondLine(text: $0, tone: .secondary) }
+        case .blocked:
+            // PB9: "sign-in", the word every other status here uses for this event.
+            return RowSecondLine(text: "Another \(input.providerDisplayName) sign-in is open", tone: .secondary)
+        case .setupFailed:
+            return RowSecondLine(
+                text: input.setupFailure ?? "Sign-in failed",
+                tone: .warning,
+                help: input.setupFailure,
+                lineLimit: 2
+            )
+        case .setupActive:
+            return RowSecondLine(text: "Close setup, then retry", tone: .warning)
+        case .needsSignIn:
+            guard input.capabilityRow == .standard else { return nil }
+            // CA-S3 (UX-04) overturns craft round 2's R2C6, which printed the popover's
+            // sentence ("Sign in with the official Claude CLI") beside a button that says
+            // "Sign In": one act said twice in one row. The line now names the state and the
+            // button names the act; the sentence stays in the tooltip.
+            let presentation = input.recoveryActions?.presentation
+            let text: String
+            if let presentation, presentation.appendsShortAction {
+                text = presentation.shortStatus
+            } else if presentation?.primaryLabel == ProviderSignInCopy.buttonAgain {
+                text = "Signed out"
+            } else {
+                text = "Not signed in"
+            }
+            return RowSecondLine(
+                text: text,
+                tone: .label,
+                help: presentation?.rowHelp ?? input.setupSentence
+            )
+        case .stale:
+            // One state or one button: when a button holds the slot, the reading's age moves
+            // to the identity's second line instead of being dropped.
+            guard case .button = trailing else { return nil }
+            return RowSecondLine(text: input.staleLabel, tone: .secondary, help: Countdown.staleReadHelp)
+        case .fetching, .removing, .removalFailed:
+            return nil
+        }
+    }
+
+    // MARK: CA-S3: the row's "…" menu
+
+    enum RowMenuItem: Equatable {
+        case lead(RowMenuLead)
+        case makeMain
+        case signOutAndSetUpAgain
+        case stopTracking
+        case removeAccount(destructive: Bool)
+    }
+
+    /// CA-S3: the menu every row ends with, in sections a divider separates. The secondary
+    /// recovery action, when there is one, is its first item. Empty means the slot is held
+    /// open but draws nothing, so the trailing edge stays put.
+    nonisolated static func rowMenuSections(
+        lead: RowMenuLead?,
+        isBuiltIn: Bool,
+        isRemembered: Bool,
+        builtInActions: BuiltInRowActions,
+        promotion: PromotionState
+    ) -> [[RowMenuItem]] {
+        if lead == .cancelRemoval { return [[.lead(.cancelRemoval)]] }
+        var sections: [[RowMenuItem]] = []
+        if let lead { sections.append([.lead(lead)]) }
+        if isRemembered {
+            // R11: a remembered row's removal only hides it, so it is not destructive.
+            sections.append([.removeAccount(destructive: false)])
+        } else if isBuiltIn {
+            switch (builtInActions, promotion) {
+            case (.resetOnly, _):
+                sections.append([.signOutAndSetUpAgain])
+            case (.resetAndStopTracking, .primary):
+                sections += [[.signOutAndSetUpAgain], [.stopTracking]]
+            case (.resetAndStopTracking, .available):
+                sections += [[.makeMain], [.signOutAndSetUpAgain], [.stopTracking]]
+            case (.unavailable, _), (.resetAndStopTracking, .unavailable):
+                break
+            }
+        } else {
+            if promotion == .available { sections.append([.makeMain]) }
+            sections.append([.removeAccount(destructive: true)])
+        }
+        return sections
+    }
+
+    // MARK: CA-P14: stopping an Add Account removes the row it made
+
+    /// CA-P14 (UX-02): true for an added account that has never finished a sign-in, the row
+    /// an abandoned Add Account leaves behind. Built-in rows and extras that ever read usage
+    /// or reported an email keep today's Stop Waiting dialog.
+    nonisolated static func stopWaitingRemovesAccount(_ account: ProviderAccount, snapshot: UsageSnapshot) -> Bool {
+        !account.isBuiltIn
+            && snapshot.windows.isEmpty
+            && (snapshot.accountEmail ?? "").isEmpty
+            && LaneSchedule.isNeverSignedIn(snapshot.freshness)
+    }
+
+    /// CA-P14: Stop Waiting's "Remove Account". The handoff is abandoned first, so the store's
+    /// open-handoff guard does not refuse the removal it was asked for.
+    static func stopWaitingAndRemove(
+        _ account: ProviderAccount,
+        from store: UsageStore,
+        forceCancel: @MainActor (ProviderAccount) -> Void = SetupSessions.forceCancel(for:)
+    ) async -> AccountRemovalResult {
+        stopWaiting(for: account, in: store, forceCancel: forceCancel)
+        return await store.removeAccount(account.key)
     }
 
     /// R12: leaving Accounts (pane switch or window close) must not silently discard a
@@ -377,7 +695,7 @@ enum AccountsSettingsInteractions {
             return "It stays hidden until your CLI is signed in to this account again. Nothing is deleted."
         }
         return row.account.isBuiltIn
-            ? "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted."
+            ? "Headroom stops showing it. Your CLI stays signed in, and nothing on this Mac is deleted."
             : "Its sign-in on this Mac is deleted with it. Your subscription is untouched."
     }
 

@@ -393,11 +393,16 @@ struct AccountsSettingsInteractionTests {
         #expect(opened.count == extras)
     }
 
-    @Test func accountCounterReadsAsATestedEnvelopeOnlyAtCapacity() {
+    /// CA-S5: hidden far from the envelope, shown within two of it, "Tested up to 20" at it.
+    @Test func accountCounterAppearsOnlyNearTheTestedEnvelope() {
+        #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 1, capacity: 20) == nil)
+        #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 3, capacity: 20) == nil)
+        #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 17, capacity: 20) == nil)
+        #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 18, capacity: 20) == "18 of 20")
         #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 19, capacity: 20) == "19 of 20")
         #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 20, capacity: 20) == "Tested up to 20")
-        // Cursor's single account is a design bound, not an envelope anyone tested up to.
-        #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 1, capacity: 1) == "Single account")
+        // Cursor's and Copilot's single account is a design bound: no counter at all.
+        #expect(AccountsSettingsInteractions.accountCounterText(usedSlots: 1, capacity: 1) == nil)
     }
 
     @Test func singleAccountProviderExplainsItsBoundInsteadOfAnEnvelope() {
@@ -1192,7 +1197,7 @@ struct AccountsSettingsInteractionTests {
             account: account
         )
 
-        #expect(actions?.usesSecondLine == true)
+        #expect(actions?.hasSecondaryAction == true)
         #expect(actions?.secondaryLabel == "Use Device Code")
         #expect(actions?.secondaryAccessibilityLabel == "Use Device Code for Work")
         #expect(actions?.secondaryAction == .connectCodexDeviceCode)
@@ -1334,7 +1339,7 @@ struct AccountsSettingsInteractionTests {
             account: account
         )
 
-        #expect(actions?.usesSecondLine == false)
+        #expect(actions?.hasSecondaryAction == false)
         #expect(actions?.primaryLabel == "Check Now")
         #expect(actions?.secondaryAction == nil)
     }
@@ -2502,7 +2507,7 @@ struct RememberedRowInteractionTests {
         )
         #expect(AccountsSettingsInteractions.removalDialogTitle(for: builtIn) == "Stop tracking this account?")
         #expect(AccountsSettingsInteractions.removalDialogMessage(for: builtIn)
-            == "Headroom stops showing it. Your CLI stays signed in — nothing on this Mac is deleted.")
+            == "Headroom stops showing it. Your CLI stays signed in, and nothing on this Mac is deleted.")
         #expect(AccountsSettingsInteractions.removalIsDestructive(for: builtIn) == false)
         #expect(AccountsSettingsInteractions.removalDialogTitle(for: extra) == "Remove this account?")
         #expect(AccountsSettingsInteractions.removalDialogMessage(for: extra)
@@ -2663,5 +2668,258 @@ struct MergedRowInteractionTests {
         await fixture.store.refreshAll()
         #expect(fixture.store.displayAccounts(for: .codex).map(\.account) == fixture.store.accounts(for: .codex))
         #expect(AccountsSettingsInteractions.mergedBuiltInActions(for: .codex, in: fixture.store) == .unavailable)
+    }
+}
+
+// MARK: - CA-S3 / CA-S5 / CA-P14: three slots, the default login's words, Stop Waiting removal
+
+extension AccountsSettingsInteractionTests {
+    private typealias Slots = AccountsSettingsInteractions
+
+    private func input(
+        _ status: AccountsSettingsTile.AccountStatus,
+        provider: ProviderID,
+        recovery: AccountsSettingsInteractions.RecoveryRowActions? = nil,
+        offersStopWaiting: Bool = false,
+        setupRecovery: SetupRowRecovery = .outcomeRecovery
+    ) -> AccountsSettingsInteractions.RowSlotInput {
+        AccountsSettingsInteractions.RowSlotInput(
+            status: status,
+            setupRecovery: setupRecovery,
+            offersStopWaiting: offersStopWaiting,
+            recoveryActions: recovery,
+            providerDisplayName: provider.displayName,
+            staleLabel: "Last read 14 min ago"
+        )
+    }
+
+    /// The plan's first scenario: two recovery actions give the row one button, and the
+    /// other action leads its menu.
+    @Test func signedOutExtraWithTwoRecoveryActionsShowsOneButtonAndLeadsTheMenuWithTheOther() throws {
+        let account = ProviderAccount(id: AccountID("codex-work"), providerID: .codex, label: "Work")
+        let actions = try #require(AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: .stale(for: .codex, reason: .providerSetup(.codexAuthAbsent)),
+            account: account
+        ))
+        let slots = Slots.rowSlots(input(.needsSignIn, provider: .codex, recovery: actions))
+
+        #expect(slots.trailing == .button(.recovery(actions.primaryLabel)))
+        #expect(slots.menuLead == .secondaryRecovery("Use Device Code"))
+        #expect(slots.secondLine?.text == "Not signed in")
+        let sections = Slots.rowMenuSections(lead: slots.menuLead, isBuiltIn: false, isRemembered: false,
+                                             builtInActions: .unavailable, promotion: .available)
+        #expect(sections.first == [.lead(.secondaryRecovery("Use Device Code"))])
+        #expect(sections.last == [.removeAccount(destructive: true)])
+    }
+
+    /// One state or one button: an ordinary transient row's Check Now takes the slot and the
+    /// reading's age moves to the identity's second line.
+    @Test func aRecoveryButtonOnAStaleRowMovesTheAgeToTheSecondLine() throws {
+        let account = ProviderAccount.builtIn(for: .codex)
+        let actions = try #require(AccountsSettingsInteractions.recoveryRowActions(
+            snapshot: .stale(for: .codex, reason: .providerSetup(.codexCredentialIO)),
+            account: account
+        ))
+        let slots = Slots.rowSlots(input(.stale, provider: .codex, recovery: actions))
+
+        #expect(slots.trailing == .button(.recovery("Check Now")))
+        #expect(slots.menuLead == nil)
+        #expect(slots.secondLine == .init(text: "Last read 14 min ago", tone: .secondary,
+                                          help: Countdown.staleReadHelp))
+    }
+
+    @Test func everyProviderProducesTheSameSlotsForEveryOrdinaryState() {
+        for provider in DemoFixture.registeredProviderOrder {
+            let connected = Slots.rowSlots(input(.connected, provider: provider))
+            #expect(connected.trailing == .connected, "\(provider)")
+            #expect(connected.secondLine == nil, "\(provider): the email stays under the name")
+
+            let fetching = Slots.rowSlots(input(.fetching, provider: provider))
+            #expect(fetching.trailing == .progress("Fetching…"), "\(provider)")
+            #expect(fetching.secondLine == nil, "\(provider)")
+
+            let stale = Slots.rowSlots(input(.stale, provider: provider))
+            #expect(stale.trailing == .lastRead("Last read 14 min ago", help: Countdown.staleReadHelp), "\(provider)")
+            #expect(stale.secondLine == nil, "\(provider)")
+
+            // A never-signed-in extra: whatever the provider's typed recovery, one button,
+            // and "Not signed in" on the identity's second line.
+            let account = ProviderAccount(id: AccountID("extra"), providerID: provider, label: "Extra")
+            let actions = neverSignedInOutcome(for: provider).flatMap {
+                AccountsSettingsInteractions.recoveryRowActions(
+                    snapshot: .stale(for: provider, reason: .providerSetup($0)), account: account
+                )
+            }
+            let signedOut = Slots.rowSlots(input(.needsSignIn, provider: provider, recovery: actions))
+            guard case .button = signedOut.trailing else {
+                Issue.record("\(provider): a signed-out row holds one button, got \(signedOut.trailing)")
+                continue
+            }
+            #expect(signedOut.secondLine?.text == "Not signed in", "\(provider)")
+            #expect(signedOut.secondLine?.tone == .label, "\(provider)")
+            if let lead = signedOut.menuLead {
+                if case .secondaryRecovery = lead {} else {
+                    Issue.record("\(provider): only a second recovery action leads the menu")
+                }
+            }
+
+            // Waiting: Stop Waiting is the slot's one control, the wait words the second line.
+            let waiting = Slots.rowSlots(input(.waiting, provider: provider, offersStopWaiting: true,
+                                               setupRecovery: .sessionOnly))
+            #expect(waiting.trailing == .stopWaiting, "\(provider)")
+            #expect(waiting.secondLine?.text == "Waiting for sign-in…", "\(provider)")
+            #expect(waiting.menuLead == nil, "\(provider)")
+        }
+    }
+
+    @Test func aTimedOutWaitKeepsStopWaitingInTheSlotAndPutsTryAgainInTheMenu() {
+        let slots = Slots.rowSlots(input(.waiting, provider: .claude, offersStopWaiting: true,
+                                         setupRecovery: .tryAgain))
+        #expect(slots.trailing == .stopWaiting)
+        #expect(slots.menuLead == .tryAgainSetup)
+        #expect(slots.menuLead?.label == "Try Again")
+    }
+
+    @Test func aFailedSignInAndAFailedRemovalBothSayTryAgain() {
+        var failed = input(.setupFailed, provider: .grok)
+        failed.setupFailure = "Grok sign-in didn’t finish"
+        let setup = Slots.rowSlots(failed)
+        #expect(setup.trailing == .button(.tryAgainFailedSetup))
+        #expect(AccountsSettingsInteractions.RowButton.tryAgainFailedSetup.label == "Try Again")
+        #expect(setup.secondLine?.tone == .warning)
+
+        var removal = input(.removalFailed, provider: .claude)
+        removal.removalState = .failed
+        let slots = Slots.rowSlots(removal)
+        #expect(slots.trailing == .button(.tryAgainRemoval))
+        #expect(AccountsSettingsInteractions.RowButton.tryAgainRemoval.label == "Try Again")
+        #expect(slots.secondLine?.text == "Removal failed")
+        #expect(Slots.rowMenuSections(lead: slots.menuLead, isBuiltIn: false, isRemembered: false,
+                                      builtInActions: .unavailable, promotion: .available)
+                == [[.lead(.cancelRemoval)]])
+    }
+
+    @Test func rememberedAndBuiltInRowsKeepTheirStateAndMenu() {
+        var remembered = input(.stale, provider: .claude)
+        remembered.isRemembered = true
+        remembered.offersRecovery = false
+        remembered.rememberedLabel = "Last read 2 days ago"
+        let slots = Slots.rowSlots(remembered)
+        #expect(slots.trailing == .lastRead("Last read 2 days ago", help: AccountsSettingsInteractions.rememberedStatusHelp))
+        #expect(slots.secondLine == nil)
+        #expect(Slots.rowMenuSections(lead: nil, isBuiltIn: false, isRemembered: true,
+                                      builtInActions: .unavailable, promotion: .unavailable)
+                == [[.removeAccount(destructive: false)]])
+        // The built-in row with an extra beside it: Make Main, reset, stop tracking.
+        #expect(Slots.rowMenuSections(lead: nil, isBuiltIn: true, isRemembered: false,
+                                      builtInActions: .resetAndStopTracking, promotion: .available)
+                == [[.makeMain], [.signOutAndSetUpAgain], [.stopTracking]])
+        #expect(Slots.rowMenuSections(lead: nil, isBuiltIn: true, isRemembered: false,
+                                      builtInActions: .unavailable, promotion: .primary).isEmpty)
+    }
+
+    @Test func aProviderSwitchedOffStillOffersSignInButHidesFetchState() {
+        var off = input(.stale, provider: .cursor)
+        off.hidesStatus = true
+        #expect(Slots.rowSlots(off).trailing == .none)
+        var signedOut = input(.needsSignIn, provider: .cursor)
+        signedOut.hidesStatus = true
+        let slots = Slots.rowSlots(signedOut)
+        #expect(slots.trailing == .button(.signIn))
+        #expect(slots.secondLine == nil)
+    }
+
+    @Test func theBuiltInRowReadsDefaultForEveryProvider() {
+        #expect(AccountsSettingsInteractions.defaultLoginBadge == "Default")
+        #expect(AccountsSettingsInteractions.defaultLoginSection == "Default login")
+        #expect(AccountsSettingsInteractions.showDefaultLoginTitle == "Show Default Login")
+        for provider in DemoFixture.registeredProviderOrder {
+            let product = ProviderSignInCopy.cliProductName(for: provider)
+            #expect(ProviderSignInCopy.defaultLoginHelp(for: provider)
+                    == "The account \(product) in Terminal is signed in to", "\(provider)")
+            #expect(AccountsSettingsInteractions.showDefaultLoginHelp(for: provider).contains(product), "\(provider)")
+        }
+        #expect(!AccountsSettingsInteractions.emailNamesHelp.contains("—"))
+    }
+
+    // MARK: CA-M3
+
+    @Test func aDrainingRowHoldsItsSlotAndLeavesNothingBehindOnceItDrains() {
+        let rows = ["a", "b", "c"].map {
+            DisplayAccount(account: ProviderAccount(id: AccountID($0), providerID: .claude, label: $0), kind: .engine)
+        }
+        let last = SettingsAccountDrainingRow(row: rows[2], title: "c", detail: nil, level: 0.5, index: 2)
+        let middle = SettingsAccountDrainingRow(row: rows[1], title: "b", detail: nil, level: 0.5, index: 1)
+
+        // The store has let the last row go; it still draws in its own slot, at the end.
+        #expect(SettingsAccountListItem.items(rows: Array(rows.prefix(2)), draining: [last]).map(\.id)
+                == rows.map(\.id))
+        #expect(SettingsAccountListItem.items(rows: [rows[0], rows[2]], draining: [middle]).map(\.id)
+                == rows.map(\.id))
+        // Drain over: the list is the store's rows exactly, so the tile contracts to them.
+        #expect(SettingsAccountListItem.items(rows: Array(rows.prefix(2)), draining: []).map(\.id)
+                == Array(rows.prefix(2)).map(\.id))
+        // A row shown again mid-drain is drawn once, live.
+        #expect(SettingsAccountListItem.items(rows: rows, draining: [last])
+                == rows.map(SettingsAccountListItem.live))
+    }
+
+    @Test func aDrainingRowStaysSolidUntilItsLastThreeTenths() {
+        let duration = LoadingMotionConstants.drainDuration
+        #expect(SettingsAccountExit.drainOpacity(progress: 0) == 1)
+        #expect(SettingsAccountExit.drainOpacity(progress: 0.79 / duration) == 1)
+        #expect(SettingsAccountExit.drainOpacity(progress: 0.8 / duration) == 1)
+        let fading = SettingsAccountExit.drainOpacity(progress: 0.95 / duration)
+        #expect(fading > 0 && fading < 1)
+        #expect(SettingsAccountExit.drainOpacity(progress: 1) == 0)
+        #expect(HeadroomMotion.resolved(HeadroomMotion.drain, .movement, reduceMotion: false) != nil)
+    }
+
+    @Test func underReduceMotionARemovalIsInstant() {
+        #expect(!SettingsAccountExit.holdsSlot(reduceMotion: true))
+        #expect(SettingsAccountExit.holdsSlot(reduceMotion: false))
+        #expect(SettingsAccountExit.duration(reduceMotion: true) == 0)
+        #expect(HeadroomMotion.resolved(HeadroomMotion.drain, .movement, reduceMotion: true) == nil)
+    }
+
+    // MARK: CA-P14
+
+    @Test func onlyANeverSignedInExtraIsRemovedByStopWaiting() {
+        let extra = ProviderAccount(id: AccountID("added"), providerID: .claude, label: "Account 2")
+        let justAdded = UsageSnapshot.stale(for: .claude, reason: .notLoggedIn(UsageStore.finishSignInMessage))
+        #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(extra, snapshot: justAdded))
+        #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(
+            extra, snapshot: .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))))
+        #expect(!AccountsSettingsInteractions.stopWaitingRemovesAccount(.builtIn(for: .claude), snapshot: justAdded))
+        #expect(!AccountsSettingsInteractions.stopWaitingRemovesAccount(extra, snapshot: DemoFixture.claudeSnapshot))
+        for provider in DemoFixture.registeredProviderOrder {
+            let account = ProviderAccount(id: AccountID("added"), providerID: provider, label: "Account 2")
+            #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(
+                account, snapshot: .stale(for: provider, reason: .notLoggedIn(UsageStore.finishSignInMessage))),
+                "\(provider)")
+        }
+    }
+
+    @Test func stopWaitingOnAJustAddedAccountRemovesItOnConfirmAndKeepsItOnKeepWaiting() async throws {
+        let storage = InteractionStorage()
+        let fixture = makeFixture(storage: storage)
+        defer { fixture.cleanup() }
+        let account = try #require(AccountsSettingsInteractions.addAccount(
+            for: .claude, to: fixture.store, openSetup: { _ in }
+        ))
+        #expect(AccountsSettingsInteractions.stopWaitingRemovesAccount(
+            account, snapshot: fixture.store.snapshot(for: account.key)))
+
+        // Keep Waiting runs neither callback, so the account stays.
+        #expect(fixture.store.accounts(for: .claude).contains(account))
+
+        var cancelled: [AccountKey] = []
+        let result = await AccountsSettingsInteractions.stopWaitingAndRemove(
+            account, from: fixture.store, forceCancel: { cancelled.append($0.key) }
+        )
+        #expect(result == .removed)
+        #expect(cancelled == [account.key])
+        #expect(!fixture.store.accounts(for: .claude).contains(account))
+        #expect(storage.removedKeys == [account.key])
     }
 }

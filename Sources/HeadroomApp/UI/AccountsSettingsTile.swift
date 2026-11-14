@@ -57,15 +57,15 @@ func acceptsAccountLabelDraftChange(
 }
 
 /// Settings → Accounts (multi-account, Jul 2026): one tile managing every configured
-/// subscription account. Grouped per provider — brand row with a live "n of 5" count
-/// and an Add button, then one row per account: an editable label, a plain-language
-/// status, and the account's actions (Sign in for a pending login, Remove for extras).
+/// subscription account. Grouped per provider — brand row with an Add button and the
+/// subscription switch, then one row per account in three slots (CA-S3): an editable label
+/// with its status or email under it, one state or one button, and the account's "…" menu.
 ///
-/// The built-in account *is* the user's own CLI login, so it can never be deleted —
-/// its row shows a quiet "CLI login" tag, and once another account exists it offers a
-/// non-destructive "stop tracking" instead of the extras' trash affordance (which
-/// deletes that account's Headroom-owned config home). A stop-tracked built-in can be
-/// resurfaced from the provider header. All sign-ins run through the official CLI in
+/// The built-in account *is* the user's own default login, so it can never be deleted —
+/// its row shows a quiet "Default" tag, and once another account exists it offers a
+/// non-destructive "stop tracking" instead of the extras' removal (which deletes that
+/// account's Headroom-owned config home). A stop-tracked built-in can be resurfaced from
+/// the provider header. All sign-ins run through the official CLI in
 /// Terminal (compliance boundary unchanged); this tile only opens that handoff and
 /// reflects the result.
 struct AccountsSettingsTile: View {
@@ -87,6 +87,8 @@ struct AccountsSettingsTile: View {
     @State private var removalOrigin: AccountKey?
     @State private var removalInProgress: AccountKey?
     @State private var hoveredLabel: AccountKey?
+    /// CA-M3: rows whose removal succeeded, held in their slot while their vessel drains.
+    @State private var drainingRows: [ProviderID: [SettingsAccountDrainingRow]] = [:]
     @FocusState private var focusedLabel: AccountKey?
     @FocusState private var focusedRemovalAction: AccountKey?
 
@@ -96,8 +98,14 @@ struct AccountsSettingsTile: View {
         // like every other pane's groups; the old hand-rolled 10pt rhythm ran the intro line
         // into the first group. The bold group labels separate providers, so the hairline
         // between them went with it.
+        //
+        // CA-S4 (SET-10, COPY-04): the pane opens with its subject. The intro paragraph and
+        // the display switch used to sit above the first provider; the switch now follows
+        // the groups it applies to, and the trust promise is the tile's one footer sentence.
         SettingsTile {
-            SettingsHelpText(text: "Track several subscriptions side by side. Every account signs in through its official CLI in Terminal — Headroom never sees your credentials.")
+            ForEach(store.registeredProviderOrder, id: \.self) { providerID in
+                providerGroup(providerID)
+            }
 
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                 SettingsSwitchRow(
@@ -111,12 +119,11 @@ struct AccountsSettingsTile: View {
                         }
                     )
                 )
-                SettingsHelpText(text: "Applies to every account, in the Mac app and on a synced iPhone or iPad. Saved names return when turned off, and are used whenever an email is unavailable.")
+                // CA-S9 (COPY-07): where it shows and how to undo it, not the label again.
+                SettingsHelpText(text: AccountsSettingsInteractions.emailNamesHelp)
             }
 
-            ForEach(store.registeredProviderOrder, id: \.self) { providerID in
-                providerGroup(providerID)
-            }
+            SettingsHelpText(text: ProviderSignInCopy.accountsTrustFooter)
         }
         .confirmationDialog(
             removalCandidate.map(AccountsSettingsInteractions.removalDialogTitle(for:))
@@ -137,14 +144,16 @@ struct AccountsSettingsTile: View {
             ) {
                 removalInProgress = account.key
                 Task { @MainActor in
-                    let result = await AccountsSettingsInteractions.removeAccount(row, from: store)
+                    let result = await performRemoval(of: row) {
+                        await AccountsSettingsInteractions.removeAccount(row, from: store)
+                    }
                     guard result == .removed else {
                         removalInProgress = nil
                         restoreRemovalFocus()
                         return
                     }
-                    // KTD12: the store already detached the row. Its exit transition owns
-                    // the drain; this transaction only settles the dialog bookkeeping.
+                    // CA-M3: the row already holds its slot for the drain; this transaction
+                    // only settles the dialog bookkeeping.
                     withAnimation(
                         HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion)
                     ) {
@@ -219,6 +228,8 @@ struct AccountsSettingsTile: View {
         // the list draws the display rows, remembered ones after the engine rows (KTD8).
         let accounts = store.accounts(for: providerID)
         let rows = store.displayAccounts(for: providerID)
+        // CA-M3: what is drawn, the store's rows plus any still draining in their slots.
+        let items = SettingsAccountListItem.items(rows: rows, draining: drainingRows[providerID] ?? [])
         // U8: one read per provider, and only when a remembered row needs its last-read time.
         let lastReadAt: [AccountKey: Date] = rows.contains(where: \.isRemembered)
             ? Dictionary(
@@ -255,13 +266,15 @@ struct AccountsSettingsTile: View {
                     ProviderLogoView(providerID: providerID, size: 15)
                     SettingsGroupLabel(displayName)
                 }
-                if presentation.showsAccountCounter {
-                    // A stop-tracked built-in is hidden from the list but keeps its
-                    // registry slot, so count it — otherwise the header reads "4 of 5"
-                    // while Add Account is disabled.
-                    let usedSlots = accounts.count
-                        + (store.isBuiltInTrackingStopped(for: providerID) ? 1 : 0)
-                    Text(AccountsSettingsInteractions.accountCounterText(usedSlots: usedSlots, capacity: capacity))
+                if presentation.showsAccountCounter,
+                   // CA-S5: absent until two short of the tested envelope. A stop-tracked
+                   // built-in is hidden from the list but keeps its registry slot, so count
+                   // it — otherwise the header reads "19 of 20" while Add Account is disabled.
+                   let counter = AccountsSettingsInteractions.accountCounterText(
+                       usedSlots: accounts.count + (store.isBuiltInTrackingStopped(for: providerID) ? 1 : 0),
+                       capacity: capacity
+                   ) {
+                    Text(counter)
                         .font(SettingsType.help.monospacedDigit())
                         .foregroundStyle(.secondary)
                 }
@@ -315,14 +328,23 @@ struct AccountsSettingsTile: View {
                 .padding(.leading, 16)
                 .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
             }
-            ForEach(rows) { row in
-                accountRow(row, lastReadAt: lastReadAt[row.key], capability: capability, presentation: presentation)
-                    .transition(SettingsAccountExit.transition(reduceMotion: reduceMotion))
+            ForEach(items) { item in
+                Group {
+                    switch item {
+                    case .live(let row):
+                        accountRow(row, lastReadAt: lastReadAt[row.key], capability: capability, presentation: presentation)
+                    case .draining(let draining):
+                        SettingsAccountDrainingRowView(item: draining) {
+                            finishDrain(draining, for: providerID)
+                        }
+                    }
+                }
+                .transition(SettingsAccountExit.transition(reduceMotion: reduceMotion))
             }
             if store.isBuiltInTrackingStopped(for: providerID) {
                 // The way back from stop-tracking: resurface the CLI's own login and
                 // fetch it right away. Quiet on purpose — it's an undo, not a feature.
-                Button("Show CLI Account") {
+                Button(AccountsSettingsInteractions.showDefaultLoginTitle) {
                     _ = withAnimation(
                         HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion)
                     ) {
@@ -332,12 +354,12 @@ struct AccountsSettingsTile: View {
                         )
                     }
                 }
-                // B3A: quiet still, but a control — the small chip owns its own font and ink,
-                // so the per-site 11pt secondary label goes away. B3H keeps the resting
-                // container here: on a Settings pane, beside native bordered controls, a
-                // hover-only chip would read as a line of text until the pointer found it.
-                .buttonStyle(SetupChipButtonStyle(size: .small, chrome: .resting))
-                .help("Track the account your CLI is signed into again")
+                // CA-S3 (SET-11b): one button family in the pane, the native small bordered
+                // button the rows and headers use. B3H's reason for a resting container
+                // still holds, and the bordered button has one.
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(AccountsSettingsInteractions.showDefaultLoginHelp(for: providerID))
                 .padding(.leading, 16)
             }
             if let note = AccountsSettingsInteractions.providerGroupNote(for: providerID) {
@@ -359,7 +381,7 @@ struct AccountsSettingsTile: View {
         // and the tile's `raisedTile` pins a height, so the tile follows the group per frame.
         .animation(
             HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion),
-            value: rows.map(\.id)
+            value: items.map(\.id)
         )
         .onAppear {
             SetupSessions.announceCapabilityIfNeeded(announcedCapability, for: providerID)
@@ -379,7 +401,8 @@ struct AccountsSettingsTile: View {
         if actions != .unavailable,
            let builtIn = AccountsSettingsInteractions.mergedBuiltIn(for: providerID, in: store) {
             Menu {
-                Section("CLI login") {
+                // CA-S5: "Default login", the name CONCEPTS.md and the row badge use.
+                Section(AccountsSettingsInteractions.defaultLoginSection) {
                     Button("Sign Out & Set Up Again") { requestReset(builtIn) }
                     if actions == .resetAndStopTracking {
                         Button("Stop Tracking") {
@@ -392,8 +415,8 @@ struct AccountsSettingsTile: View {
                 AccountActionsMenuGlyph()
             }
             .accountActionsMenuChrome()
-            .help("CLI login actions")
-            .accessibilityLabel("Actions for the \(store.displayNames[providerID] ?? providerID.raw) CLI login")
+            .help("Default login actions")
+            .accessibilityLabel("Actions for the \(store.displayNames[providerID] ?? providerID.raw) default login")
             .focused($focusedRemovalAction, equals: builtIn.key)
         }
     }
@@ -417,12 +440,27 @@ struct AccountsSettingsTile: View {
 
     // MARK: - Account row
 
-    private func accountRow(
+    /// CA-S3: the per-row facts both the live row and its drain need.
+    private struct RowContext {
+        let account: ProviderAccount
+        let snapshot: UsageSnapshot
+        let removalState: AccountRemovalState?
+        let setupState: SetupSessionState
+        let status: AccountStatus
+        let capabilityRow: AccountsSettingsInteractions.CapabilityRowPresentation
+        let recoveryActions: AccountsSettingsInteractions.RecoveryRowActions?
+        let stopWaitingAccount: ProviderAccount?
+        let email: String?
+        let slots: AccountsSettingsInteractions.RowSlots
+    }
+
+    private func rowContext(
         _ row: DisplayAccount,
         lastReadAt: Date?,
         capability: CapabilityRecoveryPresentation?,
-        presentation: AccountsSettingsInteractions.ProviderGroupPresentation
-    ) -> some View {
+        presentation: AccountsSettingsInteractions.ProviderGroupPresentation,
+        now: Date = Date()
+    ) -> RowContext {
         let account = row.account
         // A remembered row is never probed: no sign-in, retry or recovery action (R12).
         let offersRecovery = row.kind.offersRetry
@@ -436,7 +474,7 @@ struct AccountsSettingsTile: View {
         )
         // R11: fetch-recovery ("Check Again", "Install…", "Reconnect…") is fetch state,
         // so it goes with the status text while the provider is off; the plain sign-in
-        // affordance below is management and stays.
+        // affordance is management and stays.
         let recoveryActions = presentation.hidesFetchRecovery || !offersRecovery
             ? nil
             : settingsRecoveryActions(
@@ -455,92 +493,79 @@ struct AccountsSettingsTile: View {
             setupFailed: setupFailure != nil,
             removalState: removalState
         )
-        let isEditingLabel = focusedLabel == account.key || hoveredLabel == account.key
-        let loadingLevel = SettingsAccountLoadingState.displayedLevel(snapshot: store.appDisplaySnapshot(for: account.key),
-            mode: store.usagePercentageMode, choice: store.menuBarWindowChoice(for: account.providerID))
-        let email = accountEmail(from: snapshot)
-        // R2C6: the row prints the *popover's* sentence for this state ("Sign in with the
-        // official Claude CLI") rather than a Settings-only "Needs sign-in". One act, one
-        // wording — and read from Core's `ProviderSetupOutcome`, never duplicated here.
+        let stopWaitingAccount = settingsStopWaitingAccount(
+            account,
+            removalState: removalState,
+            setupState: setupState
+        )
+        let providerDisplayName = store.displayNames[account.providerID]
+            ?? account.providerID.raw.capitalized
         let setupSentence: String? = {
             guard case .stale(let reason) = snapshot.freshness else { return nil }
             return reason.providerSetupOutcome?.message
         }()
-        let usesSecondLine = capability == nil
-            && removalState == nil
-            && recoveryActions?.usesSecondLine == true
-        return VStack(alignment: .leading, spacing: usesSecondLine ? 5 : 1) {
-            HStack(spacing: 8) {
-                accountIdentity(row, email: email, isEditingLabel: isEditingLabel)
-                if account.isBuiltIn {
-                    pillBadge("CLI login", help: "Uses the account your CLI is signed into")
-                }
-                if let original = duplicateLoginLabels[account.key] {
-                    // Detection only — the user decides which record to keep; Headroom
-                    // never merges or removes duplicate rows on its own.
-                    pillBadge(
-                        "Same login as \(original)",
-                        help: "This row is signed in to the same Claude account as \(original). You can remove one without signing out of the other.",
-                        accessibilityLabel: "\(store.desktopAccountName(for: account)) uses the same login as \(original)"
-                    )
-                }
-                Spacer(minLength: 8)
-                // R2C11: the status stays in the trailing column whichever silhouette the row
-                // takes. Only the *buttons* drop to a second line when there are two of them.
-                // Moving the status with them meant two never-signed-in rows in one list
-                // printed the same state in two different places, which reads as two states.
-                SettingsAccountWaitPill(store: store, account: account, status: status,
-                    waitingForClaudeCode: capabilityRow == .waitingForClaudeCode,
-                    showsStatus: !presentation.hidesAccountStatus(isSetupState: status.isSetupState),
+        let slots = AccountsSettingsInteractions.rowSlots(.init(
+            status: status,
+            isRemembered: row.isRemembered,
+            // U8 (R7): the popover's tag, as this row's state. It is not fetch state, so it
+            // shows while the provider's switch is off too.
+            rememberedLabel: row.isRemembered
+                ? AccountsSettingsInteractions.rememberedStatus(lastReadAt: lastReadAt, snapshot: snapshot, now: now)
+                : nil,
+            hidesStatus: presentation.hidesAccountStatus(isSetupState: status.isSetupState),
+            capabilityRow: capabilityRow,
+            removalState: removalState,
+            setupRecovery: setupRowRecovery(for: setupState),
+            offersStopWaiting: stopWaitingAccount != nil,
+            offersRecovery: offersRecovery,
+            recoveryActions: recoveryActions,
+            setupFailure: setupFailure,
+            setupWaitingTitle: SetupSessions.waitingPhase(for: account)?.copy.title,
+            isDeviceCode: SetupSessions.mode(for: account) == .deviceCode,
+            providerDisplayName: providerDisplayName,
+            // CA-P3: one phrase for an old reading, with its age.
+            staleLabel: Countdown.staleReadLabel(capturedAt: snapshot.capturedAt, now: now),
+            setupSentence: setupSentence
+        ))
+        return RowContext(
+            account: account,
+            snapshot: snapshot,
+            removalState: removalState,
+            setupState: setupState,
+            status: status,
+            capabilityRow: capabilityRow,
+            recoveryActions: recoveryActions,
+            stopWaitingAccount: stopWaitingAccount,
+            email: accountEmail(from: snapshot),
+            slots: slots
+        )
+    }
+
+    private func accountRow(
+        _ row: DisplayAccount,
+        lastReadAt: Date?,
+        capability: CapabilityRecoveryPresentation?,
+        presentation: AccountsSettingsInteractions.ProviderGroupPresentation
+    ) -> some View {
+        let context = rowContext(row, lastReadAt: lastReadAt, capability: capability, presentation: presentation)
+        let account = row.account
+        let isEditingLabel = focusedLabel == account.key || hoveredLabel == account.key
+        let loadingLevel = SettingsAccountLoadingState.displayedLevel(snapshot: store.appDisplaySnapshot(for: account.key),
+            mode: store.usagePercentageMode, choice: store.menuBarWindowChoice(for: account.providerID))
+        return AccountRowSlotsLayout {
+            accountIdentity(row, email: context.email, secondLine: context.slots.secondLine,
+                            isEditingLabel: isEditingLabel)
+        } trailing: {
+            HStack(spacing: 6) {
+                SettingsAccountWaitPill(store: store, account: account, status: context.status,
+                    waitingForClaudeCode: context.capabilityRow == .waitingForClaudeCode,
+                    showsStatus: !presentation.hidesAccountStatus(isSetupState: context.status.isSetupState),
                     level: loadingLevel)
-                if row.isRemembered {
-                    // U8 (R7): the popover's tag, as this row's status line. It is not fetch
-                    // state, so it shows while the provider's switch is off too.
-                    if let text = AccountsSettingsInteractions.rememberedStatus(
-                        lastReadAt: lastReadAt, snapshot: snapshot, now: Date()
-                    ) {
-                        rememberedStatusLabel(text)
-                    }
-                } else if !presentation.hidesAccountStatus(isSetupState: status.isSetupState) {
-                    accountStatus(
-                        capabilityRow,
-                        snapshot: snapshot,
-                        status: status,
-                        setupFailure: setupFailure,
-                        setupSentence: setupSentence,
-                        account: account
-                    )
-                }
-                if offersRecovery, !usesSecondLine, capability == nil, removalState == nil {
-                    recoveryButtons(
-                        for: account,
-                        status: status,
-                        setupState: setupState,
-                        recoveryActions: recoveryActions
-                    )
-                }
-                removalActions(
-                    for: row,
-                    removalState: removalState,
-                    setupState: setupState
-                )
+                trailingContent(row, context: context)
             }
-            if usesSecondLine {
-                HStack(spacing: 8) {
-                    Spacer(minLength: 8)
-                    recoveryButtons(
-                        for: account,
-                        status: status,
-                        setupState: setupState,
-                        recoveryActions: recoveryActions
-                    )
-                }
-                .padding(.leading, 6)
-            }
+        } menu: {
+            accountMenu(row, context: context)
         }
-        // 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-
-        // name alignment axis.
-        .padding(.leading, 16)
         // R11: dimmed, never disabled — "off" means "not fetched", so every management
         // control in the row still works. Matches the disabled-swatch step in
         // `MeterStyleTile`.
@@ -551,9 +576,9 @@ struct AccountsSettingsTile: View {
             HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
             value: presentation.dimsAccountRows
         )
-        .disabled(removalState == .removing)
+        .disabled(context.removalState == .removing)
         .onAppear { SetupSessions.announceFailureIfNeeded(for: account) }
-        .onChange(of: setupState) {
+        .onChange(of: context.setupState) {
             SetupSessions.announceFailureIfNeeded(for: account)
         }
     }
@@ -561,330 +586,394 @@ struct AccountsSettingsTile: View {
     @ViewBuilder private func accountIdentity(
         _ row: DisplayAccount,
         email: String?,
+        secondLine: AccountsSettingsInteractions.RowSecondLine?,
         isEditingLabel: Bool
     ) -> some View {
         let account = row.account
+        let emailIsName = store.useEmailAsAccountName && email != nil
         VStack(alignment: .leading, spacing: 1) {
-            if store.useEmailAsAccountName, let email {
-                Text(email)
-                    .font(.system(size: 13))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .frame(maxWidth: 158, alignment: .leading)
-                    .help(email)
-                    .accessibilityLabel("\(email) account name")
-            } else {
-                // Quiet at rest, but the affordance reveals on approach: a hover/focus fill
-                // marks the label as editable (impeccable audit P1 — a plain field that
-                // renders identically to static text hides the rename feature entirely).
-                TextField("Account name", text: labelBinding(for: account))
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 13))
-                    .focused($focusedLabel, equals: account.key)
-                    .onSubmit { commitLabel(for: row) }
-                    .padding(.horizontal, 6).padding(.vertical, 3)
-                    .background(
-                        Color.primary.opacity(isEditingLabel ? 0.06 : 0),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    )
-                    // R2M10/S3A: the fill's whole job is to reveal on approach, and it was the
-                    // one hover in the app that snapped both ways — the only one outside a
-                    // button style. Opacity only, so it keeps its timing under Reduce Motion.
-                    .animation(
-                        HeadroomMotion.resolved(
-                            isEditingLabel ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
-                            .crossfade,
-                            reduceMotion: reduceMotion
-                        ),
-                        value: isEditingLabel
-                    )
-                    .onHover { hovering in
-                        hoveredLabel = hovering ? account.key : (hoveredLabel == account.key ? nil : hoveredLabel)
-                    }
-                    .frame(maxWidth: 158, alignment: .leading)
-                    .help("Click to rename this account")
-                    .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
-                if let email {
-                    // Under the (renameable) name, not beside it: the label is the user's
-                    // word for the account and the address is what it actually resolves to,
-                    // so managing accounts here means verifying one against the other. The
-                    // 6pt inset + 158pt cap match the field above, so both sit on one text
-                    // axis and a long address never shoves the status column around.
+            HStack(spacing: 6) {
+                if emailIsName, let email {
                     Text(email)
-                        .font(SettingsType.footnote)
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13))
                         .lineLimit(1)
-                        .truncationMode(.middle)
-                        .padding(.horizontal, 6)
-                        .frame(maxWidth: 158, alignment: .leading)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .frame(maxWidth: AccountRowMetrics.nameWidth, alignment: .leading)
                         .help(email)
-                        .accessibilityLabel("Signed in as \(email)")
-                }
-            }
-        }
-    }
-
-    /// U8: the stale status's clock-and-text treatment, worded "Last read …". Its tooltip
-    /// points at Add Account for someone who wants the account live.
-    private func rememberedStatusLabel(_ text: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: "clock")
-                .font(.system(size: 9, weight: .medium))
-            Text(text)
-                .font(SettingsType.help.monospacedDigit())
-        }
-        .foregroundStyle(.secondary)
-        .help(AccountsSettingsInteractions.rememberedStatusHelp)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(text)
-    }
-
-    @ViewBuilder private func accountStatus(
-        _ capabilityRow: AccountsSettingsInteractions.CapabilityRowPresentation,
-        snapshot: UsageSnapshot,
-        status: AccountStatus,
-        setupFailure: String?,
-        setupSentence: String?,
-        account: ProviderAccount
-    ) -> some View {
-        capabilityStatusLabel(
-            capabilityRow,
-            snapshot: snapshot,
-            fallbackStatus: status,
-            setupFailure: setupFailure,
-            setupSentence: setupSentence,
-            setupMode: SetupSessions.mode(for: account),
-            setupWaitingTitle: SetupSessions.waitingPhase(for: account)?.copy.title,
-            providerDisplayName: store.displayNames[account.providerID]
-                ?? account.providerID.raw.capitalized
-        )
-    }
-
-    @ViewBuilder private func recoveryButtons(
-        for account: ProviderAccount,
-        status: AccountStatus,
-        setupState: SetupSessionState,
-        recoveryActions: AccountsSettingsInteractions.RecoveryRowActions?
-    ) -> some View {
-        switch setupRowRecovery(for: setupState) {
-        case .sessionOnly:
-            // R13: the session's own control is Stop Waiting, in the row's trailing slot.
-            EmptyView()
-        case .tryAgain:
-            // KTD12: not `.checkNow` and never labelled "Check Now" — Try Again brings the
-            // still-open window forward and resumes the wait (R10), or with none open stages
-            // a fresh handoff, which is what re-reads a too-old CLI's version (R6).
-            Button(SetupRowChip.tryAgain.label) {
-                SetupSessions.tryAgain(
-                    for: account,
-                    onRetry: { store.refreshAccountNow(account.key) }
-                )
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .accessibilityLabel("Try signing in again for \(store.desktopAccountName(for: account))")
-        case .outcomeRecovery:
-            outcomeRecoveryButtons(
-                for: account,
-                status: status,
-                recoveryActions: recoveryActions
-            )
-        }
-    }
-
-    @ViewBuilder private func outcomeRecoveryButtons(
-        for account: ProviderAccount,
-        status: AccountStatus,
-        recoveryActions: AccountsSettingsInteractions.RecoveryRowActions?
-    ) -> some View {
-        if status.needsRecovery || recoveryActions != nil {
-            // PA12: no ellipsis on "Sign In". The popover's button for the same action has
-            // never had one, and two surfaces spelling one action two ways reads as two
-            // actions. ("Add Account…" and "Check for Updates…" keep theirs — those open a
-            // further choice; signing in is the whole action.)
-            //
-            // R2B1: "Continue Setup", not "Continue…". The ellipsis promised a further choice
-            // that never arrives — the button resumes the handoff already open — and a bare
-            // "Continue" doesn't say what it continues. R2C6: the primary label otherwise
-            // comes from Core's `ProviderSetupOutcome`, which owns the one sign-in verb.
-            Button(status == .blocked
-                   ? "Continue Setup"
-                   : (recoveryActions?.primaryLabel
-                      ?? (status == .setupFailed ? "Retry…" : "Sign In"))) {
-                if status == .blocked {
-                    SetupSessions.continueSetup(for: account)
-                } else if let recoveryActions {
-                    SetupSessions.performRecovery(
-                        recoveryActions.primaryAction,
-                        for: account,
-                        onRetry: { store.refreshAccountNow(account.key) }
-                    )
+                        .accessibilityLabel("\(email) account name")
                 } else {
-                    openSetup(for: account)
+                    // Quiet at rest, but the affordance reveals on approach: a hover/focus fill
+                    // marks the label as editable (impeccable audit P1 — a plain field that
+                    // renders identically to static text hides the rename feature entirely).
+                    TextField("Account name", text: labelBinding(for: account))
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13))
+                        .focused($focusedLabel, equals: account.key)
+                        .onSubmit { commitLabel(for: row) }
+                        .padding(.horizontal, 6).padding(.vertical, 3)
+                        .background(
+                            Color.primary.opacity(isEditingLabel ? 0.06 : 0),
+                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        )
+                        // R2M10/S3A: the fill's whole job is to reveal on approach, and it was the
+                        // one hover in the app that snapped both ways — the only one outside a
+                        // button style. Opacity only, so it keeps its timing under Reduce Motion.
+                        .animation(
+                            HeadroomMotion.resolved(
+                                isEditingLabel ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
+                                .crossfade,
+                                reduceMotion: reduceMotion
+                            ),
+                            value: isEditingLabel
+                        )
+                        .onHover { hovering in
+                            hoveredLabel = hovering ? account.key : (hoveredLabel == account.key ? nil : hoveredLabel)
+                        }
+                        .frame(maxWidth: AccountRowMetrics.nameWidth, alignment: .leading)
+                        .help("Click to rename this account")
+                        .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
                 }
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .accessibilityLabel(
-                recoveryActions?.primaryAccessibilityLabel
-                    ?? "\(status == .blocked ? "Continue setup" : "Sign in") for \(store.desktopAccountName(for: account))"
-            )
-            if let secondaryLabel = recoveryActions?.secondaryLabel,
-               let secondaryAction = recoveryActions?.secondaryAction {
-                Button(secondaryLabel) {
-                    SetupSessions.performRecovery(
-                        secondaryAction,
-                        for: account,
-                        onRetry: { store.refreshAccountNow(account.key) }
+                // CA-S3 (SET-01): the tags sit on the identity's first line, so they never
+                // float mid-row between the name and the trailing column.
+                if account.isBuiltIn {
+                    // CA-S5 (COPY-11): "Default", the account the provider's CLI in Terminal
+                    // is signed in to. "CLI login" named the mechanism.
+                    pillBadge(
+                        AccountsSettingsInteractions.defaultLoginBadge,
+                        help: ProviderSignInCopy.defaultLoginHelp(for: account.providerID)
                     )
                 }
-                // B3A/B3H: bare beside a bordered primary was the worst mix in Settings; the
-                // small chip gives it a resting container and its own font and ink, and it
-                // keeps that container — its neighbour is a `.bordered` button.
-                .buttonStyle(SetupChipButtonStyle(size: .small, chrome: .resting))
-                .accessibilityLabel(
-                    recoveryActions?.secondaryAccessibilityLabel
-                        ?? "\(secondaryLabel) for \(store.desktopAccountName(for: account))"
-                )
+                if let original = duplicateLoginLabels[account.key] {
+                    // Detection only — the user decides which record to keep; Headroom
+                    // never merges or removes duplicate rows on its own.
+                    pillBadge(
+                        "Same login as \(original)",
+                        help: "This row is signed in to the same Claude account as \(original). You can remove one without signing out of the other.",
+                        accessibilityLabel: "\(store.desktopAccountName(for: account)) uses the same login as \(original)"
+                    )
+                }
+            }
+            .lineLimit(1)
+            if let secondLine {
+                secondLineText(secondLine)
+            } else if !emailIsName, let email {
+                // Under the (renameable) name, not beside it: the label is the user's
+                // word for the account and the address is what it actually resolves to,
+                // so managing accounts here means verifying one against the other. The
+                // 6pt inset matches the field above, so both sit on one text axis.
+                Text(email)
+                    .font(SettingsType.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.horizontal, 6)
+                    .help(email)
+                    .accessibilityLabel("Signed in as \(email)")
             }
         }
     }
 
-    @ViewBuilder private func removalActions(
-        for row: DisplayAccount,
-        removalState: AccountRemovalState?,
-        setupState: SetupSessionState
-    ) -> some View {
+    /// CA-S3 (SET-01, UX-04): the row's status, on the identity's second line where the
+    /// email sits otherwise. It replaces the trailing status sentence of R2C6 and R2C11.
+    private func secondLineText(_ line: AccountsSettingsInteractions.RowSecondLine) -> some View {
+        Text(line.text)
+            .font(line.tone == .warning ? .system(size: 11, weight: .medium) : SettingsType.help)
+            .foregroundStyle(secondLineInk(line.tone))
+            .lineLimit(line.lineLimit)
+            .truncationMode(.tail)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, 6)
+            .help(line.help ?? line.text)
+    }
+
+    private func secondLineInk(_ tone: AccountsSettingsInteractions.RowSecondLine.Tone) -> Color {
+        switch tone {
+        // R2C5: a lifecycle sentence, not a measurement — it stays off the amber ramp.
+        case .label: ProviderStyle.meterLabelInk(scheme: colorScheme)
+        case .secondary: Color.secondary
+        case .warning: ProviderStyle.severityColor(for: .low, scheme: colorScheme)
+        }
+    }
+
+    /// CA-S3: exactly one state or one native small button.
+    @ViewBuilder private func trailingContent(_ row: DisplayAccount, context: RowContext) -> some View {
         let account = row.account
-        // The trash slot is always laid out — hidden (not absent) on built-in rows —
-        // so status text shares one right anchor down the whole list (audit P2).
-            if let stopWaitingAccount = settingsStopWaitingAccount(
-                account,
-                removalState: removalState,
-                setupState: setupState
-            ) {
+        switch context.slots.trailing {
+        case .connected:
+            // PB13: the window's one affirmative-state treatment, shared with "Saved
+            // securely" in API Spend.
+            SettingsSuccessStatus(text: "Connected")
+        case .progress(let text):
+            Text(text)
+                .font(SettingsType.help)
+                .foregroundStyle(.secondary)
+        case .lastRead(let text, let help):
+            // Clock glyph separates "data gone old" from the affirmative "Connected".
+            // Restrained on purpose: an old reading is usually a transient blip.
+            HStack(spacing: 4) {
+                Image(systemName: "clock")
+                    .font(.system(size: 9, weight: .medium))
+                Text(text)
+                    .font(SettingsType.help.monospacedDigit())
+            }
+            .foregroundStyle(.secondary)
+            .help(help)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(text)
+        case .waitingForClaudeCode:
+            // R2B1: the ellipsis says the wait is ongoing, matching every other waiting
+            // status in the window ("Waiting for sign-in…", "Fetching…").
+            Text("Waiting for Claude Code…")
+                .font(SettingsType.help)
+                .foregroundStyle(.secondary)
+        case .retainedUsage:
+            retainedUsage(context.snapshot)
+        case .stopWaiting:
+            if let stopWaitingAccount = context.stopWaitingAccount {
                 StopWaitingButton(
                     account: stopWaitingAccount,
                     onConfirmationPresented: { removalOrigin = stopWaitingAccount.key },
                     onStop: { AccountsSettingsInteractions.stopWaiting(for: $0, in: store) },
-                    onDismiss: restoreRemovalFocus
+                    onDismiss: restoreRemovalFocus,
+                    // CA-P14 (UX-02): an abandoned Add Account offers to remove the row it
+                    // made. Built-in rows and extras that ever signed in keep today's dialog.
+                    onRemoveAccount: AccountsSettingsInteractions.stopWaitingRemovesAccount(
+                        stopWaitingAccount, snapshot: context.snapshot
+                    ) ? { removeAfterStoppingWait(row, account: $0) } : nil
                 )
-                .focused($focusedRemovalAction, equals: account.key)
-            } else if removalState == .failed {
-                Button("Retry") {
-                    Task { @MainActor in
-                        _ = await AccountsSettingsInteractions.removeAccount(row, from: store)
-                    }
-                }
+            }
+        case .button(let button):
+            Button(button.label) { perform(button, for: row, context: context) }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
-                .accessibilityLabel("Retry removal of \(store.desktopAccountName(for: account))")
-                .focused($focusedRemovalAction, equals: account.key)
-                Button("Cancel") {
+                .accessibilityLabel(accessibilityLabel(for: button, account: account, context: context))
+        case .none:
+            EmptyView()
+        }
+    }
+
+    private func retainedUsage(_ snapshot: UsageSnapshot) -> some View {
+        HStack(spacing: 7) {
+            // KTD6.2: the popover row's integer; a row it would hide shows no figure here either.
+            ForEach(Array(snapshot.windows.prefix(2).enumerated()), id: \.offset) { _, window in
+                Text("\(window.kind.compactName) \(store.usagePercentageMode.displayedPercentage(for: window).map { "\($0)%" } ?? "—")")
+            }
+        }
+        .font(SettingsType.help.monospacedDigit())
+        .foregroundStyle(.secondary)
+        .opacity(0.68)
+        .accessibilityLabel(
+            "Last known usage. " + snapshot.windows.prefix(2).map { window in
+                store.usagePercentageMode.displayedPercentage(for: window).map {
+                    "\(window.kind.spokenName) \($0) percent \(store.usagePercentageMode.term)"
+                } ?? "\(window.kind.spokenName) not available"
+            }.joined(separator: ", ")
+        )
+    }
+
+    private func perform(
+        _ button: AccountsSettingsInteractions.RowButton,
+        for row: DisplayAccount,
+        context: RowContext
+    ) {
+        let account = row.account
+        switch button {
+        case .recovery:
+            guard let actions = context.recoveryActions else { return openSetup(for: account) }
+            SetupSessions.performRecovery(
+                actions.primaryAction,
+                for: account,
+                onRetry: { store.refreshAccountNow(account.key) }
+            )
+        case .signIn, .tryAgainFailedSetup:
+            openSetup(for: account)
+        case .continueSetup:
+            SetupSessions.continueSetup(for: account)
+        case .tryAgainSetup:
+            tryAgainSetup(for: account)
+        case .tryAgainRemoval:
+            Task { @MainActor in
+                _ = await performRemoval(of: row) {
+                    await AccountsSettingsInteractions.removeAccount(row, from: store)
+                }
+            }
+        }
+    }
+
+    /// KTD12 (2026-09-19 sign-in plan): not `.checkNow` and never labelled "Check Now" — Try
+    /// Again brings the still-open window forward and resumes the wait (R10), or with none
+    /// open stages a fresh handoff, which is what re-reads a too-old CLI's version (R6).
+    private func tryAgainSetup(for account: ProviderAccount) {
+        SetupSessions.tryAgain(
+            for: account,
+            onRetry: { store.refreshAccountNow(account.key) }
+        )
+    }
+
+    private func accessibilityLabel(
+        for button: AccountsSettingsInteractions.RowButton,
+        account: ProviderAccount,
+        context: RowContext
+    ) -> String {
+        let name = store.desktopAccountName(for: account)
+        switch button {
+        case .recovery:
+            return context.recoveryActions?.primaryAccessibilityLabel ?? "\(button.label) for \(name)"
+        case .signIn: return "Sign in for \(name)"
+        case .continueSetup: return "Continue setup for \(name)"
+        case .tryAgainSetup, .tryAgainFailedSetup: return "Try signing in again for \(name)"
+        case .tryAgainRemoval: return "Try removing \(name) again"
+        }
+    }
+
+    /// CA-S3: the row's third slot, always the "…" menu. The trash and reset glyphs that used
+    /// to stand here in some rows put a different control at the same x in each row; a row
+    /// with nothing to offer keeps the slot open so the trailing column still ends on one x.
+    @ViewBuilder private func accountMenu(_ row: DisplayAccount, context: RowContext) -> some View {
+        let account = row.account
+        let sections = AccountsSettingsInteractions.rowMenuSections(
+            lead: context.slots.menuLead,
+            isBuiltIn: account.isBuiltIn,
+            isRemembered: row.isRemembered,
+            builtInActions: AccountsSettingsInteractions.builtInRowActions(for: account, in: store),
+            promotion: AccountsSettingsInteractions.promotionState(for: row, in: store)
+        )
+        if sections.isEmpty {
+            Color.clear
+                .frame(width: AccountRowMetrics.menuSlotWidth, height: 22)
+                .accessibilityHidden(true)
+        } else {
+            let offersMakeMain = sections.contains { $0.contains(.makeMain) }
+            Menu {
+                ForEach(Array(sections.enumerated()), id: \.offset) { index, section in
+                    if index > 0 { Divider() }
+                    ForEach(Array(section.enumerated()), id: \.offset) { _, item in
+                        menuItem(item, row: row, context: context)
+                    }
+                }
+            } label: {
+                AccountActionsMenuGlyph()
+            }
+            .accountActionsMenuChrome()
+            .help("Account actions")
+            .accessibilityLabel(
+                "Actions for \(store.desktopAccountName(for: account))\(offersMakeMain ? ", including Make Main" : "")"
+            )
+            .focused($focusedRemovalAction, equals: account.key)
+        }
+    }
+
+    @ViewBuilder private func menuItem(
+        _ item: AccountsSettingsInteractions.RowMenuItem,
+        row: DisplayAccount,
+        context: RowContext
+    ) -> some View {
+        let account = row.account
+        switch item {
+        case .lead(let lead):
+            Button(lead.label) {
+                switch lead {
+                case .secondaryRecovery:
+                    guard let action = context.recoveryActions?.secondaryAction else { return }
+                    SetupSessions.performRecovery(
+                        action,
+                        for: account,
+                        onRetry: { store.refreshAccountNow(account.key) }
+                    )
+                case .tryAgainSetup:
+                    tryAgainSetup(for: account)
+                case .cancelRemoval:
                     store.cancelAccountRemoval(account.key)
                     removalOrigin = account.key
                     restoreRemovalFocus()
                 }
-                    .buttonStyle(.borderless)
-                    .controlSize(.small)
-                    .accessibilityLabel("Cancel removal of \(store.desktopAccountName(for: account))")
-            } else {
-                if account.isBuiltIn {
-                    let builtInActions = AccountsSettingsInteractions.builtInRowActions(for: account, in: store)
-                    let promotion = AccountsSettingsInteractions.promotionState(for: account, in: store)
-                    switch (builtInActions, promotion) {
-                    case (.resetOnly, _):
-                        Button { requestReset(account) } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(SettingsType.help)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
-                        .foregroundStyle(.secondary)
-                        .help("Sign out and set up this account again")
-                        .accessibilityLabel("Sign out and set up \(store.desktopAccountName(for: account)) again")
-                        .focused($focusedRemovalAction, equals: account.key)
-                    case (.resetAndStopTracking, .primary):
-                        Menu {
-                            Button("Sign Out & Set Up Again") { requestReset(account) }
-                            Divider()
-                            Button("Stop Tracking") {
-                                removalOrigin = account.key
-                                removalCandidate = row
-                            }
-                        } label: {
-                            AccountActionsMenuGlyph()
-                        }
-                        .accountActionsMenuChrome()
-                        .help("Account actions")
-                        .accessibilityLabel("Actions for \(store.desktopAccountName(for: account))")
-                        .focused($focusedRemovalAction, equals: account.key)
-                    case (.resetAndStopTracking, .available):
-                        Menu {
-                            Button("Make Main") { makeMain(account) }
-                            Divider()
-                            Button("Sign Out & Set Up Again") { requestReset(account) }
-                            Divider()
-                            Button("Stop Tracking") {
-                                removalOrigin = account.key
-                                removalCandidate = row
-                            }
-                        } label: {
-                            AccountActionsMenuGlyph()
-                        }
-                        .accountActionsMenuChrome()
-                        .help("Account actions")
-                        .accessibilityLabel("Actions for \(store.desktopAccountName(for: account)), including Make Main")
-                        .focused($focusedRemovalAction, equals: account.key)
-                    case (.unavailable, _), (.resetAndStopTracking, .unavailable):
-                        Color.clear
-                            .frame(width: 22, height: 22)
-                            .accessibilityHidden(true)
-                    }
-                } else {
-                    if AccountsSettingsInteractions.promotionState(for: row, in: store) == .available {
-                        Menu {
-                            Button("Make Main") { makeMain(account) }
-                            Divider()
-                            // R2B1: the act deletes this account's sign-in on the Mac, and its
-                            // own confirmation is already `.destructive` — the menu item that
-                            // opens it should look like what it opens. (Stop Tracking stays
-                            // plain: it hides a row and deletes nothing.)
-                            Button("Remove Account", role: .destructive) {
-                                removalOrigin = account.key
-                                removalCandidate = row
-                            }
-                        } label: {
-                            AccountActionsMenuGlyph()
-                        }
-                        .accountActionsMenuChrome()
-                        .help("Account actions")
-                        .accessibilityLabel("Actions for \(store.desktopAccountName(for: account)), including Make Main")
-                        .focused($focusedRemovalAction, equals: account.key)
-                    } else {
-                        Button {
-                            removalOrigin = account.key
-                            removalCandidate = row
-                        } label: {
-                            Image(systemName: "trash")
-                                .font(SettingsType.help)
-                                .frame(width: 22, height: 22)
-                        }
-                        .buttonStyle(HoverButtonStyle(horizontalPadding: 2, verticalPadding: 2))
-                        .foregroundStyle(.secondary)
-                        .help("Remove this account")
-                        .accessibilityLabel("Remove \(store.desktopAccountName(for: account))")
-                        .disabled(removalState == .removing)
-                        .focused($focusedRemovalAction, equals: account.key)
-                    }
-                }
             }
+            .accessibilityLabel(
+                context.recoveryActions.flatMap { actions in
+                    if case .secondaryRecovery = lead { return actions.secondaryAccessibilityLabel }
+                    return nil
+                } ?? "\(lead.label) for \(store.desktopAccountName(for: account))"
+            )
+        case .makeMain:
+            Button("Make Main") { makeMain(account) }
+        case .signOutAndSetUpAgain:
+            Button("Sign Out & Set Up Again") { requestReset(account) }
+        case .stopTracking:
+            Button("Stop Tracking") {
+                removalOrigin = account.key
+                removalCandidate = row
+            }
+        case .removeAccount(let destructive):
+            // R2B1: the act deletes this account's sign-in on the Mac, and its own
+            // confirmation is already `.destructive` — the menu item that opens it should
+            // look like what it opens. A remembered row's removal only hides it (R11).
+            Button("Remove Account", role: destructive ? .destructive : nil) {
+                removalOrigin = account.key
+                removalCandidate = row
+            }
+        }
     }
 
-    /// R2C21: the `•••` glyph, drawn to the same spec as the row's `arrow.clockwise` and
-    /// `trash` — 11pt **regular**, not semibold. One stroke weight per icon set; the menus
-    /// were the only heavier glyph in the column, which read as emphasis they don't carry.
+    // MARK: - CA-M3: the drain
+
+    /// CA-M3: runs a removal and, when it succeeds, holds the row in its slot for the drain.
+    /// The row is captured before the store lets it go; it is inserted in the same main-actor
+    /// turn the store detaches it, so no frame draws the list without it.
+    private func performRemoval(
+        of row: DisplayAccount,
+        _ remove: () async -> AccountRemovalResult
+    ) async -> AccountRemovalResult {
+        let captured = drainingRow(for: row)
+        let result = await remove()
+        guard result == .removed,
+              SettingsAccountExit.holdsSlot(reduceMotion: reduceMotion),
+              let captured,
+              !store.displayAccounts(for: row.account.providerID).contains(where: { $0.key == row.key })
+        else { return result }
+        drainingRows[row.account.providerID, default: []].append(captured)
+        return result
+    }
+
+    private func removeAfterStoppingWait(_ row: DisplayAccount, account: ProviderAccount) {
+        Task { @MainActor in
+            _ = await performRemoval(of: row) {
+                await AccountsSettingsInteractions.stopWaitingAndRemove(account, from: store)
+            }
+        }
+    }
+
+    private func drainingRow(for row: DisplayAccount) -> SettingsAccountDrainingRow? {
+        let providerID = row.account.providerID
+        let rows = store.displayAccounts(for: providerID)
+        guard let index = rows.firstIndex(where: { $0.key == row.key }) else { return nil }
+        let snapshot = store.snapshot(for: row.key)
+        let email = accountEmail(from: snapshot)
+        let emailIsName = store.useEmailAsAccountName && email != nil
+        return SettingsAccountDrainingRow(
+            row: row,
+            title: emailIsName ? (email ?? row.label) : row.label,
+            detail: emailIsName ? nil : email,
+            level: SettingsAccountLoadingState.displayedLevel(
+                snapshot: store.appDisplaySnapshot(for: row.key),
+                mode: store.usagePercentageMode,
+                choice: store.menuBarWindowChoice(for: providerID)
+            ),
+            index: index
+        )
+    }
+
+    /// CA-M3: the drain is over and the row is transparent; now the gap closes on `reorder`.
+    private func finishDrain(_ row: SettingsAccountDrainingRow, for providerID: ProviderID) {
+        withAnimation(
+            HeadroomMotion.resolved(HeadroomMotion.reorder, .movement, reduceMotion: reduceMotion)
+        ) {
+            drainingRows[providerID]?.removeAll { $0.id == row.id }
+        }
+    }
+
+    /// R2C21: the `•••` glyph, 11pt **regular**, not semibold. One stroke weight per icon
+    /// set; a heavier glyph read as emphasis it doesn't carry.
     fileprivate struct AccountActionsMenuGlyph: View {
         var body: some View {
             Image(systemName: "ellipsis")
@@ -893,7 +982,7 @@ struct AccountsSettingsTile: View {
         }
     }
 
-    /// The row-tag capsule shared by "CLI login" and "Same login as X". Tokens live in
+    /// The row-tag capsule shared by "Default" and "Same login as X". Tokens live in
     /// `SettingsPillBadge` so the Menu Bar pane's "Off" tag renders the same badge.
     private func pillBadge(
         _ text: String,
@@ -912,125 +1001,6 @@ struct AccountsSettingsTile: View {
     private func accountEmail(from snapshot: UsageSnapshot) -> String? {
         guard let email = snapshot.accountEmail, !email.isEmpty else { return nil }
         return email
-    }
-
-    @ViewBuilder private func capabilityStatusLabel(
-        _ presentation: AccountsSettingsInteractions.CapabilityRowPresentation,
-        snapshot: UsageSnapshot,
-        fallbackStatus: AccountStatus,
-        setupFailure: String?,
-        setupSentence: String?,
-        setupMode: SetupHandoffMode,
-        setupWaitingTitle: String?,
-        providerDisplayName: String
-    ) -> some View {
-        switch presentation {
-        case .standard:
-            statusLabel(
-                fallbackStatus,
-                setupFailure: setupFailure,
-                setupSentence: setupSentence,
-                setupMode: setupMode,
-                setupWaitingTitle: setupWaitingTitle,
-                providerDisplayName: providerDisplayName
-            )
-        case .waitingForClaudeCode:
-            // R2B1: the ellipsis says the wait is ongoing, matching every other waiting
-            // status in the window ("Waiting for sign-in…", "Fetching…").
-            Text("Waiting for Claude Code…")
-                .font(SettingsType.help)
-                .foregroundStyle(.secondary)
-        case .retainedUsage:
-            HStack(spacing: 7) {
-                // KTD6.2: the popover row's integer; a row it would hide shows no figure here either.
-                ForEach(Array(snapshot.windows.prefix(2).enumerated()), id: \.offset) { _, window in
-                    Text("\(window.kind.compactName) \(store.usagePercentageMode.displayedPercentage(for: window).map { "\($0)%" } ?? "—")")
-                }
-            }
-            .font(SettingsType.help.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .opacity(0.68)
-            .accessibilityLabel(
-                "Last known usage. " + snapshot.windows.prefix(2).map { window in
-                    store.usagePercentageMode.displayedPercentage(for: window).map {
-                        "\(window.kind.spokenName) \($0) percent \(store.usagePercentageMode.term)"
-                    } ?? "\(window.kind.spokenName) not available"
-                }.joined(separator: ", ")
-            )
-        }
-    }
-
-    @ViewBuilder private func statusLabel(
-        _ status: AccountStatus,
-        setupFailure: String?,
-        setupSentence: String?,
-        setupMode: SetupHandoffMode,
-        setupWaitingTitle: String?,
-        providerDisplayName: String
-    ) -> some View {
-        switch status {
-        case .connected:
-            // PB13: the window's one affirmative-state treatment, shared with "Saved
-            // securely" in API Spend. Plain secondary text rendered identically to Stale,
-            // which is the opposite state.
-            if let setupWaitingTitle {
-                Text(setupWaitingTitle).font(SettingsType.help).foregroundStyle(.secondary)
-            } else {
-                SettingsSuccessStatus(text: "Connected")
-            }
-        case .fetching:
-            Text("Fetching…")
-                .font(SettingsType.help)
-                .foregroundStyle(.secondary)
-        case .waiting:
-            Text(setupWaitingTitle ?? (setupMode == .deviceCode ? "Waiting for device code…" : "Waiting for sign-in…"))
-                .font(SettingsType.help)
-                .foregroundStyle(.secondary)
-        case .stale:
-            // Clock glyph separates "data gone old" from the affirmative "Connected" —
-            // the two rendered identically before (impeccable audit P1). Restrained on
-            // purpose: stale is usually a transient blip, not an alarm.
-            HStack(spacing: 4) {
-                Image(systemName: "clock")
-                    .font(.system(size: 9, weight: .medium))
-                Text("Stale")
-                    .font(SettingsType.help)
-            }
-            .foregroundStyle(.secondary)
-        case .needsSignIn:
-            // R2C6: the popover's own sentence, read from Core. Settings used to print
-            // "Needs sign-in" beside a row whose button said "Sign In" and whose popover card
-            // said "Sign in with the official Claude CLI" — one act under three names, which
-            // makes people ask whether the three do different things.
-            Text(setupSentence ?? "Sign in with the official \(providerDisplayName) CLI")
-                .font(SettingsType.help)
-                // R2C5: a lifecycle sentence, not a measurement — it stays off the amber ramp
-                // here as it does in the popover.
-                .foregroundStyle(ProviderStyle.meterLabelInk(scheme: colorScheme))
-                .lineLimit(2)
-                .multilineTextAlignment(.trailing)
-        case .blocked:
-            // PB9: "sign-in", the word the popover and every other status here uses for this
-            // event. "login" was the only place it was called something else.
-            Text("Another \(providerDisplayName) sign-in is open")
-                .font(SettingsType.help)
-                .foregroundStyle(.secondary)
-        case .setupFailed:
-            Text(setupFailure ?? "Setup failed")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
-                .lineLimit(2)
-        case .removing:
-            Text("Removing…").font(SettingsType.help).foregroundStyle(.secondary)
-        case .setupActive:
-            Text("Close setup, then retry")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
-        case .removalFailed:
-            Text("Removal failed")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
-        }
     }
 
     // MARK: - Status
@@ -1219,12 +1189,87 @@ struct AccountsSettingsTile: View {
     }
 }
 
+/// CA-S3: the row's fixed slot sizes. The trailing slot's 96pt minimum fits "Connected",
+/// "Sign In" and "Stop Waiting" alike, so a short state never pulls the column in.
+enum AccountRowMetrics {
+    static let trailingMinWidth: CGFloat = 96
+    /// The `•••` glyph's 22pt frame plus `HoverButtonStyle`'s 2pt each side.
+    static let menuSlotWidth: CGFloat = 26
+    static let nameWidth: CGFloat = 158
+    /// 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-name axis.
+    static let leadingInset: CGFloat = 16
+}
+
+/// CA-S3 (SET-01): the three slots every Accounts row lays out, live or draining: identity
+/// (flexible), one state or button (trailing, fixed minimum), the menu (fixed). The trailing
+/// column no longer moves with how many buttons a row has. Overturns craft round 2's R2C11.
+struct AccountRowSlotsLayout<Identity: View, Trailing: View, Menu: View>: View {
+    @ViewBuilder let identity: Identity
+    @ViewBuilder let trailing: Trailing
+    @ViewBuilder let menu: Menu
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 8) {
+            identity
+                .frame(maxWidth: .infinity, alignment: .leading)
+            trailing
+                .fixedSize()
+                .frame(minWidth: AccountRowMetrics.trailingMinWidth, alignment: .trailing)
+            menu
+                .frame(width: AccountRowMetrics.menuSlotWidth)
+        }
+        .padding(.leading, AccountRowMetrics.leadingInset)
+    }
+}
+
+/// CA-M3 (MOT-03): a removed row, drawn in the slot it held while its vessel drains. Its own
+/// clock, so the tile's body renders once for the whole drain; `onDrained` closes the gap.
+struct SettingsAccountDrainingRowView: View {
+    let item: SettingsAccountDrainingRow
+    let onDrained: () -> Void
+    @State private var progress = 0.0
+
+    var body: some View {
+        AccountRowSlotsLayout {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.title)
+                    .font(.system(size: 13))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .padding(.horizontal, 6).padding(.vertical, 3)
+                    .frame(maxWidth: AccountRowMetrics.nameWidth, alignment: .leading)
+                if let detail = item.detail {
+                    Text(detail)
+                        .font(SettingsType.footnote)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .padding(.horizontal, 6)
+                }
+            }
+        } trailing: {
+            SettingsAccountDrainPill(level: item.level)
+        } menu: {
+            Color.clear.frame(width: AccountRowMetrics.menuSlotWidth, height: 22)
+        }
+        .modifier(SettingsAccountDrainModifier(progress: progress))
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+        .onAppear {
+            withAnimation(HeadroomMotion.drain) {
+                progress = 1
+            } completion: {
+                onDrained()
+            }
+        }
+    }
+}
+
 private extension View {
-    /// R2C21: one control language in the Accounts action column. The `•••` menus get the
-    /// same chrome as the `arrow.clockwise` and `trash` glyphs beside them — `.button` menu
-    /// style routed through `HoverButtonStyle`, so one hover pill, one press, and one ~38pt
-    /// target serve all three. `.borderlessButton` gave the menus no hover, no press, a bare
-    /// 22pt target, and an AppKit `⌄` the glyph set has nowhere else.
+    /// R2C21: one control language in the Accounts action column: `.button` menu style routed
+    /// through `HoverButtonStyle`, so one hover pill, one press and one ~26pt target.
+    /// `.borderlessButton` gave the menus no hover, no press, a bare 22pt target, and an
+    /// AppKit `⌄` the glyph set has nowhere else.
     func accountActionsMenuChrome() -> some View {
         self
             .menuStyle(.button)

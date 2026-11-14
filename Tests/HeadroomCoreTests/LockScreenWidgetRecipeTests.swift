@@ -143,8 +143,70 @@ struct LockScreenWidgetRecipeTests {
         let r = recipe(.liquidLevel, .inline, [F.grok(), F.cursor()])
         #expect(r.inlineTextCandidates.first == "Grok 56% · Other Models 37%")
         #expect(r.inlineTextCandidates.contains("Grok 56% · Cursor Other 37%"))
-        #expect(r.inlineTextCandidates.allSatisfy { !$0.contains("Cursor 37%") })
         #expect(r.inlineTextCandidates.last == "56% · Cursor Other 37%")
+    }
+
+    /// CA-W6 (revisits design 10 / R11 for this rung only): with two providers on one line, a
+    /// rung that keeps every owner's name and drops only Cursor's pool comes before the
+    /// minimal one, so the first number never loses its owner.
+    @Test func inlineKeepsEveryOwnerBeforeTheMinimalRung() throws {
+        let r = recipe(.liquidLevel, .inline, [F.grok(), F.cursor()])
+        let attributed = try #require(r.inlineTextCandidates.firstIndex(of: "Grok 56% · Cursor 37%"))
+        let minimal = try #require(r.inlineTextCandidates.firstIndex(of: "56% · Cursor Other 37%"))
+        #expect(attributed < minimal)
+        #expect(r.inlineTextCandidates.firstIndex(of: "Grok 56% · Cursor Other 37%").map { $0 < attributed } == true)
+        let pair = recipe(.liquidLevel, .inline, [F.claude(), F.codex()])
+        #expect(pair.inlineTextCandidates == ["Claude 38% · Codex 64%", "38% · 64%"])
+        let opencode = F.provider("opencode", "OpenCode", [
+            F.window(.weekly, label: "Weekly", percent: 44, resetIn: 3 * 86_400),
+            F.window(.other("Monthly"), label: "Monthly", percent: 90, resetIn: 19 * 86_400, billingPeriod: F.month),
+        ])
+        let withOpenCode = recipe(.liquidLevel, .inline, [opencode, F.cursor()])
+        #expect(withOpenCode.inlineTextCandidates.contains("OpenCode 44% · Cursor 37%"))
+    }
+
+    @Test func singleCursorInlineStillAlwaysNamesItsPool() {
+        let r = recipe(.liquidLevel, .inline, [F.cursor()], choice: .cursor)
+        #expect(r.inlineTextCandidates.allSatisfy { !$0.contains("Cursor 37%") })
+    }
+
+    /// CA-W6: a caption tries its full label, then the compact one, before it truncates.
+    @Test func vesselHeroRectangleCaptionFallsBackToTheCompactPoolName() throws {
+        let r = recipe(.vesselHero, .rectangle, [F.grok(), F.cursor()])
+        let cursor = try #require(r.slots.first { $0.providerID == "cursor" })
+        #expect(cursor.primary.captionLadder == ["Other Models", "Other"])
+        let grok = try #require(r.slots.first { $0.providerID == "grok" })
+        #expect(grok.primary.captionLadder == ["Weekly"])
+    }
+
+    /// CA-W6: a stale circle caption of six characters or fewer drops its warning glyph before
+    /// it truncates; the dimmed ink still says the reading is old.
+    @Test func staleShortCircleCaptionDropsTheGlyphBeforeTruncating() throws {
+        let staleFable = F.provider("claude", "Claude", [
+            F.window(.weekly, label: "Weekly", percent: 38, resetIn: 4 * 86_400),
+            F.window(.other("Weekly (Fable)"), label: "Weekly (Fable)", percent: 5,
+                     freshness: .stale(observedAt: F.now.addingTimeInterval(-7_200)), resetIn: 4 * 86_400),
+        ])
+        let r = recipe(.tightestFirst, .circle, [staleFable])
+        let slot = try #require(r.slots.first)
+        #expect(slot.primary.state == .stale)
+        #expect(slot.primary.captionLadder == ["⚠ Fable", "Fable"])
+        let long = F.provider("cursor", "Cursor", freshness: .stale(message: "Offline", needsAttention: false), [
+            F.window(.other("Cursor Models"), label: "Cursor Models", percent: 37, billingPeriod: F.month),
+        ])
+        let cursor = try #require(recipe(.liquidLevel, .circle, [long], choice: .cursor).slots.first)
+        #expect(cursor.primary.captionLadder == ["⚠ Models", "Models"])
+        let live = try #require(recipe(.liquidLevel, .circle, [F.claude()]).slots.first)
+        #expect(live.primary.captionLadder == ["Weekly"])
+    }
+
+    @Test func captionLadderEntriesKeepTheWindowsState() throws {
+        let r = recipe(.vesselHero, .rectangle, [F.grok(), F.cursor()])
+        let cursor = try #require(r.slots.first { $0.providerID == "cursor" })
+        let compact = cursor.primary.captioned("Other")
+        #expect(compact.caption == "Other")
+        #expect(compact.state == cursor.primary.state)
+        #expect(compact.numberText == cursor.primary.numberText)
     }
 
     @Test func inlineShortensBeforeTruncatingWithoutLosingStateOrCursorPool() {

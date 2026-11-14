@@ -111,7 +111,7 @@ struct HeadroomWidgetLockScreenNestedRows: View {
     @ViewBuilder
     private func meter(_ slot: LockScreenProviderSlot) -> some View {
         if slot.primary.state.hasNoReading {
-            HeadroomWidgetLockScreenCaption(slot.primary, size: 11)
+            HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 11)
                 .frame(maxWidth: .infinity, alignment: .leading)
         } else {
             HeadroomWidgetLockScreenNestedBars(slot, width: nil, parentHeight: 6, railHeight: 2.5,
@@ -127,7 +127,7 @@ struct HeadroomWidgetLockScreenNestedRows: View {
             // The meter line already carries the word.
             EmptyView()
         } else if main.state == .stale || main.state == .unavailable {
-            HeadroomWidgetLockScreenCaption(main, size: 11.5)
+            HeadroomWidgetLockScreenFittingCaption(recipe: main, size: 11.5)
         } else if let next = slot.secondary.first {
             let tail = next.countdownText.map { " · \($0)" } ?? ""
             HeadroomWidgetLockScreenFittingLabel(candidates: [
@@ -192,7 +192,8 @@ struct HeadroomWidgetLockScreenTwinVessels: View {
             Spacer().frame(height: gap)
             HeadroomWidgetLockScreenHero(recipe: slot.primary, numeralSize: numeralSize)
             Spacer().frame(height: captionGap)
-            HeadroomWidgetLockScreenCaption(slot.primary, size: 10)
+            // CA-W6: a pair's narrow column printed "Other Mo…"; it now falls back to "Other".
+            HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 10)
                 .padding(.leading, indent)
         }
     }
@@ -266,7 +267,7 @@ struct HeadroomWidgetLockScreenGaugePair: View {
             } else {
                 // R7: the slot names its provider beside the gauge's own word.
                 HeadroomWidgetLockScreenLabel(text: recipe.displayName(forSlotAt: 0), size: 12, weight: .semibold)
-                HeadroomWidgetLockScreenCaption(slot.primary, size: 11)
+                HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 11)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -303,7 +304,7 @@ struct HeadroomWidgetLockScreenLiquidStrip: View {
             }
             Spacer(minLength: 0)
             HeadroomWidgetLockScreenNumeral(slot.primary, size: 22)
-            HeadroomWidgetLockScreenCaption(slot.primary, size: 10)
+            HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 10)
                 .padding(.top, 1)
         }
         // R15: the knockout capsule is taller than a bare numeral; these insets keep a low
@@ -348,10 +349,7 @@ struct HeadroomWidgetLockScreenLiquidStrip: View {
                 Spacer(minLength: 0)
                 HStack(alignment: .firstTextBaseline, spacing: 8) {
                     HeadroomWidgetLockScreenNumeral(slot.primary, size: 28)
-                    ViewThatFits(in: .horizontal) {
-                        HeadroomWidgetLockScreenCaption(slot.primary, size: 10.5).fixedSize()
-                        HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 10.5)
-                    }
+                    HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 10.5)
                 }
             }
             .padding(.horizontal, 11)
@@ -384,5 +382,25 @@ struct HeadroomWidgetLockScreenStatusRectangle: View {
                 .headroomWidgetProbe()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+    }
+}
+
+// MARK: - Fitting caption (CA-W6)
+
+/// CA-W6 (R19): a window's caption tried in each wording of the recipe's ladder, longest first
+/// ("Other Models", then "Other"; "⚠ Fable", then "Fable"). Each is tried whole and only the
+/// last may truncate (WCF7), so a compact label always wins over an ellipsis.
+struct HeadroomWidgetLockScreenFittingCaption: View {
+    let recipe: LockScreenWindowRecipe
+    var size: Double = LockScreenWidgetTokens.captionSize
+
+    var body: some View {
+        let ladder = recipe.captionLadder
+        ViewThatFits(in: .horizontal) {
+            ForEach(Array(ladder.dropLast().enumerated()), id: \.offset) { _, text in
+                HeadroomWidgetLockScreenCaption(recipe.captioned(text), size: size).fixedSize()
+            }
+            HeadroomWidgetLockScreenCaption(recipe.captioned(ladder.last ?? recipe.caption), size: size)
+        }
     }
 }

@@ -159,7 +159,9 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             Spacer(minLength: 4)
             ForEach(Array(context.recipe.providers.enumerated()), id: \.element.id) { index, provider in
-                if index > 0 { Spacer(minLength: 16) }
+                // CA-W5: 10, not 16, so large keeps every row medium shows (Fable on a 354pt
+                // iPhone tile); a larger tile spends the slack here.
+                if index > 0 { Spacer(minLength: 10) }
                 largeBlock(provider, rows: provider.secondary(atRung: rung))
             }
             Spacer(minLength: 4)
@@ -189,7 +191,7 @@ struct HeadroomWidgetNestedMeter<Mark: View>: View {
                 .padding(.top, 12)
                 HeadroomWidgetStyleBar(provider.primary, colorMode: context.colorMode, providerIsLive: live,
                                        height: CGFloat(WidgetStyleMetrics.nestedParentBar(.large)))
-                    .padding(.top, 11)
+                    .padding(.top, 9) // CA-W5: 2pt under the old 11, with the provider gap above.
                 ForEach(rows) { window in
                     HStack(alignment: .center, spacing: 8) {
                         HeadroomWidgetCaption(window.widgetDisplayLabel, size: 11.5, ink: .label)

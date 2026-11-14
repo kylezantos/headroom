@@ -58,13 +58,15 @@ public struct WidgetFreshnessTreatment: Sendable, Equatable {
     public var isDimmed: Bool { dimmedSince != nil }
 
     /// R10: the dimmed sentence, longest first; the caption tries each whole (WCF7).
+    /// CA-W4: small lands on the last rungs, which say what the time is ("Last update 1:25 AM",
+    /// then "Updated 1:25 AM"). The old "Since 1:25 AM" could have been a reset or an outage.
     public var dimmedCaptions: [String] {
         guard let dimmedSince, let now else { return [] }
         let time = WidgetClockText.text(for: dimmedSince, now: now, timeZone: timeZone, locale: locale)
         let sentence = host == .phone
             ? CompanionFreshnessCopy.noUpdate(since: time)
             : "No update from Headroom since \(time)"
-        return [sentence, "No update since \(time)", "Since \(time)"]
+        return [sentence, "No update since \(time)", "Last update \(time)", "Updated \(time)"]
     }
 
     // MARK: Applying the rules

@@ -202,6 +202,8 @@ struct PhoneAccountSection: View {
             bankedResets: account.bankedResets,
             isCritical: CompanionCardPresentation.autoOpensPlanCapsule(account),
             isRevealing: isCapsuleOpen,
+            // CA-P3: the chip reads "Last read 14 min ago" (`staleChipLabel`), never "Stale".
+            staleReadAge: IdentityRowReadAge(capturedAt: account.capturedAt, now: context.now),
             scale: scale,
             onTruncatedTitle: { full in
                 context.onTruncatedTitle(
@@ -261,9 +263,7 @@ struct PhoneAccountSection: View {
             // demotion; a stale row under a dimmed surface adds only its "Last known" state.
             dimmed: CompanionCardPresentation.rowsDimmed(accountDimmed: dimmed, surfaceDimmed: context.surfaceDimmed),
             identifierPrefix: identifier,
-            arrivalKey: AccountKey(
-                providerID: ProviderID(provider.id),
-                accountID: AccountID(account.accountID ?? AccountID.primary.raw)),
+            providerID: ProviderID(provider.id),
             scale: scale
         )
     }
@@ -277,7 +277,8 @@ struct PhoneMeterRows: View {
     let now: Date
     let dimmed: Bool
     let identifierPrefix: String
-    let arrivalKey: AccountKey
+    /// Names the provider in an empty row's tooltip (CA-P4).
+    let providerID: ProviderID
     let scale: CGFloat
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -313,10 +314,13 @@ struct PhoneMeterRows: View {
                                 now: now,
                                 meterStyle: display.meterStyle,
                                 dimmed: dimmed,
-                                arrivalKey: arrivalKey,
+                                // CA-M5: no arrival key, so the fill paints final inside the
+                                // rising card instead of drawing in behind it (KTD16 overturned).
+                                arrivalKey: nil,
                                 scale: scale,
                                 resetNotReadLine: layout.resetNotReadLine,
-                                showsWindowState: layout.showsWindowState
+                                showsWindowState: layout.showsWindowState,
+                                providerID: providerID
                             )
                             .resetLine(peers: resetLabelPeers, compact: layout.resetNotReadCompactLine)
                             // Retained readings should look inactive beside live accounts;

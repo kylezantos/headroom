@@ -12,7 +12,7 @@ final class DemoModeUITests: XCTestCase {
     func testCleanInstallCanExploreFullDemoAndExitToWaiting() {
         app = makeApp()
         app.launch()
-        XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Waiting for Your Mac"].waitForExistence(timeout: 5))
 
         app.buttons["headroom.demo.enter"].tap()
         assertFullDemo()
@@ -22,7 +22,7 @@ final class DemoModeUITests: XCTestCase {
         app.buttons["Done"].tap()
         exitDemoFromBanner()
 
-        XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Waiting for Your Mac"].waitForExistence(timeout: 5))
     }
 
     func testDemoPersistsAcrossRelaunchUntilExit() {
@@ -40,7 +40,7 @@ final class DemoModeUITests: XCTestCase {
         app.buttons["headroom.settings"].tap()
         app.buttons["Done"].tap()
         exitDemoFromBanner()
-        XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Waiting for Your Mac"].waitForExistence(timeout: 5))
     }
 
     private func exitDemoFromBanner() {
@@ -71,15 +71,21 @@ final class DemoModeUITests: XCTestCase {
 
     // MARK: U21: freshness, past reset and old Mac
 
-    /// R10/AE5: a quiet Mac dims the surface and says so in the stamp's slot, once: the rows
-    /// take one demotion and gain no per-row "Last known" on top.
+    /// R10/AE5: a quiet Mac dims the surface and says so, once: the rows take one demotion and
+    /// gain no per-row "Last known" on top. CA-I2: the stamp slot reads "Last update <time>"
+    /// and the whole sentence has its own line under the header.
     func testDimmedSurfaceSaysNoUpdateInTheStampSlotAndDimsOnce() {
         launchDemo("dimmed")
         let line = element("headroom.status-line")
         XCTAssertTrue(line.waitForExistence(timeout: 5))
-        XCTAssertTrue(line.label.hasPrefix("No update from your Mac since "), "got \(line.label)")
+        XCTAssertTrue(line.label.hasPrefix("Last update "), "got \(line.label)")
         XCTAssertEqual(line.value as? String, "dimmed")
         XCTAssertFalse(line.label.contains("Updated"))
+        let sentence = element("headroom.dimmed-line")
+        XCTAssertTrue(sentence.exists)
+        XCTAssertTrue(sentence.label.hasPrefix("No update from your Mac since "), "got \(sentence.label)")
+        XCTAssertTrue(sentence.label.hasSuffix(String(line.label.dropFirst("Last update ".count))),
+                      "the sentence carries the same time as the stamp")
         let weekly = element("headroom.account.claude.primary").descendants(matching: .any)["Weekly usage"]
         XCTAssertTrue(weekly.exists)
         XCTAssertFalse((weekly.value as? String)?.contains("Last known") ?? true, "dimming never stacks a row state")

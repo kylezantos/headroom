@@ -25,13 +25,15 @@ struct MirrorView: View {
     /// and reservation on this screen multiplies by it.
     @ScaledMetric(relativeTo: .body) private var phoneScale: CGFloat = PhoneScale.defaultFactor
     private var scale: CGFloat { PhoneScale.clamped(phoneScale) }
-    /// KTD16: shown from the first frame when the launch's entrance has already played.
+    /// KTD16 (kept, CA-M5): shown from the first frame when the launch's entrance has played.
     @State private var cardsShown = PhoneLaunchEntrance.shared.hasPlayed
     @State private var disclosedTitle: DisclosedTitle?
 
     /// The approved mock's screen rhythm (U1-B): 20pt side margins and 20pt between tiles.
     private static let sideMargin: CGFloat = 20
     private static let tileGap: CGFloat = 20
+    /// CA-I2 (IOS-02 mock): the dimmed sentence sits 12pt above the first card.
+    private static let dimmedLineToCards: CGFloat = 12
 
     /// KTD17: the phone keeps its 20pt margins; a regular-width window takes the iPad mock's 28.
     private var margin: CGFloat {
@@ -46,8 +48,17 @@ struct MirrorView: View {
         // the past-reset moment tick without a data poll — same pattern the Mac popover uses.
         TimelineView(.periodic(from: .now, by: 60)) { timeline in
             let context = context(display: display, now: timeline.date)
+            let freshness = self.freshness(display: display, now: timeline.date)
             ScrollView {
                 VStack(spacing: Self.tileGap) {
+                    if let sentence = freshness.sentence {
+                        // CA-I2: the whole dimmed sentence, time included, on its own line in
+                        // `UpdateMacLine`'s form, 12pt above the first card. The header slot
+                        // keeps only "Last update <time>".
+                        UpdateMacLine(text: sentence, scale: scale, identifier: "headroom.dimmed-line")
+                            .padding(.horizontal, margin)
+                            .padding(.bottom, Self.dimmedLineToCards - Self.tileGap)
+                    }
                     if showsDemoBanner {
                         DemoModeBanner(
                             canExitDemo: canExitDemo,
@@ -78,20 +89,9 @@ struct MirrorView: View {
             .safeAreaInset(edge: .top, spacing: 0) {
                 // Native toolbar hosting freezes the loading timeline between receipt
                 // updates. A screen-owned header keeps the desktop vessel clock live.
-                HStack(spacing: 12) {
-                    Text("Usage")
-                        .font(.largeTitle.bold())
-                        .lineLimit(1)
-                        .layoutPriority(1)
-                        .accessibilityAddTraits(.isHeader)
-                    Spacer(minLength: 8)
-                    statusLine(freshness: freshness(display: display, now: timeline.date))
-                    PhoneSettingsButton(action: onSettings, usesHeaderStyle: true)
-                        .buttonStyle(.plain)
+                PhoneScreenHeader(title: "Usage", margin: margin, onSettings: onSettings) {
+                    statusLine(freshness: freshness)
                 }
-                .padding(.horizontal, margin)
-                .padding(.top, 8)
-                .padding(.bottom, 12)
             }
             .background { checkNowShortcut }
         }
@@ -127,7 +127,7 @@ struct MirrorView: View {
     /// U9/U21: one slot. The check-now line while a request shows; otherwise the freshness
     /// line — or, in Explore Demo, the sample-data note that stands in for it.
     private func statusLine(freshness: CompanionScreenFreshness) -> some View {
-        let resting = isDemoMode && showsDemoBanner ? "Sample data · No account connected" : freshness.text
+        let resting = isDemoMode && showsDemoBanner ? "Sample data · No account connected" : freshness.headerText
         return CheckNowStatusLine(
             slot: checkNow.slot(at: Date()),
             restingText: resting,
@@ -153,16 +153,17 @@ struct MirrorView: View {
     /// account set, so adding an account re-plans while a height change keeps every column.
     /// VoiceOver reads provider order, then spend.
     private func cards(_ context: PhoneCardContext) -> some View {
-        let offsets = accountOffsets
-        return FlowingColumns(margin: margin, gap: Self.tileGap) {
+        FlowingColumns(margin: margin, gap: Self.tileGap) {
             ForEach(Array(content.providers.enumerated()), id: \.element.id) { index, provider in
                 PhoneProviderCard(provider: provider, context: context)
-                    .phoneCardEntrance(isShown: cardsShown, accountsBefore: offsets[index])
+                    // CA-M5: one step per card above, capped at the fourth (KTD16 counted
+                    // accounts up to the eighth).
+                    .phoneCardEntrance(isShown: cardsShown, cardIndex: index)
                     .flowingColumnsCard(id: Self.columnsKey(provider))
             }
             if !content.apiSpend.isEmpty {
                 PhoneSpendCard(summaries: content.apiSpend, surfaceDimmed: context.surfaceDimmed, scale: scale)
-                    .phoneCardEntrance(isShown: cardsShown, accountsBefore: accountCount)
+                    .phoneCardEntrance(isShown: cardsShown, cardIndex: content.providers.count)
                     .flowingColumnsCard(id: "spend")
             }
         }
@@ -170,19 +171,6 @@ struct MirrorView: View {
 
     static func columnsKey(_ provider: CompanionResolvedProvider) -> String {
         ([provider.id] + provider.accounts.map(\.id).sorted()).joined(separator: "|")
-    }
-
-    /// KTD16: each card's stagger counts the accounts above it, capped after the eighth.
-    private var accountOffsets: [Int] {
-        var running = 0
-        return content.providers.map { provider in
-            defer { running += max(1, provider.accounts.count) }
-            return running
-        }
-    }
-
-    private var accountCount: Int {
-        content.providers.reduce(0) { $0 + max(1, $1.accounts.count) }
     }
 
     /// KTD16: the launch's one entrance. A screen built after it played (a demo switch, a
@@ -206,11 +194,40 @@ struct MirrorView: View {
     }
 }
 
+/// The screen-owned header: a large title, the status slot and the 44pt glass gear on one
+/// row. CA-I6: the status screens use it too, so a sync coming back never moves the title or
+/// the gear (they used the native large title under a separate gear row).
+struct PhoneScreenHeader<Status: View>: View {
+    let title: String
+    let margin: CGFloat
+    let onSettings: () -> Void
+    @ViewBuilder let status: () -> Status
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(title)
+                .font(.largeTitle.bold())
+                .lineLimit(1)
+                .layoutPriority(1)
+                .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            status()
+            PhoneSettingsButton(action: onSettings, usesHeaderStyle: true)
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, margin)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+    }
+}
+
 /// R14/AE1: an older Mac sends main accounts only; the line says what updating it adds, in
-/// the cards' neutral status voice (P39/P40) with the same Mac glyph.
+/// the cards' neutral status voice (P39/P40) with the same Mac glyph. CA-I2: the dimmed
+/// "No update from your Mac since …" sentence uses the same line.
 private struct UpdateMacLine: View {
     let text: String
     let scale: CGFloat
+    var identifier = "headroom.update-mac"
 
     @Environment(\.colorScheme) private var scheme
 
@@ -224,7 +241,7 @@ private struct UpdateMacLine: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("headroom.update-mac")
+        .accessibilityIdentifier(identifier)
     }
 }
 

@@ -10,6 +10,42 @@ import Testing
 struct PhoneCheckNowLineTests {
     private let now = Date(timeIntervalSince1970: 1_900_000_000)
 
+    // MARK: CA-I2: the dimmed header stamp
+
+    @Test func theDimmedHeaderStampUsesTheWidgetsWords() {
+        #expect(CheckNowLinePolicy.dimmedStamp(since: "1:25 AM") == "Last update 1:25 AM")
+        // The widgets' small rung says the same thing (CA-W4).
+        let treatment = WidgetFreshnessTreatment(
+            now: now, dimmedSince: now.addingTimeInterval(-7_200), host: .phone,
+            timeZone: TimeZone(identifier: "UTC")!, locale: Locale(identifier: "en_US_POSIX"))
+        let time = WidgetClockText.text(
+            for: now.addingTimeInterval(-7_200), now: now,
+            timeZone: TimeZone(identifier: "UTC")!, locale: Locale(identifier: "en_US_POSIX"))
+        #expect(treatment.dimmedCaptions.contains(CheckNowLinePolicy.dimmedStamp(since: time)))
+    }
+
+    // MARK: CA-M5: one launch entrance
+
+    /// 20 accounts across six cards (five providers and spend): the last card starts within
+    /// 0.22 s whatever the account split, and settles within half a second.
+    @Test func theWorstCaseEntranceDelayIsCappedAtTheFourthCard() {
+        let delays = PhoneCardEntranceSchedule.delays(accountCounts: [8, 5, 4, 2, 1], hasSpendCard: true)
+        #expect(delays.count == 6)
+        let last = try? #require(delays.last)
+        #expect((last ?? 1) <= 0.22 + 1e-9)
+        #expect(delays == PhoneCardEntranceSchedule.delays(accountCounts: [1, 1, 1, 1, 16], hasSpendCard: true),
+                "account counts never add delay")
+        #expect(delays.max()! + PhoneCardEntranceSchedule.duration <= 0.5 + 1e-9)
+        #expect(delays == delays.sorted(), "cards enter top to bottom")
+        #expect(delays.first == 0)
+    }
+
+    @Test func reduceMotionFadesWithNoRiseAndMetersNeverDrawIn() {
+        #expect(PhoneCardEntranceSchedule.rise(reduceMotion: true) == 0)
+        #expect(PhoneCardEntranceSchedule.rise(reduceMotion: false) == 10)
+        #expect(!PhoneCardEntranceSchedule.metersDrawIn)
+    }
+
     // MARK: U9: the check-now slot
 
     private func demoStatus(steps: Int?, at clock: Date) async throws -> CheckNowStatus {

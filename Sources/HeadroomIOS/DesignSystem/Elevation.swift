@@ -35,15 +35,24 @@ struct HeadroomTileModifier: ViewModifier {
                 )
             }
             // Top-rim highlight — the restrained glow catching the top edge. A white rim
-            // would vanish on the light card, so it's dark-only.
-            .overlay(alignment: .top) {
+            // would vanish on the light card, so it's dark-only (the token is clear in light).
+            // CA-I4: a stroke of the tile's own shape faded out down the sides, so the light
+            // follows the corner curve, as the mock's `inset 0 1px 0` does in CSS. The old
+            // flat 1pt bar overhung the corners.
+            .overlay {
                 shape
-                    .fill(Color(styleTint: HeadroomWidgetColorValues.tileTopRim(dark: dark)))
-                    .frame(height: 1)
-                    .padding(.horizontal, 9)
+                    .strokeBorder(Color(styleTint: HeadroomWidgetColorValues.tileTopRim(dark: dark)), lineWidth: 1)
+                    .mask {
+                        LinearGradient(
+                            colors: [.white, .clear], startPoint: .top,
+                            endPoint: UnitPoint(x: 0.5, y: Self.rimFadeEnd))
+                    }
                     .allowsHitTesting(false)
             }
     }
+
+    /// CA-I4 (IOS-04): the rim fades out over the top 12% of the tile.
+    private static let rimFadeEnd: CGFloat = 0.12
 }
 
 extension View {

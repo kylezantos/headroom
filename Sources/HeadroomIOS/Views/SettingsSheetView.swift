@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// R20 / S1-A: one Settings sheet on a native list — About, Appearance, Widgets, iPhone
-/// sync. Every section reads the one resolved snapshot the app shows
+/// R20 / S1-A: one Settings sheet on a native list — Appearance, Widgets, iPhone sync,
+/// About (CA-I1). Every section reads the one resolved snapshot the app shows
 /// (KTD6); in Explore Demo that is the chosen demo variant, so every row reads the fixture
 /// (R30).
 struct SettingsSheetView: View {
@@ -30,10 +30,8 @@ struct SettingsSheetView: View {
                 let shown = shownSnapshot(now: context.date)
                 let manifestRows = PhoneSettingsManifestRows(snapshot: shown)
                 List {
-                    AboutSection(
-                        syncStatus: isDemoMode
-                            ? "Demo data"
-                            : PhoneSyncStatus(snapshot: shown, now: context.date).state)
+                    // CA-I1: settings first, credits last, the order R20 / S1-A approved. The
+                    // medium detent then opens on the specimen and the theme picker.
                     AppearanceSection(
                         appearance: $appearance, macDisplay: shown?.content?.display,
                         macNeedsUpdate: shown?.content?.notice == .updateMac)
@@ -41,6 +39,10 @@ struct SettingsSheetView: View {
                     SyncSection(
                         snapshot: shown, isDemoMode: isDemoMode, lastCheckNow: lastCheckNow,
                         now: context.date)
+                    AboutSection(
+                        syncStatus: isDemoMode
+                            ? "Demo data"
+                            : PhoneSyncStatus(snapshot: shown, now: context.date).state)
 
                     #if DEBUG
                     diagnosticsSection(now: context.date)

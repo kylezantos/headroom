@@ -481,8 +481,8 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   Settings status, Compact tooltips, setup cards, a meter's state label and the phone, with "Not
   refreshed" when nothing dated it, in place of the old bare "Stale" and "Last known …"
   (`Countdown.staleReadLabel`, `windowReadLabel`, `lastReadLabel`, with the why in
-  `staleReadHelp` / `rememberedReadHelp`). The spend row's "Stale" badge is not covered yet
-  (`BUGS.md`). A window with no number says "No
+  `staleReadHelp` / `rememberedReadHelp`). The spend row's tag follows the same rule ("Last read 2 hr
+  ago", "2h ago" in the tag slot). A window with no number says "No
   reading yet" when nothing was ever observed (Copilot after sign-in) or "No current reading"
   when a reading aged out (`Countdown.unavailableLabel`), never "Unavailable" or a claim about
   use this month. Copy two surfaces print lives in Core (`Countdown`, `ProviderSignInCopy`,

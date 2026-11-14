@@ -163,7 +163,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
                 guard !window.freshness.isUnavailable,
                       let deadline = window.resetSchedule.deadline, !(deadline > now)
                 else { return window }
-                return window.withFreshness(.unavailable(since: deadline))
+                // CA-P4: it held a number, so it keeps an anchor ("No current reading").
+                return window.withFreshness(.unavailable(since: deadline), observedAt: snapshot.capturedAt)
             }
         }
 

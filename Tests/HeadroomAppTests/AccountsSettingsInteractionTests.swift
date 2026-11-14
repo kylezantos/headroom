@@ -1345,7 +1345,8 @@ struct AccountsSettingsInteractionTests {
     }
 
     private func makeFixture(
-        storage: any AccountStorageManaging = InteractionStorage()
+        storage: any AccountStorageManaging = InteractionStorage(),
+        recordsReadings: Bool = false
     ) -> InteractionFixture {
         let suiteName = "co.zantos.headroom.app-interactions.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -1366,7 +1367,9 @@ struct AccountsSettingsInteractionTests {
                     snapshot: .pending(for: account.providerID),
                     accountID: account.id
                 )
-            }
+            },
+            // CA-P14: the slot records Stop Waiting's removal rule reads as history.
+            defaultLoginRecords: recordsReadings ? DefaultLoginRecordStore(defaults: defaults) : nil
         )
         return InteractionFixture(store: store, suiteName: suiteName)
     }
@@ -2890,6 +2893,19 @@ extension AccountsSettingsInteractionTests {
                 == rows.map(SettingsAccountListItem.live))
     }
 
+    /// CA-M3 review fix: stop-tracking the built-in row, Show Default Login and stop-tracking
+    /// again inside one drain queues one row for the account, never two with one id.
+    @Test func aSecondDrainOfTheSameAccountReplacesTheFirst() {
+        let main = DisplayAccount(account: .builtIn(for: .claude), kind: .engine)
+        let first = SettingsAccountDrainingRow(row: main, title: "Main", detail: nil, level: 0.5, index: 0)
+        let second = SettingsAccountDrainingRow(row: main, title: "Main", detail: nil, level: 0.4, index: 0)
+        let draining = SettingsAccountListItem.addingDrain(
+            second, to: SettingsAccountListItem.addingDrain(first, to: []))
+        #expect(draining == [second])
+        let ids = SettingsAccountListItem.items(rows: [], draining: draining).map(\.id)
+        #expect(ids.count == Set(ids).count)
+    }
+
     @Test func aDrainingRowStaysSolidUntilItsLastThreeTenths() {
         let duration = LoadingMotionConstants.drainDuration
         #expect(SettingsAccountExit.drainOpacity(progress: 0) == 1)
@@ -2913,28 +2929,32 @@ extension AccountsSettingsInteractionTests {
     @Test func onlyANeverSignedInExtraIsRemovedByStopWaiting() {
         let extra = ProviderAccount(id: AccountID("added"), providerID: .claude, label: "Account 2")
         let justAdded = UsageSnapshot.stale(for: .claude, reason: .notLoggedIn(UsageStore.finishSignInMessage))
-        #expect(UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: justAdded))
+        #expect(UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: justAdded, hasReadingOnRecord: false))
         #expect(UsageStore.stopWaitingRemovesAccount(
-            extra, isRemembered: false, snapshot: .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired))))
-        #expect(!UsageStore.stopWaitingRemovesAccount(.builtIn(for: .claude), isRemembered: false, snapshot: justAdded))
-        #expect(!UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: DemoFixture.claudeSnapshot))
+            extra, isRemembered: false, snapshot: .stale(for: .claude, reason: .providerSetup(.claudeLoginRequired)),
+            hasReadingOnRecord: false))
+        #expect(!UsageStore.stopWaitingRemovesAccount(.builtIn(for: .claude), isRemembered: false, snapshot: justAdded, hasReadingOnRecord: false))
+        #expect(!UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: DemoFixture.claudeSnapshot, hasReadingOnRecord: false))
+        // CA-P14 review fix: a durable record of a reading keeps today's dialog, however the
+        // snapshot looks now.
+        #expect(!UsageStore.stopWaitingRemovesAccount(extra, isRemembered: false, snapshot: justAdded, hasReadingOnRecord: true))
         for provider in DemoFixture.registeredProviderOrder {
             let account = ProviderAccount(id: AccountID("added"), providerID: provider, label: "Account 2")
             #expect(UsageStore.stopWaitingRemovesAccount(
-                account, isRemembered: false, snapshot: .stale(for: provider, reason: .notLoggedIn(UsageStore.finishSignInMessage))),
+                account, isRemembered: false, snapshot: .stale(for: provider, reason: .notLoggedIn(UsageStore.finishSignInMessage)),
+                hasReadingOnRecord: false),
                 "\(provider)")
         }
     }
 
     @Test func stopWaitingOnAJustAddedAccountRemovesItOnConfirmAndKeepsItOnKeepWaiting() async throws {
         let storage = InteractionStorage()
-        let fixture = makeFixture(storage: storage)
+        let fixture = makeFixture(storage: storage, recordsReadings: true)
         defer { fixture.cleanup() }
         let account = try #require(AccountsSettingsInteractions.addAccount(
             for: .claude, to: fixture.store, openSetup: { _ in }
         ))
-        #expect(UsageStore.stopWaitingRemovesAccount(
-            account, isRemembered: false, snapshot: fixture.store.snapshot(for: account.key)))
+        #expect(fixture.store.stopWaitingRemovesAccount(account))
 
         // Keep Waiting runs neither callback, so the account stays.
         #expect(fixture.store.accounts(for: .claude).contains(account))
@@ -2953,12 +2973,13 @@ extension AccountsSettingsInteractionTests {
     /// marker protocol `DefaultAccountStorage` checks), the store refuses a bare removal, and
     /// the dialog's Remove Account, which force-cancels first, removes the never-signed-in
     /// extra. The popover reads the rule through its card entry, Settings through the row
-    /// snapshot; both confirm through `StopWaitingConfirmation` into `stopWaitingAndRemove`.
+    /// snapshot and its capability group through the store's own reading; all three confirm
+    /// through `StopWaitingConfirmation` into `stopWaitingAndRemove`.
     @Test func removeAccountAfterStopWaitingRemovesTheExtraFromThePopoverAndFromSettings() async throws {
-        for surface in ["popover", "settings"] {
+        for surface in ["popover", "settings", "settings capability group"] {
             let storage = MarkerBackedHandoffStorage()
             defer { storage.cleanup() }
-            let fixture = makeFixture(storage: storage)
+            let fixture = makeFixture(storage: storage, recordsReadings: true)
             defer { fixture.cleanup() }
             let account = try #require(AccountsSettingsInteractions.addAccount(
                 for: .claude, to: fixture.store, openSetup: { _ in }
@@ -2968,9 +2989,21 @@ extension AccountsSettingsInteractionTests {
             #expect(fixture.store.accounts(for: .claude).contains(account), "\(surface)")
 
             let snapshot = fixture.store.snapshot(for: account.key)
-            let offered = surface == "popover"
-                ? stopWaitingRemovesAccount(ProviderAccountEntry(account: account, snapshot: snapshot))
-                : UsageStore.stopWaitingRemovesAccount(account, isRemembered: false, snapshot: snapshot)
+            let offered = switch surface {
+            case "popover":
+                stopWaitingRemovesAccount(
+                    ProviderAccountEntry(account: account, snapshot: snapshot),
+                    hasReadingOnRecord: fixture.store.hasReadingOnRecord(account.key)
+                )
+            case "settings":
+                UsageStore.stopWaitingRemovesAccount(
+                    account, isRemembered: false, snapshot: snapshot,
+                    hasReadingOnRecord: fixture.store.hasReadingOnRecord(account.key)
+                )
+            // CA-P14 review fix: Settings' capability group reads the store's own rule.
+            default:
+                fixture.store.stopWaitingRemovesAccount(account)
+            }
             #expect(offered, "\(surface)")
 
             let dialog = StopWaitingConfirmation(accountLabel: account.label, prompt: .signIn, removesAccount: offered)

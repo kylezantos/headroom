@@ -173,6 +173,19 @@ struct PopoverHeaderStatusResolverTests {
         #expect(PopoverSetupCardVisibility.scrolledOutProviders(pieces: pieces, viewportTop: 0, viewportBottom: 0).isEmpty)
     }
 
+    /// CA-P8 review fix: a split card that unsplits leaves its second fragment's frame behind;
+    /// pruning to the fragments drawn lets the header see the one card that is left.
+    @MainActor @Test func aFragmentNoLongerDrawnStopsDecidingTheHeader() {
+        let model = PopoverScrollModel()
+        model.update(PopoverScrollMetrics(offset: 400, viewport: 640, content: 1_200))
+        model.recordCardFrame(CGRect(x: 0, y: 0, width: 384, height: 300), fragmentID: "claude.0", providerID: .claude)
+        // The unsplit card's old second piece, still inside the viewport.
+        model.recordCardFrame(CGRect(x: 384, y: 500, width: 384, height: 200), fragmentID: "claude.1", providerID: .claude)
+        #expect(model.scrolledOutProviders.isEmpty)
+        model.pruneCardFrames(keeping: ["claude.0"])
+        #expect(model.scrolledOutProviders == [.claude])
+    }
+
     /// R2M12: the clock replaces the card's own title rather than repeating it.
     @Test func anOpenHandoffReplacesTheEchoWithAClock() {
         let status = PopoverHeaderStatusResolver.setup(

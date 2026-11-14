@@ -306,11 +306,14 @@ struct AccountsSettingsTile: View {
             }
             if let capability, !accounts.isEmpty {
                 // RM1: self-timed so it still fades under Reduce Motion.
+                let stopWaitingAccount = accounts.first { SetupSessions.hasActiveHandoff(for: $0) }
                 ProviderCapabilityRecoveryView(
                     presentation: capability,
-                    stopWaitingAccount: accounts.first {
-                        SetupSessions.hasActiveHandoff(for: $0)
-                    },
+                    stopWaitingAccount: stopWaitingAccount,
+                    // CA-P14 review fix: the group's Stop Waiting reads the one rule the
+                    // popover's capability card and the Settings rows read, and removes
+                    // through the same drain the row path uses.
+                    onRemoveAccount: stopWaitingRemovalAction(for: stopWaitingAccount),
                     // B3A: Settings keeps the leading row and the small chip; only the
                     // popover card foot takes P4C's trailing action row.
                     placement: .settingsGroup,
@@ -788,7 +791,8 @@ struct AccountsSettingsTile: View {
                     // CA-P14 (UX-02): an abandoned Add Account offers to remove the row it
                     // made. Built-in rows and extras that ever signed in keep today's dialog.
                     onRemoveAccount: UsageStore.stopWaitingRemovesAccount(
-                        stopWaitingAccount, isRemembered: row.isRemembered, snapshot: context.snapshot
+                        stopWaitingAccount, isRemembered: row.isRemembered, snapshot: context.snapshot,
+                        hasReadingOnRecord: store.hasReadingOnRecord(stopWaitingAccount.key)
                     ) ? { removeAfterStoppingWait(row, account: $0) } : nil
                 )
             }
@@ -980,8 +984,18 @@ struct AccountsSettingsTile: View {
               let captured,
               !store.displayAccounts(for: row.account.providerID).contains(where: { $0.key == row.key })
         else { return result }
-        drainingRows[row.account.providerID, default: []].append(captured)
+        drainingRows[row.account.providerID] = SettingsAccountListItem.addingDrain(
+            captured, to: drainingRows[row.account.providerID] ?? []
+        )
         return result
+    }
+
+    /// CA-P14: the capability group's removal, offered only where the store's rule holds.
+    private func stopWaitingRemovalAction(for account: ProviderAccount?) -> ((ProviderAccount) -> Void)? {
+        guard let account, store.stopWaitingRemovesAccount(account),
+              let row = store.displayAccounts(for: account.providerID).first(where: { $0.key == account.key })
+        else { return nil }
+        return { removeAfterStoppingWait(row, account: $0) }
     }
 
     private func removeAfterStoppingWait(_ row: DisplayAccount, account: ProviderAccount) {

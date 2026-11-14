@@ -382,17 +382,13 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
     }
 }
 
-/// CA-MB1/CA-MB2 (KTD7): who carries a provider mark in the menu bar. The preference governs
-/// explicit pills only; unset, two or more pills are marked and a single pill is not. The
-/// automatic summary is always marked, because one unlabeled pill that changes meaning is the
-/// worst case.
+/// CA-MB1/CA-MB2 (KTD7): whether explicit menu-bar pills carry a provider mark. The
+/// preference governs explicit pills only; unset, two or more pills are marked and a single
+/// pill is not. The automatic summary is always marked, which is the pill's own rule:
+/// `MenuBarMeter.showsMark(explicitPillsMarked:)` is the one rule the bar runs.
 public enum MenuBarMarksPolicy {
     public static func explicitPillsMarked(preference: Bool?, explicitPillCount: Int) -> Bool {
         preference ?? (explicitPillCount >= 2)
-    }
-
-    public static func showsMark(isAutomaticSummary: Bool, preference: Bool?, explicitPillCount: Int) -> Bool {
-        isAutomaticSummary || explicitPillsMarked(preference: preference, explicitPillCount: explicitPillCount)
     }
 }
 

@@ -717,6 +717,19 @@ Deferred from the Claude sign-in handoff fix.
   alive with no start-time check, so a recycled PID can pin a handoff as open.
 - **The header waiting clock follows built-in accounts only** (`headerWaitingAccount`), so an
   extra account's handoff never shows "Waiting 31s".
+- **OpenCode extras never get "Remove Account" on Stop Waiting (CA-P14, parity exception).** The
+  rule needs proof an account never read, and that proof is the default-login slot record, which
+  only Claude, Codex and Grok readings write. OpenCode readings carry no identity (KTD19 of the
+  OpenCode plan), so the store cannot prove a never-signed-in OpenCode extra never read and
+  keeps today's dialog. Revisit when OpenCode readings gain an identity.
+- **The phone may never show "No reading yet".** Synced unavailable windows always carry an
+  observation anchor, so the phone can read "No current reading" even for Copilot's no-reading
+  row. Not verified on a device.
+- **"Main account. Shown in the menu bar and widgets." is inaccurate for a main account whose
+  provider has no pill.** The words follow the main row (CA-MB3 split the glyph from them); a
+  widgets-only line would be more accurate there.
+- **`CopilotStatusSourceTests.nonRespondingCLIHitsTheDeadlineAndItsProcessGroupIsKilled` is
+  timing-sensitive** under full-suite load (failed once, passed alone and on rerun, 2026-11-14).
 - **`CLIExecutableLocatorTests.staleGenerationCompletionJoinsReplacementWithoutStartingThirdSearch`
   has an intermittent scheduling failure.** It recurred on 2026-10-20 during the safe
   provider-session checks. The test assumes 20 `Task.yield()` calls let the old completion
@@ -1568,6 +1581,19 @@ options doc's area ids, written `CA-<area>` in code.
 - **Em dashes left outside this audit's surfaces.** The banked-reset tooltip and VoiceOver phrase
   (`PlanCapsulePresentation`), the menu-bar accessibility label "AI usage — a provider needs
   sign-in", and the phone demo banner "Sample data — …".
+- **OpenCode extras never get "Remove Account" on Stop Waiting (CA-P14, parity exception).** The
+  rule needs proof an account never read, and that proof is the default-login slot record, which
+  only Claude, Codex and Grok readings write. OpenCode readings carry no identity (KTD19 of the
+  OpenCode plan), so the store cannot prove a never-signed-in OpenCode extra never read and
+  keeps today's dialog. Revisit when OpenCode readings gain an identity.
+- **The phone may never show "No reading yet".** Synced unavailable windows always carry an
+  observation anchor, so the phone can read "No current reading" even for Copilot's no-reading
+  row. Not verified on a device.
+- **"Main account. Shown in the menu bar and widgets." is inaccurate for a main account whose
+  provider has no pill.** The words follow the main row (CA-MB3 split the glyph from them); a
+  widgets-only line would be more accurate there.
+- **`CopilotStatusSourceTests.nonRespondingCLIHitsTheDeadlineAndItsProcessGroupIsKilled` is
+  timing-sensitive** under full-suite load (failed once, passed alone and on rerun, 2026-11-14).
 - **`CLIExecutableLocatorTests.staleGenerationCompletionJoinsReplacementWithoutStartingThirdSearch`
   is timing-sensitive.** It failed once in four full-suite runs on 2026-11-14 and passed alone;
   the locator and its tests were not changed by the craft audit.

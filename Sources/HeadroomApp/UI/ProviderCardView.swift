@@ -315,6 +315,9 @@ struct ProviderCardView: View {
     /// CA-P14: removes an account, offered from Stop Waiting on a never-signed-in extra only
     /// (`stopWaitingRemovesAccount`). Nil outside the popover keeps today's dialog.
     var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
+    /// CA-P14 review fix: the store's durable history for an account
+    /// (`UsageStore.hasReadingOnRecord`). The default, "may have read", keeps today's dialog.
+    var hasReadingOnRecord: (AccountKey) -> Bool = { _ in true }
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -658,7 +661,8 @@ struct ProviderCardView: View {
     private func removeAction(for account: ProviderAccount) -> ((ProviderAccount) -> Void)? {
         guard let onRemoveAccount,
               let entry = entries.first(where: { $0.account.key == account.key }),
-              stopWaitingRemovesAccount(entry) else { return nil }
+              stopWaitingRemovesAccount(entry, hasReadingOnRecord: hasReadingOnRecord(account.key))
+        else { return nil }
         return onRemoveAccount
     }
 
@@ -895,7 +899,8 @@ struct ProviderCardView: View {
                             compactRow(
                                 for: entry,
                                 recipe: recipe,
-                                isMenuBarAccount: feedsMenuBar(entry.account),
+                                isMenuBarAccount: isMainAccountRow(entry),
+                                showsMenuBarSourceGlyph: feedsMenuBar(entry.account),
                                 providerAccounts: providerAccounts,
                                 columns: columns ?? recipe.shownWindows.map(\.window.kind)
                             )
@@ -952,6 +957,7 @@ struct ProviderCardView: View {
         for entry: ProviderAccountEntry?,
         recipe: CompactAccountRowRecipe,
         isMenuBarAccount: Bool,
+        showsMenuBarSourceGlyph: Bool = false,
         providerAccounts: [ProviderAccount],
         columns: [WindowKind]
     ) -> some View {
@@ -975,6 +981,7 @@ struct ProviderCardView: View {
             showsPersistentEmail: identity.showsPersistentEmail,
             titleIsEmail: identity.isEmailTitle,
             isMenuBarAccount: isMenuBarAccount,
+            showsMenuBarSourceGlyph: showsMenuBarSourceGlyph,
             recipe: recipe,
             columns: columns,
             bankedResets: entry?.snapshot.bankedResets,
@@ -1007,7 +1014,8 @@ struct ProviderCardView: View {
             percentageMode: percentageMode,
             meterStyle: meterStyle,
             now: now,
-            isMenuBarAccount: feedsMenuBar(entry.account),
+            isMenuBarAccount: isMainAccountRow(entry),
+            showsMenuBarSourceGlyph: feedsMenuBar(entry.account),
             showsStopWaiting: showsStopWaiting,
             onRemoveAccount: removeAction(for: entry.account),
             onRetry: entry.kind.offersRetry ? { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) } : {},
@@ -1017,8 +1025,18 @@ struct ProviderCardView: View {
         )
     }
 
-    /// CA-MB3 (MB-F; overturns L5D's "first account is the menu-bar account"): the row whose
-    /// reading feeds a pill, said only when its provider has two or more accounts.
+    /// L5D: the main row's "Main account" tooltip and VoiceOver phrase follow the display
+    /// primary, whichever provider the menu bar shows (CA-MB3 review fix: the glyph and the
+    /// words are two facts, so a main account out of the menu bar is still called main).
+    private func isMainAccountRow(_ entry: ProviderAccountEntry) -> Bool {
+        IdentityRowText.isMainAccountRow(
+            isDisplayPrimary: entry.id == entries.first?.id,
+            providerAccountCount: entries.count
+        )
+    }
+
+    /// CA-MB3 (MB-F; overturns L5D's "first account is the menu-bar account" for the glyph):
+    /// the row whose reading feeds a pill, said only when its provider has two or more accounts.
     private func feedsMenuBar(_ account: ProviderAccount) -> Bool {
         IdentityRowText.feedsMenuBar(
             isPillSource: menuBarSourceKeys.contains(account.key),
@@ -1593,8 +1611,11 @@ struct StopWaitingConfirmation: Equatable {
 }
 
 /// CA-P14: the popover's reading of the one Stop Waiting removal rule.
-func stopWaitingRemovesAccount(_ entry: ProviderAccountEntry) -> Bool {
-    UsageStore.stopWaitingRemovesAccount(entry.account, isRemembered: entry.isRemembered, snapshot: entry.snapshot)
+func stopWaitingRemovesAccount(_ entry: ProviderAccountEntry, hasReadingOnRecord: Bool) -> Bool {
+    UsageStore.stopWaitingRemovesAccount(
+        entry.account, isRemembered: entry.isRemembered, snapshot: entry.snapshot,
+        hasReadingOnRecord: hasReadingOnRecord
+    )
 }
 
 /// P4C/B3 (Sep 2026): the one action row every card and account section ends with —

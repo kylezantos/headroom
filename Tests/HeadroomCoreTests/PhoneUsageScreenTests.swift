@@ -97,17 +97,18 @@ struct PhoneUsageScreenTests {
     }
 
     /// CA-P3 (phone half): a stale account's chip reads "Last read" with its age, never
-    /// "Stale"; a live account has no chip.
+    /// "Stale"; a live account has no chip. The phone card hands `IdentityRow` the capture
+    /// time, and the row prints `Countdown.staleReadLabel`, so that is what is checked.
     @Test func aStalePhoneAccountsChipReadsLastReadWithItsAge() throws {
         let content = try content(.pastReset)
         let accounts = content.providers.flatMap(\.accounts)
         let stale = try #require(accounts.first { CompanionCardPresentation.showsStaleChip($0) })
-        let label = try #require(CompanionCardPresentation.staleChipLabel(for: stale, now: now))
+        let label = Countdown.staleReadLabel(capturedAt: stale.capturedAt, now: now)
         #expect(label == Countdown.lastReadLabel(capturedAt: stale.capturedAt, now: now))
         #expect(label.hasPrefix("Last read "))
         #expect(!label.localizedCaseInsensitiveContains("stale"))
         let live = try #require(accounts.first { $0.freshness == .live })
-        #expect(CompanionCardPresentation.staleChipLabel(for: live, now: now) == nil)
+        #expect(!CompanionCardPresentation.showsStaleChip(live))
     }
 
     /// AE5 / KTD15: a stale row under a dimmed surface is demoted once, exactly like a live

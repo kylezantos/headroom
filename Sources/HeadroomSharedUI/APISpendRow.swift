@@ -155,6 +155,10 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
                         StatusSentence(text: message, severity: StatusSentenceSeverity.forSpendTone(status.tone), scale: scale)
                     }
                 }
+                    // CA-I5 review fix: the sentence wraps to whatever width the row gets, so
+                    // it claims no ideal width of its own. Otherwise its unwrapped length
+                    // decided the phone card's chip fit, and one stale row dropped every chip.
+                    .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
                     .accessibilityHidden(true)
                     // M4A: freshness is a colour-and-presence change, so the line fades in
                     // and out rather than sliding.

@@ -879,13 +879,15 @@ struct StopWaitingConfirmationTests {
     @Test func onlyAnExtraThatNeverReadOffersRemoval() {
         let preset = Freshness.stale(.notLoggedIn(UsageStore.finishSignInMessage))
         // A pending snapshot is no evidence of a never-finished sign-in (one rule with Settings).
-        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .pending)))
-        #expect(stopWaitingRemovesAccount(entry(extra, freshness: preset)))
-        #expect(stopWaitingRemovesAccount(entry(extra, freshness: .stale(.providerSetup(.claudeLoginRequired)))))
-        #expect(!stopWaitingRemovesAccount(entry(.builtIn(for: .claude), freshness: .pending)))
-        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .live)))
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .pending), hasReadingOnRecord: false))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: preset), hasReadingOnRecord: false))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: .stale(.providerSetup(.claudeLoginRequired))), hasReadingOnRecord: false))
+        #expect(!stopWaitingRemovesAccount(entry(.builtIn(for: .claude), freshness: .pending), hasReadingOnRecord: false))
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .live), hasReadingOnRecord: false))
         let retained = [UsageWindow(kind: .weekly, utilization: 60, resetSchedule: .unresolved(.absent))]
-        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: preset, windows: retained)))
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: preset, windows: retained), hasReadingOnRecord: false))
+        // CA-P14 review fix: an extra with a reading on record keeps today's dialog.
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: preset), hasReadingOnRecord: true))
     }
 }
 

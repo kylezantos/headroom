@@ -109,14 +109,6 @@ public enum CompanionCardPresentation {
         return false
     }
 
-    /// CA-P3 (phone half): the stale chip's words, "Last read 14 min ago", through the same
-    /// `Countdown` label the Mac's chip prints. Nil where no chip shows. The view hands the
-    /// shared `IdentityRow` the capture time, so this is what it draws.
-    public static func staleChipLabel(for account: CompanionResolvedAccount, now: Date) -> String? {
-        guard showsStaleChip(account) else { return nil }
-        return Countdown.staleReadLabel(capturedAt: account.capturedAt, now: now)
-    }
-
     /// Default-login R7, R21: "Last read 2 min ago" beside a remembered row's title, the
     /// Mac's wording through the shared `Countdown` label. Nil for every other account.
     public static func lastReadLabel(for account: CompanionResolvedAccount, now: Date) -> String? {
@@ -408,17 +400,17 @@ extension CompanionCardPresentation {
 
 /// CA-M5 (MOT-05; overturns the iOS parity plan's KTD16: a per-account stagger capped at the
 /// eighth account, 0.34 s, on top of the meters' own draw-in). The cards' rise is the launch's
-/// only motion: each card waits one step per card above it, capped at the fourth, and the
-/// meters paint their final values inside the rising card. Worst case, the last card starts
-/// 0.22 s after launch and settles by 0.5 s, however many accounts the Mac sends.
+/// only motion: each card waits one step per card above it, up to four steps, and the meters
+/// paint their final values inside the rising card (they never draw in on the phone). The
+/// fifth card takes the fourth step; every card after it starts with it. Worst case, the last
+/// card starts 0.22 s after launch and settles by 0.5 s, however many accounts the Mac sends.
 public enum PhoneCardEntranceSchedule {
     public static let duration: Double = 0.28
     public static let stagger: Double = 0.055
-    /// Every card past the fourth enters with the fourth.
+    /// The most steps a card waits: the fifth card (index 4) waits four, and every card after
+    /// it enters with it.
     public static let staggerCap = 4
     public static let rise: Double = 10
-    /// Meters never draw in on the phone: the card entrance carries the arrival.
-    public static let metersDrawIn = false
 
     public static func delay(cardIndex: Int) -> Double {
         Double(min(max(0, cardIndex), staggerCap)) * stagger

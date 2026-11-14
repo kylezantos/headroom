@@ -60,6 +60,61 @@ import Testing
         #expect(IdentityRowText.menuBarSourceHelp == "Shown in the menu bar")
     }
 
+    /// CA-MB3 review fix: "main account" (tooltip, VoiceOver, Compact label) and "feeds a pill"
+    /// (the glyph) are two facts. A main account whose provider is not in the menu bar keeps
+    /// its main-account words and draws no glyph.
+    @MainActor @Test func aMainAccountOutOfTheMenuBarKeepsItsWordsAndDrawsNoGlyph() {
+        func width(main: Bool) -> CGFloat {
+            NSHostingView(rootView: IdentityRow(
+                providerID: .claude, title: "Work", planLabel: nil, isMenuBarAccount: main,
+                isStale: false, email: nil, showsPersistentEmail: false, showsConnectedChip: false,
+                mark: { side in Color.clear.frame(width: side, height: side) }
+            )).fittingSize.width
+        }
+        #expect(width(main: true) == width(main: false))
+        #expect(IdentityRowText.helpLines(
+            title: "Work", titleIsTruncated: false, email: nil, isMenuBarAccount: true, bankedHelp: nil
+        ) == IdentityRowText.mainAccountHelp)
+        #expect(IdentityRowText.isMainAccountRow(isDisplayPrimary: true, providerAccountCount: 2))
+        #expect(!IdentityRowText.isMainAccountRow(isDisplayPrimary: true, providerAccountCount: 1))
+        #expect(!IdentityRowText.isMainAccountRow(isDisplayPrimary: false, providerAccountCount: 2))
+    }
+
+    @MainActor @Test func onlyThePillSourceDrawsTheGlyph() {
+        func width(glyph: Bool) -> CGFloat {
+            NSHostingView(rootView: IdentityRow(
+                providerID: .claude, title: "Work", planLabel: nil, isMenuBarAccount: true,
+                isStale: false, email: nil, showsPersistentEmail: false, showsConnectedChip: false,
+                showsMenuBarSourceGlyph: glyph,
+                mark: { side in Color.clear.frame(width: side, height: side) }
+            )).fittingSize.width
+        }
+        #expect(width(glyph: true) > width(glyph: false) + MenuBarSourceGlyph.size.width)
+    }
+
+    /// CA-I5 review fix: the phone's spend card chooses its chip fit from its rows' ideal width
+    /// (`ViewThatFits`). A stale row's status sentence wraps to the card, so it must not widen
+    /// that ideal width, or every chip drops to a subline whenever any row is non-live.
+    @MainActor @Test func aSpendRowsSentenceNeverWidensItsIdealWidth() {
+        func idealWidth(stale: Bool) -> CGFloat {
+            let snapshot = APISpendSnapshot(
+                providerID: .claude, displayName: "Anthropic API", amount: 142.67, currency: "USD",
+                periodLabel: "This month", capturedAt: Date(timeIntervalSince1970: 1_800_000_000),
+                freshness: stale ? .stale(.transient("x")) : .live)
+            let status = APISpendRowStatus(
+                badge: stale ? "3h ago" : nil, shortBadge: stale ? "3h ago" : nil, tone: .neutral,
+                message: stale ? "Couldn’t read the amount. Your Mac will try again on its next check." : nil,
+                callToAction: nil, remoteHint: nil)
+            let row = APISpendRow(
+                snapshot: snapshot, status: status, title: "Anthropic API", contextLabel: "This month",
+                amount: "$142.67", amountColumnWidth: 80, scale: 1.15, chipFit: .inline,
+                mark: { side in Color.clear.frame(width: side, height: side) },
+                waitingLine: { Text($0) })
+            return NSHostingView(rootView: row).fittingSize.width
+        }
+        #expect(!(idealWidth(stale: true) > idealWidth(stale: false) + 1))
+    }
+
     @MainActor @Test func theMenuBarGlyphIsSevenByEleven() {
         let size = NSHostingView(rootView: MenuBarSourceGlyph()).fittingSize
         #expect(size == CGSize(width: 7, height: 11))

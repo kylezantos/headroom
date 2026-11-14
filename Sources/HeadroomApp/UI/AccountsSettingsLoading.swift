@@ -165,6 +165,22 @@ enum SettingsAccountListItem: Identifiable, Equatable {
         }
     }
 
+    /// CA-M3 review fix: one draining row per account. Stop-tracking the built-in row, Show
+    /// Default Login and stop-tracking again inside one drain would otherwise queue two rows
+    /// with one `AccountID`, a duplicate `ForEach` id. The newer capture replaces the older in
+    /// place; it keeps the running drain's view, so it ends on that drain's clock.
+    static func addingDrain(
+        _ row: SettingsAccountDrainingRow, to draining: [SettingsAccountDrainingRow]
+    ) -> [SettingsAccountDrainingRow] {
+        var next = draining
+        if let index = next.firstIndex(where: { $0.id == row.id }) {
+            next[index] = row
+        } else {
+            next.append(row)
+        }
+        return next
+    }
+
     static func items(rows: [DisplayAccount], draining: [SettingsAccountDrainingRow]) -> [Self] {
         var items = rows.map(Self.live)
         let liveIDs = Set(rows.map(\.id))

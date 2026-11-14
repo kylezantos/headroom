@@ -25,7 +25,11 @@ struct CompactAccountRow: View {
     let email: String?
     let showsPersistentEmail: Bool
     var titleIsEmail: Bool = false
+    /// L5D: the provider's main row (`IdentityRowText.isMainAccountRow`): "main account" in
+    /// the tooltip and VoiceOver.
     let isMenuBarAccount: Bool
+    /// CA-MB3: this row feeds a menu-bar pill (`IdentityRowText.feedsMenuBar`).
+    var showsMenuBarSourceGlyph: Bool = false
     let recipe: CompactAccountRowRecipe
     /// The card header's columns. Each window sits under its own kind, so an account showing
     /// only a weekly window keeps it under "wk" beside its neighbours.
@@ -67,7 +71,7 @@ struct CompactAccountRow: View {
                 }
             }
             .layoutPriority(1)
-            if isMenuBarAccount {
+            if showsMenuBarSourceGlyph {
                 // CA-MB3: which account feeds the pill, 6pt after the name (the stack's gap).
                 MenuBarSourceGlyph()
                     .accessibilityHidden(true)

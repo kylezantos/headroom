@@ -13,17 +13,56 @@ extension UsageStore {
     /// remembered row and any account that has read before keep today's dialog. A `.pending`
     /// snapshot is no evidence either way (a restored extra is pending until its first probe),
     /// so it keeps today's dialog too.
+    ///
+    /// CA-P14 review fix: the snapshot forgets. A signed-out extra whose windows aged out, or
+    /// that was relaunched (a permanent failure drops its continuity record), looks exactly
+    /// like an abandoned Add Account, and confirming would delete a working account's config
+    /// home. So the snapshot is necessary but not enough: `hasReadingOnRecord` is the store's
+    /// durable history, and anything it cannot rule out keeps today's dialog.
     public nonisolated static func stopWaitingRemovesAccount(
         _ account: ProviderAccount,
         isRemembered: Bool,
-        snapshot: UsageSnapshot
+        snapshot: UsageSnapshot,
+        hasReadingOnRecord: Bool
     ) -> Bool {
         !account.isBuiltIn
             && !isRemembered
+            && !hasReadingOnRecord
             && snapshot.windows.isEmpty
+            && snapshot.capturedAt == nil
             && (snapshot.accountEmail ?? "").isEmpty
             && LaneSchedule.isNeverSignedIn(snapshot.freshness)
     }
+
+    /// The store's reading of the rule for an engine row, from its own snapshot and records.
+    public func stopWaitingRemovesAccount(_ account: ProviderAccount) -> Bool {
+        Self.stopWaitingRemovesAccount(
+            account,
+            isRemembered: false,
+            snapshot: snapshot(for: account.key),
+            hasReadingOnRecord: hasReadingOnRecord(account.key)
+        )
+    }
+
+    /// CA-P14 review fix: true unless the store can show this account never produced a
+    /// reading. The evidence is the default-login slot record (`defaultLoginRecords.v1`), which
+    /// survives sign-out and relaunch: every live reading with a readable or absent identity
+    /// writes one (`DefaultLoginTransition.apply`), and only removing the account deletes it.
+    /// That holds only for providers whose readings always carry an identity outcome, so any
+    /// other provider (OpenCode reports none yet), a store without records, or a launch-time
+    /// continuity record all count as "may have read". No new persisted field (AGENTS.md).
+    public func hasReadingOnRecord(_ key: AccountKey) -> Bool {
+        guard Self.providersRecordingEveryReading.contains(key.providerID),
+              let state = defaultLoginState
+        else { return true }
+        if launchContinuity[key] != nil { return true }
+        guard let slot = state.slot(for: key) else { return false }
+        return slot.binding != nil || slot.lastAcceptedCapturedAt != nil || slot.parked != nil || slot.phase != .attached
+    }
+
+    /// The multi-account providers whose every live reading carries an identity outcome (the
+    /// default-login plan's identity table), so a missing slot record means no reading.
+    nonisolated static let providersRecordingEveryReading: Set<ProviderID> = [.claude, .codex, .grok]
 
     /// The engine list (default-login plan KTD8): the registry accounts with a provider
     /// instance, selected primary first. Merge acceptance, scheduling, setup and the

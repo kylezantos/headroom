@@ -74,6 +74,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
         showsPersistentEmail: Bool,
         showsConnectedChip: Bool,
         showsMark: Bool = true,
+        showsMenuBarSourceGlyph: Bool = false,
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
@@ -91,6 +92,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark,
+            showsMenuBarSourceGlyph: showsMenuBarSourceGlyph,
             bankedResets: bankedResets,
             isCritical: isCritical,
             isRevealing: isRevealing,
@@ -263,9 +265,12 @@ struct AccountSectionView: View {
     let percentageMode: UsagePercentageMode
     let meterStyle: MeterStyle
     let now: Date
+    /// L5D: the provider's main row when it has two or more accounts
+    /// (`IdentityRowText.isMainAccountRow`): the "Main account" tooltip and VoiceOver phrase.
+    let isMenuBarAccount: Bool
     /// CA-MB3: the account whose reading feeds a menu-bar pill, when its provider has two or
     /// more accounts (`IdentityRowText.feedsMenuBar`); its identity row carries the glyph.
-    let isMenuBarAccount: Bool
+    var showsMenuBarSourceGlyph: Bool = false
     let showsStopWaiting: Bool
     /// CA-P14: set for a never-signed-in extra, so its Stop Waiting can remove the account.
     var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
@@ -391,6 +396,7 @@ struct AccountSectionView: View {
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark,
+            showsMenuBarSourceGlyph: showsMenuBarSourceGlyph,
             bankedResets: snapshot.bankedResets,
             isCritical: snapshot.hasLiveCriticalResettableWindow,
             isRevealing: isRevealingBankedResets,

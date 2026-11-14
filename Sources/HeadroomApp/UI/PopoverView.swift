@@ -220,6 +220,9 @@ struct PopoverView: View {
                     }
                     .accessibilityElement(children: .contain)
                     .coordinateSpace(.named(PopoverScrollModel.cardsSpace))
+                    .onChange(of: fragments.map(\.id)) { _, ids in
+                        scroll.pruneCardFrames(keeping: Set(ids))
+                    }
                     // M7A: the popover had no reorder animation at all, so a Make Main
                     // promotion teleported its card to the top. The stack's own layout change
                     // rides this scope. The measured `cardsHeight` below reports the final
@@ -388,7 +391,8 @@ struct PopoverView: View {
                 // holds; the removal is the one Settings runs.
                 onRemoveAccount: { account in
                     Task { await AccountsSettingsInteractions.stopWaitingAndRemove(account, from: store) }
-                }
+                },
+                hasReadingOnRecord: { store.hasReadingOnRecord($0) }
             )
             .id(meterRecipeKey)
             .transition(.opacity)
@@ -1196,6 +1200,16 @@ final class PopoverScrollModel {
 
     func recordCardFrame(_ frame: CGRect, fragmentID: String, providerID: ProviderID) {
         cardFrames[fragmentID] = (providerID, frame)
+        refreshScrolledOut()
+    }
+
+    /// CA-P8 review fix: a fragment no longer drawn (a split card that unsplit, a provider
+    /// turned off) reports no frame again, so its last one would keep deciding the header's
+    /// status. Keep only the fragments on screen.
+    func pruneCardFrames(keeping fragmentIDs: Set<String>) {
+        let stale = cardFrames.keys.filter { !fragmentIDs.contains($0) }
+        guard !stale.isEmpty else { return }
+        for id in stale { cardFrames.removeValue(forKey: id) }
         refreshScrolledOut()
     }
 

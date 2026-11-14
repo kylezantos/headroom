@@ -202,7 +202,7 @@ struct PhoneAccountSection: View {
             bankedResets: account.bankedResets,
             isCritical: CompanionCardPresentation.autoOpensPlanCapsule(account),
             isRevealing: isCapsuleOpen,
-            // CA-P3: the chip reads "Last read 14 min ago" (`staleChipLabel`), never "Stale".
+            // CA-P3: the chip reads "Last read 14 min ago" (`Countdown.staleReadLabel`), never "Stale".
             staleReadAge: IdentityRowReadAge(capturedAt: account.capturedAt, now: context.now),
             scale: scale,
             onTruncatedTitle: { full in

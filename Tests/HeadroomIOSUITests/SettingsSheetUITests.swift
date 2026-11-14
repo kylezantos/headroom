@@ -91,6 +91,8 @@ final class SettingsSheetUITests: XCTestCase {
         XCTAssertTrue(left.isEnabled)
         let used = app.buttons["Used percentages"]
         let leftName = left.staticTexts["Left"]
+        // A lookup miss reads a zero width both times and would pass the comparison below.
+        XCTAssertTrue(leftName.exists, "the Left swatch's name was not found")
         let selectedWidth = leftName.frame.width
         used.tap()
         XCTAssertEqual(leftName.frame.width, selectedWidth, accuracy: 0.5, "the name changed weight")

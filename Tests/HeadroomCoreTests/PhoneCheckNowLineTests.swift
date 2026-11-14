@@ -40,10 +40,16 @@ struct PhoneCheckNowLineTests {
         #expect(delays.first == 0)
     }
 
-    @Test func reduceMotionFadesWithNoRiseAndMetersNeverDrawIn() {
+    @Test func reduceMotionFadesWithNoRise() {
         #expect(PhoneCardEntranceSchedule.rise(reduceMotion: true) == 0)
         #expect(PhoneCardEntranceSchedule.rise(reduceMotion: false) == 10)
-        #expect(!PhoneCardEntranceSchedule.metersDrawIn)
+    }
+
+    /// The fifth card takes its own (last) step; the sixth starts with it.
+    @Test func theFifthCardTakesTheLastStep() {
+        let delays = PhoneCardEntranceSchedule.delays(accountCounts: [1, 1, 1, 1, 1], hasSpendCard: true)
+        #expect(delays[4] > delays[3])
+        #expect(delays[5] == delays[4])
     }
 
     // MARK: U9: the check-now slot

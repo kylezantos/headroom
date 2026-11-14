@@ -17,6 +17,8 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     public let providerID: ProviderID
     public let title: String
     public let planLabel: String?
+    /// L5D: the provider's main row when it has two or more accounts. It drives the
+    /// "Main account" tooltip line and VoiceOver phrase, never the glyph.
     public let isMenuBarAccount: Bool
     public let isStale: Bool
     public let email: String?
@@ -26,6 +28,10 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// every account row beneath it, so "✳ Claude" sat 7pt above "✳ Personal". A nested
     /// account row hides its mark and keeps the slot, so the title column never shifts.
     public var showsMark: Bool = true
+    /// CA-MB3: this row's reading feeds a menu-bar pill (`IdentityRowText.feedsMenuBar`), so
+    /// it draws `MenuBarSourceGlyph`. Separate from `isMenuBarAccount`: a main account whose
+    /// provider is not in the menu bar is still the main account. False draws none.
+    public var showsMenuBarSourceGlyph: Bool = false
     public var bankedResets: Int? = nil
     public var isCritical: Bool = false
     public var isRevealing: Bool = false
@@ -68,6 +74,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         showsPersistentEmail: Bool,
         showsConnectedChip: Bool,
         showsMark: Bool = true,
+        showsMenuBarSourceGlyph: Bool = false,
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
@@ -90,6 +97,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         self.showsPersistentEmail = showsPersistentEmail
         self.showsConnectedChip = showsConnectedChip
         self.showsMark = showsMark
+        self.showsMenuBarSourceGlyph = showsMenuBarSourceGlyph
         self.bankedResets = bankedResets
         self.isCritical = isCritical
         self.isRevealing = isRevealing
@@ -158,10 +166,10 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
                 ConnectedChip(scale: scale)
                     .transition(.connectedChip(reduceMotion: reduceMotion))
             }
-            if isMenuBarAccount {
+            if showsMenuBarSourceGlyph {
                 // CA-MB3: which account feeds the pill, said where the user looks when they
-                // wonder. Hosts set `isMenuBarAccount` only when the provider has two or
-                // more accounts (`IdentityRowText.feedsMenuBar`), so one account draws none.
+                // wonder. Hosts set it only when the provider has two or more accounts
+                // (`IdentityRowText.feedsMenuBar`), so one account draws none.
                 MenuBarSourceGlyph(scale: scale)
                     .accessibilityHidden(true)
             }
@@ -454,6 +462,7 @@ public extension IdentityRow where Accessory == EmptyView {
         showsPersistentEmail: Bool,
         showsConnectedChip: Bool,
         showsMark: Bool = true,
+        showsMenuBarSourceGlyph: Bool = false,
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
@@ -469,7 +478,8 @@ public extension IdentityRow where Accessory == EmptyView {
             providerID: providerID, title: title, planLabel: planLabel,
             isMenuBarAccount: isMenuBarAccount, isStale: isStale, email: email,
             showsPersistentEmail: showsPersistentEmail, showsConnectedChip: showsConnectedChip,
-            showsMark: showsMark, bankedResets: bankedResets, isCritical: isCritical,
+            showsMark: showsMark, showsMenuBarSourceGlyph: showsMenuBarSourceGlyph,
+            bankedResets: bankedResets, isCritical: isCritical,
             isRevealing: isRevealing, lastReadLabel: lastReadLabel, staleReadAge: staleReadAge, scale: scale, onTruncatedTitle: onTruncatedTitle,
             onPlanCapsuleTap: onPlanCapsuleTap, accessibilityIdentifierPrefix: accessibilityIdentifierPrefix,
             mark: mark, accessory: { EmptyView() }
@@ -544,9 +554,17 @@ public enum IdentityRowText {
 
     /// CA-MB3: whether a row carries the menu-bar source glyph. Only the account that feeds
     /// a pill, and only when its provider has two or more accounts: with one, the glyph is
-    /// noise. Hosts pass the result as `isMenuBarAccount`.
+    /// noise. Hosts pass the result as `showsMenuBarSourceGlyph`.
     public static func feedsMenuBar(isPillSource: Bool, providerAccountCount: Int) -> Bool {
         isPillSource && providerAccountCount >= 2
+    }
+
+    /// L5D: the row the "Main account" tooltip line, VoiceOver phrase and Compact label name:
+    /// the provider's display primary, only when it has two or more accounts. Independent of
+    /// the menu-bar selection (CA-MB3 review fix), because widgets, the phone and Make Main
+    /// treat it as main whichever pill shows. Hosts pass it as `isMenuBarAccount`.
+    public static func isMainAccountRow(isDisplayPrimary: Bool, providerAccountCount: Int) -> Bool {
+        isDisplayPrimary && providerAccountCount >= 2
     }
 
     /// CA-MB3: the glyph's tooltip.

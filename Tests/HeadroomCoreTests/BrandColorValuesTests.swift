@@ -411,8 +411,9 @@ struct BrandColorValuesTests {
 
         // PA1: light is black-alpha over the card, mirroring dark's white-alpha (it used to be
         // opaque mid-greys, which is what let the neutral fill outshout the amber one).
-        #expect(HeadroomMeterColorValues.glassA(dark: true) == HeadroomTint(color: .white, opacity: 0.22))
-        #expect(HeadroomMeterColorValues.glassB(dark: true) == HeadroomTint(color: .white, opacity: 0.11))
+        // CA-P10: dark stepped 0.22/0.11 → 0.36/0.24 so the dark gauge reads like light's.
+        #expect(HeadroomMeterColorValues.glassA(dark: true) == HeadroomTint(color: .white, opacity: 0.36))
+        #expect(HeadroomMeterColorValues.glassB(dark: true) == HeadroomTint(color: .white, opacity: 0.24))
         #expect(HeadroomMeterColorValues.glassA(dark: false) == HeadroomTint(color: .black, opacity: 0.24))
         #expect(HeadroomMeterColorValues.glassB(dark: false) == HeadroomTint(color: .black, opacity: 0.36))
         #expect(HeadroomMeterColorValues.glassRim(dark: true) == HeadroomTint(color: .white, opacity: 0.25))
@@ -692,17 +693,94 @@ struct BrandColorValuesTests {
         #expect(measuredGhostRatios(dark: false, increasedContrast: true).max().map { abs($0 - 1.6345) < 0.0001 } == true)
     }
 
-    /// Glass is recorded rather than promoted to a blanket pass. Dark is unchanged. The light
+    /// Glass is recorded rather than promoted to a blanket pass. The light
     /// band moved 3.0986–4.0254 → 1.7514–2.4396 under PA1: the old light glass was an opaque
     /// mid-grey that measured *higher* against its own track than any severity fill did, which
     /// is precisely the inversion PA1 removes. Glass is decorative chrome — the percent numeral
     /// beside it carries the value at full text contrast — so the drop is the fix, not a
     /// regression.
+    ///
+    /// CA-P10 moved the dark band 1.3782–1.9544 → 1.9815–2.8978 with the raised dark stops.
     @Test func healthyGlassContrastOnTrackIsRecorded() {
-        #expect(measuredGlassRatios(dark: true).min().map { abs($0 - 1.3782) < 0.0001 } == true)
-        #expect(measuredGlassRatios(dark: true).max().map { abs($0 - 1.9544) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: true).min().map { abs($0 - 1.9815) < 0.0001 } == true)
+        #expect(measuredGlassRatios(dark: true).max().map { abs($0 - 2.8978) < 0.0001 } == true)
         #expect(measuredGlassRatios(dark: false).min().map { abs($0 - 1.7514) < 0.0001 } == true)
         #expect(measuredGlassRatios(dark: false).max().map { abs($0 - 2.4396) < 0.0001 } == true)
+    }
+
+    // MARK: - CA-P1 / CA-P10: stale healthy recedes, the dark gauge reads
+
+    /// CA-P1 (KTD5): under Only when low a live healthy meter is neutral, so a stale healthy
+    /// one paints that neutral at half alpha. It has to sit between the track and the live
+    /// fill in both schemes: dimmer than live, still a shape. Each stop is measured the way it
+    /// renders, an alpha over the track over the card. The segmented live body is `tickGlass`
+    /// at `segmentBodyAttenuation`; the stale cells are uniform.
+    @Test func staleHealthyNeutralIsDimmerThanLiveAndStillVisibleOnTheTrack() {
+        for dark in [true, false] {
+            let body = HeadroomMeterColorValues.tickGlass(dark: dark)
+            let liveSegmentBody = HeadroomTint(
+                color: body.color,
+                opacity: body.opacity * HeadroomMeterColorValues.segmentBodyAttenuation
+            )
+            let pairs: [(String, HeadroomTint, HeadroomTint)] = [
+                ("glassA", HeadroomMeterColorValues.glassA(dark: dark), HeadroomMeterColorValues.staleGlassA(dark: dark)),
+                ("glassB", HeadroomMeterColorValues.glassB(dark: dark), HeadroomMeterColorValues.staleGlassB(dark: dark)),
+                ("tickGlass", liveSegmentBody, HeadroomMeterColorValues.staleTickGlass(dark: dark)),
+            ]
+            for card in raisedTileFillColors(dark: dark) {
+                let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: card)
+                for (name, live, stale) in pairs {
+                    let liveRatio = contrastRatio(composite(live, over: track), track)
+                    let staleRatio = contrastRatio(composite(stale, over: track), track)
+                    #expect(staleRatio > 1.2, "\(name) stale \(staleRatio) vanishes into the track, dark=\(dark)")
+                    #expect(staleRatio < liveRatio, "\(name) stale \(staleRatio) is not dimmer than live \(liveRatio), dark=\(dark)")
+                    #expect(stale.color == live.color, "\(name) stale changed ink, dark=\(dark)")
+                }
+            }
+        }
+        #expect(HeadroomMeterColorValues.staleNeutralScale == 0.5)
+    }
+
+    /// CA-P10: at 32×5pt the gauge's job is a glance read of how full, and dark's neutral
+    /// measured ≈1.5:1 against its track where light's measured ≈2.1:1. The gradient's middle
+    /// is the bar's weight; dark has to clear 2:1 and read at least as clearly as light.
+    @Test func darkNeutralGaugeReadsAsClearlyAsLight() {
+        func midRatios(dark: Bool) -> [Double] {
+            let a = HeadroomMeterColorValues.glassA(dark: dark)
+            let b = HeadroomMeterColorValues.glassB(dark: dark)
+            let middle = HeadroomTint(color: a.color, opacity: (a.opacity + b.opacity) / 2)
+            return raisedTileFillColors(dark: dark).map { card in
+                let track = composite(HeadroomWidgetColorValues.barTrack(dark: dark), over: card)
+                return contrastRatio(composite(middle, over: track), track)
+            }
+        }
+        let dark = midRatios(dark: true)
+        let light = midRatios(dark: false)
+        #expect(dark.allSatisfy { $0 >= 2.0 }, "dark neutral gauge \(dark)")
+        #expect((dark.min() ?? 0) >= (light.min() ?? .infinity), "dark \(dark) reads weaker than light \(light)")
+    }
+
+    /// CA-P2 / CA-S1 (DESIGN rule 8): no dark tile edge brighter than white 0.15. The glass
+    /// card's top rim was 0.20 (R2C1) and Settings inherited it; both are now their own values.
+    @Test func noDarkTileEdgeExceedsTheRimCeiling() {
+        let edges: [(String, Double)] = [
+            ("glass ring", HeadroomTileEdgeValues.darkGlassRingOpacity),
+            ("glass lip", HeadroomTileEdgeValues.darkGlassLipOpacity),
+            ("opaque ring", HeadroomTileEdgeValues.darkOpaqueRingOpacity),
+        ]
+        for (name, opacity) in edges {
+            #expect(opacity > 0, "\(name) is gone")
+            #expect(!(opacity > HeadroomTileEdgeValues.darkRimCeiling), "\(name) \(opacity) is a bright rim")
+        }
+        #expect(HeadroomTileEdgeValues.darkRimCeiling == 0.15)
+        // The lip only catches the top; the ring holds the edge all round, so it stays the quieter of the two.
+        #expect(HeadroomTileEdgeValues.darkGlassRingOpacity < HeadroomTileEdgeValues.darkGlassLipOpacity)
+        // CA-S1: Settings' flat recipe, exact values from the audit.
+        #expect(HeadroomTileEdgeValues.darkOpaqueFillOpacity == 0.06)
+        #expect(HeadroomTileEdgeValues.darkOpaqueRingOpacity == 0.09)
+        #expect(HeadroomTileEdgeValues.lightOpaqueRingOpacity == 0.07)
+        #expect(HeadroomTileEdgeValues.darkGlassRingOpacity == 0.07)
+        #expect(HeadroomTileEdgeValues.darkGlassLipOpacity == 0.10)
     }
 
     // MARK: - PA1: neutral never outshouts an event

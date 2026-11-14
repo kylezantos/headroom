@@ -265,6 +265,17 @@ public struct MeterGauge: View {
             Color.clear
         case .staleGrey:
             staleColor
+        case .staleNeutral:
+            // CA-P1 (KTD5): the live neutral gradient at half alpha, so a stale healthy bar
+            // recedes behind a live one instead of being the greenest thing on the card.
+            LinearGradient(
+                colors: [
+                    tintColor(HeadroomMeterColorValues.staleGlassA(dark: scheme == .dark)),
+                    tintColor(HeadroomMeterColorValues.staleGlassB(dark: scheme == .dark)),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
         case .solid:
             flatSeverityColor
         case .glass, .neutral:
@@ -319,9 +330,6 @@ public struct MeterGauge: View {
 
     private var segmentedGauge: some View {
         let cells = resolvedCellCount
-        let lit = freshness.isUnavailable
-            ? 0
-            : MeterRecipe.litCellCount(fraction: clampedFraction, cells: cells)
         let gap = CGFloat(miniatureCell?.gap ?? MeterGeometry.cellGap(for: style.format)) * scale
         let radius = CGFloat(miniatureCell?.radius ?? MeterGeometry.cellRadius(for: style.format)) * scale
         let fillRecipe = MeterRecipe.fillRecipe(
@@ -343,22 +351,19 @@ public struct MeterGauge: View {
         // the row at `gaugeHeight`, so the extra height overflows rather than growing the row.
         let tipHeight = CGFloat(miniatureCell?.tipHeight ?? MeterGeometry.tipCellHeight(for: style.format)) * scale
 
-        return HStack(spacing: gap) {
-            ForEach(0..<cells, id: \.self) { index in
-                RoundedRectangle(cornerRadius: radius, style: .continuous)
-                    .fill(segmentedCellColor(
-                        index: index,
-                        lit: lit,
-                        fillRecipe: fillRecipe,
-                        rampStops: rampStops
-                    ))
-                    .frame(
-                        width: style.format == .micro ? CGFloat(MeterGeometry.microCellWidth) * scale : nil,
-                        height: index == lit - 1 ? tipHeight : gaugeHeight
-                    )
-                    .frame(maxWidth: style.format == .full ? .infinity : nil)
+        return SegmentedTravel(
+            fraction: clampedFraction,
+            cells: cells,
+            isUnavailable: freshness.isUnavailable,
+            gap: gap,
+            radius: radius,
+            cellWidth: style.format == .micro ? CGFloat(MeterGeometry.microCellWidth) * scale : nil,
+            gaugeHeight: gaugeHeight,
+            tipHeight: tipHeight,
+            cellColor: { index, lit in
+                segmentedCellColor(index: index, lit: lit, fillRecipe: fillRecipe, rampStops: rampStops)
             }
-        }
+        )
     }
 
     private func segmentedCellColor(
@@ -378,6 +383,9 @@ public struct MeterGauge: View {
             // MX3: Full's fourteen empties step back so the lit run reads as the meter.
             return ProviderStyle.meterTickOff(scheme: scheme)
                 .opacity(style.format == .full ? HeadroomMeterColorValues.fullUnlitCellScale : 1)
+        case .body where fillRecipe == .staleNeutral, .tip where fillRecipe == .staleNeutral:
+            // CA-P1: every lit cell takes the stale neutral, as `.staleGrey` cells do.
+            return tintColor(HeadroomMeterColorValues.staleTickGlass(dark: scheme == .dark))
         case .body(let fill):
             // FS1 (Kyle, Sep 2026): the tip is the reading; the body is the trail behind it.
             // Body cells step back to `segmentBodyAttenuation` of their own colour so the tip
@@ -466,6 +474,10 @@ public struct MeterGauge: View {
         )
     }
 
+    private func tintColor(_ tint: HeadroomTint) -> Color {
+        Color(red: tint.color.red, green: tint.color.green, blue: tint.color.blue).opacity(tint.opacity)
+    }
+
     private func continuousFillLength(available: CGFloat) -> CGFloat {
         CGFloat(MeterGeometry.continuousFillLength(
             available: Double(available),
@@ -486,6 +498,44 @@ public struct MeterGauge: View {
         default: gaugeHeight
         }
         return max(0, across - continuousInset * 2)
+    }
+}
+
+/// CA-M4: a Segmented meter travels. The fraction is the animatable value and the lit count
+/// is worked out from it on every frame, so a change lights cells in order and the tip walks
+/// along the track on the row's own spring (`valueSpring`, `arrivalSpring`), the way a
+/// continuous fill grows. Before, the lit count came from the target alone and every changed
+/// cell crossfaded at once while a new tip grew several cells away: the fill blinked.
+///
+/// Cell colour and tip height change between frames with no transaction of their own, so
+/// nothing stacks a crossfade on top of the travel. Under Reduce Motion the row lands without
+/// a movement animation, so this view only ever sees the final value and the meter snaps.
+private struct SegmentedTravel: View, @preconcurrency Animatable {
+    var fraction: Double
+    let cells: Int
+    let isUnavailable: Bool
+    let gap: CGFloat
+    let radius: CGFloat
+    let cellWidth: CGFloat?
+    let gaugeHeight: CGFloat
+    let tipHeight: CGFloat
+    let cellColor: (_ index: Int, _ lit: Int) -> Color
+
+    var animatableData: Double {
+        get { fraction }
+        set { fraction = newValue }
+    }
+
+    var body: some View {
+        let lit = isUnavailable ? 0 : MeterRecipe.litCellCount(fraction: fraction, cells: cells)
+        HStack(spacing: gap) {
+            ForEach(0..<cells, id: \.self) { index in
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(cellColor(index, lit))
+                    .frame(width: cellWidth, height: index == lit - 1 ? tipHeight : gaugeHeight)
+                    .frame(maxWidth: cellWidth == nil ? .infinity : nil)
+            }
+        }
     }
 }
 

@@ -57,10 +57,43 @@ struct NotificationsPanePresentation: Equatable {
     var showsResetToDefaults: Bool { !settingsAreDefault }
 
     /// R9: the firing guarantees, with the lateness figure bound to the slowest lane.
+    /// CA-S9 (COPY-07): plain words for the same two facts; "fresh reading", "refresh
+    /// interval" and "lead time" were internal terms.
     var rulesHelp: String {
         guard ruleCount > 0 else { return Self.rulesHelpEmpty }
-        return "Each reminder fires once per reset, and only from a fresh reading. Timing follows "
-            + "your refresh interval, so a reminder can land up to \(latenessMinutes)\u{00A0}min late."
+        return "Each reminder fires once per reset. It can arrive up to \(latenessMinutes)\u{00A0}min late, "
+            + "since Headroom checks every \(latenessMinutes)\u{00A0}min."
+    }
+}
+
+/// CA-F1 (SET-08): the providers the "Billing periods" box governs, derived with the same
+/// rule that routes a reminder (`UseItUpEvaluator.scope`), so the hint can never disagree with
+/// what fires. The old literal "Grok, Cursor" missed Copilot, and would have missed the next
+/// provider that bills by period too.
+enum BillingPeriodScopeHint {
+    /// Providers, in the given order, with at least one window that classifies as a billing
+    /// period.
+    static func providers(
+        in order: [ProviderID],
+        windows: (ProviderID) -> [UsageWindow]
+    ) -> [ProviderID] {
+        order.filter { id in
+            windows(id).contains { UseItUpEvaluator.scope(for: $0.kind, providerID: id) == .billingPeriod }
+        }
+    }
+
+    /// The hint beside the checkbox, or nil when no provider reports a billing period yet.
+    static func text(for providers: [ProviderID], displayName: (ProviderID) -> String) -> String? {
+        providers.isEmpty ? nil : providers.map(displayName).joined(separator: ", ")
+    }
+
+    /// The store's form: every shown account's windows, read from the display list.
+    @MainActor
+    static func text(store: UsageStore) -> String? {
+        let ids = providers(in: store.registeredProviderOrder) { id in
+            store.displayAccounts(for: id).flatMap { store.snapshot(for: $0.account.key).windows }
+        }
+        return text(for: ids) { store.displayNames[$0] ?? $0.displayName }
     }
 }
 
@@ -168,31 +201,27 @@ struct NotificationsSettingsPane: View {
 
     // MARK: Permission notice (R18)
 
+    /// CA-S12 (SET-13): one container, drawn straight on the pane. The callout used to sit
+    /// inside a `SettingsTile`, two frames around one sentence, which also made the notice
+    /// look like another setting. The step material says it is a state of the pane; r10
+    /// matches the tiles it stands beside.
     private var permissionNotice: some View {
-        SettingsTile {
-            HStack(alignment: .center, spacing: 9) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
-                    .accessibilityHidden(true)
-                SettingsHelpText(text: NotificationsPanePresentation.permissionNotice)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Button("Open System Settings…", action: onOpenSystemSettings)
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-            }
-            // The step material the setup cards use for an inset callout, so the notice
-            // reads as a state of the pane rather than another setting.
-            .padding(.horizontal, 9)
-            .padding(.vertical, 8)
-            .background(
-                ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark),
-                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(ClaudeSetupStyle.stepBorder(dark: colorScheme == .dark), lineWidth: 1)
-            )
+        let shape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+        return HStack(alignment: .center, spacing: 9) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(ProviderStyle.severityColor(for: .low, scheme: colorScheme))
+                .accessibilityHidden(true)
+            SettingsHelpText(text: NotificationsPanePresentation.permissionNotice)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button("Open System Settings…", action: onOpenSystemSettings)
+                .buttonStyle(.bordered)
+                .controlSize(.small)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark), in: shape)
+        .overlay(shape.strokeBorder(ClaudeSetupStyle.stepBorder(dark: colorScheme == .dark), lineWidth: 1))
     }
 
     // MARK: Use-it-up reminders (R2–R9)
@@ -200,12 +229,13 @@ struct NotificationsSettingsPane: View {
     private func useItUpTile(_ presentation: NotificationsPanePresentation) -> some View {
         SettingsTile("Use-it-up reminders") {
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                // CA-S9 (COPY-07): the title says the job; the help gives an example.
                 SettingsSwitchRow(
-                    title: "Remind me before unused usage resets",
+                    title: "Remind me to use what’s left before a reset",
                     isOn: switchBinding(.useItUp, isOn: presentation.useItUpEnabled)
                 )
                 .disabled(!presentation.switchesEnabled)
-                SettingsHelpText(text: "A notification when a limit is close to resetting and you still have plenty left.")
+                SettingsHelpText(text: "For example: 1 day before your weekly limit resets, if half or more is left.")
                 if presentation.showsInstalledAppHelp {
                     SettingsHelpText(text: NotificationsPanePresentation.installedAppHelp)
                 }
@@ -221,11 +251,10 @@ struct NotificationsSettingsPane: View {
                 .dimmedUnless(presentation.ruleControlsEnabled, reduceMotion: reduceMotion)
 
             if presentation.showsResetToDefaults {
-                Button("Reset to defaults") {
+                // CA-S2: neutral ink, not a system-blue link. CA-S8: Title Case for a button.
+                SettingsInlineLink("Reset to Defaults") {
                     withAnimation(rowAnimation) { store.resetReminderSettingsToDefaults() }
                 }
-                .buttonStyle(.link)
-                .font(SettingsType.help)
                 .dimmedUnless(presentation.ruleControlsEnabled, reduceMotion: reduceMotion)
                 .transition(.settingsReveal(reduceMotion: reduceMotion))
             }
@@ -265,13 +294,10 @@ struct NotificationsSettingsPane: View {
                 .transition(.settingsReveal(reduceMotion: reduceMotion))
             }
             hairline
-            Button {
+            // CA-S2: neutral ink, not a system-blue link. CA-S8: Title Case for a button.
+            SettingsInlineLink("Add Reminder", systemImage: "plus") {
                 withAnimation(rowAnimation) { _ = store.addReminderRule() }
-            } label: {
-                Label("Add reminder", systemImage: "plus")
             }
-            .buttonStyle(.link)
-            .font(SettingsType.help)
             .padding(.horizontal, 9)
             .padding(.vertical, 7)
         }
@@ -296,11 +322,14 @@ struct NotificationsSettingsPane: View {
             Toggle(isOn: scopeBinding(.billingPeriod)) {
                 HStack(spacing: 5) {
                     Text("Billing periods")
-                    ScopeHint(text: "Grok, Cursor")
+                    if let hint = BillingPeriodScopeHint.text(store: store) {
+                        ScopeHint(text: hint)
+                    }
                 }
             }
             Toggle("5-hour windows", isOn: scopeBinding(.fiveHour))
-            SettingsHelpText(text: "5-hour windows reset too often to be worth a notification for most people. A reminder only applies to windows longer than its lead time.")
+            // CA-S9 (COPY-07): "lead time" was an internal term.
+            SettingsHelpText(text: "5-hour windows reset too often for most people to want a reminder. A reminder skips any window shorter than its timing.")
         }
     }
 
@@ -351,7 +380,7 @@ struct NotificationsSettingsPane: View {
     }
 }
 
-/// R7: the "Grok, Cursor" hint beside Billing periods. A checkbox greys its own title when
+/// R7: the provider hint beside Billing periods (`BillingPeriodScopeHint`). A checkbox greys its own title when
 /// disabled but not a custom view in its label, so without this the hint read darker than
 /// the label it qualifies whenever the rules were dimmed.
 private struct ScopeHint: View {

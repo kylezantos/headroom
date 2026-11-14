@@ -86,6 +86,10 @@ struct SettingsSidebar: View {
             } icon: {
                 Image(systemName: pane.symbolName)
                     .imageScale(pane.symbolScale)
+                    // CA-S2: secondary ink, not the sidebar's accent tint. With no
+                    // AccentColor asset a key window drew every glyph in full system blue;
+                    // the selected row keeps the system selection plate.
+                    .foregroundStyle(.secondary)
             }
             // The column is sized for the longest destination
             // ("Widgets & iPhone", 108pt of glyphs at 13pt), but a
@@ -221,7 +225,9 @@ private struct SettingsSidebarActions: View {
                 .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 7))
             }
             .buttonStyle(.plain)
-            .help("Open the Headroom tip jar in your browser")
+            // CA-S6 (overturns PR #179's second tip-jar entry): this is the window's one ask;
+            // General's About no longer repeats it, so the Stripe note travels here.
+            .help(AboutLinks.tipJarNote)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 12)

@@ -6,10 +6,20 @@ numbers, so reliability and honesty come before new features.
 
 ## Before you start
 
-- **Small fixes:** open a pull request.
-- **New features, new providers or anything that changes how usage is read:** open an issue first
-  so we can agree on the approach before you write it.
+- **Outside code contributions:** open a GitHub contribution proposal first and wait for the
+  maintainer to add the **`accepted`** label before starting implementation or opening a code PR.
+  This applies to bug fixes as well as new features, providers and refactors. Describe the problem,
+  your proposed approach and how you would verify it. Keep the PR within the accepted scope.
+- **Tiny documentation fixes:** typos, broken links and small wording corrections can come
+  directly as a PR. Discuss larger documentation changes first.
+- **Bug reports and feature requests:** email **support@zantos.co**. Customer feedback stays in
+  the maintainer's private tracker; a GitHub issue is needed only when proposing an outside
+  contribution. Don't copy private customer details into a public proposal.
 - **Security problems:** see [SECURITY.md](SECURITY.md). Don't file them as public issues.
+
+An `accepted` issue approves the direction and scope, not the final code. The PR still needs
+review and passing checks. Code PRs without an accepted issue may be closed without review.
+The maintainer's own fixes and releases can use internal tracking without a public issue.
 
 ## The one rule
 
@@ -64,9 +74,9 @@ UI work starts from [DESIGN.md](DESIGN.md); shared vocabulary is in [CONCEPTS.md
 
 A few rules that come up in almost every change:
 
-- **Every provider, every account.** A change applies to Claude, Codex, Grok, Cursor and Copilot,
-  and to every account of each. If a provider's CLI genuinely can't support it, say so in the pull
-  request and explain why.
+- **Every provider, every account.** A change applies to Claude, Codex, Grok, Cursor, Copilot
+  and OpenCode, and to every account of each. If a provider's CLI genuinely can't support it,
+  say so in the pull request and explain why.
 - **Swift 6 strict concurrency stays clean.**
 - **Everything is testable without the real world.** New behavior goes behind an injectable seam
   and gets unit tests with fixtures; tests never run a real CLI, hit the network or touch the
@@ -79,6 +89,7 @@ A few rules that come up in almost every change:
 
 ## Pull requests
 
+- For an outside code contribution, link the GitHub issue labeled `accepted` in the PR template.
 - Keep each pull request to one change. Title it in the conventional-commit style the history
   uses, such as `fix(codex): read the weekly window on the prolite plan`.
 - Fill in the template: what happened, the fix, and what you ran.

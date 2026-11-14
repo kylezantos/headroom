@@ -1,0 +1,48 @@
+name: Contribution proposal
+description: Propose a change you intend to implement before opening a pull request.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a bug report or feature request without a planned contribution, email support@zantos.co.
+        Outside code contributions need the maintainer's `accepted` label before implementation.
+        Tiny documentation fixes can come directly as a PR.
+        Read the [contribution policy](https://github.com/kylezantos/headroom/blob/main/CONTRIBUTING.md).
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind of contribution
+      options: [Bug fix, Feature or enhancement, Documentation]
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Explain the problem and the intended result. Check for an existing proposal first.
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Proposed approach
+      description: Briefly describe what you would change and which providers or surfaces it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: How would you verify it?
+      description: Describe the tests or checks you would use to show the change works.
+    validations:
+      required: true
+  - type: checkboxes
+    id: agreement
+    attributes:
+      label: Before starting
+      options:
+        - label: I will wait for the maintainer to add the accepted label before starting implementation.
+          required: true
+  - type: markdown
+    attributes:
+      value: Leave out customer details, account emails, API keys and CLI config or auth files.

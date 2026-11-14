@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: Report a bug or request a feature
+    url: mailto:support@zantos.co
+    about: Send customer feedback to support; the maintainer tracks it privately.
   - name: Security issue
     url: https://github.com/kylezantos/headroom/security/advisories/new
     about: Report vulnerabilities privately, not as a public issue.

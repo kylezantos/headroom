@@ -327,9 +327,11 @@ notarized DMG cut for the Mac download page.
 
 ## Contributing
 
-Pull requests are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md); [AGENTS.md](AGENTS.md)
-explains the architecture and the rules every change follows. Report security problems privately
-as described in [SECURITY.md](SECURITY.md).
+Outside code PRs need a GitHub contribution proposal labeled `accepted` by the maintainer first.
+Tiny documentation fixes can come directly. Start with [CONTRIBUTING.md](CONTRIBUTING.md);
+[AGENTS.md](AGENTS.md) explains the architecture and the rules every change follows.
+Send bug reports and feature requests to **support@zantos.co**; customer feedback is tracked
+privately. Report security problems as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

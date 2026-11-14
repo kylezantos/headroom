@@ -13,6 +13,13 @@ official `claude` CLI's `/usage` panel instead.
   false positives. Review each data flow and its trust boundary before fixing or dismissing it.
   The alerts remain open at https://github.com/kylezantos/headroom/security/code-scanning.
 
+- During security-workflow validation, the unchanged core suite failed once in
+  `OpenCodeUsageSourceProcessTests.clientThatNeverExitsIsKilledAtTheDeadlineWithItsGroup`
+  at `OpenCodeUsageSourceTests.swift:1028` (`!isRunning(child)`). The same source passed all
+  2,483 tests in the preceding cleanup run. Investigate child termination/reaping and the
+  test's deadline before deciding whether this is a process-lifecycle bug or timing sensitivity;
+  do not weaken the assertion. Initial failing run: GitHub Actions `43629168227`.
+
 ## Follow the default login: open items (2026-11-10)
 
 Phase 1 covers Claude,

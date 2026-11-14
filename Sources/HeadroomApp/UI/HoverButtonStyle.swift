@@ -10,10 +10,12 @@ import SwiftUI
 /// no-pulsing rule.
 ///
 /// PA11b narrowed its remit to **glyph-only** controls — gear, `+`, `…`, copy, trash, reset,
-/// the disclosure chevrons. Every text-labelled button, the footer's Refresh and Quit
-/// included, moved to `SetupChipButtonStyle`'s resting container. A borderless icon in a
-/// title or toolbar row is the macOS HIG's own convention; a borderless *word* beside prose
-/// is not, which is the trade B3H had made and PA11b reversed.
+/// the disclosure chevrons. Every text-labelled button in a card moved to
+/// `SetupChipButtonStyle`'s resting container. A borderless icon in a title or toolbar row is
+/// the macOS HIG's own convention; a borderless *word* beside prose is not, which is the trade
+/// B3H had made and PA11b reversed. The footer's Refresh and Quit are the exception: native
+/// `.bordered` at the small size (CA-P6), because a custom `ButtonStyle` label there was
+/// rehosted upside down after an appearance change.
 struct HoverButtonStyle: ButtonStyle {
     /// R2B3: one radius *ratio*, not one radius. The five call sites pad the same style to
     /// pills between 18×18 and 32×32, so a fixed 7pt corner read as 0.39 of the small pill

@@ -792,3 +792,92 @@ struct APISpendRowAccessibilityTests {
         ) == "Anthropic API, Oct, Key rejected, The key was rejected")
     }
 }
+
+/// CA-P5 (option A): a recovery row names its action on its one line.
+@MainActor
+@Suite(.sharedAppState)
+struct RecoveryRowTextTests {
+    @Test func aSentenceWithoutItsVerbEndsWithItsShortAction() {
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.claudeCLIMissing.recoveryPresentation)
+            == "Claude Code not found · Install")
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.codexMalformedAuth.recoveryPresentation)
+            .hasSuffix(" · " + ProviderSetupOutcome.codexMalformedAuth.recoveryPresentation.primaryShortLabel))
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.codexPermissionDenied.recoveryPresentation)
+            == "Codex sign-in is blocked · Get Help")
+        let capability = ProviderCapabilityState.confirmedAbsent.recoveryPresentation
+        #expect(capability.map { CardRowAction<EmptyView>.oneLineText(for: $0) } == "Claude Code not found · Install")
+    }
+
+    /// "Sign in with Claude Code" already names its act, so nothing is appended; on every
+    /// provider the sign-in rows drop "the official", which wrapped them onto two lines.
+    @Test func aSentenceThatContainsItsVerbIsUnchanged() {
+        for (outcome, provider) in [
+            (ProviderSetupOutcome.claudeLoginRequired, ProviderID.claude), (.codexAuthAbsent, .codex),
+            (.grokAuthAbsent, .grok), (.cursorAuthAbsent, .cursor), (.copilotSignedOut, .copilot),
+            (.opencodeSignedOut, .opencode),
+        ] {
+            let presentation = outcome.recoveryPresentation
+            #expect(!presentation.appendsShortAction)
+            #expect(CardRowAction<EmptyView>.oneLineText(for: presentation) == ProviderSignInCopy.shortStatus(for: provider))
+        }
+    }
+
+    /// A failure sentence of the session's own, Try Again and the untyped Sign In keep their
+    /// sentence; only the typed recovery the chip answers takes the one-line form.
+    @Test func onlyTheTypedRecoveryTakesTheOneLineForm() {
+        let presentation = ProviderSetupOutcome.claudeLoginRequired.recoveryPresentation
+        let primary = SetupRowChip.recovery(presentation.primaryAction, label: presentation.primaryLabel)
+        #expect(AccountSectionView.oneLinePresentation(presentation, primary: primary, hasFailureMessage: false) != nil)
+        #expect(AccountSectionView.oneLinePresentation(presentation, primary: primary, hasFailureMessage: true) == nil)
+        #expect(AccountSectionView.oneLinePresentation(presentation, primary: .tryAgain, hasFailureMessage: false) == nil)
+        #expect(AccountSectionView.oneLinePresentation(nil, primary: .signIn, hasFailureMessage: false) == nil)
+    }
+}
+
+/// CA-P14 (UX-02) and CA-S8 (COPY-09): the Stop Waiting dialog.
+@MainActor
+@Suite(.sharedAppState)
+struct StopWaitingConfirmationTests {
+    private let extra = ProviderAccount(id: AccountID("added-\(UUID().uuidString)"), providerID: .claude,
+                                        label: "Account 3", isBuiltIn: false)
+
+    private func entry(_ account: ProviderAccount, freshness: Freshness, windows: [UsageWindow] = []) -> ProviderAccountEntry {
+        ProviderAccountEntry(account: account, snapshot: UsageSnapshot(
+            providerID: account.providerID, windows: windows, planLabel: nil, capturedAt: nil, freshness: freshness))
+    }
+
+    @Test func aNeverSignedInExtraIsRemovedOnConfirmAndKeptOnKeepWaiting() {
+        let dialog = StopWaitingConfirmation(accountLabel: extra.label, prompt: .signIn, removesAccount: true)
+        #expect(dialog.title == "Stop adding this account?")
+        #expect(dialog.confirmLabel == "Remove Account")
+        #expect(dialog.message.contains("removes Account 3"))
+        var stopped: [AccountKey] = [], removed: [AccountKey] = []
+        dialog.perform(.keepWaiting, for: extra, stop: { stopped.append($0.key) }, remove: { removed.append($0.key) })
+        #expect(stopped.isEmpty && removed.isEmpty)
+        dialog.perform(.confirm, for: extra, stop: { stopped.append($0.key) }, remove: { removed.append($0.key) })
+        #expect(stopped == [extra.key] && removed == [extra.key])
+    }
+
+    @Test func aPreviouslySignedInAccountKeepsTodaysDialog() {
+        let dialog = StopWaitingConfirmation(accountLabel: "Work", prompt: .signIn, removesAccount: false)
+        #expect(dialog.title == "Stop waiting for sign-in?")
+        #expect(dialog.confirmLabel == "Stop Waiting")
+        #expect(dialog.accessibilityLabel == "Stop waiting for sign-in for Work")
+        var removed = 0
+        dialog.perform(.confirm, for: extra, stop: { _ in }, remove: { _ in removed += 1 })
+        #expect(removed == 0)
+        #expect(StopWaitingConfirmation(accountLabel: "Work", prompt: .workspaceApproval, removesAccount: false).title
+            == "Stop waiting for approval?")
+    }
+
+    @Test func onlyAnExtraThatNeverReadOffersRemoval() {
+        let preset = Freshness.stale(.notLoggedIn(UsageStore.finishSignInMessage))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: .pending)))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: preset)))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: .stale(.providerSetup(.claudeLoginRequired)))))
+        #expect(!stopWaitingRemovesAccount(entry(.builtIn(for: .claude), freshness: .pending)))
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .live)))
+        let retained = [UsageWindow(kind: .weekly, utilization: 60, resetSchedule: .unresolved(.absent))]
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: preset, windows: retained)))
+    }
+}

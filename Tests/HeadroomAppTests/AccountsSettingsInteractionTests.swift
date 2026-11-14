@@ -1986,7 +1986,7 @@ private final class GrokDeviceCodeSetupHarness {
         #expect(dedupe.announcement(
             for: .claude,
             state: .inconclusive(.shellTimeout)
-        ) == "Claude Code availability. Couldn’t confirm where Claude Code is\u{00A0}—\u{00A0}will retry")
+        ) == "Claude Code availability. Couldn’t confirm where Claude Code is. Headroom tries again on its next check.")
         #expect(dedupe.announcement(for: .claude, state: .inconclusive(.shellTimeout)) == nil)
     }
 }

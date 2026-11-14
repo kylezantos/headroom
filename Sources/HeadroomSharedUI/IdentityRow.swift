@@ -482,7 +482,8 @@ public extension IdentityRow where Accessory == EmptyView {
 public enum IdentityRowText {
     /// L5D: with the badge gone, the row tooltip and this VoiceOver phrase are the only
     /// places the fact is stated — keep them in step.
-    public static let mainAccountHelp = "Main account — shown in the menu bar and widgets"
+    /// CA-S8: two sentences, no em dash.
+    public static let mainAccountHelp = "Main account. Shown in the menu bar and widgets."
 
     /// PB11: the width the title wants, from the same font, size and kerning it renders in
     /// (CoreText, matching `NSString.size(withAttributes:)` on the Mac). Kept separate from

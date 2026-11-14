@@ -308,6 +308,13 @@ struct ProviderCardView: View {
     var useEmailAsAccountName: Bool = false
     /// The in-app Spark switch, so a Compact row never shows a window Standard hides.
     var showsCodexSparkCounters: Bool = false
+    /// CA-MB3: the accounts whose readings feed a menu-bar pill (`MenuBarPillSource`). A row
+    /// carries the source glyph only when its key is here and its provider has two or more
+    /// accounts. Empty outside the popover.
+    var menuBarSourceKeys: Set<AccountKey> = []
+    /// CA-P14: removes an account, offered from Stop Waiting on a never-signed-in extra only
+    /// (`stopWaitingRemovesAccount`). Nil outside the popover keeps today's dialog.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -342,7 +349,8 @@ struct ProviderCardView: View {
             } else if let recipe = singleAccountCompactRecipe {
                 let columns = recipe.shownWindows.map(\.window.kind)
                 VStack(alignment: .leading, spacing: 0) {
-                    CompactCardHeader(providerName: displayName, columns: columns, percentageMode: percentageMode)
+                    CompactCardHeader(providerID: providerID, providerName: displayName, columns: columns,
+                                      percentageMode: percentageMode)
                     compactRow(
                         for: primaryEntry,
                         recipe: recipe,
@@ -527,6 +535,7 @@ struct ProviderCardView: View {
                     ProviderCapabilityRecoveryView(
                         presentation: presentation,
                         stopWaitingAccount: activeSetupAccount,
+                        onRemoveAccount: activeSetupAccount.flatMap(removeAction(for:)),
                         onPrimaryAction: {
                             performRecovery(
                                 presentation.recovery.primaryAction,
@@ -544,7 +553,10 @@ struct ProviderCardView: View {
                 // R9: a split card's header and notice ride its first fragment only.
                 .columnItemHeight(Self.capabilityHeaderID(providerID), report: isMultiAccount ? onMeasureColumnItem : nil)
             }
-            if isMultiAccount {
+            // CA-F1 (POP-12): only when an account is drawn. The stack was emitted for a card
+            // whose accounts were all still pending, so the 26pt gap above it left an empty
+            // band at the foot of the recovery card.
+            if isMultiAccount, !Self.drawnAccounts(entries: entries, presentation: presentation).isEmpty {
                 // T1A: the same 26pt account gap as `multiAccountBody` — one grouping rhythm
                 // whether or not the capability notice is showing.
                 // Compact: the plan models the 4pt row gap, so each Standard section carries
@@ -568,7 +580,7 @@ struct ProviderCardView: View {
                         .layoutValue(key: ColumnItemID.self, value: entry.account.key.description)
                     }
                 }
-            } else if !snapshot.windows.isEmpty {
+            } else if !isMultiAccount, !snapshot.windows.isEmpty {
                 bars(for: snapshot, dimmed: true)
             }
         }
@@ -579,13 +591,14 @@ struct ProviderCardView: View {
         // above it — so this stack no longer spaces its own children.
         VStack(alignment: .leading, spacing: 0) {
             singleAccountContentGroup
-            if let activeSetupAccount, !singleAccountWaitingLineHostsStop {
+            if let activeSetupAccount, !singleAccountWaitingLineHostsStop, !singleAccountSetupCardHostsStop {
                 // B3X: this row follows whichever body rendered above it, and the four
                 // bodies do not share one content axis — a guided setup card lays out at
                 // its own edge, the compact recovery card behind its own 18pt mark, an
                 // identity row on the 21pt axis. Ask the body rather than assume.
                 CardActionRow(labelInset: singleAccountLabelInset) {
-                    StopWaitingButton(account: activeSetupAccount, style: .chip(.small))
+                    StopWaitingButton(account: activeSetupAccount, style: .chip(.small),
+                                      onRemoveAccount: removeAction(for: activeSetupAccount))
                 }
                 // R2M1: the row arrives and leaves with the session, so it dissolves into
                 // the height change above rather than popping in on the same frame.
@@ -624,6 +637,45 @@ struct ProviderCardView: View {
         return SetupSessions.isWaiting(for: primaryAccount)
     }
 
+    /// CA-P7 (POP-05): true while a guided waiting card is the body; it then hosts Stop
+    /// Waiting in its own action row, beside Show Terminal or Reopen Terminal. Mirrors
+    /// `singleAccountContent`'s branch order.
+    private var singleAccountSetupCardHostsStop: Bool {
+        guard activeSetupAccount?.key == primaryAccount.key else { return false }
+        if claudeSessionOwnedState != nil { return true }
+        return claudeGuidedSetupOutcome == nil
+            && snapshot.codexConnectionAction != nil
+            && SetupSessions.isWaiting(for: primaryAccount)
+    }
+
+    /// The account Stop Waiting hands a guided waiting card, or nil when the card has none.
+    private var hostedStopWaitingAccount: ProviderAccount? {
+        singleAccountSetupCardHostsStop ? activeSetupAccount : nil
+    }
+
+    /// CA-P14: the remove callback for Stop Waiting on `account`, only where removal is
+    /// offered.
+    private func removeAction(for account: ProviderAccount) -> ((ProviderAccount) -> Void)? {
+        guard let onRemoveAccount,
+              let entry = entries.first(where: { $0.account.key == account.key }),
+              stopWaitingRemovesAccount(entry) else { return nil }
+        return onRemoveAccount
+    }
+
+    /// CA-P3 (UX-03): the retained meters inside a guided setup card. Their labels start under
+    /// the card title's text, past its 20pt mark, the way an account's meters start under its
+    /// name; the numerals keep the meter column's trailing edge.
+    private var retainedSetupBars: some View {
+        bars(for: snapshot, dimmed: true)
+            .padding(.leading, SetupCardMetrics.titleTextInset - tuning.meterContentInset)
+    }
+
+    /// CA-P3 (UX-03): a reconnect card's retained reading and its age, under the title.
+    private var codexRetainedReadLabel: String? {
+        guard snapshot.codexConnectionAction == .reconnect, !snapshot.windows.isEmpty else { return nil }
+        return Countdown.staleReadLabel(capturedAt: snapshot.capturedAt, now: now)
+    }
+
     /// R2M1: `singleAccountContent`'s branches *are* the card's setup states — Connect,
     /// Waiting, the two access-recovery cards — so a session change inserts one and removes
     /// another. This Group is what carries the transition; the scope driving it is
@@ -645,7 +697,9 @@ struct ProviderCardView: View {
                 ),
                 perform: { action in
                     performWaitingCardAction(action, for: primaryAccount)
-                }
+                },
+                stopWaitingAccount: hostedStopWaitingAccount,
+                onRemoveAccount: hostedStopWaitingAccount.flatMap(removeAction(for:))
             )
         } else if let outcome = claudeGuidedSetupOutcome {
             VStack(alignment: .leading, spacing: 10) {
@@ -668,8 +722,13 @@ struct ProviderCardView: View {
                     CodexWaitingCard(
                         mode: SetupSessions.mode(for: primaryAccount),
                         phase: SetupSessions.waitingPhase(for: primaryAccount),
-                        onReopen: { SetupSessions.continueSetup(for: primaryAccount) }
-                    )
+                        onReopen: { SetupSessions.continueSetup(for: primaryAccount) },
+                        stopWaitingAccount: hostedStopWaitingAccount,
+                        onRemoveAccount: hostedStopWaitingAccount.flatMap(removeAction(for:)),
+                        retainedReadLabel: codexRetainedReadLabel
+                    ) {
+                        if codexRetainedReadLabel != nil { retainedSetupBars }
+                    }
                 } else if action == .showPrivacyGuidance {
                     CodexAccessRecoveryCard(
                         kind: .permission,
@@ -715,11 +774,11 @@ struct ProviderCardView: View {
                                     onRetry: onRetrySetup
                                 )
                             }
-                        }
-                    )
-                }
-                if action == .reconnect, !snapshot.windows.isEmpty {
-                    bars(for: snapshot, dimmed: true)
+                        },
+                        retainedReadLabel: codexRetainedReadLabel
+                    ) {
+                        if codexRetainedReadLabel != nil { retainedSetupBars }
+                    }
                 }
             }
         } else if let planRecovery = snapshot.planStatusRecovery {
@@ -729,7 +788,8 @@ struct ProviderCardView: View {
             VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToSentenceGap) {
                 accountIdentityRow(for: primaryEntry)
                 if SetupSessions.isWaiting(for: primaryAccount) {
-                    CardRowWaitingLine(account: primaryAccount, showsStopWaiting: singleAccountWaitingLineHostsStop)
+                    CardRowWaitingLine(account: primaryAccount, showsStopWaiting: singleAccountWaitingLineHostsStop,
+                                       onRemoveAccount: removeAction(for: primaryAccount))
                 } else {
                     PlanStatusActionRow(presentation: planRecovery, account: primaryAccount, onRetry: onRetrySetup)
                 }
@@ -742,10 +802,12 @@ struct ProviderCardView: View {
             VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToSentenceGap) {
                 accountIdentityRow(for: primaryEntry)
                 if SetupSessions.isWaiting(for: primaryAccount) {
-                    CardRowWaitingLine(account: primaryAccount, showsStopWaiting: singleAccountWaitingLineHostsStop)
+                    CardRowWaitingLine(account: primaryAccount, showsStopWaiting: singleAccountWaitingLineHostsStop,
+                                       onRemoveAccount: removeAction(for: primaryAccount))
                 } else {
+                    // CA-P5: one line that names its action.
                     CardRowAction(
-                        message: presentation.status,
+                        presentation: presentation,
                         severity: .forSetupOutcome(outcome),
                         accountLabel: primaryAccount.label,
                         primary: .init(label: presentation.primaryLabel, recovery: presentation.primaryAction) {
@@ -820,7 +882,8 @@ struct ProviderCardView: View {
             : nil
         return VStack(alignment: .leading, spacing: 0) {
             if let columns {
-                CompactCardHeader(providerName: displayName, columns: columns, percentageMode: percentageMode)
+                CompactCardHeader(providerID: providerID, providerName: displayName, columns: columns,
+                                  percentageMode: percentageMode)
             }
             ColumnItemsStack(
                 spacing: isCompact ? CompactAccountRow.rowGap : tuning.accountGap,
@@ -832,7 +895,7 @@ struct ProviderCardView: View {
                             compactRow(
                                 for: entry,
                                 recipe: recipe,
-                                isMenuBarAccount: entry.id == entries.first?.id,
+                                isMenuBarAccount: feedsMenuBar(entry.account),
                                 providerAccounts: providerAccounts,
                                 columns: columns ?? recipe.shownWindows.map(\.window.kind)
                             )
@@ -911,7 +974,7 @@ struct ProviderCardView: View {
             email: identity.email,
             showsPersistentEmail: identity.showsPersistentEmail,
             titleIsEmail: identity.isEmailTitle,
-            isMenuBarAccount: isMultiAccount && isMenuBarAccount,
+            isMenuBarAccount: isMenuBarAccount,
             recipe: recipe,
             columns: columns,
             bankedResets: entry?.snapshot.bankedResets,
@@ -944,12 +1007,22 @@ struct ProviderCardView: View {
             percentageMode: percentageMode,
             meterStyle: meterStyle,
             now: now,
-            isMenuBarAccount: isMultiAccount && entry.id == entries.first?.id,
+            isMenuBarAccount: feedsMenuBar(entry.account),
             showsStopWaiting: showsStopWaiting,
+            onRemoveAccount: removeAction(for: entry.account),
             onRetry: entry.kind.offersRetry ? { (onRetryAccount ?? { _ in onRetrySetup() })(entry.account) } : {},
             showsMark: showsMark,
             claimBankedResetReveal: claimBankedResetReveal,
             readLoading: { loadingForAccount(entry.account.key) }
+        )
+    }
+
+    /// CA-MB3 (MB-F; overturns L5D's "first account is the menu-bar account"): the row whose
+    /// reading feeds a pill, said only when its provider has two or more accounts.
+    private func feedsMenuBar(_ account: ProviderAccount) -> Bool {
+        IdentityRowText.feedsMenuBar(
+            isPillSource: menuBarSourceKeys.contains(account.key),
+            providerAccountCount: entries.count
         )
     }
 
@@ -1098,6 +1171,8 @@ struct ProviderCardView: View {
             bankedResets: entry?.snapshot.bankedResets,
             isCritical: entry?.snapshot.hasLiveCriticalResettableWindow ?? false,
             isRevealing: isRevealingBankedResets,
+            // CA-P3: the stale chip says "Last read 14 min ago", never a bare "Stale".
+            staleReadAge: entry.map { IdentityRowReadAge(capturedAt: $0.snapshot.capturedAt, now: now) },
             loadingAccessory: { loadingForAccount(account.key) }
         )
     }
@@ -1167,7 +1242,8 @@ struct ProviderCardView: View {
             now: now,
             dimmed: dimmed,
             meterStyle: meterStyle,
-            arrivalKey: meterArrivalKey
+            arrivalKey: meterArrivalKey,
+            providerID: providerID
         )
         .padding(.leading, tuning.meterContentInset)
         .padding(.trailing, tuning.meterContentInset)
@@ -1234,6 +1310,8 @@ struct ProviderCapabilityRecoveryView: View {
 
     let presentation: CapabilityRecoveryPresentation
     var stopWaitingAccount: ProviderAccount? = nil
+    /// CA-P14: passed through to Stop Waiting.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
     var placement: Placement = .cardFoot
     let onPrimaryAction: () -> Void
     let onSecondaryAction: (() -> Void)?
@@ -1268,8 +1346,9 @@ struct ProviderCapabilityRecoveryView: View {
         let recovery = presentation.recovery
         VStack(alignment: .leading, spacing: 8) {
             if presentation.state(for: recovery.primaryAction) == .enabled {
+                // CA-P5: "Claude Code not found · Install", one line.
                 CardRowAction(
-                    message: recovery.status,
+                    presentation: recovery,
                     accountLabel: nil,
                     primary: .init(label: recovery.primaryLabel, recovery: recovery.primaryAction,
                                    perform: onPrimaryAction),
@@ -1311,7 +1390,7 @@ struct ProviderCapabilityRecoveryView: View {
 
     @ViewBuilder private var stopWaitingGlyph: some View {
         if let stopWaitingAccount {
-            StopWaitingButton(account: stopWaitingAccount, style: .glyph)
+            StopWaitingButton(account: stopWaitingAccount, style: .glyph, onRemoveAccount: onRemoveAccount)
         }
     }
 
@@ -1361,7 +1440,8 @@ struct ProviderCapabilityRecoveryView: View {
         if let stopWaitingAccount {
             StopWaitingButton(
                 account: stopWaitingAccount,
-                style: placement == .cardFoot ? .chip(.small) : .bordered
+                style: placement == .cardFoot ? .chip(.small) : .bordered,
+                onRemoveAccount: onRemoveAccount
             )
         }
     }
@@ -1398,25 +1478,37 @@ struct StopWaitingButton: View {
     @State private var isConfirming = false
 
     var body: some View {
+        let confirmation = StopWaitingConfirmation(
+            accountLabel: account.label,
+            prompt: StopWaitingConfirmation.prompt(of: SetupSessions.waitingPhase(for: account)),
+            removesAccount: onRemoveAccount != nil
+        )
         button
-            .accessibilityLabel("Stop waiting for setup for \(account.label)")
+            .accessibilityLabel(confirmation.accessibilityLabel)
             .confirmationDialog(
-                "Stop waiting for setup?",
+                confirmation.title,
                 isPresented: $isConfirming,
                 titleVisibility: .visible
             ) {
-                Button("Stop Waiting") {
-                    if let onStop {
-                        onStop(account)
-                    } else {
-                        SetupSessions.forceCancel(for: account)
-                    }
+                Button(confirmation.confirmLabel, role: confirmation.removesAccount ? .destructive : nil) {
+                    confirmation.perform(.confirm, for: account, stop: stop, remove: onRemoveAccount)
                     onDismiss()
                 }
-                Button("Keep Waiting", role: .cancel, action: onDismiss)
+                Button("Keep Waiting", role: .cancel) {
+                    confirmation.perform(.keepWaiting, for: account, stop: stop, remove: onRemoveAccount)
+                    onDismiss()
+                }
             } message: {
-                Text("Headroom stops waiting immediately. The Terminal window may still be open; close it by hand if you no longer need it.")
+                Text(confirmation.message)
             }
+    }
+
+    private func stop(_ account: ProviderAccount) {
+        if let onStop {
+            onStop(account)
+        } else {
+            SetupSessions.forceCancel(for: account)
+        }
     }
 
     @ViewBuilder private var button: some View {
@@ -1437,6 +1529,78 @@ struct StopWaitingButton: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         }
+    }
+}
+
+/// The Stop Waiting dialog's words and its two outcomes, pure so both are testable without
+/// presenting a dialog.
+///
+/// CA-P14 (UX-02): an Add Account that never signed in left a sign-in row behind on every
+/// popover open, removable only from Settings. When the host passes a remove callback (a
+/// never-signed-in extra), the dialog offers to remove the account it made instead. Every
+/// other account keeps today's dialog.
+///
+/// CA-S8 (COPY-09): "setup" named the act the card calls signing in; the title follows the
+/// prompt, so a workspace approval reads "approval".
+struct StopWaitingConfirmation: Equatable {
+    enum Choice { case confirm, keepWaiting }
+
+    let accountLabel: String
+    let prompt: SetupWaitingPrompt?
+    let removesAccount: Bool
+
+    /// The prompt an open handoff is asking for; nil while Terminal is still opening.
+    static func prompt(of phase: SetupWaitingPhase?) -> SetupWaitingPrompt? {
+        switch phase {
+        case .waitingForUser(let prompt), .confirming(let prompt, _): prompt
+        case .openingTerminal, nil: nil
+        }
+    }
+
+    private var act: String { prompt == .workspaceApproval ? "approval" : "sign-in" }
+
+    var title: String {
+        removesAccount ? "Stop adding this account?" : "Stop waiting for \(act)?"
+    }
+
+    var message: String {
+        removesAccount
+            ? "Headroom stops waiting and removes \(accountLabel). The Terminal window may still be open; close it by hand."
+            : "Headroom stops waiting immediately. The Terminal window may still be open; close it by hand if you no longer need it."
+    }
+
+    var confirmLabel: String { removesAccount ? "Remove Account" : "Stop Waiting" }
+
+    var accessibilityLabel: String { "Stop waiting for \(act) for \(accountLabel)" }
+
+    /// Confirm stops the wait, then removes the account when the dialog offered to; Keep
+    /// Waiting changes nothing.
+    func perform(
+        _ choice: Choice,
+        for account: ProviderAccount,
+        stop: (ProviderAccount) -> Void,
+        remove: ((ProviderAccount) -> Void)?
+    ) {
+        guard choice == .confirm else { return }
+        stop(account)
+        if removesAccount { remove?(account) }
+    }
+}
+
+/// CA-P14: whether Stop Waiting on this row offers to remove the account. Only an extra that
+/// has never produced a reading: its snapshot is still pending, or stale on a never-signed-in
+/// outcome (the add-account preset included), with no retained windows. The built-in row and
+/// any account that has read before keep today's dialog.
+func stopWaitingRemovesAccount(_ entry: ProviderAccountEntry) -> Bool {
+    guard !entry.account.isBuiltIn, !entry.isRemembered, entry.snapshot.windows.isEmpty else { return false }
+    switch entry.snapshot.freshness {
+    case .pending:
+        return true
+    case .stale(let reason):
+        return LaneSchedule.isNeverSignedIn(entry.snapshot.freshness)
+            || presentedSetupOutcome(for: reason, providerID: entry.account.providerID)?.isNeverSignedIn == true
+    case .live:
+        return false
     }
 }
 
@@ -1515,6 +1679,13 @@ struct CardRowAction<Accessory: View>: View {
     let trailingInset: CGFloat
     /// Extra trailing controls after the secondary glyph — the capability card's Stop Waiting.
     let accessory: Accessory
+    /// CA-P5 (option A): the short action the one-line form appends after " · ", in the
+    /// action ink and semibold, when the sentence does not already name it.
+    var appendedAction: String? = nil
+    /// CA-P5: the recovery row's form. One line, never wrapped; its tooltip is the full
+    /// sentence and label it shortens (`rowHelp`).
+    var isOneLine = false
+    var rowHelp: String? = nil
 
     init(
         message: String,
@@ -1536,6 +1707,29 @@ struct CardRowAction<Accessory: View>: View {
         self.accessory = accessory()
     }
 
+    /// CA-P5 (option A, partly revisits R2C7): a typed recovery as one line that names its
+    /// action, "Claude Code not found · Install". The row used to print the full diagnosis,
+    /// wrap "Sign in with the official / Claude Code" onto two lines, and keep the action in
+    /// its tooltip whenever the sentence lacked the verb. `primary.label` stays the full label
+    /// for VoiceOver.
+    init(
+        presentation: ProviderRecoveryPresentation,
+        severity: StatusSentenceSeverity = .attention,
+        accountLabel: String?,
+        primary: Action,
+        secondary: Action? = nil,
+        leadingInset: CGFloat = CardRowMetrics.titleAxisInset,
+        trailingInset: CGFloat = IdentityRowMetrics.contentTrailingInset,
+        @ViewBuilder accessory: () -> Accessory
+    ) {
+        self.init(message: presentation.shortStatus, severity: severity, accountLabel: accountLabel,
+                  primary: primary, secondary: secondary, leadingInset: leadingInset,
+                  trailingInset: trailingInset, accessory: accessory)
+        appendedAction = presentation.appendsShortAction ? presentation.primaryShortLabel : nil
+        isOneLine = true
+        rowHelp = presentation.rowHelp
+    }
+
     @Environment(\.colorScheme) private var scheme
 
     /// V6′ (Kyle, 2026-10-03): no per-provider accent — the action words take the sentence's
@@ -1552,14 +1746,25 @@ struct CardRowAction<Accessory: View>: View {
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
             Button(action: primary.perform) {
-                Text(Self.accented(message, verb: primary.label, ink: actionInk))
+                let text = Text(Self.rowText(message, verb: primary.label, appending: appendedAction, ink: actionInk))
+                if isOneLine {
+                    // CA-P5: one line wherever it fits, which is every sign-in row on every
+                    // provider at the 384pt column. A longer state wraps rather than
+                    // truncating, because an ellipsis would cut off the action it names.
+                    ViewThatFits(in: .horizontal) {
+                        text.fixedSize(horizontal: true, vertical: false)
+                        text
+                    }
+                } else {
+                    text
+                }
             }
                 .buttonStyle(CardRowButtonStyle(
                     systemImage: primary.systemImage,
                     criticalInk: criticalInk,
                     showsArrow: primary.opensElsewhere
                 ))
-                .help(primary.help ?? primary.label)
+                .help(primary.help ?? rowHelp ?? primary.label)
                 .accessibilityLabel(accountLabel.map { "\(primary.label) for \($0)" } ?? primary.label)
                 .accessibilityValue(message)
             if let secondary {
@@ -1588,9 +1793,44 @@ struct CardRowAction<Accessory: View>: View {
         }
         return text
     }
+
+    /// CA-P5: the accented sentence, then " · " and the appended action in the action ink.
+    static func rowText(_ message: String, verb: String, appending action: String?, ink: Color) -> AttributedString {
+        var text = accented(message, verb: verb, ink: ink)
+        guard let action else { return text }
+        text.append(AttributedString(CardRowMetrics.actionSeparator))
+        var suffix = AttributedString(action)
+        suffix.swiftUI.foregroundColor = ink
+        suffix.swiftUI.font = .system(size: CardRowMetrics.fontSize, weight: .semibold)
+        text.append(suffix)
+        return text
+    }
+
+    /// CA-P5: what the one-line row reads, as plain text.
+    static func oneLineText(for presentation: ProviderRecoveryPresentation) -> String {
+        presentation.appendsShortAction
+            ? presentation.shortStatus + CardRowMetrics.actionSeparator + presentation.primaryShortLabel
+            : presentation.shortStatus
+    }
 }
 
 extension CardRowAction where Accessory == EmptyView {
+    init(
+        presentation: ProviderRecoveryPresentation,
+        severity: StatusSentenceSeverity = .attention,
+        accountLabel: String?,
+        primary: Action,
+        secondary: Action? = nil,
+        leadingInset: CGFloat = CardRowMetrics.titleAxisInset,
+        trailingInset: CGFloat = IdentityRowMetrics.contentTrailingInset
+    ) {
+        self.init(presentation: presentation, severity: severity, accountLabel: accountLabel,
+                  primary: primary, secondary: secondary, leadingInset: leadingInset,
+                  trailingInset: trailingInset) {
+            EmptyView()
+        }
+    }
+
     init(
         message: String,
         severity: StatusSentenceSeverity = .attention,
@@ -1668,6 +1908,8 @@ struct CardRowStatusLine<Leading: View, Trailing: View>: View {
 struct CardRowWaitingLine: View {
     let account: ProviderAccount
     let showsStopWaiting: Bool
+    /// CA-P14: passed through to Stop Waiting.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func loadingMotion(phase: SetupWaitingPhase?, reduceMotion: Bool) -> SetupMotion {
@@ -1687,7 +1929,7 @@ struct CardRowWaitingLine: View {
                 .alignmentGuide(.firstTextBaseline) { $0[VerticalAlignment.center] + 4 }
         } trailing: {
             if showsStopWaiting {
-                StopWaitingButton(account: account, style: .glyph)
+                StopWaitingButton(account: account, style: .glyph, onRemoveAccount: onRemoveAccount)
             }
         }
     }
@@ -1705,6 +1947,8 @@ extension LoadingMotion {
 
 enum CardRowMetrics {
     static let fontSize: CGFloat = 11.5
+    /// CA-P5: between a recovery row's sentence and the action it appends.
+    static let actionSeparator = " · "
     static let glyphSize: CGFloat = 11
     /// V13b: 14pt, not the brand mark's 15 — the narrowest column `apple.terminal` fits.
     static let glyphColumn: CGFloat = 14
@@ -1985,6 +2229,8 @@ struct UsageBarsStack: View {
     var showsWindowState: Bool = true
     /// U8: true on a remembered row, whose labels and countdowns dim with its meters.
     var dimsLabels: Bool = false
+    /// CA-P4: names the provider in an empty row's tooltip.
+    var providerID: ProviderID? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.headroomTuning) private var tuning
@@ -2021,7 +2267,8 @@ struct UsageBarsStack: View {
                         arrivalKey: arrivalKey,
                         resetNotReadLine: resetNotReadLines.indices.contains(index) ? resetNotReadLines[index] : nil,
                         showsWindowState: showsWindowState,
-                        dimsLabels: dimsLabels
+                        dimsLabels: dimsLabels,
+                        providerID: providerID
                     )
                     .resetLine(
                         peers: resetLabelPeers,

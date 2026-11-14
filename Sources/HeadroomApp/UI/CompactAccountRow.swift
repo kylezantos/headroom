@@ -4,8 +4,13 @@ import HeadroomSharedUI
 import SwiftUI
 import HeadroomCore
 
-/// Popover account layout, Compact (R11–R14): one account on one 26pt line — mark, title,
-/// a "+N" for windows with no room, then up to two cells. Everything the line drops (reset
+/// Popover account layout, Compact (R11–R14): one account on one 26pt line — title, a "+N"
+/// for windows with no room, then up to two cells.
+///
+/// CA-P13 (POP-14, overturns the account-layout plan's R9 for Compact): the provider mark is
+/// drawn once, in `CompactCardHeader`. R9's reason for a mark on every row ("fragments add no
+/// header") never held here, because every Compact card piece repeats its header; a column
+/// of identical marks was decoration, and it cost each name 21pt. Standard keeps its marks. Everything the line drops (reset
 /// times, the other windows, banked resets, the main-account note) lives in its tooltip and
 /// VoiceOver value (R12, R13). What it shows is `CompactAccountRowRecipe`'s decision; this
 /// only lays it out.
@@ -44,8 +49,6 @@ struct CompactAccountRow: View {
     var body: some View {
         let _ = BenchCounters.hit("CompactAccountRow")
         HStack(spacing: IdentityRowMetrics.spacing) {
-            ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
-                .frame(width: IdentityRowMetrics.markSlotWidth, height: IdentityRowMetrics.markSlotWidth)
             CompactIdentityLayout(spacing: IdentityRowMetrics.spacing) {
                 Text(title)
                     .font(.system(size: Self.titleSize, weight: .semibold))
@@ -64,6 +67,11 @@ struct CompactAccountRow: View {
                 }
             }
             .layoutPriority(1)
+            if isMenuBarAccount {
+                // CA-MB3: which account feeds the pill, 6pt after the name (the stack's gap).
+                MenuBarSourceGlyph()
+                    .accessibilityHidden(true)
+            }
             if recipe.overflowCount > 0 {
                 Text("+\(recipe.overflowCount)")
                     .foregroundStyle(.secondary)
@@ -102,7 +110,8 @@ struct CompactAccountRow: View {
                             arrivalKey: arrivalKey,
                             // KTD15: a window under another kind's header column names itself,
                             // so a limit-promoted "mo" never reads as the column's "5h".
-                            compactLabel: cell.ownLabel ?? ""
+                            compactLabel: cell.ownLabel ?? "",
+                            providerID: providerID
                         )
                         .frame(width: Self.cellWidth, alignment: .trailing)
                     } else {
@@ -190,6 +199,7 @@ private struct CompactIdentityLayout: Layout {
 /// what it describes, and a split card's second piece still says whose accounts it holds. Fixed
 /// height, because the column planner counts it once per card piece.
 struct CompactCardHeader: View {
+    let providerID: ProviderID
     let providerName: String
     let columns: [WindowKind]
     let percentageMode: UsagePercentageMode
@@ -200,8 +210,9 @@ struct CompactCardHeader: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: IdentityRowMetrics.spacing) {
-                // On the names' axis, past the logo column.
-                Color.clear.frame(width: IdentityRowMetrics.markSlotWidth, height: 1)
+                // CA-P13: the card's one mark, on the rows' leading edge; the name follows it.
+                ProviderLogoView(providerID: providerID, size: IdentityRowMetrics.markSlotWidth)
+                    .frame(width: IdentityRowMetrics.markSlotWidth, height: IdentityRowMetrics.markSlotWidth)
                 Text(providerName)
                     .lineLimit(1)
                     .truncationMode(.tail)

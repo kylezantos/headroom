@@ -78,6 +78,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
         isCritical: Bool = false,
         isRevealing: Bool = false,
         lastReadLabel: String? = nil,
+        staleReadAge: IdentityRowReadAge? = nil,
         loadingAccessory: (() -> AccountLoadingState)? = nil
     ) {
         self.init(
@@ -94,6 +95,7 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
             isCritical: isCritical,
             isRevealing: isRevealing,
             lastReadLabel: lastReadLabel,
+            staleReadAge: staleReadAge,
             mark: { ProviderLogoView(providerID: providerID, size: $0) },
             accessory: { IdentityLoadingAccessory(readLoading: loadingAccessory) }
         )
@@ -273,10 +275,12 @@ struct AccountSectionView: View {
     let percentageMode: UsagePercentageMode
     let meterStyle: MeterStyle
     let now: Date
-    /// The selected primary account (`entries.first`) is the one the menu bar and widgets
-    /// follow; its identity row carries the mark that explains which login drives the glyph.
+    /// CA-MB3: the account whose reading feeds a menu-bar pill, when its provider has two or
+    /// more accounts (`IdentityRowText.feedsMenuBar`); its identity row carries the glyph.
     let isMenuBarAccount: Bool
     let showsStopWaiting: Bool
+    /// CA-P14: set for a never-signed-in extra, so its Stop Waiting can remove the account.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
     let onRetry: () -> Void
     /// R2C22: false for the account rows nested under a capability card's own provider row.
     var showsMark: Bool = true
@@ -352,7 +356,7 @@ struct AccountSectionView: View {
                     topPadding: 10,
                     trailingInset: IdentityRowMetrics.contentTrailingInset
                 ) {
-                    StopWaitingButton(account: account, style: .chip(.small))
+                    StopWaitingButton(account: account, style: .chip(.small), onRemoveAccount: onRemoveAccount)
                 }
                 // R2M1: the row appears and disappears with the session, so it dissolves
                 // rather than popping into a card that is already resizing under it.
@@ -403,6 +407,8 @@ struct AccountSectionView: View {
             isCritical: snapshot.hasLiveCriticalResettableWindow,
             isRevealing: isRevealingBankedResets,
             lastReadLabel: kind.lastReadLabel,
+            // CA-P3: a stale engine row's chip reads "Last read 14 min ago".
+            staleReadAge: kind.isStale ? IdentityRowReadAge(capturedAt: snapshot.capturedAt, now: now) : nil,
             loadingAccessory: readLoading
         )
     }
@@ -474,7 +480,8 @@ struct AccountSectionView: View {
             resetNotReadLines: kind?.resetNotReadLines ?? [],
             compactResetNotReadLines: kind?.compactResetNotReadLines ?? [],
             showsWindowState: kind?.showsWindowState ?? true,
-            dimsLabels: kind?.dimsWholeRow ?? false
+            dimsLabels: kind?.dimsWholeRow ?? false,
+            providerID: account.providerID
         )
         .padding(.leading, tuning.meterContentInset)
         .padding(.trailing, tuning.meterContentInset)
@@ -505,7 +512,7 @@ struct AccountSectionView: View {
                     CardRowStatusLine(message: refusalMessage, severity: .attention) {
                         Color.clear.frame(height: 1)
                     } trailing: {
-                        StopWaitingButton(account: account, style: .glyph)
+                        StopWaitingButton(account: account, style: .glyph, onRemoveAccount: onRemoveAccount)
                     }
                 } else if case .blockedByProviderLogin = setupState {
                     CardRowAction(
@@ -585,7 +592,7 @@ struct AccountSectionView: View {
     /// column, so it sits under the terminal glyph of the row it replaced, and Stop Waiting
     /// became this line's trailing glyph instead of a chip row of its own.
     private var waitingPhaseRow: some View {
-        CardRowWaitingLine(account: account, showsStopWaiting: hostsStopWaiting)
+        CardRowWaitingLine(account: account, showsStopWaiting: hostsStopWaiting, onRemoveAccount: onRemoveAccount)
     }
 
     /// R13: Stop Waiting stays reachable through every session phase. While the waiting line
@@ -634,7 +641,19 @@ struct AccountSectionView: View {
         // V13b: the sentence is the primary chip and the second chip trails it as a glyph.
         // `setupRowChips` never returns more than two.
         return Group {
-            if let primary = chips.first {
+            if let primary = chips.first,
+               let presentation = Self.oneLinePresentation(presentation, primary: primary,
+                                                           hasFailureMessage: hasFailureMessage) {
+                // CA-P5: the typed recovery as one line that names its action. A signed-out
+                // extra's "Sign in with the official Claude Code" wrapped onto two lines.
+                CardRowAction(
+                    presentation: presentation,
+                    severity: severity,
+                    accountLabel: account.label,
+                    primary: rowAction(primary),
+                    secondary: chips.dropFirst().first.map(rowAction)
+                )
+            } else if let primary = chips.first {
                 CardRowAction(
                     message: message,
                     severity: severity,
@@ -646,6 +665,20 @@ struct AccountSectionView: View {
                 StatusSentence(text: message, severity: severity)
             }
         }
+    }
+
+    /// CA-P5: a row draws the one-line form only for the typed recovery it answers: no
+    /// failure sentence of the session's own, and the primary chip is that presentation's
+    /// action. Try Again, the untyped Sign In and a failure message keep their sentence.
+    static func oneLinePresentation(
+        _ presentation: ProviderRecoveryPresentation?,
+        primary: SetupRowChip,
+        hasFailureMessage: Bool
+    ) -> ProviderRecoveryPresentation? {
+        guard let presentation, !hasFailureMessage,
+              case .recovery(let action, _) = primary, action == presentation.primaryAction
+        else { return nil }
+        return presentation
     }
 
     private func rowAction(_ chip: SetupRowChip) -> CardRowButtonAction {

@@ -115,7 +115,7 @@ enum ClaudeSetupSession {
             : """
             echo "Adding another Claude account to Headroom."
             echo
-            echo "1. Log in when Claude asks — use the account you want to add."
+            echo "1. Log in when Claude asks. Use the account you want to add."
             echo "   (This login is kept separate from your main Claude Code account.)"
             echo "2. If Claude asks about this folder, choose: Yes, I trust this folder"
             echo "3. Return to Headroom. It will pick the account up automatically."
@@ -314,6 +314,36 @@ enum SetupCardMetrics {
     /// R2B2: one kerning for the 15/semibold card titles. The app carried −0.15 and −0.2 at
     /// the same size and weight, which is a difference nobody chose.
     static let titleKerning: CGFloat = -0.2
+
+    /// CA-P8 (POP-09): a metadata line sits closer to the action row it qualifies than the
+    /// row's own 12pt.
+    static let metadataToActionGap: CGFloat = 6
+
+    /// CA-P3 (UX-03): the retained meters under a setup card's title, at an identity row's
+    /// distance from its first meter row (CMM4's 4pt plus the title line's own slack).
+    static let retainedGap: CGFloat = 8
+
+    /// Where a setup card's title text starts: its 20pt mark plus the 6pt gap.
+    static let titleTextInset: CGFloat = 26
+}
+
+/// CA-P3 (UX-03): a setup card's "Last read 3 hr ago" chip, on the title line beside the
+/// retained reading it dates. The identity row's state-chip recipe, so it reads as the same
+/// object the account rows carry.
+struct SetupCardReadChip: View {
+    let label: String
+
+    var body: some View {
+        Text(label)
+            .kerning(IdentityRowMetrics.capsuleLabelKerning)
+            .foregroundStyle(.secondary)
+            .identityCapsule(
+                fill: IdentityCapsuleStyle.staleFill,
+                horizontalPadding: 5,
+                border: IdentityCapsuleStyle.stateBorder
+            )
+            .help(Countdown.staleReadHelp)
+    }
 }
 
 /// State 1 — the first-run card: value first, one primary action, guided steps, and the
@@ -336,8 +366,9 @@ struct ClaudeConnectCard: View {
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(SetupCardMetrics.titleKerning)
             }
+            // CA-P9 (COPY-05): the program is Claude Code, named the way Core names it.
             Text(outcome == .claudeLoginRequired
-                 ? "Sign in with the Claude CLI to show this account’s usage."
+                 ? "Sign in with \(ProviderSignInCopy.cliName(for: .claude)) to show this account’s usage."
                  : "See your remaining Claude usage right here.")
                 .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
@@ -360,12 +391,12 @@ struct ClaudeConnectCard: View {
         }
     }
 
-    /// "official /usage · no login · never spends usage" — the trust line that makes a
-    /// first-run user comfortable pressing the button.
+    /// The trust line that makes a first-run user comfortable pressing the button.
+    /// CA-P9 (COPY-04): Core's one privacy shape, without the "/usage panel through its CLI"
+    /// mechanism the user never chose.
     private var reassurance: some View {
-        // R2B2: the tertiary note tier. The inline command run stays 0.5pt under the prose
-        // around it — monospace at a matched point size reads a size larger.
-        Text("Reads Claude’s official \(Text("/usage").font(.system(size: 10.5, design: .monospaced))) panel through its CLI. Headroom never receives your password or tokens, and the check never spends usage.")
+        // R2B2: the tertiary note tier.
+        Text(ProviderSignInCopy.privacyNote(for: .claude) ?? "")
             .font(.system(size: SetupCardMetrics.noteSize))
             .foregroundStyle(.tertiary)
             // PB11: the longest prose in the popover — three lines at 293pt — and the line
@@ -388,9 +419,9 @@ struct ClaudeConnectCard: View {
             step(1, Text("Terminal opens and starts Claude for you"), dark: dark)
             // W2A: both steps shed a word so neither drops a one-word orphan at 293pt.
             step(2, outcome == .claudeLoginRequired
-                 ? Text("Sign in, then approve the workspace if asked")
+                 ? Text("Sign in, then approve the folder if asked")
                  : Text("Choose \(Text("“Yes, I trust this folder”").fontWeight(.semibold).foregroundColor(.primary)) when asked"), dark: dark)
-            step(3, Text("Come back — usage appears here automatically"), dark: dark)
+            step(3, Text(ProviderSignInCopy.comeBackStep), dark: dark)
         }
     }
 
@@ -475,6 +506,13 @@ func claudeShellOffersManualCommand(state: SetupSessionState) -> Bool {
     state != .failed(.updateRequired)
 }
 
+/// CA-P8 (COPY-06): the copy a waiting Claude card titles itself with. The popover header's
+/// waiting fallback reads the same function, so the header and the card can never name
+/// different acts (approval vs sign-in) at once.
+func claudeWaitingCopy(phase: SetupWaitingPhase?) -> SetupWaitingCopy {
+    (phase ?? .waitingForUser(.signIn)).copy
+}
+
 func claudeWaitingCardContent(
     state: SetupSessionState,
     phase: SetupWaitingPhase?,
@@ -484,7 +522,7 @@ func claudeWaitingCardContent(
 ) -> ClaudeWaitingCardContent {
     let actions = claudeWaitingCardActions(state: state, hasActiveHandoff: hasActiveHandoff)
     let showsManualCommand = claudeShellOffersManualCommand(state: state)
-    let copy = (phase ?? .waitingForUser(.signIn)).copy
+    let copy = claudeWaitingCopy(phase: phase)
     if case .failed = state {
         return ClaudeWaitingCardContent(
             title: failureMessage ?? copy.title,
@@ -513,6 +551,11 @@ func claudeWaitingCardContent(
 struct ClaudeWaitingCard: View {
     let content: ClaudeWaitingCardContent
     let perform: (ClaudeWaitingCardAction) -> Void
+    /// CA-P7 (POP-05): Stop Waiting joins Show Terminal / Try Again in this card's own row,
+    /// instead of a second chip row appended under the whole card.
+    var stopWaitingAccount: ProviderAccount? = nil
+    /// CA-P14: passed through to Stop Waiting for a never-signed-in extra.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -553,11 +596,15 @@ struct ClaudeWaitingCard: View {
             // outstanding while the official CLI still owns the window.
             // B3X: a guided setup card lays its prose out at its own leading edge, so its
             // chip labels start there too.
-            if !content.actions.isEmpty {
+            if !content.actions.isEmpty || stopWaitingAccount != nil {
                 CardActionRow(labelInset: 0) {
                     ForEach(content.actions) { action in
                         Button(action.label) { perform(action) }
                             .buttonStyle(SetupChipButtonStyle(size: .small))
+                    }
+                    if let stopWaitingAccount {
+                        StopWaitingButton(account: stopWaitingAccount, style: .chip(.small),
+                                          onRemoveAccount: onRemoveAccount)
                     }
                 }
             }

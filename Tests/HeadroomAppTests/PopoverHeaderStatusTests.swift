@@ -32,13 +32,14 @@ struct PopoverHeaderStatusTests {
     }
 
     /// An open handoff outranks the action: whatever sent the user to Terminal, the header's
-    /// job while they are there is to say Headroom is still watching.
+    /// job while they are there is to say Headroom is still watching. CA-P8: in the card's own
+    /// words.
     @Test func anOpenHandoffOverridesEveryCodexAction() {
         for action in [
             CodexConnectionAction.connect, .reconnect, .showPrivacyGuidance, .resolveStorage,
         ] {
             #expect(PopoverHeaderStatusText.codex(action: action, isWaiting: true)
-                == "Waiting for Codex sign-in…")
+                == CodexWaitingCopy.title(mode: .standard, phase: nil))
         }
     }
 
@@ -47,10 +48,31 @@ struct PopoverHeaderStatusTests {
             == "Sign in to Claude to begin")
         #expect(PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: false)
             == "Sign in to Claude to begin")
-        #expect(PopoverHeaderStatusText.claude(outcome: .claudeLoginRequired, isWaiting: true)
-            == "Waiting for Claude sign-in…")
-        #expect(PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: true)
+    }
+
+    /// CA-P8 (COPY-06): without a start time the header falls back to a phrase, and that
+    /// phrase is the waiting card's own title. It used to key on the outcome while the card
+    /// keyed on the handoff's phase, so the two could say "approval" and "sign-in" at once.
+    @Test func theWaitingFallbackIsTheCardsOwnTitle() {
+        let signIn = SetupWaitingPhase.waitingForUser(.signIn)
+        let approval = SetupWaitingPhase.waitingForUser(.workspaceApproval)
+        for outcome in [ProviderSetupOutcome.claudeLoginRequired, .claudeTrustRequired] {
+            for phase in [signIn, approval] {
+                let card = claudeWaitingCardContent(state: .waiting(attempt: 0), phase: phase,
+                    hasActiveHandoff: true, failureMessage: nil, failureDetail: nil)
+                #expect(PopoverHeaderStatusText.claude(outcome: outcome, isWaiting: true, phase: phase) == card.title)
+            }
+        }
+        #expect(PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: true, phase: approval)
             == "Waiting for approval…")
+        #expect(PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: true, phase: signIn)
+            == "Waiting for sign-in…")
+        for mode in [SetupHandoffMode.standard, .deviceCode] {
+            for phase in [nil, signIn, SetupWaitingPhase.waitingForUser(.deviceCode)] {
+                #expect(PopoverHeaderStatusText.codex(action: .reconnect, isWaiting: true, mode: mode, phase: phase)
+                    == CodexWaitingCopy.title(mode: mode, phase: phase))
+            }
+        }
     }
 
     /// PA10: "Watching for …" is retired everywhere. The cards and account rows say "Waiting
@@ -111,14 +133,44 @@ struct PopoverHeaderStatusResolverTests {
         #expect(PopoverHeaderStatusResolver.setup(input(oldestLiveCapture: now)) == nil)
     }
 
-    @Test func aSetupCardOwnsTheHeaderWhileItIsOnScreen() {
-        let status = PopoverHeaderStatusResolver.setup(
-            input(setupText: "Sign in to Claude to begin", oldestLiveCapture: now)
-        )
-        #expect(status?.kind == .setup)
-        #expect(status?.text == "Sign in to Claude to begin")
-        // A phrase must never try to roll its letters into a number.
-        #expect(status?.rollValue == nil)
+    /// CA-P8 (POP-11, revisits PA10): while the setup card is in the visible stack the line
+    /// would repeat its title 40pt above it, so the slot is empty; once the card has scrolled
+    /// out of the viewport the phrase returns.
+    @Test func theSetupPhraseShowsOnlyOnceTheCardHasScrolledOut() {
+        for text in [
+            PopoverHeaderStatusText.claude(outcome: .claudeTrustRequired, isWaiting: false),
+            PopoverHeaderStatusText.codex(action: .connect, isWaiting: false),
+            PopoverHeaderStatusText.codex(action: .reconnect, isWaiting: false),
+        ] {
+            var visible = input(setupText: text, oldestLiveCapture: now)
+            visible.setupCardVisible = true
+            #expect(PopoverHeaderStatusResolver.setup(visible) == nil)
+
+            let scrolledOut = PopoverHeaderStatusResolver.setup(input(setupText: text, oldestLiveCapture: now))
+            #expect(scrolledOut?.kind == .setup)
+            #expect(scrolledOut?.text == text)
+            // A phrase must never try to roll its letters into a number.
+            #expect(scrolledOut?.rollValue == nil)
+        }
+    }
+
+    /// The clock is not a repeat of the card, so it shows with the card on screen.
+    @Test func theWaitingClockShowsWithTheCardOnScreen() {
+        var visible = input(setupText: "Waiting for approval…", waitingElapsed: 12)
+        visible.setupCardVisible = true
+        #expect(PopoverHeaderStatusResolver.setup(visible)?.text == "Waiting 12s")
+    }
+
+    /// CA-P8: a card is scrolled out only when every piece of it is outside the viewport, and
+    /// an unmeasured viewport (the offscreen harness) hides nothing.
+    @Test func aCardIsScrolledOutOnlyWhenEveryPieceIsOutOfView() {
+        let pieces: [(provider: ProviderID, minY: CGFloat, maxY: CGFloat)] = [
+            (.claude, 0, 300), (.codex, 320, 700), (.codex, 0, 120),
+        ]
+        #expect(PopoverSetupCardVisibility.scrolledOutProviders(pieces: pieces, viewportTop: 0, viewportBottom: 640).isEmpty)
+        #expect(PopoverSetupCardVisibility.scrolledOutProviders(pieces: pieces, viewportTop: 400, viewportBottom: 1040)
+            == [.claude])
+        #expect(PopoverSetupCardVisibility.scrolledOutProviders(pieces: pieces, viewportTop: 0, viewportBottom: 0).isEmpty)
     }
 
     /// R2M12: the clock replaces the card's own title rather than repeating it.
@@ -206,5 +258,88 @@ struct ProviderCardSessionKeyTests {
             providerCardSessionKey(.waiting(attempt: 0))
                 == providerCardSessionKey(.waiting(attempt: 9))
         )
+    }
+}
+
+
+/// CA-MB3 (MB-F): which account carries the menu-bar source glyph. Pure over the store's
+/// meters and the display list's main, so no store is stood up.
+@Suite(.sharedAppState)
+struct MenuBarPillSourceTests {
+    private let claudeMain = AccountKey(providerID: .claude, accountID: .primary)
+    private let claudeWork = AccountKey(providerID: .claude, accountID: AccountID("work"))
+    private let codexMain = AccountKey(providerID: .codex, accountID: .primary)
+
+    private func mains(_ id: ProviderID) -> AccountKey? {
+        switch id {
+        case .claude: claudeMain
+        case .codex: codexMain
+        default: nil
+        }
+    }
+
+    private func meter(_ id: ProviderID?, automatic: Bool = false) -> MenuBarMeter {
+        MenuBarMeter(
+            summary: MenuBarSummary(text: "72%", providerID: id, detail: nil, isNeutral: id == nil),
+            fill: 0.72,
+            isAutomaticSummary: automatic
+        )
+    }
+
+    private func flagged(_ meters: [MenuBarMeter], key: AccountKey, accounts: Int) -> Bool {
+        IdentityRowText.feedsMenuBar(
+            isPillSource: MenuBarPillSource.sourceKeys(meters: meters, displayPrimaryKey: mains).contains(key),
+            providerAccountCount: accounts
+        )
+    }
+
+    @Test func withClaudeInTheMenuBarOnlyItsMainAccountIsFlagged() {
+        let meters = [meter(.claude), meter(.codex)]
+        #expect(flagged(meters, key: claudeMain, accounts: 2))
+        #expect(!flagged(meters, key: claudeWork, accounts: 2))
+    }
+
+    @Test func withClaudeOutOfTheMenuBarNoClaudeAccountIsFlagged() {
+        let meters = [meter(.codex)]
+        #expect(!flagged(meters, key: claudeMain, accounts: 2))
+        #expect(!flagged(meters, key: claudeWork, accounts: 2))
+    }
+
+    @Test func automaticModeFlagsTheFollowedProvidersMainAccount() {
+        #expect(flagged([meter(.claude, automatic: true)], key: claudeMain, accounts: 2))
+        #expect(!flagged([meter(.codex, automatic: true)], key: claudeMain, accounts: 2))
+        #expect(MenuBarPillSource.sourceKeys(meters: [meter(nil, automatic: true)], displayPrimaryKey: mains).isEmpty)
+    }
+
+    /// One account: the glyph would be noise.
+    @Test func aProviderWithOneAccountIsNeverFlagged() {
+        #expect(!flagged([meter(.claude)], key: claudeMain, accounts: 1))
+    }
+}
+
+/// CA-P8, CA-F1: guards on the popover's sources for decisions a view test cannot reach.
+@Suite(.sharedAppState)
+struct PopoverSourceGuardTests {
+    private func source(_ path: String) throws -> String {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        return try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
+    }
+
+    /// CA-P8 (POP-08): every guided setup card title is in primary ink; the brand lives in the
+    /// mark and the CTA. Grok, Cursor, Copilot and OpenCode have no guided card (their setup
+    /// is the account row), so these two files hold every setup title.
+    @Test func setupCardTitlesUseNoBrandInk() throws {
+        for path in ["Sources/HeadroomApp/UI/ClaudeSetupViews.swift", "Sources/HeadroomApp/UI/CodexSetupViews.swift"] {
+            #expect(try !source(path).contains(".foregroundStyle(ProviderStyle.textAccent("), "\(path) tints a title")
+        }
+    }
+
+    /// CA-F1 (MOT-10): under Reduce Motion the reorder scope resolves to nil, so the plain
+    /// reveal hard-cut a new card in. Both popover insertions take the Reduce Motion form.
+    @Test func popoverCardInsertionsUseTheReduceMotionReveal() throws {
+        let popover = try source("Sources/HeadroomApp/UI/PopoverView.swift")
+        #expect(!popover.contains(".transition(.settingsReveal)"))
+        #expect(popover.components(separatedBy: ".transition(.settingsReveal(reduceMotion: reduceMotion))").count - 1 == 2)
     }
 }

@@ -19,7 +19,8 @@ import SwiftUI
 ///   changes and VoiceOver never sees it.
 ///
 /// Deliberately not `.symbolEffect`: the house motion vocabulary contains crossfades,
-/// movement and two springs, and a symbol-replace effect is none of them.
+/// movement and two springs, and a symbol-replace effect is none of them. CA-M7 builds the
+/// swap from those instead.
 struct CopyFeedbackButton: View {
     /// Performs the pasteboard write and reports whether it landed.
     let copy: () -> Bool
@@ -38,11 +39,14 @@ struct CopyFeedbackButton: View {
 
     var body: some View {
         Button(action: perform) {
-            // Both glyphs are always laid out inside the fixed 22×22 slot, so the swap is a
-            // pure opacity crossfade and the row beside it never reflows.
+            // Both glyphs are always laid out inside the fixed 22×22 slot, so the row beside
+            // it never reflows.
+            // CA-M7 (MOT-07): two glyphs of different shape crossfading at one scale read as a
+            // double-exposed smudge. Now the outgoing glyph shrinks into the reveal blur as it
+            // fades and the incoming one resolves out of it: a swap, on house tokens.
             ZStack {
-                Image(systemName: "doc.on.doc").opacity(copied ? 0 : 1)
-                Image(systemName: "checkmark").opacity(copied ? 1 : 0)
+                swapGlyph("doc.on.doc", shown: !copied)
+                swapGlyph("checkmark", shown: copied)
             }
             .frame(width: 22, height: 22)
         }
@@ -53,19 +57,28 @@ struct CopyFeedbackButton: View {
         .accessibilityLabel(copied ? confirmationLabel : label)
     }
 
+    /// CA-M7: scale and blur are movement on `valueSpring`, so Reduce Motion drops them and
+    /// keeps today's 200ms crossfade (S2A).
+    private func swapGlyph(_ systemName: String, shown: Bool) -> some View {
+        let receded = !shown && !reduceMotion
+        return Image(systemName: systemName)
+            .scaleEffect(receded ? HeadroomMotion.revealScale : 1)
+            .blur(radius: receded ? HeadroomMotion.revealBlur : 0)
+            .animation(HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                       value: copied)
+            .opacity(shown ? 1 : 0)
+            .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                       value: copied)
+    }
+
     private func perform() {
         guard copy() else { return }
         hold?.cancel()
-        // S2A: opacity only, so the confirmation keeps its 200ms under Reduce Motion.
-        withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
-            copied = true
-        }
+        copied = true
         hold = Task { @MainActor in
             try? await Task.sleep(for: Self.holdDuration)
             guard !Task.isCancelled else { return }
-            withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
-                copied = false
-            }
+            copied = false
         }
     }
 }

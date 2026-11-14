@@ -4,6 +4,15 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Initial CodeQL findings (2026-11-14)
+
+- The first Python security analysis raised 24 alerts in `Scripts/github-release.py`,
+  `Scripts/bench-trace-summary.py` and `Scripts/dmg-layout-check.py`. They cover command-line
+  arguments, file paths, deserialization, XML parsing and a regular expression under the
+  local-input threat model. They are **untriaged**, not confirmed vulnerabilities or accepted
+  false positives. Review each data flow and its trust boundary before fixing or dismissing it.
+  The alerts remain open at https://github.com/kylezantos/headroom/security/code-scanning.
+
 ## Follow the default login: open items (2026-11-10)
 
 Phase 1 covers Claude,

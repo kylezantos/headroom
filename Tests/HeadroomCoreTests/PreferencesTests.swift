@@ -401,4 +401,39 @@ struct PreferencesTests {
         prefs.apiSpendPeriod = .rolling30Days
         #expect(prefs.apiSpendPeriod == .rolling30Days)
     }
+    // MARK: Menu-bar marks (CA-MB1, CA-MB2, KTD7)
+
+    @Test func menuBarMarksPreferenceIsUnsetUntilChosenAndRoundTrips() {
+        let prefs = Preferences(defaults: freshDefaults())
+        #expect(prefs.showMenuBarMarks == nil)
+        prefs.showMenuBarMarks = false
+        #expect(prefs.showMenuBarMarks == false)
+        prefs.showMenuBarMarks = true
+        #expect(prefs.showMenuBarMarks == true)
+        prefs.showMenuBarMarks = nil
+        #expect(prefs.showMenuBarMarks == nil)
+    }
+
+    /// KTD7: unset resolves on for two or more explicit pills and off for one; a value the
+    /// user chose wins either way.
+    @Test func unsetMarksResolveOnForTwoOrMorePillsAndAChosenValueWins() {
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 0) == false)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 1) == false)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 2) == true)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 6) == true)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: true, explicitPillCount: 1) == true)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: false, explicitPillCount: 3) == false)
+    }
+
+    /// KTD7: the automatic summary is one pill that changes meaning, so it is always marked.
+    @Test func theAutomaticSummaryIsMarkedWhateverThePreferenceSays() {
+        for preference in [nil, true, false] as [Bool?] {
+            #expect(MenuBarMarksPolicy.showsMark(
+                isAutomaticSummary: true, preference: preference, explicitPillCount: 0))
+            #expect(MenuBarMarksPolicy.showsMark(
+                isAutomaticSummary: true, preference: preference, explicitPillCount: 1))
+        }
+        #expect(MenuBarMarksPolicy.showsMark(isAutomaticSummary: false, preference: false, explicitPillCount: 3) == false)
+        #expect(MenuBarMarksPolicy.showsMark(isAutomaticSummary: false, preference: nil, explicitPillCount: 1) == false)
+    }
 }

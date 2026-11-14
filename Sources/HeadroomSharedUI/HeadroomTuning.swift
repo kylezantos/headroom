@@ -51,10 +51,10 @@ public struct HeadroomTuning: Codable, Equatable, Sendable {
     public var lightShadowOpacity = 0.12
     public var lightShadowRadius = 5.0
     public var lightShadowY = 1.0
-    // Motion
-    public var valueSpringResponse = 0.3
-    public var valueSpringDamping = 1.0
-    public var settleDuration = 0.20
+    // Motion. CA-F1: the defaults are the shipped tokens by construction.
+    public var valueSpringResponse = HeadroomMotion.valueSpringResponse
+    public var valueSpringDamping = HeadroomMotion.valueSpringDampingFraction
+    public var settleDuration = HeadroomMotion.settleDuration
 
     public init() {}
 
@@ -65,7 +65,7 @@ public struct HeadroomTuning: Codable, Equatable, Sendable {
     }
 
     public var settle: Animation {
-        .timingCurve(0.22, 1, 0.36, 1, duration: settleDuration)
+        HeadroomMotion.houseCurve(duration: settleDuration)
     }
 
     public static func weight(_ name: String) -> Font.Weight {

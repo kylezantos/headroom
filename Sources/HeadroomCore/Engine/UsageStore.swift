@@ -57,14 +57,29 @@ public struct MenuBarMeter: Sendable, Equatable {
     /// Explicit provider pills use this to avoid a first-reading print on Make Main.
     /// Automatic mode has one stable rendering identity and no single source account.
     public let sourceAccountKey: AccountKey?
+    /// CA-MB2 (KTD7): the automatic summary is always marked, whatever the preference says.
+    public let isAutomaticSummary: Bool
 
     public init(summary: MenuBarSummary, fill: Double?, awaitingFirstReading: Bool = false,
-                isLiveReading: Bool = false, sourceAccountKey: AccountKey? = nil) {
+                isLiveReading: Bool = false, sourceAccountKey: AccountKey? = nil,
+                isAutomaticSummary: Bool = false) {
         self.summary = summary
         self.fill = fill
         self.awaitingFirstReading = awaitingFirstReading
         self.isLiveReading = isLiveReading
         self.sourceAccountKey = sourceAccountKey
+        self.isAutomaticSummary = isAutomaticSummary
+    }
+
+    /// CA-MB1: whose mark the pill carries. An explicit pill names its own provider; the
+    /// automatic summary names the provider it follows right now; nil (no reading, or an
+    /// empty selection) draws no mark.
+    public var providerID: ProviderID? { summary.providerID }
+
+    /// CA-MB1/CA-MB2: `explicitPillsMarked` is `UsageStore.menuBarShowsMarks`, the label's
+    /// "shows marks" input.
+    public func showsMark(explicitPillsMarked: Bool) -> Bool {
+        providerID != nil && (isAutomaticSummary || explicitPillsMarked)
     }
 }
 
@@ -105,6 +120,9 @@ public final class UsageStore {
     public internal(set) var accountsByProvider: [ProviderID: [ProviderAccount]]
     public private(set) var apiSpendSnapshots: [ProviderID: APISpendSnapshot]
     public private(set) var showMenuBarPercentage: Bool
+    /// CA-MB1 (KTD7): the stored marks choice, nil until the user makes one. Read
+    /// `menuBarShowsMarks` for the resolved value.
+    public private(set) var menuBarMarksPreference: Bool?
     public private(set) var usagePercentageMode: UsagePercentageMode
     /// G1A: account-title ink, mirrored the same way `meterStyle` is. The menu bar and
     /// widgets carry no title ink; the phone's display block does (iPhone parity KTD11).
@@ -336,6 +354,7 @@ public final class UsageStore {
             ($0.id, .pending(providerID: $0.id, displayName: $0.displayName, periodLabel: preferences.apiSpendPeriod.label))
         })
         self.showMenuBarPercentage = preferences.showMenuBarPercentage
+        self.menuBarMarksPreference = preferences.showMenuBarMarks
         self.usagePercentageMode = preferences.usagePercentageMode
         self.accountTitleInk = preferences.accountTitleInk
         self.accountLayout = preferences.accountLayout
@@ -573,6 +592,21 @@ public final class UsageStore {
     public func setShowMenuBarPercentage(_ enabled: Bool) {
         preferences.showMenuBarPercentage = enabled
         showMenuBarPercentage = enabled
+    }
+
+    /// CA-MB1 (KTD7): no `exportPhoneSyncSnapshot()`, the phone has no menu bar.
+    public func setShowMenuBarMarks(_ enabled: Bool) {
+        guard menuBarMarksPreference != enabled else { return }
+        preferences.showMenuBarMarks = enabled
+        menuBarMarksPreference = enabled
+    }
+
+    /// CA-MB1 (KTD7): whether explicit pills carry their provider's mark, with the unset
+    /// default following the pill count. The automatic summary ignores this
+    /// (`MenuBarMeter.showsMark`).
+    public var menuBarShowsMarks: Bool {
+        MenuBarMarksPolicy.explicitPillsMarked(
+            preference: menuBarMarksPreference, explicitPillCount: selectedMenuBarProviders.count)
     }
 
     public func setUsagePercentageMode(_ mode: UsagePercentageMode) {
@@ -866,7 +900,8 @@ public final class UsageStore {
             return [MenuBarMeter(
                 summary: summary, fill: menuBarFill,
                 awaitingFirstReading: summary.isNeutral && providerOrder.contains { snapshot(for: $0).freshness == .pending },
-                isLiveReading: summary.providerID.map { snapshot(for: $0).freshness == .live } ?? false
+                isLiveReading: summary.providerID.map { snapshot(for: $0).freshness == .live } ?? false,
+                isAutomaticSummary: true
             )]
         }
 

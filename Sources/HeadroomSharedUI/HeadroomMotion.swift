@@ -1,4 +1,9 @@
 import SwiftUI
+#if SWIFT_PACKAGE
+import HeadroomCore
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 
 /// The house motion vocabulary. Every animation in the app target reaches for one of these;
 /// no view declares its own curve, duration, or spring. Decision anchors (`S1A`, `S2A`,
@@ -7,12 +12,40 @@ public enum HeadroomMotion {
     // MARK: Curves — one family (S1A). The stock `easeOut` press curve was retired because
     // built-in curves are too weak to read at 100–200ms.
 
-    public static let settle = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.20)
-    public static let quickSettle = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.12)
+    /// A cubic Bézier's two inner control points, the form both SwiftUI's `timingCurve` and
+    /// AppKit's `CAMediaTimingFunction` take.
+    public struct BezierControlPoints: Sendable, Equatable {
+        public let x1: Double
+        public let y1: Double
+        public let x2: Double
+        public let y2: Double
+
+        public init(x1: Double, y1: Double, x2: Double, y2: Double) {
+            self.x1 = x1
+            self.y1 = y1
+            self.x2 = x2
+            self.y2 = y2
+        }
+    }
+
+    /// CA-F1 (MOT-09): the house curve, exposed once. `settle`, AppKit's `windowCurve` and the
+    /// `HeadroomTuning` defaults the meters read are all built from it, so they can never be
+    /// copies that only match by coincidence.
+    public static let houseCurve = BezierControlPoints(x1: 0.22, y1: 1, x2: 0.36, y2: 1)
+
+    public static func houseCurve(duration: TimeInterval) -> Animation {
+        .timingCurve(houseCurve.x1, houseCurve.y1, houseCurve.x2, houseCurve.y2, duration: duration)
+    }
+
+    /// CA-F1: `settle`'s duration, also the DialKit default.
+    public static let settleDuration: TimeInterval = 0.20
+
+    public static let settle = houseCurve(duration: settleDuration)
+    public static let quickSettle = houseCurve(duration: 0.12)
 
     /// S3A: feedback belongs on pointer-down, so the pressed state lands inside 100ms.
     /// Release returns on `settle`, so the pair is `isPressed ? pressDown : settle`.
-    public static let pressDown = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.10)
+    public static let pressDown = houseCurve(duration: 0.10)
 
     // MARK: Press geometry (PB12)
 
@@ -42,7 +75,12 @@ public enum HeadroomMotion {
     /// M1A: a bar that represents a value must never overshoot it, even by a hair, so the
     /// old `dampingFraction: 0.9` became `1.0`. Drives fill length, numeral roll, and
     /// severity colour together — one cause, one motion.
-    public static let valueSpring = Animation.spring(response: 0.3, dampingFraction: 1.0)
+    public static let valueSpring = Animation.spring(
+        response: valueSpringResponse, dampingFraction: valueSpringDampingFraction)
+
+    /// CA-F1: `valueSpring`'s parameters, also the DialKit defaults the meter rows read.
+    public static let valueSpringResponse = 0.3
+    public static let valueSpringDampingFraction = 1.0
 
     /// M7A: account-list reorders. Slower than `valueSpring` because a row travels ~30pt, and
     /// a spring so a second click mid-flight retargets instead of restarting.
@@ -58,8 +96,8 @@ public enum HeadroomMotion {
     /// SM2: M6B's pane dissolve, split so the two rooms never read as a double exposure. The
     /// outgoing pane leaves in 80ms; the incoming one resolves out of a slight blur on the
     /// house curve. Still nothing travels.
-    public static let paneIn = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.2)
-    public static let paneOut = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.08)
+    public static let paneIn = houseCurve(duration: 0.2)
+    public static let paneOut = houseCurve(duration: 0.08)
 
     /// SM3: neighbours making room while a pill card is dragged. Quicker than `reorder`:
     /// the gap has to open while the pointer is still crossing, or it reads as lag.
@@ -81,8 +119,25 @@ public enum HeadroomMotion {
     /// ~450ms before the part is sharp. Now it resolves in 160ms on the house curve after a
     /// 30ms beat, so it still lands just behind the card's growth but finishes inside it. The
     /// part leaving goes in `paneOut`'s 80ms: exits are the quieter half.
-    public static let partIn = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.16).delay(0.03)
-    public static let partOut = Animation.timingCurve(0.22, 1, 0.36, 1, duration: 0.08)
+    public static let partIn = houseCurve(duration: 0.16).delay(0.03)
+    public static let partOut = houseCurve(duration: 0.08)
+
+    // MARK: Reveal geometry (CA-F1, MOT-09)
+
+    /// CA-F1: the blur a revealed part resolves out of (the Settings reveal and the menu-bar
+    /// card part). Promoted under DESIGN rule 2: two call sites carried the literal.
+    public static let revealBlur: CGFloat = 1.5
+
+    /// CA-F1: the scale a revealed part grows from (the menu-bar card part and the API
+    /// top-up "+"). Two call sites, so a token (rule 2).
+    public static let revealScale: CGFloat = 0.97
+
+    // MARK: Removal drain (CA-M3)
+
+    /// CA-M3 (MOT-03): the Settings account drain's curve, so the view no longer declares its
+    /// own `.linear`. Linear because the pill empties at the rate the account is going; its
+    /// length is the loading language's `drainDuration`. Movement under Reduce Motion.
+    public static let drain = Animation.linear(duration: LoadingMotionConstants.drainDuration)
 
     // MARK: Arrival timing (M9A)
 
@@ -104,6 +159,11 @@ public enum HeadroomMotion {
     /// never lags the data. Critically damped for the same reason (M1A).
     public static let arrivalSpring = Animation.spring(response: 0.4, dampingFraction: 1.0)
 
+    /// CA-M6 (MOT-06): how many accounts, in display order, stage the first-open draw-in.
+    /// Rows past the cap sit below the popover's fold when it plays, so they paint final and
+    /// write no arrival state. The phone's card-entrance cap is the second site.
+    public static let arrivalAccountCap = 8
+
     // MARK: Window handoff (SW1)
 
     /// SW1 (Kyle, 2026-09-25: opening and closing Settings "feels clunky"). AppKit shows a
@@ -115,11 +175,6 @@ public enum HeadroomMotion {
     /// is the quieter half. Opacity only, so Reduce Motion keeps it (S2A).
     public static let windowInDuration: TimeInterval = 0.26
     public static let windowOutDuration: TimeInterval = 0.12
-
-    // MARK: Compatibility names — retire as call sites migrate to the S3A pairs above.
-
-    public static let hover = hoverOut
-    public static let press = pressDown
 
     // MARK: Reduce Motion (S2A)
 

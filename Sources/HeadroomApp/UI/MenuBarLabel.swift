@@ -41,6 +41,10 @@ struct MenuBarLabel: View {
     var probeEndTimes: [ProviderID: Date] = [:]
     /// The status item always draws `.standard`; a narrow Settings pill card passes `.compact`.
     var metrics: MenuBarPillMetrics = .standard
+    /// CA-MB1 (KTD7): whether explicit pills carry their provider's mark
+    /// (`UsageStore.menuBarShowsMarks`). The automatic summary is marked regardless
+    /// (`MenuBarMeter.showsMark`). Off by default; nothing is drawn for it yet.
+    var showsMarks = false
 
     @State private var slosh = MenuBarSlosh()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -59,7 +63,8 @@ struct MenuBarLabel: View {
                 : MenuBarSlosh.staticPresentation(for: meter))
         }, uniquingKeysWith: { _, latest in latest })
         let result = MenuBarLabelRenderer.render(meters: meters, showsPercentage: showsPercentage,
-            palette: palette, automatic: automatic, presentations: presentations, metrics: metrics)
+            palette: palette, automatic: automatic, presentations: presentations, metrics: metrics,
+            showsMarks: showsMarks)
         Image(nsImage: result.image)
             .accessibilityLabel(result.accessibilityLabel)
             .help(result.tooltip)
@@ -122,7 +127,8 @@ struct MenuBarStatusLabel: View {
             sourceAccounts: sources,
             probeEndTimes: Dictionary(uniqueKeysWithValues: sources.compactMap { provider, key in
                 ends[key].map { (provider, $0) }
-            })
+            }),
+            showsMarks: store.menuBarShowsMarks
         )
     }
 }
@@ -291,7 +297,8 @@ enum MenuBarLabelRenderer {
         palette: MenuBarPalette,
         automatic: Bool = false,
         presentations: [MenuBarSlosh.MeterKey: MenuBarSlosh.Presentation] = [:],
-        metrics: MenuBarPillMetrics = .standard
+        metrics: MenuBarPillMetrics = .standard,
+        showsMarks: Bool = false
     ) -> MenuBarLabelRenderResult {
         let numeralFont = font(for: metrics)
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters

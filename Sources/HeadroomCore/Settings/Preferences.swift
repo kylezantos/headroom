@@ -11,6 +11,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let interval = "pollIntervalMinutes"
         static let appearancePreference = "appearancePreference"
         static let showMenuBarPercentage = "showMenuBarPercentage"
+        static let showMenuBarMarks = "showMenuBarMarks"
         static let usagePercentageMode = "usagePercentageMode"
         static let accountTitleInk = "accountTitleInk"
         static let accountLayout = "accountLayout"
@@ -65,6 +66,23 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
     public var showMenuBarPercentage: Bool {
         get { defaults.bool(forKey: Key.showMenuBarPercentage) }
         nonmutating set { defaults.set(newValue, forKey: Key.showMenuBarPercentage) }
+    }
+
+    /// CA-MB1 (KTD7): nil until the user chooses, so the default can follow the pill count
+    /// (`MenuBarMarksPolicy`) without telling a new install from an old one. Mac-only: no
+    /// phone, widget or companion projection reads it.
+    public var showMenuBarMarks: Bool? {
+        get {
+            guard defaults.object(forKey: Key.showMenuBarMarks) != nil else { return nil }
+            return defaults.bool(forKey: Key.showMenuBarMarks)
+        }
+        nonmutating set {
+            if let newValue {
+                defaults.set(newValue, forKey: Key.showMenuBarMarks)
+            } else {
+                defaults.removeObject(forKey: Key.showMenuBarMarks)
+            }
+        }
     }
 
     public var usagePercentageMode: UsagePercentageMode {
@@ -361,6 +379,20 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         } else {
             defaults.removeObject(forKey: Key.renewal(id))
         }
+    }
+}
+
+/// CA-MB1/CA-MB2 (KTD7): who carries a provider mark in the menu bar. The preference governs
+/// explicit pills only; unset, two or more pills are marked and a single pill is not. The
+/// automatic summary is always marked, because one unlabeled pill that changes meaning is the
+/// worst case.
+public enum MenuBarMarksPolicy {
+    public static func explicitPillsMarked(preference: Bool?, explicitPillCount: Int) -> Bool {
+        preference ?? (explicitPillCount >= 2)
+    }
+
+    public static func showsMark(isAutomaticSummary: Bool, preference: Bool?, explicitPillCount: Int) -> Bool {
+        isAutomaticSummary || explicitPillsMarked(preference: preference, explicitPillCount: explicitPillCount)
     }
 }
 

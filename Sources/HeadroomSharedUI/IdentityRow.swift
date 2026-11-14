@@ -34,6 +34,9 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// capsule takes, and "Stale" is never drawn beside it. Nil, the default, leaves every
     /// existing row exactly as it was.
     public var lastReadLabel: String? = nil
+    /// CA-P3: when a stale engine row was last read, so its chip can say "Last read" with its
+    /// age instead of "Stale". Nil, the default, draws "Stale" as today.
+    public var staleReadAge: IdentityRowReadAge? = nil
     /// KTD3: the phone's one Dynamic Type unit over the popover ramp; the Mac passes 1.
     public var scale: CGFloat = 1
     /// U3: where a host shows the full account name once the title has truncated. The Mac
@@ -69,6 +72,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         isCritical: Bool = false,
         isRevealing: Bool = false,
         lastReadLabel: String? = nil,
+        staleReadAge: IdentityRowReadAge? = nil,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
         onPlanCapsuleTap: (() -> Void)? = nil,
@@ -90,6 +94,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         self.isCritical = isCritical
         self.isRevealing = isRevealing
         self.lastReadLabel = lastReadLabel
+        self.staleReadAge = staleReadAge
         self.scale = scale
         self.onTruncatedTitle = onTruncatedTitle
         self.onPlanCapsuleTap = onPlanCapsuleTap
@@ -347,6 +352,18 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     }
 }
 
+/// CA-P3: a stale row's read time with the moment it is judged against, since the row has no
+/// clock of its own. A nil `capturedAt` means nothing records the read.
+public struct IdentityRowReadAge: Equatable, Sendable {
+    public let capturedAt: Date?
+    public let now: Date
+
+    public init(capturedAt: Date?, now: Date) {
+        self.capturedAt = capturedAt
+        self.now = now
+    }
+}
+
 /// U8: where `IdentityRow` places its accessory.
 public enum IdentityRowAccessoryPlacement: Sendable {
     /// The Mac's loading pill, after the spacer on the trailing edge.
@@ -394,6 +411,7 @@ public extension IdentityRow where Accessory == EmptyView {
         isCritical: Bool = false,
         isRevealing: Bool = false,
         lastReadLabel: String? = nil,
+        staleReadAge: IdentityRowReadAge? = nil,
         scale: CGFloat = 1,
         onTruncatedTitle: ((String) -> Void)? = nil,
         onPlanCapsuleTap: (() -> Void)? = nil,
@@ -405,7 +423,7 @@ public extension IdentityRow where Accessory == EmptyView {
             isMenuBarAccount: isMenuBarAccount, isStale: isStale, email: email,
             showsPersistentEmail: showsPersistentEmail, showsConnectedChip: showsConnectedChip,
             showsMark: showsMark, bankedResets: bankedResets, isCritical: isCritical,
-            isRevealing: isRevealing, lastReadLabel: lastReadLabel, scale: scale, onTruncatedTitle: onTruncatedTitle,
+            isRevealing: isRevealing, lastReadLabel: lastReadLabel, staleReadAge: staleReadAge, scale: scale, onTruncatedTitle: onTruncatedTitle,
             onPlanCapsuleTap: onPlanCapsuleTap, accessibilityIdentifierPrefix: accessibilityIdentifierPrefix,
             mark: mark, accessory: { EmptyView() }
         )

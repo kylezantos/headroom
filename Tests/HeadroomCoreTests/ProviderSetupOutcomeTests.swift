@@ -616,6 +616,15 @@ import Testing
         #expect(!ProviderSetupOutcome.claudeCLIMissing.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
+
+    /// CA-P5 seam (U1): until U6 fills it, the short action is today's full label, so a
+    /// recovery row built on it reads exactly as before for every outcome.
+    @Test func theShortRecoveryLabelDefaultsToTheFullPrimaryLabel() {
+        for outcome in allSetupOutcomes {
+            let presentation = outcome.recoveryPresentation
+            #expect(presentation.primaryShortLabel == presentation.primaryLabel, "\(outcome)")
+        }
+    }
 }
 
 /// Every user-facing string the two presentation surfaces can produce, so a copy rule

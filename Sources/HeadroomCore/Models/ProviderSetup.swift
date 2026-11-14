@@ -494,6 +494,10 @@ public struct ProviderRecoveryPresentation: Sendable, Equatable {
         self.secondaryAction = secondaryAction
         self.automaticPolicy = automaticPolicy
     }
+
+    /// CA-P5: the action a one-line recovery row appends after its sentence, as in "Claude
+    /// Code not found · Install". Today it is the full button label; U6 shortens it.
+    public var primaryShortLabel: String { primaryLabel }
 }
 
 /// Redaction-safe filesystem handshake around an external Terminal setup process.

@@ -1392,6 +1392,9 @@ struct StopWaitingButton: View {
     var onConfirmationPresented: () -> Void = {}
     var onStop: ((ProviderAccount) -> Void)? = nil
     var onDismiss: () -> Void = {}
+    /// CA-P14: set for a never-signed-in extra, so stopping an Add Account can also remove
+    /// the row it made. Nil keeps today's dialog.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
     @State private var isConfirming = false
 
     var body: some View {

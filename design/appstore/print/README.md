@@ -9,7 +9,8 @@ printed as halftone ghosts.
   shows one frame at the page origin for export.
 - `../../../Scripts/export-appstore-print.sh`: renders all twelve frames to `dist/appstore/print/`,
   converts them to sRGB, strips alpha and verifies with `sips`.
-- Listing order and copy: `docs/release/appstore-listing.md`.
+- Maintainer listing order and copy: `headroom-site/docs/release/appstore-listing.md`
+  in the private website repository.
 
 ## Local fonts
 

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Headroom Website Release"
-  short_description: "Ship signed Headroom DMGs with Sparkle updates"
-  default_prompt: "Use $release-website-dmg to ship the next Headroom website DMG and verify its Sparkle update path."

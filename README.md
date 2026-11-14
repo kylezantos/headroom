@@ -9,17 +9,12 @@ metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium,
 glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +
 widgets that read a redaction-safe snapshot synced from the Mac through iCloud Key-Value Store.
 
-## Website and release ownership
+## Website and releases
 
-The website is independent of the portfolio. The private `kylezantos/headroom-site`
-repository deploys the Vercel `headroom-site` project at **https://headroom.zantos.co**.
-This repository owns app source, version bumps, signing, notarization, and release acceptance.
-The public `kylezantos/headroom-downloads` repository stores signed DMGs and Sparkle deltas.
-
-Follow [the website release runbook](docs/release/website-dmg-release.md): build here,
-publish metadata/archive mappings through a PR in `headroom-site`, then run `pnpm ship`
-there to promote `main` to `production`. Do not publish releases through `kz-portfolio`.
-Existing download, appcast, privacy, and release-note URLs stay unchanged.
+Download official builds at **https://headroom.zantos.co**. This repository contains the app
+source, build tooling and canonical [release notes](docs/release/sparkle). The maintainer
+manages website deployment and official release operations in the private `headroom-site`
+repository; signed DMGs and Sparkle deltas are stored in `headroom-downloads`.
 
 ## How it gets the data (and why this way)
 
@@ -309,124 +304,13 @@ app (needed to spawn `claude` and read `~/.codex/auth.json`); the widget extensi
 sandboxed and reads only the App Group cache. Notarization isn't needed for a locally
 built/run app.
 
-## Website release build
+## Official releases
 
-For a public website download, local Apple Development signing is not enough. macOS
-Gatekeeper expects a Developer ID-signed and notarized artifact. `Scripts/release-app.sh`
-builds the release app with hardened runtime, submits the app and DMG to Apple's notary
-service, staples the tickets, signs the DMG for Sparkle updates, and verifies both with
-`spctl` / `stapler`.
-
-One-time requirements:
-
-- Active Apple Developer Program membership.
-- A **Developer ID Application** certificate installed in Keychain.
-- Xcode signing access for the Mac app and widget App IDs, including iCloud Key-Value
-  Store and App Groups. The release script uses Xcode's `developer-id` archive export so
-  the app contains `Mac Team Direct Provisioning Profile` files and profile-derived
-  entitlements.
-- Notary credentials stored in the local keychain, or supplied through environment
-  variables.
-- A Sparkle EdDSA key pair, with the private key in your login Keychain and the public key
-  stamped into the release app as `SUPublicEDKey`.
-
-Recommended one-time notary setup:
-
-```bash
-xcrun notarytool store-credentials headroom-notary \
-  --apple-id "you@example.com" \
-  --team-id "TEAMID" \
-  --password "<app-specific-password>"
-```
-
-Recommended one-time Sparkle setup:
-
-```bash
-./.xcode-derived/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_keys
-```
-
-That stores the private EdDSA key in your login Keychain and prints the public key. Keep
-the private key backed up; use the printed public key as `HEADROOM_SPARKLE_PUBLIC_ED_KEY`.
-The current public key is:
-
-```text
-VkSwNYbBn5WJUbqYFyhewIFZt4DIfCwiWmTNiGGDorM=
-```
-
-Then build the website DMG:
-
-```bash
-HEADROOM_NOTARY_PROFILE=headroom-notary ./Scripts/release-app.sh
-```
-
-By default, the release app is stamped with the Sparkle feed URL
-`https://headroom.zantos.co/appcast.xml`, matching the public download page hosted at
-`https://headroom.zantos.co`. Override `HEADROOM_SPARKLE_FEED_URL` only if the appcast
-moves.
-
-The script writes `dist/Headroom-<version>-<build>.dmg` and signs
-`dist/Headroom-<version>-<build>.dmg.sparkle-signature.txt`. By default it also prepares
-the website payload in `dist/headroom.zantos.co/`: a versioned DMG for Sparkle appcast
-history, `appcast.xml`, a stable `Headroom.dmg` for the download button at
-`https://headroom.zantos.co/Headroom.dmg`, SHA-256 sidecars for both DMG names, and
-`latest.json` for the public download page to read the current version, build, size,
-hash, and URLs. The DMG opens as a native, appearance-adaptive drag installer with
-`Headroom.app` next to the conventional `/Applications` symlink.
-If multiple Developer ID Application certificates are installed, pin one:
-
-```bash
-HEADROOM_DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
-HEADROOM_NOTARY_PROFILE=headroom-notary \
-  ./Scripts/release-app.sh
-```
-
-The host app intentionally remains non-sandboxed for 1.0 so it can spawn the official
-`claude` CLI and read Codex's local auth file. The widget extension remains sandboxed and
-uses only the App Group cache. By default, `Scripts/release-app.sh` uses
-`group.com.kylezantos.headroom`, matching the app and widget entitlements managed in the
-Apple Developer account; override `HEADROOM_APP_GROUP_IDENTIFIER` only if you intentionally
-use another App Group id. Before publishing a new DMG, run a clean download-style smoke
-test: open the DMG, drag Headroom to `/Applications`, launch it, verify the menu bar item
-appears, confirm Claude/Codex setup or live states, and check that widgets can be added and
-read the app's exported cache.
-
-For the complete version-bump, notarization, cross-repo publishing, and live-verification
-procedure, see [`docs/release/website-dmg-release.md`](docs/release/website-dmg-release.md).
-
-## iOS distribution
-
-The iPhone/iPad companion app and iOS widgets are distributed through Apple's normal iOS
-channels, not through Sparkle, DMG packaging, or Developer ID notarization: TestFlight
-for betas, then the **App Store** (the public distribution channel) via the same
-`com.kylezantos.headroom.ios` App Store Connect app record. Ad Hoc builds are only for
-registered-device testing and are not the update mechanism for users.
-
-Build a local App Store Connect export (replace `20` with the highest build already
-uploaded to App Store Connect):
-
-```bash
-HEADROOM_IOS_LAST_UPLOADED_BUILD=20 ./Scripts/release-ios-testflight.sh
-```
-
-Upload the archive to App Store Connect for TestFlight processing:
-
-```bash
-HEADROOM_IOS_LAST_UPLOADED_BUILD=20 HEADROOM_IOS_UPLOAD=1 ./Scripts/release-ios-testflight.sh
-```
-
-The upload path requires an App Store Connect app record for
-`com.kylezantos.headroom.ios` and either an authenticated Xcode account or App Store
-Connect API credentials. If upload fails with `Error Downloading App Information`, create
-or confirm the App Store Connect app record for that bundle ID first.
-
-```bash
-HEADROOM_ASC_KEY_PATH="/path/to/AuthKey_KEYID.p8" \
-HEADROOM_ASC_KEY_ID="KEYID" \
-HEADROOM_ASC_ISSUER_ID="ISSUER-ID" \
-HEADROOM_IOS_LAST_UPLOADED_BUILD=20 \
-HEADROOM_IOS_UPLOAD=1 \
-  ./Scripts/release-ios-testflight.sh
-```
+Official macOS downloads and updates are published at **https://headroom.zantos.co**.
+The iPhone/iPad companion uses TestFlight and the App Store, independently of Sparkle.
+The maintainer's signing, notarization, App Store and website publishing procedures live
+in the private `headroom-site` repository. See [release documentation](docs/release/README.md)
+for the boundary between public build tooling and maintainer operations.
 
 ## Status
 

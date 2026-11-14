@@ -400,21 +400,14 @@ swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --be
 Scripts/dialkit.sh [scenario]      # live-tune the popover with DialKit: inspector + demo with a pinned popover (HEADROOM_DIALKIT=1; values in HeadroomSharedUI/HeadroomTuning.swift, defaults = shipped literals)
 ```
 
-## Website DMG releases
+## Official release operations
 
-For any request to prepare, publish, or ship a new public Headroom DMG, use the repo-local
-`release-website-dmg` skill. Its authoritative runbook is
-`docs/release/website-dmg-release.md`; it covers Developer ID signing, notarization, the
-Sparkle appcast, Headroom website deployment, and the required installed-app update acceptance test.
-The public domain is `headroom.zantos.co`. Its dedicated Vercel project and private website
-repository are both `headroom-site`; `kz-portfolio` no longer publishes Headroom releases.
-
-For a coordinated release that also includes TestFlight or App Store work, begin with
-`docs/release/release-operations.md`. Keep macOS publication, Sparkle acceptance, TestFlight
-upload, TestFlight availability, device acceptance, and App Review submission as separate states;
-never collapse them into a generic “released.” Preflight dedicated test environments and manual
-security/browser handoffs before publishing. Do not brute-force menu-bar UI, configure iPhone
-Mirroring during a release, or use broad process termination to clean up QA copies.
+The maintainer's release runbooks and `release-website-dmg` skill live in the private
+`kylezantos/headroom-site` repository. For an official release request, use that checkout's
+`docs/release/release-operations.md` and `.agents/skills/release-website-dmg/SKILL.md`.
+Keep source/build scripts and canonical Sparkle notes here. Normal contributor builds do
+not require access to the private repository. Never publish an official release from an
+unmerged branch or change public download/update URLs as part of routine development.
 
 Building requires Xcode 27.0 / Swift 6.4 (iOS 27 SDK). The iOS deployment target remains
 26.0; guard any iOS 27 API with an availability check. The app targets macOS 15+ on Apple

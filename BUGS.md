@@ -6,6 +6,14 @@ official `claude` CLI's `/usage` panel instead.
 
 ## Initial CodeQL findings (2026-11-14)
 
+- **Swift scanning is unavailable with the required toolchain.** Both default setup and an
+  explicit Xcode 27 build were attempted. The traced build failed to load Apple's Swift macro
+  plugin with `Bad CPU type in executable`. GitHub's CodeQL 2.27.3 release notes confirm that
+  macOS/Xcode 27 traced builds are unsupported; Headroom requires Swift 6.4. Keep the working
+  Python, JavaScript/TypeScript and Actions scans enabled, and revisit Swift when upstream
+  support lands. Do not downgrade app requirements or suppress extraction errors to claim
+  coverage. Source: https://github.com/github/codeql-cli-binaries/blob/main/CHANGELOG.md#release-2273-2026-10-20.
+
 - The first Python security analysis raised 24 alerts in `Scripts/github-release.py`,
   `Scripts/bench-trace-summary.py` and `Scripts/dmg-layout-check.py`. They cover command-line
   arguments, file paths, deserialization, XML parsing and a regular expression under the

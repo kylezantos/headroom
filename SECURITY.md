@@ -15,3 +15,14 @@ and you'll be credited in its notes unless you'd rather not be.
 ## Supported versions
 
 Only the latest release, from https://headroom.zantos.co or the App Store, receives fixes.
+
+## Automated checks
+
+GitHub secret scanning and push protection are enabled, alongside Dependabot vulnerability
+alerts and security-update pull requests. CodeQL scans Python, JavaScript/TypeScript and
+GitHub Actions workflows using GitHub's default setup, including local-input threat modeling.
+
+**Swift code is not covered by CodeQL.** Headroom requires Xcode 27 / Swift 6.4, which
+[CodeQL's traced analysis does not currently support](https://github.com/github/codeql-cli-binaries/blob/main/CHANGELOG.md#release-2273-2026-10-20).
+The ordinary Swift tests and Mac/iOS builds remain required CI checks; passing them does not
+replace a security review. Revisit Swift scanning when upstream toolchain support is available.

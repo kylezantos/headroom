@@ -94,8 +94,7 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
   `NavigationSplitView`: `SettingsView` owns every root state and dialog, `SettingsSidebar`
   lists the seven `SettingsPane` destinations, and the stateless panes live in
   `SettingsPanes.swift`; Appearance previews choices with an inert `AppearanceSpecimen`.
-  Since the Nov 2026 craft audit (`docs/plans/2026-11-13-1929-feat-craft-audit-refinements-plan.md`,
-  anchors `CA-<area>`): General holds settings, then an About tile of three rows (Version, Send
+  Since the Nov 2026 craft audit (anchors `CA-<area>`): General holds settings, then an About tile of three rows (Version, Send
   feedback, Made by), and the sidebar's Tip Jar is the window's one ask (CA-S6, overturning
   PR #179's combined About with a second tip-jar row). Widgets & iPhone leads with its real
   switches in three titled tiles, "Mac widgets", "iPhone and iPad" and "Widget styles", the

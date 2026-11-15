@@ -1530,7 +1530,7 @@ the windows before promotion would keep them still. Owner to decide; applies to 
 
 ## Craft audit follow-ups (2026-11-14, CA-)
 
-Deferred from `docs/plans/2026-11-13-1929-feat-craft-audit-refinements-plan.md`. Anchors are the
+Deferred from the Nov 2026 craft audit. Anchors are the
 options doc's area ids, written `CA-<area>` in code.
 
 - **Menu-bar Codex mark at 1× (CA-MB1).** On a 1× bar the `>_` cut-out is knocked out again by

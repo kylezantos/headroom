@@ -163,4 +163,25 @@ import Testing
         #expect(layout.contentWidth >= dotEdge)
         #expect(layout.imageWidth >= dotEdge)
     }
+
+    /// CA-MB1: the menu bar sizes its marks from its own table. Every shipped provider has an
+    /// entry (not the fallback), and every ink, outline included, fits the 13pt box and the
+    /// 18pt image after its nudge, so a mark never draws into its gap or past the label.
+    @Test(arguments: ["claude", "codex", "grok", "cursor", "copilot", "opencode"])
+    func everyProviderHasMenuBarMarkMetricsThatFitTheBox(_ provider: String) {
+        let metrics = MenuBarLabelGeometry.markMetrics(for: provider)
+        #expect(metrics != MenuBarLabelGeometry.defaultMarkMetrics, "\(provider) falls back to the default")
+        let ink = metrics.inkSize(aspect: HeadroomBrandMark.inkAspect(for: provider))
+        #expect(max(ink.width, ink.height) == metrics.inkExtent)
+        #expect(ink.width + metrics.thickening <= MenuBarLabelGeometry.markBoxSize, "\(provider) width")
+        #expect(ink.height + metrics.thickening <= MenuBarLabelGeometry.markBoxSize, "\(provider) height")
+        #expect(ink.height + metrics.thickening + 2 * abs(metrics.verticalNudge) <= MenuBarLabelGeometry.height)
+        #expect(metrics.thickening >= 0 && metrics.thickening <= 0.5, "\(provider) outline is a hairline")
+    }
+
+    @Test func anUnknownProviderGetsTheDefaultMarkMetrics() {
+        #expect(MenuBarLabelGeometry.markMetrics(for: "someday-provider") == MenuBarLabelGeometry.defaultMarkMetrics)
+        let fallback = MenuBarLabelGeometry.defaultMarkMetrics
+        #expect(fallback.inkExtent + fallback.thickening <= MenuBarLabelGeometry.markBoxSize)
+    }
 }

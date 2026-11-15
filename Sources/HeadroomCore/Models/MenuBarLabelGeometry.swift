@@ -35,6 +35,68 @@ public enum MenuBarLabelGeometry {
     /// previous pill's numeral.
     public static let markedMeterGapExtra: Double = 2
 
+    /// How one provider's mark sits inside its `markBoxSize` box (CA-MB1). The box, its gap
+    /// and the pill gaps never change with the provider, so the label measures the same
+    /// whichever marks it carries; only the ink inside the box does.
+    public struct MarkMetrics: Sendable, Equatable {
+        /// The ink's larger dimension in points; the other follows the artwork's
+        /// `HeadroomBrandMark.inkAspect`.
+        public let inkExtent: Double
+        /// Points the ink's centre is raised above the vessel's centre (negative lowers it).
+        public let verticalNudge: Double
+        /// Total width of a same-ink outline added around the artwork, in points (0 = none):
+        /// thickens hairline strokes that thin out at 13pt. Drawn on Retina bars only: on a
+        /// 1× bar a whole-pixel outline closes counters.
+        public let thickening: Double
+
+        public init(inkExtent: Double, verticalNudge: Double = 0, thickening: Double = 0) {
+            self.inkExtent = inkExtent
+            self.verticalNudge = verticalNudge
+            self.thickening = thickening
+        }
+
+        /// The ink's width and height for an artwork of `aspect` (width ÷ height).
+        public func inkSize(aspect: Double) -> (width: Double, height: Double) {
+            guard aspect.isFinite, aspect > 0 else { return (inkExtent, inkExtent) }
+            return aspect >= 1 ? (inkExtent, inkExtent / aspect) : (inkExtent * aspect, inkExtent)
+        }
+    }
+
+    /// The mark of a provider the table does not know: a mid-weight extent from the six below.
+    public static let defaultMarkMetrics = MarkMetrics(inkExtent: 11, verticalNudge: markTieLift)
+
+    /// CA-MB1: a 0.1pt lift on every mark. When an ink height and the 18pt image disagree in
+    /// pixel parity the centred mark falls on a half pixel, and the lift settles that tie one
+    /// pixel up rather than down, which is where the optical centre sits anyway.
+    public static let markTieLift: Double = 0.1
+
+    /// CA-MB1 (Nov 2026): the menu bar's own mark sizing, never the popover's
+    /// `HeadroomBrandMark.markSize`. That rule was tuned for coloured marks at popover sizes;
+    /// in one ink at 13pt it left the six marks 2pt apart in height and 1.85× apart in weight
+    /// (Codex's and OpenCode's solid shapes heavy, Grok's and Copilot's strokes faint). Tuned
+    /// by optical rule rather than equal boxes, measured at 2× (alpha-weighted ink, then
+    /// judged on 1× and 2× sheets on both bars):
+    /// - Codex 9.5 and OpenCode 10 (8 wide): the solid shapes take the least extent.
+    /// - Cursor 10.5: a near-solid cube, one step under the open marks; an even 1× height.
+    /// - Claude 11.5: its rays leave most of the box empty, so it takes more.
+    /// - Copilot 12.5 (10.4 tall): size alone brings its open face level, no outline (a 0.3pt
+    ///   outline filled the goggles).
+    /// - Grok 12.5 with a 0.5pt outline: size alone stalls at 0.66 of Codex's weight even
+    ///   filling the box, so the hairline ring and slash are thickened on Retina only.
+    /// Result at 2×: weight max/min 1.30× (was 1.85×), every centre within +0.25pt of the
+    /// vessel's. At 1× Grok stays the lightest (an outline closes its ring there).
+    public static func markMetrics(for providerID: String) -> MarkMetrics {
+        switch providerID {
+        case ProviderID.claude.raw: MarkMetrics(inkExtent: 11.5, verticalNudge: markTieLift)
+        case ProviderID.codex.raw: MarkMetrics(inkExtent: 9.5, verticalNudge: markTieLift)
+        case ProviderID.grok.raw: MarkMetrics(inkExtent: 12.5, verticalNudge: markTieLift, thickening: 0.5)
+        case ProviderID.cursor.raw: MarkMetrics(inkExtent: 10.5, verticalNudge: markTieLift)
+        case ProviderID.copilot.raw: MarkMetrics(inkExtent: 12.5, verticalNudge: markTieLift)
+        case ProviderID.opencode.raw: MarkMetrics(inkExtent: 10, verticalNudge: markTieLift)
+        default: defaultMarkMetrics
+        }
+    }
+
     /// The part of a meter this layout cannot derive on its own: whether it draws a
     /// percentage (and how wide that text measured), whether it carries the attention dot,
     /// and whether it draws its provider's mark (CA-MB1).

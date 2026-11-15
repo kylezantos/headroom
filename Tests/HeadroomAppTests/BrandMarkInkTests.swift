@@ -278,6 +278,64 @@ struct MenuBarMarkRenderTests {
         #expect(oneX.min < 0.25 * oneX.peak, "1× underscore alpha \(oneX.min) of \(oneX.peak)")
     }
 
+    /// One mark's ink in a single-pill render: the box of pixels at or above half the peak
+    /// alpha, the alpha-weighted pixel count (alpha / peak), and how far the box's centre sits
+    /// above the vessel's (the image's) centre, in points. Also whether anything at all was
+    /// drawn in the gap between the mark's box and its vessel.
+    static func markInk(_ provider: ProviderID, dark: Bool, scale: CGFloat) throws
+        -> (height: Double, mass: Double, lift: Double, spillsIntoGap: Bool) {
+        let image = MenuBarLabelRenderer.render(meters: [meter(provider)], showsPercentage: false,
+                                                palette: MenuBarPalette(isDarkMenuBar: dark), showsMarks: true).image
+        let rep = try bitmap(image, scale: scale)
+        let data = rep.bitmapData!
+        let box = Int(MenuBarLabelGeometry.markBoxSize * Double(scale))
+        let vessel = Int((MenuBarLabelGeometry.markBoxSize + MenuBarLabelGeometry.markVesselGap) * Double(scale))
+        func alpha(_ x: Int, _ y: Int) -> Int { Int(data[y * rep.bytesPerRow + x * 4 + 3]) }
+        var peak = 0, spills = false
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<box { peak = max(peak, alpha(x, y)) }
+            for x in box..<vessel where alpha(x, y) > 0 { spills = true }
+        }
+        var top = Int.max, bottom = -1, mass = 0.0
+        for y in 0..<rep.pixelsHigh {
+            for x in 0..<box {
+                mass += Double(alpha(x, y)) / Double(peak)
+                if alpha(x, y) * 2 >= peak { top = min(top, y); bottom = max(bottom, y) }
+            }
+        }
+        let s = Double(scale)
+        let lift = (Double(rep.pixelsHigh) / 2 - Double(top + bottom + 1) / 2) / s
+        return (Double(bottom - top + 1) / s, mass, lift, spills)
+    }
+
+    /// CA-MB1: pins the menu bar's optical balance of the six marks. With the popover's sizing
+    /// they measured 2pt apart in height and 1.85× apart in weight at 2×; the menu bar's own
+    /// table measures 2.0pt (by design: the solid Codex and OpenCode take the least extent)
+    /// and 1.30×, every centre within 0.25pt of the vessel's, nothing in the gap.
+    @Test(arguments: [true, false])
+    func theSixMarksStayOpticallyBalancedAtTwoX(_ dark: Bool) throws {
+        var heights: [Double] = [], masses: [Double] = []
+        for provider in Self.providers {
+            let ink = try Self.markInk(provider, dark: dark, scale: 2)
+            heights.append(ink.height); masses.append(ink.mass)
+            #expect(abs(ink.lift) <= 0.3, "\(provider.raw) sits \(ink.lift)pt off the vessel's centre")
+            #expect(!ink.spillsIntoGap, "\(provider.raw) drew into its gap")
+        }
+        let summary = zip(Self.providers, zip(heights, masses)).map { "\($0.raw) \($1.0)pt \(Int($1.1))" }.joined(separator: ", ")
+        #expect(heights.max()! - heights.min()! <= 2.25, "heights: \(summary)")
+        #expect(masses.max()! / masses.min()! < 1.36, "weights: \(summary)")
+    }
+
+    /// At 1× the marks stay inside their boxes and on the vessel's centre to the half pixel.
+    @Test(arguments: [true, false])
+    func everyMarkStaysInItsBoxAndCentredAtOneX(_ dark: Bool) throws {
+        for provider in Self.providers {
+            let ink = try Self.markInk(provider, dark: dark, scale: 1)
+            #expect(abs(ink.lift) <= 0.5, "\(provider.raw) sits \(ink.lift)pt off the vessel's centre")
+            #expect(!ink.spillsIntoGap, "\(provider.raw) drew into its gap")
+        }
+    }
+
     /// One explicit pill with marks resolved off draws exactly as before.
     @Test func explicitPillsFollowTheResolvedPreference() {
         let palette = MenuBarPalette(isDarkMenuBar: true)

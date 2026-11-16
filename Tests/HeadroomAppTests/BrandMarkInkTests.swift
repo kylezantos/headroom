@@ -170,22 +170,39 @@ struct MenuBarMarkRenderTests {
         return out
     }
 
-    /// Marks off must leave today's image untouched. Pinned from the renderer at 6dbe09c3,
-    /// before any mark was drawn, at 2× for icon-only and percentage strips on both bars.
-    @Test(arguments: [(false, false), (false, true), (true, false), (true, true)])
-    func marksOffIsByteIdenticalToTheUnmarkedLabel(_ input: (dark: Bool, percentage: Bool)) throws {
-        let result = MenuBarLabelRenderer.render(meters: Self.strip(attention: true), showsPercentage: input.percentage,
-                                                 palette: MenuBarPalette(isDarkMenuBar: input.dark), showsMarks: false)
+    /// Marks off must leave today's image untouched. The icon-only strips hold no text, so
+    /// their bytes are pinned from the renderer at 6dbe09c3, before any mark was drawn, at 2×
+    /// on both bars. Percentage strips are not pinned: their bytes follow the host's text
+    /// antialiasing, which differs between machines (the CI runner's digests did not match).
+    @Test(arguments: [false, true])
+    func marksOffIsByteIdenticalToTheUnmarkedLabel(_ dark: Bool) throws {
+        let result = MenuBarLabelRenderer.render(meters: Self.strip(attention: true), showsPercentage: false,
+                                                 palette: MenuBarPalette(isDarkMenuBar: dark), showsMarks: false)
         let digest = Self.digest(try Self.bitmap(result.image, scale: 2))
-        // A macOS update that changes text antialiasing moves the two percentage digests;
-        // re-pin those from a marks-off render on the base commit, never from new code.
         let pinned = [
-            "true-false": "99416408dd03df159474ead91635a93dd88956595b7b88543c2033558c931417",
-            "true-true": "5342fe0e5b70e445f7b33d778cb799266ea80f25dcd5ba97ee808169e5171340",
-            "false-false": "b597010eee796da1cdaab1f49d5612b25f8c4cd2a900d1bab269bf7f7035f34f",
-            "false-true": "c7ee18d33893f40c16280e03c42695cddecf32ddf7af127d247adf4f33e73dbb",
+            true: "99416408dd03df159474ead91635a93dd88956595b7b88543c2033558c931417",
+            false: "b597010eee796da1cdaab1f49d5612b25f8c4cd2a900d1bab269bf7f7035f34f",
         ]
-        #expect(digest == pinned["\(input.dark)-\(input.percentage)"], "dark \(input.dark) pct \(input.percentage): \(digest)")
+        #expect(digest == pinned[dark], "dark \(dark): \(digest)")
+    }
+
+    /// The same guarantee for strips with text, on any machine: a marks-off render equals the
+    /// render of meters that name no provider, which can never carry a mark (the input shape
+    /// before CA-MB1), even with marks switched on.
+    @Test(arguments: [(false, false), (false, true), (true, false), (true, true)])
+    func marksOffDrawsWhatAProviderlessStripDraws(_ input: (dark: Bool, percentage: Bool)) throws {
+        let palette = MenuBarPalette(isDarkMenuBar: input.dark)
+        let providerless = [
+            Self.meter(nil, text: "72%", fill: 0.72),
+            Self.meter(nil, text: "38%", fill: 0.38, severity: .low),
+            Self.meter(nil, text: "9%", fill: 0.09, severity: .critical, attention: true),
+        ]
+        let off = MenuBarLabelRenderer.render(meters: Self.strip(attention: true), showsPercentage: input.percentage,
+                                              palette: palette, showsMarks: false)
+        let reference = MenuBarLabelRenderer.render(meters: providerless, showsPercentage: input.percentage,
+                                                    palette: palette, showsMarks: true)
+        #expect(off.image.size == reference.image.size)
+        #expect(Self.digest(try Self.bitmap(off.image, scale: 2)) == Self.digest(try Self.bitmap(reference.image, scale: 2)))
     }
 
     /// The approved panel's readouts, measured with the real numeral font: 222pt and 101pt

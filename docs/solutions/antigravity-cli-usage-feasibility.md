@@ -78,8 +78,9 @@ most one browser tab (see "Sign-in" and BUGS.md).
 ### Runtime no-turn guard
 
 Every `/usage` and `/credits` result is checked before anything else: `num_turns` must be 0 and
-every token count must be 0, and a `SUCCESS` result must carry a `command` block. Otherwise the
-capture fails as `unsupportedClient`, and the failure is sticky: no routine poll spawns `agy`
+every token count must be 0, and a `SUCCESS` result must carry a `command` block. An answer that
+cannot show this (stdout over the size cap, or non-JSON output at exit 0) counts the same way.
+Otherwise the capture fails as `unsupportedClient`, and the failure is sticky: no routine poll spawns `agy`
 again until its resolved path or modification date changes. A user request runs only the local
 `--version` print, and clears the stop only if the version changed (the one way to notice a
 version swapped behind an unchanged file). The card reads "Headroom paused Antigravity reads
@@ -98,8 +99,9 @@ positive evidence; everything unmatched is transient.
 | `--version` older than 1.5.9 | update required |
 | `--version` fails, times out or prints no version | transient (`unreadableVersion`) |
 | stderr shows `Authentication required` | signed out (sticky, see "Sign-in") |
-| stdout over the cap | transient (`outputTooLarge`) |
-| no decodable result, exit 0 | format changed (`output`) |
+| stdout over the cap | unsupported client (sticky) |
+| no decodable result, exit 0, something printed | unsupported client (sticky) |
+| no decodable result, exit 0, nothing printed | format changed (`output`) |
 | no decodable result, timed out | transient (`deadline`) |
 | no decodable result, other exit | transient (`unexpectedExit`) |
 | `num_turns` not 0 or any token count above 0 | unsupported client (sticky) |

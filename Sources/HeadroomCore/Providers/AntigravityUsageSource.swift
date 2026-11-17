@@ -48,7 +48,7 @@ public struct AntigravityUsage: Sendable, Equatable {
 
 /// Where a format-changed result came from. Logged by stage only: never the output.
 public enum AntigravityFormatStage: String, Sendable, Equatable {
-    /// Exit 0 with stdout that is not the print-mode JSON result.
+    /// Exit 0 with no stdout.
     case output
     /// A no-turn answer for a command other than the one asked.
     case commandName
@@ -64,8 +64,6 @@ public enum AntigravityTransientCause: String, Sendable, Equatable {
     /// `--version` failed, timed out or printed no recognisable version.
     case unreadableVersion
     case deadline
-    /// More stdout than the read's size cap.
-    case outputTooLarge
     /// A nonzero exit or a signal with no usable answer.
     case unexpectedExit
     /// An `ERROR` result whose message says authentication failed or timed out, with no
@@ -79,8 +77,9 @@ public enum AntigravityCaptureFailure: Sendable, Equatable {
     case cliMissing
     /// Older than `AntigravityCLIUsageSource.minimumVersion`.
     case updateRequired
-    /// The client answered a read with a model turn or spent tokens, or answered without the
-    /// no-turn command payload. Sticky: no further read spawns the client until its resolved
+    /// The client answered a read with a model turn or spent tokens, answered without the
+    /// no-turn command payload, or printed an answer that can't show it cost no turn (over the
+    /// size cap, or not the JSON result at exit 0). Sticky: no further read spawns the client until its resolved
     /// path, modification date or version changes, so a changed CLI or a user skill that takes
     /// over `/usage` can't turn every poll into a paid agent turn.
     case unsupportedClient
@@ -207,10 +206,12 @@ enum AntigravityUsageClassifier {
 
     static func classifyUsage(_ output: AntigravityRunOutput) -> AntigravityCapture {
         if output.showedSignInPrompt { return .failed(.signedOut) }
-        if output.overflowed { return .failed(.transient(.outputTooLarge)) }
+        // A started read whose output can't show it cost no turn stops polling, as a turn does.
+        if output.overflowed { return .failed(.unsupportedClient) }
         guard let result = decodeResult(output.stdout) else {
             if output.timedOut { return .failed(.transient(.deadline)) }
-            return .failed(output.exitCode == 0 ? .formatChanged(.output) : .transient(.unexpectedExit))
+            guard output.exitCode == 0 else { return .failed(.transient(.unexpectedExit)) }
+            return .failed(printedSomething(output.stdout) ? .unsupportedClient : .formatChanged(.output))
         }
         // Checked before the exit status, so a failed turn still stops polling.
         guard result.provesNoTurn else { return .failed(.unsupportedClient) }
@@ -232,7 +233,12 @@ enum AntigravityUsageClassifier {
 
     static func classifyCredits(_ output: AntigravityRunOutput?) -> AntigravityCreditsReading {
         if output?.showedSignInPrompt == true { return .signedOut }
-        guard let output, !output.overflowed, let result = decodeResult(output.stdout) else { return .unavailable }
+        guard let output else { return .unavailable }
+        if output.overflowed { return .unsupportedClient }
+        guard let result = decodeResult(output.stdout) else {
+            let unproven = output.exitCode == 0 && !output.timedOut && printedSomething(output.stdout)
+            return unproven ? .unsupportedClient : .unavailable
+        }
         guard result.provesNoTurn else { return .unsupportedClient }
         guard result.status == successStatus else { return .unavailable }
         guard let command = result.command else { return .unsupportedClient }
@@ -268,6 +274,11 @@ enum AntigravityUsageClassifier {
             remainingFraction: min(1, max(0, fraction)),
             resetsAt: dto.resetTime.flatMap(DateParsing.iso8601)
         )
+    }
+
+    /// Whether stdout holds anything but whitespace. An empty exit-0 answer started nothing.
+    static func printedSomething(_ stdout: Data) -> Bool {
+        !String(decoding: stdout, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     static func decodeResult(_ stdout: Data) -> AntigravityResultDTO? {

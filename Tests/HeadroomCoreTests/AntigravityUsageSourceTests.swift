@@ -118,10 +118,11 @@ struct AntigravityUsageClassifierTests {
         #expect(AntigravityUsageClassifier.classifyUsage(output(exit: 0, other)) == .failed(.formatChanged(.commandName)))
     }
 
-    @Test func nonJSONOnExitZeroIsFormatChangedNotSignedOut() {
+    @Test func nonJSONOnExitZeroStopsPollingAndEmptyIsFormatChanged() {
         #expect(AntigravityUsageClassifier.classifyUsage(output(exit: 0, "Gemini Models\tWeekly\t99%\n"))
-            == .failed(.formatChanged(.output)))
+            == .failed(.unsupportedClient))
         #expect(AntigravityUsageClassifier.classifyUsage(output(exit: 0, "")) == .failed(.formatChanged(.output)))
+        #expect(AntigravityUsageClassifier.classifyUsage(output(exit: 0, " \n")) == .failed(.formatChanged(.output)))
     }
 
     @Test func nonzeroExitWithoutAnAnswerIsTransient() {
@@ -137,9 +138,9 @@ struct AntigravityUsageClassifierTests {
         #expect(buckets(AntigravityUsageClassifier.classifyUsage(hung))?.count == 4)
     }
 
-    @Test func outputOverTheCapIsTransient() {
+    @Test func outputOverTheCapStopsPolling() {
         #expect(AntigravityUsageClassifier.classifyUsage(output(exit: 0, "", overflowed: true))
-            == .failed(.transient(.outputTooLarge)))
+            == .failed(.unsupportedClient))
     }
 
     /// Synthetic, shaped like what agy printed for an empty CLI home after it had started a
@@ -223,17 +224,22 @@ struct AntigravityUsageClassifierTests {
         let live = try AntigravityFixture.load("credits-live").text
         let cases: [AntigravityRunOutput?] = [
             nil,
-            output(exit: 0, "not json"),
             output(exit: 0, live.replacingOccurrences(of: #""remaining_credits":0"#, with: #""remaining_credits":"lots""#)),
             output(exit: 0, live.replacingOccurrences(of: #""remaining_credits":0"#, with: #""remaining_credits":-5"#)),
             output(exit: 0, live.replacingOccurrences(of: #""name":"credits""#, with: #""name":"usage""#)),
             output(exit: 1, live),
             output(exit: nil, "", timedOut: true),
-            output(exit: 0, "", overflowed: true),
+            output(exit: nil, "not json", timedOut: true),
+            output(exit: 0, ""),
         ]
         for run in cases {
             #expect(AntigravityUsageClassifier.classifyCredits(run) == .unavailable)
         }
+    }
+
+    @Test func creditsThatCanNotProveNoTurnAreUnsupportedClient() {
+        #expect(AntigravityUsageClassifier.classifyCredits(output(exit: 0, "not json")) == .unsupportedClient)
+        #expect(AntigravityUsageClassifier.classifyCredits(output(exit: 0, "", overflowed: true)) == .unsupportedClient)
     }
 
     @Test func creditsThatCostATurnAreUnsupportedClient() throws {
@@ -458,7 +464,8 @@ struct AntigravityUsageSourceProcessTests {
     @Test func malformedCreditsLeaveTheUsageReadingIntact() async throws {
         let fake = try FakeAgy()
         defer { fake.remove() }
-        try fake.set("credits", stdout: #"{"status":"SUCCESS","num_turns":0"#, exit: 0)
+        let live = try AntigravityFixture.load("credits-live").text
+        try fake.set("credits", stdout: live.replacingOccurrences(of: #""remaining_credits":0"#, with: #""remaining_credits":"lots""#), exit: 0)
         guard case .usage(let usage) = await fake.source().capture() else {
             Issue.record("a malformed credits payload failed the usage reading")
             return
@@ -488,11 +495,14 @@ struct AntigravityUsageSourceProcessTests {
         #expect(!isRunning(child))
     }
 
-    @Test func outputOverTheCapIsTransient() async throws {
+    @Test func outputOverTheCapStopsPolling() async throws {
         let fake = try FakeAgy()
         defer { fake.remove() }
         try fake.set("usage", stdout: String(repeating: "x", count: AntigravityCommand.usage.sizeCap + 1_024), exit: 0)
-        #expect(await fake.source().capture() == .failed(.transient(.outputTooLarge)))
+        let source = fake.source()
+        #expect(await source.capture() == .failed(.unsupportedClient))
+        #expect(await source.capture() == .failed(.unsupportedClient))
+        #expect(fake.pids("usage").count == 1)
     }
 
     @Test func aMissingExecutableIsCLIMissingAndNotCached() async throws {

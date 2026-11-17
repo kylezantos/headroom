@@ -104,7 +104,7 @@ struct DemoFixtureTests {
         #expect(DemoFixture.multiFixture(for: .bankedResets).accounts.count == 4)
         #expect(DemoFixture.multiFixture(for: .fiveProviders).accounts.count == 5)
         #expect(DemoFixture.multiFixture(for: .copilotNoReading).accounts.count == 2)
-        #expect(DemoFixture.multiFixture(for: .sixProviders).accounts.count == 6)
+        #expect(DemoFixture.multiFixture(for: .sixProviders).accounts.count == DemoFixture.registeredProviderOrder.count)
         #expect(DemoFixture.multiFixture(for: .opencodeNoGo).accounts.count == 2)
         #expect(DemoFixture.multiFixture(for: .opencodeUpdate).accounts.count == 2)
         #expect(DemoFixture.multiFixture(for: .opencodeLimited).accounts.count == 3)
@@ -208,10 +208,10 @@ struct DemoFixtureTests {
     /// OpenCode plan U9 (KTD14): `five-providers` stays the five providers before OpenCode.
     @Test func fiveProviderScenarioMatchesRegistryOrder() async {
         let fixture = DemoFixture.multiFixture(for: .fiveProviders)
-        let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode }
+        let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode && $0 != .antigravity }
         #expect(fixture.accounts.map(\.providerID) == beforeOpenCode)
         #expect(fixture.providers.map(\.id) == beforeOpenCode)
-        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .copilot, .opencode])
+        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity])
         #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.map(\.providerID)
             == beforeOpenCode.filter { $0 != .copilot })
         // Single-account like Cursor: the demo must not offer "Add Account…" for Copilot.

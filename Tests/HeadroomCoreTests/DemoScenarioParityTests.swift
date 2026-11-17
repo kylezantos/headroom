@@ -43,7 +43,7 @@ struct DemoScenarioParityTests {
     /// OpenCode; `sixProviders` is the every-provider envelope.
     @Test func fiveProviderDemoEnvelopeCoversTheRegistry() {
         let envelope = DemoScreenshotData.envelope(for: "fiveProviders")
-        let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode }
+        let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode && $0 != .antigravity }
         #expect(envelope.status == .enabled)
         #expect(envelope.providers.map(\.id) == beforeOpenCode.map(\.raw))
         #expect(DemoScreenshotData.envelope(for: "fourProviders").providers.map(\.id)

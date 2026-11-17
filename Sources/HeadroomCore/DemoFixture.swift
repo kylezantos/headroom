@@ -183,6 +183,27 @@ public enum DemoFixture {
         )
     }
 
+    /// Antigravity's four rows, shaped the way `AntigravityProvider` builds them: each pool's
+    /// tighter row first, distinct values so a render tells them apart, and the credits badge.
+    public static var antigravitySnapshot: UsageSnapshot {
+        UsageSnapshot(
+            providerID: .antigravity,
+            windows: [
+                // 34% used → 66% left.
+                UsageWindow(kind: AntigravityProvider.windowKind(.gemini, .fiveHour), utilization: 34, resetsAt: soon(hours: 3, minutes: 10), resetLabel: "Resets 2:10pm"),
+                // 21% used → 79% left.
+                UsageWindow(kind: AntigravityProvider.windowKind(.gemini, .weekly), utilization: 21, resetsAt: soon(days: 4, hours: 2), resetLabel: "Resets in 4d 2h"),
+                // 58% used → 42% left: the tighter of the Claude & GPT rows.
+                UsageWindow(kind: AntigravityProvider.windowKind(.claudeAndGPT, .weekly), utilization: 58, resetsAt: soon(days: 4, hours: 2, minutes: 9), resetLabel: "Resets in 4d 2h"),
+                // 12% used → 88% left.
+                UsageWindow(kind: AntigravityProvider.windowKind(.claudeAndGPT, .fiveHour), utilization: 12, resetsAt: soon(hours: 3, minutes: 19), resetLabel: "Resets 2:19pm"),
+            ],
+            planLabel: "1,200 credits",
+            capturedAt: Date().addingTimeInterval(-135),
+            freshness: .live
+        )
+    }
+
     /// OpenCode plan U9 (KTD7): signed in to a workspace with no Go plan. Exactly what
     /// `OpenCodeProvider` returns: live, one Monthly row unavailable since the UTC month
     /// start, and `planStatus` `.noActivePlan`. The card draws "No Go plan on this workspace"
@@ -540,7 +561,7 @@ extension DemoFixture {
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
     /// Parity checks derive their expected provider list from this instead of hardcoding a
     /// Claude/Codex literal (KTD9 switch-site inventory).
-    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
+    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity]
 
     /// One scenario resolved to its accounts + one fixture provider per account.
     public struct MultiAccountFixture: Sendable {
@@ -819,6 +840,7 @@ extension DemoFixture {
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
                 builtInProviderPair(provider: .copilot, snapshot: copilotSnapshot),
                 builtInProviderPair(provider: .opencode, snapshot: opencodeSnapshot),
+                builtInProviderPair(provider: .antigravity, snapshot: antigravitySnapshot),
             ]
         case .opencodeNoGo:
             pairs = [
@@ -1167,9 +1189,9 @@ public struct DemoUsageProvider: UsageProvider {
     /// product does not have: Cursor is deliberately single-account (no config-home
     /// isolation equivalent to `CLAUDE_CONFIG_DIR`), which is why `CursorProvider` pins
     /// `accountCapacity` to 1. `--demo multi-4` was rendering it as "1 of 5" with an
-    /// "Add Account…" button. Copilot is single-account for the same reason.
+    /// "Add Account…" button. Copilot and Antigravity are single-account for the same reason.
     public var accountCapacity: Int {
-        id == .cursor || id == .copilot ? 1 : AccountRegistry.testedEnvelope
+        id == .cursor || id == .copilot || id == .antigravity ? 1 : AccountRegistry.testedEnvelope
     }
 
     public init(

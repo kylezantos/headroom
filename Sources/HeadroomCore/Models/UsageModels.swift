@@ -675,6 +675,8 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
     /// KTD13 (OpenCode plan): appended after the API surfaces, not beside the other
     /// subscriptions, so no stored raw value or `allCases` position moves.
     case opencodeSubscription
+    /// Appended last for the same reason: no stored raw value or `allCases` position moves.
+    case antigravitySubscription
 
     public var providerID: ProviderID {
         switch self {
@@ -684,6 +686,7 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .cursorSubscription, .cursorAPI: return .cursor
         case .copilotSubscription: return .copilot
         case .opencodeSubscription: return .opencode
+        case .antigravitySubscription: return .antigravity
         }
     }
 
@@ -699,13 +702,14 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .xaiAPI: return "xAI API spend"
         case .cursorAPI: return "Cursor on-demand spend"
         case .opencodeSubscription: return "OpenCode subscription"
+        case .antigravitySubscription: return "Antigravity subscription"
         }
     }
 
     public var isSubscription: Bool {
         switch self {
         case .claudeSubscription, .codexSubscription, .grokSubscription, .cursorSubscription, .copilotSubscription,
-             .opencodeSubscription:
+             .opencodeSubscription, .antigravitySubscription:
             return true
         case .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
             return false
@@ -717,9 +721,9 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
         case .claudeSubscription, .codexSubscription:
             return true
         // R11: OpenCode is off for fresh installs and upgrades alike, like Grok, Cursor and
-        // Copilot before it.
+        // Copilot before it, and Antigravity after it.
         case .grokSubscription, .cursorSubscription, .copilotSubscription, .opencodeSubscription,
-             .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
+             .antigravitySubscription, .anthropicAPI, .openAIAPI, .xaiAPI, .cursorAPI:
             return false
         }
     }

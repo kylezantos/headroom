@@ -299,7 +299,7 @@ struct DemoScreenshotDataVariantsTests {
     /// plan name and no spend row.
     @Test func fiveProvidersAddsCopilotsMonthlyPool() throws {
         let content = try content(.fiveProviders)
-        #expect(content.providers.map(\.id) == DemoFixture.registeredProviderOrder.filter { $0 != .opencode }.map(\.raw))
+        #expect(content.providers.map(\.id) == DemoFixture.registeredProviderOrder.filter { $0 != .opencode && $0 != .antigravity }.map(\.raw))
         let copilot = try provider("copilot", in: content)
         #expect(copilot.accounts.count == 1)
         #expect(copilot.mainAccount?.planName == nil)

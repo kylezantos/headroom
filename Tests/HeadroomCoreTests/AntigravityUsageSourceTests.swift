@@ -31,6 +31,11 @@ private struct AntigravityFixture {
         return AntigravityFixture(name: name, stdout: try Data(contentsOf: stdoutURL), exit: try #require(Int32(exitText)))
     }
 
+    static func loadStderr(_ name: String) throws -> Data {
+        let url = try #require(Bundle.module.url(forResource: "antigravity-\(name)", withExtension: "stderr"))
+        return try Data(contentsOf: url)
+    }
+
     var output: AntigravityRunOutput {
         AntigravityRunOutput(exitCode: exit, stdout: stdout, overflowed: false, timedOut: false)
     }
@@ -146,6 +151,37 @@ struct AntigravityUsageClassifierTests {
         #expect(AntigravityUsageClassifier.classifyUsage(exitZero) == .failed(.transient(.authenticationFailed)))
         let otherError = fixture.text.replacingOccurrences(of: "authentication failed or timed out", with: "something new")
         #expect(AntigravityUsageClassifier.classifyUsage(output(exit: 1, otherError)) == .failed(.transient(.clientError)))
+    }
+
+    /// The sign-in prompt on stderr is positive evidence of a signed-out account, whatever
+    /// stdout held when the run was ended.
+    @Test func aSignInPromptOnStderrIsSignedOut() throws {
+        let fixture = try AntigravityFixture.load("usage-signed-out")
+        for stdout in [Data(), fixture.stdout] {
+            for exit: Int32? in [nil, 0, 1] {
+                let run = AntigravityRunOutput(
+                    exitCode: exit, stdout: stdout, overflowed: false, timedOut: false, showedSignInPrompt: true
+                )
+                #expect(AntigravityUsageClassifier.classifyUsage(run) == .failed(.signedOut))
+                #expect(AntigravityUsageClassifier.classifyCredits(run) == .signedOut)
+            }
+        }
+    }
+
+    @Test func theSignInMarkerMatchesTheCapturedStderrOnly() throws {
+        let stderr = try AntigravityFixture.loadStderr("usage-signed-out")
+        #expect(AntigravityUsageClassifier.showsSignInPrompt(stderr))
+        // Split across two reads, the marker is still found.
+        let text = String(decoding: stderr, as: UTF8.self)
+        let cut = text.index(text.startIndex, offsetBy: 9)
+        var scanner = AntigravitySignInPromptScanner()
+        let first = scanner.scan(Data(text[..<cut].utf8))
+        let second = scanner.scan(Data(text[cut...].utf8))
+        #expect(!first)
+        #expect(second)
+        for other in ["", "warning: telemetry disabled\n", "authentication failed or timed out\n"] {
+            #expect(!AntigravityUsageClassifier.showsSignInPrompt(Data(other.utf8)), "\(other)")
+        }
     }
 
     @Test(arguments: ["usage-one-turn", "usage-output-tokens"])
@@ -510,6 +546,50 @@ struct AntigravityUsageSourceProcessTests {
         defer { fake.remove() }
         try fake.set("usage", fixture: "usage-signed-out")
         #expect(await fake.source().capture() == .failed(.transient(.authenticationFailed)))
+    }
+
+    /// The client waits up to 60 s on an interactive Google sign-in it opened itself. The read
+    /// ends at the prompt, and no routine poll runs the client again until the user asks.
+    @Test func aSignInPromptEndsTheReadAndStopsRoutinePolls() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        try FileManager.default.copyItem(
+            at: try #require(Bundle.module.url(forResource: "antigravity-usage-signed-out", withExtension: "stderr")),
+            to: fake.directory.appendingPathComponent("usage.stderr")
+        )
+        try fake.hook("usage", pre: "cat \"$dir/usage.stderr\" >&2\nsleep 60 &\necho $! > \"$dir/child.pid\"\nwait\n")
+        let source = fake.source(deadline: 30)
+        let started = Date()
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(Date().timeIntervalSince(started) < 10, "the read waited on the sign-in")
+        let leader = try #require(fake.pids("usage").first)
+        let child = try #require(pid_t(fake.text("child.pid")))
+        #expect(!isRunning(leader))
+        #expect(!isRunning(child))
+        #expect(fake.count(.credits) == 0)
+
+        let spawned = fake.argv.count
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(fake.argv.count == spawned, "a routine poll ran agy while signed out")
+
+        // A user request (Refresh, or the check after the sign-in handoff) reads again.
+        try fake.hook("usage", pre: "")
+        #expect(buckets(await userRequested(source))?.count == 4)
+        #expect(fake.count(.usage) == 2)
+        #expect(buckets(await source.capture())?.count == 4)
+        #expect(fake.count(.usage) == 3)
+    }
+
+    @Test func aSignInPromptOnTheCreditsReadIsSignedOutToo() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        try fake.hook("credits", pre: "echo 'Authentication required. Please visit the URL to log in:' >&2\nsleep 60\n")
+        let source = fake.source(deadline: 30)
+        #expect(await source.capture() == .failed(.signedOut))
+        let spawned = fake.argv.count
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(fake.argv.count == spawned)
     }
 
     @Test(arguments: ["usage-one-turn", "usage-output-tokens"])

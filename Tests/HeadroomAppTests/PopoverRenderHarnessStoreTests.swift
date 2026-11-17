@@ -23,7 +23,7 @@ struct PopoverRenderHarnessStoreTests {
     /// capture must enable it or the card never draws.
     @Test func fiveProviderScenarioShowsEveryRegisteredProvider() {
         let store = PopoverRenderHarness.multiStore(for: .fiveProviders)
-        #expect(store.providerOrder == DemoFixture.registeredProviderOrder.filter { $0 != .opencode })
+        #expect(store.providerOrder == DemoFixture.registeredProviderOrder.filter { $0 != .opencode && $0 != .antigravity })
     }
 
     /// OpenCode plan U9 (KTD14): OpenCode defaults OFF like Copilot, so the six-provider

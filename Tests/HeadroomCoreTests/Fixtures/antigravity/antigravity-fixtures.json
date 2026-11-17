@@ -1,5 +1,5 @@
 {
- "description": "Official Antigravity CLI (agy) print-mode output. Each fixture is antigravity-<name>.stdout plus antigravity-<name>.exit (the process exit status). Stderr is never kept. origin: live = printed by agy as-is; derived = a live capture with the named fields edited; synthetic = not observed.",
+ "description": "Official Antigravity CLI (agy) print-mode output. Each fixture is antigravity-<name>.stdout plus antigravity-<name>.exit (the process exit status), and antigravity-<name>.stderr where stderr is the evidence. Headroom keeps no stderr at runtime: it only watches it for the sign-in prompt. origin: live = printed by agy as-is; derived = a live capture with the named fields edited; synthetic = not observed.",
  "binary": {
   "version": "1.5.9",
   "versionOutput": "1.5.9",
@@ -35,7 +35,8 @@
    "kind": "usage",
    "command": "agy -p \"/usage\" --output-format json",
    "origin": "synthetic",
-   "description": "Not a fixture capture. Modelled on the one probe with an empty CLI home on 2026-11-16, where agy did not answer and instead started an interactive Google sign-in: it printed a sign-in URL on stderr, waited for authentication (timeout 60s) and opened the sign-in page in the browser. That run was ended after about 15 s without signing in. The stdout here has the shape it printed on the way out; the exit status 1 is a stand-in, since none was observed."
+   "description": "Synthetic, modelled on two signed-out probes on 2026-11-16. When agy is signed out, `agy -p \"/usage\"` does not answer: it prints \"Authentication required. Please visit the URL to log in:\" and a Google sign-in URL on stderr, opens that sign-in page in the browser and prints \"Waiting for authentication (timeout 60s)...\". The .stderr file has those lines with the URL replaced by a placeholder; Headroom ends the read at the first line and reports signed out. The .stdout file has the ERROR result shape printed when such a wait ends without the prompt being seen (\"authentication failed or timed out\"), which stays a transient failure; its exit status 1 is a stand-in, since none was observed.",
+   "stderr": true
   },
   {
    "name": "usage-missing-3p-5h",

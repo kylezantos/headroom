@@ -11,6 +11,8 @@ public struct ProviderID: Hashable, Sendable, Codable, CustomStringConvertible {
     public static let copilot = ProviderID("copilot")
     /// KTD13 (OpenCode plan): the raw value is stored and synced, so it never changes.
     public static let opencode = ProviderID("opencode")
+    /// The raw value is stored and synced, so it never changes.
+    public static let antigravity = ProviderID("antigravity")
 
     /// Human-facing provider name. Registry-backed so display strings never reach for a
     /// Claude-or-Codex ternary (KTD9 switch-site inventory). An unknown id falls back to a
@@ -23,6 +25,7 @@ public struct ProviderID: Hashable, Sendable, Codable, CustomStringConvertible {
         case .cursor: "Cursor"
         case .copilot: "Copilot"
         case .opencode: "OpenCode"
+        case .antigravity: "Antigravity"
         default: raw.capitalized
         }
     }

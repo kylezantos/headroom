@@ -41,6 +41,7 @@ func neverSignedInOutcome(for providerID: ProviderID) -> ProviderSetupOutcome? {
     case .cursor: .cursorAuthAbsent
     case .copilot: .copilotSignedOut
     case .opencode: .opencodeSignedOut
+    case .antigravity: .antigravitySignedOut
     default: nil
     }
 }

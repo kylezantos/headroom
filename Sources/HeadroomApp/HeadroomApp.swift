@@ -7,7 +7,8 @@ import WidgetKit
 import HeadroomCore
 
 /// Entry point. Supports hidden diagnostics: `--probe-claude` / `--probe-codex` /
-/// `--probe-grok` / `--probe-cursor` / `--probe-copilot` / `--probe-opencode` run the real
+/// `--probe-grok` / `--probe-cursor` / `--probe-copilot` / `--probe-opencode` /
+/// `--probe-antigravity` run the real
 /// provider capture once and print parsed windows; `--probe-spend <openai|anthropic|xai> [--key-file <path>]` verifies a key-based
 /// API-spend path; `--dump-phone-sync` decodes the iCloud KVS payload the Mac published for
 /// the iPhone; `--bench-ui` measures the popover and Settings offscreen (`UIBenchHarness`).
@@ -37,6 +38,10 @@ enum Entry {
         }
         if CommandLine.arguments.contains(OpenCodeLaunchArguments.probeFlag) {
             runOpenCodeProbe()
+            return
+        }
+        if CommandLine.arguments.contains("--probe-antigravity") {
+            runAntigravityProbe()
             return
         }
         if CommandLine.arguments.contains("--probe-spend") {
@@ -369,6 +374,45 @@ enum Entry {
                 }
             case .noGoPlan:
                 print("RESULT: noGoPlan (signed in, no Go plan on the active workspace)")
+            case .failed(let failure):
+                let detail: String
+                switch failure {
+                case .formatChanged(let stage): detail = " (stage: \(stage.rawValue))"
+                case .transient(let cause): detail = " (cause: \(cause.rawValue))"
+                default: detail = ""
+                }
+                print("RESULT: \(failure.outcome)\(detail)")
+            }
+            semaphore.signal()
+        }
+        semaphore.wait()
+    }
+
+    /// `--probe-antigravity`: one read through the official `agy` CLI's no-turn `/usage` and
+    /// `/credits` answers. Prints the parsed rows, the credits badge, or the outcome name with
+    /// its stage or cause only: never raw output, stderr, an email or anything identifying.
+    private static func runAntigravityProbe() {
+        print("agy CLI: \(AntigravityCLI.resolveExecutable() == nil ? "missing" : "available")")
+        let semaphore = DispatchSemaphore(value: 0)
+        Task {
+            let capture = await AntigravityCLIUsageSource().capture()
+            switch capture {
+            case .usage:
+                let snapshot = await AntigravityProvider(source: CapturedAntigravityUsageSource(capture: capture))
+                    .fetchSnapshot()
+                print("RESULT: live Antigravity snapshot, parsed \(snapshot.windows.count) window(s):")
+                let formatter = ISO8601DateFormatter()
+                for window in snapshot.windows {
+                    let reset: String
+                    if case .scheduled(let date) = window.resetSchedule {
+                        reset = "resets \(formatter.string(from: date))"
+                    } else {
+                        reset = "no reset"
+                    }
+                    let remaining = String(format: "%.2f", 100 - window.utilization)
+                    print("  • \(window.kind.shortLabel)  \(remaining)% remaining  \(reset)")
+                }
+                print("  credits badge: \(snapshot.planLabel ?? "none")")
             case .failed(let failure):
                 let detail: String
                 switch failure {
@@ -1048,6 +1092,29 @@ enum AppComposition {
     }
     static let claudeExecutableLocator = CLIExecutableLocator.claude()
 
+    /// The one Antigravity read path per launch. One source keeps the resolved path, the
+    /// version memo and the sticky stops (a turn-spending answer, a sign-in prompt) for every
+    /// provider instance the store builds.
+    static let antigravityUsageSource = makeAntigravityCLISource()
+
+    /// The launches that must never start `agy`: demo runs, the render and bench harnesses
+    /// and the XCTest host. A signed-out `agy` opens a browser sign-in on any read.
+    static func usesInertAntigravity(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        usesInertPhoneSync(arguments: arguments, environment: environment)
+    }
+
+    static func makeAntigravityCLISource(
+        arguments: [String] = CommandLine.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> any AntigravityUsageSource {
+        usesInertAntigravity(arguments: arguments, environment: environment)
+            ? InertAntigravityUsageSource()
+            : AntigravityCLIUsageSource()
+    }
+
     /// The one UserDefaults domain a launch may read or write. `.standard` in the shipping
     /// app; an isolated suite under `--demo`, because the App shell and the store have to
     /// agree on it. They did not: `HeadroomApp.init` built `Preferences()` on `.standard`
@@ -1112,6 +1179,9 @@ enum AppComposition {
             // KTD10: each extra gets its own four XDG folders, so OpenCode carries the tested
             // envelope like Grok (matches `OpenCodeProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .opencode, accountCapacity: AccountRegistry.testedEnvelope, factory: makeOpenCodeProvider),
+            // `agy` keeps one sign-in per Mac and isolating a second is unproven, so Antigravity
+            // stays single-account (matches `AntigravityProvider.accountCapacity`).
+            SubscriptionProviderRegistration(id: .antigravity, accountCapacity: 1, factory: makeAntigravityProvider),
         ]
     }
 
@@ -1518,6 +1588,16 @@ enum AppComposition {
         )
     }
 
+    @MainActor
+    private static func makeAntigravityProvider(
+        account: ProviderAccount,
+        credentials _: CredentialStore,
+        builtInClaudeWorkspace _: URL
+    ) -> any UsageProvider {
+        guard account.isBuiltIn else { return UnavailableAccountProvider(account: account) }
+        return AntigravityProvider(source: antigravityUsageSource)
+    }
+
     private static func apiSpendProviders(credentials: CredentialStore) -> [any APISpendProvider] {
         [
             AnthropicAPISpendProvider(credentials: credentials),
@@ -1733,6 +1813,18 @@ private struct UnavailableAccountProvider: UsageProvider {
 private struct CapturedOpenCodeUsageSource: OpenCodeUsageSource {
     let capture: OpenCodeCapture
     func capture(home _: OpenCodeAccountHome) async -> OpenCodeCapture { capture }
+}
+
+/// `--probe-antigravity` turns its one capture into a snapshot without a second spawn.
+private struct CapturedAntigravityUsageSource: AntigravityUsageSource {
+    let capture: AntigravityCapture
+    func capture() async -> AntigravityCapture { capture }
+}
+
+/// What an inert launch (`AppComposition.usesInertAntigravity`) reads instead of `agy`. No
+/// process is started; the row simply stays "will retry".
+struct InertAntigravityUsageSource: AntigravityUsageSource {
+    func capture() async -> AntigravityCapture { .failed(.transient(.spawnFailed)) }
 }
 
 /// What an inert launch (`AppComposition.usesInertOpenCode`) reads instead of the client. No

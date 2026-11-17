@@ -417,10 +417,24 @@ public enum DemoScreenshotData {
             ],
             renewalDate: day(month: 12, day: 4)
         )
+        // Mirrors `DemoFixture.antigravitySnapshot`.
+        let antigravity = WidgetProviderSummary(
+            id: ProviderID.antigravity.raw,
+            displayName: "Antigravity",
+            planLabel: "1,200 credits",
+            freshness: .live,
+            windows: [
+                window(.other("Gemini 5h"), label: "Gemini 5h", percent: 66, reset: "Resets 2:10pm", severity: .healthy),
+                window(.other("Gemini weekly"), label: "Gemini weekly", percent: 79, reset: "Resets in 4d 2h", severity: .healthy),
+                window(.other("Claude & GPT weekly"), label: "Claude & GPT weekly", percent: 42, reset: "Resets in 4d 2h", severity: .healthy),
+                window(.other("Claude & GPT 5h"), label: "Claude & GPT 5h", percent: 88, reset: "Resets 2:19pm", severity: .healthy),
+            ],
+            renewalDate: nil
+        )
         return WidgetSnapshotEnvelope(
             generatedAt: five.generatedAt,
             status: five.status,
-            providers: five.providers + [opencode],
+            providers: five.providers + [opencode, antigravity],
             apiSpendProviders: five.apiSpendProviders
         )
     }

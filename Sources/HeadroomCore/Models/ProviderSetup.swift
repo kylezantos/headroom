@@ -188,6 +188,18 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// The usage read's output no longer matches the contract; only a Headroom update fixes it.
     case opencodeFormatChanged
     case opencodeTransientCapture
+    case antigravityCLIMissing
+    /// The installed `agy` is older than the version the usage payload was captured on, so
+    /// Headroom never runs its usage read.
+    case antigravityUpdateRequired
+    /// A read answered with a model turn or spent tokens, so Headroom stopped running the
+    /// client until it changes. Only a different `agy`, or a Headroom update, fixes it.
+    case antigravityUnsupportedClient
+    /// `agy` printed its sign-in prompt instead of answering.
+    case antigravitySignedOut
+    /// The usage answer no longer matches the contract; only a Headroom update fixes it.
+    case antigravityFormatChanged
+    case antigravityTransientCapture
 
     // W2A: these render in the popover's 295pt recovery line and again, wrapping freely
     // since S2B, in a ≈197pt account state row. The `\u{00A0}` runs glue tails that would otherwise
@@ -246,6 +258,12 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .opencodeSignInExpired: ProviderSignInCopy.status(for: .opencode, again: true)
         case .opencodeFormatChanged: "Headroom can’t read OpenCode usage after an OpenCode change. Contact support"
         case .opencodeTransientCapture: "Couldn’t read OpenCode usage\u{00A0}—\u{00A0}will retry"
+        case .antigravityCLIMissing: ProviderSignInCopy.cliMissing(for: .antigravity)
+        case .antigravityUpdateRequired: "Antigravity usage needs agy\u{00A0}1.5.9 or newer"
+        case .antigravityUnsupportedClient: "Headroom paused Antigravity reads after an agy change. Contact support"
+        case .antigravitySignedOut: ProviderSignInCopy.status(for: .antigravity)
+        case .antigravityFormatChanged: "Headroom can’t read Antigravity usage after an agy change. Contact support"
+        case .antigravityTransientCapture: "Couldn’t read Antigravity usage\u{00A0}—\u{00A0}will retry"
         }
     }
 
@@ -254,7 +272,8 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .claudeUnknownUI, .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified,
              .grokCredentialIO, .grokTransientCapture, .cursorUnknownUI,
              .cursorTransientCapture, .copilotLogsUnreadable,
-             .opencodeFormatChanged, .opencodeTransientCapture:
+             .opencodeFormatChanged, .opencodeTransientCapture,
+             .antigravityFormatChanged, .antigravityTransientCapture:
             false
         default:
             true
@@ -267,7 +286,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         switch self {
         // KTD12 (OpenCode plan): an API-key connection has never signed in to the Console.
         case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut,
-             .opencodeSignedOut, .opencodeConsoleSignInRequired:
+             .opencodeSignedOut, .opencodeConsoleSignInRequired, .antigravitySignedOut:
             true
         default:
             false
@@ -410,6 +429,23 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .opencodeTransientCapture:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
+        case .antigravityCLIMissing:
+            .init(status: message, primaryLabel: "Install Antigravity CLI", primaryAction: .installAntigravityCLI,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        case .antigravityUpdateRequired:
+            .init(status: message, primaryLabel: "Update Antigravity CLI", primaryAction: .installAntigravityCLI,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        // Check Now is a user request, which reads the local version and resumes only when it
+        // changed; nothing else runs the client again.
+        case .antigravityUnsupportedClient, .antigravityFormatChanged:
+            .init(status: message, primaryLabel: "Contact Support", primaryAction: .contactSupport,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        case .antigravitySignedOut:
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectAntigravity,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  automaticPolicy: .boundedChecksAfterHandoff)
+        case .antigravityTransientCapture:
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         }
     }
 }
@@ -436,6 +472,10 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case connectOpenCode
     /// KTD7: the no-Go row's link to OpenCode's Go plans.
     case seeOpenCodeGoPlans
+    /// Install and update both open the Antigravity CLI's own page.
+    case installAntigravityCLI
+    /// Runs the CLI's own interactive Google sign-in in Terminal.
+    case connectAntigravity
     /// Opens the same pre-filled feedback email as Settings › About › Send Feedback
     /// (KTD21), so Headroom still sends nothing itself.
     case contactSupport

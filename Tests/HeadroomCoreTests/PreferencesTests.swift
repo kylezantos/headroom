@@ -278,6 +278,7 @@ struct PreferencesTests {
         #expect(!prefs.isSurfaceEnabled(.cursorSubscription))
         #expect(!prefs.isSurfaceEnabled(.copilotSubscription))
         #expect(!prefs.isSurfaceEnabled(.opencodeSubscription))
+        #expect(!prefs.isSurfaceEnabled(.antigravitySubscription))
         #expect(!prefs.isSurfaceEnabled(.anthropicAPI))
         #expect(!prefs.isSurfaceEnabled(.openAIAPI))
         #expect(!prefs.isSurfaceEnabled(.xaiAPI))
@@ -302,11 +303,34 @@ struct PreferencesTests {
             "cursorAPI",
             // KTD13: appended, never inserted, so every stored key above keeps its meaning.
             "opencodeSubscription",
+            "antigravitySubscription",
         ])
         #expect(UsageSurface.opencodeSubscription.providerID == .opencode)
         #expect(UsageSurface.opencodeSubscription.isSubscription)
         #expect(UsageSurface.subscription(for: .opencode) == .opencodeSubscription)
         #expect(UsageSurface.api(for: .opencode) == nil)
+        #expect(UsageSurface.antigravitySubscription.providerID == .antigravity)
+        #expect(UsageSurface.antigravitySubscription.isSubscription)
+        #expect(UsageSurface.antigravitySubscription.displayName == "Antigravity subscription")
+        #expect(UsageSurface.subscription(for: .antigravity) == .antigravitySubscription)
+        #expect(UsageSurface.api(for: .antigravity) == nil)
+    }
+
+    /// An install that already chose its surfaces has no Antigravity key, and must not start
+    /// running `agy` on upgrade.
+    @Test func antigravityStaysOffAfterAnUpgrade() {
+        let defaults = freshDefaults()
+        let before = Preferences(defaults: defaults)
+        for surface in UsageSurface.allCases where surface != .antigravitySubscription {
+            before.setSurfaceEnabled(true, for: surface)
+        }
+        #expect(defaults.object(forKey: "surfaceEnabled.antigravitySubscription") == nil)
+
+        let upgraded = Preferences(defaults: defaults)
+        #expect(!upgraded.isSurfaceEnabled(.antigravitySubscription))
+        #expect(upgraded.isSurfaceEnabled(.opencodeSubscription))
+        upgraded.setSurfaceEnabled(true, for: .antigravitySubscription)
+        #expect(Preferences(defaults: defaults).isSurfaceEnabled(.antigravitySubscription))
     }
 
     /// R11: an install that already chose its surfaces has no OpenCode key, and must not

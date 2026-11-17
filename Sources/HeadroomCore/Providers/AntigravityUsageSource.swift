@@ -68,8 +68,8 @@ public enum AntigravityTransientCause: String, Sendable, Equatable {
     case outputTooLarge
     /// A nonzero exit or a signal with no usable answer.
     case unexpectedExit
-    /// An `ERROR` result whose message says authentication failed or timed out. The client
-    /// prints this after a sign-in wait ends, which does not prove the account is signed out.
+    /// An `ERROR` result whose message says authentication failed or timed out, with no
+    /// sign-in prompt seen on stderr. That alone does not prove the account is signed out.
     case authenticationFailed
     /// Any other `ERROR` result.
     case clientError
@@ -84,8 +84,27 @@ public enum AntigravityCaptureFailure: Sendable, Equatable {
     /// path, modification date or version changes, so a changed CLI or a user skill that takes
     /// over `/usage` can't turn every poll into a paid agent turn.
     case unsupportedClient
+    /// The client printed its "Authentication required" sign-in prompt on stderr, the one
+    /// positive evidence of a signed-out account. It opens an interactive Google sign-in in the
+    /// browser and waits for it, so the read is ended at the prompt. Sticky: routine polls
+    /// never spawn the client again until a user request (Refresh, or the check after the
+    /// sign-in handoff), so a sign-out opens at most one browser sign-in.
+    case signedOut
     case formatChanged(AntigravityFormatStage)
     case transient(AntigravityTransientCause)
+
+    public var outcome: ProviderSetupOutcome {
+        switch self {
+        case .cliMissing: .antigravityCLIMissing
+        case .updateRequired: .antigravityUpdateRequired
+        case .unsupportedClient: .antigravityUnsupportedClient
+        case .signedOut: .antigravitySignedOut
+        case .formatChanged: .antigravityFormatChanged
+        case .transient: .antigravityTransientCapture
+        }
+    }
+
+    public var failureReason: FailureReason { .providerSetup(outcome) }
 }
 
 public enum AntigravityCapture: Sendable, Equatable {
@@ -127,12 +146,33 @@ enum AntigravityCommand: CaseIterable, Sendable {
 }
 
 /// What one spawn produced. `exitCode` is nil when the process was still running at the
-/// deadline or died on a signal.
+/// deadline or died on a signal. Stderr is never kept: only whether it showed the sign-in
+/// prompt.
 struct AntigravityRunOutput: Sendable, Equatable {
     var exitCode: Int32?
     var stdout: Data
     var overflowed: Bool
     var timedOut: Bool
+    /// The run was ended at the client's sign-in prompt (`AntigravitySignInPromptScanner`).
+    var showedSignInPrompt = false
+}
+
+/// Matches the client's sign-in prompt across stderr reads. Holds only a short tail of what
+/// it has seen, enough to find a marker split between two reads, and returns nothing else.
+struct AntigravitySignInPromptScanner {
+    /// agy 1.5.9 prints "Authentication required. Please visit the URL to log in:" followed
+    /// by a Google sign-in URL, opens that page and waits up to 60 s.
+    static let marker = Data("Authentication required".utf8)
+
+    private var tail = Data()
+
+    /// True once the marker has appeared in everything scanned so far.
+    mutating func scan(_ chunk: Data) -> Bool {
+        tail.append(chunk)
+        if tail.range(of: Self.marker) != nil { return true }
+        tail = Data(tail.suffix(Self.marker.count - 1))
+        return false
+    }
 }
 
 /// What `/credits` gave. Only a turn ever fails the reading; anything else leaves no badge.
@@ -140,11 +180,12 @@ enum AntigravityCreditsReading: Sendable, Equatable {
     case balance(Double)
     case unavailable
     case unsupportedClient
+    case signedOut
 }
 
 // MARK: - Classification
 
-/// Pure functions over exit status and stdout. Stderr never exists here.
+/// Pure functions over exit status, stdout and whether stderr showed the sign-in prompt.
 enum AntigravityUsageClassifier {
     static let successStatus = "SUCCESS"
     static let authenticationFailurePhrase = "authentication failed"
@@ -160,7 +201,13 @@ enum AntigravityUsageClassifier {
         return AntigravityVersion(versionOutput: String(decoding: output.stdout, as: UTF8.self))
     }
 
+    static func showsSignInPrompt(_ stderr: Data) -> Bool {
+        var scanner = AntigravitySignInPromptScanner()
+        return scanner.scan(stderr)
+    }
+
     static func classifyUsage(_ output: AntigravityRunOutput) -> AntigravityCapture {
+        if output.showedSignInPrompt { return .failed(.signedOut) }
         if output.overflowed { return .failed(.transient(.outputTooLarge)) }
         guard let result = decodeResult(output.stdout) else {
             if output.timedOut { return .failed(.transient(.deadline)) }
@@ -185,6 +232,7 @@ enum AntigravityUsageClassifier {
     }
 
     static func classifyCredits(_ output: AntigravityRunOutput?) -> AntigravityCreditsReading {
+        if output?.showedSignInPrompt == true { return .signedOut }
         guard let output, !output.overflowed, let result = decodeResult(output.stdout) else { return .unavailable }
         guard result.provesNoTurn else { return .unsupportedClient }
         guard result.status == successStatus else { return .unavailable }
@@ -313,6 +361,8 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
     private var resolved: (executable: String, loginPath: String)?
     private var passingVersion: (key: ExecutableKey, version: AntigravityVersion)?
     private var stop: Stop?
+    /// Set by a sign-in prompt. Only a user request clears it.
+    private var signedOut = false
 
     public init(
         resolveExecutable: @escaping @Sendable () -> String? = { AntigravityCLI.resolveExecutable() },
@@ -357,6 +407,11 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
 
     public func capture() async -> AntigravityCapture {
         guard let (executable, loginPath) = await resolvedExecutable() else { return .failed(.cliMissing) }
+        if signedOut {
+            // Every routine read would open another browser sign-in.
+            guard UserRequestedProbeContext.isUserRequested else { return .failed(.signedOut) }
+            signedOut = false
+        }
         var environment = inheritedEnvironment()
         environment["PATH"] = loginPath
         try? FileManager.default.createDirectory(atPath: workingDirectory, withIntermediateDirectories: true)
@@ -399,6 +454,7 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         let usageCapture = AntigravityUsageClassifier.classifyUsage(usageOutput)
         guard case .usage(let usage) = usageCapture else {
             if usageCapture == .failed(.unsupportedClient) { stop = Stop(key: key, version: version) }
+            if usageCapture == .failed(.signedOut) { signedOut = true }
             return usageCapture
         }
 
@@ -411,6 +467,9 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         case .unsupportedClient:
             stop = Stop(key: key, version: version)
             return .failed(.unsupportedClient)
+        case .signedOut:
+            signedOut = true
+            return .failed(.signedOut)
         }
     }
 
@@ -477,7 +536,8 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
 }
 
 /// One spawn of the client through `StdioChildProcess`: its own session, stdin from
-/// `/dev/null`, stderr discarded, a size cap and a whole-group terminate.
+/// `/dev/null`, a size cap and a whole-group terminate. Stderr is watched only for the
+/// sign-in prompt, which ends the run at once; its bytes are dropped.
 enum AntigravityProcessRunner {
     static func run(
         _ command: AntigravityCommand,
@@ -494,7 +554,8 @@ enum AntigravityProcessRunner {
             arguments: arguments,
             environment: environment,
             workingDirectory: workingDirectory,
-            stdin: .nullDevice
+            stdin: .nullDevice,
+            stderr: .watch
         ) else { return nil }
         defer { process.terminate() }
 
@@ -502,9 +563,20 @@ enum AntigravityProcessRunner {
         var output = Data()
         var chunk = Data()
         var overflowed = false
+        var errorOpen = true
+        var scanner = AntigravitySignInPromptScanner()
+        var showedSignInPrompt = false
         // Until end of file. Past the cap the rest is drained and dropped rather than left to
         // fill the pipe.
-        while Date() < end, process.readOutput(into: &chunk, deadline: end) {
+        while Date() < end, process.readOutput(
+            into: &chunk,
+            errorOpen: &errorOpen,
+            deadline: end,
+            onError: { if scanner.scan($0) { showedSignInPrompt = true } }
+        ) {
+            // The client is now waiting on a browser sign-in it opened; the deferred terminate
+            // ends it and anything it started.
+            if showedSignInPrompt { break }
             if !overflowed {
                 output.append(chunk)
                 if output.count > command.sizeCap {
@@ -513,6 +585,11 @@ enum AntigravityProcessRunner {
                 }
             }
             chunk.removeAll(keepingCapacity: true)
+        }
+        if showedSignInPrompt {
+            return AntigravityRunOutput(
+                exitCode: nil, stdout: Data(), overflowed: false, timedOut: false, showedSignInPrompt: true
+            )
         }
         let exitCode = process.exitCode(within: max(0, end.timeIntervalSinceNow))
         return AntigravityRunOutput(

@@ -103,6 +103,19 @@ struct CompanionPayloadBudgetTests {
             try CompanionProviderPayload(
                 sourceID: F.macA, providerID: "opencode", payloadGeneration: 4_000_000_005,
                 mode: .subscription, mainAccount: opencode[0], accounts: Array(opencode.dropFirst())))
+        // Antigravity is single-account: four pool rows and its credits badge as the plan name,
+        // with no spend row.
+        payloads.append(
+            try CompanionProviderPayload(
+                sourceID: F.macA, providerID: "antigravity", payloadGeneration: 4_000_000_006,
+                mode: .subscription,
+                mainAccount: try CompanionAccountSummary(
+                    id: "primary", title: title?("antigravity", 0) ?? "Antigravity", planName: "1,200 Credits",
+                    capturedAt: F.date(),
+                    windows: [
+                        row(.other, "Gemini 5h", 0), row(.other, "Gemini weekly", 1),
+                        row(.other, "Claude & GPT weekly", 2), row(.other, "Claude & GPT 5h", 3),
+                    ])))
         return payloads
     }
 
@@ -160,7 +173,7 @@ struct CompanionPayloadBudgetTests {
     /// V9 and the KTD7 stop condition: at the envelope every account reaches the phone.
     @Test func multiTwentyWithSparkRowsFitsWithoutCappingAnyAccount() throws {
         let payloads = try Self.envelopeFixture()
-        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20])
+        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20, 1])
         let protocolValues = try Self.protocolValues(devices: 5)
         var levels: [Int: CompanionBudgetMeasurement] = [:]
         for level in 0...1 {
@@ -168,7 +181,7 @@ struct CompanionPayloadBudgetTests {
                 payloads: payloads, protocolValues: protocolValues, minimumLevel: level,
                 manifest: Self.manifest)
             levels[fit.ladderLevel] = fit.measurement
-            #expect(fit.payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20])
+            #expect(fit.payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20, 1])
             #expect(fit.payloads.allSatisfy { $0.omittedAccountCount == 0 })
             for (key, bytes) in fit.measurement.valueBytes.sorted(by: { $0.key < $1.key }) {
                 print("U4-BUDGET level=\(fit.ladderLevel) key=\(key) bytes=\(bytes)")
@@ -194,7 +207,7 @@ struct CompanionPayloadBudgetTests {
             "alexandra.rivera-\(provider)\(index + 1)@northwind-research.example.com"
         }
         let payloads = try Self.envelopeFixture(title: email)
-        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20])
+        #expect(payloads.map(\.allAccounts.count) == [20, 20, 20, 1, 1, 20, 1])
         #expect(payloads[0].allAccounts.allSatisfy { $0.title.count >= 50 })
         let fit = try CompanionPayloadBudget.fit(
             payloads: payloads, protocolValues: try Self.protocolValues(devices: 5), manifest: Self.manifest)
@@ -243,7 +256,7 @@ struct CompanionPayloadBudgetTests {
                 accounts: base.accounts + (0..<20).map { try remembered(base.providerID, $0) },
                 apiSpend: base.apiSpend)
         }
-        #expect(payloads.map(\.allAccounts.count) == [40, 40, 20, 1, 1, 20])
+        #expect(payloads.map(\.allAccounts.count) == [40, 40, 20, 1, 1, 20, 1])
         let protocolValues = try Self.protocolValues(devices: 5)
 
         let fit = try CompanionPayloadBudget.fit(
@@ -284,7 +297,9 @@ struct CompanionPayloadBudgetTests {
         #expect(fit.ladderLevel == 2)
         #expect(fit.payloads.prefix(3).allSatisfy { $0.allAccounts.count == 20 && $0.omittedAccountCount == 100 })
         #expect(fit.payloads.dropFirst(3).prefix(2).allSatisfy { $0.allAccounts.count == 1 })
-        #expect(fit.payloads.last.map { $0.allAccounts.count == 20 && $0.omittedAccountCount == 100 } == true)
+        #expect(fit.payloads.first { $0.providerID == "opencode" }
+            .map { $0.allAccounts.count == 20 && $0.omittedAccountCount == 100 } == true)
+        #expect(fit.payloads.first { $0.providerID == "antigravity" }?.allAccounts.count == 1)
     }
 
     /// Decision 3: protocol overflow stops the write; it never caps accounts at or below 20.

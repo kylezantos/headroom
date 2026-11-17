@@ -1,0 +1,69 @@
+{
+ "description": "Official Antigravity CLI (agy) print-mode output. Each fixture is antigravity-<name>.stdout plus antigravity-<name>.exit (the process exit status). Stderr is never kept. origin: live = printed by agy as-is; derived = a live capture with the named fields edited; synthetic = not observed.",
+ "binary": {
+  "version": "1.5.9",
+  "versionOutput": "1.5.9",
+  "path": "/opt/homebrew/bin/agy"
+ },
+ "fixtures": [
+  {
+   "name": "usage-live",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "live",
+   "capturedAt": "2026-11-16",
+   "description": "A signed-in account: two groups, four buckets (gemini-weekly 0.9946, gemini-5h 0.9894, 3p-weekly 1, 3p-5h 1), num_turns 0, every token count 0. Contains no email, token or account identifier."
+  },
+  {
+   "name": "credits-live",
+   "kind": "credits",
+   "command": "agy -p \"/credits\" --output-format json",
+   "origin": "live",
+   "capturedAt": "2026-11-16",
+   "description": "The same account: remaining_credits 0, num_turns 0, every token count 0."
+  },
+  {
+   "name": "version-live",
+   "kind": "version",
+   "command": "agy --version",
+   "origin": "live",
+   "capturedAt": "2026-11-16",
+   "description": "The bare version line 1.5.9."
+  },
+  {
+   "name": "usage-signed-out",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "synthetic",
+   "description": "Not a fixture capture. Modelled on the one probe with an empty CLI home on 2026-11-16, where agy did not answer and instead started an interactive Google sign-in: it printed a sign-in URL on stderr, waited for authentication (timeout 60s) and opened the sign-in page in the browser. That run was ended after about 15 s without signing in. The stdout here has the shape it printed on the way out; the exit status 1 is a stand-in, since none was observed."
+  },
+  {
+   "name": "usage-missing-3p-5h",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "derived from usage-live",
+   "description": "The 3p-5h bucket and its response line removed."
+  },
+  {
+   "name": "usage-one-turn",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "derived from usage-live",
+   "description": "num_turns set to 1: the answer cost a model turn."
+  },
+  {
+   "name": "usage-output-tokens",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "derived from usage-live",
+   "description": "output_tokens and total_tokens set to 12: the answer spent tokens."
+  },
+  {
+   "name": "credits-1200",
+   "kind": "credits",
+   "command": "agy -p \"/credits\" --output-format json",
+   "origin": "derived from credits-live",
+   "description": "remaining_credits set to 1200."
+  }
+ ]
+}

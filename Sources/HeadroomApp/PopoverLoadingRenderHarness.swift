@@ -77,7 +77,6 @@ enum PopoverLoadingRenderHarness {
         }
         try await capture("ghost-two", store: store, date: owner.clock.now(), directory: directory)
         store.setMenuBarFillSource(.providers(Set(DemoFixture.registeredProviderOrder)))
-        // Every registered provider draws a pill, and the halftone row holds them all.
         let allPills = recipe(store, at: owner.clock.now()).pills.count
         guard allPills == DemoFixture.registeredProviderOrder.count,
               allPills <= HalftonePillRow.Layout.maximumCount else {

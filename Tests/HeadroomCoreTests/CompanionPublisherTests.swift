@@ -768,16 +768,11 @@ struct CompanionPublisherTests {
         #expect((setsPerMinute.max() ?? 0) <= 7)
     }
 
-    /// KTD16 (OpenCode plan): the multi-20 envelope with OpenCode as a sixth provider at a
-    /// 2-minute interval, now with Antigravity as a seventh. Claude, Codex, Grok and OpenCode
-    /// carry 20 accounts each (OpenCode with its three windows), Cursor, Copilot and
-    /// Antigravity one: 83 accounts, so a merge lands about every 1.5 seconds (83 per 120 s),
-    /// numbers changing on most merges, for 30 simulated minutes. Seven provider keys, the
-    /// manifest and v3 make nine in one flush, so a single minute can hold one nine-key flush;
-    /// the average stays at 6.5 or under. Accounts are read provider by provider, as in the
-    /// five-provider test above. Interleaving the four multi-account providers instead (every
-    /// key changing every minute) measured 6.93 a minute with no minute above 8 with six
-    /// providers (2026-11-12), so the 6.5 average holds for this pacing only.
+    /// The multi-20 envelope at a 2-minute interval, for 30 simulated minutes. Claude, Codex,
+    /// Grok and OpenCode carry 20 accounts each, Cursor, Copilot and Antigravity one: 83
+    /// accounts, so a merge lands about every 1.5 seconds. Seven provider keys, the manifest
+    /// and v3 make nine in one flush, so a single minute can hold one nine-key flush; the
+    /// average stays at 6.5 or under.
     @Test func sevenProvidersAtMultiTwentyAndATwoMinuteIntervalStayAtOrUnderSixAndAHalfWritesPerMinute() async throws {
         let h = Harness()
         await h.bindHeartbeat()

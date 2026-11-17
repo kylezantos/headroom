@@ -51,7 +51,7 @@ public enum SetupSessionFailure: Error, Sendable, Equatable {
 /// The policy is chosen once, when the handoff is staged, and saved with it — never
 /// re-derived from a CLI version that can change while the original Terminal is open.
 public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
-    /// Today’s bounded retry ladder. Every provider but Claude, OpenCode and Antigravity.
+    /// Today’s bounded retry ladder.
     case retryLadder
     /// One check a fixed delay after each landed result. Claude's `interactive` launch,
     /// where the CLI's own screens can be satisfied without the process exiting.

@@ -205,8 +205,6 @@ struct DemoFixtureTests {
     /// U12 parity, Copilot plan U7: the five-provider scenario's provider list equals the
     /// registry order. `multi-4` keeps the four providers before Copilot, because its spend
     /// variants pose four API rows and `multi-5` already means five accounts.
-    /// `five-providers` stays the five providers OpenCode and
-    /// Antigravity joined after, though Antigravity now sits above Copilot in the registry.
     @Test func fiveProviderScenarioMatchesRegistryOrder() async {
         let fixture = DemoFixture.multiFixture(for: .fiveProviders)
         let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode && $0 != .antigravity }

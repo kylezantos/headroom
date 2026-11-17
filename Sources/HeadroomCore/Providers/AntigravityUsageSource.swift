@@ -136,7 +136,6 @@ enum AntigravityCommand: CaseIterable, Sendable {
         }
     }
 
-    /// The live usage answer is about 2 KB and the credits answer under 300 bytes.
     var sizeCap: Int {
         switch self {
         case .version: 4_096
@@ -213,7 +212,7 @@ enum AntigravityUsageClassifier {
             if output.timedOut { return .failed(.transient(.deadline)) }
             return .failed(output.exitCode == 0 ? .formatChanged(.output) : .transient(.unexpectedExit))
         }
-        // The no-turn check comes before everything else, whatever the exit status.
+        // Checked before the exit status, so a failed turn still stops polling.
         guard result.provesNoTurn else { return .failed(.unsupportedClient) }
         guard result.status == successStatus else {
             let message = result.error?.lowercased() ?? ""
@@ -267,17 +266,8 @@ enum AntigravityUsageClassifier {
             pool: pool,
             window: window,
             remainingFraction: min(1, max(0, fraction)),
-            resetsAt: dto.resetTime.flatMap(parseResetTime)
+            resetsAt: dto.resetTime.flatMap(DateParsing.iso8601)
         )
-    }
-
-    /// Piped and JSON output use UTC ISO 8601 timestamps.
-    static func parseResetTime(_ text: String) -> Date? {
-        let plain = ISO8601DateFormatter()
-        if let date = plain.date(from: text) { return date }
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        return fractional.date(from: text)
     }
 
     static func decodeResult(_ stdout: Data) -> AntigravityResultDTO? {
@@ -331,7 +321,6 @@ public enum AntigravityCLI {
 /// capture. Every answer must show zero turns and zero tokens, or the source stops spawning
 /// the client (see `AntigravityCaptureFailure.unsupportedClient`).
 public actor AntigravityCLIUsageSource: AntigravityUsageSource {
-    /// The live answer takes about 1.2 s.
     public static let defaultDeadline: TimeInterval = 20
     public static let defaultVersionDeadline: TimeInterval = 10
     /// The version the bucket shape was captured on. The no-turn answer exists from 1.1.11,
@@ -414,7 +403,7 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         }
         var environment = inheritedEnvironment()
         environment["PATH"] = loginPath
-        try? FileManager.default.createDirectory(atPath: workingDirectory, withIntermediateDirectories: true)
+        var preparedWorkingDirectory = false
 
         let key = Self.executableKey(for: executable)
         if let stop {
@@ -424,7 +413,7 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
                 // version print, which is the one way a version swapped behind an unchanged file
                 // is noticed.
                 guard UserRequestedProbeContext.isUserRequested else { return .failed(.unsupportedClient) }
-                let output = await run(.version, executable: executable, environment: environment)
+                let output = await spawn(.version, executable: executable, environment: environment, prepared: &preparedWorkingDirectory)
                 guard let version = AntigravityUsageClassifier.readVersion(output), version != stop.version else {
                     return .failed(.unsupportedClient)
                 }
@@ -438,17 +427,17 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
             version = passing.version
         } else {
             passingVersion = nil
-            let output = await run(.version, executable: executable, environment: environment)
-            if let failure = AntigravityUsageClassifier.classifyVersion(output) { return .failed(failure) }
+            let output = await spawn(.version, executable: executable, environment: environment, prepared: &preparedWorkingDirectory)
             guard let read = AntigravityUsageClassifier.readVersion(output) else {
                 return .failed(.transient(.unreadableVersion))
             }
+            if read < Self.minimumVersion { return .failed(.updateRequired) }
             version = read
             if let key { passingVersion = (key, read) }
         }
         if version < Self.minimumVersion { return .failed(.updateRequired) }
 
-        guard let usageOutput = await run(.usage, executable: executable, environment: environment) else {
+        guard let usageOutput = await spawn(.usage, executable: executable, environment: environment, prepared: &preparedWorkingDirectory) else {
             return .failed(.transient(.spawnFailed))
         }
         let usageCapture = AntigravityUsageClassifier.classifyUsage(usageOutput)
@@ -458,7 +447,7 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
             return usageCapture
         }
 
-        let creditsOutput = await run(.credits, executable: executable, environment: environment)
+        let creditsOutput = await spawn(.credits, executable: executable, environment: environment, prepared: &preparedWorkingDirectory)
         switch AntigravityUsageClassifier.classifyCredits(creditsOutput) {
         case .balance(let credits):
             return .usage(AntigravityUsage(buckets: usage.buckets, credits: credits))
@@ -504,6 +493,21 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         guard let modified = (try? FileManager.default.attributesOfItem(atPath: target))?[.modificationDate] as? Date
         else { return nil }
         return ExecutableKey(path: target, modified: modified)
+    }
+
+    /// Creates the working directory before the first spawn of a capture, without an existence
+    /// check, then runs the command.
+    private func spawn(
+        _ command: AntigravityCommand,
+        executable: String,
+        environment: [String: String],
+        prepared: inout Bool
+    ) async -> AntigravityRunOutput? {
+        if !prepared {
+            prepared = true
+            try? FileManager.default.createDirectory(atPath: workingDirectory, withIntermediateDirectories: true)
+        }
+        return await run(command, executable: executable, environment: environment)
     }
 
     private func run(
@@ -566,8 +570,7 @@ enum AntigravityProcessRunner {
         var errorOpen = true
         var scanner = AntigravitySignInPromptScanner()
         var showedSignInPrompt = false
-        // Until end of file. Past the cap the rest is drained and dropped rather than left to
-        // fill the pipe.
+        // Past the cap the rest is drained and dropped rather than left to fill the pipe.
         while Date() < end, process.readOutput(
             into: &chunk,
             errorOpen: &errorOpen,

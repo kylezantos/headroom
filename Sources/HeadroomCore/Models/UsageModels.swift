@@ -675,7 +675,6 @@ public enum UsageSurface: String, CaseIterable, Sendable, Codable, Equatable {
     /// KTD13 (OpenCode plan): appended after the API surfaces, not beside the other
     /// subscriptions, so no stored raw value or `allCases` position moves.
     case opencodeSubscription
-    /// Appended last for the same reason: no stored raw value or `allCases` position moves.
     case antigravitySubscription
 
     public var providerID: ProviderID {

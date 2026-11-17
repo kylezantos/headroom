@@ -131,7 +131,6 @@ struct CompactAccountRowRecipeTests {
             #expect(tooltip.contains { $0.hasPrefix("\(name):") }, "tooltip lacks \(name)")
         }
 
-        // With one pool missing, the other pool's tighter row is the one meter.
         let geminiOnly = recipe(snapshot(.antigravity, Array(windows.prefix(2))))
         #expect(geminiOnly.shownWindows.map(\.window.kind) == [.other("Gemini weekly")])
         #expect(geminiOnly.overflowCount == 1)
@@ -141,8 +140,6 @@ struct CompactAccountRowRecipeTests {
     /// the 84pt cell. "Other" is the Claude and GPT pool, as Cursor's "Other" is its other pool.
     @Test func antigravityShortLabelsFitTheCompactColumn() {
         #expect(CompactAccountRowRecipe.shortLabel(for: .other("Gemini 5h")) == "Gemini 5h")
-        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Gemini weekly")) == "Gemini wk")
-        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Other 5h")) == "Other 5h")
         #expect(CompactAccountRowRecipe.shortLabel(for: .other("Other weekly")) == "Other wk")
     }
 

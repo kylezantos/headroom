@@ -1174,8 +1174,7 @@ enum AppComposition {
             // Cursor has no config-home isolation, so it stays single-account (matches `CursorProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .cursor, accountCapacity: 1, factory: makeCursorProvider),
             // `agy` keeps one sign-in per Mac and isolating a second is unproven, so Antigravity
-            // stays single-account (matches `AntigravityProvider.accountCapacity`). It sits
-            // directly above Copilot in the popover.
+            // stays single-account (matches `AntigravityProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .antigravity, accountCapacity: 1, factory: makeAntigravityProvider),
             // A Headroom-owned COPILOT_HOME never receives the session logs the meter reads, so
             // Copilot stays single-account (matches `CopilotProvider.accountCapacity`).

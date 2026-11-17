@@ -804,7 +804,7 @@ public enum HeadroomBrandMark {
         // Cursor at 1.00, and its 10.4pt width leaves a wider title gap than Claude's, never
         // the cramped one Copilot had.
         case ProviderID.opencode.raw: 1.00
-        // Antigravity 1.00 (Nov 2026): an arch wider than it is tall, ~0.37 coverage, so
+        // Antigravity 1.00: an arch wider than it is tall, ~0.37 coverage, so
         // like Copilot it scores a little under Claude by optical size. At 1.00 it is 13pt
         // wide, Claude's width, which keeps the title gap level with the other marks.
         case ProviderID.antigravity.raw: 1.00
@@ -835,7 +835,6 @@ public enum HeadroomBrandMark {
         case ProviderID.copilot.raw: 24.0 / 20.03
         // OpenCode's block is a 4:5 portrait (its official 240 × 300 artboard is all ink).
         case ProviderID.opencode.raw: 240.0 / 300.0
-        // Antigravity's arch is wider than it is tall.
         case ProviderID.antigravity.raw: 24.0 / 22.1087
         default: 1.0
         }

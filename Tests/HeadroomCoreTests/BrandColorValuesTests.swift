@@ -382,7 +382,6 @@ struct BrandColorValuesTests {
         let opencode = HeadroomBrandMark.markSize(for: ProviderID.opencode.raw, slot: 15)
         #expect(abs(opencode.height - 13) < 0.0001)
         #expect(abs(opencode.width - 10.4) < 0.0001)
-        // Antigravity's arch is wider than tall: full width, 22.1087/24 of it high.
         let antigravity = HeadroomBrandMark.markSize(for: ProviderID.antigravity.raw, slot: 15)
         #expect(abs(antigravity.width - 13) < 0.0001)
         #expect(abs(antigravity.height - 13 * 22.1087 / 24) < 0.0001)

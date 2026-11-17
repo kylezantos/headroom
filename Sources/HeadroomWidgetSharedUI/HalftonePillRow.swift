@@ -13,14 +13,13 @@ public struct HalftonePillRow: View {
         public let origins: [Double]
         public let width: Double
 
-        /// Seven providers can be selected, so the row holds seven.
         public static let maximumCount = 7
 
         public init(count: Int, labelWidth: Double = 44) {
             let count = min(Self.maximumCount, max(0, count))
             width = labelWidth
             // U3: four slim 3×8; five and six slimmer still at 3×8 so all share the slot.
-            // KTD14: six 6pt pills leave 1.6pt gaps, so the Refresh button keeps its size;
+            // Six 6pt pills leave 1.6pt gaps, so the Refresh button keeps its size;
             // seven 5pt pills leave 1.5pt gaps in the same slot.
             let pillWidth = switch count {
             case 7: 5.0

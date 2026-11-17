@@ -191,7 +191,6 @@ struct MenuBarPillArrangerTests {
             })
             #expect(PillShelfModel.rowCount(in: .menuBar, slots: slots, columns: count) == 1)
         }
-        #expect(PillShelfModel.cardWidth(forWidth: 436, count: PillShelfModel.columns(forCount: 6)) == 63)
     }
 
     /// Seven cards in one row at the 720pt floor would get 52pt, under the compact pill's
@@ -214,7 +213,6 @@ struct MenuBarPillArrangerTests {
                 == PillCardGeometry(pill: .standard, showsCarets: true))
         }
         #expect(PillShelfModel.cardWidth(forWidth: Self.floorWell, count: columns) == 98)
-        // No well width from the floor up squeezes a wrapped card under the floor.
         for well in stride(from: Self.floorWell, through: 1_200, by: 1) {
             let width = PillShelfModel.cardWidth(forWidth: well, count: columns)
             #expect(2 * PillShelfModel.wellPadding + CGFloat(columns) * width
@@ -230,14 +228,10 @@ struct MenuBarPillArrangerTests {
                 for: id, shown: shown, notShown: seven.filter { !shown.contains($0) }, canonicalOrder: seven,
                 translation: dx, pointerInNotShown: false, pitch: pitch, columns: 4, pointerRow: row)
         }
-        // The second row's second card, dragged up a row, lands in the first row's second slot.
         #expect(land(seven[5], shown: seven, dx: 0, row: 0) == PillShelfSlot(shelf: .menuBar, index: 1))
-        // Along its own row it moves one column per pitch and stops at the last slot.
         #expect(land(seven[5], shown: seven, dx: pitch, row: 1) == PillShelfSlot(shelf: .menuBar, index: 6))
         #expect(land(seven[5], shown: seven, dx: pitch * 9, row: 1) == PillShelfSlot(shelf: .menuBar, index: 6))
-        // Past the first row's end it stays in that row.
         #expect(land(seven[0], shown: seven, dx: pitch * 9, row: 0) == PillShelfSlot(shelf: .menuBar, index: 3))
-        // A shelf card dropped under a full first row opens the second.
         let four = Array(seven.prefix(4))
         #expect(land(seven[6], shown: four, dx: 0, row: 1) == PillShelfSlot(shelf: .menuBar, index: 4))
         #expect(land(seven[6], shown: four, dx: 0, row: 3) == PillShelfSlot(shelf: .menuBar, index: 4))

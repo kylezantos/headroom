@@ -300,10 +300,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     /// `windowKind`), so this compiles where the provider itself does not (iOS).
     private static func antigravityPool(of kind: WindowKind) -> String? {
         guard case .other(let label) = kind else { return nil }
-        for pool in ["Gemini", "Other"] where label == "\(pool) 5h" || label == "\(pool) weekly" {
-            return pool
-        }
-        return nil
+        return AntigravityRowLabels.parse(label)?.pool.rawValue
     }
 
     static func isAtLimit(_ window: UsageWindow) -> Bool {
@@ -354,13 +351,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     /// Cursor's "Other" is its other pool; tooltips and VoiceOver name each row in full.
     /// Nil for any other label.
     public static func antigravityShortLabel(_ label: String) -> String? {
-        switch label {
-        case "Gemini 5h": "Gemini 5h"
-        case "Gemini weekly": "Gemini wk"
-        case "Other 5h": "Other 5h"
-        case "Other weekly": "Other wk"
-        default: nil
-        }
+        AntigravityRowLabels.parse(label).map { AntigravityRowLabels.short($0.pool, $0.window) }
     }
 
     // MARK: - Tooltip and VoiceOver

@@ -36,7 +36,6 @@ public struct AntigravityProvider: UsageProvider {
                 freshness: .live
             )
         case .failed(let failure):
-            // Providers never throw: the store's continuity keeps the last windows, dimmed.
             return .stale(for: id, reason: failure.failureReason)
         }
     }
@@ -46,15 +45,15 @@ public struct AntigravityProvider: UsageProvider {
     /// give them their display names and reminders. The Claude and GPT pool is "Other", as
     /// Cursor names its second pool, so the Standard card's "Other · Weekly" fits untruncated.
     public static func windowKind(_ pool: AntigravityPool, _ window: AntigravityWindow) -> WindowKind {
-        let poolName = switch pool {
-        case .gemini: "Gemini"
-        case .claudeAndGPT: "Other"
+        let labelPool: AntigravityRowLabels.Pool = switch pool {
+        case .gemini: .gemini
+        case .claudeAndGPT: .other
         }
-        let windowName = switch window {
-        case .fiveHour: "5h"
-        case .weekly: "weekly"
+        let labelWindow: AntigravityRowLabels.Window = switch window {
+        case .fiveHour: .fiveHour
+        case .weekly: .weekly
         }
-        return .other("\(poolName) \(windowName)")
+        return .other(AntigravityRowLabels.stored(labelPool, labelWindow))
     }
 
     /// Pools in the order the source first reports them, and within each pool the row with

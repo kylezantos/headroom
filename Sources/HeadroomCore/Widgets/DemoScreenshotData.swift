@@ -434,7 +434,6 @@ public enum DemoScreenshotData {
         return WidgetSnapshotEnvelope(
             generatedAt: five.generatedAt,
             status: five.status,
-            // Antigravity sits directly above Copilot, OpenCode last (registry order).
             providers: five.providers.flatMap { $0.id == ProviderID.copilot.raw ? [antigravity, $0] : [$0] } + [opencode],
             apiSpendProviders: five.apiSpendProviders
         )

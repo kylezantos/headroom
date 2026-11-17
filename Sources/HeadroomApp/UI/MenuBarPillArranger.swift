@@ -60,17 +60,12 @@ enum PillShelfModel {
     /// under the compact pill's 56pt, so past six the wells wrap instead of squeezing.
     static let maximumColumns = 6
 
-    /// How many cards each row of both wells holds for `count` cards: all of them up to six,
-    /// so those layouts never change, and past six the fewest rows of six or fewer, split
-    /// evenly (seven cards sit four over three).
     static func columns(forCount count: Int) -> Int {
         guard count > maximumColumns else { return max(count, 1) }
         let rows = (count + maximumColumns - 1) / maximumColumns
         return (count + rows - 1) / rows
     }
 
-    /// The rows a well needs for the slots in it: one more than its last slot's row, and
-    /// never fewer than one, so an empty well keeps its message row.
     static func rowCount(in shelf: PillShelf, slots: [ProviderID: PillShelfSlot], columns: Int) -> Int {
         let last = slots.values.filter { $0.shelf == shelf }.map(\.index).max() ?? 0
         return last / max(columns, 1) + 1
@@ -287,12 +282,10 @@ struct MenuBarPillArranger<Card: View>: View {
     /// a hint of height, not a zoom.
     private static var liftScale: CGFloat { 1.03 }
 
-    /// Cards per row in both wells: every card up to six, then `PillShelfModel.columns`.
     private var columns: Int {
         PillShelfModel.columns(forCount: canonicalOrder.count)
     }
 
-    /// Whether the wells wrap: only past six cards, so six or fewer keep their one row.
     private var wraps: Bool { canonicalOrder.count > PillShelfModel.maximumColumns }
 
     private var cardWidth: CGFloat {
@@ -360,11 +353,12 @@ struct MenuBarPillArranger<Card: View>: View {
                     .transition(.opacity)
                 }
             }
-            .onGeometryChange(for: CGRect.self) { proxy in
-                proxy.frame(in: .named(pillArrangerSpace))
-            } action: { frame in
-                shelfBoundary = frame.maxY + SettingsMetrics.groupToGroup / 2
-                menuBarWellHeight = frame.height
+            .onGeometryChange(for: WellExtent.self) { proxy in
+                let frame = proxy.frame(in: .named(pillArrangerSpace))
+                return WellExtent(maxY: frame.maxY, height: frame.height)
+            } action: { extent in
+                shelfBoundary = extent.maxY + SettingsMetrics.groupToGroup / 2
+                menuBarWellHeight = extent.height
             }
             // The layout reads its tag from a subview's outermost modifier, so the tag goes
             // last.
@@ -470,8 +464,6 @@ struct MenuBarPillArranger<Card: View>: View {
         return CGSize(width: x, height: y)
     }
 
-    /// The wrapped menu bar row under a pointer at `y` in the arranger's space. The well
-    /// sits at the top, so its rows start one inset down and repeat every row and gap.
     private func menuBarRow(at y: CGFloat) -> Int {
         let rows = PillShelfModel.rowCount(in: .menuBar, slots: slots, columns: columns)
         let rowHeight = (menuBarWellHeight - 2 * PillShelfModel.wellPadding
@@ -660,8 +652,7 @@ struct PillShelfLayout: Layout {
     var landing: ProviderID? = nil
     /// An empty row keeps room for its message and for a card to be dropped into it.
     var emptyRowHeight: CGFloat = 56
-    /// Cards per row in each well; a slot past it wraps onto the well's next row. Nil keeps
-    /// every card in one row.
+    /// Cards per row in each well. Nil keeps every card in one row.
     var columns: Int? = nil
 
     private func position(of index: Int) -> (row: Int, column: Int) {
@@ -714,7 +705,6 @@ struct PillShelfLayout: Layout {
             return height > 0 ? height : emptyRowHeight
         }
 
-        // A wrapped well stacks its rows with the cards' gap between them.
         func wellHeight(_ shelf: PillShelf) -> CGFloat {
             guard let columns else { return rowHeight(shelf) + 2 * wellPadding }
             let rows = CGFloat(PillShelfModel.rowCount(in: shelf, slots: slots, columns: columns))
@@ -1038,4 +1028,10 @@ extension View {
             .background(Color(nsColor: .windowBackgroundColor), in: shape)
             .contentShape(shape)
     }
+}
+
+/// The vertical extent of the menu bar well; the geometry action fires only when it changes.
+private struct WellExtent: Equatable {
+    var maxY: CGFloat
+    var height: CGFloat
 }

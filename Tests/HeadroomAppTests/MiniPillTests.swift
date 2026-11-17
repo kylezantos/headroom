@@ -35,7 +35,7 @@ struct MiniPillTests {
     }
 
     @Test func allRowCountsFitAndKeepTheirInputOrder() {
-        for count in 1...6 {
+        for count in 1...7 {
             let layout = HalftonePillRow.Layout(count: count)
             #expect(layout.origins.count == count)
             #expect(layout.origins == layout.origins.sorted())
@@ -74,10 +74,9 @@ struct MiniPillTests {
     }
 
     /// U7 (OpenCode plan, KTD14): six 6pt pills with 1.6pt gaps fill the same 44pt slot, so
-    /// the Refresh button keeps its size; a seventh is never drawn.
+    /// the Refresh button keeps its size.
     @Test func sixPillsAreSixPointsWideInsideTheSameSlot() {
         let layout = HalftonePillRow.Layout(count: 6)
-        #expect(HalftonePillRow.Layout.maximumCount == 6)
         #expect(layout.width == 44)
         #expect(layout.pillWidth == 6)
         #expect(abs(layout.gap - 1.6) < 0.0001)
@@ -87,7 +86,24 @@ struct MiniPillTests {
             #expect(abs(origin - Double(index) * 7.6) < 0.0001)
         }
         #expect(abs(layout.origins.last! + layout.pillWidth - 44) < 0.0001)
-        #expect(HalftonePillRow.Layout(count: 7).origins.count == 6)
+    }
+
+    /// Seven providers can be selected: seven 5pt pills with 1.5pt gaps fill the same 44pt
+    /// slot, so the Refresh button keeps its size; an eighth is never drawn.
+    @Test func sevenPillsAreFivePointsWideInsideTheSameSlot() {
+        let layout = HalftonePillRow.Layout(count: 7)
+        #expect(HalftonePillRow.Layout.maximumCount == 7)
+        #expect(layout.width == 44)
+        #expect(layout.pillWidth == 5)
+        #expect(abs(layout.gap - 1.5) < 0.0001)
+        #expect(layout.columns == 3)
+        #expect(layout.origins.count == 7)
+        for (index, origin) in layout.origins.enumerated() {
+            #expect(abs(origin - Double(index) * 6.5) < 0.0001)
+        }
+        #expect(layout.origins.first! >= 0)
+        #expect(abs(layout.origins.last! + layout.pillWidth - 44) < 0.0001)
+        #expect(HalftonePillRow.Layout(count: 8).origins.count == 7)
     }
 
     @Test nonisolated func timelinePausesWhenStillPinnedOrAfterItsTail() {

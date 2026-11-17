@@ -636,9 +636,9 @@ public enum CompanionDemoData {
             windows: [
                 window(.other, name: "Gemini 5h", utilization: 34, resetIn: 3 * hour + 10 * minute, clock),
                 window(.other, name: "Gemini weekly", utilization: 21, resetIn: 4 * day + 2 * hour, clock),
-                window(.other, name: "Claude & GPT weekly", utilization: 58,
+                window(.other, name: "Other weekly", utilization: 58,
                        resetIn: 4 * day + 2 * hour + 9 * minute, clock),
-                window(.other, name: "Claude & GPT 5h", utilization: 12, resetIn: 3 * hour + 19 * minute, clock),
+                window(.other, name: "Other 5h", utilization: 12, resetIn: 3 * hour + 19 * minute, clock),
             ])
     }
 

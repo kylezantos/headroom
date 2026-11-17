@@ -122,12 +122,12 @@ struct CompactAccountRowRecipeTests {
         ])
         let result = recipe(snapshot(.antigravity, windows))
         #expect(result.content == .meters)
-        #expect(result.shownWindows.map(\.window.kind) == [.other("Gemini weekly"), .other("Claude & GPT 5h")])
+        #expect(result.shownWindows.map(\.window.kind) == [.other("Gemini weekly"), .other("Other 5h")])
         #expect(result.shownWindows.map(\.shortLabel) == ["Gemini wk", "Other 5h"])
         #expect(result.overflowCount == 2)
         let tooltip = result.tooltip.split(separator: "\n").map(String.init)
         #expect(tooltip.count == 4)
-        for name in ["Gemini weekly", "Gemini 5-hour", "Claude & GPT 5-hour", "Claude & GPT weekly"] {
+        for name in ["Gemini weekly", "Gemini 5-hour", "Other 5-hour", "Other weekly"] {
             #expect(tooltip.contains { $0.hasPrefix("\(name):") }, "tooltip lacks \(name)")
         }
 
@@ -138,12 +138,12 @@ struct CompactAccountRowRecipeTests {
     }
 
     /// The Compact header names each Antigravity column by pool and period, short enough for
-    /// the 84pt cell. "Other" is the Claude & GPT pool, as Cursor's "Other" is its other pool.
+    /// the 84pt cell. "Other" is the Claude and GPT pool, as Cursor's "Other" is its other pool.
     @Test func antigravityShortLabelsFitTheCompactColumn() {
         #expect(CompactAccountRowRecipe.shortLabel(for: .other("Gemini 5h")) == "Gemini 5h")
         #expect(CompactAccountRowRecipe.shortLabel(for: .other("Gemini weekly")) == "Gemini wk")
-        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Claude & GPT 5h")) == "Other 5h")
-        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Claude & GPT weekly")) == "Other wk")
+        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Other 5h")) == "Other 5h")
+        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Other weekly")) == "Other wk")
     }
 
     @Test func unknownWindowsFallBackToSlotOrder() {

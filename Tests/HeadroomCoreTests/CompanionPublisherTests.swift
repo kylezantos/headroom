@@ -769,15 +769,16 @@ struct CompanionPublisherTests {
     }
 
     /// KTD16 (OpenCode plan): the multi-20 envelope with OpenCode as a sixth provider at a
-    /// 2-minute interval. Claude, Codex, Grok and OpenCode carry 20 accounts each (OpenCode
-    /// with its three windows), Cursor and Copilot one: 82 accounts, so a merge lands about
-    /// every 1.5 seconds (82 per 120 s), numbers changing on most merges, for 30 simulated
-    /// minutes. Six provider keys, the manifest and v3 make eight in one flush, so a single
-    /// minute can hold one eight-key flush; the average stays at 6.5 or under. Accounts are
-    /// read provider by provider, as in the five-provider test above. Interleaving the four
-    /// multi-account providers instead (every key changing every minute) measured 6.93 a
-    /// minute with no minute above 8 (2026-11-12), so the 6.5 average holds for this pacing only.
-    @Test func sixProvidersAtMultiTwentyAndATwoMinuteIntervalStayAtOrUnderSixAndAHalfWritesPerMinute() async throws {
+    /// 2-minute interval, now with Antigravity as a seventh. Claude, Codex, Grok and OpenCode
+    /// carry 20 accounts each (OpenCode with its three windows), Cursor, Copilot and
+    /// Antigravity one: 83 accounts, so a merge lands about every 1.5 seconds (83 per 120 s),
+    /// numbers changing on most merges, for 30 simulated minutes. Seven provider keys, the
+    /// manifest and v3 make nine in one flush, so a single minute can hold one nine-key flush;
+    /// the average stays at 6.5 or under. Accounts are read provider by provider, as in the
+    /// five-provider test above. Interleaving the four multi-account providers instead (every
+    /// key changing every minute) measured 6.93 a minute with no minute above 8 with six
+    /// providers (2026-11-12), so the 6.5 average holds for this pacing only.
+    @Test func sevenProvidersAtMultiTwentyAndATwoMinuteIntervalStayAtOrUnderSixAndAHalfWritesPerMinute() async throws {
         let h = Harness()
         await h.bindHeartbeat()
         var captured: [String: [Int64]] = [:]
@@ -806,12 +807,17 @@ struct CompanionPublisherTests {
             }
             providers.insert(Self.provider("cursor", main: Self.account(captured: t)), at: 3)
             providers.insert(Self.provider("copilot", main: Self.account(captured: t)), at: 4)
+            providers.append(Self.provider("antigravity", main: Self.account(captured: t)))
             return Self.capture(at: t, providers: providers)
         }
         await h.submit(state(at: 0))
         h.store.clearLog()
+        // One key per provider, plus the manifest and v3.
+        let providerCount = state(at: 0).providers.count
+        #expect(providerCount == 7)
+        let flushBound = providerCount + 2
 
-        let cycle = ids.count * 20 + 2
+        let cycle = ids.count * 20 + 3
         var setsPerMinute: [Int] = []
         var lastCount = 0
         var flushSizes: [Int] = []
@@ -854,9 +860,11 @@ struct CompanionPublisherTests {
         // The sixth provider really is in the flushes: its accounts change in one stretch of
         // each 2-minute pass, so its key is rewritten about every other flush.
         #expect((perKey[CompanionSyncKeys.provider("opencode")!] ?? 0) >= 14)
-        #expect(flushSizes.allSatisfy { $0 <= 8 })
+        #expect((perKey[CompanionSyncKeys.provider("antigravity")!] ?? 0) > 0)
+        #expect(flushBound == 9)
+        #expect(flushSizes.allSatisfy { $0 <= flushBound })
         #expect(average <= 6.5)
-        #expect((setsPerMinute.max() ?? 0) <= 8)
+        #expect((setsPerMinute.max() ?? 0) <= flushBound)
     }
 
     /// Default-login R12 (review #19): an extra becoming remembered, or returning, changes

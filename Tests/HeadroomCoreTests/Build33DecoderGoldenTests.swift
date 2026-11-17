@@ -223,7 +223,7 @@ struct Build33DecoderGoldenTests {
         #expect(row.displayName == "Antigravity")
         #expect(row.planLabel == "1,200 credits")
         #expect(row.windows.map(\.kind) == [
-            .other("Gemini 5h"), .other("Gemini weekly"), .other("Claude & GPT weekly"), .other("Claude & GPT 5h"),
+            .other("Gemini 5h"), .other("Gemini weekly"), .other("Other weekly"), .other("Other 5h"),
         ])
         #expect(row.windows.map(\.percentRemaining) == [50, 75, 25, 100])
         #expect(row.windows.last?.resetSchedule == .unresolved(.absent))

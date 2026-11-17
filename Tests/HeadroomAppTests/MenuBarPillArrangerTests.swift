@@ -179,6 +179,70 @@ struct MenuBarPillArrangerTests {
         #expect(PillShelfModel.cardWidth(forWidth: 516, count: 6) == 76)
     }
 
+    // MARK: Seven cards wrap
+
+    /// Six or fewer cards keep one row: every card's row is the first, so those layouts are
+    /// the ones above, unchanged.
+    @Test func sixOrFewerCardsNeverWrap() {
+        for count in 1...6 {
+            #expect(PillShelfModel.columns(forCount: count) == count)
+            let slots = Dictionary(uniqueKeysWithValues: (0..<count).map {
+                (ProviderID("p\($0)"), PillShelfSlot(shelf: .menuBar, index: $0))
+            })
+            #expect(PillShelfModel.rowCount(in: .menuBar, slots: slots, columns: count) == 1)
+        }
+        #expect(PillShelfModel.cardWidth(forWidth: 436, count: PillShelfModel.columns(forCount: 6)) == 63)
+    }
+
+    /// Seven cards in one row at the 720pt floor would get 52pt, under the compact pill's
+    /// 56pt. They wrap four over three instead, and every card keeps the standard pill, its
+    /// carets and its name at the floor and the default window.
+    @Test func sevenCardsWrapToASecondRowAtTheWindowFloor() {
+        let columns = PillShelfModel.columns(forCount: 7)
+        #expect(columns == 4)
+        let slots = Dictionary(uniqueKeysWithValues: (0..<7).map {
+            (ProviderID("p\($0)"), PillShelfSlot(shelf: .menuBar, index: $0))
+        })
+        #expect(PillShelfModel.rowCount(in: .menuBar, slots: slots, columns: columns) == 2)
+        for well in [Self.floorWell, Self.defaultWell] {
+            let width = PillShelfModel.cardWidth(forWidth: well, count: columns)
+            #expect(width >= PillShelfModel.minimumCardWidth)
+            #expect(width >= MenuBarPillMetrics.compact.widestPillWidth(showsPercentage: true))
+            #expect(2 * PillShelfModel.wellPadding + CGFloat(columns) * width
+                + CGFloat(columns - 1) * PillShelfModel.spacing <= well)
+            #expect(PillShelfModel.cardGeometry(cardWidth: width, showsPercentage: true)
+                == PillCardGeometry(pill: .standard, showsCarets: true))
+        }
+        #expect(PillShelfModel.cardWidth(forWidth: Self.floorWell, count: columns) == 98)
+        // No well width from the floor up squeezes a wrapped card under the floor.
+        for well in stride(from: Self.floorWell, through: 1_200, by: 1) {
+            let width = PillShelfModel.cardWidth(forWidth: well, count: columns)
+            #expect(2 * PillShelfModel.wellPadding + CGFloat(columns) * width
+                + CGFloat(columns - 1) * PillShelfModel.spacing <= well, "well \(well)")
+        }
+    }
+
+    /// In a wrapped well the travel picks the column and the pointer's row picks the row.
+    @Test func aWrappedCardLandsInTheRowUnderThePointer() {
+        let seven = (0..<7).map { ProviderID("p\($0)") }
+        func land(_ id: ProviderID, shown: [ProviderID], dx: CGFloat, row: Int) -> PillShelfSlot? {
+            PillShelfModel.drop(
+                for: id, shown: shown, notShown: seven.filter { !shown.contains($0) }, canonicalOrder: seven,
+                translation: dx, pointerInNotShown: false, pitch: pitch, columns: 4, pointerRow: row)
+        }
+        // The second row's second card, dragged up a row, lands in the first row's second slot.
+        #expect(land(seven[5], shown: seven, dx: 0, row: 0) == PillShelfSlot(shelf: .menuBar, index: 1))
+        // Along its own row it moves one column per pitch and stops at the last slot.
+        #expect(land(seven[5], shown: seven, dx: pitch, row: 1) == PillShelfSlot(shelf: .menuBar, index: 6))
+        #expect(land(seven[5], shown: seven, dx: pitch * 9, row: 1) == PillShelfSlot(shelf: .menuBar, index: 6))
+        // Past the first row's end it stays in that row.
+        #expect(land(seven[0], shown: seven, dx: pitch * 9, row: 0) == PillShelfSlot(shelf: .menuBar, index: 3))
+        // A shelf card dropped under a full first row opens the second.
+        let four = Array(seven.prefix(4))
+        #expect(land(seven[6], shown: four, dx: 0, row: 1) == PillShelfSlot(shelf: .menuBar, index: 4))
+        #expect(land(seven[6], shown: four, dx: 0, row: 3) == PillShelfSlot(shelf: .menuBar, index: 4))
+    }
+
     // MARK: Card geometry (six cards at the window floor)
 
     /// The well widths at the 720pt floor and the default 800pt window.

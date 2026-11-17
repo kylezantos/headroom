@@ -114,7 +114,7 @@ struct CompanionPayloadBudgetTests {
                     capturedAt: F.date(),
                     windows: [
                         row(.other, "Gemini 5h", 0), row(.other, "Gemini weekly", 1),
-                        row(.other, "Claude & GPT weekly", 2), row(.other, "Claude & GPT 5h", 3),
+                        row(.other, "Other weekly", 2), row(.other, "Other 5h", 3),
                     ])))
         return payloads
     }
@@ -157,7 +157,7 @@ struct CompanionPayloadBudgetTests {
                 try CompanionActiveManifest(
                     sourceID: F.macA, generation: 4_000_000_123, generatedAt: F.date(),
                     macAppVersion: "1.5 (40)",
-                    providerOrder: ["claude", "codex", "grok", "cursor", "copilot", "opencode"],
+                    providerOrder: ["claude", "codex", "grok", "cursor", "copilot", "opencode", "antigravity"],
                     providers: entries, spendOrder: ["claude", "codex", "grok", "cursor"],
                     chosenIntervalSeconds: 300,
                     display: CompanionDisplayBlock(

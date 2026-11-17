@@ -43,11 +43,12 @@ public struct AntigravityProvider: UsageProvider {
 
     /// The row a bucket becomes. These labels are stored window IDs and must never change.
     /// Both pools use `.other` so their IDs cannot collide, and the ` 5h`/` weekly` suffixes
-    /// give them their display names and reminders.
+    /// give them their display names and reminders. The Claude and GPT pool is "Other", as
+    /// Cursor names its second pool, so the Standard card's "Other · Weekly" fits untruncated.
     public static func windowKind(_ pool: AntigravityPool, _ window: AntigravityWindow) -> WindowKind {
         let poolName = switch pool {
         case .gemini: "Gemini"
-        case .claudeAndGPT: "Claude & GPT"
+        case .claudeAndGPT: "Other"
         }
         let windowName = switch window {
         case .fiveHour: "5h"

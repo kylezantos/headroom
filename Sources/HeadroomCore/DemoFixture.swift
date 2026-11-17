@@ -193,7 +193,7 @@ public enum DemoFixture {
                 UsageWindow(kind: AntigravityProvider.windowKind(.gemini, .fiveHour), utilization: 34, resetsAt: soon(hours: 3, minutes: 10), resetLabel: "Resets 2:10pm"),
                 // 21% used → 79% left.
                 UsageWindow(kind: AntigravityProvider.windowKind(.gemini, .weekly), utilization: 21, resetsAt: soon(days: 4, hours: 2), resetLabel: "Resets in 4d 2h"),
-                // 58% used → 42% left: the tighter of the Claude & GPT rows.
+                // 58% used → 42% left: the tighter of the Other (Claude and GPT) rows.
                 UsageWindow(kind: AntigravityProvider.windowKind(.claudeAndGPT, .weekly), utilization: 58, resetsAt: soon(days: 4, hours: 2, minutes: 9), resetLabel: "Resets in 4d 2h"),
                 // 12% used → 88% left.
                 UsageWindow(kind: AntigravityProvider.windowKind(.claudeAndGPT, .fiveHour), utilization: 12, resetsAt: soon(hours: 3, minutes: 19), resetLabel: "Resets 2:19pm"),

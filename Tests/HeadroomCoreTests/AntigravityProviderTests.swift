@@ -66,11 +66,11 @@ struct AntigravityProviderTests {
         #expect(snapshot.providerID == .antigravity)
         #expect(snapshot.freshness == .live)
         #expect(snapshot.capturedAt == now)
-        #expect(Set(labels(snapshot)) == ["Gemini 5h", "Gemini weekly", "Claude & GPT 5h", "Claude & GPT weekly"])
+        #expect(Set(labels(snapshot)) == ["Gemini 5h", "Gemini weekly", "Other 5h", "Other weekly"])
         let gemini5h = try #require(window(snapshot, "Gemini 5h"))
         let geminiWeekly = try #require(window(snapshot, "Gemini weekly"))
-        let other5h = try #require(window(snapshot, "Claude & GPT 5h"))
-        let otherWeekly = try #require(window(snapshot, "Claude & GPT weekly"))
+        let other5h = try #require(window(snapshot, "Other 5h"))
+        let otherWeekly = try #require(window(snapshot, "Other weekly"))
         #expect(abs(gemini5h.utilization - 1.06) < 0.0001)
         #expect(abs(geminiWeekly.utilization - 0.54) < 0.0001)
         #expect(other5h.utilization == 0)
@@ -85,18 +85,18 @@ struct AntigravityProviderTests {
     @Test func theRowLabelsAreStablePersistentIDs() async {
         let snapshot = await fetch(.usage(AntigravityUsage(buckets: liveBuckets, credits: nil)))
         #expect(Set(snapshot.windows.map(\.kind.persistentID)) == [
-            "other:Gemini 5h", "other:Gemini weekly", "other:Claude & GPT 5h", "other:Claude & GPT weekly",
+            "other:Gemini 5h", "other:Gemini weekly", "other:Other 5h", "other:Other weekly",
         ])
         #expect(AntigravityProvider.windowKind(.gemini, .fiveHour) == .other("Gemini 5h"))
         #expect(AntigravityProvider.windowKind(.gemini, .weekly) == .other("Gemini weekly"))
-        #expect(AntigravityProvider.windowKind(.claudeAndGPT, .fiveHour) == .other("Claude & GPT 5h"))
-        #expect(AntigravityProvider.windowKind(.claudeAndGPT, .weekly) == .other("Claude & GPT weekly"))
+        #expect(AntigravityProvider.windowKind(.claudeAndGPT, .fiveHour) == .other("Other 5h"))
+        #expect(AntigravityProvider.windowKind(.claudeAndGPT, .weekly) == .other("Other weekly"))
     }
 
     @Test func eachPoolLeadsWithItsLowerRemainingRow() async {
         let live = await fetch(.usage(AntigravityUsage(buckets: liveBuckets, credits: nil)))
         // Gemini's 5h has less left than its weekly; the tied pool keeps the source's order.
-        #expect(labels(live) == ["Gemini 5h", "Gemini weekly", "Claude & GPT weekly", "Claude & GPT 5h"])
+        #expect(labels(live) == ["Gemini 5h", "Gemini weekly", "Other weekly", "Other 5h"])
 
         let flipped = await fetch(.usage(AntigravityUsage(buckets: [
             bucket(.claudeAndGPT, .fiveHour, remaining: 0.7, resetIn: hour),
@@ -104,7 +104,7 @@ struct AntigravityProviderTests {
             bucket(.gemini, .fiveHour, remaining: 0.9, resetIn: hour),
             bucket(.gemini, .weekly, remaining: 0.4, resetIn: day),
         ], credits: nil)))
-        #expect(labels(flipped) == ["Claude & GPT weekly", "Claude & GPT 5h", "Gemini weekly", "Gemini 5h"])
+        #expect(labels(flipped) == ["Other weekly", "Other 5h", "Gemini weekly", "Gemini 5h"])
     }
 
     @Test func utilizationIsUsedPercentClampedToTheMeter() async throws {
@@ -119,7 +119,7 @@ struct AntigravityProviderTests {
     @Test func anOmittedBucketIsAbsentNotZeroOrFull() async {
         let snapshot = await fetch(.usage(AntigravityUsage(buckets: Array(liveBuckets.prefix(3)), credits: nil)))
         #expect(snapshot.windows.count == 3)
-        #expect(window(snapshot, "Claude & GPT 5h") == nil)
+        #expect(window(snapshot, "Other 5h") == nil)
     }
 
     @Test func aMissingResetIsNeverInvented() async throws {

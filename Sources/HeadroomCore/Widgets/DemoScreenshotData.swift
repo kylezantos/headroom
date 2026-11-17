@@ -426,8 +426,8 @@ public enum DemoScreenshotData {
             windows: [
                 window(.other("Gemini 5h"), label: "Gemini 5h", percent: 66, reset: "Resets 2:10pm", severity: .healthy),
                 window(.other("Gemini weekly"), label: "Gemini weekly", percent: 79, reset: "Resets in 4d 2h", severity: .healthy),
-                window(.other("Claude & GPT weekly"), label: "Claude & GPT weekly", percent: 42, reset: "Resets in 4d 2h", severity: .healthy),
-                window(.other("Claude & GPT 5h"), label: "Claude & GPT 5h", percent: 88, reset: "Resets 2:19pm", severity: .healthy),
+                window(.other("Other weekly"), label: "Other weekly", percent: 42, reset: "Resets in 4d 2h", severity: .healthy),
+                window(.other("Other 5h"), label: "Other 5h", percent: 88, reset: "Resets 2:19pm", severity: .healthy),
             ],
             renewalDate: nil
         )
@@ -657,7 +657,7 @@ public enum DemoScreenshotData {
         }
         switch name {
         case "full", "empty":
-            return envelope(["claude", "codex", "grok", "cursor", "copilot", "opencode"].map { id in
+            return envelope(["claude", "codex", "grok", "cursor", "copilot", "opencode", "antigravity"].map { id in
                 WidgetProviderSummary(id: id, displayName: ProviderID(id).displayName, planLabel: nil,
                     freshness: .live, windows: [WidgetWindowSummary(kind: .weekly, label: "Weekly",
                         percentRemaining: name == "full" ? 100 : 0,

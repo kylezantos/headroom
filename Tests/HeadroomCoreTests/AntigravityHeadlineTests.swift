@@ -3,7 +3,7 @@ import Testing
 @testable import HeadroomCore
 
 /// Every single-slot surface headlines the Antigravity row with the least left across both
-/// pools, whichever pool it is in. The reading here puts the Claude & GPT 5-hour row lowest
+/// pools, whichever pool it is in. The reading here puts the Other (Claude and GPT) 5-hour row lowest
 /// while the Gemini pool comes first, so a surface that took the first row would be wrong.
 @Suite(.serialized)
 struct AntigravityHeadlineTests {
@@ -11,7 +11,7 @@ struct AntigravityHeadlineTests {
     private let now = Date(timeIntervalSince1970: 1_790_355_600)
     private let hour: TimeInterval = 60 * 60
     private let day: TimeInterval = 24 * 60 * 60
-    private let tightest = WindowKind.other("Claude & GPT 5h")
+    private let tightest = WindowKind.other("Other 5h")
 
     private var snapshot: UsageSnapshot {
         let windows = AntigravityProvider.windows(for: [
@@ -46,12 +46,12 @@ struct AntigravityHeadlineTests {
         let provider = try #require(envelope(context).providers.first)
         #expect(provider.windows.count == 4)
         let recipe = WidgetStyleProviderRecipe(summary: provider)
-        #expect(recipe.primary?.kind == .other("Claude & GPT 5h"))
-        #expect(recipe.primary?.widgetDisplayLabel == "Claude & GPT 5h")
+        #expect(recipe.primary?.kind == .other("Other 5h"))
+        #expect(recipe.primary?.widgetDisplayLabel == "Other 5h")
         #expect(recipe.tightest == recipe.primary)
         for style in WidgetLayoutStyle.allCases {
             let small = WidgetStyleRecipe(style: style, family: .small, envelope: envelope(context))
-            #expect(small.providers.first?.primary?.kind == .other("Claude & GPT 5h"), "\(style)")
+            #expect(small.providers.first?.primary?.kind == .other("Other 5h"), "\(style)")
         }
     }
 
@@ -61,11 +61,11 @@ struct AntigravityHeadlineTests {
             let recipe = LockScreenWidgetRecipe(
                 style: .liquidLevel, family: family, providerChoice: choice,
                 state: .content(envelope(.phoneSync(attention: [:]))), now: now)
-            #expect(recipe.slots.first?.primary.window?.kind == .other("Claude & GPT 5h"), "\(family) \(choice)")
+            #expect(recipe.slots.first?.primary.window?.kind == .other("Other 5h"), "\(family) \(choice)")
         }
     }
 
-    /// The rectangle prints the short pool names ("Claude & GPT weekly" overflowed Vessel
+    /// The rectangle prints the short pool names (the full ones overflowed Vessel
     /// Hero's caption and squeezed its side column); VoiceOver keeps the full names.
     @Test func lockScreenRectangleUsesShortPoolNamesButSpeaksFullOnes() throws {
         let recipe = LockScreenWidgetRecipe(
@@ -74,7 +74,7 @@ struct AntigravityHeadlineTests {
         let slot = try #require(recipe.slots.first)
         #expect(slot.primary.caption == "Other 5h")
         #expect(slot.secondary.map(\.caption) == ["Gemini wk", "Gemini 5h"])
-        #expect(slot.primary.accessibilityText.hasPrefix("Claude & GPT 5h, 10 percent left"))
+        #expect(slot.primary.accessibilityText.hasPrefix("Other 5h, 10 percent left"))
     }
 
     @MainActor
@@ -90,7 +90,7 @@ struct AntigravityHeadlineTests {
         )
         await store.refreshAll()
         // The fresh-install weekly default names no Antigravity row, so the pill follows the
-        // closest-to-limit row, which is the Claude & GPT 5-hour one.
+        // closest-to-limit row, which is the Other 5-hour one.
         #expect(store.resolvedMenuBarWindowKind(for: .antigravity) == tightest)
     }
 
@@ -122,7 +122,7 @@ struct AntigravityHeadlineTests {
                 timeZone: TimeZone(identifier: "America/Los_Angeles")!, locale: Locale(identifier: "en_US")))
         #expect(answer.kind == .usage)
         #expect(answer.percentLeft == 10)
-        #expect(answer.windowLabel == "Claude & GPT 5h")
-        #expect(answer.dialog.hasPrefix("Antigravity has 10% left in the Claude & GPT 5h window"))
+        #expect(answer.windowLabel == "Other 5h")
+        #expect(answer.dialog.hasPrefix("Antigravity has 10% left in the Other 5h window"))
     }
 }

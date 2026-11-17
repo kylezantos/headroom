@@ -291,6 +291,7 @@ struct PopoverWindowHeightFitTests {
         let top = (frame: NSRect(x: 0, y: 0, width: 1440, height: 900), visible: NSRect(x: 0, y: 70, width: 1440, height: 805))
         let below = (frame: NSRect(x: 0, y: -1080, width: 1920, height: 1080), visible: NSRect(x: 0, y: -1080, width: 1920, height: 1080))
         let window = NSRect(x: 600, y: -700, width: 384, height: 800)
+        #expect(PopoverWindowHeightFitter.visibleFrame(under: window, screens: [below, top], fallback: below.visible) == top.visible)
         #expect(PopoverWindowHeightFitter.visibleBottom(under: window, screens: [below, top], fallback: below.visible) == 70)
         // A top edge on no screen falls back to the window's own screen.
         let lost = NSRect(x: 5000, y: 0, width: 384, height: 300)

@@ -32,6 +32,8 @@ struct PopoverView: View {
     /// popover themselves) are never refitted. Acts only where `PopoverWindowHeightFitter` is
     /// enabled: before macOS 26.
     var fitsMenuBarWindowHeight: Bool = false
+    /// Hosted sizing tests supply a fixed screen height.
+    var visibleScreenHeightOverride: CGFloat? = nil
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -50,6 +52,8 @@ struct PopoverView: View {
     /// KTD3 / KTD10: the one- or two-column plan. Heights reach it outside observation; the
     /// body reads only the resolved plan.
     @State private var columns = PopoverPlanModel(cap: Double(PopoverCardMetrics.cardsHeightCap))
+    /// Planned with the columns on close and kept for the next open.
+    @State private var plannedVerticalCardsHeightCap: CGFloat?
     /// R2M12: second-resolution "now" for the waiting clock, driven only while a handoff is
     /// open. The popover's own `TimelineView` ticks per minute, which is right for "Updated
     /// N min ago" and useless for "Waiting 45s".
@@ -135,6 +139,11 @@ struct PopoverView: View {
                 for: columnSlots, allowsHorizontalExpansion: store.expandAccountsHorizontally
             )
             let fragments = PopoverCardFragment.fragments(slots: columnSlots, plan: columnPlan)
+            // "Scroll vertically" has no second column to spill into, so the list grows to the
+            // screen before it scrolls instead of stopping at the two-column cap.
+            let cardsCap = store.expandAccountsHorizontally
+                ? PopoverCardMetrics.cardsHeightCap
+                : (plannedVerticalCardsHeightCap ?? PopoverCardMetrics.cardsHeightCap)
             // NB1 (2026-09-25 motion audit): what can change a card's height — each account's
             // freshness, its setup session, and its meter rows, the values the card's own
             // scopes key on. Those scopes reach only the card, so it grew on `valueSpring`
@@ -264,8 +273,8 @@ struct PopoverView: View {
                 // the header and footer stay whole. At its ideal height nothing changes.
                 .frame(
                     minHeight: forcedCardsHeight ?? 0,
-                    idealHeight: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap),
-                    maxHeight: forcedCardsHeight ?? min(cardsHeight, PopoverCardMetrics.cardsHeightCap)
+                    idealHeight: forcedCardsHeight ?? min(cardsHeight, cardsCap),
+                    maxHeight: forcedCardsHeight ?? min(cardsHeight, cardsCap)
                 )
                 footer(now: now)
                     .zIndex(1)
@@ -292,6 +301,7 @@ struct PopoverView: View {
             // heights just drawn, and the hidden window takes its width before it reappears.
             .onDisappear {
                 columns.popoverDidClose()
+                if let popoverWindow { planVerticalCardsHeight(under: popoverWindow) }
                 fitPopoverWindow(columns: columns.drawnPlan(for: columnSlots).columnCount)
             }
             // SQ1: each open refits the reused window to the last ideal height (macOS 15 only).
@@ -447,9 +457,22 @@ struct PopoverView: View {
         onOpenSettings()
     }
 
+    private func planVerticalCardsHeight(under window: NSWindow) {
+        let visibleScreenHeight = visibleScreenHeightOverride ?? PopoverWindowHeightFitter.visibleFrame(
+            under: window.frame,
+            screens: NSScreen.screens.map { (frame: $0.frame, visible: $0.visibleFrame) },
+            fallback: window.screen?.visibleFrame
+        )?.height
+        plannedVerticalCardsHeightCap = PopoverCardMetrics.verticalCardsHeightCap(
+            visibleScreenHeight: visibleScreenHeight
+        )
+    }
+
     private func configurePopoverWindow(_ window: NSWindow?, from anchor: NSView) {
         popoverWindow = window
         guard let window else { return }
+        // The first layout has no previous close to plan from.
+        if plannedVerticalCardsHeightCap == nil { planVerticalCardsHeight(under: window) }
         if fitsMenuBarWindowHeight, heightFitter.window !== window {
             heightFitter.window = window
             heightFitter.anchor = anchor
@@ -979,6 +1002,16 @@ enum PopoverCardMetrics {
     static let accountGap = CGFloat(AccountColumnsMetrics.popover.accountGap)
     /// The card stack scrolls past this height; with two columns it caps the taller one (R8).
     static let cardsHeightCap: CGFloat = 640
+    static let verticalCardsHeightMax: CGFloat = 900
+    /// The header, footer and shell padding around the card list (765pt shell, 640pt list),
+    /// plus a little air above the Dock edge.
+    static let popoverChromeHeight: CGFloat = 125 + 24
+
+    /// Vertical-only layout: use the available screen space within the scroll limits.
+    static func verticalCardsHeightCap(visibleScreenHeight: CGFloat?) -> CGFloat {
+        guard let visibleScreenHeight else { return cardsHeightCap }
+        return max(cardsHeightCap, min(verticalCardsHeightMax, visibleScreenHeight - popoverChromeHeight))
+    }
 
     /// KTD4 / R7: one card width (384 overall) or exactly two plus the 20pt gap (750).
     static func shellWidth(columns: Int) -> CGFloat {

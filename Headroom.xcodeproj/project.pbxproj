@@ -643,6 +643,7 @@
 		ED9F19D03837966B4E83E67D /* HeadroomWidgetLiquidLevel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9E306C9AF9CC0ACC24D30D1 /* HeadroomWidgetLiquidLevel.swift */; };
 		EF347E65B94D120C55BFEB66 /* WidgetSnapshotExporter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 099143282D2BCC6C705427BC /* WidgetSnapshotExporter.swift */; };
 		EF3B349C2E4C1D1A7DE56A6E /* vessel-app-icon.svg in Resources */ = {isa = PBXBuildFile; fileRef = C21C54F0CE85AEC7C48005B1 /* vessel-app-icon.svg */; };
+		F163C82D90C3872611943590 /* CLIProcessThread.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE3F4AD2E60DD25FD75BAE31 /* CLIProcessThread.swift */; };
 		F1EC50355289B641B2B0A74F /* HeadroomAppIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADE095E97E527C8706D4FA61 /* HeadroomAppIconView.swift */; };
 		F2104C132889055EE7F1A3E1 /* UsageStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316B9C4940604D925421AD2A /* UsageStore.swift */; };
 		F244EC707C7AE5D59E3EC957 /* PhoneScale.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3329930B8C44D51A82EBBBF9 /* PhoneScale.swift */; };
@@ -1069,6 +1070,7 @@
 		CCB4BD862E876F4163998908 /* CompanionAttentionMapping.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionAttentionMapping.swift; sourceTree = "<group>"; };
 		CDC9199DC7DC96DF143A8480 /* grok-dark.svg */ = {isa = PBXFileReference; path = "grok-dark.svg"; sourceTree = "<group>"; };
 		CDF3C1CD6481D8BA530EFCA1 /* WidgetSnapshotModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotModels.swift; sourceTree = "<group>"; };
+		CE3F4AD2E60DD25FD75BAE31 /* CLIProcessThread.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CLIProcessThread.swift; sourceTree = "<group>"; };
 		D0A2F9F06B26CB4E5FF4A110 /* HeadroomWidgetLockScreenInline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenInline.swift; sourceTree = "<group>"; };
 		D0B0C4298873C9CDC3EA867B /* DemoSettingsDependencies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoSettingsDependencies.swift; sourceTree = "<group>"; };
 		D22153D751E176597A3E5214 /* WidgetSnapshotProjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSnapshotProjector.swift; sourceTree = "<group>"; };
@@ -1781,6 +1783,7 @@
 				C90C09F55109393B2A7C0AC1 /* ClaudeUsageWorkspace.swift */,
 				657FEAE9B8D5F5CBF51EBDC4 /* CLIExecutableLocator.swift */,
 				29EA356CD55A5493E55D8F86 /* CLIExecutableResolver.swift */,
+				CE3F4AD2E60DD25FD75BAE31 /* CLIProcessThread.swift */,
 				F4A71FB81EB1DE0194DD9C46 /* CLIVersionReader.swift */,
 				87CC53FEEE716121A11701F1 /* CodexConnection.swift */,
 				F767701AEE449C92A62002E4 /* CodexProvider.swift */,
@@ -2164,6 +2167,7 @@
 				7EED09F4BA5D31E84898F62E /* CLIExecutableDiscoveryIssue.swift in Sources */,
 				2D2C110659ED2DABB204B574 /* CLIExecutableLocator.swift in Sources */,
 				5E944B81F4BF70C58EF00164 /* CLIExecutableResolver.swift in Sources */,
+				F163C82D90C3872611943590 /* CLIProcessThread.swift in Sources */,
 				FF3BFF0DECECA99D796FBA28 /* CLIVersionReader.swift in Sources */,
 				2CAAA23841C80B4C487E43A7 /* CheckNowCoordinator.swift in Sources */,
 				F6F8A59D41D28386F357A0E4 /* CheckNowLinePolicy.swift in Sources */,

@@ -483,7 +483,7 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         resolved = nil
         let resolveExecutable = resolveExecutable
         let resolveLoginPath = resolveLoginPath
-        let found: ResolvedLaunch? = await Self.offCooperativePool {
+        let found: ResolvedLaunch? = await CLIProcessThread.run {
             guard let path = resolveExecutable(), FileManager.default.isExecutableFile(atPath: path) else {
                 return nil
             }
@@ -529,7 +529,7 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         let interpreter = interpreter
         let workingDirectory = workingDirectory
         let deadline = command == .version ? versionDeadline : deadline
-        return await Self.offCooperativePool {
+        return await CLIProcessThread.run {
             AntigravityProcessRunner.run(
                 command,
                 executable: executable,
@@ -538,14 +538,6 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
                 workingDirectory: workingDirectory,
                 deadline: deadline
             )
-        }
-    }
-
-    /// A run blocks for up to the deadline, so it gets its own thread rather than one of Swift's
-    /// cooperative threads.
-    private static func offCooperativePool<T: Sendable>(_ work: @escaping @Sendable () -> T) async -> T {
-        await withCheckedContinuation { continuation in
-            Thread.detachNewThread { continuation.resume(returning: work()) }
         }
     }
 }

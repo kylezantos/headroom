@@ -78,6 +78,12 @@ import Testing
             (.opencodeSignInExpired, .connectOpenCode, .checkNow, .boundedChecksAfterHandoff),
             (.opencodeFormatChanged, .contactSupport, .checkNow, .none),
             (.opencodeTransientCapture, .checkNow, nil, .none),
+            (.antigravityCLIMissing, .installAntigravityCLI, .checkNow, .none),
+            (.antigravityUpdateRequired, .installAntigravityCLI, .checkNow, .none),
+            (.antigravityUnsupportedClient, .contactSupport, .checkNow, .none),
+            (.antigravitySignedOut, .connectAntigravity, .checkNow, .boundedChecksAfterHandoff),
+            (.antigravityFormatChanged, .contactSupport, .checkNow, .none),
+            (.antigravityTransientCapture, .checkNow, nil, .none),
         ]
         #expect(Set(expectations.map(\.0)) == Set(allSetupOutcomes))
 
@@ -613,6 +619,12 @@ import Testing
                         .opencodeSignInExpired, .opencodeFormatChanged, .opencodeTransientCapture] {
             #expect(!outcome.isNeverSignedIn, "\(outcome)")
         }
+        #expect(ProviderSetupOutcome.antigravitySignedOut.isNeverSignedIn)
+        for outcome in [ProviderSetupOutcome.antigravityCLIMissing, .antigravityUpdateRequired,
+                        .antigravityUnsupportedClient, .antigravityFormatChanged,
+                        .antigravityTransientCapture] {
+            #expect(!outcome.isNeverSignedIn, "\(outcome)")
+        }
         #expect(!ProviderSetupOutcome.claudeCLIMissing.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
@@ -674,4 +686,6 @@ private let allSetupOutcomes: [ProviderSetupOutcome] = [
     .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable,
     .opencodeCLIMissing, .opencodeUpdateRequired, .opencodeSignedOut, .opencodeConsoleSignInRequired,
     .opencodeSignInExpired, .opencodeFormatChanged, .opencodeTransientCapture,
+    .antigravityCLIMissing, .antigravityUpdateRequired, .antigravityUnsupportedClient,
+    .antigravitySignedOut, .antigravityFormatChanged, .antigravityTransientCapture,
 ]

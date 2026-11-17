@@ -3,7 +3,7 @@
 A macOS menu bar app that shows how much of your AI-subscription usage remains — the
 5-hour and weekly windows, when each resets, and a manually-entered monthly renewal
 date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, **Cursor**, **GitHub Copilot**,
-and **OpenCode Go**, side by side.
+**OpenCode Go** and **Google Antigravity**, side by side.
 It can also show optional API dollar spend in a separate section for users who use
 metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium, and large
 glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +
@@ -58,6 +58,18 @@ repository; signed DMGs and Sparkle deltas are stored in `headroom-downloads`.
   upgrade of your OpenCode data, so Headroom never runs the usage read on 1.x and leaves the
   upgrade to you. Each read adds an ordinary log entry to your OpenCode home. Phones need the
   matching iPhone build to show OpenCode.
+- Antigravity: off by default; turn it on in Settings → Accounts. Shows four rows for the
+  account signed in to the official `agy` CLI, version 1.5.9 or newer: a 5-hour and a weekly row
+  for the Gemini pool (the Gemini 4 models, Argon included) and for the Other pool (Antigravity's
+  Claude and GPT models), plus an AI-credits badge when the balance is above zero. Headroom runs
+  the CLI's read-only `agy -p "/usage" --output-format json` and `/credits` answers, which start
+  no agent turn and spend no quota; it checks every answer for that and stops reading if one ever
+  costs a turn. It never reads an Antigravity credential or calls Google itself. Gemini app,
+  Gemini CLI and Gemini API allowances are not measured. Known limitation: when `agy` is signed
+  out, a read makes it open a Google sign-in page in your browser. Headroom stops that read at
+  once and does not read again until you sign in through Headroom or choose Refresh, so a
+  sign-out opens at most one browser tab. Each read adds an ordinary log file to
+  `~/.gemini/antigravity-cli/log`.
 
 > **First launch:** macOS asks "Headroom would like to access data from other apps" —
 > that's Headroom reading CLI-owned files and driving the official status surfaces. Click
@@ -83,7 +95,8 @@ Console device code. OpenCode reports only the active Console workspace, so trac
 workspace as a second account. Cursor is deliberately single-account because Cursor Agent has no equivalent
 isolated config-home mechanism. Copilot is single-account too: its usage comes from the
 session logs of the CLI's default home, which a separate Headroom-owned home would never
-receive.
+receive. Antigravity is single-account as well: `agy` keeps its sign-in in its own home and
+the macOS Keychain, and a separate home for a second account is unproven.
 
 Add, rename, or remove accounts in **Settings → Accounts**. Removing an additional account
 deletes only that Headroom-owned local CLI home; it does not touch the subscription, built-in
@@ -117,6 +130,7 @@ isolated home; running a plain command yourself targets the built-in account.
 | Cursor | [Install Cursor Agent](https://docs.cursor.com/en/cli/installation). Run `cursor-agent login`. Device-code and additional-account flows are unavailable. | None; one account only | `swift run Headroom --probe-cursor` |
 | Copilot | [Install Copilot CLI](https://docs.github.com/en/copilot/how-tos/copilot-cli/set-up-copilot-cli/install-copilot-cli). Run `copilot login`; Headroom's Terminal handoff clears `COPILOT_HOME`, `COPILOT_GITHUB_TOKEN`, `GH_TOKEN` and `GITHUB_TOKEN` first so it signs in to the default home it reads. "Couldn't read Copilot session logs" retries on its own; choose Check Now after fixing file access. A row with no number means no usage is recorded yet this month: run the CLI once. | None; one account only | `swift run Headroom --probe-copilot` |
 | OpenCode | [Install OpenCode](https://opencode.ai/docs/) 2.2 or newer (Homebrew's `opencode` and npm's `@opencode/cli` are 2.x; the `opencode.ai/install` script and npm's `opencode-ai` are still 1.x). Upgrade a 1.x install with `opencode upgrade --major`. Sign in with `opencode auth login opencode --method device`; for the built-in account Headroom asks first, because this adds a Console login to your own OpenCode and makes it the active one. "Go usage needs OpenCode 2.2 or newer" while a 2.x is installed means an older `opencode` comes first on your login shell's `PATH`. "Sign in to OpenCode Console to see Go usage" means only an API key is connected. Headroom ignores `OPENCODE_*` variables, including `OPENCODE_API_KEY`, and XDG settings from your shell profile. | `XDG_DATA_HOME`, `XDG_CONFIG_HOME`, `XDG_CACHE_HOME`, `XDG_STATE_HOME` | `swift run Headroom --probe-opencode` (reads your default OpenCode home with the CLI on your `PATH`; on a 1.x home a 2.x CLI upgrades its data one way) |
+| Antigravity | [Install Antigravity CLI](https://antigravity.google/) 1.5.9 or newer. Sign in with `agy acp --login`; Headroom's Terminal handoff runs it and checks once it exits. While `agy` is signed out, a read opens a Google sign-in page in your browser, so Headroom stops reading until you sign in or choose Refresh. "Headroom paused Antigravity reads after an agy change" means an answer cost a model turn; reads resume after `agy` updates, or choose Check Now. | None; one account only | `swift run Headroom --probe-antigravity` (opens a browser sign-in if `agy` is signed out) |
 
 ### Where Headroom looks for the Claude CLI
 
@@ -316,7 +330,8 @@ for the boundary between public build tooling and maintainer operations.
 
 Working end-to-end: live Claude, Codex, Grok, Cursor, and Copilot subscription usage through their
 documented provider paths (OpenCode Go has one real reading, an unused subscription, with its
-other states checked against a local stub Console), optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
+other states checked against a local stub Console; Antigravity has live readings on one account,
+with its sign-in handoff not yet verified end to end), optional OpenAI/Anthropic/xAI API spend rows, manual renewal dates,
 launch-at-login, the adaptive macOS popover,
 widget cache export, app icon, the bundled macOS widget extension, and the iPhone
 companion/widget targets with live Mac → iPhone iCloud sync. Widget design parity with the

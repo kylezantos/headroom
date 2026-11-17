@@ -7,7 +7,7 @@ changes.
 
 A native macOS 15+ menu bar app (Swift 6 / SwiftUI) showing remaining AI-subscription
 usage — 5-hour and weekly windows, reset times, manual renewal dates — for **Claude**,
-**ChatGPT/Codex**, Grok, Cursor, GitHub Copilot and OpenCode (Go), behind one provider
+**ChatGPT/Codex**, Grok, Cursor, GitHub Copilot, OpenCode (Go) and Antigravity, behind one provider
 abstraction so more can be added. Tahoe uses Liquid
 Glass; Sequoia uses a native material popover surface.
 
@@ -22,7 +22,7 @@ no in-repo definition.
   reliably, and solidly as possible.** A growing number of people rely on Headroom to manage
   their usage; reliability and honesty of the numbers come before new surface area.
 - **Provider parity by default.** Any feature, enhancement, or behavior change applies to all
-  providers (Claude, Codex, Grok, Cursor, Copilot, OpenCode) and to every account of each, unless a provider's
+  providers (Claude, Codex, Grok, Cursor, Copilot, OpenCode, Antigravity) and to every account of each, unless a provider's
   transport or official-client boundary genuinely prevents it. When parity is not possible,
   say so explicitly in the plan, PR, or reply, with the reason, rather than silently scoping
   the change to one provider. "Cheap for this provider" is never a reason to leave it out.
@@ -66,7 +66,8 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
   - `Providers/` — `ClaudeProvider` (via `ClaudeUsageSource`), `ClaudeUsageCLIProbe`
     (openpty + posix_spawn), `ClaudeUsageParser`, `CodexProvider` (+ `UsageHTTPClient`,
     DTOs), `CodexConnection`, the Grok, Cursor and Copilot sources, `OpenCodeProvider` (via
-    `OpenCodeUsageSource`, `OpenCodeConnection`), shared login-shell `CLIExecutableResolver`,
+    `OpenCodeUsageSource`, `OpenCodeConnection`), `AntigravityProvider` (via
+    `AntigravityUsageSource`, `AntigravityConnection`), shared login-shell `CLIExecutableResolver`,
     `RedirectBlocker`, `AccountStorage` (per-account config homes).
   - `Credentials/` — `CredentialStore` (Codex-only), `CodexAuthReader`, `Redaction`.
   - `Engine/` — `PollingEngine` (wake timer), `LaneSchedule` (pure cadence decisions),
@@ -151,10 +152,10 @@ Widgets & iPhone previews the styles but never sets them.
 `HeadroomIOSLockScreenWidget` with its own `HeadroomLockScreenConfigurationIntent`, offers circle,
 rectangle and inline sizes on the iPhone and iPad Lock Screens. Edit Widget offers **Style** (the
 same four names, default **Liquid Level**) and **Provider** (Automatic, Claude, Codex, Grok,
-Cursor, Copilot, OpenCode); there is no Color. Each style draws one approved design per size.
+Cursor, Copilot, OpenCode, Antigravity); there is no Color. Each style draws one approved design per size.
 Every decision — which provider (circle: home R6 pick;
 rectangle and inline: the two widget providers; Tightest First on Automatic: every synced provider),
-the R8 state order, captions, Cursor pool names, demo labels, status forms, inline text candidates
+the R8 state order, captions, Cursor and Antigravity pool names, demo labels, status forms, inline text candidates
 and the stepped inline image — is the pure, tested `LockScreenWidgetRecipe`; the shared
 `HeadroomWidgetLockScreenBody` only lays it out in one ink of opaque grays (`LockScreenWidgetTokens`).
 A pinned provider missing from the envelope shows "Off" and never falls back to another provider.
@@ -213,19 +214,21 @@ Durable reasoning:
   once per chosen interval; status, account set, main account, titles, display block, intervals
   and widget selection force an immediate flush. Change detection ignores timestamps, but a key is
   rewritten once any observation in it advances by a chosen interval, so "Updated" stays honest.
-  With six providers one flush writes at most eight keys (KTD16 of the OpenCode plan, replacing
-  the Copilot plan's seven). The multi-20 publisher test with OpenCode's 20 accounts as the sixth
-  provider, on a 2-minute interval, averages 4.93 key writes a minute with no minute above 6 under
-  the test's provider-by-provider pacing. Interleaving the multi-account providers' reads, so every
-  key changes every minute, measured 6.93 a minute with a busiest minute of 8: above the plan's
-  6.5 average target, and unresolved (BUGS.md). Real iCloud throttling is unmeasured until the
-  check-now spike runs.
+  One flush writes at most one key per provider plus the manifest and v3: nine with seven
+  providers. The publisher test derives that bound from the provider count rather than pinning
+  it. The multi-20 publisher test with Antigravity as the seventh provider (one account), on a
+  2-minute interval, averages 5.4 key writes a minute with a busiest minute of 7 and a largest
+  flush of 7 under the test's provider-by-provider pacing. With six providers, interleaving the
+  multi-account providers' reads, so every key changes every minute, measured 6.93 a minute with
+  a busiest minute of 8: above the 6.5 average target, and unresolved (BUGS.md). Real iCloud
+  throttling is unmeasured until the check-now spike runs.
 - **Budget ladder (KTD7).** `CompanionPayloadBudget` measures the whole v4 namespace before
   every write (requests and receipt included): 15,000 bytes per provider key, 64,000 for the set.
   Level 1 drops extra accounts' model rows; level 2 caps extras only above 20 per provider. Over
   budget after that, the publisher writes nothing and keeps the last good content. Multi-20 with
-  Spark rows, the single Copilot account and 20 OpenCode accounts measures 35,124 bytes at level
-  0. OpenCode's monthly window is a window, not a model row, so level 1 keeps it.
+  Spark rows, the single Copilot account, 20 OpenCode accounts and the single Antigravity account
+  measures 35,779 bytes for the whole set at level 0 and 28,126 at level 1. OpenCode's monthly
+  window is a window, not a model row, so level 1 keeps it.
 - **Sync off sweeps.** The disabled v3 envelope, then a two-field manifest tombstone, then every
   other key under the namespace. The sweep repeats on every launch while sync is off, which also
   repairs keys a downgraded 1.4.1 Mac cannot delete. Diagnostics (key names and sizes, ladder
@@ -243,7 +246,9 @@ envelope** of 20 (`AccountRegistry.testedEnvelope`, Sep 2026 — the bound the s
 `multi-20` demo exercise, not an advertised limit); Cursor is deliberately
 single-account because its CLI exposes no isolated config-home mechanism, and Copilot is
 single-account because a Headroom-owned `COPILOT_HOME` would never receive the session logs
-its meter reads. Snapshots are keyed
+its meter reads, and Antigravity is single-account because `agy` keeps its sign-in in its own
+home and the Keychain, isolating a second account is unproven, and a probe of a signed-out home
+opens a browser sign-in. Snapshots are keyed
 by `AccountKey` (provider + account); one `UsageProvider` instance exists per account. The
 **built-in** `.primary` account reads the CLI's default config (`~/.claude`, `~/.codex`,
 `~/.grok`, `~/.local/share/opencode`) exactly as before — zero migration for existing installs. **Extra** accounts get
@@ -275,7 +280,9 @@ account below the print-mode floor keep the `interactive` bare launch, which is 
 each result lands. A readable version below 2.1.41 opens no Terminal and reads **Update Claude
 Code**. Codex, Grok and Cursor keep their 3/7/15/30-second ladder. OpenCode's sign-in and
 reset scripts, like Claude's Sign In, end with the login's own status and complete on process
-exit with the same 5-minute timeout (a device login can outlast the ladder).
+exit with the same 5-minute timeout (a device login can outlast the ladder). Antigravity's
+`agy acp --login` completes on process exit too, and no check runs while its Terminal is open:
+a read on a signed-out `agy` would open another browser sign-in.
 
 **Follow the default login (Nov 2026).** Every Claude, Codex, Grok, Cursor and
 Copilot reading carries the identity of the account it came from (`AccountIdentity`, a SHA-256
@@ -300,7 +307,9 @@ kept in the record store and return if that account does. Parity, forced by what
 
 OpenCode is not in this table: its readings carry no identity yet (the usage read's workspace
 block is never decoded, KTD19 of the OpenCode plan), so a change of the built-in home's Console
-login is not followed. Tracked in BUGS.md.
+login is not followed. Tracked in BUGS.md. Antigravity is not in it either: single account,
+and its `/usage` and `/credits` answers are read for quota only, so its readings carry no
+identity and a change of `agy`'s default login is not followed.
 
 **One row for one account (Phase 3).** When the default login is the same account as exactly
 one added account, every display surface shows one row for the pair: the added account's row
@@ -399,12 +408,13 @@ xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS -destination 'platfor
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 # Without the maintainer's Apple team (contributors, CI), append CODE_SIGNING_ALLOWED=NO to both xcodebuild commands: the app tests and the iOS build pass unsigned. `.github/workflows/ci.yml` runs all three checks on the `xcode-27` runner.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
+swift run Headroom --probe-antigravity  # one Antigravity read through agy's no-turn /usage and /credits: parsed rows, credits badge, or the outcome name only. On a signed-out agy it opens one browser sign-in; see docs/solutions/antigravity-cli-usage-feasibility.md
 swift run Headroom --probe-opencode [--opencode-home <dir>] [--opencode-executable <path>]  # one OpenCode usage read: parsed windows or the outcome name only. Without --opencode-home it reads the built-in default home (a 2.x client migrates a 1.x home one way: never run it bare on a home that must stay 1.x). --opencode-executable is DEBUG-only and needs --opencode-home; see docs/solutions/opencode-cli-usage-feasibility.md
 Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
 swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width; `--render-scenario remembered` poses remembered rows, `--render-scenario merged` the one-row merge
-swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|six-providers|copilot-no-reading|opencode-no-go|opencode-update|opencode-limited|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; six-providers is the every-provider demo (five-providers stays the five before OpenCode); opencode-no-go, opencode-update and opencode-limited pose the no-Go card, the update-required state and a limited monthly window; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|six-providers|copilot-no-reading|opencode-no-go|opencode-update|opencode-limited|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; six-providers is the every-provider demo and now carries all seven providers, Antigravity included (five-providers stays the five before OpenCode); opencode-no-go, opencode-update and opencode-limited pose the no-Go card, the update-required state and a limited monthly window; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
@@ -586,7 +596,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   poll aggressively. **Polling is per account, not per sweep (Sep 2026).** Every account has
   its own due time (last attempt + the chosen interval, with growing backoff after transient
   failures and a four-interval wait for never-signed-in extras); each CLI lane (Claude, Grok,
-  Cursor, Copilot, OpenCode) drains one probe at a time, primary first then most overdue, behind a **measured
+  Cursor, Copilot, OpenCode, Antigravity) drains one probe at a time, primary first then most overdue, behind a **measured
   duty-cycle gate** — timer probes start only while the lane has been busy for at most half of
   the trailing window of twice the chosen interval. Codex's HTTP lane fetches its due accounts
   concurrently and is not gated. User actions (Refresh, Check Now, Try Again, Make Main, setup
@@ -675,10 +685,12 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   `cursor-*`), and the `BrandIcons.xcassets` imagesets carry a `luminosity` dark appearance
   so iOS and the widgets adapt natively. Accent/text-accent/optical-scale values are
   first-pass identity (Phase 2 owns visual density). OpenCode's mark is monochrome too and ships
-  the same pair (`opencode-light`/`opencode-dark`). The every-provider demo is
-  `--demo six-providers` (popover) / the `sixProviders` `DemoScreenshotData` and companion demo
-  variant (iOS widget and the Lock Screen demo); `five-providers`/`fiveProviders` keep the five
-  providers before OpenCode, and `multi-4`/`fourProviders` the four before Copilot. `multi-5`
+  the same pair (`opencode-light`/`opencode-dark`), and so does Antigravity's
+  (`antigravity-light`/`antigravity-dark`, LobeHub `@lobehub/icons-static-svg` 1.102.0, MIT). The
+  every-provider demo is `--demo six-providers` (popover) / the `sixProviders`
+  `DemoScreenshotData` and companion demo variant (iOS widget and the Lock Screen demo); it now
+  carries all seven providers, Antigravity included, under the old name.
+  `five-providers`/`fiveProviders` keep the five providers before OpenCode, and `multi-4`/`fourProviders` the four before Copilot. `multi-5`
   means five accounts, not five providers.
 - Copilot reads the official CLI's own output and never sends a prompt (Nov 2026).
   `CopilotProvider` combines two things the official `copilot` CLI produces: the
@@ -764,6 +776,58 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   - No limited sentence on the phone: the sync format carries no limited flag, so a limited window
     reaches the phone, widgets and Lock Screen as 100% used with its reset.
   - No default-login identity yet (see the table above).
+- **Antigravity reads the official `agy` CLI's no-turn slash-command answers and nothing else
+  (Nov 2026).** `AntigravityCLIUsageSource` runs `agy -p "/usage" --output-format json`, then
+  `agy -p "/credits" --output-format json`, from Headroom's own working folder
+  (`AntigravityCLI.defaultWorkingDirectory`), and parses each JSON result: two quota pools, each with a 5-hour and a weekly
+  bucket, plus the AI-credits balance. `agy` answers both without an agent turn (1.1.11 and
+  later). Headroom never reads an Antigravity credential, cookie or Keychain item, never talks to
+  the IDE's language server and never calls Google itself. `AntigravityCommand` (`--version`,
+  `/usage`, `/credits`) is a closed set; keep it closed and never run `agy -p` with any other
+  prompt. Rules that are load-bearing:
+  - Never pass `--disable-slash-commands`. Slash expansion is what routes `/usage` to the no-turn
+    answer; without it the text is a model prompt.
+  - Every capture checks `num_turns` and every token count. A nonzero one, or a `SUCCESS` result
+    with no `command`, is `unsupportedClient` and sticky: no routine poll spawns `agy` again until
+    its resolved path or modification date changes, and a user request runs only `--version`
+    ("Headroom paused Antigravity reads after an agy change. Contact support", **Check Now**).
+  - A signed-out `agy` answers `/usage` by opening an interactive Google sign-in in the browser
+    and waiting up to 60 s; the CLI documents no way to turn that off. Stderr is watched only for
+    `Authentication required`: at that marker the process group is killed and the account is
+    signed out, sticky until a user request (Refresh, Check Now, or the check after the sign-in
+    handoff). So a sign-out costs at most one browser tab (BUGS.md). Never add a routine path
+    that spawns `agy` while signed out, and never probe it with an isolated empty `HOME`.
+  - Signed out only from that marker. Everything else unmatched, including an `ERROR` result
+    that says authentication failed, is transient.
+  - Map buckets by `id` prefix (`gemini-*`, `3p-*`) and `window` (`5h`, `weekly`), never by
+    display text. The rows are `.other("Gemini 5h")`, `.other("Gemini weekly")`,
+    `.other("Other 5h")` and `.other("Other weekly")`; these labels are stored IDs and must never
+    change. "Other" is Antigravity's "Claude and GPT models" group ("Claude & GPT" truncated in
+    the Standard card). The Gemini group's own description names Gemini 4 Argon; Gemini app,
+    Gemini CLI and Gemini API allowances are not measured. Within a pool the row with less left
+    comes first, so Compact shows one meter per pool and single-slot surfaces headline the row
+    with the least left across both pools.
+  - Credits become the plan badge (for example "1,200 credits") only when above zero. A credits
+    failure never fails the usage reading.
+  - Sign-in is `agy acp --login` in Terminal ("Log in with Google interactively, then exit"),
+    exit-signalled; no check runs while it is open. That it stores the login where `agy -p` reads
+    it is not live-verified.
+  - The floor is 1.5.9, the version the bucket shape was captured on; older shapes are
+    unverified. Demos, harnesses and the XCTest host never start `agy`
+    (`AppComposition.usesInertAntigravity`).
+  - Seven providers: Settings pill wells wrap four over three above six cards (six or fewer keep
+    one row, so every user sees the wrap because Antigravity is always registered),
+    `HalftonePillRow` draws up to seven pills, and the companion flush bound is the provider count
+    plus two.
+  Antigravity is off by default and reaches the phone, widgets, the Lock Screen provider choice
+  and Siri like the others. The fixtures come from a live 1.5.9 capture except the synthetic
+  signed-out one. Re-diagnose with `--probe-antigravity`; see
+  `docs/solutions/antigravity-cli-usage-feasibility.md`. Parity exceptions:
+  - Single account: `agy` keeps its login in its own home and the Keychain, isolating a second
+    account is unproven, and probing a signed-out home opens a browser sign-in.
+  - No API spend entry: `GEMINI_API_KEY` billing is a different allowance.
+  - No default-login identity (see the table above).
+  - A sign-out shows once per user request rather than being re-checked on every poll.
 - **The menu bar sloshes and prints its first live reading (Oct 2026).** A pill's liquid surface travels
   while its provider's main account is being probed, timer polls included
   (`UsageStore.menuBarUpdatingProviders` → `MenuBarSlosh` → `VesselGlyph` wave frames). The

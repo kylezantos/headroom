@@ -1494,6 +1494,38 @@ result is already discarded. A fix needs a per-home process registry in `OpenCod
 terminate passthrough in `OpenCodeUsageCaptureCache`, and a hook called off the main actor before
 `accountStorage.removeDirectories`.
 
+## Antigravity: a sign-out opens one browser sign-in (known limitation, 2026-11-16)
+
+Feasibility record: `docs/solutions/antigravity-cli-usage-feasibility.md`.
+
+A signed-out `agy` does not fail `-p "/usage"`. It prints "Authentication required. Please visit
+the URL to log in:" and a Google sign-in URL on stderr, opens that sign-in page in the browser and
+waits up to 60 s (seen live on 2026-11-16 with an isolated empty `HOME`, `agy` 1.5.9). The CLI
+documents no way to turn this off. Headroom ends the read at that line, records signed out, and
+spawns `agy` again only on a user request (Refresh, Check Now, or the check after the sign-in
+handoff). So each sign-out, and each user refresh while still signed out, opens one browser tab.
+A fix needs a non-interactive print mode or a read-only auth status command from `agy`.
+
+Also open for Antigravity:
+
+- **Sign-in end to end.** `agy acp --login` is the CLI's documented Terminal sign-in, but it has
+  not been verified live that it stores the login where `agy -p` reads it.
+- **Hooks, MCP servers and plugins in print mode.** The startup check ran on a configuration with
+  one hook group, no MCP servers and no plugins: no hook or server ran. A `SessionStart` hook and
+  configured MCP servers were not there to test.
+- **A nonzero credits balance and a pool at its limit** have not been seen on a real account; the
+  badge rests on a derived fixture.
+- **The background updater.** Every `agy` run starts `agy --bg-updater`. Whether it can replace
+  the binary during a poll, and whether it stays in the process group Headroom terminates, is
+  unverified.
+- **Log retention.** Each read writes a log file of about 15 KB under
+  `~/.gemini/antigravity-cli/log/`, and the log names the account's email. Retention is the CLI's
+  and unmeasured.
+- **Seven-provider layout.** The Settings pill wells wrap four over three above six cards. Every
+  user sees it because Antigravity is always registered; the maintainer to confirm the layout.
+- The updated privacy policy (`docs/release/privacy-policy.md`) must be published through
+  `headroom-site` before any release that contains Antigravity.
+
 ## Compact: a limit on the first account changes the card's column headers (found 2026-11-12, review)
 
 In a multi-account Compact card the column headers come from the first account's shown windows

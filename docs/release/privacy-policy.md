@@ -14,7 +14,7 @@ how they read and sync usage data, and what this website measures.
   no advertising, and no third-party SDKs. We never see your usage, your identity,
   or your device.
 - **Usage data is read locally, on your Mac.** For each supported tool (Claude, Codex,
-  Cursor, Grok, GitHub Copilot, and OpenCode), the Mac app reads usage locally, either by driving the tool's
+  Cursor, Grok, GitHub Copilot, OpenCode, and Antigravity), the Mac app reads usage locally, either by driving the tool's
   official command-line tool or by reading its local sign-in file, then queries that
   tool's provider with your own credentials. Requests go directly from your Mac to the
   provider. They never pass through us.
@@ -32,6 +32,17 @@ how they read and sync usage data, and what this website measures.
   your OpenCode workspace (its ID, name and web address); Headroom neither stores nor shows any
   of them. Like any run of the tool, each check of your default OpenCode setup adds an entry to
   the log OpenCode keeps on your Mac.
+- Antigravity usage comes from the Antigravity command-line tool's own answers. If you turn
+  Antigravity on, Headroom runs that official tool (`agy`) on your Mac and asks it only for its
+  `/usage` and `/credits` answers, which use no model and spend no quota; the tool makes the
+  request to Google with your own sign-in. Headroom reads no Antigravity credential, cookie or
+  Keychain item and keeps nothing from those answers except the quota meters, their reset times
+  and your AI-credits balance, which reach your iPhone only if iPhone sync is on. Headroom does
+  not keep what the tool prints to its error output; it only watches it for the sign-in prompt.
+  Like any run of the tool, each check adds a log file to the folder Antigravity keeps on your
+  Mac, and that log is Antigravity's, not Headroom's. If the tool is signed out, a check makes
+  it open a Google sign-in page in your browser; Headroom stops that check and does not check
+  again until you ask it to.
 - **API spend is optional and off by default.** If you enable it, the reporting
   keys you enter are stored in the macOS Keychain on your Mac and used only to call
   the providers' official cost endpoints directly.

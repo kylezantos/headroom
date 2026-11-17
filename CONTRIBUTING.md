@@ -80,8 +80,8 @@ UI work starts from [DESIGN.md](DESIGN.md); shared vocabulary is in [CONCEPTS.md
 
 A few rules that come up in almost every change:
 
-- **Every provider, every account.** A change applies to Claude, Codex, Grok, Cursor, Copilot
-  and OpenCode, and to every account of each. If a provider's CLI genuinely can't support it,
+- **Every provider, every account.** A change applies to Claude, Codex, Grok, Cursor, Copilot,
+  OpenCode and Antigravity, and to every account of each. If a provider's CLI genuinely can't support it,
   say so in the pull request and explain why.
 - **Swift 6 strict concurrency stays clean.**
 - **Everything is testable without the real world.** New behavior goes behind an injectable seam

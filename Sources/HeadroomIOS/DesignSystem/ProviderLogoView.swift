@@ -55,6 +55,7 @@ struct ProviderLogoView: View {
         case ProviderID.cursor.raw: "CursorBrandIcon"
         case ProviderID.copilot.raw: "CopilotBrandIcon"
         case ProviderID.opencode.raw: "OpenCodeBrandIcon"
+        case ProviderID.antigravity.raw: "AntigravityBrandIcon"
         default: nil
         }
     }
@@ -67,6 +68,7 @@ struct ProviderLogoView: View {
         case ProviderID.cursor.raw: "cursorarrow"
         case ProviderID.copilot.raw: "person.2"
         case ProviderID.opencode.raw: "rectangle.portrait"
+        case ProviderID.antigravity.raw: "chevron.up"
         default: "circle.dashed"
         }
     }

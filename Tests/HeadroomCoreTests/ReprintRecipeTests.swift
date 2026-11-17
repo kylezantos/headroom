@@ -3,7 +3,7 @@ import Testing
 @testable import HeadroomCore
 
 struct ReprintRecipeTests {
-    private let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
+    private let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity]
     private func date(_ seconds: Double) -> Date { Date(timeIntervalSince1970: seconds) }
     private func key(_ id: ProviderID, _ account: AccountID = .primary) -> AccountKey {
         AccountKey(providerID: id, accountID: account)

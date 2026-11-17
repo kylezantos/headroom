@@ -174,7 +174,9 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         }
 
         self.content = content
-        let shown = Self.shownWindows(from: windows)
+        let shown = snapshot.providerID == .antigravity
+            ? Self.onePerAntigravityPool(from: windows)
+            : Self.shownWindows(from: windows)
         self.shownWindows = shown.map { window in
             CompactAccountRowWindow(
                 window: window,
@@ -281,6 +283,29 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         return shown.sorted().map { windows[$0] }
     }
 
+    /// Antigravity's two pools each report a 5-hour and a weekly row, and the provider emits
+    /// each pool's tighter row first. Compact shows that first row of each pool, so the two
+    /// meters are the two pools rather than one pool's pair. The rows in one pool share a
+    /// limit, so its tighter row is also the one at its limit first: no swap is needed.
+    static func onePerAntigravityPool(from windows: [UsageWindow]) -> [UsageWindow] {
+        var pools: Set<String> = []
+        let shown = windows.filter { window in
+            guard let pool = antigravityPool(of: window.kind) else { return false }
+            return pools.insert(pool).inserted
+        }
+        return Array(shown.prefix(maximumShownWindows))
+    }
+
+    /// The pool an Antigravity row belongs to, read off its stored label (the provider's
+    /// `windowKind`), so this compiles where the provider itself does not (iOS).
+    private static func antigravityPool(of kind: WindowKind) -> String? {
+        guard case .other(let label) = kind else { return nil }
+        for pool in ["Gemini", "Claude & GPT"] where label == "\(pool) 5h" || label == "\(pool) weekly" {
+            return pool
+        }
+        return nil
+    }
+
     static func isAtLimit(_ window: UsageWindow) -> Bool {
         !window.freshness.isUnavailable && window.utilization.isFinite && window.utilization >= 100
     }
@@ -319,8 +344,22 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
             case "Other Models": return "Other"
             default: return label
             }
-        case .other:
-            return kind.compactName
+        case .other(let label):
+            return antigravityShortLabel(label) ?? kind.compactName
+        }
+    }
+
+    /// Antigravity's pool rows, short enough for the 84pt Compact column ("Claude & GPT wk
+    /// used" is not) and the Lock Screen rectangle. "Other" is the Claude & GPT pool, as
+    /// Cursor's "Other" is its other pool; tooltips and VoiceOver name each row in full.
+    /// Nil for any other label.
+    public static func antigravityShortLabel(_ label: String) -> String? {
+        switch label {
+        case "Gemini 5h": "Gemini 5h"
+        case "Gemini weekly": "Gemini wk"
+        case "Claude & GPT 5h": "Other 5h"
+        case "Claude & GPT weekly": "Other wk"
+        default: nil
         }
     }
 

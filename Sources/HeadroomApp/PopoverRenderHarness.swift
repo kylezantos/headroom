@@ -648,6 +648,7 @@ enum PopoverRenderHarness {
             preferences.setSurfaceEnabled(true, for: .cursorSubscription)
             preferences.setSurfaceEnabled(true, for: .copilotSubscription)
             preferences.setSurfaceEnabled(true, for: .opencodeSubscription)
+            preferences.setSurfaceEnabled(true, for: .antigravitySubscription)
             if let menuBarPercentages {
                 preferences.showMenuBarPercentage = menuBarPercentages
                 preferences.menuBarFillSource = .providers(Set(DemoFixture.registeredProviderOrder))
@@ -725,6 +726,7 @@ enum PopoverRenderHarness {
                     DemoUsageProvider(id: .cursor, displayName: "Cursor", snapshot: snapshot(.cursor, DemoFixture.cursorSnapshot)),
                     DemoUsageProvider(id: .copilot, displayName: "Copilot", snapshot: snapshot(.copilot, DemoFixture.copilotSnapshot)),
                     DemoUsageProvider(id: .opencode, displayName: "OpenCode", snapshot: snapshot(.opencode, DemoFixture.opencodeSnapshot)),
+                    DemoUsageProvider(id: .antigravity, displayName: "Antigravity", snapshot: snapshot(.antigravity, DemoFixture.antigravitySnapshot)),
                 ] : []),
                 apiSpendProviders: [
                     DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),

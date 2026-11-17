@@ -109,6 +109,43 @@ struct CompactAccountRowRecipeTests {
         #expect(odd.shownWindows.map(\.shortLabel) == ["14d"])
     }
 
+    /// Antigravity reports two pools with a 5-hour and a weekly row each. Compact's two
+    /// meters show one row per pool, each pool's tighter one, in the order the provider
+    /// emits them; the other two rows are counted and stay in the tooltip.
+    @Test func antigravityShowsOneMeterPerPoolAndKeepsEveryRowInTheTooltip() {
+        let reset = now.addingTimeInterval(2 * hour)
+        let windows = AntigravityProvider.windows(for: [
+            AntigravityBucket(pool: .gemini, window: .fiveHour, remainingFraction: 0.80, resetsAt: reset),
+            AntigravityBucket(pool: .gemini, window: .weekly, remainingFraction: 0.60, resetsAt: reset),
+            AntigravityBucket(pool: .claudeAndGPT, window: .fiveHour, remainingFraction: 0.10, resetsAt: reset),
+            AntigravityBucket(pool: .claudeAndGPT, window: .weekly, remainingFraction: 0.50, resetsAt: reset),
+        ])
+        let result = recipe(snapshot(.antigravity, windows))
+        #expect(result.content == .meters)
+        #expect(result.shownWindows.map(\.window.kind) == [.other("Gemini weekly"), .other("Claude & GPT 5h")])
+        #expect(result.shownWindows.map(\.shortLabel) == ["Gemini wk", "Other 5h"])
+        #expect(result.overflowCount == 2)
+        let tooltip = result.tooltip.split(separator: "\n").map(String.init)
+        #expect(tooltip.count == 4)
+        for name in ["Gemini weekly", "Gemini 5-hour", "Claude & GPT 5-hour", "Claude & GPT weekly"] {
+            #expect(tooltip.contains { $0.hasPrefix("\(name):") }, "tooltip lacks \(name)")
+        }
+
+        // With one pool missing, the other pool's tighter row is the one meter.
+        let geminiOnly = recipe(snapshot(.antigravity, Array(windows.prefix(2))))
+        #expect(geminiOnly.shownWindows.map(\.window.kind) == [.other("Gemini weekly")])
+        #expect(geminiOnly.overflowCount == 1)
+    }
+
+    /// The Compact header names each Antigravity column by pool and period, short enough for
+    /// the 84pt cell. "Other" is the Claude & GPT pool, as Cursor's "Other" is its other pool.
+    @Test func antigravityShortLabelsFitTheCompactColumn() {
+        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Gemini 5h")) == "Gemini 5h")
+        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Gemini weekly")) == "Gemini wk")
+        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Claude & GPT 5h")) == "Other 5h")
+        #expect(CompactAccountRowRecipe.shortLabel(for: .other("Claude & GPT weekly")) == "Other wk")
+    }
+
     @Test func unknownWindowsFallBackToSlotOrder() {
         let result = recipe(snapshot(.grok, [
             window(.other("Beta"), used: 10, resetIn: hour),

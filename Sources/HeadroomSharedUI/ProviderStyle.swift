@@ -19,6 +19,7 @@ public enum ProviderStyle {
         case .cursor: return scheme == .dark ? "cursor-dark" : "cursor-light"
         case .copilot: return scheme == .dark ? "copilot-dark" : "copilot-light"
         case .opencode: return scheme == .dark ? "opencode-dark" : "opencode-light"
+        case .antigravity: return scheme == .dark ? "antigravity-dark" : "antigravity-light"
         default: return nil
         }
     }
@@ -31,6 +32,7 @@ public enum ProviderStyle {
         case .cursor: return Color(HeadroomBrandColorValues.cursor)
         case .copilot: return Color(HeadroomBrandColorValues.copilot)
         case .opencode: return Color(HeadroomBrandColorValues.opencode)
+        case .antigravity: return Color(HeadroomBrandColorValues.antigravity)
         default: return .secondary
         }
     }
@@ -289,6 +291,7 @@ public enum ProviderStyle {
         case .cursor: return "cursorarrow"
         case .copilot: return "person.2"
         case .opencode: return "rectangle.portrait"
+        case .antigravity: return "chevron.up"
         default: return "circle.dashed"
         }
     }

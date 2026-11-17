@@ -337,6 +337,7 @@
 		77FB8C15DBECADF0CBCF7B65 /* UsageLimitSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F34A17B4ABF0B55222C73C6 /* UsageLimitSentence.swift */; };
 		7861BA599E5D955771C8BF5E /* SyncedWidgetSnapshotModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8164B96DDA8CF8840FA46958 /* SyncedWidgetSnapshotModels.swift */; };
 		7863890791F11A63594C27EB /* MenuBarPillArrangerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2631CDFB3EFB8C74AE76D013 /* MenuBarPillArrangerTests.swift */; };
+		78FA166D38C48FA9A07CDA90 /* antigravity-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = 5670EB4380E48E652743DB34 /* antigravity-dark.svg */; };
 		7A1D995760A17E95BC5F2CCE /* UserRefreshRun.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A0E8B71BDE56ABAF99C346 /* UserRefreshRun.swift */; };
 		7A415B4E9246C1CB4DF06150 /* HeadroomIOSWidgetConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C99BCBDD4738D8F88877765E /* HeadroomIOSWidgetConfiguration.swift */; };
 		7AC55C5F6E34806E870A9E49 /* UsageLimitSentence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4F34A17B4ABF0B55222C73C6 /* UsageLimitSentence.swift */; };
@@ -630,6 +631,7 @@
 		E8F06C1901BA60D02C5F964C /* PopoverView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 864FC2FB47A9E7D44E659809 /* PopoverView.swift */; };
 		E9654D5DDED0DF587A024433 /* ProviderCapabilityPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDD8DCD377AF452F7E2D7A9D /* ProviderCapabilityPresentation.swift */; };
 		E96E8DC7DD25A474AB975BF9 /* CompanionIdentityProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6019B00EF172D09CACA2F6B /* CompanionIdentityProbe.swift */; };
+		E99EE8C82A72E8E3EE939D3A /* antigravity-light.svg in Resources */ = {isa = PBXBuildFile; fileRef = 47942521915E2369C26D3CCD /* antigravity-light.svg */; };
 		E9ED48AF8AA26154FA45AB81 /* MenuBarLabelGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79E49C4C6939DD580E123ADC /* MenuBarLabelGeometry.swift */; };
 		EAB85D053D349C41960ACC99 /* HeadroomMotionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C86F6DC46F48D9B1AC756F9 /* HeadroomMotionTests.swift */; };
 		EB61787A8DEC9D82564BBB68 /* RefreshReceiptPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69193D80EC57DFD1C431841B /* RefreshReceiptPresentation.swift */; };
@@ -873,6 +875,7 @@
 		44A274F08234DBDDC8741BE8 /* PopoverRenderHarnessStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverRenderHarnessStoreTests.swift; sourceTree = "<group>"; };
 		44E4D55224D293D0265BE89B /* UsageBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UsageBarView.swift; sourceTree = "<group>"; };
 		45664468B476DAD05D8DA53A /* PlanLabelPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanLabelPresentation.swift; sourceTree = "<group>"; };
+		47942521915E2369C26D3CCD /* antigravity-light.svg */ = {isa = PBXFileReference; path = "antigravity-light.svg"; sourceTree = "<group>"; };
 		47B4E86343C94C717E7EC99F /* CompactAccountRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompactAccountRow.swift; sourceTree = "<group>"; };
 		489B0F5F146207BD5B62F041 /* ProviderCardIdentityRows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProviderCardIdentityRows.swift; sourceTree = "<group>"; };
 		48C63A7205115E3F08BEDE08 /* PopoverRenderHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverRenderHarness.swift; sourceTree = "<group>"; };
@@ -892,6 +895,7 @@
 		5533AC59D2F3977DBAF4BE95 /* OpenCodeUsageSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeUsageSource.swift; sourceTree = "<group>"; };
 		5565222E4F4595DE7AD1176A /* CompanionSnapshotCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompanionSnapshotCache.swift; sourceTree = "<group>"; };
 		55DBC87E82459F7596B60C0E /* ClaudeSetupCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClaudeSetupCommand.swift; sourceTree = "<group>"; };
+		5670EB4380E48E652743DB34 /* antigravity-dark.svg */ = {isa = PBXFileReference; path = "antigravity-dark.svg"; sourceTree = "<group>"; };
 		56F54E6B7FA732E9C2BD087E /* ConnectedPayoffClaimTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectedPayoffClaimTests.swift; sourceTree = "<group>"; };
 		57D5D1B66560A107D0339933 /* PlanCapsulePresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCapsulePresentation.swift; sourceTree = "<group>"; };
 		58BC98FEFB1B6841B9079A75 /* MiniPillPreviewHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPillPreviewHarness.swift; sourceTree = "<group>"; };
@@ -1620,6 +1624,8 @@
 		B95FC254FAA2172A96AF74F3 /* BrandIcons */ = {
 			isa = PBXGroup;
 			children = (
+				5670EB4380E48E652743DB34 /* antigravity-dark.svg */,
+				47942521915E2369C26D3CCD /* antigravity-light.svg */,
 				3D242FD4C2496701C8997F9A /* claude-color.svg */,
 				88E5257FBAB9CE287E59153B /* codex-color.svg */,
 				F660BA21EAC97057E34379DB /* copilot-dark.svg */,
@@ -2047,6 +2053,8 @@
 			files = (
 				60746FC18E97628B85602E13 /* Assets.xcassets in Resources */,
 				3B642DC39FBAB7604199175E /* SOURCES.md in Resources */,
+				78FA166D38C48FA9A07CDA90 /* antigravity-dark.svg in Resources */,
+				E99EE8C82A72E8E3EE939D3A /* antigravity-light.svg in Resources */,
 				E888F6381D1EF5EEE508FC15 /* claude-color.svg in Resources */,
 				3CF30E86D1DEBD401B0D6CA3 /* codex-color.svg in Resources */,
 				A6BCED5F8DDFDB6FE9798F2C /* copilot-dark.svg in Resources */,

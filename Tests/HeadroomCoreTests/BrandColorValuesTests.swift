@@ -24,6 +24,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandColorValues.cursor == HeadroomRGBColor(red: 0.33, green: 0.34, blue: 0.38))
         #expect(HeadroomBrandColorValues.copilot == HeadroomRGBColor(red: 0.34, green: 0.37, blue: 0.43))
         #expect(HeadroomBrandColorValues.opencode == HeadroomRGBColor(red: 0.35, green: 0.34, blue: 0.34))
+        #expect(HeadroomBrandColorValues.antigravity == HeadroomRGBColor(red: 0.36, green: 0.36, blue: 0.38))
     }
 
     /// R2C18: every Claude/Codex brand value is a stop on one constant-hue ramp — accent,
@@ -149,6 +150,7 @@ struct BrandColorValuesTests {
     @Test(arguments: [
         ("GrokBrandIcon", "grok"), ("CursorBrandIcon", "cursor"),
         ("CopilotBrandIcon", "copilot"), ("OpenCodeBrandIcon", "opencode"),
+        ("AntigravityBrandIcon", "antigravity"),
     ])
     func monochromeImagesetsPairTheirDarkFileUnderTheLuminosityAppearance(_ pair: (String, String)) throws {
         let imageset = brandCatalogDirectory.appendingPathComponent("\(pair.0).imageset")
@@ -253,6 +255,20 @@ struct BrandColorValuesTests {
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.copilot.raw, dark: true) == HeadroomRGBColor(red: 0.79, green: 0.81, blue: 0.86))
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.opencode.raw, dark: false) == HeadroomRGBColor(red: 0.18, green: 0.17, blue: 0.17))
         #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.opencode.raw, dark: true) == HeadroomRGBColor(red: 0.82, green: 0.81, blue: 0.81))
+        #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.antigravity.raw, dark: false) == HeadroomRGBColor(red: 0.18, green: 0.18, blue: 0.20))
+        #expect(HeadroomWidgetColorValues.textAccent(for: ProviderID.antigravity.raw, dark: true) == HeadroomRGBColor(red: 0.81, green: 0.82, blue: 0.84))
+    }
+
+    /// The Antigravity title accent clears WCAG AA small text on both raised tile stops and
+    /// every widget container stop, in each scheme.
+    @Test func antigravityTextAccentClearsSmallTextContrastOnEverySurface() throws {
+        for dark in [true, false] {
+            let accent = try #require(HeadroomWidgetColorValues.textAccent(for: ProviderID.antigravity.raw, dark: dark))
+            for surface in raisedTileFillColors(dark: dark) + widgetContainerColors(dark: dark) {
+                let measured = contrastRatio(accent, surface)
+                #expect(measured >= 4.5, "antigravity accent dark=\(dark): \(measured):1")
+            }
+        }
     }
 
     /// U6 (OpenCode plan): the OpenCode title accent clears WCAG AA small text on both raised
@@ -291,7 +307,7 @@ struct BrandColorValuesTests {
     /// Guards the P1 "grey-identity default arm" class of bug: every registered provider
     /// must resolve a real title accent (both schemes), not fall through to `.secondary`.
     @Test func everyRegisteredProviderHasABrandTextAccent() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity] {
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: false) != nil, "\(id.raw) light")
             #expect(HeadroomWidgetColorValues.textAccent(for: id.raw, dark: true) != nil, "\(id.raw) dark")
         }
@@ -315,7 +331,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandMark.inkFraction == 13.0 / 15.0)
         let corrections: [(ProviderID, Double)] = [
             (.claude, 1.00), (.codex, 0.92), (.grok, 1.20), (.cursor, 1.03), (.copilot, 1.00),
-            (.opencode, 1.00),
+            (.opencode, 1.00), (.antigravity, 1.00),
         ]
         for (id, correction) in corrections {
             #expect(HeadroomBrandMark.massCorrection(for: id.raw) == correction, "\(id.raw) mass")
@@ -329,7 +345,7 @@ struct BrandColorValuesTests {
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw) > 1)
         #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw) < 1)
         // Grok is the sparsest mark, Codex the densest, so they bound the table.
-        for id in [ProviderID.claude, .codex, .cursor, .copilot, .opencode] {
+        for id in [ProviderID.claude, .codex, .cursor, .copilot, .opencode, .antigravity] {
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.grok.raw)
                 >= HeadroomBrandMark.massCorrection(for: id.raw))
             #expect(HeadroomBrandMark.massCorrection(for: ProviderID.codex.raw)
@@ -344,7 +360,7 @@ struct BrandColorValuesTests {
     /// 15pt slot, the aspect is preserved rather than padded back to square, and the shorter
     /// dimension is what shrinks (Grok's slash vertically, Cursor's cube horizontally).
     @Test func markSizeFitsTheLargerInkDimensionAndKeepsAspect() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity] {
             let mark = HeadroomBrandMark.markSize(for: id.raw, slot: 15)
             let box = 13 * HeadroomBrandMark.massCorrection(for: id.raw)
             #expect(abs(max(mark.width, mark.height) - box) < 0.0001, "\(id.raw) larger dimension")
@@ -366,6 +382,10 @@ struct BrandColorValuesTests {
         let opencode = HeadroomBrandMark.markSize(for: ProviderID.opencode.raw, slot: 15)
         #expect(abs(opencode.height - 13) < 0.0001)
         #expect(abs(opencode.width - 10.4) < 0.0001)
+        // Antigravity's arch is wider than tall: full width, 22.1087/24 of it high.
+        let antigravity = HeadroomBrandMark.markSize(for: ProviderID.antigravity.raw, slot: 15)
+        #expect(abs(antigravity.width - 13) < 0.0001)
+        #expect(abs(antigravity.height - 13 * 22.1087 / 24) < 0.0001)
     }
 
     @Test func markSizeScalesLinearlyWithTheSlot() {
@@ -1104,6 +1124,10 @@ private let monochromeMarkFiles: [(URL, Bool)] = {
         (appIcons.appendingPathComponent("opencode-light.svg"), false),
         (catalog.appendingPathComponent("OpenCodeBrandIcon.imageset/opencode-dark.svg"), true),
         (catalog.appendingPathComponent("OpenCodeBrandIcon.imageset/opencode-light.svg"), false),
+        (appIcons.appendingPathComponent("antigravity-dark.svg"), true),
+        (appIcons.appendingPathComponent("antigravity-light.svg"), false),
+        (catalog.appendingPathComponent("AntigravityBrandIcon.imageset/antigravity-dark.svg"), true),
+        (catalog.appendingPathComponent("AntigravityBrandIcon.imageset/antigravity-light.svg"), false),
     ]
 }()
 

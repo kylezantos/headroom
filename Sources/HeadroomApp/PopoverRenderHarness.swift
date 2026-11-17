@@ -724,9 +724,9 @@ enum PopoverRenderHarness {
                 ] + (pane == .menuBar ? [
                     DemoUsageProvider(id: .grok, displayName: "Grok", snapshot: snapshot(.grok, DemoFixture.grokSnapshot)),
                     DemoUsageProvider(id: .cursor, displayName: "Cursor", snapshot: snapshot(.cursor, DemoFixture.cursorSnapshot)),
+                    DemoUsageProvider(id: .antigravity, displayName: "Antigravity", snapshot: snapshot(.antigravity, DemoFixture.antigravitySnapshot)),
                     DemoUsageProvider(id: .copilot, displayName: "Copilot", snapshot: snapshot(.copilot, DemoFixture.copilotSnapshot)),
                     DemoUsageProvider(id: .opencode, displayName: "OpenCode", snapshot: snapshot(.opencode, DemoFixture.opencodeSnapshot)),
-                    DemoUsageProvider(id: .antigravity, displayName: "Antigravity", snapshot: snapshot(.antigravity, DemoFixture.antigravitySnapshot)),
                 ] : []),
                 apiSpendProviders: [
                     DemoSpendProvider(id: .claude, displayName: "Anthropic API", snapshot: DemoFixture.anthropicSpend),

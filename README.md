@@ -2,8 +2,8 @@
 
 A macOS menu bar app that shows how much of your AI-subscription usage remains — the
 5-hour and weekly windows, when each resets, and a manually-entered monthly renewal
-date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, **Cursor**, **GitHub Copilot**,
-**OpenCode Go** and **Google Antigravity**, side by side.
+date — for **Anthropic Claude**, **ChatGPT/Codex**, **Grok**, **Cursor**, **Google Antigravity**,
+**GitHub Copilot** and **OpenCode Go**, side by side.
 It can also show optional API dollar spend in a separate section for users who use
 metered OpenAI, Anthropic, or xAI APIs, bundles macOS widgets for small, medium, and large
 glanceable desktop / Notification Center views, and includes an iPhone/iPad companion app +

@@ -303,9 +303,9 @@ public enum CompanionDemoData {
             return state
         case .sixProviders:
             var state = try fourProvidersState(clock: clock, generation: g)
+            state.providers.append(try payload("antigravity", g, main: antigravityAccount(clock)))
             state.providers.append(try payload("copilot", g, main: copilotAccount(clock)))
             state.providers.append(try payload("opencode", g, main: opencodeAccount(clock)))
-            state.providers.append(try payload("antigravity", g, main: antigravityAccount(clock)))
             return state
         case .bankedResets:
             return MacState(providers: [

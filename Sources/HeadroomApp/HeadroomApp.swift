@@ -1173,15 +1173,16 @@ enum AppComposition {
             SubscriptionProviderRegistration(id: .grok, accountCapacity: AccountRegistry.testedEnvelope, factory: makeGrokProvider),
             // Cursor has no config-home isolation, so it stays single-account (matches `CursorProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .cursor, accountCapacity: 1, factory: makeCursorProvider),
+            // `agy` keeps one sign-in per Mac and isolating a second is unproven, so Antigravity
+            // stays single-account (matches `AntigravityProvider.accountCapacity`). It sits
+            // directly above Copilot in the popover.
+            SubscriptionProviderRegistration(id: .antigravity, accountCapacity: 1, factory: makeAntigravityProvider),
             // A Headroom-owned COPILOT_HOME never receives the session logs the meter reads, so
             // Copilot stays single-account (matches `CopilotProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .copilot, accountCapacity: 1, factory: makeCopilotProvider),
             // KTD10: each extra gets its own four XDG folders, so OpenCode carries the tested
             // envelope like Grok (matches `OpenCodeProvider.accountCapacity`).
             SubscriptionProviderRegistration(id: .opencode, accountCapacity: AccountRegistry.testedEnvelope, factory: makeOpenCodeProvider),
-            // `agy` keeps one sign-in per Mac and isolating a second is unproven, so Antigravity
-            // stays single-account (matches `AntigravityProvider.accountCapacity`).
-            SubscriptionProviderRegistration(id: .antigravity, accountCapacity: 1, factory: makeAntigravityProvider),
         ]
     }
 

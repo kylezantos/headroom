@@ -157,7 +157,7 @@ struct CompanionPayloadBudgetTests {
                 try CompanionActiveManifest(
                     sourceID: F.macA, generation: 4_000_000_123, generatedAt: F.date(),
                     macAppVersion: "1.5 (40)",
-                    providerOrder: ["claude", "codex", "grok", "cursor", "copilot", "opencode", "antigravity"],
+                    providerOrder: ["claude", "codex", "grok", "cursor", "antigravity", "copilot", "opencode"],
                     providers: entries, spendOrder: ["claude", "codex", "grok", "cursor"],
                     chosenIntervalSeconds: 300,
                     display: CompanionDisplayBlock(

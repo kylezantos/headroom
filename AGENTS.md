@@ -7,7 +7,7 @@ changes.
 
 A native macOS 15+ menu bar app (Swift 6 / SwiftUI) showing remaining AI-subscription
 usage — 5-hour and weekly windows, reset times, manual renewal dates — for **Claude**,
-**ChatGPT/Codex**, Grok, Cursor, GitHub Copilot, OpenCode (Go) and Antigravity, behind one provider
+**ChatGPT/Codex**, Grok, Cursor, Antigravity, GitHub Copilot and OpenCode (Go), behind one provider
 abstraction so more can be added. Tahoe uses Liquid
 Glass; Sequoia uses a native material popover surface.
 
@@ -22,7 +22,7 @@ no in-repo definition.
   reliably, and solidly as possible.** A growing number of people rely on Headroom to manage
   their usage; reliability and honesty of the numbers come before new surface area.
 - **Provider parity by default.** Any feature, enhancement, or behavior change applies to all
-  providers (Claude, Codex, Grok, Cursor, Copilot, OpenCode, Antigravity) and to every account of each, unless a provider's
+  providers (Claude, Codex, Grok, Cursor, Antigravity, Copilot, OpenCode) and to every account of each, unless a provider's
   transport or official-client boundary genuinely prevents it. When parity is not possible,
   say so explicitly in the plan, PR, or reply, with the reason, rather than silently scoping
   the change to one provider. "Cheap for this provider" is never a reason to leave it out.
@@ -414,7 +414,7 @@ Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
 swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width; `--render-scenario remembered` poses remembered rows, `--render-scenario merged` the one-row merge
-swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|six-providers|copilot-no-reading|opencode-no-go|opencode-update|opencode-limited|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; six-providers is the every-provider demo and now carries all seven providers, Antigravity included (five-providers stays the five before OpenCode); opencode-no-go, opencode-update and opencode-limited pose the no-Go card, the update-required state and a limited monthly window; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
+swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|six-providers|copilot-no-reading|opencode-no-go|opencode-update|opencode-limited|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; six-providers is the every-provider demo and now carries all seven providers, Antigravity included, in registry order with Antigravity directly above Copilot (five-providers stays Claude, Codex, Grok, Cursor and Copilot); opencode-no-go, opencode-update and opencode-limited pose the no-Go card, the update-required state and a limited monthly window; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
 swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
@@ -596,7 +596,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   poll aggressively. **Polling is per account, not per sweep (Sep 2026).** Every account has
   its own due time (last attempt + the chosen interval, with growing backoff after transient
   failures and a four-interval wait for never-signed-in extras); each CLI lane (Claude, Grok,
-  Cursor, Copilot, OpenCode, Antigravity) drains one probe at a time, primary first then most overdue, behind a **measured
+  Cursor, Antigravity, Copilot, OpenCode) drains one probe at a time, primary first then most overdue, behind a **measured
   duty-cycle gate** — timer probes start only while the lane has been busy for at most half of
   the trailing window of twice the chosen interval. Codex's HTTP lane fetches its due accounts
   concurrently and is not gated. User actions (Refresh, Check Now, Try Again, Make Main, setup
@@ -690,7 +690,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   every-provider demo is `--demo six-providers` (popover) / the `sixProviders`
   `DemoScreenshotData` and companion demo variant (iOS widget and the Lock Screen demo); it now
   carries all seven providers, Antigravity included, under the old name.
-  `five-providers`/`fiveProviders` keep the five providers before OpenCode, and `multi-4`/`fourProviders` the four before Copilot. `multi-5`
+  `five-providers`/`fiveProviders` keep Claude, Codex, Grok, Cursor and Copilot, and `multi-4`/`fourProviders` Claude, Codex, Grok and Cursor. `multi-5`
   means five accounts, not five providers.
 - Copilot reads the official CLI's own output and never sends a prompt (Nov 2026).
   `CopilotProvider` combines two things the official `copilot` CLI produces: the
@@ -819,6 +819,9 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
     one row, so every user sees the wrap because Antigravity is always registered),
     `HalftonePillRow` draws up to seven pills, and the companion flush bound is the provider count
     plus two.
+  Antigravity registers between Cursor and Copilot, so its card sits directly above Copilot
+  and OpenCode stays last; the append-only stored enums (`UsageSurface`,
+  `LockScreenProviderChoice`, `PlanStatus` raw values) keep it appended at the end.
   Antigravity is off by default and reaches the phone, widgets, the Lock Screen provider choice
   and Siri like the others. The fixtures come from a live 1.5.9 capture except the synthetic
   signed-out one. Re-diagnose with `--probe-antigravity`; see

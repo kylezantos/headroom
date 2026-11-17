@@ -205,13 +205,14 @@ struct DemoFixtureTests {
     /// U12 parity, Copilot plan U7: the five-provider scenario's provider list equals the
     /// registry order. `multi-4` keeps the four providers before Copilot, because its spend
     /// variants pose four API rows and `multi-5` already means five accounts.
-    /// OpenCode plan U9 (KTD14): `five-providers` stays the five providers before OpenCode.
+    /// `five-providers` stays the five providers OpenCode and
+    /// Antigravity joined after, though Antigravity now sits above Copilot in the registry.
     @Test func fiveProviderScenarioMatchesRegistryOrder() async {
         let fixture = DemoFixture.multiFixture(for: .fiveProviders)
         let beforeOpenCode = DemoFixture.registeredProviderOrder.filter { $0 != .opencode && $0 != .antigravity }
         #expect(fixture.accounts.map(\.providerID) == beforeOpenCode)
         #expect(fixture.providers.map(\.id) == beforeOpenCode)
-        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity])
+        #expect(DemoFixture.registeredProviderOrder == [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode])
         #expect(DemoFixture.multiFixture(for: .multiProviders).accounts.map(\.providerID)
             == beforeOpenCode.filter { $0 != .copilot })
         // Single-account like Cursor: the demo must not offer "Add Account…" for Copilot.

@@ -561,7 +561,7 @@ extension DemoFixture {
     /// Canonical demo provider order, mirroring `AppComposition`'s subscription registry.
     /// Parity checks derive their expected provider list from this instead of hardcoding a
     /// Claude/Codex literal (KTD9 switch-site inventory).
-    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity]
+    public static let registeredProviderOrder: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode]
 
     /// One scenario resolved to its accounts + one fixture provider per account.
     public struct MultiAccountFixture: Sendable {
@@ -838,9 +838,9 @@ extension DemoFixture {
                 demoAccount(provider: .codex, id: "codex-main", label: "Personal", plan: "Prolite", fiveHour: 9, weekly: 36, builtIn: true),
                 builtInProviderPair(provider: .grok, snapshot: grokSnapshot),
                 builtInProviderPair(provider: .cursor, snapshot: cursorSnapshot),
+                builtInProviderPair(provider: .antigravity, snapshot: antigravitySnapshot),
                 builtInProviderPair(provider: .copilot, snapshot: copilotSnapshot),
                 builtInProviderPair(provider: .opencode, snapshot: opencodeSnapshot),
-                builtInProviderPair(provider: .antigravity, snapshot: antigravitySnapshot),
             ]
         case .opencodeNoGo:
             pairs = [

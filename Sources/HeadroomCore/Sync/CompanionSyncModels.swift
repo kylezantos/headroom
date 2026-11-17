@@ -943,7 +943,7 @@ public enum CompanionSyncKeys {
     /// Contract: known providers; unknown IDs may sit in ordering metadata but are skipped.
     /// KTD16 (OpenCode plan): a phone build that predates an ID skips its key, and build 33
     /// reads only v3, so adding one needs no schema or reader-version change.
-    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor", "copilot", "opencode", "antigravity"]
+    public static let knownProviderIDs = ["claude", "codex", "grok", "cursor", "antigravity", "copilot", "opencode"]
 
     /// The IDs this reader treats as known. Always `knownProviderIDs` in the app; tests bind
     /// an older phone build's list to pin how that build reads a newer Mac (KTD16, OpenCode

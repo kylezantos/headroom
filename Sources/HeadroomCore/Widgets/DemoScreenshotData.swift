@@ -434,7 +434,8 @@ public enum DemoScreenshotData {
         return WidgetSnapshotEnvelope(
             generatedAt: five.generatedAt,
             status: five.status,
-            providers: five.providers + [opencode, antigravity],
+            // Antigravity sits directly above Copilot, OpenCode last (registry order).
+            providers: five.providers.flatMap { $0.id == ProviderID.copilot.raw ? [antigravity, $0] : [$0] } + [opencode],
             apiSpendProviders: five.apiSpendProviders
         )
     }
@@ -657,7 +658,7 @@ public enum DemoScreenshotData {
         }
         switch name {
         case "full", "empty":
-            return envelope(["claude", "codex", "grok", "cursor", "copilot", "opencode", "antigravity"].map { id in
+            return envelope(["claude", "codex", "grok", "cursor", "antigravity", "copilot", "opencode"].map { id in
                 WidgetProviderSummary(id: id, displayName: ProviderID(id).displayName, planLabel: nil,
                     freshness: .live, windows: [WidgetWindowSummary(kind: .weekly, label: "Weekly",
                         percentRemaining: name == "full" ? 100 : 0,

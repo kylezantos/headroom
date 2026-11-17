@@ -9,9 +9,12 @@ import HeadroomCore
 struct AntigravityCompositionTests {
     private let realLaunch: [String: String] = [:]
 
-    @Test func theRegistryListsAntigravityLastWithCapacityOne() throws {
+    @Test func theRegistryListsAntigravityDirectlyAboveCopilotWithCapacityOne() throws {
         let registry = AppComposition.subscriptionProviderRegistry
-        #expect(registry.last?.id == .antigravity)
+        let ids = registry.map(\.id)
+        let index = try #require(ids.firstIndex(of: .antigravity))
+        #expect(ids[index + 1] == .copilot)
+        #expect(ids == [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode])
         let antigravity = try #require(registry.first { $0.id == .antigravity })
         #expect(antigravity.accountCapacity == 1)
         let workspace = FileManager.default.temporaryDirectory

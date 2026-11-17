@@ -29,6 +29,7 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let widgetsEnabled = "widgetsEnabled"
         static let showCodexSparkCountersInApp = "showCodexSparkCountersInApp"
         static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
+        static let showsAntigravityFiveHourWindows = "showsAntigravityFiveHourWindows"
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
         static let apiSpendPeriod = "apiSpendPeriod"
         static let settingsPane = "settingsPane"
@@ -256,6 +257,17 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
     public var showCodexSparkCountersInWidgets: Bool {
         get { defaults.bool(forKey: Key.showCodexSparkCountersInWidgets) }
         nonmutating set { defaults.set(newValue, forKey: Key.showCodexSparkCountersInWidgets) }
+    }
+
+    /// Default **on**: Antigravity's "Gemini 5h" and "Other 5h" rows show until the user
+    /// turns them off. The weekly rows always show. One switch for every surface: the
+    /// popover, the menu bar, widgets, the phone and reminders.
+    public var showsAntigravityFiveHourWindows: Bool {
+        get {
+            guard defaults.object(forKey: Key.showsAntigravityFiveHourWindows) != nil else { return true }
+            return defaults.bool(forKey: Key.showsAntigravityFiveHourWindows)
+        }
+        nonmutating set { defaults.set(newValue, forKey: Key.showsAntigravityFiveHourWindows) }
     }
 
     public var syncToIPhoneEnabled: Bool {

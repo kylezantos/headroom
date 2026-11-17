@@ -122,6 +122,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     ///     re-applied here so an unfiltered snapshot cannot leak a row Standard hides.
     ///   - showsCodexSparkCounters: `UsageStore.showCodexSparkCountersInApp`, the flag
     ///     `appDisplaySnapshot(for:)` filters the Standard bars with.
+    ///   - showsAntigravityFiveHourWindows: `UsageStore.showsAntigravityFiveHourWindows`, the
+    ///     other switch `appDisplaySnapshot(for:)` filters with.
     ///   - isRemembered: U8, the row is an account the default login left. Its tooltip
     ///     names when it was last read and, per window, its reset (`RememberedRowRecipe`).
     ///   - lastReadAt: U8, when a remembered account was last read; the snapshot's capture
@@ -133,6 +135,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         now: Date,
         requiresStandardSection: Bool,
         showsCodexSparkCounters: Bool,
+        showsAntigravityFiveHourWindows: Bool = true,
         isRemembered: Bool = false,
         lastReadAt: Date? = nil,
         timeZone: TimeZone = .current,
@@ -145,7 +148,11 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
             ? Countdown.lastReadLabel(capturedAt: lastReadAt ?? snapshot.capturedAt, now: now)
             : nil
 
-        var windows = Self.visibleWindows(in: snapshot, showsCodexSparkCounters: showsCodexSparkCounters)
+        var windows = Self.visibleWindows(
+            in: snapshot,
+            showsCodexSparkCounters: showsCodexSparkCounters,
+            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+        )
         if isRemembered {
             // U8 (R8): a cell past its reset prints no number, even before the aging pass
             // has turned its window unavailable.
@@ -312,12 +319,21 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     }
 
     /// The Standard stack's windows in the popover's order: `appDisplaySnapshot(for:)` drops
-    /// Codex Spark counters unless the in-app switch is on, then `fiveHourFirst()` leads with
+    /// Codex Spark counters unless the in-app switch is on, and Antigravity's 5-hour rows while
+    /// "Show 5-hour windows" is off, then `fiveHourFirst()` leads with
     /// 5-hour, then weekly or the billing periods, then model rows — each group in slot
     /// order. Taking the first two of this list is KTD7's choice: 5-hour then weekly for
     /// Claude and Codex, both pools for Cursor, the period for Grok, slot order otherwise.
-    static func visibleWindows(in snapshot: UsageSnapshot, showsCodexSparkCounters: Bool) -> [UsageWindow] {
-        let ordered = snapshot.fiveHourFirst().windows
+    static func visibleWindows(
+        in snapshot: UsageSnapshot,
+        showsCodexSparkCounters: Bool,
+        showsAntigravityFiveHourWindows: Bool = true
+    ) -> [UsageWindow] {
+        let ordered = AntigravityFiveHourWindows.visibleWindows(
+            snapshot.fiveHourFirst().windows,
+            providerID: snapshot.providerID,
+            showsFiveHourWindows: showsAntigravityFiveHourWindows
+        )
         guard snapshot.providerID == .codex, !showsCodexSparkCounters else { return ordered }
         return ordered.filter { !$0.kind.isCodexSparkCounter }
     }

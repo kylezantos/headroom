@@ -383,6 +383,41 @@ struct WidgetSnapshotProjectorTests {
         #expect(envelope.providers[0].limitingExtraWeeklyWindow?.roundedPercentRemaining == 7)
     }
 
+    @Test func antigravityFiveHourWindowsCanBeLeftOutOfWidgetSnapshots() {
+        let rows: [UsageWindow] = [
+            UsageWindow(kind: .other("Gemini 5h"), utilization: 95, resetsAt: reset),
+            UsageWindow(kind: .other("Gemini weekly"), utilization: 25, resetsAt: reset),
+            UsageWindow(kind: .other("Other 5h"), utilization: 90, resetsAt: reset),
+            UsageWindow(kind: .other("Other weekly"), utilization: 40, resetsAt: reset),
+        ]
+        func project(shows: Bool, context: WidgetProjectionContext = .localWidget) -> WidgetSnapshotEnvelope {
+            WidgetSnapshotProjector.project(
+                snapshots: [
+                    .antigravity: .live(.antigravity, windows: rows, at: now),
+                    .codex: .live(.codex, windows: [
+                        UsageWindow(kind: .weekly, utilization: 10, resetsAt: reset),
+                    ], at: now),
+                ],
+                providerOrder: [.antigravity, .codex],
+                displayNames: [.antigravity: "Antigravity", .codex: "Codex"],
+                renewalDate: { _ in nil },
+                widgetsEnabled: true,
+                showsAntigravityFiveHourWindows: shows,
+                generatedAt: now,
+                context: context
+            )
+        }
+
+        #expect(project(shows: true).providers[0].windows.count == 4)
+        for context in [WidgetProjectionContext.localWidget, .phoneSync(attention: [:])] {
+            let hidden = project(shows: false, context: context)
+            #expect(hidden.providers[0].windows.map(\.kind) == [.other("Gemini weekly"), .other("Other weekly")])
+            #expect(hidden.providers[1].windows.map(\.kind) == [.weekly])
+            // The tightest row the widgets rank is a weekly one now.
+            #expect(hidden.providers[0].windows.map(\.percentRemaining).min() == 60)
+        }
+    }
+
     @Test func sparkWindowSettingDoesNotExposeNonCodexWindows() {
         // The spark counter setting is Codex-only: a Claude spark-labeled window that is
         // not a weekly sub-limit must not leak in on its back.

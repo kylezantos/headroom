@@ -121,6 +121,8 @@ public final class UsageStore {
     private var chosenMenuBarWindowProviders: Set<ProviderID>
     public private(set) var showCodexSparkCountersInApp: Bool
     public private(set) var showCodexSparkCountersInWidgets: Bool
+    /// Antigravity's "Show 5-hour windows" switch, one value for every surface.
+    public private(set) var showsAntigravityFiveHourWindows: Bool
     /// KTD14: notification preferences, mirrored so the Notifications pane edits through
     /// the store the way `meterStyle` does.
     public private(set) var useItUpRemindersEnabled: Bool
@@ -359,6 +361,7 @@ public final class UsageStore {
         })
         self.showCodexSparkCountersInApp = preferences.showCodexSparkCountersInApp
         self.showCodexSparkCountersInWidgets = preferences.showCodexSparkCountersInWidgets
+        self.showsAntigravityFiveHourWindows = preferences.showsAntigravityFiveHourWindows
         self.useItUpRemindersEnabled = preferences.useItUpRemindersEnabled
         self.bankedResetNotificationsEnabled = preferences.bankedResetNotificationsEnabled
         self.reminderRules = preferences.reminderRules
@@ -756,12 +759,16 @@ public final class UsageStore {
         menuBarWindowOptions(for: id).count > 1
     }
 
-    /// The main account's windows a pill may follow. Codex's Spark counters join only while
-    /// the popover shows them, so the pill never follows a limit the popover hides.
+    /// The main account's windows a pill may follow. Codex's Spark counters and Antigravity's
+    /// 5-hour rows join only while the popover shows them, so the pill never follows a limit
+    /// the popover hides.
     private func menuBarCandidateWindows(for id: ProviderID) -> [UsageWindow] {
-        filterCodexSparkCounters(
-            from: snapshot(for: id),
-            shouldShow: showCodexSparkCountersInApp
+        AntigravityFiveHourWindows.visibleSnapshot(
+            filterCodexSparkCounters(
+                from: snapshot(for: id),
+                shouldShow: showCodexSparkCountersInApp
+            ),
+            showsFiveHourWindows: showsAntigravityFiveHourWindows
         ).fiveHourFirst().windows
     }
 
@@ -774,6 +781,13 @@ public final class UsageStore {
     public func setShowCodexSparkCountersInWidgets(_ enabled: Bool) {
         preferences.showCodexSparkCountersInWidgets = enabled
         showCodexSparkCountersInWidgets = enabled
+        exportWidgetSnapshot()
+        exportPhoneSyncSnapshot()
+    }
+
+    public func setShowsAntigravityFiveHourWindows(_ enabled: Bool) {
+        preferences.showsAntigravityFiveHourWindows = enabled
+        showsAntigravityFiveHourWindows = enabled
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }
@@ -1217,7 +1231,8 @@ public final class UsageStore {
                 isEnabled: useItUpRemindersEnabled,
                 rules: reminderRules,
                 scope: reminderScope,
-                showCodexSparkCounters: showCodexSparkCountersInApp
+                showCodexSparkCounters: showCodexSparkCountersInApp,
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
             ),
             bankedResetsEnabled: bankedResetNotificationsEnabled
         )
@@ -1330,9 +1345,12 @@ public final class UsageStore {
 
     public func appDisplaySnapshot(for key: AccountKey) -> UsageSnapshot {
         fiveHourFirst(
-            filterCodexSparkCounters(
-                from: snapshot(for: key),
-                shouldShow: preferences.showCodexSparkCountersInApp
+            AntigravityFiveHourWindows.visibleSnapshot(
+                filterCodexSparkCounters(
+                    from: snapshot(for: key),
+                    shouldShow: preferences.showCodexSparkCountersInApp
+                ),
+                showsFiveHourWindows: preferences.showsAntigravityFiveHourWindows
             )
         )
     }
@@ -1391,6 +1409,7 @@ public final class UsageStore {
             widgetsEnabled: widgetsEnabled,
             widgetProviderSelection: resolvedWidgetProviderSelection(),
             showsCodexSparkCounters: preferences.showCodexSparkCountersInWidgets,
+            showsAntigravityFiveHourWindows: preferences.showsAntigravityFiveHourWindows,
             apiSpendSnapshots: apiSpendSnapshots,
             apiSpendProviderOrder: apiSpendProviderOrder,
             generatedAt: generatedAt

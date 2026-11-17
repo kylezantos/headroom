@@ -24,13 +24,16 @@ struct AntigravityHeadlineTests {
             providerID: .antigravity, windows: windows, planLabel: "1,200 credits", capturedAt: now, freshness: .live)
     }
 
-    private func envelope(_ context: WidgetProjectionContext) -> WidgetSnapshotEnvelope {
+    private func envelope(
+        _ context: WidgetProjectionContext, showsFiveHourWindows: Bool = true
+    ) -> WidgetSnapshotEnvelope {
         WidgetSnapshotProjector.project(
             snapshots: [.antigravity: snapshot],
             providerOrder: [.antigravity],
             displayNames: [.antigravity: "Antigravity"],
             renewalDate: { _ in nil },
             widgetsEnabled: true,
+            showsAntigravityFiveHourWindows: showsFiveHourWindows,
             generatedAt: now,
             context: context
         )
@@ -52,6 +55,27 @@ struct AntigravityHeadlineTests {
         for style in WidgetLayoutStyle.allCases {
             let small = WidgetStyleRecipe(style: style, family: .small, envelope: envelope(context))
             #expect(small.providers.first?.primary?.kind == .other("Other 5h"), "\(style)")
+        }
+    }
+
+    /// "Show 5-hour windows" off: the tightest row left is Other weekly, and no widget style
+    /// headlines a hidden 5-hour row.
+    @Test(arguments: [WidgetProjectionContext.localWidget, .phoneSync(attention: [:])])
+    func homeWidgetsHeadlineTheTightestVisibleRowWhileFiveHourRowsAreHidden(_ context: WidgetProjectionContext) throws {
+        let hidden = envelope(context, showsFiveHourWindows: false)
+        let provider = try #require(hidden.providers.first)
+        #expect(provider.windows.map(\.kind) == [.other("Gemini weekly"), .other("Other weekly")])
+        let recipe = WidgetStyleProviderRecipe(summary: provider)
+        #expect(recipe.primary?.kind == .other("Other weekly"))
+        for style in WidgetLayoutStyle.allCases {
+            let small = WidgetStyleRecipe(style: style, family: .small, envelope: hidden)
+            #expect(small.providers.first?.primary?.kind == .other("Other weekly"), "\(style)")
+        }
+        for family in LockScreenWidgetFamily.allCases {
+            let lock = LockScreenWidgetRecipe(
+                style: .liquidLevel, family: family, providerChoice: .antigravity,
+                state: .content(envelope(.phoneSync(attention: [:]), showsFiveHourWindows: false)), now: now)
+            #expect(lock.slots.first?.primary.window?.kind == .other("Other weekly"), "\(family)")
         }
     }
 
@@ -92,6 +116,11 @@ struct AntigravityHeadlineTests {
         // The fresh-install weekly default names no Antigravity row, so the pill follows the
         // closest-to-limit row, which is the Other 5-hour one.
         #expect(store.resolvedMenuBarWindowKind(for: .antigravity) == tightest)
+
+        // Hidden 5-hour rows leave the pill: it follows the tightest weekly row instead.
+        store.setShowsAntigravityFiveHourWindows(false)
+        #expect(store.resolvedMenuBarWindowKind(for: .antigravity) == .other("Other weekly"))
+        #expect(store.menuBarSummary.text == "50%")
     }
 
     @Test func siriSpeaksTheTightestRowFirst() throws {

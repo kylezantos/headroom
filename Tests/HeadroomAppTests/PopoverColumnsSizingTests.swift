@@ -189,6 +189,23 @@ struct PopoverColumnsSizingTests {
         #expect(ProviderCardView.compactColumns(entries: pendingOnly, showsCodexSparkCounters: false) == [])
     }
 
+    /// The Compact header follows "Show 5-hour windows": with it off, Antigravity's columns
+    /// are its two weekly rows, the same rows the Standard section draws.
+    @Test func compactColumnsFollowTheAntigravityFiveHourSwitch() {
+        let rows = UsageSnapshot(providerID: .antigravity, windows: [
+            UsageWindow(kind: .other("Gemini 5h"), utilization: 20, resetsAt: Date().addingTimeInterval(3_600)),
+            UsageWindow(kind: .other("Gemini weekly"), utilization: 40, resetsAt: Date().addingTimeInterval(86_400)),
+            UsageWindow(kind: .other("Other 5h"), utilization: 90, resetsAt: Date().addingTimeInterval(3_600)),
+            UsageWindow(kind: .other("Other weekly"), utilization: 50, resetsAt: Date().addingTimeInterval(86_400)),
+        ], planLabel: nil, capturedAt: Date(), freshness: .live)
+        let entries = [ProviderAccountEntry(account: .builtIn(for: .antigravity), snapshot: rows)]
+        let shown = ProviderCardView.compactColumns(entries: entries, showsCodexSparkCounters: false)
+        #expect(shown?.map(\.persistentID).contains("other:Other 5h") == true)
+        let hidden = ProviderCardView.compactColumns(
+            entries: entries, showsCodexSparkCounters: false, showsAntigravityFiveHourWindows: false)
+        #expect(hidden?.map(\.persistentID) == ["other:Gemini weekly", "other:Other weekly"])
+    }
+
     @Test func aSingleAccountCardIsOneWholeSlot() {
         let slots = ProviderCardView.columnSlots(providerID: .codex, entries: entries(.codex, 1), capabilityStatus: nil)
         #expect(slots.map(\.id) == ["card:codex"])

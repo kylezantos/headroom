@@ -53,7 +53,10 @@ extension UsageStore {
             var extras: [CompanionAccountSummary] = []
             for row in projection.rows {
                 let account = row.account
-                let snapshot = snapshot(for: account.key)
+                // The Mac's "Show 5-hour windows" switch applies before anything is carried,
+                // so no phone surface shows an Antigravity row the Mac hides.
+                let snapshot = AntigravityFiveHourWindows.visibleSnapshot(
+                    snapshot(for: account.key), showsFiveHourWindows: showsAntigravityFiveHourWindows)
                 let title = titles[account.id] ?? account.label
                 guard row.kind == .engine else {
                     // R12: never the main account and never a source of attention, so it
@@ -106,6 +109,7 @@ extension UsageStore {
             snapshots: primaries, providerOrder: subscription, displayNames: displayNames,
             renewalDate: { _ in nil }, widgetsEnabled: true, widgetProviderSelection: selection,
             showsCodexSparkCounters: showCodexSparkCountersInWidgets,
+            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
             apiSpendSnapshots: apiSpendSnapshots, apiSpendProviderOrder: spendOrder,
             generatedAt: stamp.date, context: .phoneSync(attention: mainAttention))
 

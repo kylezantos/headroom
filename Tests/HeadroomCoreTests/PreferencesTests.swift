@@ -261,6 +261,19 @@ struct PreferencesTests {
         #expect(prefs.showCodexSparkCountersInWidgets)
     }
 
+    @Test func antigravityFiveHourWindowsDefaultOnAndPersist() {
+        let defaults = freshDefaults()
+        let prefs = Preferences(defaults: defaults)
+        // Unset keeps today's behaviour: the 5-hour rows show.
+        #expect(prefs.showsAntigravityFiveHourWindows)
+
+        prefs.showsAntigravityFiveHourWindows = false
+        #expect(!Preferences(defaults: defaults).showsAntigravityFiveHourWindows)
+
+        prefs.showsAntigravityFiveHourWindows = true
+        #expect(Preferences(defaults: defaults).showsAntigravityFiveHourWindows)
+    }
+
     @Test func syncToIPhoneDefaultsOffAndPersists() {
         let prefs = Preferences(defaults: freshDefaults())
         #expect(!prefs.syncToIPhoneEnabled)

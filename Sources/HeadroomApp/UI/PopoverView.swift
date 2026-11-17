@@ -127,7 +127,8 @@ struct PopoverView: View {
                     entries: entriesByProvider[id] ?? [],
                     capabilityStatus: store.providerCapabilities[id],
                     accountLayout: store.accountLayout,
-                    showsCodexSparkCounters: store.showCodexSparkCountersInApp
+                    showsCodexSparkCounters: store.showCodexSparkCountersInApp,
+                    showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows
                 )
             } + (store.apiSpendProviderOrder.isEmpty ? [] : [PopoverColumnSlot.spend])
             let columnPlan = columns.drawnPlan(
@@ -360,7 +361,8 @@ struct PopoverView: View {
                 },
                 accountLayout: store.accountLayout,
                 useEmailAsAccountName: store.useEmailAsAccountName,
-                showsCodexSparkCounters: store.showCodexSparkCountersInApp
+                showsCodexSparkCounters: store.showCodexSparkCountersInApp,
+                showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows
             )
             .id(meterRecipeKey)
             .transition(.opacity)

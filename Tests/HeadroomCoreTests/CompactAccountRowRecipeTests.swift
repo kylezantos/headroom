@@ -29,7 +29,8 @@ struct CompactAccountRowRecipeTests {
         style: MeterStyle = .default,
         mode: UsagePercentageMode = .remaining,
         requiresStandardSection: Bool = false,
-        showsCodexSparkCounters: Bool = true
+        showsCodexSparkCounters: Bool = true,
+        showsAntigravityFiveHourWindows: Bool = true
     ) -> CompactAccountRowRecipe {
         CompactAccountRowRecipe(
             snapshot: snapshot,
@@ -37,7 +38,8 @@ struct CompactAccountRowRecipeTests {
             percentageMode: mode,
             now: now,
             requiresStandardSection: requiresStandardSection,
-            showsCodexSparkCounters: showsCodexSparkCounters
+            showsCodexSparkCounters: showsCodexSparkCounters,
+            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
         )
     }
 
@@ -134,6 +136,36 @@ struct CompactAccountRowRecipeTests {
         let geminiOnly = recipe(snapshot(.antigravity, Array(windows.prefix(2))))
         #expect(geminiOnly.shownWindows.map(\.window.kind) == [.other("Gemini weekly")])
         #expect(geminiOnly.overflowCount == 1)
+    }
+
+    /// "Show 5-hour windows" off: the row shows both weekly rows, and the tooltip and
+    /// VoiceOver stop naming the hidden 5-hour rows, as Standard hides them.
+    @Test func antigravityFiveHourWindowsFollowTheStandardVisibilityRule() {
+        let reset = now.addingTimeInterval(2 * hour)
+        let windows = AntigravityProvider.windows(for: [
+            AntigravityBucket(pool: .gemini, window: .fiveHour, remainingFraction: 0.80, resetsAt: reset),
+            AntigravityBucket(pool: .gemini, window: .weekly, remainingFraction: 0.60, resetsAt: reset),
+            AntigravityBucket(pool: .claudeAndGPT, window: .fiveHour, remainingFraction: 0.10, resetsAt: reset),
+            AntigravityBucket(pool: .claudeAndGPT, window: .weekly, remainingFraction: 0.50, resetsAt: reset),
+        ])
+        let hidden = recipe(snapshot(.antigravity, windows), showsAntigravityFiveHourWindows: false)
+        #expect(hidden.shownWindows.map(\.window.kind) == [.other("Gemini weekly"), .other("Other weekly")])
+        #expect(hidden.overflowCount == 0)
+        #expect(!hidden.tooltip.contains("5-hour"))
+        #expect(!hidden.accessibilityValue.contains("5-hour"))
+
+        // Only 5-hour rows reported: hiding them would leave nothing, so they stay.
+        let fiveHourOnly = recipe(
+            snapshot(.antigravity, windows.filter { $0.kind == .other("Gemini 5h") || $0.kind == .other("Other 5h") }),
+            showsAntigravityFiveHourWindows: false)
+        #expect(fiveHourOnly.shownWindows.count == 2)
+
+        // The rule is Antigravity's own: the same label on another provider stays.
+        let grok = recipe(snapshot(.grok, [
+            window(.other("Gemini 5h"), used: 5, resetIn: 3 * hour),
+            window(.other("14d"), used: 1, resetIn: 3 * day),
+        ]), showsAntigravityFiveHourWindows: false)
+        #expect(grok.shownWindows.count == 2)
     }
 
     /// The Compact header names each Antigravity column by pool and period, short enough for

@@ -28,9 +28,12 @@ struct UseItUpEvaluatorTests {
         enabled: Bool = true,
         rules: [ReminderRule] = ReminderRules.defaults,
         scope: Set<ReminderScope> = ReminderScope.defaults,
-        spark: Bool = false
+        spark: Bool = false,
+        antigravityFiveHour: Bool = true
     ) -> UseItUpSettings {
-        UseItUpSettings(isEnabled: enabled, rules: rules, scope: scope, showCodexSparkCounters: spark)
+        UseItUpSettings(
+            isEnabled: enabled, rules: rules, scope: scope, showCodexSparkCounters: spark,
+            showsAntigravityFiveHourWindows: antigravityFiveHour)
     }
 
     private func window(
@@ -285,6 +288,24 @@ struct UseItUpEvaluatorTests {
         let spark = snapshot(.codex, [window(.other("GPT-5.3-Codex-Spark weekly"), left: 100, resetsIn: 20 * hour)])
         #expect(evaluate(spark, settings: settings(spark: false)).isEmpty)
         #expect(evaluate(spark, settings: settings(spark: true)).count == 1)
+    }
+
+    @Test func antigravityFiveHourRowsFollowTheInAppSetting() {
+        let threeHours = ReminderRule(amount: 3, unit: .hours, threshold: 50)
+        let rows = snapshot(.antigravity, [
+            window(.other("Gemini 5h"), left: 100, resetsIn: 2 * hour),
+            window(.other("Other 5h"), left: 100, resetsIn: 2 * hour),
+            window(.other("Gemini weekly"), left: 100, resetsIn: 2 * hour),
+        ])
+        let shown = evaluate(rows, settings: settings(rules: [threeHours], scope: [.fiveHour, .weekly]))
+        #expect(shown.map(\.windowID) == ["other:Gemini 5h", "other:Other 5h", "other:Gemini weekly"])
+        let hidden = evaluate(rows, settings: settings(
+            rules: [threeHours], scope: [.fiveHour, .weekly], antigravityFiveHour: false))
+        #expect(hidden.map(\.windowID) == ["other:Gemini weekly"])
+        // The rule is Antigravity's: another provider's "5h" model row still fires.
+        let codex = snapshot(.codex, [window(.other("Gemini 5h"), left: 100, resetsIn: 2 * hour)])
+        #expect(evaluate(codex, settings: settings(
+            rules: [threeHours], scope: [.fiveHour], antigravityFiveHour: false)).count == 1)
     }
 
     // MARK: - Cycles (KTD4, KTD5)

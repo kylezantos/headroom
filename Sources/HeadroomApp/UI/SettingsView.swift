@@ -57,6 +57,7 @@ struct SettingsView: View {
     @State private var widgetsEnabled = true
     @State private var showCodexSparkCountersInApp = true
     @State private var showCodexSparkCountersInWidgets = false
+    @State private var showsAntigravityFiveHourWindows = true
     @State private var syncToIPhoneEnabled = false
     @State private var launchAtLogin = false
     @State private var apiSpendPeriod: APISpendPeriod = .currentMonth
@@ -288,6 +289,7 @@ struct SettingsView: View {
                 accountTitleInk: $accountTitleInk,
                 accountLayout: $accountLayout,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
+                showsAntigravityFiveHourWindows: $showsAntigravityFiveHourWindows,
                 onAppearanceChange: { newValue in
                     preferences.appearancePreference = newValue
                     // Repaint the AppKit windows (this Settings window + the popover panel);
@@ -464,6 +466,7 @@ struct SettingsView: View {
         widgetsEnabled = store.widgetsEnabled
         showCodexSparkCountersInApp = store.showCodexSparkCountersInApp
         showCodexSparkCountersInWidgets = store.showCodexSparkCountersInWidgets
+        showsAntigravityFiveHourWindows = store.showsAntigravityFiveHourWindows
         syncToIPhoneEnabled = store.syncToIPhoneEnabled
         apiSpendPeriod = store.apiSpendPeriod
         launchAtLogin = launchControl.isEnabled

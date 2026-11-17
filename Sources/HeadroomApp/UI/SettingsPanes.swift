@@ -199,6 +199,7 @@ struct AppearanceSettingsPane: View {
     @Binding var accountTitleInk: AccountTitleInk
     @Binding var accountLayout: AccountLayout
     @Binding var showCodexSparkCountersInApp: Bool
+    @Binding var showsAntigravityFiveHourWindows: Bool
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
 
@@ -245,7 +246,8 @@ struct AppearanceSettingsPane: View {
                 usagePercentageMode: $usagePercentageMode,
                 accountTitleInk: $accountTitleInk,
                 accountLayout: $accountLayout,
-                showCodexSparkCountersInApp: $showCodexSparkCountersInApp
+                showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
+                showsAntigravityFiveHourWindows: $showsAntigravityFiveHourWindows
             )
         }
     }

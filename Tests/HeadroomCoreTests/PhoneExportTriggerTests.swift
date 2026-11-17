@@ -174,6 +174,43 @@ struct PhoneExportTriggerTests {
         #expect(f.phone.last?.display?.appSparkEnabled == true)
         f.store.setShowCodexSparkCountersInWidgets(true)
         #expect(f.phone.last?.widgetSparkEnabled == true)
+        let count = f.phone.captures.count
+        f.store.setShowsAntigravityFiveHourWindows(false)
+        #expect(f.phone.captures.count == count + 1)
+    }
+
+    /// "Show 5-hour windows" off: neither the v4 account nor the paired schema-3 export carries
+    /// Antigravity's 5-hour rows, and turning it back on restores them.
+    @Test func antigravityFiveHourSwitchReachesThePhone() async throws {
+        let preferences = Preferences(defaults: freshDefaults())
+        preferences.syncToIPhoneEnabled = true
+        preferences.setSurfaceEnabled(true, for: .antigravitySubscription)
+        let phone = SpyPhoneSync()
+        let snapshot = UsageSnapshot(
+            providerID: .antigravity,
+            windows: [
+                UsageWindow(kind: .other("Gemini 5h"), utilization: 90, resetsAt: reset),
+                UsageWindow(kind: .other("Gemini weekly"), utilization: 20, resetsAt: reset),
+                UsageWindow(kind: .other("Other 5h"), utilization: 80, resetsAt: reset),
+                UsageWindow(kind: .other("Other weekly"), utilization: 10, resetsAt: reset),
+            ],
+            planLabel: nil, capturedAt: Date(timeIntervalSince1970: 2_000_000), freshness: .live)
+        let store = UsageStore(
+            providers: [DemoUsageProvider(id: .antigravity, displayName: "Antigravity", snapshot: snapshot)],
+            preferences: preferences, phoneSyncExporter: phone)
+        await store.refreshAll()
+        let all: [String?] = ["Gemini 5h", "Gemini weekly", "Other 5h", "Other weekly"]
+        #expect(accounts(phone.last, "antigravity").first?.windows.map(\.kindName) == all)
+
+        let weekly: [String?] = ["Gemini weekly", "Other weekly"]
+        let count = phone.captures.count
+        store.setShowsAntigravityFiveHourWindows(false)
+        #expect(phone.captures.count == count + 1)
+        #expect(accounts(phone.last, "antigravity").first?.windows.map(\.kindName) == weekly)
+        #expect(phone.last?.v3.providers.first?.windows.map(\.kind) == [.other("Gemini weekly"), .other("Other weekly")])
+
+        store.setShowsAntigravityFiveHourWindows(true)
+        #expect(accounts(phone.last, "antigravity").first?.windows.map(\.kindName) == all)
     }
 
     /// KTD9 amended (Nov 2026): "Use email as account name" changes the phone's titles, so

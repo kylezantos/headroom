@@ -26,6 +26,7 @@ struct InAppDisplayTile: View {
     @Binding var accountTitleInk: AccountTitleInk
     @Binding var accountLayout: AccountLayout
     @Binding var showCodexSparkCountersInApp: Bool
+    @Binding var showsAntigravityFiveHourWindows: Bool
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -124,8 +125,27 @@ struct InAppDisplayTile: View {
                 .onChange(of: showCodexSparkCountersInApp) { _, newValue in
                     store.setShowCodexSparkCountersInApp(newValue)
                 }
+
+            // Beside the Spark switch, offered while Antigravity is tracked (it is opt-in, so a
+            // switch about rows nobody sees would only be noise). One value for every surface:
+            // the popover, the menu bar, widgets, the phone and reminders. The weekly rows
+            // always stay.
+            if store.providerOrder.contains(.antigravity) {
+                Toggle(isOn: $showsAntigravityFiveHourWindows) {
+                    VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                        Text(Self.antigravityFiveHourTitle)
+                        SettingsHelpText(text: Self.antigravityFiveHourHelp)
+                    }
+                }
+                .onChange(of: showsAntigravityFiveHourWindows) { _, newValue in
+                    store.setShowsAntigravityFiveHourWindows(newValue)
+                }
+            }
         }
     }
+
+    static let antigravityFiveHourTitle = "Show 5-hour windows"
+    static let antigravityFiveHourHelp = "Antigravity’s Gemini and Other 5-hour limits."
 
     private var columns: [GridItem] {
         Array(

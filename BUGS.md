@@ -4,6 +4,48 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Credential environment variables in probes (2026-11-17)
+
+The Claude probe drops an inherited `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` (#244, issue
+#243, reported by Matt Van Horn; supersedes #218). Left out, each for a stated reason:
+
+- **Claude's sign-in handoff scripts keep the user's environment.** A key exported in the
+  user's shell profile can still outrank the login inside the Terminal handoff, and the
+  `signIn` script's `loggedIn` guard can then report signed in. Cursor's scripts `unset` theirs.
+  Fix with one shared, tested rule for the script and the copied manual command.
+- **`CLAUDE_CODE_OAUTH_TOKEN` is not dropped.** An inherited one already makes every Claude row
+  Absent (`launchesWithInheritedOAuthToken`). Keep that rule unless a real setup-token test says
+  otherwise.
+- **Other routing variables are unchecked**: Bedrock/Vertex switches, a custom base URL,
+  `apiKeyHelper`. Verify each against the official CLI before stripping anything.
+- **Grok is unchecked.** Whether an inherited `XAI_API_KEY` (or similar) changes what
+  `grok agent stdio` billing reports is unknown. Cursor and Copilot already drop theirs; Codex
+  reads over HTTP and has no CLI environment.
+
+## Open contributor PRs: maintainer-side work (2026-11-17)
+
+Review requests went to the author on #242 and #246; these items are ours.
+
+- **#246 (vertical-only list grows to the screen).** Once the revision lands (900pt scroll point,
+  host-screen geometry, fixed-geometry tests), update DESIGN.md, the popover account layout
+  paragraph in AGENTS.md, `docs/solutions/ui/popover-account-columns.md` and the inline scroll
+  comment to describe the two modes separately. Its red Swift CI run (Copilot deadline and
+  `CLIVersionReaderTests` nil result, files the PR doesn't touch) was rerun; if it repeats, see
+  the OpenCode deadline flake above before blaming the layout.
+- **#242 (Antigravity), after merge:**
+  - Add a `seven-providers` demo pose; keep `six-providers` for scripts that use it.
+  - Cache the too-old `agy` version verdict both ways, as OpenCode does.
+  - Align the phone's recovery wording for a stopped client with the Mac's, using an existing
+    attention category; no sync-format change for wording alone.
+  - Move `CLIVersionReader` onto the shared blocking-work helper the PR extracts.
+  - Publish and verify the privacy-policy update on headroom-site before release.
+  - Research before release (no subscription here, so with a contributor or a free account):
+    which inherited variables change `agy`'s account; whether `agy`'s self-updater is in the
+    process group Headroom terminates; how fast `agy`'s logs grow at a 5-minute interval and
+    whether it prunes them.
+  - A seventh provider raises the largest phone-sync flush from eight keys to nine; see the
+    OpenCode write-rate entry below.
+
 ## Initial CodeQL findings (2026-11-14)
 
 - **Swift scanning is unavailable with the required toolchain.** Both default setup and an

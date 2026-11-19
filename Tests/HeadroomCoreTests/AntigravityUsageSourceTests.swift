@@ -180,8 +180,29 @@ struct AntigravityUsageClassifierTests {
         let second = scanner.scan(Data(text[cut...].utf8))
         #expect(!first)
         #expect(second)
-        for other in ["", "warning: telemetry disabled\n", "authentication failed or timed out\n"] {
+        for other in [
+            "", "warning: telemetry disabled\n", "authentication failed or timed out\n",
+            "407 Proxy Authentication Required\n", "511 Network Authentication Required\n",
+        ] {
             #expect(!AntigravityUsageClassifier.showsSignInPrompt(Data(other.utf8)), "\(other)")
+        }
+    }
+
+    /// agy's other sign-in lines are sign-outs too, also when split between two reads.
+    @Test(arguments: [
+        "Waiting for authentication...\n",
+        "Waiting for authentication (timeout 60s)...\n",
+        "Error: authentication required. Run 'agy acp --login' to log in, then retry.\n",
+        "Please visit the URL to log in: https://accounts.google.com/\n",
+    ])
+    func agysOtherSignInLinesAreSignedOut(line: String) {
+        #expect(AntigravityUsageClassifier.showsSignInPrompt(Data(line.utf8)))
+        for cut in 1..<min(line.count, 30) {
+            var scanner = AntigravitySignInPromptScanner()
+            let index = line.index(line.startIndex, offsetBy: cut)
+            let first = scanner.scan(Data(line[..<index].utf8))
+            let second = scanner.scan(Data(line[index...].utf8))
+            #expect(first || second, "cut \(cut)")
         }
     }
 
@@ -388,18 +409,21 @@ private struct FakeAgy {
         resolveCount: ResolveCounter? = nil,
         executable: String? = nil,
         found: Bool = true,
-        resolve: (@Sendable () -> String?)? = nil
+        resolve: (@Sendable () -> String?)? = nil,
+        environment: [String: String] = [:],
+        memory: AntigravityProbeMemory = .none
     ) -> AntigravityCLIUsageSource {
         let script = executable ?? script
         let dir = directory.path
         return AntigravityCLIUsageSource(
             resolveExecutable: resolve ?? { resolveCount?.increment(); return found ? script : nil },
             resolveLoginPath: { "/usr/bin:/bin" },
-            inheritedEnvironment: { ["FAKE_AGY_DIR": dir] },
+            inheritedEnvironment: { environment.merging(["FAKE_AGY_DIR": dir]) { $1 } },
             workingDirectory: workingDirectory.path,
             deadline: deadline,
             versionDeadline: 5,
-            interpreter: "/bin/sh"
+            interpreter: "/bin/sh",
+            memory: memory
         )
     }
 
@@ -433,8 +457,33 @@ private struct FakeAgy {
 
 private func isRunning(_ pid: pid_t) -> Bool { kill(pid, 0) == 0 }
 
-private func userRequested(_ source: AntigravityCLIUsageSource) async -> AntigravityCapture {
-    await UserRequestedProbeContext.$isUserRequested.withValue(true) { await source.capture() }
+/// A user-requested probe, by default the kind a launch, Refresh or phone Check Now makes.
+private func userRequested(
+    _ source: AntigravityCLIUsageSource, origin: UserRefreshOrigin = .fullRefresh
+) async -> AntigravityCapture {
+    await UserRequestedProbeContext.$isUserRequested.withValue(true) {
+        await UserRequestedProbeContext.$origins.withValue([origin]) { await source.capture() }
+    }
+}
+
+/// `AntigravityProbeMemory` over one in-test store, standing in for Preferences across a relaunch.
+private final class MemoryBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stopped: AntigravityStoppedClient?
+    private var signedOut = false
+    private(set) var writes = 0
+
+    var memory: AntigravityProbeMemory {
+        AntigravityProbeMemory(
+            loadStoppedClient: { self.lock.withLock { self.stopped } },
+            saveStoppedClient: { value in self.lock.withLock { self.stopped = value; self.writes += 1 } },
+            loadSignedOut: { self.lock.withLock { self.signedOut } },
+            saveSignedOut: { value in self.lock.withLock { self.signedOut = value; self.writes += 1 } }
+        )
+    }
+
+    var storedStop: AntigravityStoppedClient? { lock.withLock { stopped } }
+    var storedSignedOut: Bool { lock.withLock { signedOut } }
 }
 
 struct AntigravityUsageSourceProcessTests {
@@ -581,14 +630,91 @@ struct AntigravityUsageSourceProcessTests {
         let spawned = fake.argv.count
         #expect(await source.capture() == .failed(.signedOut))
         #expect(await source.capture() == .failed(.signedOut))
-        #expect(fake.argv.count == spawned, "a routine poll ran agy while signed out")
+        // Launch, Refresh and a phone Check Now are full refreshes: each would open another
+        // browser sign-in, so none of them runs agy either.
+        #expect(await userRequested(source, origin: .fullRefresh) == .failed(.signedOut))
+        #expect(fake.argv.count == spawned, "a poll or full refresh ran agy while signed out")
 
-        // A user request (Refresh, or the check after the sign-in handoff) reads again.
+        // The Antigravity row's own Try Again reads again.
         try fake.hook("usage", pre: "")
-        #expect(buckets(await userRequested(source))?.count == 4)
+        #expect(buckets(await userRequested(source, origin: .accountAction))?.count == 4)
         #expect(fake.count(.usage) == 2)
         #expect(buckets(await source.capture())?.count == 4)
         #expect(fake.count(.usage) == 3)
+    }
+
+    /// The check after a sign-in through Headroom clears the mark, even when a full refresh
+    /// was coalesced into the same probe.
+    @Test func theCheckAfterASignInThroughHeadroomReadsAgain() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        try fake.hook("usage", pre: "echo 'Authentication required. Please visit the URL to log in:' >&2\nsleep 60\n")
+        let source = fake.source(deadline: 30)
+        #expect(await source.capture() == .failed(.signedOut))
+        try fake.hook("usage", pre: "")
+        let coalesced = await UserRequestedProbeContext.$isUserRequested.withValue(true) {
+            await UserRequestedProbeContext.$origins.withValue([.fullRefresh, .setupCheck]) { await source.capture() }
+        }
+        #expect(buckets(coalesced)?.count == 4)
+    }
+
+    /// A relaunch keeps the signed-out mark, so launch's own refresh opens no second sign-in.
+    @Test func theSignedOutMarkSurvivesARelaunch() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        let box = MemoryBox()
+        try fake.hook("usage", pre: "echo 'Waiting for authentication (timeout 60s)...' >&2\nsleep 60\n")
+        #expect(await fake.source(deadline: 30, memory: box.memory).capture() == .failed(.signedOut))
+        #expect(box.storedSignedOut)
+
+        let spawned = fake.argv.count
+        let relaunched = fake.source(deadline: 30, memory: box.memory)
+        #expect(await userRequested(relaunched, origin: .fullRefresh) == .failed(.signedOut))
+        #expect(await relaunched.capture() == .failed(.signedOut))
+        #expect(fake.argv.count == spawned, "a relaunch ran agy while signed out")
+
+        try fake.hook("usage", pre: "")
+        #expect(buckets(await userRequested(relaunched, origin: .accountAction))?.count == 4)
+        #expect(!box.storedSignedOut)
+    }
+
+    /// A relaunch keeps the safety stop, keyed by path, modification date and version.
+    @Test func theSafetyStopSurvivesARelaunch() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        let box = MemoryBox()
+        try fake.set("usage", fixture: "usage-one-turn")
+        #expect(await fake.source(memory: box.memory).capture() == .failed(.unsupportedClient))
+        let stored = try #require(box.storedStop)
+        #expect(stored.path != nil)
+        #expect(stored.modified != nil)
+        #expect(stored.version == AntigravityVersion(major: 1, minor: 5, patch: 9))
+
+        try fake.set("usage", fixture: "usage-live")
+        let spawned = fake.argv.count
+        let relaunched = fake.source(memory: box.memory)
+        #expect(await relaunched.capture() == .failed(.unsupportedClient))
+        #expect(fake.argv.count == spawned, "a relaunch spawned a stopped client")
+
+        // An update (new modification date) lifts the stop and clears the stored setting.
+        try fake.touch(secondsAgo: 3_600)
+        #expect(buckets(await fake.source(memory: box.memory).capture())?.count == 4)
+        #expect(box.storedStop == nil)
+    }
+
+    /// Variables that would move agy onto an API key or Cloud credentials never reach it.
+    @Test func apiKeyAndCloudCredentialVariablesAreStripped() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        try fake.hook("usage", pre: "env > \"$dir/usage.env\"\n")
+        var environment: [String: String] = ["KEEP_ME": "1"]
+        for name in AntigravityCLIUsageSource.strippedEnvironment { environment[name] = "x" }
+        #expect(buckets(await fake.source(environment: environment).capture())?.count == 4)
+        let seen = fake.text("usage.env")
+        #expect(seen.contains("KEEP_ME=1"))
+        for name in AntigravityCLIUsageSource.strippedEnvironment {
+            #expect(!seen.contains("\(name)="), "\(name)")
+        }
     }
 
     @Test func aSignInPromptOnTheCreditsReadIsSignedOutToo() async throws {

@@ -160,6 +160,24 @@ struct AccountProbeSchedulerTests {
         #expect(recorder.values == (reusesCache ? [false, true] : [false]))
     }
 
+    /// A provider can tell a full refresh from an account's own action or a setup check.
+    @Test func theProbeSeesWhichOriginsAskedForIt() async {
+        let recorder = OriginRecorder()
+        let probe = LaneProbe(
+            id: .claude, accountID: .primary, lane: .serial("claude-cli"), order: ProbeOrder(),
+            onFetch: { recorder.record(UserRequestedProbeContext.origins) },
+            result: { .init(snapshot: self.liveSnapshot(.claude)) }
+        )
+        let store = UsageStore(providers: [probe], preferences: preferences(), accounts: [.builtIn(for: .claude)])
+
+        await store.refreshAll()
+        await store.refreshAccount(probe.accountKey, origin: .accountAction)
+        await store.refreshAccount(probe.accountKey, origin: .setupCheck)
+        await settle { probe.fetchCount == 3 }
+
+        #expect(recorder.values == [[.fullRefresh], [.accountAction], [.setupCheck]])
+    }
+
     nonisolated private func flagRecordingProbe(
         _ recorder: UserRequestFlagRecorder,
         clock: MutableDateSource? = nil
@@ -748,6 +766,13 @@ final class LocatorGenerationRecorder: @unchecked Sendable {
     private var recorded: [UUID?] = []
     var values: [UUID?] { lock.withLock { recorded } }
     func record(_ generation: UUID?) { lock.withLock { recorded.append(generation) } }
+}
+
+final class OriginRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var recorded: [Set<UserRefreshOrigin>] = []
+    var values: [Set<UserRefreshOrigin>] { lock.withLock { recorded } }
+    func record(_ origins: Set<UserRefreshOrigin>) { lock.withLock { recorded.append(origins) } }
 }
 
 final class UserRequestFlagRecorder: @unchecked Sendable {

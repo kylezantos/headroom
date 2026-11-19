@@ -222,10 +222,15 @@ Inferred, not observed:
   read "Print mode: not authenticated, trying silent auth", then "silent auth failed", then
   "triggering interactive OAuth", and a sign-in page opened in the browser. The CLI documents no
   way to disable this.
-- Headroom watches stderr for `Authentication required`, ends the read at once by terminating the
-  process group, and records signed out. The state is sticky: routine polls never spawn `agy`
-  again until a user request (Refresh, Check Now, or the check after the sign-in handoff). So a
-  sign-out opens at most one browser tab. The same holds when `/credits` shows the prompt.
+- Headroom watches stderr for agy's sign-in lines (`Authentication required`, `Please visit the
+  URL to log in`, `Waiting for authentication`, `Error: authentication required`), ends the read
+  at once by terminating the process group, and records signed out. The mark is stored, so it
+  survives a relaunch. Launch, Refresh and a phone Check Now never spawn `agy` while it is set;
+  only the Antigravity row's Try Again or the check after a sign-in through Headroom does
+  (`UserRequestedProbeContext.origins`). So a sign-out opens at most one browser tab on its own.
+  The same holds when `/credits` shows the prompt.
+- The safety stop (a read that ran a turn or couldn't prove it didn't) is stored too, keyed by
+  executable path, modification date and version, so a relaunch can't spawn that client again.
 - Sign-in runs `agy acp --login` in Terminal through `SetupSessionCoordinator`. `agy help acp`
   documents it as "Log in with Google interactively, then exit" (source). Headroom waits for the
   process to exit (exit-signalled, like OpenCode) and runs no check while Terminal is open,

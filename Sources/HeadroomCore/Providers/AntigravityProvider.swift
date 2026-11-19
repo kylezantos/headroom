@@ -10,6 +10,9 @@ public struct AntigravityProvider: UsageProvider {
     /// `agy` keeps its sign-in in its own home and the Keychain, and isolating a second
     /// account is unproven, so Antigravity stays single-account.
     public let accountCapacity = 1
+    /// A timer probe can answer from the source's sticky signed-out or stopped state, so a
+    /// Check Now that lands during one gets its own fresh read, as Copilot does.
+    public let reusesCachedStatusOnTimerProbes = true
 
     private let source: any AntigravityUsageSource
     private let locale: Locale

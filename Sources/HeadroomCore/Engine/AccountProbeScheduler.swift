@@ -5,6 +5,11 @@ import Foundation
 /// anyway: a timer can wait, but someone who pressed Check Now or finished a sign-in cannot.
 public enum UserRequestedProbeContext {
     @TaskLocal public static var isUserRequested = false
+    /// Every reason the running probe was requested since the last probe of its account
+    /// started. Empty for a timer probe. A provider that must tell a full refresh (launch,
+    /// Refresh, a phone Check Now) apart from an account's own Try Again or a finished sign-in
+    /// reads this; most only need `isUserRequested`.
+    @TaskLocal public static var origins: Set<UserRefreshOrigin> = []
 }
 
 /// What the scheduler needs from the store. Kept as a protocol so the scheduler holds no
@@ -84,6 +89,9 @@ final class AccountProbeScheduler {
     /// KTD2/R5: a ladder check after a user landing is current setup work, not a new
     /// request to fade/print the retained user entry during its spend tail.
     private var setupPendingPreservingLanding: Set<AccountKey> = []
+    /// Every origin that asked for an account since its last probe started, so a setup check
+    /// coalesced with a full refresh is still seen as a setup check by the probe that serves it.
+    private var pendingOrigins: [AccountKey: Set<UserRefreshOrigin>] = [:]
     /// W4: how many accounts the current run of user work asked for and has finished. Both
     /// restart when user work begins from nothing pending.
     private var userTotal = 0
@@ -419,9 +427,12 @@ final class AccountProbeScheduler {
         // them, while a timer pass or popover open reaching a user-pending key still serves it.
         let isUserRequested = userPending.contains(key)
         if isUserRequested { inFlightUserRequested.insert(key) }
+        let origins = isUserRequested ? (pendingOrigins.removeValue(forKey: key) ?? []) : []
         let fetched = await CLIExecutableRefreshContext.$generation.withValue(locatorGeneration) {
             await UserRequestedProbeContext.$isUserRequested.withValue(isUserRequested) {
-                await provider.fetchResult()
+                await UserRequestedProbeContext.$origins.withValue(origins) {
+                    await provider.fetchResult()
+                }
             }
         }
 
@@ -567,6 +578,7 @@ final class AccountProbeScheduler {
 
     private func insertUserPending(_ key: AccountKey, origin: UserRefreshOrigin) {
         let wasEmpty = userPending.isEmpty
+        pendingOrigins[key, default: []].insert(origin)
         // R5: setup verification must not replace a user's retained landing during its end hold.
         if userRun == nil || (wasEmpty && host?.schedulerStartsNewUserRun(origin: origin) == true) {
             userRun = UserRefreshRun(startedAt: host?.schedulerNow ?? Date())
@@ -609,6 +621,7 @@ final class AccountProbeScheduler {
         }
         identityRequeued.remove(key)
         guard userPending.remove(key) != nil else { return }
+        pendingOrigins.removeValue(forKey: key)
         if setupPendingPreservingLanding.remove(key) == nil {
             userRun?.entries[key]?.outcome = outcome
             userRun?.entries[key]?.landedAt = host?.schedulerNow

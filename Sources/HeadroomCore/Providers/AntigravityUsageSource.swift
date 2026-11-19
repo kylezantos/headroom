@@ -83,11 +83,12 @@ public enum AntigravityCaptureFailure: Sendable, Equatable {
     /// path, modification date or version changes, so a changed CLI or a user skill that takes
     /// over `/usage` can't turn every poll into a paid agent turn.
     case unsupportedClient
-    /// The client printed its "Authentication required" sign-in prompt on stderr, the one
-    /// positive evidence of a signed-out account. It opens an interactive Google sign-in in the
-    /// browser and waits for it, so the read is ended at the prompt. Sticky: routine polls
-    /// never spawn the client again until a user request (Refresh, or the check after the
-    /// sign-in handoff), so a sign-out opens at most one browser sign-in.
+    /// The client printed one of its sign-in lines on stderr (`AntigravitySignInPromptScanner`),
+    /// the one positive evidence of a signed-out account. It opens an interactive Google
+    /// sign-in in the browser and waits for it, so the read is ended at the prompt. Sticky and
+    /// kept across relaunches: no read spawns the client again, not even launch, Refresh or a
+    /// phone Check Now, until a sign-in through Headroom completes or the Antigravity row's own
+    /// Try Again runs. A sign-out therefore opens at most one browser sign-in.
     case signedOut
     case formatChanged(AntigravityFormatStage)
     case transient(AntigravityTransientCause)
@@ -155,20 +156,33 @@ struct AntigravityRunOutput: Sendable, Equatable {
     var showedSignInPrompt = false
 }
 
-/// Matches the client's sign-in prompt across stderr reads. Holds only a short tail of what
+/// Matches the client's sign-in lines across stderr reads. Holds only a short tail of what
 /// it has seen, enough to find a marker split between two reads, and returns nothing else.
 struct AntigravitySignInPromptScanner {
-    /// agy 1.5.9 prints "Authentication required. Please visit the URL to log in:" followed
-    /// by a Google sign-in URL, opens that page and waits up to 60 s.
-    static let marker = Data("Authentication required".utf8)
+    /// The lines agy (1.5.9 to 1.5.13) prints only when it has no usable sign-in:
+    /// - "Authentication required. Please visit the URL to log in:" before it opens a Google
+    ///   sign-in page,
+    /// - "Waiting for authentication..." / "Waiting for authentication (timeout 60s)..." while
+    ///   it waits on that page,
+    /// - "Error: authentication required. Run '…' to log in" when it gives up without one.
+    /// Matching is case-sensitive on purpose: HTTP's "Proxy Authentication Required" and
+    /// "Network Authentication Required" are not sign-outs and stay transient.
+    static let markers: [Data] = [
+        "Authentication required",
+        "Please visit the URL to log in",
+        "Waiting for authentication",
+        "Error: authentication required",
+    ].map { Data($0.utf8) }
+
+    private static let keep = (markers.map(\.count).max() ?? 1) - 1
 
     private var tail = Data()
 
-    /// True once the marker has appeared in everything scanned so far.
+    /// True once any marker has appeared in everything scanned so far.
     mutating func scan(_ chunk: Data) -> Bool {
         tail.append(chunk)
-        if tail.range(of: Self.marker) != nil { return true }
-        tail = Data(tail.suffix(Self.marker.count - 1))
+        if Self.markers.contains(where: { tail.range(of: $0) != nil }) { return true }
+        tail = Data(tail.suffix(Self.keep))
         return false
     }
 }
@@ -326,6 +340,58 @@ public enum AntigravityCLI {
     }
 }
 
+// MARK: - Memory
+
+/// A client the safety stop holds back: the resolved executable, its modification date and
+/// the version it printed. Any of the three changing lifts the stop.
+public struct AntigravityStoppedClient: Codable, Sendable, Equatable {
+    public let path: String?
+    public let modified: Date?
+    public let version: AntigravityVersion?
+
+    public init(path: String?, modified: Date?, version: AntigravityVersion?) {
+        self.path = path
+        self.modified = modified
+        self.version = version
+    }
+}
+
+/// Where the source keeps the two sticky states that must survive a relaunch: the safety
+/// stop and the signed-out mark. Without it a relaunch would spawn a client that already
+/// spent a turn, or open another browser sign-in.
+public struct AntigravityProbeMemory: Sendable {
+    public let loadStoppedClient: @Sendable () -> AntigravityStoppedClient?
+    public let saveStoppedClient: @Sendable (AntigravityStoppedClient?) -> Void
+    public let loadSignedOut: @Sendable () -> Bool
+    public let saveSignedOut: @Sendable (Bool) -> Void
+
+    public init(
+        loadStoppedClient: @escaping @Sendable () -> AntigravityStoppedClient?,
+        saveStoppedClient: @escaping @Sendable (AntigravityStoppedClient?) -> Void,
+        loadSignedOut: @escaping @Sendable () -> Bool,
+        saveSignedOut: @escaping @Sendable (Bool) -> Void
+    ) {
+        self.loadStoppedClient = loadStoppedClient
+        self.saveStoppedClient = saveStoppedClient
+        self.loadSignedOut = loadSignedOut
+        self.saveSignedOut = saveSignedOut
+    }
+
+    /// Nothing outlives the source: tests and the one-shot `--probe-antigravity` run.
+    public static var none: Self {
+        Self(loadStoppedClient: { nil }, saveStoppedClient: { _ in }, loadSignedOut: { false }, saveSignedOut: { _ in })
+    }
+
+    public static func preferences(_ preferences: Preferences) -> Self {
+        Self(
+            loadStoppedClient: { preferences.antigravityStoppedClient },
+            saveStoppedClient: { preferences.antigravityStoppedClient = $0 },
+            loadSignedOut: { preferences.antigravitySignedOut },
+            saveSignedOut: { preferences.antigravitySignedOut = $0 }
+        )
+    }
+}
+
 // MARK: - Source
 
 /// Runs the official client's read-only `/usage` answer, then `/credits`, and returns a typed
@@ -346,6 +412,27 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
     private struct Stop {
         let key: ExecutableKey?
         let version: AntigravityVersion?
+
+        init(key: ExecutableKey?, version: AntigravityVersion?) {
+            self.key = key
+            self.version = version
+        }
+
+        init(_ stored: AntigravityStoppedClient) {
+            key = stored.path.flatMap { path in stored.modified.map { ExecutableKey(path: path, modified: $0) } }
+            version = stored.version
+        }
+
+        var stored: AntigravityStoppedClient {
+            AntigravityStoppedClient(path: key?.path, modified: key?.modified, version: version)
+        }
+    }
+
+    /// Only these clear the signed-out mark: the account row's Try Again (and other actions on
+    /// that one account) and the check after a sign-in through Headroom. Launch, Refresh and a
+    /// phone Check Now are full refreshes and would each open another browser sign-in.
+    static func clearsSignedOut(_ origins: Set<UserRefreshOrigin>) -> Bool {
+        origins.contains(.accountAction) || origins.contains(.setupCheck)
     }
 
     private let resolveExecutable: @Sendable () -> String?
@@ -357,12 +444,17 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
     /// Tests only: spawn `interpreter <executable> …` so fake CLIs run as `/bin/sh <script>`
     /// and never hit the "text file busy" race (BUGS.md).
     private let interpreter: String?
+    private let memory: AntigravityProbeMemory
 
     private var resolved: (executable: String, loginPath: String)?
     private var passingVersion: (key: ExecutableKey, version: AntigravityVersion)?
-    private var stop: Stop?
-    /// Set by a sign-in prompt. Only a user request clears it.
-    private var signedOut = false
+    private var stop: Stop? {
+        didSet { if stop?.stored != oldValue?.stored { memory.saveStoppedClient(stop?.stored) } }
+    }
+    /// Set by a sign-in prompt. Only `clearsSignedOut` origins clear it.
+    private var signedOut: Bool {
+        didSet { if signedOut != oldValue { memory.saveSignedOut(signedOut) } }
+    }
 
     public init(
         resolveExecutable: @escaping @Sendable () -> String? = { AntigravityCLI.resolveExecutable() },
@@ -374,7 +466,8 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         inheritedEnvironment: @escaping @Sendable () -> [String: String] = { ProcessInfo.processInfo.environment },
         workingDirectory: String = AntigravityCLI.defaultWorkingDirectory.path,
         deadline: TimeInterval = AntigravityCLIUsageSource.defaultDeadline,
-        versionDeadline: TimeInterval = AntigravityCLIUsageSource.defaultVersionDeadline
+        versionDeadline: TimeInterval = AntigravityCLIUsageSource.defaultVersionDeadline,
+        memory: AntigravityProbeMemory = .none
     ) {
         self.init(
             resolveExecutable: resolveExecutable,
@@ -383,7 +476,8 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
             workingDirectory: workingDirectory,
             deadline: deadline,
             versionDeadline: versionDeadline,
-            interpreter: nil
+            interpreter: nil,
+            memory: memory
         )
     }
 
@@ -394,7 +488,8 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         workingDirectory: String,
         deadline: TimeInterval,
         versionDeadline: TimeInterval,
-        interpreter: String?
+        interpreter: String?,
+        memory: AntigravityProbeMemory = .none
     ) {
         self.resolveExecutable = resolveExecutable
         self.resolveLoginPath = resolveLoginPath
@@ -403,16 +498,20 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         self.deadline = deadline
         self.versionDeadline = versionDeadline
         self.interpreter = interpreter
+        self.memory = memory
+        self.stop = memory.loadStoppedClient().map(Stop.init)
+        self.signedOut = memory.loadSignedOut()
     }
 
     public func capture() async -> AntigravityCapture {
         guard let (executable, loginPath) = await resolvedExecutable() else { return .failed(.cliMissing) }
         if signedOut {
-            // Every routine read would open another browser sign-in.
-            guard UserRequestedProbeContext.isUserRequested else { return .failed(.signedOut) }
+            // Every other read would open another browser sign-in.
+            guard Self.clearsSignedOut(UserRequestedProbeContext.origins) else { return .failed(.signedOut) }
             signedOut = false
         }
         var environment = inheritedEnvironment()
+        for name in Self.strippedEnvironment { environment.removeValue(forKey: name) }
         environment["PATH"] = loginPath
         var preparedWorkingDirectory = false
 
@@ -475,6 +574,18 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
 
     /// Resolution runs a login shell, so a routine poll reuses the last path. A user request
     /// or a path that is no longer executable searches again. A missing CLI is never cached.
+    /// Variables that move agy off the subscription sign-in onto an API key or Google Cloud
+    /// credentials, where `/usage` has no account quota to show (agy 1.5.10 to 1.5.12
+    /// changelogs). Without them agy uses its saved sign-in.
+    static let strippedEnvironment = [
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "GOOGLE_GEMINI_BASE_URL",
+        "AGY_ADC_AUTH",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "CLOUDSDK_CONFIG",
+    ]
+
     private func resolvedExecutable() async -> (String, String)? {
         if let resolved, !UserRequestedProbeContext.isUserRequested,
            FileManager.default.isExecutableFile(atPath: resolved.executable) {
@@ -608,7 +719,7 @@ enum AntigravityProcessRunner {
 }
 
 /// `agy --version` prints a bare `1.5.9`.
-public struct AntigravityVersion: Sendable, Equatable, Comparable {
+public struct AntigravityVersion: Codable, Sendable, Equatable, Comparable {
     public let major: Int
     public let minor: Int
     public let patch: Int

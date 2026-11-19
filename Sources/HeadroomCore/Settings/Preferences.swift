@@ -30,6 +30,8 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let showCodexSparkCountersInApp = "showCodexSparkCountersInApp"
         static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
         static let showsAntigravityFiveHourWindows = "showsAntigravityFiveHourWindows"
+        static let antigravityStoppedClient = "antigravityStoppedClient"
+        static let antigravitySignedOut = "antigravitySignedOut"
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
         static let apiSpendPeriod = "apiSpendPeriod"
         static let settingsPane = "settingsPane"
@@ -268,6 +270,33 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return defaults.bool(forKey: Key.showsAntigravityFiveHourWindows)
         }
         nonmutating set { defaults.set(newValue, forKey: Key.showsAntigravityFiveHourWindows) }
+    }
+
+    /// The Antigravity safety stop (`AntigravityCaptureFailure.unsupportedClient`): the client
+    /// that answered a read with a turn, keyed by executable path, modification date and
+    /// version. Nil when no client is stopped. Kept so a relaunch can't spawn it again.
+    public var antigravityStoppedClient: AntigravityStoppedClient? {
+        get {
+            defaults.data(forKey: Key.antigravityStoppedClient)
+                .flatMap { try? JSONDecoder().decode(AntigravityStoppedClient.self, from: $0) }
+        }
+        nonmutating set {
+            if let newValue, let data = try? JSONEncoder().encode(newValue) {
+                defaults.set(data, forKey: Key.antigravityStoppedClient)
+            } else {
+                defaults.removeObject(forKey: Key.antigravityStoppedClient)
+            }
+        }
+    }
+
+    /// Antigravity's signed-out mark (`AntigravityCaptureFailure.signedOut`), kept so a
+    /// relaunch doesn't open another browser sign-in.
+    public var antigravitySignedOut: Bool {
+        get { defaults.bool(forKey: Key.antigravitySignedOut) }
+        nonmutating set {
+            if newValue { defaults.set(true, forKey: Key.antigravitySignedOut) }
+            else { defaults.removeObject(forKey: Key.antigravitySignedOut) }
+        }
     }
 
     public var syncToIPhoneEnabled: Bool {

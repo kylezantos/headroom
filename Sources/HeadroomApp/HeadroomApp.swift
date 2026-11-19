@@ -1112,7 +1112,7 @@ enum AppComposition {
     ) -> any AntigravityUsageSource {
         usesInertAntigravity(arguments: arguments, environment: environment)
             ? InertAntigravityUsageSource()
-            : AntigravityCLIUsageSource()
+            : AntigravityCLIUsageSource(memory: .preferences(Preferences(defaults: launchDefaults)))
     }
 
     /// The one UserDefaults domain a launch may read or write. `.standard` in the shipping

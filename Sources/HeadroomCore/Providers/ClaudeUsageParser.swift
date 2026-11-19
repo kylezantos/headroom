@@ -108,12 +108,31 @@ public enum ClaudeUsageParser {
         if l.hasPrefix("current week") {
             // "current week (all models)" -> weekly; "current week (Fable)" -> other
             if let inner = parenContents(line) {
-                if inner.lowercased().contains("all models") { return .weekly }
+                if namesAllModels(inner) { return .weekly }
                 return .other("Weekly (\(inner))")
             }
             return .weekly
         }
         return nil
+    }
+
+    /// True for the "all models" bracket, including the copies a TUI repaint drops
+    /// letters from ("ll models", "all mod ls"). An exact match turned a repaint's
+    /// "(ll models)" into a model row beside Weekly that outlived its reset
+    /// (2026-11-19). No model name contains these fragments, so this cannot swallow
+    /// "Fable" or another model's row.
+    static func namesAllModels(_ inner: String) -> Bool {
+        let compact = inner.lowercased().filter { !$0.isWhitespace }
+        return ["all", "llmo", "odel"].contains { compact.contains($0) }
+    }
+
+    /// True for a stored model row whose label is a misread "all models" bracket, so a
+    /// reading saved before `namesAllModels` widened is dropped instead of retained.
+    public static func isMisreadAllModelsRow(_ kind: WindowKind) -> Bool {
+        guard case .other(let label) = kind,
+              label.hasPrefix("Weekly ("), label.hasSuffix(")")
+        else { return false }
+        return namesAllModels(String(label.dropFirst("Weekly (".count).dropLast()))
     }
 
     /// Extracts "N% used" -> N (Double), tolerant of surrounding bar characters and

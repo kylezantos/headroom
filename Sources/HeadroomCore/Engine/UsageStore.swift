@@ -656,16 +656,30 @@ public final class UsageStore {
             + registered.filter { !savedMenuBarProviderOrder.contains($0) }
     }
 
-    /// The same ordered IDs drive both the arranger and the actual menu-bar label.
+    /// The most separate pills the menu bar shows. Seven would not fit the Settings arranger's
+    /// row at its 720pt floor, and the menu bar itself has little more room.
+    nonisolated public static let maximumMenuBarPills = 6
+
+    /// The same ordered IDs drive both the arranger and the actual menu-bar label. Capped at
+    /// `maximumMenuBarPills`, so a selected provider switched back on past the cap waits on
+    /// the "Not shown" shelf instead of adding a seventh pill.
     public var selectedMenuBarProviders: [ProviderID] {
         guard let selected = menuBarFillSource.providerIDs else { return [] }
-        return menuBarProviderOrder.filter { selected.contains($0) && providerOrder.contains($0) }
+        return Array(
+            menuBarProviderOrder.filter { selected.contains($0) && providerOrder.contains($0) }
+                .prefix(Self.maximumMenuBarPills)
+        )
+    }
+
+    public var canAddMenuBarProvider: Bool {
+        selectedMenuBarProviders.count < Self.maximumMenuBarPills
     }
 
     /// Adds a pill before `target`, or at the end when `target` is nil or not a visible pill
-    /// (a stale drop). From the automatic summary this switches to separate pills.
+    /// (a stale drop). From the automatic summary this switches to separate pills. Does
+    /// nothing once the menu bar holds `maximumMenuBarPills`.
     public func addMenuBarProvider(_ id: ProviderID, before target: ProviderID? = nil) {
-        guard providerOrder.contains(id) else { return }
+        guard providerOrder.contains(id), canAddMenuBarProvider else { return }
         var selected = menuBarFillSource.providerIDs ?? []
         guard selected.insert(id).inserted else { return }
         saveMenuBarOrder(menuBarProviderOrder.filter { $0 != id } + [id])

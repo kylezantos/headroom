@@ -1420,6 +1420,31 @@ struct UsageStoreTests {
         #expect(reloaded.menuBarWindowChoice(for: .codex) == .fiveHour)
     }
 
+    /// The menu bar holds six pills. A seventh add does nothing, and a seventh selected
+    /// provider switched back on waits on the shelf instead of adding a pill.
+    @Test func theMenuBarHoldsAtMostSixPills() {
+        let preferences = freshPreferences()
+        for surface in [UsageSurface.grokSubscription, .cursorSubscription, .copilotSubscription,
+                        .opencodeSubscription, .antigravitySubscription] {
+            preferences.setSurfaceEnabled(true, for: surface)
+        }
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode]
+        let providers: [any UsageProvider] = ids.map {
+            StubProvider(id: $0, displayName: $0.raw, snapshot: .pending(for: $0))
+        }
+        let store = UsageStore(providers: providers, preferences: preferences)
+        #expect(Set(store.providerOrder) == Set(ids))
+        for id in ids { store.addMenuBarProvider(id) }
+        #expect(store.selectedMenuBarProviders.count == UsageStore.maximumMenuBarPills)
+        #expect(!store.selectedMenuBarProviders.contains(.opencode))
+        #expect(!store.canAddMenuBarProvider)
+        store.removeMenuBarProvider(.grok)
+        #expect(store.canAddMenuBarProvider)
+        store.addMenuBarProvider(.opencode)
+        #expect(store.selectedMenuBarProviders.last == .opencode)
+        #expect(store.selectedMenuBarProviders.count == UsageStore.maximumMenuBarPills)
+    }
+
     /// The pill shelf drops a card between two pills, so an add can land at a position. It
     /// leaves the automatic summary exactly as the old "Add pill" button did.
     @Test func menuBarArrangerAddsAPillBeforeAVisiblePill() {

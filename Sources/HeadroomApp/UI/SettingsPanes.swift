@@ -569,7 +569,10 @@ struct MenuBarSettingsPane: View {
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .help("Add \(name(id)) pill")
+                    .disabled(!store.canAddMenuBarProvider)
+                    .help(store.canAddMenuBarProvider
+                        ? "Add \(name(id)) pill"
+                        : "The menu bar holds up to \(UsageStore.maximumMenuBarPills) pills. Remove one first.")
                     .accessibilityLabel("Add \(name(id)) pill")
                     .transition(cardPartTransition)
                 }

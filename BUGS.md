@@ -222,6 +222,12 @@ with a strong identity.
   tests hit the same race and moved to system binaries (`/usr/bin/git`, `/usr/bin/yes`). Fix
   the Copilot (and any other) fake-CLI tests by writing their scripts once before the suite
   runs, or spawning `/bin/sh` with the script as an argument.
+  **CI (2026-11-19):** every `swift build + swift test` failure from 2026-11-13 to 2026-11-19 was
+  this family: `CLIVersionReaderTests` (`git --version` missing its 5 s deadline), this Copilot
+  test, and once the OpenCode kill test. The 3-core runner starves them while the other tests
+  run at once (a 0.5 s deadline test measured 5.6 s). CI now runs those four suites after the
+  parallel suite with `--no-parallel` (`.github/workflows/ci.yml`). A plain local `swift test`
+  still runs them in parallel and can still flake; the ETXTBSY fix above is still open.
 - **Overlap with the troubleshooting sheet.** The deferred in-app troubleshooting sheet
   should reuse `FeedbackDiagnosticsCollector` rather than read state a second way.
 

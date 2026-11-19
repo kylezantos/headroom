@@ -52,14 +52,19 @@ public enum AntigravityFiveHourWindows {
         return AntigravityRowLabels.parse(label)?.window == .fiveHour
     }
 
-    /// `windows` without Antigravity's 5-hour rows while the switch is off. Hiding never
-    /// empties the list: when nothing else would remain, every row stays.
+    /// `windows` without Antigravity's 5-hour rows while the switch is off. The 5-hour rows
+    /// are hidden only while some remaining row has a usable number: when every other row is
+    /// unavailable or has no finite percentage (or there is none), every row stays.
     public static func visibleWindows(
         _ windows: [UsageWindow], providerID: ProviderID, showsFiveHourWindows: Bool
     ) -> [UsageWindow] {
         guard providerID == .antigravity, !showsFiveHourWindows else { return windows }
         let kept = windows.filter { !isFiveHourRow($0.kind, providerID: providerID) }
-        return kept.isEmpty ? windows : kept
+        return kept.contains(where: hasUsableNumber) ? kept : windows
+    }
+
+    static func hasUsableNumber(_ window: UsageWindow) -> Bool {
+        !window.freshness.isUnavailable && window.utilization.isFinite
     }
 
     public static func visibleSnapshot(_ snapshot: UsageSnapshot, showsFiveHourWindows: Bool) -> UsageSnapshot {

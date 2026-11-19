@@ -145,7 +145,8 @@ struct InAppDisplayTile: View {
     }
 
     static let antigravityFiveHourTitle = "Show 5-hour windows"
-    static let antigravityFiveHourHelp = "Antigravity’s Gemini and Other 5-hour limits."
+    static let antigravityFiveHourHelp =
+        "Antigravity’s Gemini and Other 5-hour limits, everywhere they appear: the popover, menu bar, widgets, iPhone and reminders. When off, they still show if no weekly limit has a number."
 
     private var columns: [GridItem] {
         Array(

@@ -258,7 +258,7 @@ that name. Still to do:
   offscreen renders only. Judge them on the live `MenuBarExtra` with `--demo five-providers`
   in both appearances before release.
 - Use from VS Code or github.com is missing until a quota snapshot or a server reading
-  includes it, so the meter can show more room left than the account has. The README says so;
+  includes it, so the meter can show more room left than the account has. docs/how-it-works.md says so;
   the row itself does not.
 - Annual legacy plans billed in premium requests have no defined meter and no test account.
 - GitHub publishes `GET /users/{username}/settings/billing/ai_credit/usage` for self-purchased
@@ -861,7 +861,7 @@ Deferred from the Claude sign-in handoff fix.
   non-visible provenance. Explicit product decision (2026-08-30): cross-provider
   consistency wins over per-source display mimicry.
 
-- **In-app troubleshooting sheet is deferred.** The README matrix is the shipping self-serve
+- **In-app troubleshooting sheet is deferred.** The docs/troubleshooting.md matrix is the shipping self-serve
   path for the four providers. A discoverable interactive sheet spanning setup states, probes,
   privacy guidance, and account isolation needs its own information-design and accessibility
   pass rather than being folded into recovery-state hardening.

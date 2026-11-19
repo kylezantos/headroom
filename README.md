@@ -5,10 +5,7 @@ bar for Claude, ChatGPT/Codex, Grok, Cursor, GitHub Copilot and OpenCode Go: eve
 weekly and monthly limit, side by side, with when each one resets.
 
 <p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/popover-dark.png">
-    <img src="docs/images/popover-light.png" width="640" alt="The Headroom popover showing usage for Claude, Codex, Grok, Cursor, Copilot and OpenCode, plus API spend">
-  </picture>
+  <img src="docs/images/popover.png" width="640" alt="The Headroom popover in dark mode showing usage for Claude, Codex, Grok, Cursor and OpenCode, plus API spend">
 </p>
 
 ## Download

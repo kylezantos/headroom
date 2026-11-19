@@ -406,7 +406,9 @@ enum UsageContinuityPolicy {
     /// ever dropped and the snapshot never returns as pending: the row stays until the
     /// user removes it (R9).
     static func rememberedSnapshot(_ stored: UsageSnapshot, at date: Date) -> UsageSnapshot {
-        let windows = stored.windows.map { window -> UsageWindow in
+        let windows = stored.windows.filter {
+            !(stored.providerID == .claude && ClaudeUsageParser.isMisreadAllModelsRow($0.kind))
+        }.map { window -> UsageWindow in
             if case .unavailable = window.freshness { return window }
             guard let observedAt = window.observedAt ?? window.freshness.observedAt ?? stored.capturedAt else {
                 return window.withFreshness(.unavailable(since: date))
@@ -497,6 +499,7 @@ enum UsageContinuityPolicy {
         capturedAt: Date?,
         at restorationDate: Date
     ) -> UsageWindow? {
+        if providerID == .claude, ClaudeUsageParser.isMisreadAllModelsRow(window.kind) { return nil }
         if case .unavailable(let since) = window.freshness {
             return restorationDate.timeIntervalSince(since) < ResetSchedulePolicy.fallbackLifetime(for: window.kind)
                 ? window
@@ -592,7 +595,8 @@ enum UsageContinuityPolicy {
         providerID: ProviderID
     ) -> Bool {
         guard providerID == .claude,
-              case .other(let label) = window.kind
+              case .other(let label) = window.kind,
+              !ClaudeUsageParser.isMisreadAllModelsRow(window.kind)
         else {
             return false
         }

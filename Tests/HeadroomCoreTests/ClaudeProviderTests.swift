@@ -103,6 +103,27 @@ struct ClaudeUsageParserTests {
         #expect(window?.resetLabel == "Resets Jul 9 at 9:59am")
     }
 
+    /// 2026-11-19: a repaint dropped the "a" and "(ll models)" became a model row
+    /// beside Weekly. Every damaged copy of the bracket is the all-models window.
+    @Test(arguments: ["ll models", "all mod ls", "al models", "l models", "ALL MODELS"])
+    func damagedAllModelsBracketIsWeekly(inner: String) {
+        let panel = """
+        Current week (\(inner))
+        ██████ 29% used
+        Resets Nov 19 at 9am (America/Los_Angeles)
+        """
+        #expect(ClaudeUsageParser.parse(panel).map(\.kind) == [.weekly])
+        let inline = "Current week (\(inner)): 29% used · resets Nov 19 at 9am (America/Los_Angeles)"
+        #expect(ClaudeUsageParser.parse(inline).map(\.kind) == [.weekly])
+    }
+
+    @Test(arguments: ["Fable", "Opus", "Sonnet", "Haiku", "Fable 5"])
+    func modelBracketsStayModelRows(inner: String) {
+        let inline = "Current week (\(inner)): 7% used · resets Aug 6 at 10am"
+        #expect(ClaudeUsageParser.parse(inline).map(\.kind) == [.other("Weekly (\(inner))")])
+        #expect(!ClaudeUsageParser.isMisreadAllModelsRow(.other("Weekly (\(inner))")))
+    }
+
     @Test func parsesPrintModeReport() {
         let windows = ClaudeUsageParser.parse(printUsageReportFixture)
         #expect(windows.count == 3)
@@ -581,6 +602,18 @@ struct ClaudeProviderTests {
         )
         #expect(builtIn["CLAUDE_CONFIG_DIR"] == nil)
         #expect(extra["CLAUDE_CONFIG_DIR"] == "/exact")
+    }
+
+    @Test func anInheritedAPIKeyNeverReachesTheProbe() {
+        let inherited = ["ANTHROPIC_API_KEY": "sk-test", "ANTHROPIC_AUTH_TOKEN": "t", "HOME": "/Users/test"]
+        for overrides in [[:], ["CLAUDE_CONFIG_DIR": "/exact"]] {
+            let env = ClaudeUsageCLIProbe.environment(
+                inherited: inherited, overrides: overrides, loginPath: "/bin", workingDirectory: "/w"
+            )
+            #expect(env["ANTHROPIC_API_KEY"] == nil)
+            #expect(env["ANTHROPIC_AUTH_TOKEN"] == nil)
+            #expect(env["HOME"] == "/Users/test")
+        }
     }
 
     @Test func loginMethodSelectorReadsAsNeedsSignIn() async {

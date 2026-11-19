@@ -331,6 +331,30 @@ struct MeterStyleTests {
         #expect(MeterRecipe.litCellCount(fraction: 0.5, cells: 0) == 0)
     }
 
+    /// CA-M4: a Segmented meter travels by relighting `litCellCount` from the interpolated
+    /// fraction every frame. That only reads as travel if the count walks in one direction
+    /// and stops at the target's count, for rises, falls and the draw-in from empty.
+    @Test func segmentedLitCountTravelsMonotonicallyToItsTarget() {
+        let pairs: [(Double, Double)] = [(0.3, 0.8), (0.8, 0.3), (0, 0.72), (0.72, 0), (0.05, 1), (0.64, 0.66)]
+        for cells in [5, 14] {
+            for (from, to) in pairs {
+                let start = MeterRecipe.litCellCount(fraction: from, cells: cells)
+                let target = MeterRecipe.litCellCount(fraction: to, cells: cells)
+                var previous = start
+                for step in 0...200 {
+                    let progress = Double(step) / 200
+                    let lit = MeterRecipe.litCellCount(fraction: from + (to - from) * progress, cells: cells)
+                    let label = "\(from)→\(to) cells=\(cells) step=\(step)"
+                    if to > from { #expect(lit >= previous, "\(label) stepped back") }
+                    if to < from { #expect(lit <= previous, "\(label) stepped back") }
+                    #expect(lit >= min(start, target) && lit <= max(start, target), "\(label) left the range")
+                    previous = lit
+                }
+                #expect(previous == target, "\(from)→\(to) cells=\(cells) did not land")
+            }
+        }
+    }
+
     /// The ramp is a bar fill end to end, so its end stop is the severity *fill* token, not the
     /// text token (Sep 2026 fill/text split) — and it tracks Increase Contrast with the rest of
     /// the meter.
@@ -610,11 +634,21 @@ struct MeterStyleTests {
 
         let observedAt = now.addingTimeInterval(-300)
         for fill in GaugeFill.allCases {
+            // CA-P1: where a live healthy meter is neutral (Only when low), a stale healthy
+            // one is that neutral at half strength; every other fill keeps the R2C16 hedge.
             #expect(MeterRecipe.fillRecipe(
                 fill: fill,
                 severity: .healthy,
                 freshness: .stale(observedAt: observedAt)
-            ) == .staleGrey)
+            ) == (fill == .colorAsEvent ? .staleNeutral : .staleGrey))
+            #expect(MeterRecipe.livePaintsHealthyNeutral(fill: fill) == (fill == .colorAsEvent))
+            for severity in [UsageSeverity.low, .critical] {
+                #expect(MeterRecipe.fillRecipe(
+                    fill: fill,
+                    severity: severity,
+                    freshness: .stale(observedAt: observedAt)
+                ) == .staleGrey)
+            }
             for shape in GaugeShape.allCases {
                 let style = MeterStyle(format: .micro, shape: shape, fill: fill)
                 #expect(MeterRecipe.fillRecipe(

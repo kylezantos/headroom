@@ -418,7 +418,7 @@ enum UsageContinuityPolicy {
             )
             return expiredAt > date
                 ? window.withFreshness(.stale(observedAt: observedAt))
-                : window.withFreshness(.unavailable(since: expiredAt))
+                : window.withFreshness(.unavailable(since: expiredAt), observedAt: observedAt)
         }
         return stored.replacingWindows(windows, freshness: .stale(rememberedReason))
     }
@@ -519,7 +519,8 @@ enum UsageContinuityPolicy {
         else {
             return nil
         }
-        return window.withFreshness(.unavailable(since: expiredAt))
+        // CA-P4: the anchor travels, so the row says "No current reading".
+        return window.withFreshness(.unavailable(since: expiredAt), observedAt: observedAt)
     }
 
     /// Claude's primary limits remain fresh while a separately rate-limited model
@@ -559,7 +560,7 @@ enum UsageContinuityPolicy {
                 return window.withFreshness(.stale(observedAt: observedAt))
             }
             return capturedAt.timeIntervalSince(expiredAt) < ResetSchedulePolicy.fallbackLifetime(for: window.kind)
-                ? window.withFreshness(.unavailable(since: expiredAt))
+                ? window.withFreshness(.unavailable(since: expiredAt), observedAt: observedAt)
                 : nil
         }
         guard !retained.isEmpty else { return fresh }

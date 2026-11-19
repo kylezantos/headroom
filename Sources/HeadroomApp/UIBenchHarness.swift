@@ -30,6 +30,8 @@ enum UIBenchHarness {
     private static var framePassesDone = 0
     /// `--account-layout`, seeded into every store the run builds (popover account layout plan).
     private static var accountLayout: AccountLayout = .standard
+    /// `--meter-style`, seeded into every store the run builds (CA-M4).
+    private static var meterStyle: MeterStyle = .default
 
     // MARK: - Entry
 
@@ -47,6 +49,7 @@ enum UIBenchHarness {
         installCleanupOnSignals()
 
         accountLayout = options.accountLayout ?? .standard
+        meterStyle = options.meterStyle ?? .default
         Task { @MainActor in
             BenchCounters.enabled = true
             report = UIBenchReport(
@@ -57,7 +60,7 @@ enum UIBenchHarness {
                 startedAt: ISO8601DateFormatter().string(from: Date())
             )
             let runs = [.counts, .scene].contains(options.section) ? "" : " runs=\(options.resolvedRuns)"
-            say("# bench-ui \(options.section.rawValue) scenario=\(options.resolvedScenario.rawValue) layout=\(accountLayout.rawValue)\(runs) pid=\(getpid())")
+            say("# bench-ui \(options.section.rawValue) scenario=\(options.resolvedScenario.rawValue) layout=\(accountLayout.rawValue) meter=\(meterStyle.format.rawValue).\(meterStyle.shape.rawValue).\(meterStyle.fill.rawValue)\(runs) pid=\(getpid())")
             say("# macOS \(ProcessInfo.processInfo.operatingSystemVersionString), scale \(NSScreen.main?.backingScaleFactor ?? 0)")
             if !BenchCounters.isCompiledIn {
                 say("# body counts unavailable — build with -DHEADROOM_BENCH (swift build -c release -Xswiftc -DHEADROOM_BENCH)")
@@ -361,6 +364,7 @@ enum UIBenchHarness {
         let preferences = Preferences(defaults: benchDefaults(""))
         preferences.usagePercentageMode = .remaining
         preferences.accountLayout = accountLayout
+        preferences.meterStyle = meterStyle
         preferences.setSurfaceEnabled(true, for: .anthropicAPI)
         preferences.setSurfaceEnabled(true, for: .openAIAPI)
         var providers: [any UsageProvider]

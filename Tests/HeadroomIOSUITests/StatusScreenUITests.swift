@@ -21,9 +21,15 @@ final class StatusScreenUITests: XCTestCase {
             app.launchEnvironment["HEADROOM_UI_TEST_STATE"] = "waiting"
             app.launch()
 
-            XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Waiting for Your Mac"].waitForExistence(timeout: 5))
             assertPrimary("Refresh")
             assertExploreDemo()
+            // CA-I6: the two actions share one width and the screen owns the Usage header.
+            XCTAssertEqual(element("headroom.status.primary").frame.width,
+                           element("headroom.demo.enter").frame.width, accuracy: 1)
+            XCTAssertTrue(app.buttons["headroom.settings"].isHittable)
+            XCTAssertFalse(app.navigationBars.firstMatch.exists && app.navigationBars.firstMatch.isHittable,
+                           "the native navigation bar is hidden")
             let getMac = element("headroom.status.getMac")
             XCTAssertTrue(getMac.exists)
             XCTAssertTrue(getMac.label.contains("Get Headroom for Mac"), "label was \(getMac.label)")
@@ -39,7 +45,7 @@ final class StatusScreenUITests: XCTestCase {
             app.launchArguments += ["--demo", "--demo-variant", "paused"]
             app.launch()
 
-            XCTAssertTrue(app.staticTexts["Companion Sync Paused"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Sync Is Off"].waitForExistence(timeout: 5))
             let naming = app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Sync usage to iPhone"))
             XCTAssertGreaterThan(naming.count, 0, "the paused screen must name the Mac switch")
             XCTAssertFalse(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Sync snapshot")).count > 0)
@@ -60,13 +66,13 @@ final class StatusScreenUITests: XCTestCase {
             app.launchEnvironment["HEADROOM_UI_TEST_STATE"] = "unreadable"
             app.launch()
 
-            XCTAssertTrue(app.staticTexts["Snapshot Unreadable"].waitForExistence(timeout: 5))
+            XCTAssertTrue(app.staticTexts["Couldn’t Read the Data"].waitForExistence(timeout: 5))
             let pointsAtMac = app.staticTexts.containing(
                 NSPredicate(format: "label CONTAINS %@", "Open Headroom on your Mac"))
             XCTAssertGreaterThan(pointsAtMac.count, 0, "the unreadable screen must point at the Mac")
             XCTAssertEqual(
                 app.staticTexts.containing(NSPredicate(format: "label CONTAINS[c] %@", "publish")).count, 0)
-            XCTAssertFalse(app.staticTexts["Waiting for Mac"].exists)
+            XCTAssertFalse(app.staticTexts["Waiting for Your Mac"].exists)
             assertPrimary("Refresh")
             assertExploreDemo()
             XCTAssertFalse(element("headroom.status.getMac").exists)
@@ -83,7 +89,7 @@ final class StatusScreenUITests: XCTestCase {
         app = makeApp(appearance: "light")
         app.launchEnvironment["HEADROOM_UI_TEST_STATE"] = "waiting"
         app.launch()
-        XCTAssertTrue(app.staticTexts["Waiting for Mac"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Waiting for Your Mac"].waitForExistence(timeout: 5))
         assertNoIdleSpinner()
 
         let primary = element("headroom.status.primary")
@@ -98,8 +104,8 @@ final class StatusScreenUITests: XCTestCase {
     func testPosedScreensLeadSomewhere() {
         let screens: [(status: String, title: String, primary: String)] = [
             ("iCloudUnavailable", "iCloud Not Available", "Open iOS Settings"),
-            ("unreadable", "Snapshot Unreadable", "Refresh"),
-            ("updatePhone", "Update Needed", "Open App Store"),
+            ("unreadable", "Couldn’t Read the Data", "Refresh"),
+            ("updatePhone", "Update Headroom", "Open App Store"),
             ("updateMac", "Update Headroom on your Mac", "Get Headroom for Mac"),
         ]
         for screen in screens {

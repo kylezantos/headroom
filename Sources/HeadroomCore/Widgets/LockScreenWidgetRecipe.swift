@@ -24,8 +24,8 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
     public let window: WidgetWindowSummary?
     public let state: LockScreenWindowState
     public let numberText: String
-    public let caption: String
-    public let shortCaption: String
+    public private(set) var caption: String
+    public private(set) var shortCaption: String
     public let fillFraction: Double
     public let refillText: String?
     public let shortRefillText: String?
@@ -35,6 +35,27 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
     public let resetText: String?
     public let accessibilityText: String
     public var usesKnockout: Bool { state.usesKnockout }
+    /// CA-W6 (R19): the caption's wordings, longest first. The view tries each whole and only
+    /// the last may truncate: the full label, then the compact one ("Other Models", "Other"),
+    /// then, for a stale label of six characters or fewer, the label without its warning
+    /// glyph, because the stale ink already says the reading is old ("⚠ Fa…" said nothing).
+    public var captionLadder: [String] {
+        var ladder = [caption]
+        if shortCaption != caption { ladder.append(shortCaption) }
+        if state == .stale, let last = ladder.last, last.hasPrefix(LockScreenWidgetCopy.warningPrefix) {
+            let label = String(last.dropFirst(LockScreenWidgetCopy.warningPrefix.count))
+            if !label.isEmpty, label.count <= LockScreenWidgetCopy.unmarkedLabelLimit { ladder.append(label) }
+        }
+        return ladder
+    }
+
+    /// CA-W6: this window with one wording from `captionLadder`, so a caption view that reads
+    /// the recipe draws that wording with the window's own state and ink.
+    public func captioned(_ text: String) -> LockScreenWindowRecipe {
+        var copy = self
+        copy.caption = text
+        return copy
+    }
 
     init(provider: WidgetProviderSummary?, window sourceWindow: WidgetWindowSummary?, family: LockScreenWidgetFamily, isDemo: Bool, demoCaption: Bool, now: Date) {
         let window = provider?.freshness.isStale == true ? sourceWindow?.demotedToStale() : sourceWindow
@@ -73,8 +94,8 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
         case .pending: stateCaption = "Waiting"; shortStateCaption = "Waiting"
         case .signIn: stateCaption = "Sign in"; shortStateCaption = "Sign in"
         case .stale:
-            stateCaption = "⚠ \(label)"
-            shortStateCaption = "⚠ \(compactLabel)"
+            stateCaption = LockScreenWidgetCopy.warningPrefix + label
+            shortStateCaption = LockScreenWidgetCopy.warningPrefix + compactLabel
         case .unavailable, .resetReached, .critical, .live:
             stateCaption = label
             shortStateCaption = compactLabel
@@ -322,6 +343,11 @@ public struct LockScreenWidgetRecipe: Sendable, Equatable {
 }
 
 enum LockScreenWidgetCopy {
+    /// R8: the prefix the caption view draws as its monochrome warning glyph.
+    static let warningPrefix = "⚠ "
+    /// CA-W6: the longest stale label that drops its glyph rather than truncate.
+    static let unmarkedLabelLimit = 6
+
     static func compactWindowLabel(_ window: WidgetWindowSummary?, providerID: String?) -> String {
         guard let window else { return "" }
         if providerID == ProviderID.cursor.raw {
@@ -353,12 +379,25 @@ enum LockScreenWidgetCopy {
                 return "\(name) \(main.numberText)"
             }
         }
+        func attributed(_ slot: LockScreenProviderSlot) -> String {
+            switch slot.primary.state {
+            case .off, .pending, .signIn: label(slot, compact: true)
+            default: "\(slot.providerName) \(slot.primary.numberText)"
+            }
+        }
         let full = slots.map { label($0, compact: false) }.joined(separator: " · ")
         let short = slots.map { label($0, compact: true) }.joined(separator: " · ")
         let minimal = slots.map { label($0, compact: true, minimal: true) }.joined(separator: " · ")
         let refill = tightest ? slots.first?.primary.refillText.map { " · " + $0.lowercased() } ?? "" : ""
         let shortRefill = tightest ? slots.first?.primary.shortRefillText.map { " · " + $0.lowercased() } ?? "" : ""
-        var texts = [full + refill, short + refill, minimal + shortRefill]
+        var texts = [full + refill, short + refill]
+        // CA-W6 (revisits design 10 / R11 for this rung only): with two providers on one line,
+        // whose number it is matters more than which pool, so before the minimal rung strips
+        // the first owner's name, one rung keeps every owner and drops only Cursor's pool.
+        if !tightest, slots.count > 1 {
+            texts.append(slots.map(attributed).joined(separator: " · "))
+        }
+        texts.append(minimal + shortRefill)
         // Design 10: a narrow Tightest First line keeps the window and a bare countdown
         // ("5-hour 8% · 3h") before it drops the window name; Cursor always keeps it (R11).
         if tightest, let slot = slots.first, let countdown = slot.primary.shortCountdownText,

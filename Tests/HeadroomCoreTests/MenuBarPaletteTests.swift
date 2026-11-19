@@ -84,4 +84,15 @@ struct MenuBarPaletteTests {
             #expect(dark.severityInk(for: severity) != light.severityInk(for: severity))
         }
     }
+
+    /// CA-MB1 (KTD7): a provider mark is the bar's own ink one step under the numeral, so
+    /// the number still leads and severity stays the only colour in the bar.
+    @Test func markInkIsTheMenuBarInkAt90Percent() {
+        let dark = MenuBarPalette(isDarkMenuBar: true).markInk
+        #expect(dark.color == .white)
+        #expect(abs(dark.opacity - 0.90) < 0.0001)
+        let light = MenuBarPalette(isDarkMenuBar: false).markInk
+        #expect(light.color == .black)
+        #expect(abs(light.opacity - 0.85 * 0.90) < 0.0001)
+    }
 }

@@ -4,10 +4,13 @@ import HeadroomSharedUI
 #endif
 
 extension HeadroomMotion {
-    /// The house curve (S1A) for AppKit's animator. Computed: `CAMediaTimingFunction` is not
-    /// `Sendable`, so it can't be a stored static under strict concurrency.
+    /// The house curve (S1A) for AppKit's animator, built from `houseCurve` (CA-F1). Computed:
+    /// `CAMediaTimingFunction` is not `Sendable`, so it can't be a stored static under strict
+    /// concurrency.
     static var windowCurve: CAMediaTimingFunction {
-        CAMediaTimingFunction(controlPoints: 0.22, 1, 0.36, 1)
+        CAMediaTimingFunction(
+            controlPoints: Float(houseCurve.x1), Float(houseCurve.y1),
+            Float(houseCurve.x2), Float(houseCurve.y2))
     }
 
     // MARK: Keyboard-initiated changes (KB1)

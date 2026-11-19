@@ -126,11 +126,16 @@ final class PopoverTuningModel: ObservableObject {
             .group("tileDark", label: "Tile · Dark", collapsed: true, children: [
                 .slider("darkFillTop", keyPath: \.darkFillTop, range: 0...0.3, step: 0.005),
                 .slider("darkFillBottom", keyPath: \.darkFillBottom, range: 0...0.3, step: 0.005),
-                .slider("darkRimTop", keyPath: \.darkRimTop, range: 0...0.6, step: 0.01),
-                .slider("darkRimBottom", keyPath: \.darkRimBottom, range: 0...0.6, step: 0.01),
-                .slider("darkShadowOpacity", keyPath: \.darkShadowOpacity, range: 0...1, step: 0.01),
-                .slider("darkShadowRadius", keyPath: \.darkShadowRadius, range: 0...30, step: 0.5, unit: "pt"),
-                .slider("darkShadowY", keyPath: \.darkShadowY, range: -10...20, step: 0.5, unit: "pt"),
+                // CA-P2: the sliders stop at rule 8's 0.15 ceiling, so a tuning pass cannot
+                // dial the bright rim back in.
+                .slider("darkRing", keyPath: \.darkRing, label: "Ring", range: 0...HeadroomTileEdgeValues.darkRimCeiling, step: 0.005),
+                .slider("darkRimTop", keyPath: \.darkRimTop, label: "Top Lip", range: 0...HeadroomTileEdgeValues.darkRimCeiling, step: 0.005),
+                .slider("darkShadowOpacity", keyPath: \.darkShadowOpacity, label: "Contact Shadow", range: 0...1, step: 0.01),
+                .slider("darkShadowRadius", keyPath: \.darkShadowRadius, label: "Contact Radius", range: 0...10, step: 0.5, unit: "pt"),
+                .slider("darkShadowY", keyPath: \.darkShadowY, label: "Contact Y", range: -10...20, step: 0.5, unit: "pt"),
+                .slider("darkAmbientShadowOpacity", keyPath: \.darkAmbientShadowOpacity, label: "Ambient Shadow", range: 0...1, step: 0.01),
+                .slider("darkAmbientShadowRadius", keyPath: \.darkAmbientShadowRadius, label: "Ambient Radius", range: 0...30, step: 0.5, unit: "pt"),
+                .slider("darkAmbientShadowY", keyPath: \.darkAmbientShadowY, label: "Ambient Y", range: -10...20, step: 0.5, unit: "pt"),
             ]),
             .group("tileLight", label: "Tile · Light", collapsed: true, children: [
                 .slider("lightFillTop", keyPath: \.lightFillTop, range: 0...1, step: 0.01),

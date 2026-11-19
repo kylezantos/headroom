@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// R21 / S2 (approved): the phone's Appearance — a live specimen, theme thumbnails, one
-/// "Match my Mac" switch over meter style, percentages, account-name ink and Spark rows
-/// (KTD11), and the phone's own choices drawn by the real meter. Theme never syncs (S3).
+/// "Match my Mac" switch that reveals meter style, percentages, account-name ink and Spark
+/// rows when off (CA-I7, was KTD11's dimmed sections), and the phone's own choices drawn by the real meter. Theme never syncs (S3).
 struct AppearanceSection: View {
     @Binding var appearance: AppearanceSetting
     /// The shown data's display block: the Mac's, the demo fixture's in Explore Demo (R30), or
@@ -16,6 +16,8 @@ struct AppearanceSection: View {
     private var display: ResolvedPhoneDisplay { store.resolve(mac: macDisplay) }
     private var matchesMac: Bool { store.preferences.matchesMac }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         Section("Appearance") {
             PhoneAppearanceSpecimen(display: display)
@@ -27,7 +29,12 @@ struct AppearanceSection: View {
         Section {
             Toggle(isOn: Binding(
                 get: { matchesMac },
-                set: { store.setMatchesMac($0, mac: macDisplay) }
+                set: { matches in
+                    // CA-I7: the governed sections leave and return on the crossfade resolver.
+                    withAnimation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion)) {
+                        store.setMatchesMac(matches, mac: macDisplay)
+                    }
+                }
             )) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(PhoneDisplayCopy.matchTitle)
@@ -44,11 +51,19 @@ struct AppearanceSection: View {
             Text((macNeedsUpdate ? display.note : nil) ?? PhoneDisplayCopy.matchFooter)
         }
 
+        // CA-I7 (option A; overturns the iOS parity plan's KTD11, which kept these visible at
+        // 0.38 and disabled): a switch reveals what it governs, as iOS does. While Match my Mac
+        // is on, the specimen above and the switch's summary are the readout.
+        if !matchesMac {
+            governedSections
+        }
+    }
+
+    @ViewBuilder private var governedSections: some View {
         Section("Meter style") {
             MeterStyleTile(meterStyle: display.meterStyle, chrome: PhoneMeterStyleChrome()) { style in
                 store.setMeterStyle(style, mac: macDisplay)
             }
-            .governedByMatch(matchesMac)
             .listRowInsets(EdgeInsets(
                 top: 14, leading: PhoneSettingsStyle.swatchRowInset,
                 bottom: 14, trailing: PhoneSettingsStyle.swatchRowInset))
@@ -62,7 +77,6 @@ struct AppearanceSection: View {
             ) { mode in
                 PercentageSample(mode: mode)
             }
-            .governedByMatch(matchesMac)
             .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 12, trailing: 14))
         } header: {
             Text("Percentages")
@@ -79,7 +93,6 @@ struct AppearanceSection: View {
             ) { ink in
                 AccountInkSample(ink: ink)
             }
-            .governedByMatch(matchesMac)
             .listRowInsets(EdgeInsets(top: 14, leading: 14, bottom: 12, trailing: 14))
         }
 
@@ -89,19 +102,9 @@ struct AppearanceSection: View {
                 set: { store.setShowsSparkRows($0, mac: macDisplay) }
             ))
             .tint(PhoneSettingsStyle.switchTint())
-            .governedByMatch(matchesMac)
         } footer: {
             Text(PhoneDisplayCopy.sparkFooter)
         }
-    }
-}
-
-private extension View {
-    /// While Match my Mac is on, the four choices it covers show the Mac's values but can't
-    /// be changed here (KTD11): one switch, so nothing silently diverges.
-    func governedByMatch(_ matchesMac: Bool) -> some View {
-        disabled(matchesMac)
-            .opacity(matchesMac ? PhoneSettingsStyle.governedOpacity : 1)
     }
 }
 
@@ -203,7 +206,8 @@ private struct ThemeThumbnailRow: View {
     var body: some View {
         PhoneSwatchPicker(
             options: AppearanceSetting.allCases, selection: selection,
-            title: \.title, accessibilityName: "theme", wellWidth: 92, wellHeight: 60,
+            // CA-I8: 92 × 48, the other pickers' height (was 92 × 60).
+            title: \.title, accessibilityName: "theme", wellWidth: 92,
             onSelect: { selection = $0 }
         ) { setting in
             ThemeThumbnail(setting: setting)
@@ -241,7 +245,9 @@ private struct ThemeThumbnail: View {
                 Capsule().fill(line).frame(width: 24, height: 4)
                 Capsule().fill(line).frame(width: 29, height: 4)
             }
-            .padding(7)
+            // CA-I8: 6pt top and bottom so the three lines fit the 48pt well's 32pt screen.
+            .padding(.horizontal, 7)
+            .padding(.vertical, 6)
         }
     }
 }

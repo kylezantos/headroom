@@ -9,15 +9,16 @@ struct CompanionAttentionCopyTests {
         (.signInAgain, "Sign in again on your Mac"),
         (.finishingSignIn, "Finishing sign-in on your Mac"),
         (.setupInProgress, "Finish setup on your Mac"),
-        (.workspaceApproval, "Approve Headroom’s workspace on your Mac"),
+        // CA-P9: the CLI asks about a folder.
+        (.workspaceApproval, "Approve Headroom’s folder on your Mac"),
         (.cliMissing, "Install the official CLI on your Mac"),
         (.cliUpdateRequired, "Update the official CLI on your Mac"),
         (.allowSignInFile, "Allow Headroom to read sign-in data on your Mac"),
         (.signInFileUnreadable, "Sign-in data is unreadable on your Mac"),
         (.signInStorageMismatch, "Review where sign-in data is stored on your Mac"),
         (.externalToolsApproval, "Review the CLI’s external tools on your Mac"),
-        (.retrying, "Couldn’t read usage\u{00A0}—\u{00A0}your Mac will retry"),
-        (.cliDiscoveryRetrying, "Couldn’t confirm the official CLI on your Mac\u{00A0}—\u{00A0}will retry"),
+        (.retrying, "Couldn’t read usage. Your Mac will try again."),
+        (.cliDiscoveryRetrying, "Your Mac couldn’t find the official CLI. It will try again."),
         (.setupScreenUnknown, "Review the official CLI’s setup screen on your Mac"),
         (.neverOnboarded, "Sign in to this account on your Mac"),
         (.accessDenied, "Review this account’s access on your Mac"),
@@ -30,7 +31,7 @@ struct CompanionAttentionCopyTests {
         (.keyRejected, "Replace the rejected key on your Mac"),
         (.keyLacksAccess, "Review the API key’s access on your Mac"),
         (.setupRequired, "Set up API spend on your Mac"),
-        (.retryable, "Couldn’t read the amount\u{00A0}—\u{00A0}your Mac will retry"),
+        (.retryable, "Couldn’t read the amount. Your Mac will try again."),
         (.unknown, "Needs attention on your Mac")
     ]
 

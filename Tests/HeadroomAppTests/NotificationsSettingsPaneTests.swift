@@ -110,8 +110,63 @@ struct NotificationsSettingsPaneTests {
         let fixture = makeFixture()
         defer { fixture.cleanup() }
         // R9: the figure is whatever the root binds from the slowest lane.
+        // CA-S9: plain words, both figures bound to the same lane.
         #expect(presentation(fixture.store, .authorized, lateness: 12).rulesHelp
-            .hasSuffix("can land up to 12\u{00A0}min late."))
+            == "Each reminder fires once per reset. It can arrive up to 12\u{00A0}min late, since Headroom checks every 12\u{00A0}min.")
+    }
+
+    // MARK: CA-F1 billing-periods hint
+
+    private func windows(_ snapshots: [ProviderID: UsageSnapshot]) -> (ProviderID) -> [UsageWindow] {
+        { snapshots[$0]?.windows ?? [] }
+    }
+
+    @Test func theBillingPeriodHintIsDerivedFromWhatEachProviderReports() {
+        let order: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot]
+        let snapshots: [ProviderID: UsageSnapshot] = [
+            .claude: DemoFixture.claudeSnapshot, .codex: DemoFixture.codexSnapshot,
+            .grok: DemoFixture.grokSnapshot, .cursor: DemoFixture.cursorSnapshot,
+            .copilot: DemoFixture.copilotSnapshot,
+        ]
+        let providers = BillingPeriodScopeHint.providers(in: order, windows: windows(snapshots))
+        #expect(providers == [.grok, .cursor, .copilot])
+        #expect(BillingPeriodScopeHint.text(for: providers, displayName: \.displayName) == "Grok, Cursor, Copilot")
+    }
+
+    @Test func theBillingPeriodHintGainsAProviderThatBillsByPeriod() {
+        // OpenCode's monthly limit classifies as a billing period, so it joins without a
+        // new literal; so would any later provider that reports one.
+        let acme = ProviderID("acme")
+        var snapshots: [ProviderID: UsageSnapshot] = [
+            .grok: DemoFixture.grokSnapshot, .cursor: DemoFixture.cursorSnapshot,
+            .copilot: DemoFixture.copilotSnapshot, .opencode: DemoFixture.opencodeSnapshot,
+        ]
+        snapshots[acme] = UsageSnapshot(
+            providerID: acme,
+            windows: [UsageWindow(kind: .billingPeriod(label: "Monthly", duration: 2_592_000),
+                                  utilization: 20, resetsAt: Date().addingTimeInterval(86_400))],
+            planLabel: nil,
+            capturedAt: Date(),
+            freshness: .live
+        )
+        let order: [ProviderID] = [.claude, .grok, .cursor, .copilot, .opencode, acme]
+        let providers = BillingPeriodScopeHint.providers(in: order, windows: windows(snapshots))
+        #expect(providers == [.grok, .cursor, .copilot, .opencode, acme])
+        #expect(BillingPeriodScopeHint.text(for: [], displayName: \.displayName) == nil)
+    }
+
+    /// CA-S12 (SET-13): the denied notice is one container drawn on the pane, not a callout
+    /// inside a `SettingsTile`.
+    @Test func theDeniedNoticeIsOneContainer() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Sources/HeadroomApp/UI/NotificationsSettingsPane.swift")
+        let text = try String(contentsOf: url, encoding: .utf8)
+        let start = try #require(text.range(of: "private var permissionNotice: some View"))
+        let end = try #require(text.range(of: "// MARK: Use-it-up reminders", range: start.upperBound..<text.endIndex))
+        let body = text[start.upperBound..<end.lowerBound]
+        #expect(!body.contains("SettingsTile"))
+        #expect(body.components(separatedBy: ".background(").count - 1 == 1)
     }
 
     // MARK: R17, R18, KTD11 permission

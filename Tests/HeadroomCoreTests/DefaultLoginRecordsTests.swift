@@ -489,3 +489,68 @@ struct DefaultLoginRecordsTests {
         #expect(rows.contains { $0.identity == DefaultLoginRig.identity("account-\(DefaultLoginRecordsCodec.rememberedCap)") })
     }
 }
+
+/// CA-P14 review fix: Stop Waiting offers "Remove Account" only for an added account the store
+/// can prove never read. The snapshot forgets: once a signed-out extra's windows age out (or
+/// the app relaunches, since a permanent failure drops the continuity record), it looks just
+/// like an abandoned Add Account. The slot record is what keeps the history.
+@MainActor
+struct StopWaitingRemovalEvidenceTests {
+    private let a = "aaaaaaaa-0000-4000-8000-000000000001"
+
+    /// Reads live once, signs out, relaunches, and reports signed-out again: no windows, no
+    /// email, a never-signed-in state. `email: .some(nil)` because Claude never reports one.
+    private func previouslyReadSignedOutExtra(_ provider: ProviderID) async -> (DefaultLoginRig, ProviderAccount) {
+        let rig = DefaultLoginRig(provider: provider, extraLabels: ["Work"])
+        let extra = rig.extras[0]
+        extra.set(rig.reading(a, email: provider == .claude ? .some(nil) : nil))
+        await rig.store.refreshAll()
+        let key = AccountKey(providerID: provider, accountID: extra.accountID)
+        #expect(rig.store.snapshot(for: key).freshness == .live)
+        rig.advance(8 * 24 * 3_600)
+        extra.set(rig.signedOut)
+        await rig.store.refreshAll()
+        rig.launch()
+        await rig.store.refreshAll()
+        let account = rig.store.accounts(for: provider).first { $0.key == key }!
+        return (rig, account)
+    }
+
+    @Test(arguments: [ProviderID.claude, .codex])
+    func aSignedOutExtraThatReadBeforeKeepsTodaysDialog(_ provider: ProviderID) async {
+        let (rig, account) = await previouslyReadSignedOutExtra(provider)
+        let snapshot = rig.store.snapshot(for: account.key)
+        // The snapshot alone now looks never-signed-in.
+        #expect(snapshot.windows.isEmpty)
+        #expect((snapshot.accountEmail ?? "").isEmpty)
+        #expect(LaneSchedule.isNeverSignedIn(snapshot.freshness))
+        #expect(rig.store.hasReadingOnRecord(account.key))
+        #expect(!rig.store.stopWaitingRemovesAccount(account))
+    }
+
+    @Test(arguments: [ProviderID.claude, .codex])
+    func anExtraThatNeverReadOffersRemoval(_ provider: ProviderID) async {
+        let rig = DefaultLoginRig(provider: provider, extraLabels: ["Work"])
+        let extra = rig.extras[0]
+        extra.set(rig.signedOut)
+        await rig.store.refreshAll()
+        let account = rig.store.accounts(for: provider).first { $0.id == extra.accountID }!
+        #expect(!rig.store.hasReadingOnRecord(account.key))
+        #expect(rig.store.stopWaitingRemovesAccount(account))
+    }
+
+    /// Without a record store nothing can prove the account never read, so the dialog is
+    /// today's; the same holds for a provider whose readings carry no identity (OpenCode).
+    @Test func withoutRecordsTheRuleIsConservative() async {
+        let rig = DefaultLoginRig(provider: .claude, extraLabels: ["Work"])
+        rig.launch(records: false)
+        let extra = rig.extras[0]
+        extra.set(rig.signedOut)
+        await rig.store.refreshAll()
+        let account = rig.store.accounts(for: .claude).first { $0.id == extra.accountID }!
+        #expect(rig.store.hasReadingOnRecord(account.key))
+        #expect(!rig.store.stopWaitingRemovesAccount(account))
+        let openCode = ProviderAccount(id: AccountID("added"), providerID: .opencode, label: "Account 2")
+        #expect(rig.store.hasReadingOnRecord(openCode.key))
+    }
+}

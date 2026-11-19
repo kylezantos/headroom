@@ -88,6 +88,48 @@ public enum WidgetStyleMetrics {
     /// KTD9: the wash outside full color (accented, vibrant, StandBy) is `.primary` at this
     /// opacity, never an opaque fill.
     public static let washMonochromeOpacity = 0.12
+
+    /// CA-W1: the clear space the surface edge keeps from a text band, above and below.
+    public static let washEdgeTextClearance = 3.0
+    /// CA-W1: the content inset the wash cannot read from where it is drawn (system margin
+    /// plus the 2pt residual): 14 on iPhone small and large, 16 on iPhone medium, 18 on the
+    /// Mac. A text band is taken across the whole range, so one rule holds on every host.
+    public static let washContentInset: ClosedRange<Double> = 14...18
+
+    /// CA-W1: Liquid Level's vertical rhythm, shared by the view that lays it out and the
+    /// recipe that keeps the surface edge off its text. Large's hero sits this far under the
+    /// identity row; the numeral and its caption block are `heroCaptionGap` apart, the caption
+    /// lines `captionLineGap`; each large secondary row is `largeRowHeight` tall; the tail
+    /// (footer or spend strip) sits `tailGap` under the rows.
+    public static let liquidLargeHeroTop = 10.0
+    public static let liquidHeroCaptionGap = 5.0
+    public static let liquidCaptionLineGap = 2.0
+    public static let liquidLargeRowHeight = 26.0
+    public static let liquidTailGap = 8.0
+
+    /// CA-W1: spacing the shared frame and tail draw around every style, which the surface
+    /// rule has to know too. Each mirrors a literal at its drawing site and must move with it:
+    /// the gap above the dimmed sentence and the small/medium reset notes
+    /// (`HeadroomWidgetFreshnessFrame.lineGap`), the gap under large's reset notes
+    /// (`HeadroomWidgetStyleTail`), and the waiting caption's ghost mark (`HeadroomWidgetWaitingLine`).
+    public static let freshnessLineGap = 6.0
+    public static let pastResetNoteGap = 6.0
+    public static let waitingMarkHeight = 13.0
+    /// The spend strip's rule and the gap under it, above its row.
+    public static var spendStripRule: Double { WidgetMetrics.hairline + WidgetMetrics.spendRuleToRow }
+}
+
+/// CA-W1: the line metrics of the system face the widgets set every string in, as fractions
+/// of the point size (SF Pro, measured with `NSFont`: line 1.178 em, ascender 0.967 em, cap
+/// height 0.705 em). Core cannot measure a font, so the recipe's text bands use these.
+public enum WidgetTextMetrics {
+    /// One line's height: ascender plus descender (the system face has no leading).
+    public static let lineHeightRatio = 1.178
+    /// From the top of a line to the top of its capitals and figures.
+    public static let capTopRatio = 0.247
+
+    public static func lineHeight(_ size: Double) -> Double { size * lineHeightRatio }
+    public static func capTop(_ size: Double) -> Double { size * capTopRatio }
 }
 
 /// KTD5: the one fill every widget style paints with — bars, rails, vessel liquid and the

@@ -58,6 +58,14 @@ public enum ProviderStyle {
         return Color(tint.color).opacity(tint.opacity)
     }
 
+    /// CA-P6 (POP-03): the popover shell's status ink, for the footer stamp and the header
+    /// status line. Both sat on the system `.tertiary` at ≈2.3–2.5:1 on the shell; this pairs
+    /// the dark `tertiaryText` (≈6.5:1) with the light `secondaryText` (≈5:1), because the
+    /// light shell is darker than a card and light tertiary would fall short of AA there.
+    public static func shellStatusInk(scheme: ColorScheme) -> Color {
+        scheme == .dark ? tertiaryText(scheme: .dark) : secondaryText(scheme: .light)
+    }
+
     /// G1A: account-title ink (identity rows and the API spend row names) in the user's
     /// chosen mode — `.neutral` is the recessive grey token, `.brand` is the per-provider
     /// tint the widget headers use, for people who want the popover colored the way they

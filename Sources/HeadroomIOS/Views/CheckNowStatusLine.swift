@@ -181,8 +181,8 @@ final class PhoneCheckNow {
 /// U9/U21: the inline status beside "Usage". While a check runs it is the Mac's receipt —
 /// "Asking your Mac…", "Checking 3", "✓ Work · 2 of 3", "Updated just now" or a timeout
 /// line — with one shared vessel through the request and its bounded completion animation.
-/// Otherwise it is the freshness stamp, or the dimmed "No update from your Mac
-/// since <time>" in the same slot (R10). It never dims with the surface (U21).
+/// Otherwise it is the freshness stamp, or, once dimmed, "Last update <time>" (CA-I2: the
+/// full sentence sits on its own line under the header). It never dims with the surface (U21).
 struct CheckNowStatusLine: View {
     let slot: CheckNowSlot
     /// The freshness line, or the demo banner's sample-data note standing in for it.
@@ -199,15 +199,21 @@ struct CheckNowStatusLine: View {
     var body: some View {
         HStack(spacing: PhoneCardMetrics.statusGlyphGap) {
             loadingRow
-            ZStack(alignment: .leading) {
+            ZStack(alignment: .trailing) {
                 content
                     .id(identity)
                     .transition(transition)
             }
+            // CA-M1 (MOT-01): the outgoing line rose out of an unclipped slot; it now rolls
+            // inside the slot's own bounds.
+            .clipped()
             .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion), value: identity)
         }
         .font(.caption.monospacedDigit())
-        .lineLimit(1)
+        // CA-I2: a large text size wraps the resting stamp onto a second line instead of
+        // clipping it; the dimmed sentence no longer lives here.
+        .lineLimit(slot == .freshness ? 2 : 1)
+        .multilineTextAlignment(.trailing)
         // Approved F: reserve space for the large title and the 44pt Settings control.
         .frame(maxWidth: 190, alignment: .trailing)
         .accessibilityElement(children: .ignore)
@@ -226,7 +232,8 @@ struct CheckNowStatusLine: View {
         switch slot {
         case .freshness: "freshness"
         case .checkNow(.message(let text), _): text
-        case .checkNow(.receipt(let line), _): "\(line.text)|\(line.count ?? "")"
+        // CA-M1: a receipt keeps one identity; its name and count roll as two slots.
+        case .checkNow(.receipt, _): "receipt"
         }
     }
 
@@ -248,15 +255,31 @@ struct CheckNowStatusLine: View {
                         .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
                         .accessibilityLabel("Checked")
                 }
-                Text(compactReceipt(line.text))
-                    .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
+                // CA-M1: the name only moves when the account changes; "2 of 3 → 3 of 3"
+                // rolls the count alone.
+                rollSlot(id: line.text) {
+                    Text(compactReceipt(line.text))
+                        .foregroundStyle(ProviderStyle.secondaryText(scheme: scheme))
+                }
                 if let count = line.count {
-                    Text(count)
-                        .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
-                        .padding(.leading, 2)
+                    rollSlot(id: count) {
+                        Text(count)
+                            .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+                    }
+                    .padding(.leading, 2)
                 }
             }
         }
+    }
+
+    private func rollSlot<Content: View>(id: String, @ViewBuilder _ content: () -> Content) -> some View {
+        ZStack(alignment: .leading) {
+            content()
+                .id(id)
+                .transition(transition)
+        }
+        .clipped()
+        .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion), value: id)
     }
 
     private var accessibilityText: String {
@@ -302,9 +325,33 @@ struct CheckNowStatusLine: View {
                               now: date, reduceMotion: reduceMotion)
     }
 
+    /// CA-M1 (MOT-01, the approved W4 mock): a 7pt roll, not a full line-height slide. The
+    /// new line rises 7pt out of a 1.5pt blur on `settle`; the old one leaves 7pt up on the
+    /// 80ms `partOut`, so the exit is the quieter half. Reduce Motion keeps a plain fade.
     private var transition: AnyTransition {
         reduceMotion ? .opacity : .asymmetric(
-            insertion: .move(edge: .bottom).combined(with: .opacity),
-            removal: .move(edge: .top).combined(with: .opacity))
+            insertion: .modifier(
+                active: ReceiptRoll(offset: Self.rollDistance, blur: HeadroomMotion.revealBlur, opacity: 0),
+                identity: ReceiptRoll(offset: 0, blur: 0, opacity: 1)),
+            removal: AnyTransition.modifier(
+                active: ReceiptRoll(offset: -Self.rollDistance, blur: 0, opacity: 0),
+                identity: ReceiptRoll(offset: 0, blur: 0, opacity: 1))
+                .animation(HeadroomMotion.partOut))
+    }
+
+    /// CA-M1: the W4 mock's `dist = 7`.
+    private static let rollDistance: CGFloat = 7
+}
+
+private struct ReceiptRoll: ViewModifier {
+    let offset: CGFloat
+    let blur: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: offset)
+            .blur(radius: blur)
+            .opacity(opacity)
     }
 }

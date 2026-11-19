@@ -24,6 +24,12 @@ When the chosen limit is missing from the latest usage, the pill shows the lowes
 ### Closest to limit
 The pill value that follows whichever of the provider's limits has the least remaining right now, re-evaluated on every refresh.
 
+### Mark
+A provider's logo drawn before a pill's vessel, in the menu bar's own ink, so a person can tell which pill is which provider. The Settings switch is "Show provider marks".
+*Avoid:* logo badge, brand icon (in copy about the menu bar)
+
+The switch covers separate pills only. The automatic summary always carries the mark of the provider it is following, because its meaning changes as that provider changes.
+
 ### Shelf
 The Settings row holding every provider that has no pill in the menu bar, including providers that are switched off. A card is moved between the shelf and the menu bar row to add or remove its pill.
 *Avoid:* available pills, not-shown list
@@ -43,9 +49,9 @@ An opt-in Mac notification that Codex banked a new spare reset for an account. I
 
 ### Default login
 The account a provider's CLI is signed in to in its own default config home. The built-in row reads it, so the built-in row is whichever account that is right now.
-*Avoid:* active account, current account
+*Avoid:* active account, current account, CLI login (the old Settings badge, which named the mechanism)
 
-An account switcher, a plain sign-in or another app can change it without Headroom being involved.
+An account switcher, a plain sign-in or another app can change it without Headroom being involved. In Settings › Accounts its row carries the badge "Default", and its menu section is "Default login".
 
 ### Remembered account
 An account that used to be the default login and no longer is. Headroom keeps its name, its last reading and its reminder state, and gives them back if it becomes the default login again.

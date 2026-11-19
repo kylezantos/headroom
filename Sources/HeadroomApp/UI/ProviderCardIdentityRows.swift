@@ -74,10 +74,12 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
         showsPersistentEmail: Bool,
         showsConnectedChip: Bool,
         showsMark: Bool = true,
+        showsMenuBarSourceGlyph: Bool = false,
         bankedResets: Int? = nil,
         isCritical: Bool = false,
         isRevealing: Bool = false,
         lastReadLabel: String? = nil,
+        staleReadAge: IdentityRowReadAge? = nil,
         loadingAccessory: (() -> AccountLoadingState)? = nil
     ) {
         self.init(
@@ -90,10 +92,12 @@ extension IdentityRow where Mark == ProviderLogoView, Accessory == IdentityLoadi
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark,
+            showsMenuBarSourceGlyph: showsMenuBarSourceGlyph,
             bankedResets: bankedResets,
             isCritical: isCritical,
             isRevealing: isRevealing,
             lastReadLabel: lastReadLabel,
+            staleReadAge: staleReadAge,
             mark: { ProviderLogoView(providerID: providerID, size: $0) },
             accessory: { IdentityLoadingAccessory(readLoading: loadingAccessory) }
         )
@@ -198,8 +202,11 @@ struct PlanStatusActionRow: View {
     let onRetry: () -> Void
 
     var body: some View {
+        // CA-P5 overturns D2's sentence-plus-label row ("No Go plan on this workspace. See Go
+        // Plans"), which wrapped at the 384pt column: the one-line recovery form,
+        // "No Go plan here · See Go Plans", with the full sentence in the tooltip.
         CardRowAction(
-            message: Self.message(for: presentation),
+            presentation: presentation,
             severity: .attention,
             accountLabel: account.label,
             primary: primaryAction,
@@ -215,33 +222,18 @@ struct PlanStatusActionRow: View {
 }
 
 extension PlanStatusActionRow {
-    /// D2 (OpenCode plan): the approved row reads
-    /// "No Go plan on this workspace. See Go Plans". `CardRowAction` accents an action it finds
-    /// in the sentence and otherwise hides the label in the tooltip, which left a row that
-    /// never said what the click does. The label joins the sentence here so it is visible.
-    static func message(for presentation: ProviderRecoveryPresentation) -> String {
-        let status = presentation.status
-        guard status.range(of: presentation.primaryLabel, options: [.caseInsensitive]) == nil else { return status }
-        let sentence = status.hasSuffix(".") ? status : status + "."
-        return "\(sentence) \(rowLabel(for: presentation))"
-    }
-
-    /// The action words never split across lines: at the popover's width the row wraps, and
-    /// "See" alone at the end of the first line read as part of the sentence.
-    static func rowLabel(for presentation: ProviderRecoveryPresentation) -> String {
-        presentation.primaryLabel.replacingOccurrences(of: " ", with: "\u{00A0}")
-    }
-
     /// KTD21: the no-Go row's tooltip says why another workspace's Go plan doesn't show.
     static func primaryHelp(for action: SetupRecoveryAction) -> String? {
         action == .seeOpenCodeGoPlans ? SettingsCopy.opencodeWorkspaceScope : nil
     }
 
     private var primaryAction: CardRowButtonAction {
-        var action = CardRowButtonAction(label: Self.rowLabel(for: presentation), recovery: presentation.primaryAction) {
+        var action = CardRowButtonAction(label: presentation.primaryLabel, recovery: presentation.primaryAction) {
             SetupSessions.performRecovery(presentation.primaryAction, for: account, onRetry: onRetry)
         }
-        action.help = Self.primaryHelp(for: presentation.primaryAction)
+        // CA-P5: the one-line row's tooltip carries the whole sentence it shortens, then
+        // KTD21's workspace note.
+        action.help = Self.primaryHelp(for: presentation.primaryAction).map { "\(presentation.rowHelp) \($0)" }
         return action
     }
 }
@@ -273,10 +265,15 @@ struct AccountSectionView: View {
     let percentageMode: UsagePercentageMode
     let meterStyle: MeterStyle
     let now: Date
-    /// The selected primary account (`entries.first`) is the one the menu bar and widgets
-    /// follow; its identity row carries the mark that explains which login drives the glyph.
+    /// L5D: the provider's main row when it has two or more accounts
+    /// (`IdentityRowText.isMainAccountRow`): the "Main account" tooltip and VoiceOver phrase.
     let isMenuBarAccount: Bool
+    /// CA-MB3: the account whose reading feeds a menu-bar pill, when its provider has two or
+    /// more accounts (`IdentityRowText.feedsMenuBar`); its identity row carries the glyph.
+    var showsMenuBarSourceGlyph: Bool = false
     let showsStopWaiting: Bool
+    /// CA-P14: set for a never-signed-in extra, so its Stop Waiting can remove the account.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
     let onRetry: () -> Void
     /// R2C22: false for the account rows nested under a capability card's own provider row.
     var showsMark: Bool = true
@@ -352,7 +349,7 @@ struct AccountSectionView: View {
                     topPadding: 10,
                     trailingInset: IdentityRowMetrics.contentTrailingInset
                 ) {
-                    StopWaitingButton(account: account, style: .chip(.small))
+                    StopWaitingButton(account: account, style: .chip(.small), onRemoveAccount: onRemoveAccount)
                 }
                 // R2M1: the row appears and disappears with the session, so it dissolves
                 // rather than popping into a card that is already resizing under it.
@@ -399,10 +396,13 @@ struct AccountSectionView: View {
             showsPersistentEmail: showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
             showsMark: showsMark,
+            showsMenuBarSourceGlyph: showsMenuBarSourceGlyph,
             bankedResets: snapshot.bankedResets,
             isCritical: snapshot.hasLiveCriticalResettableWindow,
             isRevealing: isRevealingBankedResets,
             lastReadLabel: kind.lastReadLabel,
+            // CA-P3: a stale engine row's chip reads "Last read 14 min ago".
+            staleReadAge: kind.isStale ? IdentityRowReadAge(capturedAt: snapshot.capturedAt, now: now) : nil,
             loadingAccessory: readLoading
         )
     }
@@ -474,7 +474,8 @@ struct AccountSectionView: View {
             resetNotReadLines: kind?.resetNotReadLines ?? [],
             compactResetNotReadLines: kind?.compactResetNotReadLines ?? [],
             showsWindowState: kind?.showsWindowState ?? true,
-            dimsLabels: kind?.dimsWholeRow ?? false
+            dimsLabels: kind?.dimsWholeRow ?? false,
+            providerID: account.providerID
         )
         .padding(.leading, tuning.meterContentInset)
         .padding(.trailing, tuning.meterContentInset)
@@ -505,7 +506,7 @@ struct AccountSectionView: View {
                     CardRowStatusLine(message: refusalMessage, severity: .attention) {
                         Color.clear.frame(height: 1)
                     } trailing: {
-                        StopWaitingButton(account: account, style: .glyph)
+                        StopWaitingButton(account: account, style: .glyph, onRemoveAccount: onRemoveAccount)
                     }
                 } else if case .blockedByProviderLogin = setupState {
                     CardRowAction(
@@ -585,7 +586,7 @@ struct AccountSectionView: View {
     /// column, so it sits under the terminal glyph of the row it replaced, and Stop Waiting
     /// became this line's trailing glyph instead of a chip row of its own.
     private var waitingPhaseRow: some View {
-        CardRowWaitingLine(account: account, showsStopWaiting: hostsStopWaiting)
+        CardRowWaitingLine(account: account, showsStopWaiting: hostsStopWaiting, onRemoveAccount: onRemoveAccount)
     }
 
     /// R13: Stop Waiting stays reachable through every session phase. While the waiting line
@@ -634,7 +635,19 @@ struct AccountSectionView: View {
         // V13b: the sentence is the primary chip and the second chip trails it as a glyph.
         // `setupRowChips` never returns more than two.
         return Group {
-            if let primary = chips.first {
+            if let primary = chips.first,
+               let presentation = Self.oneLinePresentation(presentation, primary: primary,
+                                                           hasFailureMessage: hasFailureMessage) {
+                // CA-P5: the typed recovery as one line that names its action. A signed-out
+                // extra's "Sign in with the official Claude Code" wrapped onto two lines.
+                CardRowAction(
+                    presentation: presentation,
+                    severity: severity,
+                    accountLabel: account.label,
+                    primary: rowAction(primary),
+                    secondary: chips.dropFirst().first.map(rowAction)
+                )
+            } else if let primary = chips.first {
                 CardRowAction(
                     message: message,
                     severity: severity,
@@ -646,6 +659,20 @@ struct AccountSectionView: View {
                 StatusSentence(text: message, severity: severity)
             }
         }
+    }
+
+    /// CA-P5: a row draws the one-line form only for the typed recovery it answers: no
+    /// failure sentence of the session's own, and the primary chip is that presentation's
+    /// action. Try Again, the untyped Sign In and a failure message keep their sentence.
+    static func oneLinePresentation(
+        _ presentation: ProviderRecoveryPresentation?,
+        primary: SetupRowChip,
+        hasFailureMessage: Bool
+    ) -> ProviderRecoveryPresentation? {
+        guard let presentation, !hasFailureMessage,
+              case .recovery(let action, _) = primary, action == presentation.primaryAction
+        else { return nil }
+        return presentation
     }
 
     private func rowAction(_ chip: SetupRowChip) -> CardRowButtonAction {

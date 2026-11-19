@@ -122,11 +122,17 @@ enum CodexSetupSession {
     }
 }
 
-struct CodexConnectCard: View {
+struct CodexConnectCard<Retained: View>: View {
     let action: CodexConnectionAction
     var presentation: ProviderRecoveryPresentation? = nil
     let onOpenSetup: () -> Void
     var onSecondaryAction: (() -> Void)? = nil
+    /// CA-P3 (UX-03): the old reading's "Last read …" chip on the title line. Set exactly when
+    /// `retained` draws something; the card lays `retained` out only then.
+    var retainedReadLabel: String? = nil
+    /// CA-P3 (UX-03): the retained meters, directly under the title rather than 300pt below
+    /// it under the instructions, so a number sits with its age.
+    @ViewBuilder let retained: Retained
 
     @Environment(\.colorScheme) private var scheme
 
@@ -137,13 +143,22 @@ struct CodexConnectCard: View {
                 ProviderLogoView(providerID: .codex, size: 20)
                 // R2C6: one verb. "Connect Codex" / "Reconnect Codex" named the same act
                 // the Claude card next to it called signing in.
+                // CA-P8 (POP-08): primary ink, as Claude's title is. The brand stays in the
+                // mark and the CTA, so the card spends its accent once.
                 Text(ProviderSignInCopy.cardTitle(for: .codex, again: reconnecting))
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(SetupCardMetrics.titleKerning)
-                    .foregroundStyle(ProviderStyle.textAccent(for: .codex, scheme: scheme))
+                if let retainedReadLabel {
+                    SetupCardReadChip(label: retainedReadLabel)
+                }
             }
+            if retainedReadLabel != nil {
+                retained
+                    .padding(.top, SetupCardMetrics.retainedGap)
+            }
+            // CA-P9 (COPY-03): Core's sentences, so "quick" and "reconnects" are gone.
             Text(reconnecting
-                 ? "Your Codex session needs a quick sign-in before usage can refresh."
+                 ? ProviderSignInCopy.codexSignedOutBody
                  : "See your remaining Codex usage right here.")
                 .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
@@ -152,7 +167,8 @@ struct CodexConnectCard: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, SetupCardMetrics.leadGap)
             // R2B2: the tertiary note tier, matching the Claude card's reassurance line.
-            Text("Sign-in stays in the official Codex CLI and browser. Headroom never sees your password.")
+            // CA-P9 (COPY-04): the privacy promise in the one shape both cards share.
+            Text(ProviderSignInCopy.privacyNote(for: .codex) ?? "")
                 .font(.system(size: SetupCardMetrics.noteSize))
                 .foregroundStyle(.tertiary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
@@ -200,7 +216,7 @@ struct CodexConnectCard: View {
             }
             step(1, "Terminal opens the official Codex login", dark: dark)
             step(2, "Finish signing in with ChatGPT in your browser", dark: dark)
-            step(3, "Come back — Headroom reconnects automatically", dark: dark)
+            step(3, ProviderSignInCopy.comeBackStep, dark: dark)
         }
     }
 
@@ -219,6 +235,49 @@ struct CodexConnectCard: View {
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+extension CodexConnectCard where Retained == EmptyView {
+    init(
+        action: CodexConnectionAction,
+        presentation: ProviderRecoveryPresentation? = nil,
+        onOpenSetup: @escaping () -> Void,
+        onSecondaryAction: (() -> Void)? = nil
+    ) {
+        self.init(action: action, presentation: presentation, onOpenSetup: onOpenSetup,
+                  onSecondaryAction: onSecondaryAction, retained: { EmptyView() })
+    }
+}
+
+extension CodexWaitingCard where Retained == EmptyView {
+    init(
+        mode: SetupHandoffMode = .standard,
+        phase: SetupWaitingPhase? = nil,
+        onReopen: @escaping () -> Void,
+        stopWaitingAccount: ProviderAccount? = nil,
+        onRemoveAccount: ((ProviderAccount) -> Void)? = nil
+    ) {
+        self.init(mode: mode, phase: phase, onReopen: onReopen, stopWaitingAccount: stopWaitingAccount,
+                  onRemoveAccount: onRemoveAccount, retained: { EmptyView() })
+    }
+}
+
+/// CA-P8 (COPY-06): the waiting Codex card's title, which the popover header's waiting
+/// fallback reads too, so the two can never name different acts.
+enum CodexWaitingCopy {
+    static func title(mode: SetupHandoffMode, phase: SetupWaitingPhase?) -> String {
+        phase?.copy.title ?? (mode == .deviceCode ? "Finish device-code sign-in…" : "Finish signing in…")
+    }
+}
+
+/// CA-P8 (POP-09): a setup card's metadata line, a 10pt glyph 5pt before 11pt text.
+struct SetupMetadataLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            configuration.icon
+            configuration.title
         }
     }
 }
@@ -242,9 +301,10 @@ struct CodexAccessRecoveryCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .codex, size: 20)
+                // CA-P8 (POP-08): primary ink, like every setup card title.
                 Text(kind == .permission ? "Allow Codex Access" : "Resolve Codex Storage")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(ProviderStyle.textAccent(for: .codex, scheme: scheme))
+                    .kerning(SetupCardMetrics.titleKerning)
             }
             Text(kind == .permission
                  ? "Headroom found the Codex sign-in file but macOS did not allow it to be read. Signing in again cannot repair this permission."
@@ -272,10 +332,18 @@ struct CodexAccessRecoveryCard: View {
     }
 }
 
-struct CodexWaitingCard: View {
+struct CodexWaitingCard<Retained: View>: View {
     var mode: SetupHandoffMode = .standard
     var phase: SetupWaitingPhase? = nil
     let onReopen: () -> Void
+    /// CA-P7 (POP-05): the session's Stop Waiting, hosted in this card's own action row beside
+    /// Reopen Terminal instead of in a second row appended after the whole body.
+    var stopWaitingAccount: ProviderAccount? = nil
+    /// CA-P14: passed through to Stop Waiting for a never-signed-in extra.
+    var onRemoveAccount: ((ProviderAccount) -> Void)? = nil
+    var retainedReadLabel: String? = nil
+    /// CA-P3 (UX-03): the retained meters, under the title.
+    @ViewBuilder let retained: Retained
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -285,7 +353,6 @@ struct CodexWaitingCard: View {
     }
 
     var body: some View {
-        let dark = scheme == .dark
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 6) {
                 ProviderLogoView(providerID: .codex, size: 20)
@@ -293,38 +360,58 @@ struct CodexWaitingCard: View {
                 // R7: the same title-slot vessel as Claude; setup phases own its motion.
                 HalftoneVesselView(state: .init(id: "codex-setup", level: loading.level),
                                   motion: loading.motion, width: 10, height: 16, columns: 4, rows: 8)
-                Text(phase?.copy.title ?? (mode == .deviceCode ? "Finish device-code sign-in…" : "Finish signing in…"))
+                // CA-P8 (POP-08): primary ink, matching Claude's waiting title.
+                Text(CodexWaitingCopy.title(mode: mode, phase: phase))
                     .font(.system(size: 15, weight: .semibold))
                     .kerning(SetupCardMetrics.titleKerning)
-                    .foregroundStyle(ProviderStyle.textAccent(for: .codex, scheme: scheme))
+                if let retainedReadLabel {
+                    SetupCardReadChip(label: retainedReadLabel)
+                }
             }
+            if retainedReadLabel != nil {
+                retained
+                    .padding(.top, SetupCardMetrics.retainedGap)
+            }
+            // CA-P9 (COPY-03): "will reconnect" was the retired verb.
             Text(mode == .deviceCode
-                 ? "Follow the device-code instructions in Terminal. Headroom will reconnect when Codex confirms it."
-                 : "Complete the ChatGPT sign-in in your browser. Headroom will reconnect when Codex confirms it.")
+                 ? ProviderSignInCopy.codexDeviceCodeWaitingBody
+                 : ProviderSignInCopy.codexBrowserWaitingBody)
                 .font(.system(size: SetupCardMetrics.bodySize))
                 .foregroundStyle(.secondary)
                 // PB11: 2pt on every line of popover prose that is allowed to wrap.
                 .lineSpacing(2)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, SetupCardMetrics.leadGap)
-            Label(mode == .deviceCode
-                  ? "Official Codex CLI · device code · file-backed sign-in"
-                  : "Official Codex CLI · file-backed sign-in", systemImage: "lock.shield")
-                .font(.system(size: SetupCardMetrics.noteSize, weight: .medium))
-                .padding(.vertical, 6)
-                .padding(.horizontal, 9)
-                .background(ClaudeSetupStyle.stepBackground(dark: dark), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ClaudeSetupStyle.stepBorder(dark: dark), lineWidth: 1))
-                .padding(.top, SetupCardMetrics.siblingGap)
+            // CA-P8 (POP-09): the trust line was drawn as a bordered, filled capsule with an
+            // icon, so it read as a button that did nothing and outranked the real chip below
+            // it. It is quiet metadata now: no container, 6pt above the action row.
+            Label {
+                Text(mode == .deviceCode
+                     ? "Official Codex CLI · device code · file-backed sign-in"
+                     : "Official Codex CLI · file-backed sign-in")
+                    .font(.system(size: SetupCardMetrics.noteSize))
+            } icon: {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 10))
+            }
+            .labelStyle(SetupMetadataLabelStyle())
+            .foregroundStyle(ProviderStyle.tertiaryText(scheme: scheme))
+            .padding(.top, SetupCardMetrics.siblingGap)
             // B3A/P4C/B3: same as the Claude waiting card — a thin chip, leading-aligned at
             // the card's foot, with no icon inside it.
             // R13/KTD12 (2026-09-19 sign-in plan): Check Now left every waiting surface. The
             // row is shared with Claude, and nothing the user could force is outstanding
             // while the official CLI still owns the Terminal window.
             // B3X: same as the Claude waiting card — the guided card's own leading edge.
-            CardActionRow(labelInset: 0) {
+            // CA-P7: Stop Waiting trails Reopen Terminal on the same line, so the one decision
+            // is one row.
+            CardActionRow(topPadding: SetupCardMetrics.metadataToActionGap, labelInset: 0) {
                 Button("Reopen Terminal", action: onReopen)
                     .buttonStyle(SetupChipButtonStyle(size: .small))
+                if let stopWaitingAccount {
+                    StopWaitingButton(account: stopWaitingAccount, style: .chip(.small),
+                                      onRemoveAccount: onRemoveAccount)
+                }
             }
             CodexManualCommandDisclosure()
                 .padding(.top, SetupCardMetrics.siblingGap)

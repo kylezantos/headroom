@@ -41,11 +41,9 @@ public enum AboutLinks {
     )
 
     /// Headroom is free but not open source, so this is deliberately not "free and open source".
-    public static let tipJarNote =
-        "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe."
-
-    /// The one-line description under the name in the About header.
-    public static let tagline = "AI usage limits + API spend right from your menu bar"
+    /// CA-S8 (COPY-12): one plain sentence pair. It is the sidebar Tip Jar's help tag now that
+    /// General's About no longer carries a tip row (CA-S6).
+    public static let tipJarNote = "Headroom is free. Tips go through Stripe."
 
     public static let makerName = "Kyle Zantos"
 
@@ -60,8 +58,10 @@ public enum AboutLinks {
     /// The phone's About header line. The phone has no tip jar this round (S4-C).
     public static let companionTagline = "iPhone & iPad companion"
 
-    /// The "Made by" rows, in display order. GitHub is the profile, not the repo: the
-    /// repository is private, so a repo link would 404 for everyone but its owner.
+    /// The "Made by" links, in display order. CA-S6: General's About prints them inline on
+    /// one "Made by Kyle Zantos" row, each its own button, with the same destinations.
+    /// GitHub is the profile, not the repo: the repository is private, so a repo link would
+    /// 404 for everyone but its owner.
     public static let maker: [AboutLink] = [
         AboutLink(title: "Website", destination: "zantos.co", url: "https://zantos.co"),
         AboutLink(title: "LinkedIn", destination: "in/kylezantos", url: "https://www.linkedin.com/in/kylezantos"),

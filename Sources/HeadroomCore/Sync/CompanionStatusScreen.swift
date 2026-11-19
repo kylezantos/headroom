@@ -99,20 +99,23 @@ public enum CompanionStatusAction: Equatable, Sendable {
 
 /// U10's phone copy (R2C6: curly apostrophes, one sign-in verb, no "connect").
 public enum CompanionStatusCopy {
-    public static let waitingTitle = "Waiting for Mac"
+    /// CA-I6 (COPY-10): the four titles a widget shows for the same cause, in the Title Case
+    /// a full-screen iOS title takes, derived so the two surfaces cannot drift again. WCW4
+    /// retired "Companion" and "Snapshot" from the widgets; the app kept them.
+    public static let waitingTitle = titleCased(WidgetStatusState.iosWaitingForMac.title)
     public static let waitingMessage = "Open Headroom on your Mac to start syncing your usage to this device."
-    public static let pausedTitle = "Companion Sync Paused"
+    public static let pausedTitle = titleCased(WidgetStatusState.iosDisabled.title)
     /// G8: the switch's name as the Mac prints it, and where it lives.
     public static let pausedMessage =
         "Turn on Sync usage to iPhone in Headroom on your Mac, under Settings › Widgets & iPhone."
     public static let iCloudUnavailableTitle = "iCloud Not Available"
     public static let iCloudUnavailableMessage =
         "Sign in to iCloud on this device and on your Mac with the same Apple Account."
-    public static let unreadableTitle = "Snapshot Unreadable"
+    public static let unreadableTitle = titleCased(WidgetStatusState.iosCorrupt.title)
     /// Never "publish a fresh snapshot": nothing on the Mac is called that.
     public static let unreadableMessage =
         "This device couldn’t read your Mac’s last update. Open Headroom on your Mac to send a new one."
-    public static let updatePhoneTitle = "Update Needed"
+    public static let updatePhoneTitle = titleCased(WidgetStatusState.iosIncompatibleSchema.title)
     public static let updatePhoneMessage = "Update Headroom on this iPhone to read your Mac’s usage."
     public static let updateMacTitle = "Update Headroom on your Mac"
     public static let updateMacMessage = "This iPhone needs a newer version of Headroom on your Mac."
@@ -123,6 +126,19 @@ public enum CompanionStatusCopy {
     public static let openAppStore = "Open App Store"
     public static let exploreDemo = "Explore Demo"
     public static let exploreDemoHint = "Shows sample usage. Nothing is read from your Mac or iCloud."
+
+    /// Title Case as Apple's style applies it: every word capitalized except articles, short
+    /// conjunctions and short prepositions after the first ("Waiting for Your Mac",
+    /// "Couldn’t Read the Data"). Words that already carry capitals ("iCloud") are kept.
+    static func titleCased(_ sentence: String) -> String {
+        let minor: Set<String> = ["a", "an", "the", "and", "or", "but", "for", "of", "on", "in", "to", "at", "by"]
+        return sentence.split(separator: " ", omittingEmptySubsequences: false).enumerated().map { index, word in
+            let text = String(word)
+            guard let first = text.first, first.isLowercase, !text.contains(where: \.isUppercase) else { return text }
+            if index > 0, minor.contains(text) { return text }
+            return first.uppercased() + text.dropFirst()
+        }.joined(separator: " ")
+    }
 
     static var all: [String] {
         [

@@ -35,9 +35,25 @@ struct AboutLinksTests {
 }
 
 extension AboutLinksTests {
-    @Test func headerAndTipJarCopyAreTheApprovedWording() {
-        #expect(AboutLinks.tagline == "AI usage limits + API spend right from your menu bar")
-        #expect(AboutLinks.tipJarNote == "Headroom is free. If you find it useful, tips are always appreciated. Processed through Stripe.")
+    /// CA-S8 (COPY-12): the sidebar Tip Jar's help tag. The About tagline was retired with
+    /// the three-row About (CA-S6).
+    @Test func tipJarCopyIsTheApprovedWording() {
+        #expect(AboutLinks.tipJarNote == "Headroom is free. Tips go through Stripe.")
+    }
+
+    /// CA-S6: the three-row About and the sidebar's one Tip Jar keep every destination they
+    /// had: the feedback address, the four maker profiles in order, and the tip path.
+    @Test func theSlimAboutKeepsTodaysDestinations() {
+        #expect(FeedbackEmail.address == "support@zantos.co")
+        #expect(AboutLinks.makerName == "Kyle Zantos")
+        #expect(AboutLinks.maker.map(\.title) == ["Website", "LinkedIn", "X", "GitHub"])
+        #expect(AboutLinks.maker.map(\.url.absoluteString) == [
+            "https://zantos.co",
+            "https://www.linkedin.com/in/kylezantos",
+            "https://x.com/kylezantos",
+            "https://github.com/kylezantos",
+        ])
+        #expect(AboutLinks.tipJar.url.absoluteString == "https://headroom.zantos.co/tip")
     }
 }
 

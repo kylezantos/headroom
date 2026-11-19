@@ -401,4 +401,46 @@ struct PreferencesTests {
         prefs.apiSpendPeriod = .rolling30Days
         #expect(prefs.apiSpendPeriod == .rolling30Days)
     }
+    // MARK: Menu-bar marks (CA-MB1, CA-MB2, KTD7)
+
+    @Test func menuBarMarksPreferenceIsUnsetUntilChosenAndRoundTrips() {
+        let prefs = Preferences(defaults: freshDefaults())
+        #expect(prefs.showMenuBarMarks == nil)
+        prefs.showMenuBarMarks = false
+        #expect(prefs.showMenuBarMarks == false)
+        prefs.showMenuBarMarks = true
+        #expect(prefs.showMenuBarMarks == true)
+        prefs.showMenuBarMarks = nil
+        #expect(prefs.showMenuBarMarks == nil)
+    }
+
+    /// KTD7: unset resolves on for two or more explicit pills and off for one; a value the
+    /// user chose wins either way.
+    @Test func unsetMarksResolveOnForTwoOrMorePillsAndAChosenValueWins() {
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 0) == false)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 1) == false)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 2) == true)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 6) == true)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: true, explicitPillCount: 1) == true)
+        #expect(MenuBarMarksPolicy.explicitPillsMarked(preference: false, explicitPillCount: 3) == false)
+    }
+
+    /// KTD7: the automatic summary is one pill that changes meaning, so it is always marked.
+    /// Checked against the rule the bar runs (`MenuBarMeter.showsMark`), not a copy of it.
+    @Test func theAutomaticSummaryIsMarkedWhateverThePreferenceSays() {
+        func meter(automatic: Bool) -> MenuBarMeter {
+            MenuBarMeter(summary: MenuBarSummary(text: "72%", providerID: .claude, detail: nil, isNeutral: false),
+                         fill: 0.72, isAutomaticSummary: automatic)
+        }
+        for preference in [nil, true, false] as [Bool?] {
+            for count in [0, 1] {
+                let marked = MenuBarMarksPolicy.explicitPillsMarked(preference: preference, explicitPillCount: count)
+                #expect(meter(automatic: true).showsMark(explicitPillsMarked: marked))
+            }
+        }
+        #expect(!meter(automatic: false).showsMark(
+            explicitPillsMarked: MenuBarMarksPolicy.explicitPillsMarked(preference: false, explicitPillCount: 3)))
+        #expect(!meter(automatic: false).showsMark(
+            explicitPillsMarked: MenuBarMarksPolicy.explicitPillsMarked(preference: nil, explicitPillCount: 1)))
+    }
 }

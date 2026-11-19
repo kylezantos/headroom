@@ -81,6 +81,36 @@ struct PhoneUsageScreenTests {
         #expect(!line.text.localizedCaseInsensitiveContains("asleep"))
     }
 
+    /// CA-I2: the header slot keeps a short stamp in the widgets' words; the whole sentence,
+    /// time included, moves to its own line, so nothing in it is ever cut.
+    @Test func aDimmedHeaderShowsTheShortStampAndTheWholeSentenceBelow() throws {
+        let content = try content(.dimmed)
+        let line = MirrorPresentation.freshness(content, shownWindows: allWindows, now: now, timeZone: utc, locale: posix)
+        let heard = WidgetClockText.text(for: now.addingTimeInterval(-2 * 3_600), now: now, timeZone: utc, locale: posix)
+        #expect(line.headerText == "Last update \(heard)")
+        #expect(line.sentence == "No update from your Mac since \(heard)")
+        #expect(line.sentence?.hasSuffix(heard) == true, "the time is the answer and must be in the line")
+
+        let live = MirrorPresentation.freshness(try self.content(.multiAccount), shownWindows: allWindows, now: now)
+        #expect(live.headerText == "Updated 2 min ago")
+        #expect(live.sentence == nil)
+    }
+
+    /// CA-P3 (phone half): a stale account's chip reads "Last read" with its age, never
+    /// "Stale"; a live account has no chip. The phone card hands `IdentityRow` the capture
+    /// time, and the row prints `Countdown.staleReadLabel`, so that is what is checked.
+    @Test func aStalePhoneAccountsChipReadsLastReadWithItsAge() throws {
+        let content = try content(.pastReset)
+        let accounts = content.providers.flatMap(\.accounts)
+        let stale = try #require(accounts.first { CompanionCardPresentation.showsStaleChip($0) })
+        let label = Countdown.staleReadLabel(capturedAt: stale.capturedAt, now: now)
+        #expect(label == Countdown.lastReadLabel(capturedAt: stale.capturedAt, now: now))
+        #expect(label.hasPrefix("Last read "))
+        #expect(!label.localizedCaseInsensitiveContains("stale"))
+        let live = try #require(accounts.first { $0.freshness == .live })
+        #expect(!CompanionCardPresentation.showsStaleChip(live))
+    }
+
     /// AE5 / KTD15: a stale row under a dimmed surface is demoted once, exactly like a live
     /// row; a row is dimmed or it isn't.
     @Test func surfaceDimmingAndRowStaleDemoteOnce() {
@@ -129,7 +159,7 @@ struct PhoneUsageScreenTests {
     // MARK: Spend rows (P45–P53)
 
     @Test func spendRowsResolveThePopoverDecisions() throws {
-        let rows = try content(.multiAccount).apiSpend.map(CompanionSpendRowModel.init)
+        let rows = try content(.multiAccount).apiSpend.map { CompanionSpendRowModel($0) }
         #expect(rows.map(\.title) == ["Anthropic API", "OpenAI API"])
         #expect(rows.map(\.amount) == ["$142.67", "$58.90"])
         #expect(rows.allSatisfy { $0.snapshot.freshness == .live && $0.status.message == nil })
@@ -138,21 +168,22 @@ struct PhoneUsageScreenTests {
     }
 
     @Test func aRetainedSpendRowIsNotLiveAndCarriesItsStaleTag() throws {
-        let rows = try content(.staleSpend).apiSpend.map(CompanionSpendRowModel.init)
+        let rows = try content(.staleSpend).apiSpend.map { CompanionSpendRowModel($0) }
         #expect(rows.count == 2)
         #expect(rows.allSatisfy { $0.snapshot.freshness != .live && $0.snapshot.freshness != .pending })
-        #expect(rows.allSatisfy { $0.status.shortBadge == "Stale" })
+        #expect(rows.allSatisfy { $0.status.shortBadge == Countdown.notRefreshedLabel })
         #expect(rows.allSatisfy { $0.amount != nil }, "a retained figure stays visible")
     }
 
-    /// X5: a balance row's "Remaining balance" outranks the name's qualifier.
+    /// X5: a balance row's "Balance" (CA-S8, was "Remaining balance") outranks the name's
+    /// qualifier.
     @Test func aBalanceRowKeepsRemainingBalanceOverTheQualifier() {
         let summary = WidgetAPISpendSummary(
             id: "grok", displayName: "xAI prepaid", amount: 12, currency: "usd", periodLabel: "October",
             kind: .balance, capturedAt: now, freshness: .live)
         let row = CompanionSpendRowModel(summary)
         #expect(row.title == "xAI")
-        #expect(row.contextLabel == "Remaining balance")
+        #expect(row.contextLabel == "Balance")
         #expect(APISpendPresentation.popoverIdentity(displayName: "xAI prepaid").chipOverride != nil,
                 "the name does carry a qualifier the balance label outranks")
     }

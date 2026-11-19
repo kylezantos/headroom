@@ -157,8 +157,10 @@ struct CompactAccountRowRecipeTests {
         #expect(result.shownWindows[1].window.freshness == .unavailable(since: observed))
         #expect(result.shownWindows[1].displayedPercentage == nil)
         #expect(result.shownWindows[1].shortLabel == "wk")
-        #expect(result.tooltip.contains("Last known 10 min ago"))
-        #expect(result.tooltip.contains("Weekly: Unavailable"))
+        // CA-P3/CA-P4: "Last read", and a never-read window says so instead of "Unavailable".
+        #expect(result.tooltip.contains("Last read 10 min ago"))
+        #expect(result.tooltip.contains("Weekly: No reading yet"))
+        #expect(!result.tooltip.contains("Last known"))
         #expect(!result.tooltip.contains("40%"))
     }
 
@@ -631,8 +633,9 @@ struct RememberedRowRecipeTests {
         #expect(recipe.lastReadLabel == "Last read 1 day ago")
     }
 
-    /// An engine row that is stale and has an unavailable window reads exactly as before.
-    @Test func anEngineRowKeepsItsStaleWordingAndNumbers() {
+    /// An engine row that is stale and has an unavailable window keeps its numbers. CA-P3:
+    /// its state phrase is "Last read" with its age, where it was a bare "Stale".
+    @Test func anEngineRowKeepsItsNumbersAndSaysWhenItWasRead() {
         let snapshot = agedSnapshot(readAgo: 2 * 60)
         let engine = compact(snapshot, remembered: false, lastReadAt: nil)
         let before = CompactAccountRowRecipe(
@@ -640,12 +643,51 @@ struct RememberedRowRecipeTests {
             requiresStandardSection: false, showsCodexSparkCounters: true
         )
         #expect(engine == before)
-        #expect(engine.rowStateLabel == "Stale")
+        #expect(engine.rowStateLabel == "Last read 2 min ago")
+        #expect(engine.rowStateHelp == Countdown.staleReadHelp)
         #expect(engine.lastReadLabel == nil)
         #expect(engine.shownWindows.map(\.displayedPercentage) == [nil, 10])
-        #expect(engine.tooltip.contains("Unavailable"))
-        #expect(engine.tooltip.contains("Last known 2 min ago"))
+        #expect(engine.tooltip.contains("No reading yet"))
+        #expect(engine.tooltip.contains("Last read 2 min ago"))
+        #expect(!engine.tooltip.contains("Stale"))
         #expect(!engine.tooltip.contains("not read since"))
+    }
+
+    /// CA-P3: a stale engine row whose reading nothing dated says "Not refreshed".
+    @Test func anUndatedStaleRowSaysNotRefreshed() {
+        let undated = UsageSnapshot(
+            providerID: .codex,
+            windows: [window(.weekly, used: 10, resetIn: day, freshness: .live)],
+            planLabel: nil, capturedAt: nil, freshness: .stale(.transient("x"))
+        )
+        let recipe = compact(undated, remembered: false, lastReadAt: nil)
+        #expect(recipe.rowStateLabel == "Not refreshed")
+    }
+
+    /// CA-P4: Copilot's no-reading row says "No reading yet" and makes no claim about use
+    /// this month, which would be wrong for a zero or unlimited entitlement.
+    @Test func copilotsNoReadingRowSaysNoReadingYet() {
+        let monthly = BillingPeriodWindowClassifier.kind(periodType: "monthly", durationSeconds: nil)
+        let copilot = UsageSnapshot(
+            providerID: .copilot,
+            windows: [UsageWindow(kind: monthly, utilization: 0, resetSchedule: .unresolved(.absent),
+                                  freshness: .unavailable(since: now.addingTimeInterval(-day)))],
+            planLabel: nil, capturedAt: now, freshness: .live
+        )
+        let recipe = compact(copilot, remembered: false, lastReadAt: nil)
+        #expect(recipe.shownWindows.map(\.displayedPercentage) == [nil])
+        #expect(recipe.tooltip == "Monthly: No reading yet")
+        #expect(!recipe.tooltip.localizedCaseInsensitiveContains("use"))
+    }
+
+    /// CA-I10: a long model row's short name keeps its period; other names have none.
+    @Test func aLongModelRowHasAShortName() {
+        #expect(CompactAccountRowRecipe.shortDisplayName(for: .other("GPT-5.3-Codex-Spark weekly")) == "Spark · Weekly")
+        #expect(CompactAccountRowRecipe.shortDisplayName(for: .other("GPT-5.3-Codex-Spark 5h")) == "Spark · 5-hour")
+        #expect(CompactAccountRowRecipe.shortDisplayName(for: .other("Weekly (Fable)")) == nil)
+        #expect(CompactAccountRowRecipe.shortDisplayName(for: .other("gpt-5 weekly")) == nil)
+        #expect(CompactAccountRowRecipe.shortDisplayName(for: .weekly) == nil)
+        #expect(CompactAccountRowRecipe.shortDisplayName(for: .billingPeriod(label: "Cursor Models", duration: 0)) == nil)
     }
 
     @Test func aLiveEngineRowHasNoStateWord() {

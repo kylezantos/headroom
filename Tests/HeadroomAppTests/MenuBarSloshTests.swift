@@ -114,6 +114,29 @@ import HeadroomCore
         #expect(liveDefault.tiffRepresentation == liveSolid.tiffRepresentation)
     }
 
+    /// CA-MB1: only the liquid moves. Ghost, print, blend and every wave frame leave the
+    /// provider mark's pixels exactly where they were.
+    @Test func theMarkSitsStillWhileThePillSloshesOrShowsItsGhost() throws {
+        let poses: [MenuBarSlosh.Presentation] = [.init(ink: .solid), .init(ink: .ghost),
+            .init(ink: .printing(frame: 1)), .init(ink: .crossfade(frame: 2))]
+            + (0..<LoadingMotionConstants.sloshFrameCount).map { .init(ink: .solid, wavePhase: $0) }
+            + (0..<LoadingMotionConstants.sloshFrameCount).map { .init(ink: .ghost, wavePhase: $0) }
+        for dark in [true, false] {
+            let palette = MenuBarPalette(isDarkMenuBar: dark)
+            for pending in [true, false] {
+                let marks = try poses.map { pose -> [[UInt8]] in
+                    let image = MenuBarLabelRenderer.render(meters: [meter(pending: pending, live: !pending)],
+                        showsPercentage: true, palette: palette, presentations: [.provider(.claude): pose],
+                        showsMarks: true).image
+                    return MenuBarMarkRenderTests.columns(try MenuBarMarkRenderTests.bitmap(image, scale: 2),
+                        from: 0, to: MenuBarLabelGeometry.markBoxSize, scale: 2)
+                }
+                #expect(marks.allSatisfy { $0 == marks[0] }, "dark \(dark) pending \(pending)")
+                #expect(marks[0].contains { $0[3] > 0 })
+            }
+        }
+    }
+
     @Test func finishWaveUsesTheActualProbeEndAndHiddenProvidersDoNotTick() {
         let motion = MenuBarSlosh(autoTick: false)
         let pending = meter(pending: true)

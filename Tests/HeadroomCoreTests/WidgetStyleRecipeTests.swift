@@ -244,6 +244,81 @@ struct WidgetStyleRecipeTests {
         }
     }
 
+    // MARK: Liquid Level surface edge (CA-W1, option A)
+
+    /// The two tile heights each family is drawn at: iPhone 6.1″ and the Mac / 6.7″ iPhone.
+    static let smallHeights: [Double] = [158, 170]
+    static let largeHeights: [Double] = [354, 382]
+
+    @Test func smallSurfaceEdgeDropsWhereItCrossesTheNumeral() throws {
+        let crossing = try #require(F.recipe(.liquidLevel, .small, [F.claude(weekly: 38)]).washSegments.first)
+        let clear = try #require(F.recipe(.liquidLevel, .small, [F.claude(weekly: 70)]).washSegments.first)
+        for height in Self.smallHeights {
+            #expect(!crossing.showsEdge(tileHeight: height, typeUnit: 1), "38% at \(height)")
+            #expect(clear.showsEdge(tileHeight: height, typeUnit: 1), "70% at \(height)")
+        }
+    }
+
+    @Test func smallSurfaceEdgeDropsAcrossTheIdentityRowToo() throws {
+        let segment = try #require(F.recipe(.liquidLevel, .small, [F.claude(weekly: 86)]).washSegments.first)
+        for height in Self.smallHeights {
+            #expect(!segment.showsEdge(tileHeight: height, typeUnit: 1), "86% at \(height)")
+        }
+    }
+
+    @Test func largeSurfaceEdgeDropsOnlyInTheColumnWhoseCountdownItCrosses() throws {
+        let recipe = F.recipe(.liquidLevel, .large, [F.claude(weekly: 38), F.codex(weekly: 64)])
+        let claude = try #require(recipe.washSegments.first { $0.providerID == "claude" })
+        let codex = try #require(recipe.washSegments.first { $0.providerID == "codex" })
+        for height in Self.largeHeights {
+            #expect(!codex.showsEdge(tileHeight: height, typeUnit: 1), "Codex 64% at \(height)")
+            #expect(claude.showsEdge(tileHeight: height, typeUnit: 1), "Claude 38% at \(height)")
+        }
+    }
+
+    @Test func largeSurfaceEdgeDropsAcrossTheRowsAboveTheFooter() throws {
+        let recipe = F.recipe(.liquidLevel, .large, [F.claude(weekly: 12), F.codex(weekly: 64)])
+        let claude = try #require(recipe.washSegments.first { $0.providerID == "claude" })
+        for height in Self.largeHeights {
+            #expect(!claude.showsEdge(tileHeight: height, typeUnit: 1), "Claude 12% at \(height)")
+        }
+    }
+
+    @Test func largerTextWidensTheBandsItScales() throws {
+        // 55% on a 158pt small tile clears the numeral at the default size; the caption under
+        // it grows with Dynamic Type and lifts the numeral into the surface.
+        let segment = try #require(F.recipe(.liquidLevel, .small, [F.claude(weekly: 55)]).washSegments.first)
+        #expect(segment.showsEdge(tileHeight: 158, typeUnit: 1))
+        #expect(!segment.showsEdge(tileHeight: 158, typeUnit: 1.6))
+    }
+
+    @Test func dimmedSmallLiftsTheNumeralBandAboveTheDimmedLine() throws {
+        // The dimmed sentence takes the foot of the tile, so the numeral sits a line higher.
+        let plain = try #require(F.recipe(.liquidLevel, .small, [F.claude(weekly: 55)]).washSegments.first)
+        let dimmed = try #require(WidgetFreshnessRecipeTests.recipe(
+            .liquidLevel, .small, [F.claude(weekly: 55)],
+            WidgetFreshnessRecipeTests.treatment(dimmedSince: F.now.addingTimeInterval(-3_600))
+        ).washSegments.first)
+        #expect(plain.showsEdge(tileHeight: 170, typeUnit: 1))
+        #expect(!dimmed.showsEdge(tileHeight: 170, typeUnit: 1))
+    }
+
+    @Test func openCodeSurfaceFollowsTheSameRule() throws {
+        let opencode = F.provider("opencode", "OpenCode", [
+            F.window(.fiveHour, label: "5h", percent: 80),
+            F.window(.weekly, label: "Weekly", percent: 38, resetIn: 3 * 86_400),
+            F.window(.other("Monthly"), label: "Monthly", percent: 90, resetIn: 19 * 86_400, billingPeriod: F.month),
+        ])
+        let segment = try #require(F.recipe(.liquidLevel, .small, [opencode]).washSegments.first)
+        #expect(segment.fraction == 0.38)
+        #expect(!segment.showsEdge(tileHeight: 158, typeUnit: 1))
+        // CA-W5: Monthly is a subscription window, not a model row, so no rung sheds it.
+        let large = try #require(F.recipe(.nestedMeter, .large, [opencode]).providers.first)
+        for rung in 0..<large.secondaryLadder.count {
+            #expect(large.secondary(atRung: rung).contains { $0.label == "Monthly" })
+        }
+    }
+
     // MARK: Spend and footer (R14)
 
     @Test func spendAndFooterShowOnLargeOnly() {
@@ -644,7 +719,15 @@ struct WidgetFreshnessRecipeTests {
         let since = F.now.addingTimeInterval(-90 * Self.minute)
         let time = WidgetClockText.text(for: since, now: F.now, timeZone: Self.utc, locale: Self.us)
         let phone = Self.recipe(.liquidLevel, .small, [F.claude()], Self.treatment(dimmedSince: since))
-        #expect(phone.dimmedCaptions == ["No update from your Mac since \(time)", "No update since \(time)", "Since \(time)"])
+        // CA-W4: small's last rungs name what is old ("Last update"), never a bare "Since".
+        #expect(phone.dimmedCaptions == ["No update from your Mac since \(time)", "No update since \(time)",
+                                         "Last update \(time)", "Updated \(time)"])
+        #expect(phone.dimmedCaptions.allSatisfy { !$0.hasPrefix("Since") })
+        let early = F.now.addingTimeInterval(-(6 * 3_600 + 35 * 60))
+        let earlyTime = WidgetClockText.text(for: early, now: F.now, timeZone: Self.utc, locale: Self.us)
+        #expect(earlyTime.replacingOccurrences(of: "\u{202F}", with: " ") == "1:25 AM")
+        let earlyMorning = Self.recipe(.nestedMeter, .small, [F.claude()], Self.treatment(dimmedSince: early))
+        #expect(earlyMorning.dimmedCaptions.suffix(2) == ["Last update \(earlyTime)", "Updated \(earlyTime)"])
         #expect(phone.dimmedCaptions.allSatisfy { !$0.localizedCaseInsensitiveContains("asleep") })
         let mac = Self.recipe(.liquidLevel, .small, [F.claude()], Self.treatment(dimmedSince: since, host: .mac))
         #expect(mac.dimmedCaptions.first == "No update from Headroom since \(time)")

@@ -50,7 +50,8 @@ final class ResponsiveLayoutUITests: XCTestCase {
         let anthropic = spendIdentity(app, "Anthropic API")
         XCTAssertTrue(anthropic.waitForExistence(timeout: 5))
         XCTAssertTrue(anthropic.label.contains("$142.67 used"), "a retained figure stays visible")
-        XCTAssertTrue(anthropic.label.contains("Stale"), "got \(anthropic.label)")
+        // CA-P3: the retried figure says how old it is (the demo reads it three hours back).
+        XCTAssertTrue(anthropic.label.contains("Last read"), "got \(anthropic.label)")
         let row = app.descendants(matching: .any)["headroom.spend.claude"]
         XCTAssertGreaterThan(row.frame.maxY, anthropic.frame.maxY, "the sentence sits under the identity line")
     }

@@ -1,6 +1,7 @@
 #if SWIFT_PACKAGE
 import HeadroomSharedUI
 #endif
+import AppKit
 import SwiftUI
 import HeadroomCore
 
@@ -103,7 +104,7 @@ struct SavedCredentialStatus: View {
 }
 
 /// The row-tag capsule: 10pt medium secondary ink on the step material. Shared so the
-/// Accounts tags ("CLI login", "Same login as X") and the Menu Bar pane's "Off" tag
+/// Accounts tags ("Default", "Same login as X") and the Menu Bar pane's "Off" tag
 /// cannot drift into two badge styles for one role.
 struct SettingsPillBadge: View {
     let text: String
@@ -116,6 +117,63 @@ struct SettingsPillBadge: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 5).padding(.vertical, 1)
             .background(ClaudeSetupStyle.stepBackground(dark: colorScheme == .dark), in: Capsule())
+    }
+}
+
+/// CA-S2: the window's one text-link look, taken from the About rows' `SettingsOutboundRow`:
+/// 11pt secondary ink that rises to primary on hover, with `arrow.up.right` after a link that
+/// leaves Headroom. It replaces `.buttonStyle(.link)` and `Link`, which drew system blue,
+/// the loudest ink in Settings.
+struct SettingsInlineLink: View {
+    let title: String
+    var systemImage: String?
+    /// Leaves Headroom (browser, App Store): the trailing arrow says so.
+    var isOutbound = false
+    let action: () -> Void
+
+    @State private var isHovered = false
+    @Environment(\.isEnabled) private var isEnabled
+
+    init(_ title: String, systemImage: String? = nil, action: @escaping () -> Void) {
+        self.title = title
+        self.systemImage = systemImage
+        self.action = action
+    }
+
+    /// An outbound link opened in the user's browser.
+    init(_ title: String, destination: URL) {
+        self.title = title
+        self.systemImage = nil
+        self.isOutbound = true
+        self.action = { NSWorkspace.shared.open(destination) }
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(.system(size: 10, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+                Text(title)
+                if isOutbound {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+            }
+            .font(SettingsType.help)
+            .foregroundStyle(isHovered && isEnabled ? .primary : .secondary)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            withAnimation(inside ? HeadroomMotion.rowHoverIn : HeadroomMotion.rowHoverOut) {
+                isHovered = inside
+            }
+        }
+        .accessibilityAddTraits(isOutbound ? .isLink : .isButton)
     }
 }
 
@@ -148,6 +206,16 @@ enum SettingsMetrics {
     /// Siblings inside one group — account rows, a switch's indented sub-options, a key
     /// editor's parts. Tighter than `groupToGroup`, so the group still reads as one unit.
     static let withinGroup: CGFloat = 8
+}
+
+/// CA-S11 (revisits L12B, T7 and the CMM pass's 150pt In-app swatch): two swatch widths
+/// for the whole window, on one 8pt gap. The meter rows use the compact width; every other
+/// swatch picker uses the wide one, which spans exactly two compact columns, so the grids in
+/// one pane share column lines instead of running four rhythms.
+enum SettingsSwatchWidth {
+    static let compact: CGFloat = 76
+    static let gap: CGFloat = 8
+    static let wide: CGFloat = 2 * compact + gap
 }
 
 /// T1 (2026-09-24 type audit): the window's type ramp, one role per step. Seven roles used
@@ -201,7 +269,7 @@ enum SettingsCopy {
     /// The same notice as a clause after the Menu Bar pane's "Off" tag, derived rather than
     /// retyped so VoiceOver and the tooltip stay one sentence.
     static let providerOffAccessibilityLabel =
-        "Off — " + providerOffNotice.prefix(1).lowercased() + providerOffNotice.dropFirst()
+        "Off, " + providerOffNotice.prefix(1).lowercased() + providerOffNotice.dropFirst()
 
     /// KTD21 (OpenCode plan): one OpenCode home sees only the Console workspace its client has
     /// active. Visible help under the OpenCode group in Settings › Accounts, and the planned
@@ -437,15 +505,33 @@ private struct SettingsSelectionGroup<Value: Equatable>: ViewModifier {
     }
 }
 
-/// SM1: the travelling plate: an accent fill under a 2pt accent ring.
+/// CA-S2 (overturns the pre-ship audit's accent decision): the selection plate is primary
+/// ink, not the system accent. The phone's ring was already label ink (DESIGN.md); with the
+/// accent, Appearance marked up to eight current values in equal blue and none read as
+/// current. Switches stay native: they are the one place the accent still says "on".
+enum SettingsSelectionInk {
+    /// 1.5pt at 0.85 primary: a ring that reads at a glance without a colour.
+    static let ringOpacity: Double = 0.85
+    static let ringWidth: CGFloat = 1.5
+
+    static var ring: Color { Color.primary.opacity(ringOpacity) }
+
+    /// R2M6: a selected swatch deepens its own fill on hover rather than stacking a second
+    /// wash on top of it.
+    static func plateFill(hovering: Bool) -> Color {
+        Color.primary.opacity(hovering ? 0.07 : 0.045)
+    }
+}
+
+/// SM1: the travelling plate: an ink fill under the ink ring (CA-S2).
 private struct SettingsSelectionPlate: View {
     let hovering: Bool
 
     var body: some View {
         let shape = SettingsSelectionChrome.shape
         shape
-            .fill(SettingsSelectionChrome.plateFill(hovering: hovering))
-            .overlay { shape.strokeBorder(Color.accentColor, lineWidth: 2) }
+            .fill(SettingsSelectionInk.plateFill(hovering: hovering))
+            .overlay { shape.strokeBorder(SettingsSelectionInk.ring, lineWidth: SettingsSelectionInk.ringWidth) }
     }
 }
 
@@ -454,7 +540,7 @@ private struct SettingsSelectionPlate: View {
 /// ring, accent fill, and animation, so the three pickers standing side by side in
 /// Appearance could silently drift apart on any one edit.
 ///
-/// SM1 (2026-09-22): inside a `settingsSelectionGroup`, the accent ring and fill are one
+/// SM1 (2026-09-22): inside a `settingsSelectionGroup`, the ring and fill are one
 /// plate that slides from the old swatch to the new one, the way a segmented control's
 /// thumb does, instead of one ring fading out while another fades in two swatches away.
 /// Every unselected swatch keeps its own hairline and hover fill; the plate passes under them.
@@ -477,22 +563,16 @@ private struct SettingsSelectionChrome: ViewModifier {
 
     private var shape: RoundedRectangle { Self.shape }
 
-    /// R2M6: a selected swatch *deepens* its own accent fill rather than stacking a neutral
-    /// hover wash on top of it, so hover reads as one surface responding, not two.
-    static func plateFill(hovering: Bool) -> Color {
-        Color.accentColor.opacity(hovering ? 0.12 : 0.08)
-    }
-
     /// The per-swatch layer. With a travelling plate, a selected swatch's own layer goes
     /// quiet (clear fill, no hairline) because the row's plate under it draws the selected
     /// state; a hairline on top would cut into the plate's ring.
     private var fillColor: Color {
-        if isSelected { return travels ? .clear : Self.plateFill(hovering: hovering) }
+        if isSelected { return travels ? .clear : SettingsSelectionInk.plateFill(hovering: hovering) }
         return hovering ? Color.primary.opacity(0.05) : .clear
     }
 
     private var borderColor: Color {
-        if isSelected { return travels ? .clear : .accentColor }
+        if isSelected { return travels ? .clear : SettingsSelectionInk.ring }
         return hovering
             ? Color.primary.opacity(0.14)
             : ClaudeSetupStyle.hairline(dark: colorScheme == .dark)
@@ -516,7 +596,7 @@ private struct SettingsSelectionChrome: ViewModifier {
                 shape
                     .fill(fillColor)
                     .overlay {
-                        shape.strokeBorder(borderColor, lineWidth: isSelected && !travels ? 2 : 1)
+                        shape.strokeBorder(borderColor, lineWidth: isSelected && !travels ? SettingsSelectionInk.ringWidth : 1)
                     }
             }
             // SP1: inside the button label, so the anchor carries the press scale and the
@@ -558,20 +638,25 @@ private struct SettingsRevealTransitionModifier: ViewModifier {
         content
             .opacity(active ? 0 : 1)
             .offset(y: active ? 4 : 0)
-            .blur(radius: active ? 1.5 : 0)
+            .blur(radius: active ? HeadroomMotion.revealBlur : 0)
     }
 }
 
 extension AnyTransition {
     /// Enter with the settle vocabulary (opacity + 4pt rise + slight blur), exit
     /// opacity-only — exits softer than enters.
+    ///
+    /// CA-M2 (KTD8): the removal carries its own `partOut` (80ms). Without it the exit
+    /// inherited the scope's animation (`settle`, or `reorder` in the popover), so a removed
+    /// row was still half drawn while its neighbours slid up through it. The gap still
+    /// closes on the scope's own curve.
     static var settingsReveal: AnyTransition {
         .asymmetric(
             insertion: .modifier(
                 active: SettingsRevealTransitionModifier(active: true),
                 identity: SettingsRevealTransitionModifier(active: false)
             ),
-            removal: .opacity
+            removal: AnyTransition.opacity.animation(HeadroomMotion.partOut)
         )
     }
 
@@ -583,8 +668,13 @@ extension AnyTransition {
     ///
     /// RM1: under Reduce Motion the fade carries its own `settle`, so the scope that inserts
     /// it can resolve as `.movement` and let the height snap.
+    /// CA-M2: the Reduce Motion fade leaves on `partOut` as well.
     static func settingsReveal(reduceMotion: Bool) -> AnyTransition {
-        reduceMotion ? HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: true) : .settingsReveal
+        guard reduceMotion else { return .settingsReveal }
+        return .asymmetric(
+            insertion: HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: true),
+            removal: AnyTransition.opacity.animation(HeadroomMotion.partOut)
+        )
     }
 
     /// SM2: the Settings pane switch. The incoming pane fades in out of a slight blur on
@@ -623,6 +713,9 @@ struct MenuBarPreviewPill: View {
     let showsPercentage: Bool
     /// `.compact` only in a pill card too narrow for the standard pill.
     var metrics: MenuBarPillMetrics = .standard
+    /// CA-MB1: the label's "shows marks" input (`UsageStore.menuBarShowsMarks` for the live
+    /// preview). An automatic-summary meter is marked whatever this says (CA-MB2).
+    var showsMarks = false
 
     var body: some View {
         // PB13: read inside `body` so the observation registers here and the plate repaints
@@ -631,7 +724,7 @@ struct MenuBarPreviewPill: View {
         // KTD13: pending mains preview the static ghost; real readings and value-choice
         // specimens keep their meaningful fills. Palette follows the bar, motion never does.
         return MenuBarLabel(meters: meters, showsPercentage: showsPercentage, appearance: .menuBar,
-                            motionEnabled: false, metrics: metrics)
+                            motionEnabled: false, metrics: metrics, showsMarks: showsMarks)
             .menuBarPreviewPlate(darkMenuBar: darkMenuBar, horizontalPadding: metrics.plateHorizontalPadding)
     }
 }

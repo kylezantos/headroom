@@ -29,13 +29,10 @@ struct ThemeThumbnailPicker: View {
         // framed from the selected swatch's layout anchor (`SettingsSelectionGroup`), verified
         // in a macOS 15.7.7 VM and guarded by `SettingsSelectionPlateTests`. See
         // `docs/solutions/ui/settings-matched-geometry-crash-macos15.md`.
-        LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 8) {
-            ForEach(AppearancePreference.allCases) { preference in
-                thumbnail(preference)
-            }
+        ViewThatFits(in: .horizontal) {
+            grid(columnWidth: SettingsSwatchWidth.wide)
+            grid(columnWidth: Self.narrowColumnWidth)
         }
-        // SM1: the selection plate slides between thumbnails.
-        .settingsSelectionGroup(value: selection)
         .accessibilityRepresentation {
             Picker("Theme", selection: $selection) {
                 ForEach(AppearancePreference.allCases) { preference in
@@ -45,16 +42,34 @@ struct ThemeThumbnailPicker: View {
         }
     }
 
-    private static let columns = [
-        GridItem(
-            .adaptive(minimum: ThemeThumbnailPicker.artWidth + 10,
-                      maximum: ThemeThumbnailPicker.artWidth + 36),
-            spacing: 8
-        )
-    ]
+    /// CA-S11 (revisits T7's adaptive 106–132pt columns): three fixed columns at the window's
+    /// wide swatch, so Theme lands on the In-app display grid below and on two meter columns
+    /// each. Three wide columns need 496pt; at the minimum window the tile's interior is
+    /// 438pt, so there the row falls back to three columns spanning the meter grid's five
+    /// (412pt) instead of wrapping the third thumbnail onto a row of its own.
+    private func grid(columnWidth: CGFloat) -> some View {
+        LazyVGrid(
+            columns: Array(
+                repeating: GridItem(.fixed(columnWidth), spacing: SettingsSwatchWidth.gap, alignment: .leading),
+                count: AppearancePreference.allCases.count
+            ),
+            alignment: .leading,
+            spacing: SettingsSwatchWidth.gap
+        ) {
+            ForEach(AppearancePreference.allCases) { preference in
+                thumbnail(preference)
+            }
+        }
+        // SM1: the selection plate slides between thumbnails.
+        .settingsSelectionGroup(value: selection)
+    }
 
-    /// Same chrome as `MeterStyleTile`'s shape/fill swatches — 8pt continuous ring, 2pt
-    /// accent when selected and a 1pt hairline otherwise, 11pt medium swatch label — so the
+    /// Five compact meter columns and their gaps, shared by three thumbnails.
+    private static let narrowColumnWidth: CGFloat =
+        (5 * SettingsSwatchWidth.compact + 4 * SettingsSwatchWidth.gap - 2 * SettingsSwatchWidth.gap) / 3
+
+    /// Same chrome as `MeterStyleTile`'s shape/fill swatches — the ink ring when selected
+    /// (CA-S2) and a 1pt hairline otherwise, 11pt medium swatch label — so the
     /// Appearance pane reads as one family of choices rather than two control languages.
     /// PB13: that chrome is now literally the same code (`selectionChrome`), not a copy.
     private func thumbnail(_ preference: AppearancePreference) -> some View {

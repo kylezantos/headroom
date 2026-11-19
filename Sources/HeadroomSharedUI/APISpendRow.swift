@@ -57,6 +57,9 @@ public enum APISpendChipFit: Sendable {
     /// beside the amount with the chip under it. Capsules never truncate, so the title is
     /// the only thing that gives, and it gives a word at a time.
     case sublineWhenTight
+    /// CA-I5: `sublineWhenTight` without its inline rung. The phone's spend card decides once
+    /// for every row, so when one row's chip must drop, every row's chip drops with it.
+    case subline
 }
 
 public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModifier>: View {
@@ -152,6 +155,10 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
                         StatusSentence(text: message, severity: StatusSentenceSeverity.forSpendTone(status.tone), scale: scale)
                     }
                 }
+                    // CA-I5 review fix: the sentence wraps to whatever width the row gets, so
+                    // it claims no ideal width of its own. Otherwise its unwrapped length
+                    // decided the phone card's chip fit, and one stale row dropped every chip.
+                    .frame(minWidth: 0, idealWidth: 0, maxWidth: .infinity, alignment: .leading)
                     .accessibilityHidden(true)
                     // M4A: freshness is a colour-and-presence change, so the line fades in
                     // and out rather than sliding.
@@ -179,17 +186,28 @@ public struct APISpendRow<Mark: View, Waiting: View, AmountDecoration: ViewModif
             // `minimumScaleFactor`.
             ViewThatFits(in: .horizontal) {
                 identityLine(chip: .inline, titleKeepsIdealWidth: true)
-                // CMM4: the chip hangs under its title on the content axis, at the gap an
-                // identity row keeps to the meters it heads.
-                VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
-                    identityLine(chip: .none, titleKeepsIdealWidth: true)
-                    chip
-                        .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
-                }
+                sublineIdentity
                 stackedIdentity
                 wrappingIdentity
                 amountBelowIdentity
             }
+        case .subline:
+            ViewThatFits(in: .horizontal) {
+                sublineIdentity
+                stackedIdentity
+                wrappingIdentity
+                amountBelowIdentity
+            }
+        }
+    }
+
+    /// CMM4: the chip hangs under its title on the content axis, at the gap an identity row
+    /// keeps to the meters it heads.
+    private var sublineIdentity: some View {
+        VStack(alignment: .leading, spacing: IdentityRowMetrics.identityToMetersGap * scale) {
+            identityLine(chip: .none, titleKeepsIdealWidth: true)
+            chip
+                .padding(.leading, IdentityRowMetrics.meterContentInset * scale)
         }
     }
 

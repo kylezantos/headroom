@@ -33,3 +33,21 @@ struct MeterRecipeKeyTests {
         #expect(MeterRecipeKey.key(for: microTube) != MeterRecipeKey.key(for: microChip))
     }
 }
+
+/// CA-P2: the popover card's dark edge is drawn from `HeadroomTuning`, and DialKit can move
+/// it. The shipped defaults have to be Core's rule-8 values (asserted ≤ 0.15 in
+/// `BrandColorValuesTests`), and R2C1's bright gradient stroke must not come back by default.
+@Suite
+struct RaisedTileDarkEdgeTests {
+    @Test func theShippedDarkCardEdgeIsCoresRingAndLip() {
+        let tuning = HeadroomTuning()
+        #expect(tuning.darkRing == HeadroomTileEdgeValues.darkGlassRingOpacity)
+        #expect(tuning.darkRimTop == HeadroomTileEdgeValues.darkGlassLipOpacity)
+        for opacity in [tuning.darkRing, tuning.darkRimTop] {
+            #expect(!(opacity > HeadroomTileEdgeValues.darkRimCeiling))
+        }
+        // Two tight shadows, not R2C1's one diffuse 0.6 @ r10 y3.
+        #expect(tuning.darkShadowOpacity == 0.40 && tuning.darkShadowRadius == 0.5 && tuning.darkShadowY == 1)
+        #expect(tuning.darkAmbientShadowOpacity == 0.30 && tuning.darkAmbientShadowRadius == 4 && tuning.darkAmbientShadowY == 2)
+    }
+}

@@ -59,14 +59,9 @@ struct IOSCompanionView: View {
 
     var body: some View {
         NavigationStack {
+            // CA-I6: every screen draws its own header with the gear inline, so there is no
+            // toolbar gear for the status screens any more.
             content
-                .toolbar {
-                    if !hasUsageContent {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            PhoneSettingsButton { showSettings = true }
-                        }
-                    }
-                }
                 .sheet(isPresented: $showSettings) {
                     SettingsSheetView(
                         envelope: snapshot?.primaryProjection(),
@@ -125,15 +120,12 @@ struct IOSCompanionView: View {
             // U10: one Core row per non-content state (iCloud unavailable, paused, waiting,
             // unreadable, update needed), copy and actions included.
             if let screen = statusScreen(for: state) {
-                StatusScreen(screen: screen, onExploreDemo: enterDemo, onRefresh: refresh)
+                StatusScreen(
+                    screen: screen, onExploreDemo: enterDemo, onRefresh: refresh,
+                    onSettings: { showSettings = true })
                     .navigationTitle("Headroom")
             }
         }
-    }
-
-    /// The usage screen owns both toolbar items so their order is stable.
-    private var hasUsageContent: Bool {
-        if case .content = snapshot?.state { true } else { false }
     }
 
     /// U10: the status screen for a non-content state. DEBUG captures and UI tests can pose

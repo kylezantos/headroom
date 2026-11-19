@@ -1,4 +1,9 @@
 import SwiftUI
+#if SWIFT_PACKAGE
+import HeadroomCore
+#elseif canImport(HeadroomCore)
+import HeadroomCore
+#endif
 
 /// Local DialKit tuning seam (see `HeadroomApp/UI/PopoverTuning.swift`). Every default equals
 /// the shipped literal, and only the Mac popover injects a non-default value, so every other
@@ -38,11 +43,18 @@ public struct HeadroomTuning: Codable, Equatable, Sendable {
     // Tile, dark
     public var darkFillTop = 0.075
     public var darkFillBottom = 0.045
-    public var darkRimTop = 0.20
-    public var darkRimBottom = 0.22
-    public var darkShadowOpacity = 0.6
-    public var darkShadowRadius = 10.0
-    public var darkShadowY = 3.0
+    // CA-P2: an even ring, a faded inset lip and two tight shadows replace R2C1's white 0.20
+    // → black 0.22 stroke and its one diffuse 0.6 @ r10 y3 shadow. `darkRimTop` is the lip
+    // now; `darkRimBottom` is retired. Rim values come from Core, where rule 8's 0.15
+    // ceiling is tested.
+    public var darkRing = HeadroomTileEdgeValues.darkGlassRingOpacity
+    public var darkRimTop = HeadroomTileEdgeValues.darkGlassLipOpacity
+    public var darkShadowOpacity = 0.40
+    public var darkShadowRadius = 0.5
+    public var darkShadowY = 1.0
+    public var darkAmbientShadowOpacity = 0.30
+    public var darkAmbientShadowRadius = 4.0
+    public var darkAmbientShadowY = 2.0
     // Tile, light
     public var lightFillTop = 0.98
     public var lightFillBottom = 0.94
@@ -51,10 +63,10 @@ public struct HeadroomTuning: Codable, Equatable, Sendable {
     public var lightShadowOpacity = 0.12
     public var lightShadowRadius = 5.0
     public var lightShadowY = 1.0
-    // Motion
-    public var valueSpringResponse = 0.3
-    public var valueSpringDamping = 1.0
-    public var settleDuration = 0.20
+    // Motion. CA-F1: the defaults are the shipped tokens by construction.
+    public var valueSpringResponse = HeadroomMotion.valueSpringResponse
+    public var valueSpringDamping = HeadroomMotion.valueSpringDampingFraction
+    public var settleDuration = HeadroomMotion.settleDuration
 
     public init() {}
 
@@ -65,7 +77,7 @@ public struct HeadroomTuning: Codable, Equatable, Sendable {
     }
 
     public var settle: Animation {
-        .timingCurve(0.22, 1, 0.36, 1, duration: settleDuration)
+        HeadroomMotion.houseCurve(duration: settleDuration)
     }
 
     public static func weight(_ name: String) -> Font.Weight {

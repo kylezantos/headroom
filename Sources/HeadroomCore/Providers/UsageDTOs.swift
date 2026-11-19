@@ -283,7 +283,7 @@ enum UsageWindowBuilder {
 
     /// Failure reason for HTTP statuses both providers handle identically.
     static func genericFailure(for status: Int) -> FailureReason {
-        status == 429 ? .transient("Rate limited — will retry")
+        status == 429 ? .transient("Rate limited. Headroom tries again on its next check.")
                       : .transient("Service error (\(status))")
     }
 }

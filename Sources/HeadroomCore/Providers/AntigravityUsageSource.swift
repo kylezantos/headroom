@@ -384,8 +384,11 @@ public struct AntigravityProbeMemory: Sendable {
 
     public static func preferences(_ preferences: Preferences) -> Self {
         Self(
-            loadStoppedClient: { preferences.antigravityStoppedClient },
-            saveStoppedClient: { preferences.antigravityStoppedClient = $0 },
+            loadStoppedClient: {
+                preferences.antigravityStoppedClientData
+                    .flatMap { try? JSONDecoder().decode(AntigravityStoppedClient.self, from: $0) }
+            },
+            saveStoppedClient: { preferences.antigravityStoppedClientData = $0.flatMap { try? JSONEncoder().encode($0) } },
             loadSignedOut: { preferences.antigravitySignedOut },
             saveSignedOut: { preferences.antigravitySignedOut = $0 }
         )

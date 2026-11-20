@@ -272,20 +272,16 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         nonmutating set { defaults.set(newValue, forKey: Key.showsAntigravityFiveHourWindows) }
     }
 
-    /// The Antigravity safety stop (`AntigravityCaptureFailure.unsupportedClient`): the client
-    /// that answered a read with a turn, keyed by executable path, modification date and
-    /// version. Nil when no client is stopped. Kept so a relaunch can't spawn it again.
-    public var antigravityStoppedClient: AntigravityStoppedClient? {
-        get {
-            defaults.data(forKey: Key.antigravityStoppedClient)
-                .flatMap { try? JSONDecoder().decode(AntigravityStoppedClient.self, from: $0) }
-        }
+    /// The Antigravity safety stop (`AntigravityCaptureFailure.unsupportedClient`), encoded by
+    /// `AntigravityProbeMemory`: the client that answered a read with a turn, keyed by
+    /// executable path, modification date and version. Nil when no client is stopped. Kept so
+    /// a relaunch can't spawn it again. Raw data because the iPhone build has no Antigravity
+    /// source.
+    public var antigravityStoppedClientData: Data? {
+        get { defaults.data(forKey: Key.antigravityStoppedClient) }
         nonmutating set {
-            if let newValue, let data = try? JSONEncoder().encode(newValue) {
-                defaults.set(data, forKey: Key.antigravityStoppedClient)
-            } else {
-                defaults.removeObject(forKey: Key.antigravityStoppedClient)
-            }
+            if let newValue { defaults.set(newValue, forKey: Key.antigravityStoppedClient) }
+            else { defaults.removeObject(forKey: Key.antigravityStoppedClient) }
         }
     }
 

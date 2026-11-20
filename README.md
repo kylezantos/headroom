@@ -1,7 +1,7 @@
 # Headroom
 
 **How much of your AI subscriptions do you have left?** Headroom answers that from the macOS menu
-bar for Claude, ChatGPT/Codex, Grok, Cursor, GitHub Copilot and OpenCode Go: every 5-hour,
+bar for Claude, ChatGPT/Codex, Grok, Cursor, Antigravity, GitHub Copilot and OpenCode Go: every 5-hour,
 weekly and monthly limit, side by side, with when each one resets.
 
 <p align="center">
@@ -15,7 +15,7 @@ weekly and monthly limit, side by side, with when each one resets.
   its widgets show what your Mac reads, synced through iCloud.
 
 Requires macOS 15 or later on Apple silicon, plus the official CLI for each subscription you
-want to track (`claude`, `codex`, `grok`, `cursor-agent`, `copilot` or `opencode`), signed in.
+want to track (`claude`, `codex`, `grok`, `cursor-agent`, `agy`, `copilot` or `opencode`), signed in.
 
 ## What it shows
 

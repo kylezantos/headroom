@@ -1,7 +1,7 @@
 # How Headroom reads your usage
 
 Headroom's rule: you always sign in through each provider's official client, and Headroom reads
-the usage that client reports. For Claude, Cursor, Copilot and OpenCode the client makes the
+the usage that client reports. For Claude, Cursor, Antigravity, Copilot and OpenCode the client makes the
 request itself; Codex and Grok are read with the sign-in their CLI saved, as described below.
 Headroom never creates its own sign-ins, reads browser cookies or scrapes private dashboards,
 and polling never sends a model prompt or spends your allowance.
@@ -26,6 +26,15 @@ and polling never sends a model prompt or spends your allowance.
 - **Cursor** drives the official `cursor-agent` `/usage` panel in a pseudo-terminal and parses
   its included-usage period. Headroom does not read Cursor's app database or reuse private
   dashboard sessions.
+- **Antigravity** is off by default; turn it on in Settings → Accounts. The official `agy` CLI
+  1.5.9 or newer reports the Gemini and Claude & GPT quota pools, each with 5-hour and weekly
+  windows, plus any AI-credits balance. Headroom reads only `/usage` and `/credits` and checks
+  that each answer used no model turn or tokens. “Show 5-hour windows” in Settings → Appearance
+  applies across the popover, menu bar, widgets, iPhone and reminders. A signed-out read can open
+  one Google sign-in tab; Headroom then waits for the row’s Try Again or a sign-in through
+  Headroom. The CLI starts configured MCP servers and writes its own local logs during checks.
+  Headroom reads no Antigravity credential or Keychain item. These are Antigravity allowances,
+  not Gemini app, Gemini CLI or Gemini API usage.
 - **GitHub Copilot** is off by default; turn it on in Settings → Accounts. It shows one monthly
   AI credit meter for the account signed in to the official `copilot` CLI. Headroom asks the
   CLI's local server for the monthly allowance (no prompt, no session, no credits spent) and
@@ -72,6 +81,8 @@ workspace as a second account.
 Cursor is single-account because Cursor Agent has no isolated config-home mechanism. Copilot is
 single-account too: its usage comes from the session logs of the CLI's default home, which a
 separate Headroom-owned home would never receive.
+Antigravity is single-account because its CLI keeps sign-in in its own home and the Keychain;
+isolating another account has not been proven.
 
 Add, rename or remove accounts in **Settings → Accounts**. Removing an additional account
 deletes only its Headroom-owned home; it does not touch the subscription, the built-in CLI login

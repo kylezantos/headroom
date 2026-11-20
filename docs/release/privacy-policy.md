@@ -3,7 +3,7 @@
 Source for `headroom.zantos.co/privacy` (`app/headroom/privacy/page.tsx` in `headroom-site`).
 The 1.5 sync disclosure was published through headroom-site PR #10; the Copilot and feedback disclosures through headroom-site PR #19.
 
-**Effective November 12, 2026**
+**Effective November 19, 2026**
 
 Headroom shows how much of your AI-subscription usage remains. The Mac and iPhone apps have **no analytics or telemetry**. This policy explains
 how they read and sync usage data, and what this website measures.
@@ -39,10 +39,10 @@ how they read and sync usage data, and what this website measures.
   Keychain item and keeps nothing from those answers except the quota meters, their reset times
   and your AI-credits balance, which reach your iPhone only if iPhone sync is on. Headroom does
   not keep what the tool prints to its error output; it only watches it for the sign-in prompt.
-  Like any run of the tool, each check adds a log file to the folder Antigravity keeps on your
-  Mac, and that log is Antigravity's, not Headroom's. If the tool is signed out, a check makes
-  it open a Google sign-in page in your browser; Headroom stops that check and does not check
-  again until you ask it to.
+  Each check starts any MCP servers configured in Antigravity and adds local log files that can
+  include your account email. These are the CLI’s processes and files; Headroom does not read
+  those logs. If signed out, a check can open a Google sign-in page; Headroom stops and waits
+  for the Antigravity row’s Try Again or a sign-in through Headroom before checking again.
 - **API spend is optional and off by default.** If you enable it, the reporting
   keys you enter are stored in the macOS Keychain on your Mac and used only to call
   the providers' official cost endpoints directly.

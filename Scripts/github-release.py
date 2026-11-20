@@ -14,6 +14,7 @@ class Notes(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.body = False
         self.parts = []
+        self.link = None
 
     def handle_starttag(self, tag, attrs):
         if tag == "body":
@@ -33,6 +34,12 @@ class Notes(HTMLParser):
                 self.parts.append("`")
             elif tag == "br":
                 self.parts.append("\n")
+            elif tag == "a":
+                href = dict(attrs).get("href") or ""
+                if self.link is not None or not re.fullmatch(r"https://[^\s()<>]+", href):
+                    raise ValueError("Release-note links require a safe absolute HTTPS URL")
+                self.link = href
+                self.parts.append("[")
             else:
                 raise ValueError(f"Unsupported release-note element: {tag}; extend the renderer first")
 
@@ -48,6 +55,11 @@ class Notes(HTMLParser):
                 self.parts.append("*")
             elif tag == "code":
                 self.parts.append("`")
+            elif tag == "a":
+                if self.link is None:
+                    raise ValueError("Release-note link has no opening tag")
+                self.parts.append(f"]({self.link})")
+                self.link = None
 
     def handle_data(self, data):
         if self.body:
@@ -59,6 +71,8 @@ class Notes(HTMLParser):
 def render(html, version, build):
     parser = Notes()
     parser.feed(html)
+    if parser.link is not None:
+        raise ValueError("Release-note link is not closed")
     notes = re.sub(r"\n{3,}", "\n\n", "".join(parser.parts)).strip()
     if not notes.startswith("## ") or "\n- " not in notes:
         raise ValueError("Release notes must contain a headline and a non-empty list")

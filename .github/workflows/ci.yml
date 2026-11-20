@@ -35,11 +35,11 @@ jobs:
       - name: swift test (parallel)
         run: swift test --skip "$TIMED_PROCESS_SUITES"
         env:
-          TIMED_PROCESS_SUITES: CLIVersionReaderTests|CopilotStatusSourceTests|OpenCodeUsageSourceProcessTests|StdioChildProcessTests
+          TIMED_PROCESS_SUITES: AntigravityUsageSourceProcessTests|CLIVersionReaderTests|CopilotStatusSourceTests|OpenCodeUsageSourceProcessTests|StdioChildProcessTests
       - name: swift test (timed process suites, one at a time)
         run: swift test --skip-build --filter "$TIMED_PROCESS_SUITES" --no-parallel
         env:
-          TIMED_PROCESS_SUITES: CLIVersionReaderTests|CopilotStatusSourceTests|OpenCodeUsageSourceProcessTests|StdioChildProcessTests
+          TIMED_PROCESS_SUITES: AntigravityUsageSourceProcessTests|CLIVersionReaderTests|CopilotStatusSourceTests|OpenCodeUsageSourceProcessTests|StdioChildProcessTests
 
   mac-app-tests:
     name: Mac app tests

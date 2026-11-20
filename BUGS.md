@@ -39,10 +39,9 @@ Review requests went to the author on #242 and #246; these items are ours.
     attention category; no sync-format change for wording alone.
   - Move `CLIVersionReader` onto the shared blocking-work helper the PR extracts.
   - Publish and verify the privacy-policy update on headroom-site before release.
-  - Research before release (no subscription here, so with a contributor or a free account):
-    which inherited variables change `agy`'s account; whether `agy`'s self-updater is in the
-    process group Headroom terminates; how fast `agy`'s logs grow at a 5-minute interval and
-    whether it prunes them.
+  - Research before release: whether `agy` prunes its logs (see "Log retention" in the
+    Antigravity section). Kevin Rose's live pass on #242 (2026-11-19, `agy` 1.5.12) settled the
+    other research items; they are recorded there.
   - A seventh provider raises the largest phone-sync flush from eight keys to nine; see the
     OpenCode write-rate entry below.
 
@@ -1561,25 +1560,42 @@ non-interactive print mode or a read-only auth status command from `agy`.
 on 2026-11-19 with a marker server; hooks in `hooks.json` did not fire). `--settings` accepts no
 key that turns MCP off for one run. So each poll briefly starts the user's local MCP servers.
 
-Also open for Antigravity:
+Also open for Antigravity (updated 2026-11-19 from Kevin Rose's live pass on #242, `agy` 1.5.12,
+and Matt Van Horn's on 1.5.13):
 
-- **Sign-in end to end.** `agy acp --login` is the CLI's documented Terminal sign-in, but it has
-  not been verified live that it stores the login where `agy -p` reads it.
-- **Hooks, MCP servers and plugins in print mode.** The startup check ran on a configuration with
-  one hook group, no MCP servers and no plugins: no hook or server ran. A `SessionStart` hook and
-  configured MCP servers were not there to test.
+- **Sign-in end to end through Headroom.** `agy acp --login` is the CLI's documented Terminal
+  sign-in, but no one has run Headroom's setup handoff on a real account and seen a live reading.
+  Kevin's pass did show that a Mac already signed in to the Antigravity desktop app needs no
+  sign-in: `agy` loads the desktop app's Keychain login and silently refreshes an expired token
+  with no browser tab. The one-tab-while-signed-out behavior is covered by fake-`agy` tests only.
+- **Log retention.** Each `agy` run writes a new log file (about 15 KB) under
+  `~/.gemini/antigravity-cli/log/`, and each names the account's email. A poll is two runs, so
+  about 576 files and 9 MB a day at the 5-minute default. Whether `agy` ever deletes old files is
+  unmeasured. Kevin found `--log-file /dev/null` writes nothing and the read still succeeds.
+  Before adding it to `AntigravityCommand`'s `.usage` and `.credits`, confirm on a signed-out run
+  (scratch `HOME`, no subscription needed) that the sign-in lines still reach stderr: Headroom
+  detects sign-out there, and missing it would open a browser sign-in on every poll. This matches
+  the Claude probe's `--no-session-persistence`.
+- **MCP servers start on every poll** (above). Reading `/credits` less often (only on a user
+  refresh, or every few polls) would halve the starts; credits only feed the plan badge. Mention
+  the behavior in the setup copy and privacy policy.
 - **A nonzero credits balance and a pool at its limit** have not been seen on a real account; the
-  badge rests on a derived fixture.
-- **The background updater.** Every `agy` run starts `agy --bg-updater`. Whether it can replace
-  the binary during a poll, and whether it stays in the process group Headroom terminates, is
-  unverified.
-- **Log retention.** Each read writes a log file of about 15 KB under
-  `~/.gemini/antigravity-cli/log/`, and the log names the account's email. Retention is the CLI's
-  and unmeasured.
-- **Seven-provider layout.** The Settings pill wells wrap four over three above six cards. Every
-  user sees it because Antigravity is always registered; the maintainer to confirm the layout.
+  badge rests on a derived fixture. Partly used pools were seen live (Kevin) and ordered
+  tightest first as expected.
+- Settled by the live passes: hooks in `hooks.json` and installed plugins do not run for
+  `/usage` or `/credits`; `agy --bg-updater` starts in its own process group, so Headroom's
+  process-group kill cannot interrupt a self-update, and it leaves no process behind; the
+  credential variables that move `agy` off the subscription login are stripped by the probe.
 - The updated privacy policy (`docs/release/privacy-policy.md`) must be published through
   `headroom-site` before any release that contains Antigravity.
+
+## Cursor: leftover `cli-config.json.*.tmp` files (found 2026-11-19)
+
+The maintainer's `~/.cursor` holds 16 `cli-config.json.<pid>.<uuid>.tmp` files dated Oct 9 to
+Nov 7, 0 to about 2.6 KB each. They look like atomic-write temp files that were never renamed,
+which would happen if `cursor-agent` is killed mid-write. Unconfirmed whether Headroom's probe
+deadline kill causes them or Cursor itself does. Check by counting the files before and after a
+batch of `--probe-cursor` runs, including one that hits the deadline.
 
 ## Compact: a limit on the first account changes the card's column headers (found 2026-11-12, review)
 

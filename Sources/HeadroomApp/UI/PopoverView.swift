@@ -1003,14 +1003,18 @@ enum PopoverCardMetrics {
     /// The card stack scrolls past this height; with two columns it caps the taller one (R8).
     static let cardsHeightCap: CGFloat = 640
     static let verticalCardsHeightMax: CGFloat = 900
+    /// A guard against a nonsense screen reading, not a design floor: on a short laptop screen
+    /// the list scrolls sooner so the footer stays above the Dock.
+    static let verticalCardsHeightMin: CGFloat = 300
     /// The header, footer and shell padding around the card list (765pt shell, 640pt list),
     /// plus a little air above the Dock edge.
     static let popoverChromeHeight: CGFloat = 125 + 24
 
-    /// Vertical-only layout: use the available screen space within the scroll limits.
+    /// Vertical-only layout: scroll at the space on screen or 900pt, whichever is smaller. An
+    /// unknown screen keeps the two-column cap.
     static func verticalCardsHeightCap(visibleScreenHeight: CGFloat?) -> CGFloat {
         guard let visibleScreenHeight else { return cardsHeightCap }
-        return max(cardsHeightCap, min(verticalCardsHeightMax, visibleScreenHeight - popoverChromeHeight))
+        return max(verticalCardsHeightMin, min(verticalCardsHeightMax, visibleScreenHeight - popoverChromeHeight))
     }
 
     /// KTD4 / R7: one card width (384 overall) or exactly two plus the 20pt gap (750).

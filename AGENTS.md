@@ -119,7 +119,10 @@ and launch-at-login isolated from the user's CLI files and system services.
 Standard / Compact** (`AccountLayout`, Mac-only: it never reaches the phone, the widgets or the
 menu bar, KTD8). Both layouts share one column rule: one 384pt column until the single-column
 cards would pass the 640pt cap, then exactly two (750pt), read down then across, never three
-(`AccountColumnsPlanner` in Core). A provider whose accounts span both columns draws as two card
+(`AccountColumnsPlanner` in Core). With **Scroll vertically** chosen
+(`expandAccountsHorizontally` off) there is no second column: the list grows until it reaches the
+space on the popover's screen or 900pt, whichever is smaller, then scrolls
+(`PopoverCardMetrics.verticalCardsHeightCap`, planned on close like the columns). A provider whose accounts span both columns draws as two card
 fragments; only the first carries a capability-recovery header. Compact draws one line per
 account (`CompactAccountRow`, decided by Core `CompactAccountRowRecipe`) and keeps the Standard
 section for any account whose state needs an action. The plan is made when the popover closes,
@@ -383,8 +386,8 @@ Each provider has a persisted primary selection. **Make Main** reorders the sele
 top, refreshes only it, and immediately reroutes the menu bar, widgets, phone projection,
 capability recovery, and the never-signed-in timer exemption. A dangling primary pointer falls
 back to canonical order without writing defaults and is retained in case the row resurfaces.
-The popover still shows all accounts at the regular meter scale and the card list scrolls past a
-640pt cap. Account management lives in Settings → Accounts (`AccountsSettingsTile`), where each
+The popover still shows all accounts at the regular meter scale and the card list scrolls past
+its cap (640pt with two columns, up to 900pt with Scroll vertically). Account management lives in Settings → Accounts (`AccountsSettingsTile`), where each
 provider group header also carries the subscription on/off switch (off means not fetched, never
 unmanageable); removing
 an **extra** account deletes its Headroom-owned config home, while the **built-in** account can

@@ -395,7 +395,7 @@ struct PopoverColumnsSizingTests {
         defer { hosted.teardown() }
         #expect(hosted.size.width == 384)
         let scroll = try! #require(hosted.scroll)
-        let expectedViewport: CGFloat = visibleScreenHeight == 700 ? 640 : 900
+        let expectedViewport: CGFloat = visibleScreenHeight == 700 ? 551 : 900
         #expect(abs(scroll.viewport - expectedViewport) < 0.5)
         #expect(scroll.content > scroll.viewport)
         store.setExpandAccountsHorizontally(true)
@@ -457,8 +457,9 @@ struct PopoverColumnsSizingTests {
         #expect(hosted.size.height > compactHeight + 20)
     }
 
-    @Test func verticalOnlyCapUsesScreenSpaceBetween640And900Points() {
-        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 700) == 640)
+    @Test func verticalOnlyCapUsesScreenSpaceUpTo900Points() {
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 300) == 300)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 700) == 551)
         #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1000) == 851)
         #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1440) == 900)
         #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: nil) == 640)

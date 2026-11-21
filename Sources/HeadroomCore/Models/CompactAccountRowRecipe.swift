@@ -131,6 +131,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     ///     re-applied here so an unfiltered snapshot cannot leak a row Standard hides.
     ///   - showsCodexSparkCounters: `UsageStore.showCodexSparkCountersInApp`, the flag
     ///     `appDisplaySnapshot(for:)` filters the Standard bars with.
+    ///   - showsAntigravityFiveHourWindows: `UsageStore.showsAntigravityFiveHourWindows`, the
+    ///     other switch `appDisplaySnapshot(for:)` filters with.
     ///   - isRemembered: U8, the row is an account the default login left. Its tooltip
     ///     names when it was last read and, per window, its reset (`RememberedRowRecipe`).
     ///   - lastReadAt: U8, when a remembered account was last read; the snapshot's capture
@@ -142,6 +144,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         now: Date,
         requiresStandardSection: Bool,
         showsCodexSparkCounters: Bool,
+        showsAntigravityFiveHourWindows: Bool = true,
         isRemembered: Bool = false,
         lastReadAt: Date? = nil,
         timeZone: TimeZone = .current,
@@ -155,7 +158,11 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
             ? Countdown.lastReadLabel(capturedAt: lastReadAt ?? snapshot.capturedAt, now: now)
             : nil
 
-        var windows = Self.visibleWindows(in: snapshot, showsCodexSparkCounters: showsCodexSparkCounters)
+        var windows = Self.visibleWindows(
+            in: snapshot,
+            showsCodexSparkCounters: showsCodexSparkCounters,
+            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+        )
         if isRemembered {
             // U8 (R8): a cell past its reset prints no number, even before the aging pass
             // has turned its window unavailable.
@@ -185,7 +192,9 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         }
 
         self.content = content
-        let shown = Self.shownWindows(from: windows)
+        let shown = snapshot.providerID == .antigravity
+            ? Self.onePerAntigravityPool(from: windows)
+            : Self.shownWindows(from: windows)
         self.shownWindows = shown.map { window in
             CompactAccountRowWindow(
                 window: window,
@@ -292,6 +301,26 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         return shown.sorted().map { windows[$0] }
     }
 
+    /// Antigravity's two pools each report a 5-hour and a weekly row, and the provider emits
+    /// each pool's tighter row first. Compact shows that first row of each pool, so the two
+    /// meters are the two pools rather than one pool's pair. The rows in one pool share a
+    /// limit, so its tighter row is also the one at its limit first: no swap is needed.
+    static func onePerAntigravityPool(from windows: [UsageWindow]) -> [UsageWindow] {
+        var pools: Set<String> = []
+        let shown = windows.filter { window in
+            guard let pool = antigravityPool(of: window.kind) else { return false }
+            return pools.insert(pool).inserted
+        }
+        return Array(shown.prefix(maximumShownWindows))
+    }
+
+    /// The pool an Antigravity row belongs to, read off its stored label (the provider's
+    /// `windowKind`), so this compiles where the provider itself does not (iOS).
+    private static func antigravityPool(of kind: WindowKind) -> String? {
+        guard case .other(let label) = kind else { return nil }
+        return AntigravityRowLabels.parse(label)?.pool.rawValue
+    }
+
     static func isAtLimit(_ window: UsageWindow) -> Bool {
         !window.freshness.isUnavailable && window.utilization.isFinite && window.utilization >= 100
     }
@@ -301,12 +330,21 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     }
 
     /// The Standard stack's windows in the popover's order: `appDisplaySnapshot(for:)` drops
-    /// Codex Spark counters unless the in-app switch is on, then `fiveHourFirst()` leads with
+    /// Codex Spark counters unless the in-app switch is on, and Antigravity's 5-hour rows while
+    /// "Show 5-hour windows" is off, then `fiveHourFirst()` leads with
     /// 5-hour, then weekly or the billing periods, then model rows — each group in slot
     /// order. Taking the first two of this list is KTD7's choice: 5-hour then weekly for
     /// Claude and Codex, both pools for Cursor, the period for Grok, slot order otherwise.
-    static func visibleWindows(in snapshot: UsageSnapshot, showsCodexSparkCounters: Bool) -> [UsageWindow] {
-        let ordered = snapshot.fiveHourFirst().windows
+    static func visibleWindows(
+        in snapshot: UsageSnapshot,
+        showsCodexSparkCounters: Bool,
+        showsAntigravityFiveHourWindows: Bool = true
+    ) -> [UsageWindow] {
+        let ordered = AntigravityFiveHourWindows.visibleWindows(
+            snapshot.fiveHourFirst().windows,
+            providerID: snapshot.providerID,
+            showsFiveHourWindows: showsAntigravityFiveHourWindows
+        )
         guard snapshot.providerID == .codex, !showsCodexSparkCounters else { return ordered }
         return ordered.filter { !$0.kind.isCodexSparkCounter }
     }
@@ -330,8 +368,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
             case "Other Models": return "Other"
             default: return label
             }
-        case .other:
-            return kind.compactName
+        case .other(let label):
+            return antigravityShortLabel(label) ?? kind.compactName
         }
     }
 
@@ -346,6 +384,14 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
               model != parts[0], model.first?.isLetter == true
         else { return nil }
         return "\(model) · \(parts[1])"
+    }
+
+    /// Antigravity's pool rows, short enough for the 84pt Compact column and the Lock
+    /// Screen rectangle, which the stored labels are not. "Other" is the Claude and GPT pool, as
+    /// Cursor's "Other" is its other pool; tooltips and VoiceOver name each row in full.
+    /// Nil for any other label.
+    public static func antigravityShortLabel(_ label: String) -> String? {
+        AntigravityRowLabels.parse(label).map { AntigravityRowLabels.short($0.pool, $0.window) }
     }
 
     // MARK: - Tooltip and VoiceOver

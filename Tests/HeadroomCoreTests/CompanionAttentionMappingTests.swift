@@ -51,11 +51,17 @@ struct CompanionAttentionMappingTests {
         (.opencodeSignInExpired, .signInAgain),
         (.opencodeFormatChanged, .retrying),
         (.opencodeTransientCapture, .retrying),
+        (.antigravityCLIMissing, .cliMissing),
+        (.antigravityUpdateRequired, .cliUpdateRequired),
+        (.antigravityUnsupportedClient, .cliUpdateRequired),
+        (.antigravitySignedOut, .signInRequired),
+        (.antigravityFormatChanged, .retrying),
+        (.antigravityTransientCapture, .retrying),
     ]
 
     @Test func everyProviderSetupOutcomeMapsToItsReviewedAttention() {
-        #expect(Self.outcomes.count == 40)
-        #expect(Set(Self.outcomes.map(\.0)).count == 40)
+        #expect(Self.outcomes.count == 46)
+        #expect(Set(Self.outcomes.map(\.0)).count == 46)
         for (outcome, expected) in Self.outcomes {
             #expect(CompanionAttentionMapping.attention(for: outcome) == expected, "\(outcome)")
             #expect(CompanionAttentionMapping.attention(for: .providerSetup(outcome)) == expected)

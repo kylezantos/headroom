@@ -9,12 +9,18 @@ public struct UseItUpSettings: Sendable, Equatable {
     /// KTD3: mirrors `UsageStore.showCodexSparkCountersInApp`, so a reminder never names
     /// a row the popover hides.
     public var showCodexSparkCounters: Bool
+    /// Mirrors `UsageStore.showsAntigravityFiveHourWindows` the same way.
+    public var showsAntigravityFiveHourWindows: Bool
 
-    public init(isEnabled: Bool, rules: [ReminderRule], scope: Set<ReminderScope>, showCodexSparkCounters: Bool) {
+    public init(
+        isEnabled: Bool, rules: [ReminderRule], scope: Set<ReminderScope>, showCodexSparkCounters: Bool,
+        showsAntigravityFiveHourWindows: Bool = true
+    ) {
         self.isEnabled = isEnabled
         self.rules = rules
         self.scope = scope
         self.showCodexSparkCounters = showCodexSparkCounters
+        self.showsAntigravityFiveHourWindows = showsAntigravityFiveHourWindows
     }
 }
 
@@ -48,7 +54,10 @@ public enum UseItUpEvaluator {
         // KTD2: a failed poll's retained windows and a launch restore never fire.
         guard settings.isEnabled, !settings.rules.isEmpty, snapshot.freshness == .live else { return [] }
 
-        return snapshot.windows.compactMap { window in
+        let windows = AntigravityFiveHourWindows.visibleWindows(
+            snapshot.windows, providerID: snapshot.providerID,
+            showsFiveHourWindows: settings.showsAntigravityFiveHourWindows)
+        return windows.compactMap { window in
             // AE4: a live snapshot can still carry a retained stale model row.
             guard window.freshness.isLive,
                   let deadline = window.resetSchedule.deadline,

@@ -733,6 +733,8 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
             && text.localizedCaseInsensitiveContains("run /login")
     }
 
+    static let apiKeyVariables = ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"]
+
     static func environment(
         inherited: [String: String],
         overrides: [String: String],
@@ -743,6 +745,10 @@ public struct ClaudeUsageCLIProbe: ClaudeUsageSource {
         // The built-in account always means the CLI default. A custom value inherited
         // from a Terminal launch must not silently select another account.
         if overrides["CLAUDE_CONFIG_DIR"] == nil { result.removeValue(forKey: "CLAUDE_CONFIG_DIR") }
+        // An inherited API key (often set for every GUI app with `launchctl setenv`) makes
+        // the CLI ignore the account's subscription login, so an extra account's home
+        // reads as signed out. Usage is a subscription reading; the key never applies.
+        for variable in apiKeyVariables { result.removeValue(forKey: variable) }
         result["LANG"] = result["LANG"] ?? "en_US.UTF-8"
         result["PATH"] = loginPath
         result["PWD"] = workingDirectory

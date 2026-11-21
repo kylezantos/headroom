@@ -104,7 +104,9 @@ private struct LoadingDemoUsageProvider: UsageProvider {
     let accountID: AccountID
     var displayName: String { id.displayName }
     var pollingLane: ProviderPollingLane { id == .codex ? .concurrent : .serial("demo-\(id.raw)") }
-    var accountCapacity: Int { id == .cursor || id == .copilot ? 1 : AccountRegistry.testedEnvelope }
+    var accountCapacity: Int {
+        id == .cursor || id == .copilot || id == .antigravity ? 1 : AccountRegistry.testedEnvelope
+    }
     let sources: LoadingDemoSources
     let clock: LoadingDemoClock
     let delay: Duration

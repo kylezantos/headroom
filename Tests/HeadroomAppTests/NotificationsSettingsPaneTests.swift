@@ -140,6 +140,8 @@ struct NotificationsSettingsPaneTests {
         var snapshots: [ProviderID: UsageSnapshot] = [
             .grok: DemoFixture.grokSnapshot, .cursor: DemoFixture.cursorSnapshot,
             .copilot: DemoFixture.copilotSnapshot, .opencode: DemoFixture.opencodeSnapshot,
+            // Antigravity's pool rows are 5-hour and weekly limits, never a billing period.
+            .antigravity: DemoFixture.antigravitySnapshot,
         ]
         snapshots[acme] = UsageSnapshot(
             providerID: acme,
@@ -149,7 +151,7 @@ struct NotificationsSettingsPaneTests {
             capturedAt: Date(),
             freshness: .live
         )
-        let order: [ProviderID] = [.claude, .grok, .cursor, .copilot, .opencode, acme]
+        let order: [ProviderID] = [.claude, .grok, .cursor, .antigravity, .copilot, .opencode, acme]
         let providers = BillingPeriodScopeHint.providers(in: order, windows: windows(snapshots))
         #expect(providers == [.grok, .cursor, .copilot, .opencode, acme])
         #expect(BillingPeriodScopeHint.text(for: [], displayName: \.displayName) == nil)

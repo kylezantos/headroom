@@ -86,7 +86,9 @@ public struct LockScreenWindowRecipe: Sendable, Equatable {
 
         let fullLabel = window?.widgetDisplayLabel ?? ""
         let compactLabel = LockScreenWidgetCopy.compactWindowLabel(window, providerID: provider?.id)
-        let label = family == .circle ? compactLabel : fullLabel
+        // Antigravity's pool names do not fit the rectangle's caption or side column, so its
+        // rows show the short names there too; VoiceOver keeps the full name.
+        let label = family == .circle || provider?.id == ProviderID.antigravity.raw ? compactLabel : fullLabel
         let stateCaption: String
         let shortStateCaption: String
         switch state {
@@ -356,6 +358,10 @@ enum LockScreenWidgetCopy {
             case "Other Models": return "Other"
             default: return window.widgetDisplayLabel
             }
+        }
+        if providerID == ProviderID.antigravity.raw,
+           let short = CompactAccountRowRecipe.antigravityShortLabel(window.label) {
+            return short
         }
         return window.widgetDisplayLabel
     }

@@ -56,6 +56,27 @@ enum PillShelfModel {
         return min(maximumCardWidth, max(minimumCardWidth, (available / CGFloat(count)).rounded(.down)))
     }
 
+    /// The most cards one row holds, and the most pills the menu bar shows
+    /// (`UsageStore.maximumMenuBarPills`). Seven cards at the 720pt floor would get 52pt each,
+    /// under the compact pill's 56pt, so the menu bar well stops at six and only the "Not
+    /// shown" well wraps: it holds all seven while the menu bar shows the automatic summary.
+    static let maximumColumns = UsageStore.maximumMenuBarPills
+
+    static func columns(forCount count: Int) -> Int {
+        min(max(count, 1), maximumColumns)
+    }
+
+    /// Whether a card can join the menu bar row: always from the row itself, and from the
+    /// shelf only while the row has room.
+    static func canEnterMenuBar(_ origin: PillShelfSlot, shownCount: Int) -> Bool {
+        origin.shelf == .menuBar || shownCount < maximumColumns
+    }
+
+    static func rowCount(in shelf: PillShelf, slots: [ProviderID: PillShelfSlot], columns: Int) -> Int {
+        let last = slots.values.filter { $0.shelf == shelf }.map(\.index).max() ?? 0
+        return last / max(columns, 1) + 1
+    }
+
     /// What a move caret needs beside the pill: its 11pt target sits 1pt in from the card
     /// edge, and its ~5pt chevron ends about 9pt in, so 10 keeps a point of air before the plate.
     static let caretReserve: CGFloat = 10
@@ -94,7 +115,8 @@ enum PillShelfModel {
     /// Where the dragged card would land. The pointer's row picks the shelf; across the menu
     /// bar row the card's horizontal travel picks the slot, rounded at each midpoint. The
     /// shelf keeps canonical provider order, so a card dropped there always returns to its
-    /// own slot. The last pill cannot leave the menu bar.
+    /// own slot. The last pill cannot leave the menu bar, and a shelf card dragged onto a
+    /// full menu bar keeps its shelf slot, so it slides back on release.
     static func drop(
         for id: ProviderID,
         shown: [ProviderID],
@@ -105,7 +127,8 @@ enum PillShelfModel {
         pitch: CGFloat
     ) -> PillShelfSlot? {
         guard let origin = origin(of: id, shown: shown, notShown: notShown), pitch > 0 else { return nil }
-        if pointerInNotShown && canLeave(origin, shownCount: shown.count) {
+        if (pointerInNotShown && canLeave(origin, shownCount: shown.count))
+            || !canEnterMenuBar(origin, shownCount: shown.count) {
             let landing = canonicalOrder.filter { $0 == id || notShown.contains($0) }
             return PillShelfSlot(shelf: .notShown, index: landing.firstIndex(of: id) ?? notShown.count)
         }
@@ -156,6 +179,7 @@ enum PillShelfModel {
             guard drop.index != origin.index, shown.indices.contains(drop.index) else { return .none }
             return .move(id, before: insertionTarget(in: shown, moving: origin.index, to: drop.index))
         case (.notShown, .menuBar):
+            guard canEnterMenuBar(origin, shownCount: shown.count) else { return .none }
             return .add(id, before: shown.indices.contains(drop.index) ? shown[drop.index] : nil)
         case (.menuBar, .notShown):
             return shown.count > 1 ? .remove(id) : .none
@@ -254,8 +278,16 @@ struct MenuBarPillArranger<Card: View>: View {
     /// a hint of height, not a zoom.
     private static var liftScale: CGFloat { 1.03 }
 
+    private var columns: Int {
+        PillShelfModel.columns(forCount: canonicalOrder.count)
+    }
+
+    /// Only the "Not shown" well can need a second row; the menu bar well holds at most
+    /// `maximumColumns` cards, so it always fits one.
+    private var wraps: Bool { canonicalOrder.count > PillShelfModel.maximumColumns }
+
     private var cardWidth: CGFloat {
-        PillShelfModel.cardWidth(forWidth: width, count: canonicalOrder.count)
+        PillShelfModel.cardWidth(forWidth: width, count: columns)
     }
 
     private var pitch: CGFloat { cardWidth + PillShelfModel.spacing }
@@ -302,7 +334,8 @@ struct MenuBarPillArranger<Card: View>: View {
             wellPadding: PillShelfModel.wellPadding,
             heightRows: heightRows,
             pointer: dragged.map { ($0.id, offset(for: $0.id)) },
-            landing: landing?.id
+            landing: landing?.id,
+            columns: wraps ? columns : nil
         ) {
             well(.menuBar, cornerRadius: 20) {
                 if let menuBarMessage, isEmpty(.menuBar), receivingShelf != .menuBar {
@@ -602,6 +635,13 @@ struct PillShelfLayout: Layout {
     var landing: ProviderID? = nil
     /// An empty row keeps room for its message and for a card to be dropped into it.
     var emptyRowHeight: CGFloat = 56
+    /// Cards per row in each well. Nil keeps every card in one row.
+    var columns: Int? = nil
+
+    private func position(of index: Int) -> (row: Int, column: Int) {
+        guard let columns, columns > 0 else { return (0, index) }
+        return (index / columns, index % columns)
+    }
 
     private struct Frames {
         var parts: [Int: CGRect] = [:]
@@ -628,7 +668,8 @@ struct PillShelfLayout: Layout {
     }
 
     private func naturalWidth(_ subviews: Subviews) -> CGFloat {
-        let count = CGFloat(subviews.filter { $0.part?.isCard == true }.count)
+        let cards = subviews.filter { $0.part?.isCard == true }.count
+        let count = CGFloat(columns.map { min(cards, $0) } ?? cards)
         return 2 * wellPadding + count * cardWidth + max(count - 1, 0) * spacing
     }
 
@@ -647,8 +688,14 @@ struct PillShelfLayout: Layout {
             return height > 0 ? height : emptyRowHeight
         }
 
+        func wellHeight(_ shelf: PillShelf) -> CGFloat {
+            guard let columns else { return rowHeight(shelf) + 2 * wellPadding }
+            let rows = CGFloat(PillShelfModel.rowCount(in: shelf, slots: slots, columns: columns))
+            return rows * rowHeight(shelf) + (rows - 1) * spacing + 2 * wellPadding
+        }
+
         var frames = Frames()
-        let menuBarWell = CGRect(x: 0, y: 0, width: width, height: rowHeight(.menuBar) + 2 * wellPadding)
+        let menuBarWell = CGRect(x: 0, y: 0, width: width, height: wellHeight(.menuBar))
         var y = menuBarWell.maxY + SettingsMetrics.groupToGroup
         var headerHeight: CGFloat = 0
         if let header = subviews.firstIndex(where: { $0.part == .notShownHeader }) {
@@ -658,7 +705,7 @@ struct PillShelfLayout: Layout {
             frames.parts[header] = CGRect(x: 0, y: y, width: width, height: headerHeight)
             y += headerHeight + SettingsMetrics.labelToControl * 2
         }
-        let notShownWell = CGRect(x: 0, y: y, width: width, height: rowHeight(.notShown) + 2 * wellPadding)
+        let notShownWell = CGRect(x: 0, y: y, width: width, height: wellHeight(.notShown))
         frames.height = notShownWell.maxY
 
         for (index, subview) in subviews.enumerated() {
@@ -669,9 +716,10 @@ struct PillShelfLayout: Layout {
                 guard let slot = slots[id] else { continue }
                 let well = slot.shelf == .menuBar ? menuBarWell : notShownWell
                 let travel = pointer?.id == id ? pointer?.offset ?? .zero : .zero
+                let place = position(of: slot.index)
                 frames.parts[index] = CGRect(
-                    x: wellPadding + CGFloat(slot.index) * (cardWidth + spacing) + travel.width,
-                    y: well.minY + wellPadding + travel.height,
+                    x: wellPadding + CGFloat(place.column) * (cardWidth + spacing) + travel.width,
+                    y: well.minY + wellPadding + CGFloat(place.row) * (rowHeight(slot.shelf) + spacing) + travel.height,
                     width: cardWidth,
                     height: id == landing || id == pointer?.id
                         ? cardHeights[index] ?? 0

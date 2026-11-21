@@ -1420,6 +1420,31 @@ struct UsageStoreTests {
         #expect(reloaded.menuBarWindowChoice(for: .codex) == .fiveHour)
     }
 
+    /// The menu bar holds six pills. A seventh add does nothing, and a seventh selected
+    /// provider switched back on waits on the shelf instead of adding a pill.
+    @Test func theMenuBarHoldsAtMostSixPills() {
+        let preferences = freshPreferences()
+        for surface in [UsageSurface.grokSubscription, .cursorSubscription, .copilotSubscription,
+                        .opencodeSubscription, .antigravitySubscription] {
+            preferences.setSurfaceEnabled(true, for: surface)
+        }
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode]
+        let providers: [any UsageProvider] = ids.map {
+            StubProvider(id: $0, displayName: $0.raw, snapshot: .pending(for: $0))
+        }
+        let store = UsageStore(providers: providers, preferences: preferences)
+        #expect(Set(store.providerOrder) == Set(ids))
+        for id in ids { store.addMenuBarProvider(id) }
+        #expect(store.selectedMenuBarProviders.count == UsageStore.maximumMenuBarPills)
+        #expect(!store.selectedMenuBarProviders.contains(.opencode))
+        #expect(!store.canAddMenuBarProvider)
+        store.removeMenuBarProvider(.grok)
+        #expect(store.canAddMenuBarProvider)
+        store.addMenuBarProvider(.opencode)
+        #expect(store.selectedMenuBarProviders.last == .opencode)
+        #expect(store.selectedMenuBarProviders.count == UsageStore.maximumMenuBarPills)
+    }
+
     /// The pill shelf drops a card between two pills, so an add can land at a position. It
     /// leaves the automatic summary exactly as the old "Add pill" button did.
     @Test func menuBarArrangerAddsAPillBeforeAVisiblePill() {
@@ -1475,9 +1500,11 @@ struct UsageStoreTests {
 
     // MARK: Menu-bar marks seam (CA-MB1, CA-MB2, KTD7)
 
-    private func sixProviderStore(_ preferences: Preferences) -> UsageStore {
-        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
-        for surface in [UsageSurface.grokSubscription, .cursorSubscription, .copilotSubscription, .opencodeSubscription] {
+    /// Every registered provider, in registry order: Antigravity sits between Cursor and Copilot.
+    private func allProviderStore(_ preferences: Preferences) -> UsageStore {
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode]
+        for surface in [UsageSurface.grokSubscription, .cursorSubscription, .copilotSubscription, .opencodeSubscription,
+                        .antigravitySubscription] {
             preferences.setSurfaceEnabled(true, for: surface)
         }
         let providers: [any UsageProvider] = ids.enumerated().map { index, id in
@@ -1490,9 +1517,10 @@ struct UsageStoreTests {
 
     @Test func everyExplicitMenuBarMeterCarriesItsProvidersID() async {
         let preferences = freshPreferences()
-        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
+        // Six pills is the cap; Antigravity, the seventh provider, is one of them.
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .opencode]
         preferences.menuBarFillSource = .providers(Set(ids))
-        let store = sixProviderStore(preferences)
+        let store = allProviderStore(preferences)
         await store.refreshAll()
 
         let meters = store.menuBarMeters
@@ -1531,7 +1559,7 @@ struct UsageStoreTests {
     @Test func theStoreMirrorsTheMarksPreferenceWithItsComputedDefault() async {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .providers([.claude, .codex])
-        let store = sixProviderStore(preferences)
+        let store = allProviderStore(preferences)
         #expect(store.menuBarMarksPreference == nil)
         #expect(store.menuBarShowsMarks == true)
 
@@ -1868,6 +1896,60 @@ struct UsageStoreTests {
         #expect(store.appDisplaySnapshot(for: .codex).windows.count == 3)
     }
 
+    private func antigravityRows(gemini5h: Double = 90, other5h: Double = 80) -> UsageSnapshot {
+        .live(.antigravity, windows: [
+            UsageWindow(kind: .other("Gemini 5h"), utilization: gemini5h, resetsAt: reset),
+            UsageWindow(kind: .other("Gemini weekly"), utilization: 20, resetsAt: reset),
+            UsageWindow(kind: .other("Other 5h"), utilization: other5h, resetsAt: reset),
+            UsageWindow(kind: .other("Other weekly"), utilization: 10, resetsAt: reset),
+        ])
+    }
+
+    @Test func appDisplaySnapshotCanHideAntigravityFiveHourWindowsOnly() async {
+        let preferences = freshPreferences()
+        preferences.setSurfaceEnabled(true, for: .antigravitySubscription)
+        preferences.showsAntigravityFiveHourWindows = false
+        let store = UsageStore(providers: [
+            StubProvider(id: .antigravity, displayName: "Antigravity", snapshot: antigravityRows()),
+            // The same labels on another provider are never hidden.
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 30, resetsAt: reset),
+                UsageWindow(kind: .other("Gemini 5h"), utilization: 40, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+
+        await store.refreshAll()
+
+        #expect(store.snapshot(for: .antigravity).windows.count == 4)
+        #expect(store.appDisplaySnapshot(for: .antigravity).windows.map(\.kind) == [
+            .other("Gemini weekly"),
+            .other("Other weekly"),
+        ])
+        #expect(store.appDisplaySnapshot(for: .codex).windows.count == 2)
+
+        store.setShowsAntigravityFiveHourWindows(true)
+        #expect(preferences.showsAntigravityFiveHourWindows)
+        #expect(store.appDisplaySnapshot(for: .antigravity).windows.count == 4)
+    }
+
+    @Test func hidingAntigravityFiveHourWindowsNeverHidesEveryRow() async {
+        let preferences = freshPreferences()
+        preferences.setSurfaceEnabled(true, for: .antigravitySubscription)
+        preferences.showsAntigravityFiveHourWindows = false
+        let store = UsageStore(providers: [
+            StubProvider(id: .antigravity, displayName: "Antigravity", snapshot: .live(.antigravity, windows: [
+                UsageWindow(kind: .other("Gemini 5h"), utilization: 90, resetsAt: reset),
+                UsageWindow(kind: .other("Other 5h"), utilization: 80, resetsAt: reset),
+            ])),
+        ], preferences: preferences)
+        await store.refreshAll()
+        #expect(store.appDisplaySnapshot(for: .antigravity).windows.map(\.kind) == [
+            .other("Gemini 5h"),
+            .other("Other 5h"),
+        ])
+        #expect(store.menuBarSummary.detail == "Antigravity Gemini 5-hour")
+    }
+
     @Test func failedCodexPollKeepsLastKnownBankedResets() async {
         let provider = MutableStubProvider(id: .codex, displayName: "Codex", snapshot: UsageSnapshot(
             providerID: .codex,
@@ -2070,6 +2152,27 @@ struct UsageStoreTests {
         store.setMenuBarWindowChoice(.window(id: "other:GPT-5.3-Codex-Spark Weekly"), for: .codex)
         #expect(store.menuBarSummary.text == "100%")
         #expect(store.menuBarSummary.detail == "Codex GPT-5.3-Codex-Spark weekly")
+    }
+
+    /// The tightest Antigravity row is a 5-hour one; once hidden it neither headlines the
+    /// menu bar nor fills the pill, and the picker stops offering it.
+    @Test func antigravityFiveHourWindowsLeaveTheMenuBarWhileHidden() async {
+        let preferences = freshPreferences()
+        preferences.setSurfaceEnabled(true, for: .antigravitySubscription)
+        let store = UsageStore(providers: [
+            StubProvider(id: .antigravity, displayName: "Antigravity", snapshot: antigravityRows()),
+        ], preferences: preferences)
+        await store.refreshAll()
+        #expect(store.menuBarSummary.text == "10%")
+        #expect(store.menuBarSummary.detail == "Antigravity Gemini 5-hour")
+        #expect(store.menuBarWindowOptions(for: .antigravity).map(\.choice).contains(.window(id: "other:Gemini 5h")))
+
+        store.setShowsAntigravityFiveHourWindows(false)
+        #expect(store.menuBarSummary.text == "80%")
+        #expect(store.menuBarSummary.detail == "Antigravity Gemini weekly")
+        #expect(store.providerMenuBarMeter(for: .antigravity).fill == 0.8)
+        #expect(!store.menuBarWindowOptions(for: .antigravity).map(\.choice).contains(.window(id: "other:Gemini 5h")))
+        #expect(!store.menuBarWindowOptions(for: .antigravity).map(\.choice).contains(.window(id: "other:Other 5h")))
     }
 
     @Test func pendingProviderKeepsItsPickerBeforeTheFirstFetch() {
@@ -2318,6 +2421,28 @@ struct UsageStoreTests {
         #expect(!preferences.widgetsEnabled)
         #expect(exporter.exports.last?.status == .disabled)
         #expect(exporter.exports.last?.providers.isEmpty == true)
+    }
+
+    @Test func hidingAntigravityFiveHourWindowsReexportsWidgets() async {
+        let preferences = freshPreferences()
+        preferences.setSurfaceEnabled(true, for: .antigravitySubscription)
+        let exporter = SpyWidgetExporter()
+        let store = UsageStore(
+            providers: [StubProvider(id: .antigravity, displayName: "Antigravity", snapshot: antigravityRows())],
+            preferences: preferences,
+            widgetExporter: exporter
+        )
+
+        await store.refreshAll()
+        #expect(exporter.exports.last?.providers.first?.windows.count == 4)
+
+        store.setShowsAntigravityFiveHourWindows(false)
+
+        #expect(!preferences.showsAntigravityFiveHourWindows)
+        #expect(exporter.exports.last?.providers.first?.windows.map(\.kind) == [
+            .other("Gemini weekly"),
+            .other("Other weekly"),
+        ])
     }
 
     @Test func enablingWidgetSparkCountersReexportsSnapshot() async {

@@ -3,7 +3,7 @@
 Source for `headroom.zantos.co/privacy` (`app/headroom/privacy/page.tsx` in `headroom-site`).
 The 1.5 sync disclosure was published through headroom-site PR #10; the Copilot and feedback disclosures through headroom-site PR #19.
 
-**Effective November 12, 2026**
+**Effective November 19, 2026**
 
 Headroom shows how much of your AI-subscription usage remains. The Mac and iPhone apps have **no analytics or telemetry**. This policy explains
 how they read and sync usage data, and what this website measures.
@@ -14,7 +14,7 @@ how they read and sync usage data, and what this website measures.
   no advertising, and no third-party SDKs. We never see your usage, your identity,
   or your device.
 - **Usage data is read locally, on your Mac.** For each supported tool (Claude, Codex,
-  Cursor, Grok, GitHub Copilot, and OpenCode), the Mac app reads usage locally, either by driving the tool's
+  Cursor, Grok, GitHub Copilot, OpenCode, and Antigravity), the Mac app reads usage locally, either by driving the tool's
   official command-line tool or by reading its local sign-in file, then queries that
   tool's provider with your own credentials. Requests go directly from your Mac to the
   provider. They never pass through us.
@@ -32,6 +32,17 @@ how they read and sync usage data, and what this website measures.
   your OpenCode workspace (its ID, name and web address); Headroom neither stores nor shows any
   of them. Like any run of the tool, each check of your default OpenCode setup adds an entry to
   the log OpenCode keeps on your Mac.
+- Antigravity usage comes from the Antigravity command-line tool's own answers. If you turn
+  Antigravity on, Headroom runs that official tool (`agy`) on your Mac and asks it only for its
+  `/usage` and `/credits` answers, which use no model and spend no quota; the tool makes the
+  request to Google with your own sign-in. Headroom reads no Antigravity credential, cookie or
+  Keychain item and keeps nothing from those answers except the quota meters, their reset times
+  and your AI-credits balance, which reach your iPhone only if iPhone sync is on. Headroom does
+  not keep what the tool prints to its error output; it only watches it for the sign-in prompt.
+  Each check starts any MCP servers configured in Antigravity and adds local log files that can
+  include your account email. These are the CLI’s processes and files; Headroom does not read
+  those logs. If signed out, a check can open a Google sign-in page; Headroom stops and waits
+  for the Antigravity row’s Try Again or a sign-in through Headroom before checking again.
 - **API spend is optional and off by default.** If you enable it, the reporting
   keys you enter are stored in the macOS Keychain on your Mac and used only to call
   the providers' official cost endpoints directly.

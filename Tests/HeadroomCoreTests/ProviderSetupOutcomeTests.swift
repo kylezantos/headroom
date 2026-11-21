@@ -78,6 +78,12 @@ import Testing
             (.opencodeSignInExpired, .connectOpenCode, .checkNow, .boundedChecksAfterHandoff),
             (.opencodeFormatChanged, .contactSupport, .checkNow, .none),
             (.opencodeTransientCapture, .checkNow, nil, .none),
+            (.antigravityCLIMissing, .installAntigravityCLI, .checkNow, .none),
+            (.antigravityUpdateRequired, .installAntigravityCLI, .checkNow, .none),
+            (.antigravityUnsupportedClient, .contactSupport, .checkNow, .none),
+            (.antigravitySignedOut, .connectAntigravity, .checkNow, .boundedChecksAfterHandoff),
+            (.antigravityFormatChanged, .contactSupport, .checkNow, .none),
+            (.antigravityTransientCapture, .checkNow, nil, .none),
         ]
         #expect(Set(expectations.map(\.0)) == Set(allSetupOutcomes))
 
@@ -618,6 +624,12 @@ import Testing
                         .opencodeSignInExpired, .opencodeFormatChanged, .opencodeTransientCapture] {
             #expect(!outcome.isNeverSignedIn, "\(outcome)")
         }
+        #expect(ProviderSetupOutcome.antigravitySignedOut.isNeverSignedIn)
+        for outcome in [ProviderSetupOutcome.antigravityCLIMissing, .antigravityUpdateRequired,
+                        .antigravityUnsupportedClient, .antigravityFormatChanged,
+                        .antigravityTransientCapture] {
+            #expect(!outcome.isNeverSignedIn, "\(outcome)")
+        }
         #expect(!ProviderSetupOutcome.claudeCLIMissing.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
@@ -640,6 +652,12 @@ import Testing
         #expect(blocked.shortStatus == "Codex sign-in blocked")
         #expect(blocked.primaryShortLabel == "Get Help")
         #expect(blocked.rowHelp == "Allow Headroom to read the Codex sign-in file. Privacy & Security Help.")
+
+        // Antigravity's sentences state the cause only, so the tooltip names the action once.
+        #expect(ProviderSetupOutcome.antigravityUnsupportedClient.recoveryPresentation.rowHelp
+            == "Headroom paused Antigravity reads after an agy change. Contact Support.")
+        #expect(ProviderSetupOutcome.antigravityFormatChanged.recoveryPresentation.rowHelp
+            == "Headroom can’t read Antigravity usage after an agy change. Contact Support.")
     }
 
     /// CA-P5: the capability card builds its presentation outside the outcome table and
@@ -664,7 +682,8 @@ import Testing
                         .codexRejectedAuth, .grokRejectedAuth, .opencodeSignInExpired,
                         .codexMalformedAuth, .codexUnsafePermissions, .grokMalformedAuth, .grokUnsafePermissions,
                         .cursorMCPApprovalRequired, .claudeTrustRequired, .cursorTrustRequired,
-                        .claudeStartupQuestion, .codexCallbackIncomplete, .opencodeConsoleSignInRequired] {
+                        .claudeStartupQuestion, .codexCallbackIncomplete, .opencodeConsoleSignInRequired,
+                        .antigravitySignedOut] {
             #expect(!outcome.recoveryPresentation.appendsShortAction, "\(outcome)")
         }
         #expect(ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation.shortStatus == "Approve Headroom’s folder")
@@ -682,6 +701,7 @@ import Testing
             (.claudeCLIMissing, "Claude Code not found"), (.codexCLIMissing, "Codex CLI not found"),
             (.grokCLIMissing, "Grok Build CLI not found"), (.cursorCLIMissing, "Cursor Agent CLI not found"),
             (.copilotCLIMissing, "GitHub Copilot CLI not found"), (.opencodeCLIMissing, "OpenCode CLI not found"),
+            (.antigravityCLIMissing, "Antigravity CLI not found"),
         ]
         for (outcome, short) in missing {
             #expect(outcome.recoveryPresentation.shortStatus == short, "\(outcome)")
@@ -691,6 +711,7 @@ import Testing
             (.claudeTransientCapture, "Couldn’t read Claude"), (.grokTransientCapture, "Couldn’t read Grok"),
             (.cursorTransientCapture, "Couldn’t read Cursor"), (.copilotLogsUnreadable, "Couldn’t read Copilot logs"),
             (.opencodeTransientCapture, "Couldn’t read OpenCode"), (.codexSessionUnverified, "Can’t verify Codex"),
+            (.antigravityTransientCapture, "Couldn’t read Antigravity"),
         ]
         for (outcome, short) in transient {
             #expect(outcome.recoveryPresentation.shortStatus == short, "\(outcome)")
@@ -704,6 +725,14 @@ import Testing
         #expect(ProviderSetupOutcome.codexCallbackIncomplete.recoveryPresentation.primaryShortLabel == "Reopen")
         #expect(ProviderSetupOutcome.grokPermissionDenied.recoveryPresentation.primaryShortLabel == "Get Help")
         #expect(ProviderSetupOutcome.opencodeUpdateRequired.recoveryPresentation.primaryShortLabel == "Learn More")
+        // Antigravity's install and update share one action; the update row keeps its verb.
+        #expect(ProviderSetupOutcome.antigravityUpdateRequired.recoveryPresentation.shortStatus == "Needs agy 1.5.9")
+        #expect(ProviderSetupOutcome.antigravityUpdateRequired.recoveryPresentation.primaryShortLabel == "Update")
+        #expect(ProviderSetupOutcome.antigravityUnsupportedClient.recoveryPresentation.shortStatus
+            == "Antigravity reads paused")
+        #expect(ProviderSetupOutcome.antigravityUnsupportedClient.recoveryPresentation.primaryShortLabel == "Report")
+        #expect(ProviderSetupOutcome.antigravityFormatChanged.recoveryPresentation.shortStatus == "Can’t read Antigravity")
+        #expect(ProviderSetupOutcome.antigravityFormatChanged.recoveryPresentation.primaryShortLabel == "Report")
         for outcome in allSetupOutcomes {
             let presentation = outcome.recoveryPresentation
             #expect(!presentation.primaryShortLabel.isEmpty, "\(outcome)")
@@ -773,7 +802,7 @@ private var allSetupCardStrings: [String] {
     [ProviderSignInCopy.comeBackStep, ProviderSignInCopy.codexDeviceCodeWaitingBody,
      ProviderSignInCopy.codexBrowserWaitingBody, ProviderSignInCopy.codexSignedOutBody,
      ProviderSignInCopy.accountsTrustFooter]
-        + [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode].flatMap { provider in
+        + [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity].flatMap { provider in
             [ProviderSignInCopy.privacyNote(for: provider), ProviderSignInCopy.defaultLoginHelp(for: provider),
              ProviderSignInCopy.status(for: provider), ProviderSignInCopy.shortStatus(for: provider)]
                 .compactMap { $0 }
@@ -836,4 +865,6 @@ private let allSetupOutcomes: [ProviderSetupOutcome] = [
     .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable,
     .opencodeCLIMissing, .opencodeUpdateRequired, .opencodeSignedOut, .opencodeConsoleSignInRequired,
     .opencodeSignInExpired, .opencodeFormatChanged, .opencodeTransientCapture,
+    .antigravityCLIMissing, .antigravityUpdateRequired, .antigravityUnsupportedClient,
+    .antigravitySignedOut, .antigravityFormatChanged, .antigravityTransientCapture,
 ]

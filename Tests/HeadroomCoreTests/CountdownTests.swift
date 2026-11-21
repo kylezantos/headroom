@@ -97,7 +97,7 @@ struct CountdownTests {
         #expect(Countdown.staleReadHelp == "Couldn’t refresh this account. Headroom tries again on its next check.")
         #expect(Countdown.rememberedReadHelp(for: .claude)
             == "Not your current Claude login, so Headroom isn’t reading it. Sign in to it again, or add it in Settings › Accounts to keep it live.")
-        for provider in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
+        for provider in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity] {
             #expect(Countdown.rememberedReadHelp(for: provider).contains(provider.displayName))
         }
     }

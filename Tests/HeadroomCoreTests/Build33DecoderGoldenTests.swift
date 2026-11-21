@@ -191,6 +191,44 @@ struct Build33DecoderGoldenTests {
         }
     }
 
+    /// Build 33 knows no Antigravity either. Its phone export beside Claude decodes in the
+    /// frozen reader as an unknown provider ID: four `other` rows under their stored labels,
+    /// in the order the provider emits them, and the credits balance as the plan label.
+    @Test func antigravityInTheV3KeyDecodesInTheFrozenReaderAsAnUnknownProvider() throws {
+        let claude = UsageSnapshot(
+            providerID: .claude,
+            windows: [UsageWindow(kind: .fiveHour, utilization: 40, resetsAt: Self.t0.addingTimeInterval(3_600))],
+            planLabel: "Max", capturedAt: Self.t0, freshness: .live)
+        let reset = Self.t0.addingTimeInterval(3 * 3_600)
+        let antigravity = UsageSnapshot(
+            providerID: .antigravity,
+            windows: AntigravityProvider.windows(for: [
+                AntigravityBucket(pool: .gemini, window: .weekly, remainingFraction: 0.75, resetsAt: reset),
+                AntigravityBucket(pool: .gemini, window: .fiveHour, remainingFraction: 0.5, resetsAt: reset),
+                AntigravityBucket(pool: .claudeAndGPT, window: .weekly, remainingFraction: 0.25, resetsAt: reset),
+                AntigravityBucket(pool: .claudeAndGPT, window: .fiveHour, remainingFraction: 1, resetsAt: nil),
+            ]),
+            planLabel: "1,200 credits", capturedAt: Self.t0, freshness: .live)
+        let projected = WidgetSnapshotProjector.project(
+            snapshots: [.claude: claude, .antigravity: antigravity], providerOrder: [.claude, .antigravity],
+            displayNames: [:], renewalDate: { _ in nil }, widgetsEnabled: true, generatedAt: Self.t0,
+            context: .phoneSync(attention: [:]))
+        let bytes = try SyncedWidgetSnapshotCodec.encode(
+            SyncedWidgetSnapshotEnvelope(
+                publishedAt: Self.t0, sourceID: "Mac", sourcePlatform: .macOS, snapshot: projected,
+                companionSourceID: Self.macID, companionGeneration: 12))
+        let frozen = try #require(Build33Codec.decode(bytes).envelope)
+        #expect(frozen.snapshot.providers.map(\.id) == ["claude", "antigravity"])
+        let row = try #require(frozen.snapshot.providers.last)
+        #expect(row.displayName == "Antigravity")
+        #expect(row.planLabel == "1,200 credits")
+        #expect(row.windows.map(\.kind) == [
+            .other("Gemini 5h"), .other("Gemini weekly"), .other("Other weekly"), .other("Other 5h"),
+        ])
+        #expect(row.windows.map(\.percentRemaining) == [50, 75, 25, 100])
+        #expect(row.windows.last?.resetSchedule == .unresolved(.absent))
+    }
+
     private func encodedV3(
         snapshots: [ProviderID: UsageSnapshot], order: [ProviderID],
         spend: [ProviderID: APISpendSnapshot] = [:]

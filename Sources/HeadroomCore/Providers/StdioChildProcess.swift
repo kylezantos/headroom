@@ -2,12 +2,21 @@ import Foundation
 import Darwin
 
 /// A CLI spawned as its own session leader with piped stdin and stdout, so a server that
-/// hangs, or leaves workers behind, can be ended as one process group. Stderr is discarded:
-/// nothing a CLI prints there may reach a log or an error.
+/// hangs, or leaves workers behind, can be ended as one process group. Stderr is discarded
+/// unless a caller asks to watch it: nothing a CLI prints there may reach a log or an error.
 struct StdioChildProcess {
     private let pid: pid_t
     private let stdin: Int32
     private let stdout: Int32
+    /// -1 unless spawned with `stderr: .watch`.
+    private let stderr: Int32
+
+    /// Where the child's stderr goes. `.watch` pipes it back only so a caller can match a
+    /// fixed marker while the child runs; the bytes are never kept, logged or returned.
+    enum Stderr {
+        case discard
+        case watch
+    }
 
     /// What the child reads. `.pipe` is the default every server-style caller writes to;
     /// `.nullDevice` gives a run-and-exit CLI end of file at once, so a client that ever reads
@@ -22,7 +31,8 @@ struct StdioChildProcess {
         arguments: [String],
         environment: [String: String],
         workingDirectory: String,
-        stdin stdinMode: Stdin = .pipe
+        stdin stdinMode: Stdin = .pipe,
+        stderr stderrMode: Stderr = .discard
     ) -> StdioChildProcess? {
         var input = [Int32](repeating: -1, count: 2)
         var output = [Int32](repeating: -1, count: 2)
@@ -41,7 +51,12 @@ struct StdioChildProcess {
             close(input[0]); close(input[1]); close(output[0]); close(output[1])
             return nil
         }
-        let devNull = open("/dev/null", O_WRONLY)
+        var errorPipe = [Int32](repeating: -1, count: 2)
+        if stderrMode == .watch, pipe(&errorPipe) != 0 {
+            for fd in input + output where fd >= 0 { close(fd) }
+            return nil
+        }
+        let devNull = stderrMode == .discard ? open("/dev/null", O_WRONLY) : -1
 
         var actions = posix_spawn_file_actions_t(bitPattern: 0)
         posix_spawn_file_actions_init(&actions)
@@ -53,7 +68,8 @@ struct StdioChildProcess {
         posix_spawn_file_actions_adddup2(&actions, input[0], STDIN_FILENO)
         posix_spawn_file_actions_adddup2(&actions, output[1], STDOUT_FILENO)
         if devNull >= 0 { posix_spawn_file_actions_adddup2(&actions, devNull, STDERR_FILENO) }
-        for fd in [input[0], input[1], output[0], output[1], devNull] where fd >= 0 {
+        if errorPipe[1] >= 0 { posix_spawn_file_actions_adddup2(&actions, errorPipe[1], STDERR_FILENO) }
+        for fd in [input[0], input[1], output[0], output[1], devNull, errorPipe[0], errorPipe[1]] where fd >= 0 {
             posix_spawn_file_actions_addclose(&actions, fd)
         }
 
@@ -74,12 +90,14 @@ struct StdioChildProcess {
         let spawnStatus = posix_spawn(&pid, path, &actions, &attributes, cArguments, cEnvironment)
         close(input[0]); close(output[1])
         if devNull >= 0 { close(devNull) }
+        if errorPipe[1] >= 0 { close(errorPipe[1]) }
         guard spawnStatus == 0 else {
             if input[1] >= 0 { close(input[1]) }
             close(output[0])
+            if errorPipe[0] >= 0 { close(errorPipe[0]) }
             return nil
         }
-        return StdioChildProcess(pid: pid, stdin: input[1], stdout: output[0])
+        return StdioChildProcess(pid: pid, stdin: input[1], stdout: output[0], stderr: errorPipe[0])
     }
 
     func write(_ data: Data) -> Bool {
@@ -112,6 +130,34 @@ struct StdioChildProcess {
         return true
     }
 
+    /// `readOutput` for a child spawned with `stderr: .watch`: also hands whatever stderr
+    /// printed to `onError`, until stderr closes (`errorOpen` turns false). False once stdout
+    /// has closed or failed.
+    func readOutput(
+        into buffer: inout Data,
+        errorOpen: inout Bool,
+        deadline: Date,
+        onError: (Data) -> Void
+    ) -> Bool {
+        let remainingMilliseconds = max(1, Int(deadline.timeIntervalSinceNow * 1_000))
+        let watchesError = errorOpen && stderr >= 0
+        var descriptors = [pollfd(fd: stdout, events: Int16(POLLIN), revents: 0)]
+        if watchesError { descriptors.append(pollfd(fd: stderr, events: Int16(POLLIN), revents: 0)) }
+        let pollResult = Darwin.poll(&descriptors, nfds_t(descriptors.count), Int32(min(remainingMilliseconds, 250)))
+        guard pollResult >= 0 else { return false }
+        guard pollResult > 0 else { return true }
+        var chunk = [UInt8](repeating: 0, count: 8_192)
+        if watchesError, descriptors[1].revents != 0 {
+            let count = Darwin.read(stderr, &chunk, chunk.count)
+            if count > 0 { onError(Data(chunk.prefix(count))) } else { errorOpen = false }
+        }
+        guard descriptors[0].revents != 0 else { return true }
+        let count = Darwin.read(stdout, &chunk, chunk.count)
+        guard count > 0 else { return false }
+        buffer.append(contentsOf: chunk.prefix(count))
+        return true
+    }
+
     /// The leader's exit code once it exits within `seconds`; nil if it is still running or
     /// was killed by a signal. `WNOWAIT` leaves the leader unreaped, so `terminate()` still
     /// signals its group while the pid is held and can't be reused, then reaps it.
@@ -131,6 +177,7 @@ struct StdioChildProcess {
     func terminate() {
         if stdin >= 0 { close(stdin) }
         close(stdout)
+        if stderr >= 0 { close(stderr) }
         Self.terminateProcessGroup(pid)
     }
 

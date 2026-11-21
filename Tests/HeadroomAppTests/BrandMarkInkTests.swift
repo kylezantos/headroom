@@ -22,6 +22,7 @@ struct BrandMarkInkTests {
     private static let markFiles = [
         "claude-color", "codex-color", "cursor-dark", "cursor-light", "grok-dark", "grok-light",
         "copilot-dark", "copilot-light", "opencode-dark", "opencode-light",
+        "antigravity-dark", "antigravity-light",
     ]
 
     /// The ink box as a fraction of the drawn image, plus the image's own aspect. Drawn into
@@ -82,7 +83,7 @@ struct BrandMarkInkTests {
     /// so their trimmed boxes must be identical — otherwise the mark would jump sideways
     /// when the appearance changes.
     @Test(arguments: [("grok-light", "grok-dark"), ("cursor-light", "cursor-dark"), ("copilot-light", "copilot-dark"),
-        ("opencode-light", "opencode-dark")])
+        ("opencode-light", "opencode-dark"), ("antigravity-light", "antigravity-dark")])
     func lightAndDarkPairsTrimToTheSameBox(_ pair: (String, String)) throws {
         let light = try Self.inkBox(of: pair.0)
         let dark = try Self.inkBox(of: pair.1)
@@ -104,6 +105,8 @@ struct BrandMarkInkTests {
         (ProviderID.copilot.raw, "copilot-light"),
         (ProviderID.opencode.raw, "opencode-light"),
         (ProviderID.opencode.raw, "opencode-dark"),
+        (ProviderID.antigravity.raw, "antigravity-light"),
+        (ProviderID.antigravity.raw, "antigravity-dark"),
     ])
     func coreInkAspectMatchesTheShippedArtwork(_ pair: (String, String)) throws {
         let measured = try Self.inkBox(of: pair.1).aspect
@@ -116,7 +119,7 @@ struct BrandMarkInkTests {
 @MainActor
 @Suite(.sharedAppState)
 struct MenuBarMarkRenderTests {
-    static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
+    static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity]
 
     static func meter(_ provider: ProviderID?, text: String = "72%", fill: Double = 0.72,
                       severity: UsageSeverity = .healthy, attention: Bool = false,
@@ -282,7 +285,7 @@ struct MenuBarMarkRenderTests {
             let rep = try Self.bitmap(image, scale: scale)
             let data = rep.bitmapData!
             let peak = Double(Self.columns(rep, from: 0, to: MenuBarLabelGeometry.markBoxSize, scale: scale).map { $0[3] }.max() ?? 0)
-            // The underscore sits about 10.5pt down and 6.8 to 8.9pt across the image.
+            // The underscore sits about 10.7pt down and 6.8 to 9.2pt across the image (Codex at 11pt).
             var lowest = 255.0
             for y in Int(9.5 * scale)..<Int(11.5 * scale) {
                 for x in Int(7 * scale)..<Int(8.8 * scale) {
@@ -297,10 +300,11 @@ struct MenuBarMarkRenderTests {
 
     /// One mark's ink in a single-pill render: the box of pixels at or above half the peak
     /// alpha, the alpha-weighted pixel count (alpha / peak), and how far the box's centre sits
-    /// above the vessel's (the image's) centre, in points. Also whether anything at all was
-    /// drawn in the gap between the mark's box and its vessel.
+    /// above the vessel's (the image's) centre, in points. `outer` is the larger side of the
+    /// box of pixels at or above a quarter of the peak, so a hairline end still counts. Also
+    /// whether anything at all was drawn in the gap between the mark's box and its vessel.
     static func markInk(_ provider: ProviderID, dark: Bool, scale: CGFloat) throws
-        -> (height: Double, mass: Double, lift: Double, spillsIntoGap: Bool) {
+        -> (height: Double, outer: Double, mass: Double, lift: Double, spillsIntoGap: Bool) {
         let image = MenuBarLabelRenderer.render(meters: [meter(provider)], showsPercentage: false,
                                                 palette: MenuBarPalette(isDarkMenuBar: dark), showsMarks: true).image
         let rep = try bitmap(image, scale: scale)
@@ -314,33 +318,41 @@ struct MenuBarMarkRenderTests {
             for x in box..<vessel where alpha(x, y) > 0 { spills = true }
         }
         var top = Int.max, bottom = -1, mass = 0.0
+        var outerLeft = Int.max, outerRight = -1, outerTop = Int.max, outerBottom = -1
         for y in 0..<rep.pixelsHigh {
             for x in 0..<box {
                 mass += Double(alpha(x, y)) / Double(peak)
                 if alpha(x, y) * 2 >= peak { top = min(top, y); bottom = max(bottom, y) }
+                if alpha(x, y) * 4 >= peak {
+                    outerLeft = min(outerLeft, x); outerRight = max(outerRight, x)
+                    outerTop = min(outerTop, y); outerBottom = max(outerBottom, y)
+                }
             }
         }
         let s = Double(scale)
         let lift = (Double(rep.pixelsHigh) / 2 - Double(top + bottom + 1) / 2) / s
-        return (Double(bottom - top + 1) / s, mass, lift, spills)
+        let outer = Double(max(outerRight - outerLeft, outerBottom - outerTop) + 1) / s
+        return (Double(bottom - top + 1) / s, outer, mass, lift, spills)
     }
 
-    /// CA-MB1: pins the menu bar's optical balance of the six marks. With the popover's sizing
-    /// they measured 2pt apart in height and 1.85× apart in weight at 2×; the menu bar's own
-    /// table measures 2.0pt (by design: the solid Codex and OpenCode take the least extent)
-    /// and 1.30×, every centre within 0.25pt of the vessel's, nothing in the gap.
+    /// CA-MB1 size parity (Kyle, 2026-11-20): the seven marks read one size. The first tuning
+    /// matched ink weight and shrank the solid marks, so Codex's blob (9.5pt) read clearly
+    /// smaller than Claude's star (11.5pt) on a 2× bar. Pinned now: outer ink extents within
+    /// 1.25pt of each other (they measure 11 to 12pt), weight max/min under 2× (it measures
+    /// about 1.85×: the solid Codex is the heaviest, which is the price of equal size), every
+    /// centre within 0.3pt of the vessel's, nothing in the gap.
     @Test(arguments: [true, false])
-    func theSixMarksStayOpticallyBalancedAtTwoX(_ dark: Bool) throws {
-        var heights: [Double] = [], masses: [Double] = []
+    func theSevenMarksReadOneSizeAtTwoX(_ dark: Bool) throws {
+        var outers: [Double] = [], masses: [Double] = []
         for provider in Self.providers {
             let ink = try Self.markInk(provider, dark: dark, scale: 2)
-            heights.append(ink.height); masses.append(ink.mass)
+            outers.append(ink.outer); masses.append(ink.mass)
             #expect(abs(ink.lift) <= 0.3, "\(provider.raw) sits \(ink.lift)pt off the vessel's centre")
             #expect(!ink.spillsIntoGap, "\(provider.raw) drew into its gap")
         }
-        let summary = zip(Self.providers, zip(heights, masses)).map { "\($0.raw) \($1.0)pt \(Int($1.1))" }.joined(separator: ", ")
-        #expect(heights.max()! - heights.min()! <= 2.25, "heights: \(summary)")
-        #expect(masses.max()! / masses.min()! < 1.36, "weights: \(summary)")
+        let summary = zip(Self.providers, zip(outers, masses)).map { "\($0.raw) \($1.0)pt \(Int($1.1))" }.joined(separator: ", ")
+        #expect(outers.max()! - outers.min()! <= 1.25, "outer extents: \(summary)")
+        #expect(masses.max()! / masses.min()! < 2.0, "weights: \(summary)")
     }
 
     /// At 1× the marks stay inside their boxes and on the vessel's centre to the half pixel.

@@ -51,7 +51,7 @@ public enum SetupSessionFailure: Error, Sendable, Equatable {
 /// The policy is chosen once, when the handoff is staged, and saved with it — never
 /// re-derived from a CLI version that can change while the original Terminal is open.
 public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
-    /// Today’s bounded retry ladder. Every provider but Claude and OpenCode.
+    /// Today’s bounded retry ladder.
     case retryLadder
     /// One check a fixed delay after each landed result. Claude's `interactive` launch,
     /// where the CLI's own screens can be satisfied without the process exiting.
@@ -69,6 +69,7 @@ public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
         claudeScriptKind: ClaudeSetupScriptKind?
     ) -> Self {
         if let policy = exitSignalledOpenCode(providerID: providerID, purpose: purpose) { return policy }
+        if let policy = exitSignalledAntigravity(providerID: providerID, purpose: purpose) { return policy }
         guard providerID == .claude else { return .retryLadder }
         if purpose == .reset { return .exitSignalled }
         return claudeScriptKind == .signIn ? .exitSignalled : .polled
@@ -79,6 +80,7 @@ public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
     /// the sign-in script; `.trust` is always the interactive launch.
     public static func restored(providerID: ProviderID, purpose: SetupHandoffPurpose) -> Self {
         if let policy = exitSignalledOpenCode(providerID: providerID, purpose: purpose) { return policy }
+        if let policy = exitSignalledAntigravity(providerID: providerID, purpose: purpose) { return policy }
         guard providerID == .claude else { return .retryLadder }
         return purpose == .setup || purpose == .reset ? .exitSignalled : .polled
     }
@@ -91,6 +93,16 @@ public enum SetupWaitingPolicy: String, Sendable, Equatable, CaseIterable {
         purpose: SetupHandoffPurpose
     ) -> Self? {
         guard providerID == .opencode, purpose == .setup || purpose == .reset else { return nil }
+        return .exitSignalled
+    }
+
+    /// A usage read on a signed-out `agy` opens another browser sign-in, so no check runs
+    /// while the Terminal sign-in is open: one runs after it exits, as for OpenCode.
+    private static func exitSignalledAntigravity(
+        providerID: ProviderID,
+        purpose: SetupHandoffPurpose
+    ) -> Self? {
+        guard providerID == .antigravity, purpose == .setup || purpose == .reset else { return nil }
         return .exitSignalled
     }
 }
@@ -737,7 +749,7 @@ public final class SetupSessionCoordinator {
             let failure: SetupSessionFailure
             if let outcome = reason.providerSetupOutcome {
                 if outcome == .claudeLoginRequired || outcome == .opencodeSignedOut
-                    || outcome == .opencodeConsoleSignInRequired {
+                    || outcome == .opencodeConsoleSignInRequired || outcome == .antigravitySignedOut {
                     // KTD10: whatever status the wrapper recorded, the account is still
                     // signed out, so the window closed before sign-in finished (R11).
                     failure = .closedBeforeSignIn
@@ -761,7 +773,8 @@ public final class SetupSessionCoordinator {
         case .codexPermissionDenied, .codexMalformedAuth, .codexStorageMismatch,
              .codexCallbackIncomplete, .codexCLIMissing, .claudeCLIMissing,
              .grokCLIMissing, .grokPermissionDenied, .grokUnsafePermissions,
-             .grokMalformedAuth, .cursorCLIMissing, .copilotCLIMissing, .opencodeCLIMissing:
+             .grokMalformedAuth, .cursorCLIMissing, .copilotCLIMissing, .opencodeCLIMissing,
+             .antigravityCLIMissing:
             invalidateWork(for: key, finalState: .failed(.provider(outcome)), releaseLoginSlot: true)
         default:
             break

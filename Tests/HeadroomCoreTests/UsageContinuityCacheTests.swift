@@ -196,6 +196,29 @@ struct UsageContinuityCacheTests {
         }
     }
 
+    /// A reading saved before the parser read "(ll models)" as Weekly carries a ghost
+    /// model row. It is dropped at launch and on the next live merge, not retained.
+    @Test func misreadAllModelsRowIsDroppedNotRetained() {
+        let capturedAt = Date(timeIntervalSince1970: 2_000_000)
+        let resetAt = capturedAt.addingTimeInterval(-60)
+        let ghost = UsageWindow(
+            kind: .other("Weekly (ll models)"),
+            utilization: 29,
+            resetsAt: resetAt
+        ).withFreshness(.unavailable(since: resetAt))
+        let fable = UsageWindow(kind: .other("Weekly (Fable)"), utilization: 4, resetsAt: resetAt)
+            .withFreshness(.unavailable(since: resetAt))
+        let weekly = UsageWindow(kind: .weekly, utilization: 0, resetsAt: capturedAt.addingTimeInterval(86_400))
+        let prior = UsageSnapshot.live(.claude, windows: [weekly, fable, ghost], at: capturedAt)
+
+        let restored = UsageContinuityPolicy.restoredSnapshot(prior, for: .claude, at: capturedAt.addingTimeInterval(60))
+        #expect(restored.windows.map(\.kind) == [.weekly, .other("Weekly (Fable)")])
+
+        let fresh = UsageSnapshot.live(.claude, windows: [weekly], at: capturedAt.addingTimeInterval(300))
+        let merged = UsageContinuityPolicy.mergedSnapshot(fresh, with: prior, at: capturedAt.addingTimeInterval(300))
+        #expect(merged.windows.map(\.kind) == [.weekly, .other("Weekly (Fable)")])
+    }
+
     @Test func legacyFutureAndPastDeadlinesMigrateWithoutSentinels() throws {
         let defaults = freshDefaults()
         let key = AccountKey(providerID: .claude, accountID: .primary)

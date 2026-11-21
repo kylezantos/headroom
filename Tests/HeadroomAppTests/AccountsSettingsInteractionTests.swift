@@ -1686,7 +1686,7 @@ private final class GrokDeviceCodeSetupHarness {
 /// in both color schemes, rather than hitting the `default:` identity arm.
 @Suite(.sharedAppState) struct ProviderStyleIdentityTests {
     @Test func everyRegisteredProviderHasABrandIdentity() {
-        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode] {
+        for id in [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity] {
             #expect(ProviderStyle.svgResourceName(for: id, scheme: .light) != nil, "\(id.raw) light mark")
             #expect(ProviderStyle.svgResourceName(for: id, scheme: .dark) != nil, "\(id.raw) dark mark")
             #expect(ProviderStyle.accent(for: id) != Color.secondary, "\(id.raw) accent")
@@ -1703,6 +1703,8 @@ private final class GrokDeviceCodeSetupHarness {
         #expect(ProviderStyle.svgResourceName(for: .copilot, scheme: .dark) == "copilot-dark")
         #expect(ProviderStyle.svgResourceName(for: .opencode, scheme: .light) == "opencode-light")
         #expect(ProviderStyle.svgResourceName(for: .opencode, scheme: .dark) == "opencode-dark")
+        #expect(ProviderStyle.svgResourceName(for: .antigravity, scheme: .light) == "antigravity-light")
+        #expect(ProviderStyle.svgResourceName(for: .antigravity, scheme: .dark) == "antigravity-dark")
     }
 
     /// U6 (OpenCode plan): the widget families and the Lock Screen read the asset catalog
@@ -1712,6 +1714,7 @@ private final class GrokDeviceCodeSetupHarness {
         let expected: [(ProviderID, String)] = [
             (.claude, "ClaudeBrandIcon"), (.codex, "CodexBrandIcon"), (.grok, "GrokBrandIcon"),
             (.cursor, "CursorBrandIcon"), (.copilot, "CopilotBrandIcon"), (.opencode, "OpenCodeBrandIcon"),
+            (.antigravity, "AntigravityBrandIcon"),
         ]
         for (id, asset) in expected {
             #expect(HeadroomWidgetStyle.assetName(for: id.raw) == asset, "\(id.raw) asset")

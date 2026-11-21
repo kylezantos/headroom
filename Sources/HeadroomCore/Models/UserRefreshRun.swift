@@ -14,7 +14,7 @@ public struct VisibleRefreshWork: Sendable, Equatable {
 
 /// The reason a key joined user work (loading-language KTD1–KTD3). Timer probes have no
 /// entry unless they satisfy a request that arrived while they were already running.
-public enum UserRefreshOrigin: Sendable, Equatable {
+public enum UserRefreshOrigin: Sendable, Hashable {
     case fullRefresh
     case accountAction
     case setupCheck

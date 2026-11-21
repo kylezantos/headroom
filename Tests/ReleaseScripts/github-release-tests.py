@@ -28,9 +28,34 @@ class ReleaseNotesTests(unittest.TestCase):
 
     def test_empty_or_unsupported_notes_fail_closed(self):
         render = load("github-release").render
-        for html in ["<body></body>", '<body><a href="https://example.com">Link</a></body>']:
+        for html in ["<body></body>", '<body><script>Link</script></body>']:
             with self.assertRaises(ValueError):
                 render(html, "1.6", "44")
+
+    def test_contributor_links_survive_rendering(self):
+        body = load("github-release").render(
+            '<body><h2>New providers</h2><ul><li>Antigravity</li></ul>'
+            '<p>Thanks to <a href="https://github.com/mvanhorn">Matt Van Horn (@mvanhorn)</a>'
+            ' for <a href="https://github.com/kylezantos/headroom/pull/242">Antigravity support</a>.</p></body>',
+            "1.8", "48",
+        )
+        self.assertIn("[Matt Van Horn (@mvanhorn)](https://github.com/mvanhorn)", body)
+        self.assertIn("[Antigravity support](https://github.com/kylezantos/headroom/pull/242)", body)
+
+    def test_unsafe_or_missing_link_targets_fail_closed(self):
+        render = load("github-release").render
+        for target in ['href="javascript:alert(1)"', 'href="/relative"', 'href="https://example.com/a)"', ""]:
+            with self.subTest(target=target), self.assertRaises(ValueError):
+                render(f'<body><h2>Notes</h2><ul><li>Fix</li></ul><p><a {target}>Link</a></p></body>', "1.8", "48")
+
+    def test_unclosed_or_nested_links_fail_closed(self):
+        render = load("github-release").render
+        for links in [
+            '<a href="https://github.com/mvanhorn">Matt',
+            '<a href="https://github.com/mvanhorn"><a href="https://github.com">Matt</a></a>',
+        ]:
+            with self.subTest(links=links), self.assertRaises(ValueError):
+                render(f"<body><h2>Notes</h2><ul><li>Fix</li></ul><p>{links}</p></body>", "1.8", "48")
 
     def test_provider_drift_blocks_site_gate(self):
         import json

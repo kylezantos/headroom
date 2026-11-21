@@ -150,6 +150,10 @@ public enum HeadroomBrandColorValues {
     /// palette is a warm neutral (the mark's inner block is `#5A5858`), which keeps it apart
     /// from Cursor's and Copilot's cooler neutrals (U6, OpenCode plan).
     public static let opencode = HeadroomRGBColor(red: 0.35, green: 0.34, blue: 0.34)
+    /// Antigravity ships its monochrome mark (the color mark's blurred gradient does not
+    /// survive AppKit's SVG renderer), so it takes a neutral like the other monochrome marks.
+    /// The mark, not this accent, tells them apart.
+    public static let antigravity = HeadroomRGBColor(red: 0.36, green: 0.36, blue: 0.38)
 
     /// R2C13: the value ceiling for the two monochrome marks. Their artwork shipped at the
     /// numeral's own value (`#F5F5F7` dark / `#0D0D0F` light), which put Cursor's solid cube
@@ -264,6 +268,9 @@ public enum HeadroomWidgetColorValues {
         // OpenCode: the warm neutral of its own palette, at Cursor's legible lightnesses.
         case (ProviderID.opencode.raw, false): HeadroomRGBColor(red: 0.18, green: 0.17, blue: 0.17)
         case (ProviderID.opencode.raw, true): HeadroomRGBColor(red: 0.82, green: 0.81, blue: 0.81)
+        // Antigravity: a plain neutral at Cursor's legible lightnesses.
+        case (ProviderID.antigravity.raw, false): HeadroomRGBColor(red: 0.18, green: 0.18, blue: 0.20)
+        case (ProviderID.antigravity.raw, true): HeadroomRGBColor(red: 0.81, green: 0.82, blue: 0.84)
         default: nil
         }
     }
@@ -853,6 +860,10 @@ public enum HeadroomBrandMark {
         // Cursor at 1.00, and its 10.4pt width leaves a wider title gap than Claude's, never
         // the cramped one Copilot had.
         case ProviderID.opencode.raw: 1.00
+        // Antigravity 1.00: an arch wider than it is tall, ~0.37 coverage, so
+        // like Copilot it scores a little under Claude by optical size. At 1.00 it is 13pt
+        // wide, Claude's width, which keeps the title gap level with the other marks.
+        case ProviderID.antigravity.raw: 1.00
         default: 1.0
         }
     }
@@ -880,6 +891,7 @@ public enum HeadroomBrandMark {
         case ProviderID.copilot.raw: 24.0 / 20.03
         // OpenCode's block is a 4:5 portrait (its official 240 × 300 artboard is all ink).
         case ProviderID.opencode.raw: 240.0 / 300.0
+        case ProviderID.antigravity.raw: 24.0 / 22.1087
         default: 1.0
         }
     }

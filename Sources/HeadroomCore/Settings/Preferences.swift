@@ -30,6 +30,9 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let widgetsEnabled = "widgetsEnabled"
         static let showCodexSparkCountersInApp = "showCodexSparkCountersInApp"
         static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
+        static let showsAntigravityFiveHourWindows = "showsAntigravityFiveHourWindows"
+        static let antigravityStoppedClient = "antigravityStoppedClient"
+        static let antigravitySignedOut = "antigravitySignedOut"
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
         static let apiSpendPeriod = "apiSpendPeriod"
         static let settingsPane = "settingsPane"
@@ -274,6 +277,40 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
     public var showCodexSparkCountersInWidgets: Bool {
         get { defaults.bool(forKey: Key.showCodexSparkCountersInWidgets) }
         nonmutating set { defaults.set(newValue, forKey: Key.showCodexSparkCountersInWidgets) }
+    }
+
+    /// Default **on**: Antigravity's "Gemini 5h" and "Other 5h" rows show until the user
+    /// turns them off. The weekly rows always show. One switch for every surface: the
+    /// popover, the menu bar, widgets, the phone and reminders.
+    public var showsAntigravityFiveHourWindows: Bool {
+        get {
+            guard defaults.object(forKey: Key.showsAntigravityFiveHourWindows) != nil else { return true }
+            return defaults.bool(forKey: Key.showsAntigravityFiveHourWindows)
+        }
+        nonmutating set { defaults.set(newValue, forKey: Key.showsAntigravityFiveHourWindows) }
+    }
+
+    /// The Antigravity safety stop (`AntigravityCaptureFailure.unsupportedClient`), encoded by
+    /// `AntigravityProbeMemory`: the client that answered a read with a turn, keyed by
+    /// executable path, modification date and version. Nil when no client is stopped. Kept so
+    /// a relaunch can't spawn it again. Raw data because the iPhone build has no Antigravity
+    /// source.
+    public var antigravityStoppedClientData: Data? {
+        get { defaults.data(forKey: Key.antigravityStoppedClient) }
+        nonmutating set {
+            if let newValue { defaults.set(newValue, forKey: Key.antigravityStoppedClient) }
+            else { defaults.removeObject(forKey: Key.antigravityStoppedClient) }
+        }
+    }
+
+    /// Antigravity's signed-out mark (`AntigravityCaptureFailure.signedOut`), kept so a
+    /// relaunch doesn't open another browser sign-in.
+    public var antigravitySignedOut: Bool {
+        get { defaults.bool(forKey: Key.antigravitySignedOut) }
+        nonmutating set {
+            if newValue { defaults.set(true, forKey: Key.antigravitySignedOut) }
+            else { defaults.removeObject(forKey: Key.antigravitySignedOut) }
+        }
     }
 
     public var syncToIPhoneEnabled: Bool {

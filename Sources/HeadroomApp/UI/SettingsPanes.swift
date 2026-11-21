@@ -210,6 +210,7 @@ struct AppearanceSettingsPane: View {
     @Binding var accountTitleInk: AccountTitleInk
     @Binding var accountLayout: AccountLayout
     @Binding var showCodexSparkCountersInApp: Bool
+    @Binding var showsAntigravityFiveHourWindows: Bool
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
 
@@ -256,7 +257,8 @@ struct AppearanceSettingsPane: View {
                 usagePercentageMode: $usagePercentageMode,
                 accountTitleInk: $accountTitleInk,
                 accountLayout: $accountLayout,
-                showCodexSparkCountersInApp: $showCodexSparkCountersInApp
+                showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
+                showsAntigravityFiveHourWindows: $showsAntigravityFiveHourWindows
             )
         }
     }
@@ -658,7 +660,10 @@ struct MenuBarSettingsPane: View {
                     } label: {
                         Image(systemName: "plus")
                     }
-                    .help("Add \(name(id)) pill")
+                    .disabled(!store.canAddMenuBarProvider)
+                    .help(store.canAddMenuBarProvider
+                        ? "Add \(name(id)) pill"
+                        : "The menu bar holds up to \(UsageStore.maximumMenuBarPills) pills. Remove one first.")
                     .accessibilityLabel("Add \(name(id)) pill")
                     .transition(cardPartTransition)
                 }

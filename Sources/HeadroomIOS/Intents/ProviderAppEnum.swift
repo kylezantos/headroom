@@ -2,7 +2,7 @@ import AppIntents
 
 // KTD18: the provider parameter of the read-only Siri and Shortcuts answers. Named apart
 // from the widget extensions' `HeadroomWidget…Option` enums: each bundle carries its own
-// App Intents metadata. All six providers, every account (provider parity).
+// App Intents metadata. Every provider, every account (provider parity).
 
 enum UsageProviderOption: String, AppEnum {
     case claude
@@ -11,6 +11,7 @@ enum UsageProviderOption: String, AppEnum {
     case cursor
     case copilot
     case opencode
+    case antigravity
 
     static let typeDisplayRepresentation: TypeDisplayRepresentation = "Provider"
     static let caseDisplayRepresentations: [UsageProviderOption: DisplayRepresentation] = [
@@ -20,6 +21,7 @@ enum UsageProviderOption: String, AppEnum {
         .cursor: DisplayRepresentation(title: "Cursor", synonyms: ["Cursor Agent"]),
         .copilot: DisplayRepresentation(title: "Copilot", synonyms: ["GitHub Copilot"]),
         .opencode: DisplayRepresentation(title: "OpenCode", synonyms: ["OpenCode Go", "Open Code"]),
+        .antigravity: DisplayRepresentation(title: "Antigravity", synonyms: ["Google Antigravity", "Anti Gravity"]),
     ]
 
     var providerID: ProviderID {
@@ -30,6 +32,7 @@ enum UsageProviderOption: String, AppEnum {
         case .cursor: .cursor
         case .copilot: .copilot
         case .opencode: .opencode
+        case .antigravity: .antigravity
         }
     }
 }

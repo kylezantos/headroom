@@ -67,6 +67,18 @@ width and sampled its frame every 8ms with `CGWindowListCopyWindowInfo`.
   measured. It is drawn, never stored: it carries the old generation under new IDs and would pass
   for an already-made plan.
 
+## Scroll vertically (Nov 2026)
+
+With horizontal expansion off there is no second column to spill into, so the 640pt cap would
+scroll a list the screen had room for (#245). The single column's scroll point is instead the
+visible height of the screen under the popover's top-centre point (the same lookup as
+`PopoverWindowHeightFitter.visibleBottom`) less the header, footer and a little air, at most
+900pt so a large display doesn't get a popover taller than it should be. There is no 640pt floor:
+on a short laptop screen the list scrolls sooner so the footer stays above the Dock. The cap is
+planned on close with the columns and kept through the next open, so it never moves while the
+popover is open; an open on a different screen uses the previous screen's cap once. The list is
+still only as tall as its cards below the cap.
+
 ## Measuring it
 
 `--bench-ui popover` builds a fresh hosting view for every open, so each of its warm opens takes

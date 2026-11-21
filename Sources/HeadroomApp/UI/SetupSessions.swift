@@ -566,7 +566,8 @@ enum SetupSessions {
             // R8: Anthropic's current official installation guide.
             .documentation(URL(string: "https://code.claude.com/docs/en/installation")!)
         case .openClaudeSetup, .connectCodex, .reconnectCodex, .resolveCodexStorage,
-             .connectGrok, .reconnectGrok, .connectCursor, .connectCopilot, .connectOpenCode:
+             .connectGrok, .reconnectGrok, .connectCursor, .connectCopilot, .connectOpenCode,
+             .connectAntigravity:
             .setup(.standard)
         case .installCodexCLI:
             .documentation(URL(string: "https://developers.openai.com/codex/cli/")!)
@@ -584,6 +585,8 @@ enum SetupSessions {
             .documentation(URL(string: "https://anoma.ly/notes/opencode-2-0")!)
         case .seeOpenCodeGoPlans:
             .documentation(URL(string: "https://opencode.ai/go")!)
+        case .installAntigravityCLI:
+            .documentation(AntigravityCLI.installationURL)
         case .contactSupport:
             .feedbackEmail
         // A startup question is answered in the same interactive launch an approval uses;
@@ -832,6 +835,7 @@ enum SetupSessions {
         case .cursor: "Cursor Agent"
         case .copilot: "GitHub Copilot"
         case .opencode: "OpenCode"
+        case .antigravity: "Antigravity"
         default: account.providerID.raw.capitalized
         }
     }
@@ -1193,6 +1197,17 @@ enum SetupSessions {
                         home: home,
                         purpose: purpose
                     )
+                case .antigravity:
+                    // Single-account like Copilot, with no home routing and no device-code flow:
+                    // the handoff always signs in the CLI's default home, which the usage read uses.
+                    guard let executable = AntigravityCLI.resolveExecutable() else {
+                        return .failure(.executableMissing)
+                    }
+                    script = AntigravityCLI.loginScript(
+                        executablePath: executable,
+                        completionMarker: completionMarker
+                    )
+                    manualCommand = AntigravityCLI.manualLoginCommand(executablePath: executable)
                 default:
                     return .failure(.stagingFailed)
                 }

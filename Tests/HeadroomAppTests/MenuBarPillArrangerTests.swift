@@ -179,6 +179,63 @@ struct MenuBarPillArrangerTests {
         #expect(PillShelfModel.cardWidth(forWidth: 516, count: 6) == 76)
     }
 
+    // MARK: Seven cards: the menu bar holds six
+
+    /// Six or fewer cards keep one row: every card's row is the first, so those layouts are
+    /// the ones above, unchanged.
+    @Test func sixOrFewerCardsNeverWrap() {
+        for count in 1...6 {
+            #expect(PillShelfModel.columns(forCount: count) == count)
+            let slots = Dictionary(uniqueKeysWithValues: (0..<count).map {
+                (ProviderID("p\($0)"), PillShelfSlot(shelf: .menuBar, index: $0))
+            })
+            #expect(PillShelfModel.rowCount(in: .menuBar, slots: slots, columns: count) == 1)
+        }
+    }
+
+    /// Seven registered cards are sized as six, so they keep the six-card geometry, and only
+    /// the "Not shown" well wraps: all seven sit there under the automatic summary.
+    @Test func sevenCardsAreSizedAsSixAndOnlyTheShelfWraps() {
+        let columns = PillShelfModel.columns(forCount: 7)
+        #expect(columns == 6)
+        #expect(columns == UsageStore.maximumMenuBarPills)
+        let shelf = Dictionary(uniqueKeysWithValues: (0..<7).map {
+            (ProviderID("p\($0)"), PillShelfSlot(shelf: .notShown, index: $0))
+        })
+        #expect(PillShelfModel.rowCount(in: .notShown, slots: shelf, columns: columns) == 2)
+        for well in stride(from: Self.floorWell, through: 1_200, by: 1) {
+            let width = PillShelfModel.cardWidth(forWidth: well, count: columns)
+            #expect(2 * PillShelfModel.wellPadding + CGFloat(columns) * width
+                + CGFloat(columns - 1) * PillShelfModel.spacing <= well, "well \(well)")
+        }
+    }
+
+    /// A seventh card dropped onto a full menu bar keeps its shelf slot and commits nothing,
+    /// so it slides back. With room, the same drag lands in the row.
+    @Test func aSeventhCardDroppedOnAFullMenuBarSlidesBack() {
+        let seven = (0..<7).map { ProviderID("p\($0)") }
+        let six = Array(seven.prefix(6))
+        let shelf = [seven[6]]
+        let full = PillShelfModel.drop(
+            for: seven[6], shown: six, notShown: shelf, canonicalOrder: seven,
+            translation: 0, pointerInNotShown: false, pitch: pitch)
+        #expect(full == PillShelfSlot(shelf: .notShown, index: 0))
+        #expect(PillShelfModel.commit(for: seven[6], shown: six, notShown: shelf, drop: full!) == .none)
+        // A forged drop into the row still writes nothing.
+        #expect(PillShelfModel.commit(
+            for: seven[6], shown: six, notShown: shelf, drop: PillShelfSlot(shelf: .menuBar, index: 2)) == .none)
+        // Cards already in the row still reorder.
+        #expect(PillShelfModel.drop(
+            for: six[0], shown: six, notShown: shelf, canonicalOrder: seven,
+            translation: pitch, pointerInNotShown: false, pitch: pitch) == PillShelfSlot(shelf: .menuBar, index: 1))
+
+        let five = Array(seven.prefix(5))
+        let roomy = PillShelfModel.drop(
+            for: seven[6], shown: five, notShown: [seven[5], seven[6]], canonicalOrder: seven,
+            translation: 0, pointerInNotShown: false, pitch: pitch)
+        #expect(roomy?.shelf == .menuBar)
+    }
+
     // MARK: Card geometry (six cards at the window floor)
 
     /// The well widths at the 720pt floor and the default 800pt window.

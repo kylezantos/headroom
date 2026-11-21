@@ -24,6 +24,7 @@ public enum WidgetSnapshotProjector {
         widgetsEnabled: Bool,
         widgetProviderSelection: [ProviderID]? = nil,
         showsCodexSparkCounters: Bool = false,
+        showsAntigravityFiveHourWindows: Bool = true,
         apiSpendSnapshots: [ProviderID: APISpendSnapshot] = [:],
         apiSpendProviderOrder: [ProviderID] = [],
         generatedAt: Date = .now,
@@ -35,7 +36,9 @@ public enum WidgetSnapshotProjector {
         let providers = providerOrder.map { id in
             providerSummary(
                 id: id,
-                snapshot: snapshots[id] ?? .pending(for: id),
+                snapshot: AntigravityFiveHourWindows.visibleSnapshot(
+                    snapshots[id] ?? .pending(for: id),
+                    showsFiveHourWindows: showsAntigravityFiveHourWindows),
                 displayName: displayNames[id] ?? id.raw,
                 renewalDate: renewalDate(id),
                 showsCodexSparkCounters: showsCodexSparkCounters,

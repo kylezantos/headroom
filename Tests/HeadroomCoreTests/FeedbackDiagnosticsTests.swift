@@ -84,9 +84,10 @@ struct CLIVersionReaderTests {
                 return path.hasSuffix("cursor") ? nil : "\(path.split(separator: "/").last!) 1.2.3"
             }
         )
-        #expect(versions.map(\.providerID) == [.claude, .codex, .grok, .cursor, .copilot, .opencode])
+        #expect(versions.map(\.providerID) == [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode])
         #expect(versions.map(\.version) == [
             .version("1.2.3"), .version("1.2.3"), .notInstalled, .unknown, .version("1.2.3"), .version("1.2.3"),
+            .version("1.2.3"),
         ])
     }
 

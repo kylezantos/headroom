@@ -1,0 +1,70 @@
+{
+ "description": "Official Antigravity CLI (agy) print-mode output. Each fixture is antigravity-<name>.stdout plus antigravity-<name>.exit (the process exit status), and antigravity-<name>.stderr where stderr is the evidence. Headroom keeps no stderr at runtime: it only watches it for the sign-in prompt. origin: live = printed by agy as-is; derived = a live capture with the named fields edited; synthetic = not observed.",
+ "binary": {
+  "version": "1.5.9",
+  "versionOutput": "1.5.9",
+  "path": "/opt/homebrew/bin/agy"
+ },
+ "fixtures": [
+  {
+   "name": "usage-live",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "live",
+   "capturedAt": "2026-11-16",
+   "description": "A signed-in account: two groups, four buckets (gemini-weekly 0.9946, gemini-5h 0.9894, 3p-weekly 1, 3p-5h 1), num_turns 0, every token count 0. Contains no email, token or account identifier."
+  },
+  {
+   "name": "credits-live",
+   "kind": "credits",
+   "command": "agy -p \"/credits\" --output-format json",
+   "origin": "live",
+   "capturedAt": "2026-11-16",
+   "description": "The same account: remaining_credits 0, num_turns 0, every token count 0."
+  },
+  {
+   "name": "version-live",
+   "kind": "version",
+   "command": "agy --version",
+   "origin": "live",
+   "capturedAt": "2026-11-16",
+   "description": "The bare version line 1.5.9."
+  },
+  {
+   "name": "usage-signed-out",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "synthetic",
+   "description": "Synthetic, modelled on two signed-out probes on 2026-11-16. When agy is signed out, `agy -p \"/usage\"` does not answer: it prints \"Authentication required. Please visit the URL to log in:\" and a Google sign-in URL on stderr, opens that sign-in page in the browser and prints \"Waiting for authentication (timeout 60s)...\". The .stderr file has those lines with the URL replaced by a placeholder; Headroom ends the read at the first line and reports signed out. The .stdout file has the ERROR result shape printed when such a wait ends without the prompt being seen (\"authentication failed or timed out\"), which stays a transient failure; its exit status 1 is a stand-in, since none was observed.",
+   "stderr": true
+  },
+  {
+   "name": "usage-missing-3p-5h",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "derived from usage-live",
+   "description": "The 3p-5h bucket and its response line removed."
+  },
+  {
+   "name": "usage-one-turn",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "derived from usage-live",
+   "description": "num_turns set to 1: the answer cost a model turn."
+  },
+  {
+   "name": "usage-output-tokens",
+   "kind": "usage",
+   "command": "agy -p \"/usage\" --output-format json",
+   "origin": "derived from usage-live",
+   "description": "output_tokens and total_tokens set to 12: the answer spent tokens."
+  },
+  {
+   "name": "credits-1200",
+   "kind": "credits",
+   "command": "agy -p \"/credits\" --output-format json",
+   "origin": "derived from credits-live",
+   "description": "remaining_credits set to 1200."
+  }
+ ]
+}

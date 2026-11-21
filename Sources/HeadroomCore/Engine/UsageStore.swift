@@ -139,6 +139,8 @@ public final class UsageStore {
     private var chosenMenuBarWindowProviders: Set<ProviderID>
     public private(set) var showCodexSparkCountersInApp: Bool
     public private(set) var showCodexSparkCountersInWidgets: Bool
+    /// Antigravity's "Show 5-hour windows" switch, one value for every surface.
+    public private(set) var showsAntigravityFiveHourWindows: Bool
     /// KTD14: notification preferences, mirrored so the Notifications pane edits through
     /// the store the way `meterStyle` does.
     public private(set) var useItUpRemindersEnabled: Bool
@@ -378,6 +380,7 @@ public final class UsageStore {
         })
         self.showCodexSparkCountersInApp = preferences.showCodexSparkCountersInApp
         self.showCodexSparkCountersInWidgets = preferences.showCodexSparkCountersInWidgets
+        self.showsAntigravityFiveHourWindows = preferences.showsAntigravityFiveHourWindows
         self.useItUpRemindersEnabled = preferences.useItUpRemindersEnabled
         self.bankedResetNotificationsEnabled = preferences.bankedResetNotificationsEnabled
         self.reminderRules = preferences.reminderRules
@@ -687,16 +690,30 @@ public final class UsageStore {
             + registered.filter { !savedMenuBarProviderOrder.contains($0) }
     }
 
-    /// The same ordered IDs drive both the arranger and the actual menu-bar label.
+    /// The most separate pills the menu bar shows. Seven would not fit the Settings arranger's
+    /// row at its 720pt floor, and the menu bar itself has little more room.
+    nonisolated public static let maximumMenuBarPills = 6
+
+    /// The same ordered IDs drive both the arranger and the actual menu-bar label. Capped at
+    /// `maximumMenuBarPills`, so a selected provider switched back on past the cap waits on
+    /// the "Not shown" shelf instead of adding a seventh pill.
     public var selectedMenuBarProviders: [ProviderID] {
         guard let selected = menuBarFillSource.providerIDs else { return [] }
-        return menuBarProviderOrder.filter { selected.contains($0) && providerOrder.contains($0) }
+        return Array(
+            menuBarProviderOrder.filter { selected.contains($0) && providerOrder.contains($0) }
+                .prefix(Self.maximumMenuBarPills)
+        )
+    }
+
+    public var canAddMenuBarProvider: Bool {
+        selectedMenuBarProviders.count < Self.maximumMenuBarPills
     }
 
     /// Adds a pill before `target`, or at the end when `target` is nil or not a visible pill
-    /// (a stale drop). From the automatic summary this switches to separate pills.
+    /// (a stale drop). From the automatic summary this switches to separate pills. Does
+    /// nothing once the menu bar holds `maximumMenuBarPills`.
     public func addMenuBarProvider(_ id: ProviderID, before target: ProviderID? = nil) {
-        guard providerOrder.contains(id) else { return }
+        guard providerOrder.contains(id), canAddMenuBarProvider else { return }
         var selected = menuBarFillSource.providerIDs ?? []
         guard selected.insert(id).inserted else { return }
         saveMenuBarOrder(menuBarProviderOrder.filter { $0 != id } + [id])
@@ -790,12 +807,16 @@ public final class UsageStore {
         menuBarWindowOptions(for: id).count > 1
     }
 
-    /// The main account's windows a pill may follow. Codex's Spark counters join only while
-    /// the popover shows them, so the pill never follows a limit the popover hides.
+    /// The main account's windows a pill may follow. Codex's Spark counters and Antigravity's
+    /// 5-hour rows join only while the popover shows them, so the pill never follows a limit
+    /// the popover hides.
     private func menuBarCandidateWindows(for id: ProviderID) -> [UsageWindow] {
-        filterCodexSparkCounters(
-            from: snapshot(for: id),
-            shouldShow: showCodexSparkCountersInApp
+        AntigravityFiveHourWindows.visibleSnapshot(
+            filterCodexSparkCounters(
+                from: snapshot(for: id),
+                shouldShow: showCodexSparkCountersInApp
+            ),
+            showsFiveHourWindows: showsAntigravityFiveHourWindows
         ).fiveHourFirst().windows
     }
 
@@ -808,6 +829,13 @@ public final class UsageStore {
     public func setShowCodexSparkCountersInWidgets(_ enabled: Bool) {
         preferences.showCodexSparkCountersInWidgets = enabled
         showCodexSparkCountersInWidgets = enabled
+        exportWidgetSnapshot()
+        exportPhoneSyncSnapshot()
+    }
+
+    public func setShowsAntigravityFiveHourWindows(_ enabled: Bool) {
+        preferences.showsAntigravityFiveHourWindows = enabled
+        showsAntigravityFiveHourWindows = enabled
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
     }
@@ -1252,7 +1280,8 @@ public final class UsageStore {
                 isEnabled: useItUpRemindersEnabled,
                 rules: reminderRules,
                 scope: reminderScope,
-                showCodexSparkCounters: showCodexSparkCountersInApp
+                showCodexSparkCounters: showCodexSparkCountersInApp,
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
             ),
             bankedResetsEnabled: bankedResetNotificationsEnabled
         )
@@ -1365,9 +1394,12 @@ public final class UsageStore {
 
     public func appDisplaySnapshot(for key: AccountKey) -> UsageSnapshot {
         fiveHourFirst(
-            filterCodexSparkCounters(
-                from: snapshot(for: key),
-                shouldShow: preferences.showCodexSparkCountersInApp
+            AntigravityFiveHourWindows.visibleSnapshot(
+                filterCodexSparkCounters(
+                    from: snapshot(for: key),
+                    shouldShow: preferences.showCodexSparkCountersInApp
+                ),
+                showsFiveHourWindows: preferences.showsAntigravityFiveHourWindows
             )
         )
     }
@@ -1426,6 +1458,7 @@ public final class UsageStore {
             widgetsEnabled: widgetsEnabled,
             widgetProviderSelection: resolvedWidgetProviderSelection(),
             showsCodexSparkCounters: preferences.showCodexSparkCountersInWidgets,
+            showsAntigravityFiveHourWindows: preferences.showsAntigravityFiveHourWindows,
             apiSpendSnapshots: apiSpendSnapshots,
             apiSpendProviderOrder: apiSpendProviderOrder,
             generatedAt: generatedAt

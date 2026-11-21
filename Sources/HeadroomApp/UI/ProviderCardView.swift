@@ -318,6 +318,8 @@ struct ProviderCardView: View {
     /// CA-P14 review fix: the store's durable history for an account
     /// (`UsageStore.hasReadingOnRecord`). The default, "may have read", keeps today's dialog.
     var hasReadingOnRecord: (AccountKey) -> Bool = { _ in true }
+    /// Antigravity's "Show 5-hour windows" switch, for the same reason.
+    var showsAntigravityFiveHourWindows: Bool = true
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -434,7 +436,8 @@ struct ProviderCardView: View {
         entries: [ProviderAccountEntry],
         capabilityStatus: ProviderCapabilityStatus?,
         accountLayout: AccountLayout = .standard,
-        showsCodexSparkCounters: Bool = false
+        showsCodexSparkCounters: Bool = false,
+        showsAntigravityFiveHourWindows: Bool = true
     ) -> [PopoverColumnSlot] {
         let presentation = capabilityPresentation(providerID: providerID, entries: entries, capabilityStatus: capabilityStatus)
         guard splitsByAccount(entries: entries, presentation: presentation) else {
@@ -442,7 +445,11 @@ struct ProviderCardView: View {
         }
         // Each piece of a split Compact card repeats its column header.
         let compactHeader = accountLayout == .compact && presentation == nil
-            && compactColumns(entries: entries, showsCodexSparkCounters: showsCodexSparkCounters) != nil
+            && compactColumns(
+                entries: entries,
+                showsCodexSparkCounters: showsCodexSparkCounters,
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+            ) != nil
         return drawnAccounts(entries: entries, presentation: presentation).enumerated().map { index, entry in
             PopoverColumnSlot(
                 id: entry.account.key.description,
@@ -456,7 +463,11 @@ struct ProviderCardView: View {
     /// The windows a multi-account Compact card's header names, in column order: the columns
     /// of the account showing the most, so a weekly-only account sits under "wk" beside its
     /// neighbours. Nil when no account draws a Compact row, so the card has no header.
-    static func compactColumns(entries: [ProviderAccountEntry], showsCodexSparkCounters: Bool) -> [WindowKind]? {
+    static func compactColumns(
+        entries: [ProviderAccountEntry],
+        showsCodexSparkCounters: Bool,
+        showsAntigravityFiveHourWindows: Bool = true
+    ) -> [WindowKind]? {
         let recipes = entries.map { entry in
             CompactAccountRowRecipe(
                 snapshot: entry.snapshot,
@@ -464,7 +475,8 @@ struct ProviderCardView: View {
                 percentageMode: .remaining,
                 now: Date(),
                 requiresStandardSection: compactRowNeedsStandardSection(entry.account),
-                showsCodexSparkCounters: showsCodexSparkCounters
+                showsCodexSparkCounters: showsCodexSparkCounters,
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
             )
         }.filter { !$0.fallsBackToStandard }
         guard !recipes.isEmpty else { return nil }
@@ -882,7 +894,11 @@ struct ProviderCardView: View {
         // T1A widened it 22 → 26 to hold the grouping now the title sits at `.medium` and
         // the meter rows inside a section are 2pt tighter.
         let columns = isCompact
-            ? Self.compactColumns(entries: entries, showsCodexSparkCounters: showsCodexSparkCounters)
+            ? Self.compactColumns(
+                entries: entries,
+                showsCodexSparkCounters: showsCodexSparkCounters,
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+            )
             : nil
         return VStack(alignment: .leading, spacing: 0) {
             if let columns {
@@ -936,6 +952,7 @@ struct ProviderCardView: View {
             now: now,
             requiresStandardSection: compactRowNeedsStandardSection(entry.account),
             showsCodexSparkCounters: showsCodexSparkCounters,
+            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
             isRemembered: entry.isRemembered,
             lastReadAt: entry.lastReadAt
         )

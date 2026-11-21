@@ -417,10 +417,24 @@ public enum DemoScreenshotData {
             ],
             renewalDate: day(month: 12, day: 4)
         )
+        // Mirrors `DemoFixture.antigravitySnapshot`.
+        let antigravity = WidgetProviderSummary(
+            id: ProviderID.antigravity.raw,
+            displayName: "Antigravity",
+            planLabel: "1,200 credits",
+            freshness: .live,
+            windows: [
+                window(.other("Gemini 5h"), label: "Gemini 5h", percent: 66, reset: "Resets 2:10pm", severity: .healthy),
+                window(.other("Gemini weekly"), label: "Gemini weekly", percent: 79, reset: "Resets in 4d 2h", severity: .healthy),
+                window(.other("Other weekly"), label: "Other weekly", percent: 42, reset: "Resets in 4d 2h", severity: .healthy),
+                window(.other("Other 5h"), label: "Other 5h", percent: 88, reset: "Resets 2:19pm", severity: .healthy),
+            ],
+            renewalDate: nil
+        )
         return WidgetSnapshotEnvelope(
             generatedAt: five.generatedAt,
             status: five.status,
-            providers: five.providers + [opencode],
+            providers: five.providers.flatMap { $0.id == ProviderID.copilot.raw ? [antigravity, $0] : [$0] } + [opencode],
             apiSpendProviders: five.apiSpendProviders
         )
     }
@@ -643,7 +657,7 @@ public enum DemoScreenshotData {
         }
         switch name {
         case "full", "empty":
-            return envelope(["claude", "codex", "grok", "cursor", "copilot", "opencode"].map { id in
+            return envelope(["claude", "codex", "grok", "cursor", "antigravity", "copilot", "opencode"].map { id in
                 WidgetProviderSummary(id: id, displayName: ProviderID(id).displayName, planLabel: nil,
                     freshness: .live, windows: [WidgetWindowSummary(kind: .weekly, label: "Weekly",
                         percentRemaining: name == "full" ? 100 : 0,

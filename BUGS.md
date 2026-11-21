@@ -4,6 +4,47 @@ Non-blocking items. The earlier OAuth/Keychain-token approach and its U9 spike a
 Anthropic prohibits and blocks third-party subscription-OAuth use, so Claude now reads the
 official `claude` CLI's `/usage` panel instead.
 
+## Credential environment variables in probes (2026-11-17)
+
+The Claude probe drops an inherited `ANTHROPIC_API_KEY` and `ANTHROPIC_AUTH_TOKEN` (#244, issue
+#243, reported by Matt Van Horn; supersedes #218). Left out, each for a stated reason:
+
+- **Claude's sign-in handoff scripts keep the user's environment.** A key exported in the
+  user's shell profile can still outrank the login inside the Terminal handoff, and the
+  `signIn` script's `loggedIn` guard can then report signed in. Cursor's scripts `unset` theirs.
+  Fix with one shared, tested rule for the script and the copied manual command.
+- **`CLAUDE_CODE_OAUTH_TOKEN` is not dropped.** An inherited one already makes every Claude row
+  Absent (`launchesWithInheritedOAuthToken`). Keep that rule unless a real setup-token test says
+  otherwise.
+- **Other routing variables are unchecked**: Bedrock/Vertex switches, a custom base URL,
+  `apiKeyHelper`. Verify each against the official CLI before stripping anything.
+- **Grok is unchecked.** Whether an inherited `XAI_API_KEY` (or similar) changes what
+  `grok agent stdio` billing reports is unknown. Cursor and Copilot already drop theirs; Codex
+  reads over HTTP and has no CLI environment.
+
+## Open contributor PRs: maintainer-side work (2026-11-17)
+
+Review requests went to the author on #242 and #246; these items are ours.
+
+- **#246 (vertical-only list grows to the screen).** Once the revision lands (900pt scroll point,
+  host-screen geometry, fixed-geometry tests), update DESIGN.md, the popover account layout
+  paragraph in AGENTS.md, `docs/solutions/ui/popover-account-columns.md` and the inline scroll
+  comment to describe the two modes separately. Its red Swift CI run (Copilot deadline and
+  `CLIVersionReaderTests` nil result, files the PR doesn't touch) was rerun; if it repeats, see
+  the OpenCode deadline flake above before blaming the layout.
+- **#242 (Antigravity), after merge:**
+  - Add a `seven-providers` demo pose; keep `six-providers` for scripts that use it.
+  - Cache the too-old `agy` version verdict both ways, as OpenCode does.
+  - Align the phone's recovery wording for a stopped client with the Mac's, using an existing
+    attention category; no sync-format change for wording alone.
+  - Move `CLIVersionReader` onto the shared blocking-work helper the PR extracts.
+  - Publish and verify the privacy-policy update on headroom-site before release.
+  - Research before release: whether `agy` prunes its logs (see "Log retention" in the
+    Antigravity section). Kevin Rose's live pass on #242 (2026-11-19, `agy` 1.5.12) settled the
+    other research items; they are recorded there.
+  - A seventh provider raises the largest phone-sync flush from eight keys to nine; see the
+    OpenCode write-rate entry below.
+
 ## Initial CodeQL findings (2026-11-14)
 
 - **Swift scanning is unavailable with the required toolchain.** Both default setup and an
@@ -180,6 +221,12 @@ with a strong identity.
   tests hit the same race and moved to system binaries (`/usr/bin/git`, `/usr/bin/yes`). Fix
   the Copilot (and any other) fake-CLI tests by writing their scripts once before the suite
   runs, or spawning `/bin/sh` with the script as an argument.
+  **CI (2026-11-19):** every `swift build + swift test` failure from 2026-11-13 to 2026-11-19 was
+  this family: `CLIVersionReaderTests` (`git --version` missing its 5 s deadline), this Copilot
+  test, and once the OpenCode kill test. The 3-core runner starves them while the other tests
+  run at once (a 0.5 s deadline test measured 5.6 s). CI now runs those four suites after the
+  parallel suite with `--no-parallel` (`.github/workflows/ci.yml`). A plain local `swift test`
+  still runs them in parallel and can still flake; the ETXTBSY fix above is still open.
 - **Overlap with the troubleshooting sheet.** The deferred in-app troubleshooting sheet
   should reuse `FeedbackDiagnosticsCollector` rather than read state a second way.
 
@@ -210,7 +257,7 @@ that name. Still to do:
   offscreen renders only. Judge them on the live `MenuBarExtra` with `--demo five-providers`
   in both appearances before release.
 - Use from VS Code or github.com is missing until a quota snapshot or a server reading
-  includes it, so the meter can show more room left than the account has. The README says so;
+  includes it, so the meter can show more room left than the account has. docs/how-it-works.md says so;
   the row itself does not.
 - Annual legacy plans billed in premium requests have no defined meter and no test account.
 - GitHub publishes `GET /users/{username}/settings/billing/ai_credit/usage` for self-purchased
@@ -831,7 +878,7 @@ Deferred from the Claude sign-in handoff fix.
   non-visible provenance. Explicit product decision (2026-08-30): cross-provider
   consistency wins over per-source display mimicry.
 
-- **In-app troubleshooting sheet is deferred.** The README matrix is the shipping self-serve
+- **In-app troubleshooting sheet is deferred.** The docs/troubleshooting.md matrix is the shipping self-serve
   path for the four providers. A discoverable interactive sheet spanning setup states, probes,
   privacy guidance, and account isolation needs its own information-design and accessibility
   pass rather than being folded into recovery-state hardening.
@@ -1520,6 +1567,62 @@ result is already discarded. A fix needs a per-home process registry in `OpenCod
 terminate passthrough in `OpenCodeUsageCaptureCache`, and a hook called off the main actor before
 `accountStorage.removeDirectories`.
 
+## Antigravity: a sign-out opens one browser sign-in (known limitation, 2026-11-16)
+
+Feasibility record: `docs/solutions/antigravity-cli-usage-feasibility.md`.
+
+A signed-out `agy` does not fail `-p "/usage"`. It prints "Authentication required. Please visit
+the URL to log in:" and a Google sign-in URL on stderr, opens that sign-in page in the browser and
+waits up to 60 s (seen live on 2026-11-16 with an isolated empty `HOME`, `agy` 1.5.9). The CLI
+documents no way to turn this off. Headroom ends the read at that line (or at "Waiting for
+authentication" / "Error: authentication required"), records signed out, and keeps that mark
+across relaunches. Launch, Refresh and a phone Check Now never spawn `agy` while it is set; only
+the Antigravity row's Try Again or the check after a sign-in through Headroom does. So a sign-out
+opens one browser tab, plus one per Try Again pressed while still signed out. A fix needs a
+non-interactive print mode or a read-only auth status command from `agy`.
+
+`agy` 1.5.13 starts every stdio MCP server in `~/.gemini/config/mcp_config.json` for
+`-p "/usage"` and `-p "/credits"` too, although neither runs a turn or calls a tool (seen live
+on 2026-11-19 with a marker server; hooks in `hooks.json` did not fire). `--settings` accepts no
+key that turns MCP off for one run. So each poll briefly starts the user's local MCP servers.
+
+Also open for Antigravity (updated 2026-11-19 from Kevin Rose's live pass on #242, `agy` 1.5.12,
+and Matt Van Horn's on 1.5.13):
+
+- **Sign-in end to end through Headroom.** `agy acp --login` is the CLI's documented Terminal
+  sign-in, but no one has run Headroom's setup handoff on a real account and seen a live reading.
+  Kevin's pass did show that a Mac already signed in to the Antigravity desktop app needs no
+  sign-in: `agy` loads the desktop app's Keychain login and silently refreshes an expired token
+  with no browser tab. The one-tab-while-signed-out behavior is covered by fake-`agy` tests only.
+- **Log retention.** Each `agy` run writes a new log file (about 15 KB) under
+  `~/.gemini/antigravity-cli/log/`, and each names the account's email. A poll is two runs, so
+  about 576 files and 9 MB a day at the 5-minute default. Whether `agy` ever deletes old files is
+  unmeasured. Kevin found `--log-file /dev/null` writes nothing and the read still succeeds.
+  Before adding it to `AntigravityCommand`'s `.usage` and `.credits`, confirm on a signed-out run
+  (scratch `HOME`, no subscription needed) that the sign-in lines still reach stderr: Headroom
+  detects sign-out there, and missing it would open a browser sign-in on every poll. This matches
+  the Claude probe's `--no-session-persistence`.
+- **MCP servers start on every poll** (above). Reading `/credits` less often (only on a user
+  refresh, or every few polls) would halve the starts; credits only feed the plan badge. Mention
+  the behavior in the setup copy and privacy policy.
+- **A nonzero credits balance and a pool at its limit** have not been seen on a real account; the
+  badge rests on a derived fixture. Partly used pools were seen live (Kevin) and ordered
+  tightest first as expected.
+- Settled by the live passes: hooks in `hooks.json` and installed plugins do not run for
+  `/usage` or `/credits`; `agy --bg-updater` starts in its own process group, so Headroom's
+  process-group kill cannot interrupt a self-update, and it leaves no process behind; the
+  credential variables that move `agy` off the subscription login are stripped by the probe.
+- The updated privacy policy (`docs/release/privacy-policy.md`) must be published through
+  `headroom-site` before any release that contains Antigravity.
+
+## Cursor: leftover `cli-config.json.*.tmp` files (found 2026-11-19)
+
+The maintainer's `~/.cursor` holds 16 `cli-config.json.<pid>.<uuid>.tmp` files dated Oct 9 to
+Nov 7, 0 to about 2.6 KB each. They look like atomic-write temp files that were never renamed,
+which would happen if `cursor-agent` is killed mid-write. Unconfirmed whether Headroom's probe
+deadline kill causes them or Cursor itself does. Check by counting the files before and after a
+batch of `--probe-cursor` runs, including one that hits the deadline.
+
 ## Compact: a limit on the first account changes the card's column headers (found 2026-11-12, review)
 
 In a multi-account Compact card the column headers come from the first account's shown windows
@@ -1537,6 +1640,19 @@ options doc's area ids, written `CA-<area>` in code.
   `openCodexPrompt` (`MenuBarLabel.swift`), but the mark still reads as a soft blob at roughly
   10px. Check it on a real non-Retina display before advertising marks there. Grok's thin
   strokes also read lighter than the other five marks.
+- **Menu-bar marks retuned for equal size, not yet seen on a real bar (CA-MB1, 2026-11-20).**
+  The seven marks now match outer ink extent (11 to 12pt at 2×) instead of weight, so Codex is
+  11pt beside Claude's 11.5pt star; headless sheets are in `.context/qc/marks/`. Accept on the
+  real 2× menu bar in both appearances. At 1× Codex, OpenCode and Antigravity have an odd ink
+  height and sit half a pixel high; check that on a non-Retina display too.
+- **OpenCode's format-changed tooltip repeats its action (CA-P5).** KTD21's approved sentence
+  ends "… Contact support", and the one-line row's tooltip (`rowHelp`) appends the button label,
+  so it reads "… after an OpenCode change. Contact support. Contact Support." Antigravity's two
+  equivalent sentences now state the cause only; OpenCode's needs the same change approved.
+- **Antigravity's credits badge reads "1,200 Credits".** The provider stores "1,200 credits",
+  but `PlanLabelPresentation`'s fallback raises every lowercase word, so the popover badge, the
+  phone and the widgets show Title Case for a count. Decide whether a label that starts with a
+  number keeps its own case.
 - **First-open arrival cap removed (CA-M6).** Staging the first-open draw-in for only the first 8
   accounts cut `multi20`'s cold post-open main-thread CPU by about 40–140ms, but it added a
   second body pass (about 72 `UsageBarView` bodies, about +90ms CPU) to every warm reopen, so the

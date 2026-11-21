@@ -28,13 +28,14 @@ public enum CompanionAttentionMapping {
     public static func attention(for outcome: ProviderSetupOutcome) -> CompanionAttention {
         switch outcome {
         case .claudeCLIMissing, .codexCLIMissing, .grokCLIMissing, .cursorCLIMissing, .copilotCLIMissing,
-            .opencodeCLIMissing:
+            .opencodeCLIMissing, .antigravityCLIMissing:
             .cliMissing
         // KTD21: an API-key connection is fixed by signing in, like a signed-out account.
         case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut,
-            .opencodeSignedOut, .opencodeConsoleSignInRequired:
+            .opencodeSignedOut, .opencodeConsoleSignInRequired, .antigravitySignedOut:
             .signInRequired
-        case .opencodeUpdateRequired:
+        // A paused client also needs a different CLI before Headroom reads it again.
+        case .opencodeUpdateRequired, .antigravityUpdateRequired, .antigravityUnsupportedClient:
             .cliUpdateRequired
         case .claudeTrustRequired, .cursorTrustRequired:
             .workspaceApproval
@@ -45,7 +46,8 @@ public enum CompanionAttentionMapping {
         // Credential IO is retryable, never proof the credentials were rejected.
         case .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified, .grokCredentialIO,
             .grokTransientCapture, .cursorTransientCapture, .copilotLogsUnreadable,
-            .opencodeTransientCapture, .opencodeFormatChanged:
+            .opencodeTransientCapture, .opencodeFormatChanged, .antigravityTransientCapture,
+            .antigravityFormatChanged:
             .retrying
         case .codexPermissionDenied, .grokPermissionDenied:
             .allowSignInFile

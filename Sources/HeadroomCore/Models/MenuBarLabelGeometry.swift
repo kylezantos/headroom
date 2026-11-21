@@ -62,8 +62,9 @@ public enum MenuBarLabelGeometry {
         }
     }
 
-    /// The mark of a provider the table does not know: a mid-weight extent from the six below.
-    public static let defaultMarkMetrics = MarkMetrics(inkExtent: 11, verticalNudge: markTieLift)
+    /// The mark of a provider the table does not know: between the solid marks' 11 and the open
+    /// marks' 11.5 to 12 below, and equal to none of them, so a test can tell a fallback apart.
+    public static let defaultMarkMetrics = MarkMetrics(inkExtent: 11.25, verticalNudge: markTieLift)
 
     /// CA-MB1: a 0.1pt lift on every mark. When an ink height and the 18pt image disagree in
     /// pixel parity the centred mark falls on a half pixel, and the lift settles that tie one
@@ -71,28 +72,34 @@ public enum MenuBarLabelGeometry {
     public static let markTieLift: Double = 0.1
 
     /// CA-MB1 (Nov 2026): the menu bar's own mark sizing, never the popover's
-    /// `HeadroomBrandMark.markSize`. That rule was tuned for coloured marks at popover sizes;
-    /// in one ink at 13pt it left the six marks 2pt apart in height and 1.85× apart in weight
-    /// (Codex's and OpenCode's solid shapes heavy, Grok's and Copilot's strokes faint). Tuned
-    /// by optical rule rather than equal boxes, measured at 2× (alpha-weighted ink, then
-    /// judged on 1× and 2× sheets on both bars):
-    /// - Codex 9.5 and OpenCode 10 (8 wide): the solid shapes take the least extent.
-    /// - Cursor 10.5: a near-solid cube, one step under the open marks; an even 1× height.
-    /// - Claude 11.5: its rays leave most of the box empty, so it takes more.
-    /// - Copilot 12.5 (10.4 tall): size alone brings its open face level, no outline (a 0.3pt
-    ///   outline filled the goggles).
-    /// - Grok 12.5 with a 0.5pt outline: size alone stalls at 0.66 of Codex's weight even
-    ///   filling the box, so the hairline ring and slash are thickened on Retina only.
-    /// Result at 2×: weight max/min 1.30× (was 1.85×), every centre within +0.25pt of the
-    /// vessel's. At 1× Grok stays the lightest (an outline closes its ring there).
+    /// `HeadroomBrandMark.markSize`. That rule was tuned for coloured marks at popover sizes.
+    ///
+    /// CA-MB1 size parity (Kyle, 2026-11-20, overturning the first tuning's equal-weight
+    /// target): the marks are matched for perceived size, not ink weight. Equal weight shrank
+    /// the solid marks (Codex 9.5, OpenCode 10), and on a real 2× bar Codex's blob read
+    /// clearly smaller than Claude's star beside it. Now every mark's outer ink extent (the
+    /// larger of its width and height, measured at 2× at a quarter of peak alpha) sits within
+    /// 1pt of the others, and a solid round or blocky mark sits at most 0.5 to 1pt under the
+    /// open ones as optical compensation, never 2pt. Judged on 1× and 2× sheets on both bars:
+    /// - Claude 11.5: the open star sets the size.
+    /// - Codex 11: the solid blob, 0.5 under the star; side by side they read the same size.
+    /// - Cursor 11.5 (10 wide): the cube is narrow, so its height carries it.
+    /// - OpenCode 11 (8.8 wide): the solid block, 0.5 under the open marks.
+    /// - Copilot 12 (10 tall) and Antigravity 12 (11 tall): wide marks, sized by their width.
+    /// - Grok 12 with a 0.5pt outline: without it the hairline ring and slash read faint and
+    ///   small even filling the box, so they are thickened on Retina only.
+    /// Result at 2×: outer extents 11 to 12pt, weight max/min about 1.85× (Codex heaviest,
+    /// Copilot lightest), every centre within 0.25pt of the vessel's. At 1× an odd ink height
+    /// (Codex, OpenCode, Antigravity) sits half a pixel high, which `markTieLift` chooses.
     public static func markMetrics(for providerID: String) -> MarkMetrics {
         switch providerID {
         case ProviderID.claude.raw: MarkMetrics(inkExtent: 11.5, verticalNudge: markTieLift)
-        case ProviderID.codex.raw: MarkMetrics(inkExtent: 9.5, verticalNudge: markTieLift)
-        case ProviderID.grok.raw: MarkMetrics(inkExtent: 12.5, verticalNudge: markTieLift, thickening: 0.5)
-        case ProviderID.cursor.raw: MarkMetrics(inkExtent: 10.5, verticalNudge: markTieLift)
-        case ProviderID.copilot.raw: MarkMetrics(inkExtent: 12.5, verticalNudge: markTieLift)
-        case ProviderID.opencode.raw: MarkMetrics(inkExtent: 10, verticalNudge: markTieLift)
+        case ProviderID.codex.raw: MarkMetrics(inkExtent: 11, verticalNudge: markTieLift)
+        case ProviderID.grok.raw: MarkMetrics(inkExtent: 12, verticalNudge: markTieLift, thickening: 0.5)
+        case ProviderID.cursor.raw: MarkMetrics(inkExtent: 11.5, verticalNudge: markTieLift)
+        case ProviderID.copilot.raw: MarkMetrics(inkExtent: 12, verticalNudge: markTieLift)
+        case ProviderID.opencode.raw: MarkMetrics(inkExtent: 11, verticalNudge: markTieLift)
+        case ProviderID.antigravity.raw: MarkMetrics(inkExtent: 12, verticalNudge: markTieLift)
         default: defaultMarkMetrics
         }
     }

@@ -77,8 +77,9 @@ enum PopoverLoadingRenderHarness {
         }
         try await capture("ghost-two", store: store, date: owner.clock.now(), directory: directory)
         store.setMenuBarFillSource(.providers(Set(DemoFixture.registeredProviderOrder)))
-        // Copilot plan U6/U7: every registered provider draws a pill, five at most.
-        guard recipe(store, at: owner.clock.now()).pills.count == DemoFixture.registeredProviderOrder.count else {
+        let allPills = recipe(store, at: owner.clock.now()).pills.count
+        guard allPills == DemoFixture.registeredProviderOrder.count,
+              allPills <= HalftonePillRow.Layout.maximumCount else {
             throw CaptureFailure.checkpoint("every provider pill")
         }
         try await capture("ghost-all-providers", store: store, date: owner.clock.now(), directory: directory)

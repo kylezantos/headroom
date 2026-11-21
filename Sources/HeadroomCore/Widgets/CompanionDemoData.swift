@@ -303,6 +303,7 @@ public enum CompanionDemoData {
             return state
         case .sixProviders:
             var state = try fourProvidersState(clock: clock, generation: g)
+            state.providers.append(try payload("antigravity", g, main: antigravityAccount(clock)))
             state.providers.append(try payload("copilot", g, main: copilotAccount(clock)))
             state.providers.append(try payload("opencode", g, main: opencodeAccount(clock)))
             return state
@@ -624,6 +625,20 @@ public enum CompanionDemoData {
                 window(.weekly, utilization: 47, resetIn: 3 * day + 6 * hour + 30 * minute, clock),
                 window(.billingPeriod, name: "Monthly", period: 30 * day, utilization: 71,
                        resetIn: 19 * day + 30 * minute, clock),
+            ])
+    }
+
+    /// `DemoFixture.antigravitySnapshot`: four pool rows, each pool's tighter row first, and
+    /// the credits balance as the plan name, in the display form the phone stores.
+    static func antigravityAccount(_ clock: DemoClock) throws -> CompanionAccountSummary {
+        try CompanionAccountSummary(
+            id: "primary", title: "Antigravity", planName: "1,200 Credits", capturedAt: clock.captured,
+            windows: [
+                window(.other, name: "Gemini 5h", utilization: 34, resetIn: 3 * hour + 10 * minute, clock),
+                window(.other, name: "Gemini weekly", utilization: 21, resetIn: 4 * day + 2 * hour, clock),
+                window(.other, name: "Other weekly", utilization: 58,
+                       resetIn: 4 * day + 2 * hour + 9 * minute, clock),
+                window(.other, name: "Other 5h", utilization: 12, resetIn: 3 * hour + 19 * minute, clock),
             ])
     }
 

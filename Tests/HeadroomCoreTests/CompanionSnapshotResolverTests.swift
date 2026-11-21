@@ -627,4 +627,66 @@ struct CompanionSnapshotResolverTests {
         }
         #expect(decoded.lastLanded?.providerID == "opencode")
     }
+
+    // MARK: A phone build that predates Antigravity
+
+    /// The known-provider list of the phone build shipped before Antigravity: OpenCode is
+    /// known, Antigravity is not.
+    static let preAntigravityKnownProviderIDs = ["claude", "codex", "grok", "cursor", "copilot", "opencode"]
+
+    /// A v4 phone build without `antigravity` in its known list skips the Antigravity key and
+    /// its manifest entry without error, shows every other provider in full with no
+    /// compatibility notice, still counts the manifest assembled, and drops an Antigravity
+    /// "last landed" leaf rather than the receipt. The paired build reads the same publish
+    /// in full.
+    @Test func aBuildThatPredatesAntigravitySkipsItsKeyWithoutError() throws {
+        let claude = F.bytes(F.payload(generation: 4))
+        let opencode = F.bytes(F.payload("opencode", generation: 6))
+        let antigravity = F.bytes(F.payload(
+            "antigravity", generation: 7,
+            main: F.account(plan: "Pro", windows: [
+                F.window(.weekly, remaining: 80, utilization: 20,
+                         resetAt: nil, freshness: .unavailable, observed: F.date(), since: F.date(-86_400)),
+            ])))
+        let manifest = F.manifest(
+            generation: 9, order: ["claude", "opencode", "antigravity"],
+            entries: [
+                "claude": F.entry(claude, generation: 4),
+                "opencode": F.entry(opencode, generation: 6),
+                "antigravity": F.entry(antigravity, generation: 7),
+            ],
+            selection: ["antigravity", "opencode", "claude"])
+        let keys = ["claude": claude, "opencode": opencode, "antigravity": antigravity]
+        let receipt = try CompanionReceipt(
+            sourceID: F.macA, state: .running, requestIDs: [UUID().uuidString], startedAt: F.date(-5),
+            total: 3, completed: 1,
+            lastLanded: CompanionLastLanded(providerID: "antigravity", accountID: "primary", live: true))
+        let receiptBytes = F.bytes(receipt)
+
+        try CompanionSyncKeys.$readerKnownProviderIDs.withValue(Self.preAntigravityKnownProviderIDs) {
+            #expect(CompanionSyncKeys.isKnownProvider("opencode"))
+            #expect(!CompanionSyncKeys.isKnownProvider("antigravity"))
+            let resolution = resolve(manifest: manifest, keys: keys)
+            let content = try content(resolution)
+            #expect(content.origin == .v4 && content.notice == nil)
+            #expect(content.providers.map(\.id) == ["claude", "opencode"])
+            #expect(content.widgetProviderSelection == ["opencode", "claude"])
+            #expect(content.assembledGeneration == 9)
+            #expect(resolution.cache.providers["antigravity"] == nil)
+            #expect(resolution.snapshot.primaryProjection()?.providers.map(\.id) == ["claude", "opencode"])
+            guard case .value(let decoded) = CompanionSyncCodec.decodeReceipt(receiptBytes) else {
+                Issue.record("the receipt must still decode"); return
+            }
+            #expect(decoded.lastLanded == nil && decoded.completed == 1)
+        }
+
+        let paired = try content(resolve(manifest: manifest, keys: keys))
+        #expect(paired.providers.map(\.id) == ["claude", "opencode", "antigravity"])
+        #expect(paired.providers.last?.mainAccount?.planName == "Pro")
+        #expect(paired.widgetProviderSelection == ["antigravity", "opencode", "claude"])
+        guard case .value(let decoded) = CompanionSyncCodec.decodeReceipt(receiptBytes) else {
+            Issue.record("the receipt must decode"); return
+        }
+        #expect(decoded.lastLanded?.providerID == "antigravity")
+    }
 }

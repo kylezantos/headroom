@@ -736,12 +736,13 @@ struct CardRowActionTests {
     @Test func terminalHandoffsWebPagesAndRereadsEachGetTheirOwnGlyph() {
         for action in [SetupRecoveryAction.openClaudeSetup, .connectCodex, .reconnectCodex, .connectGrok,
                        .reconnectGrok, .connectCursor, .openClaudeWorkspace, .openCursorWorkspace,
-                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot, .connectOpenCode] {
+                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot, .connectOpenCode,
+                       .connectAntigravity] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "apple.terminal")
         }
         for action in [SetupRecoveryAction.installClaudeCLI, .installCodexCLI, .installGrokCLI,
                        .installCursorAgent, .installCopilotCLI, .showPrivacyGuidance,
-                       .installOpenCodeCLI, .updateOpenCode, .seeOpenCodeGoPlans] {
+                       .installOpenCodeCLI, .updateOpenCode, .seeOpenCodeGoPlans, .installAntigravityCLI] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "globe")
         }
         // Device code is the alternative beside a Terminal sign-in, so it can't share its glyph.
@@ -906,7 +907,9 @@ struct RecoveryRowBudgetTests {
         .cursorAuthAbsent, .cursorTrustRequired, .cursorMCPApprovalRequired, .cursorUnknownUI, .cursorTransientCapture,
         .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable, .opencodeCLIMissing, .opencodeUpdateRequired,
         .opencodeSignedOut, .opencodeConsoleSignInRequired, .opencodeSignInExpired, .opencodeFormatChanged,
-        .opencodeTransientCapture,
+        .opencodeTransientCapture, .antigravityCLIMissing, .antigravityUpdateRequired,
+        .antigravityUnsupportedClient, .antigravitySignedOut, .antigravityFormatChanged,
+        .antigravityTransientCapture,
     ]
 
     private static var presentations: [(String, ProviderRecoveryPresentation)] {

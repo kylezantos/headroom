@@ -10,7 +10,7 @@ public enum CLIVersionReader {
     public typealias Run = @Sendable (_ providerID: ProviderID, _ executablePath: String, _ loginPath: String) -> String?
 
     /// The order the diagnostics block lists CLIs in.
-    public static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .copilot, .opencode]
+    public static let providers: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode]
 
     public static func versions(
         resolve: @escaping Resolve = defaultResolve,
@@ -42,6 +42,7 @@ public enum CLIVersionReader {
         case .cursor: CursorCLI.resolveExecutable()
         case .copilot: CopilotCLI.resolveExecutable()
         case .opencode: OpenCodeCLI.resolveExecutable()
+        case .antigravity: AntigravityCLI.resolveExecutable()
         default: nil
         }
     }

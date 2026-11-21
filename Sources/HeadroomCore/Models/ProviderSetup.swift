@@ -248,6 +248,18 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// The usage read's output no longer matches the contract; only a Headroom update fixes it.
     case opencodeFormatChanged
     case opencodeTransientCapture
+    case antigravityCLIMissing
+    /// The installed `agy` is older than the version the usage payload was captured on, so
+    /// Headroom never runs its usage read.
+    case antigravityUpdateRequired
+    /// A read answered with a model turn or spent tokens, so Headroom stopped running the
+    /// client until it changes. Only a different `agy`, or a Headroom update, fixes it.
+    case antigravityUnsupportedClient
+    /// `agy` printed its sign-in prompt instead of answering.
+    case antigravitySignedOut
+    /// The usage answer no longer matches the contract; only a Headroom update fixes it.
+    case antigravityFormatChanged
+    case antigravityTransientCapture
 
     // W2A: these render in the popover's 295pt recovery line and again, wrapping freely
     // since S2B, in a ≈197pt account state row. The `\u{00A0}` runs glue tails that would otherwise
@@ -310,6 +322,14 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .opencodeSignInExpired: ProviderSignInCopy.status(for: .opencode, again: true)
         case .opencodeFormatChanged: "Headroom can’t read OpenCode usage after an OpenCode change. Contact support"
         case .opencodeTransientCapture: Self.retrying("Couldn’t read OpenCode usage")
+        case .antigravityCLIMissing: ProviderSignInCopy.cliMissing(for: .antigravity)
+        case .antigravityUpdateRequired: "Antigravity usage needs agy\u{00A0}1.5.9 or newer"
+        // CA-P9 (R2C7): the sentence states the cause and the Contact Support button beside it
+        // names the act; "… Contact support" read twice over the button and in the tooltip.
+        case .antigravityUnsupportedClient: "Headroom paused Antigravity reads after an agy change"
+        case .antigravitySignedOut: ProviderSignInCopy.status(for: .antigravity)
+        case .antigravityFormatChanged: "Headroom can’t read Antigravity usage after an agy change"
+        case .antigravityTransientCapture: Self.retrying("Couldn’t read Antigravity usage")
         }
     }
 
@@ -369,6 +389,15 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         // "Can’t" (it stays broken until Headroom updates) against the transient "Couldn’t".
         case .opencodeFormatChanged: "Can’t read OpenCode"
         case .opencodeTransientCapture: "Couldn’t read OpenCode"
+        case .antigravityCLIMissing: ProviderSignInCopy.cliMissingShort(for: .antigravity)
+        // CA-P5: "Needs agy 1.5.9 · Update", OpenCode's shape; the full sentence names the floor.
+        case .antigravityUpdateRequired: "Needs agy 1.5.9"
+        // CA-P5: Headroom stopped running `agy` on purpose, so the row says paused, not
+        // "Can’t read" (which is the format change) or "Couldn’t read" (the transient one).
+        case .antigravityUnsupportedClient: "Antigravity reads paused"
+        case .antigravitySignedOut: ProviderSignInCopy.shortStatus(for: .antigravity)
+        case .antigravityFormatChanged: "Can’t read Antigravity"
+        case .antigravityTransientCapture: "Couldn’t read Antigravity"
         // CA-P5: no default. Every outcome now has a one-line form, so a new outcome has to
         // choose one (and `RecoveryRowBudgetTests` measures it).
         }
@@ -379,7 +408,8 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .claudeUnknownUI, .claudeTransientCapture, .codexCredentialIO, .codexSessionUnverified,
              .grokCredentialIO, .grokTransientCapture, .cursorUnknownUI,
              .cursorTransientCapture, .copilotLogsUnreadable,
-             .opencodeFormatChanged, .opencodeTransientCapture:
+             .opencodeFormatChanged, .opencodeTransientCapture,
+             .antigravityFormatChanged, .antigravityTransientCapture:
             false
         default:
             true
@@ -392,7 +422,7 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         switch self {
         // KTD12 (OpenCode plan): an API-key connection has never signed in to the Console.
         case .claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent, .cursorAuthAbsent, .copilotSignedOut,
-             .opencodeSignedOut, .opencodeConsoleSignInRequired:
+             .opencodeSignedOut, .opencodeConsoleSignInRequired, .antigravitySignedOut:
             true
         default:
             false
@@ -543,6 +573,23 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow)
         case .opencodeTransientCapture:
             .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
+        case .antigravityCLIMissing:
+            .init(status: message, primaryLabel: "Install Antigravity CLI", primaryAction: .installAntigravityCLI,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        case .antigravityUpdateRequired:
+            .init(status: message, primaryLabel: "Update Antigravity CLI", primaryAction: .installAntigravityCLI,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        // Check Now is a user request, which reads the local version and resumes only when it
+        // changed; nothing else runs the client again.
+        case .antigravityUnsupportedClient, .antigravityFormatChanged:
+            .init(status: message, primaryLabel: "Contact Support", primaryAction: .contactSupport,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+        case .antigravitySignedOut:
+            .init(status: message, primaryLabel: ProviderSignInCopy.button, primaryAction: .connectAntigravity,
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  automaticPolicy: .boundedChecksAfterHandoff)
+        case .antigravityTransientCapture:
+            .init(status: message, primaryLabel: "Check Now", primaryAction: .checkNow)
         }
     }
 }
@@ -569,6 +616,10 @@ public enum SetupRecoveryAction: Sendable, Equatable, Hashable {
     case connectOpenCode
     /// KTD7: the no-Go row's link to OpenCode's Go plans.
     case seeOpenCodeGoPlans
+    /// Install and update both open the Antigravity CLI's own page.
+    case installAntigravityCLI
+    /// Runs the CLI's own interactive Google sign-in in Terminal.
+    case connectAntigravity
     /// Opens the same pre-filled feedback email as Settings › About › Send Feedback
     /// (KTD21), so Headroom still sends nothing itself.
     case contactSupport
@@ -647,8 +698,11 @@ public struct ProviderRecoveryPresentation: Sendable, Equatable {
     /// Again and Check Now are already short and keep R2C6's one verb.
     public var primaryShortLabel: String {
         switch primaryAction {
+        // CA-P5: Antigravity's install and update share one action (both open the CLI's
+        // page), so the update row keeps its own verb.
+        case .installAntigravityCLI where primaryLabel.hasPrefix("Update"): "Update"
         case .installClaudeCLI, .installCodexCLI, .installGrokCLI, .installCursorAgent,
-             .installCopilotCLI, .installOpenCodeCLI:
+             .installCopilotCLI, .installOpenCodeCLI, .installAntigravityCLI:
             "Install"
         case .showPrivacyGuidance: "Get Help"
         // CA-P5: the act the Terminal launch is for; "Approve Headroom’s folder · Open
@@ -710,6 +764,7 @@ extension SetupRecoveryAction {
         case .installCursorAgent: .cursor
         case .installCopilotCLI: .copilot
         case .installOpenCodeCLI: .opencode
+        case .installAntigravityCLI: .antigravity
         default: nil
         }
     }

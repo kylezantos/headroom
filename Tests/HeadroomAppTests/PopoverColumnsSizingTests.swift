@@ -189,6 +189,23 @@ struct PopoverColumnsSizingTests {
         #expect(ProviderCardView.compactColumns(entries: pendingOnly, showsCodexSparkCounters: false) == [])
     }
 
+    /// The Compact header follows "Show 5-hour windows": with it off, Antigravity's columns
+    /// are its two weekly rows, the same rows the Standard section draws.
+    @Test func compactColumnsFollowTheAntigravityFiveHourSwitch() {
+        let rows = UsageSnapshot(providerID: .antigravity, windows: [
+            UsageWindow(kind: .other("Gemini 5h"), utilization: 20, resetsAt: Date().addingTimeInterval(3_600)),
+            UsageWindow(kind: .other("Gemini weekly"), utilization: 40, resetsAt: Date().addingTimeInterval(86_400)),
+            UsageWindow(kind: .other("Other 5h"), utilization: 90, resetsAt: Date().addingTimeInterval(3_600)),
+            UsageWindow(kind: .other("Other weekly"), utilization: 50, resetsAt: Date().addingTimeInterval(86_400)),
+        ], planLabel: nil, capturedAt: Date(), freshness: .live)
+        let entries = [ProviderAccountEntry(account: .builtIn(for: .antigravity), snapshot: rows)]
+        let shown = ProviderCardView.compactColumns(entries: entries, showsCodexSparkCounters: false)
+        #expect(shown?.map(\.persistentID).contains("other:Other 5h") == true)
+        let hidden = ProviderCardView.compactColumns(
+            entries: entries, showsCodexSparkCounters: false, showsAntigravityFiveHourWindows: false)
+        #expect(hidden?.map(\.persistentID) == ["other:Gemini weekly", "other:Other weekly"])
+    }
+
     @Test func aSingleAccountCardIsOneWholeSlot() {
         let slots = ProviderCardView.columnSlots(providerID: .codex, entries: entries(.codex, 1), capabilityStatus: nil)
         #expect(slots.map(\.id) == ["card:codex"])
@@ -278,10 +295,12 @@ struct PopoverColumnsSizingTests {
         }
     }
 
-    private func host(_ store: UsageStore) async -> Hosted {
-        let hosting = NSHostingView(rootView: AnyView(PopoverView(store: store, onOpenSettings: {})))
+    private func host(_ store: UsageStore, visibleScreenHeight: CGFloat? = nil) async -> Hosted {
+        let hosting = NSHostingView(rootView: AnyView(PopoverView(
+            store: store, onOpenSettings: {}, visibleScreenHeightOverride: visibleScreenHeight
+        )))
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 800, height: 900),
+            contentRect: NSRect(x: 0, y: 0, width: 800, height: 1100),
             styleMask: [.borderless], backing: .buffered, defer: false
         )
         window.isReleasedWhenClosed = false
@@ -364,17 +383,20 @@ struct PopoverColumnsSizingTests {
         #expect(scroll.content > scroll.viewport)
     }
 
-    @Test(arguments: AccountLayout.allCases)
-    func verticalOnlyAccountsScrollAtTheCapAndCanExpandAgain(layout: AccountLayout) async {
+    @Test(arguments: AccountLayout.allCases, [CGFloat(700), CGFloat(1440)])
+    func verticalOnlyAccountsScrollAtTheCapAndCanExpandAgain(
+        layout: AccountLayout, visibleScreenHeight: CGFloat
+    ) async {
         let pairs = DemoFixture.generatedAccounts(provider: .claude, count: 20)
             + DemoFixture.generatedAccounts(provider: .codex, count: 20)
         let store = await store(pairs, layout: layout)
         store.setExpandAccountsHorizontally(false)
-        let hosted = await host(store)
+        let hosted = await host(store, visibleScreenHeight: visibleScreenHeight)
         defer { hosted.teardown() }
         #expect(hosted.size.width == 384)
         let scroll = try! #require(hosted.scroll)
-        #expect(abs(scroll.viewport - PopoverCardMetrics.cardsHeightCap) < 0.5)
+        let expectedViewport: CGFloat = visibleScreenHeight == 700 ? 551 : 900
+        #expect(abs(scroll.viewport - expectedViewport) < 0.5)
         #expect(scroll.content > scroll.viewport)
         store.setExpandAccountsHorizontally(true)
         await hosted.settle()
@@ -382,6 +404,16 @@ struct PopoverColumnsSizingTests {
         store.setExpandAccountsHorizontally(false)
         await hosted.settle()
         #expect(hosted.size.width == 384)
+    }
+
+    @Test func aFewVerticalOnlyAccountsFitWithoutScrollingOnATallScreen() async {
+        let store = await store(DemoFixture.generatedAccounts(provider: .claude, count: 3))
+        store.setExpandAccountsHorizontally(false)
+        let hosted = await host(store, visibleScreenHeight: 1440)
+        defer { hosted.teardown() }
+        let scroll = try! #require(hosted.scroll)
+        #expect(scroll.viewport < 900)
+        #expect(abs(scroll.viewport - scroll.content) < 0.5)
     }
 
     // MARK: Compact (R11, R15)
@@ -423,5 +455,13 @@ struct PopoverColumnsSizingTests {
         defer { hosted.teardown() }
         hosted.snapshot("compact-signed-out")
         #expect(hosted.size.height > compactHeight + 20)
+    }
+
+    @Test func verticalOnlyCapUsesScreenSpaceUpTo900Points() {
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 300) == 300)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 700) == 551)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1000) == 851)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1440) == 900)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: nil) == 640)
     }
 }

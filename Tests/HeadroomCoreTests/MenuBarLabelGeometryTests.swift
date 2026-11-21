@@ -167,7 +167,7 @@ import Testing
     /// CA-MB1: the menu bar sizes its marks from its own table. Every shipped provider has an
     /// entry (not the fallback), and every ink, outline included, fits the 13pt box and the
     /// 18pt image after its nudge, so a mark never draws into its gap or past the label.
-    @Test(arguments: ["claude", "codex", "grok", "cursor", "copilot", "opencode"])
+    @Test(arguments: ["claude", "codex", "grok", "cursor", "copilot", "opencode", "antigravity"])
     func everyProviderHasMenuBarMarkMetricsThatFitTheBox(_ provider: String) {
         let metrics = MenuBarLabelGeometry.markMetrics(for: provider)
         #expect(metrics != MenuBarLabelGeometry.defaultMarkMetrics, "\(provider) falls back to the default")

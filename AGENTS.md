@@ -142,7 +142,8 @@ account (`CompactAccountRow`, decided by Core `CompactAccountRowRecipe`) and kee
 section for any account whose state needs an action. The plan is made when the popover closes,
 from the heights it last drew, and on an account-set change; heights never replan while it is
 open. `MenuBarExtra` grows its window with the content but never shrinks it, so `PopoverView`
-fits a narrower window itself, while it is hidden. See
+fits a narrower window itself, while it is hidden, and `PopoverWindowHeightFitter` shortens a
+too-tall one with its top edge kept (shrink-only on macOS 26, both ways on 15). See
 `docs/solutions/ui/popover-account-columns.md`.
 
 The popover meter style is one global `MeterStyle`, persisted as three independent

@@ -29,8 +29,8 @@ struct PopoverView: View {
     /// DialKit only: the pinned tuning copy has no MenuBarExtra host, so it keeps the shell.
     var isPinnedTuningCopy: Bool = false
     /// SQ1: set by the `MenuBarExtra` scene only, so harness windows (which pad and size the
-    /// popover themselves) are never refitted. Acts only where `PopoverWindowHeightFitter` is
-    /// enabled: before macOS 26.
+    /// popover themselves) are never refitted. `PopoverWindowHeightFitter` fits both ways before
+    /// macOS 26 and only shrinks on 26 (GF1).
     var fitsMenuBarWindowHeight: Bool = false
     /// Hosted sizing tests supply a fixed screen height.
     var visibleScreenHeightOverride: CGFloat? = nil
@@ -59,7 +59,7 @@ struct PopoverView: View {
     /// open. The popover's own `TimelineView` ticks per minute, which is right for "Updated
     /// N min ago" and useless for "Waiting 45s".
     @State private var waitingClockNow: Date = .now
-    /// SQ1: fits the window's height on macOS 15; inert on 26.
+    /// SQ1: fits the window's height on macOS 15; GF1: only shrinks it on 26.
     @State private var heightFitter = PopoverWindowHeightFitter()
 
     /// CA-P12 (POP-13): 17 semibold, down from 20 bold. The heaviest glyphs in the popover
@@ -327,7 +327,7 @@ struct PopoverView: View {
                 if let popoverWindow { planVerticalCardsHeight(under: popoverWindow) }
                 fitPopoverWindow(columns: columns.drawnPlan(for: columnSlots).columnCount)
             }
-            // SQ1: each open refits the reused window to the last ideal height (macOS 15 only).
+            // SQ1 / GF1: each open refits the reused window to the last ideal height.
             .onAppear { if fitsMenuBarWindowHeight { heightFitter.scheduleFit() } }
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.

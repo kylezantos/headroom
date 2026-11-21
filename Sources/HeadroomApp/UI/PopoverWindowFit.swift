@@ -44,11 +44,11 @@ struct PopoverTopPinnedLayout: Layout {
     }
 }
 
-/// SQ1: fits the popover window's height to the content on macOS 15, top edge kept under the
-/// status item, the way `PopoverView.fitPopoverWindow(columns:)` fits a narrower width. macOS 26
-/// sizes the `MenuBarExtra` window correctly on its own, so it is left alone there. Owned by
-/// `PopoverView` like its plan model; the ideal height reaches it from layout, outside
-/// observation, so a report never re-runs a body.
+/// SQ1: fits the popover window's height to the content, top edge kept under the status item,
+/// the way `PopoverView.fitPopoverWindow(columns:)` fits a narrower width. On macOS 15 it fits
+/// both ways. On macOS 26 the `MenuBarExtra` window grows with the content on its own but never
+/// shrinks, so the fitter only shrinks it there (GF1). Owned by `PopoverView` like its plan model;
+/// the ideal height reaches it from layout, outside observation, so a report never re-runs a body.
 @MainActor
 final class PopoverWindowHeightFitter {
     weak var window: NSWindow?
@@ -91,8 +91,10 @@ final class PopoverWindowHeightFitter {
             screens: NSScreen.screens.map { (frame: $0.frame, visible: $0.visibleFrame) },
             fallback: window.screen?.visibleFrame
         )
-        guard let frame = Self.fittedFrame(current: window.frame, targetHeight: target, bottomLimit: bottomLimit)
-        else { return }
+        guard let frame = Self.fittedFrame(
+            current: window.frame, targetHeight: target, bottomLimit: bottomLimit,
+            allowsGrowth: Self.mode.allowsGrowth
+        ) else { return }
         window.setFrame(frame, display: window.isVisible)
         window.invalidateShadow()
     }
@@ -140,28 +142,47 @@ final class PopoverWindowHeightFitter {
     /// `current` with its height changed to `targetHeight` and its top edge where it was, or nil
     /// when it is already within half a point. `bottomLimit` (the screen's visible bottom)
     /// keeps a tall popover above the Dock; the top-pinned layout scrolls what doesn't fit.
-    nonisolated static func fittedFrame(current: NSRect, targetHeight: CGFloat, bottomLimit: CGFloat? = nil) -> NSRect? {
+    /// Without `allowsGrowth` (macOS 26, GF1) a window shorter than the target is left to the
+    /// host, which grows it on its own.
+    nonisolated static func fittedFrame(
+        current: NSRect, targetHeight: CGFloat, bottomLimit: CGFloat? = nil, allowsGrowth: Bool = true
+    ) -> NSRect? {
         var height = targetHeight
         if let bottomLimit, current.maxY - bottomLimit > 0 { height = min(height, current.maxY - bottomLimit) }
         guard height > 0, abs(current.height - height) > tolerance else { return nil }
+        guard allowsGrowth || height < current.height else { return nil }
         return NSRect(x: current.minX, y: current.maxY - height, width: current.width, height: height)
     }
 
-    /// On macOS 26 the `MenuBarExtra` window's height already follows the content. The macOS 15.0
-    /// report points to a window left shorter than the content there (unconfirmed on a device).
-    static var isEnabled: Bool {
+    enum Mode: Sendable, Equatable {
+        case off
+        /// macOS 15: the 15.0 report points to a window left shorter than the content
+        /// (unconfirmed on a device), so the fitter grows as well as shrinks.
+        case fit
+        /// macOS 26 (GF1, 2026-11-21): the window grows with the content on its own but never
+        /// shrinks. The first open after launch lays out one tall column before the plan turns to
+        /// two, so the window kept the tall height and the shorter two-column popover sat ~70pt
+        /// below the menu bar, centred in it, on every open.
+        case shrinkOnly
+
+        var allowsGrowth: Bool { self == .fit }
+    }
+
+    static var mode: Mode {
         #if DEBUG
         if let debugOverride { return debugOverride }
         #endif
-        if #unavailable(macOS 26.0) { return true }
-        return false
+        if #unavailable(macOS 26.0) { return .fit }
+        return .shrinkOnly
     }
 
+    static var isEnabled: Bool { mode != .off }
+
     #if DEBUG
-    /// Exercises the macOS 15 path on 26: tests set it, and `HEADROOM_FORCE_POPOVER_HEIGHT_FIT=1`
-    /// (or `0`) sets it for a debug `swift run`. Nil leaves it to the OS.
-    static var debugOverride: Bool? = ProcessInfo.processInfo.environment["HEADROOM_FORCE_POPOVER_HEIGHT_FIT"]
-        .map { $0 == "1" }
+    /// Tests set it; `HEADROOM_FORCE_POPOVER_HEIGHT_FIT=1` exercises the macOS 15 path on 26 for a
+    /// debug `swift run`, and `0` turns the fitter off. Nil leaves it to the OS.
+    static var debugOverride: Mode? = ProcessInfo.processInfo.environment["HEADROOM_FORCE_POPOVER_HEIGHT_FIT"]
+        .map { $0 == "1" ? .fit : .off }
     #endif
 }
 

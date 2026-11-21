@@ -116,8 +116,8 @@ import Testing
             items: stripTextWidths.map { item(text: $0, mark: true) }, showsPercentage: true)
         let iconOnly = MenuBarLabelGeometry.layout(
             items: stripTextWidths.map { _ in item(mark: true) }, showsPercentage: false)
-        #expect(withText.imageWidth == 222)
-        #expect(iconOnly.imageWidth == 101)
+        #expect(withText.imageWidth == 210)
+        #expect(iconOnly.imageWidth == 97)
     }
 
     @Test func marksOffKeepTodaysWidths() {
@@ -133,7 +133,7 @@ import Testing
     /// The mark's box ends exactly `markVesselGap` before its own vessel, and the wider gap
     /// sits between the previous pill and this pill's mark, so a mark reads as its own
     /// vessel's and never as the previous numeral's.
-    @Test func eachMarkSitsBeforeItsOwnVesselBehindTheWiderGap() {
+    @Test func eachMarkSitsBeforeItsOwnVesselBehindItsOwnGap() {
         let layout = MenuBarLabelGeometry.layout(
             items: [item(text: 31, mark: true), item(text: 31, mark: true)], showsPercentage: true)
         let first = layout.placements[0], second = layout.placements[1]
@@ -141,10 +141,12 @@ import Testing
         #expect(first.vesselX == MenuBarLabelGeometry.markBoxSize + MenuBarLabelGeometry.markVesselGap)
         #expect(second.vesselX - second.markX!
             == MenuBarLabelGeometry.markBoxSize + MenuBarLabelGeometry.markVesselGap)
-        #expect(second.markX! - (first.textX! + 31) == 18)
+        #expect(second.markX! - (first.textX! + 31) == MenuBarLabelGeometry.markedMeterGapWithPercentage)
+        // The numeral still groups with its own vessel, not the next pill's mark.
+        #expect(MenuBarLabelGeometry.markedMeterGapWithPercentage > MenuBarLabelGeometry.vesselTextGap)
 
         let iconOnly = MenuBarLabelGeometry.layout(items: [item(mark: true), item(mark: true)], showsPercentage: false)
-        #expect(iconOnly.placements[1].markX! - (iconOnly.placements[0].vesselX + MenuBarLabelGeometry.vesselWidth) == 10)
+        #expect(iconOnly.placements[1].markX! - (iconOnly.placements[0].vesselX + MenuBarLabelGeometry.vesselWidth) == MenuBarLabelGeometry.markedMeterGapIconOnly)
     }
 
     /// The automatic summary is a single pill: its mark adds the box and its gap, nothing else.

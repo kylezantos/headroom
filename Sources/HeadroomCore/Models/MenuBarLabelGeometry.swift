@@ -30,10 +30,13 @@ public enum MenuBarLabelGeometry {
     public static let markBoxSize: Double = 13
     /// The space between a mark's box and its own vessel.
     public static let markVesselGap: Double = 3
-    /// CA-MB1: added to the pill-to-pill gap in front of a marked pill (icon-only 8 → 10,
-    /// with percentages 16 → 18), so a mark attaches to its own vessel and not to the
-    /// previous pill's numeral.
-    public static let markedMeterGapExtra: Double = 2
+    /// CA-MB1: the pill-to-pill gap in front of a marked pill. The mark names its pill, so
+    /// the gap no longer has to say which numeral belongs to which vessel: 12 with
+    /// percentages (16 unmarked) and 8 icon-only. 12 stays clear of `vesselTextGap` (7), so a
+    /// numeral still groups with its own vessel. Owner review, on a real menu bar: the first
+    /// marked spacing (18 and 10) read loose.
+    public static let markedMeterGapWithPercentage: Double = 12
+    public static let markedMeterGapIconOnly: Double = 8
 
     /// How one provider's mark sits inside its `markBoxSize` box (CA-MB1). The box, its gap
     /// and the pill gaps never change with the provider, so the label measures the same
@@ -167,7 +170,10 @@ public enum MenuBarLabelGeometry {
         placements.reserveCapacity(items.count)
 
         for item in items {
-            if cursor > 0 { cursor += gap + (item.hasMark ? markedMeterGapExtra : 0) }
+            if cursor > 0 {
+                cursor += item.hasMark
+                    ? (showsPercentage ? markedMeterGapWithPercentage : markedMeterGapIconOnly) : gap
+            }
             // CA-MB1: the mark is measured in this pass, like the attention dot (PB5), so a
             // drawn mark can never fall outside the image.
             var markX: Double?

@@ -172,7 +172,7 @@ struct PopoverWindowHeightFitTests {
     /// about whether a real macOS 15 `MenuBarExtra` window accepts the frame and keeps it; that
     /// is a device check (BUGS.md).
     @Test func theForcedFitterResizesAPlainTestWindowWithItsTopKept() async throws {
-        PopoverWindowHeightFitter.debugOverride = true
+        PopoverWindowHeightFitter.debugOverride = .fit
         defer { PopoverWindowHeightFitter.debugOverride = nil }
         let store = await singleClaude()
         // The content's own size, from a reference host with no fitter.
@@ -202,6 +202,51 @@ struct PopoverWindowHeightFitTests {
         #expect(abs(hosted.window.frame.maxY - top) < 0.5)
         let title = try #require(hosted.title.frame)
         #expect(title.minY >= PopoverCardMetrics.shellMargin - 1)
+    }
+
+    /// GF1, the macOS 26 path: a window taller than the content (a first open that laid out one
+    /// tall column before the plan turned to two) shrinks to the content with its top kept, so the
+    /// shell sits under the status item. A window shorter than the content is left to the host,
+    /// which grows it on its own on 26.
+    @Test func theShrinkOnlyFitterShrinksATallWindowAndNeverGrowsAShortOne() async throws {
+        PopoverWindowHeightFitter.debugOverride = .shrinkOnly
+        defer { PopoverWindowHeightFitter.debugOverride = nil }
+        let store = await singleClaude()
+        let reference = await hostInWindow(store, fitsWindow: false)
+        await reference.settle()
+        let ideal = reference.hosting.fittingSize
+        reference.teardown()
+        #expect(ideal.height > 100)
+
+        let hosted = await hostInWindow(store, fitsWindow: true)
+        defer { hosted.teardown() }
+        hosted.hosting.sizingOptions = []
+        let top = hosted.window.frame.maxY
+        await hosted.settle()
+        // Shrink: 900pt down to the content, top kept.
+        #expect(abs(hosted.window.frame.height - ideal.height) < 0.5)
+        #expect(abs(hosted.window.frame.maxY - top) < 0.5)
+
+        // 120pt short, then the popover opens again: the fitter leaves it alone.
+        hosted.resize(height: ideal.height - 120, width: ideal.width)
+        hosted.hosting.removeFromSuperview()
+        await hosted.settle(turns: 4)
+        hosted.window.contentView?.addSubview(hosted.hosting)
+        hosted.hosting.frame = hosted.window.contentView?.bounds ?? .zero
+        await hosted.settle()
+        #expect(abs(hosted.window.frame.height - (ideal.height - 120)) < 0.5)
+        #expect(abs(hosted.window.frame.maxY - top) < 0.5)
+    }
+
+    /// GF1: the OS decides the mode; macOS 26 and later only shrink.
+    @Test func theFitterOnlyShrinksOnMacOS26() {
+        #expect(PopoverWindowHeightFitter.debugOverride == nil)
+        if #available(macOS 26.0, *) {
+            #expect(PopoverWindowHeightFitter.mode == .shrinkOnly)
+        } else {
+            #expect(PopoverWindowHeightFitter.mode == .fit)
+        }
+        #expect(PopoverWindowHeightFitter.isEnabled)
     }
 
     // MARK: Host chrome rounding (SQ2)
@@ -253,6 +298,23 @@ struct PopoverWindowHeightFitTests {
         #expect(shrunk.maxY == current.maxY)
         #expect(shrunk.height == 180)
         #expect(shrunk.minY == 520)
+    }
+
+    /// GF1: shrink-only keeps the top edge and refuses to grow.
+    @Test func aShrinkOnlyFitShrinksButNeverGrows() throws {
+        let shrunk = try #require(
+            PopoverWindowHeightFitter.fittedFrame(current: current, targetHeight: 180, allowsGrowth: false)
+        )
+        #expect(shrunk.maxY == current.maxY)
+        #expect(shrunk.height == 180)
+        #expect(shrunk.minX == current.minX && shrunk.width == current.width)
+        #expect(PopoverWindowHeightFitter.fittedFrame(current: current, targetHeight: 420, allowsGrowth: false) == nil)
+        #expect(PopoverWindowHeightFitter.fittedFrame(current: current, targetHeight: 300.4, allowsGrowth: false) == nil)
+        // The visible-bottom limit can still shorten a window that is too tall for the screen.
+        let limited = try #require(
+            PopoverWindowHeightFitter.fittedFrame(current: current, targetHeight: 900, bottomLimit: 500, allowsGrowth: false)
+        )
+        #expect(limited.minY == 500 && limited.maxY == current.maxY)
     }
 
     @Test func aFrameWithinHalfAPointIsLeftAlone() {

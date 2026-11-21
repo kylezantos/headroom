@@ -208,7 +208,7 @@ struct MenuBarMarkRenderTests {
         #expect(Self.digest(try Self.bitmap(off.image, scale: 2)) == Self.digest(try Self.bitmap(reference.image, scale: 2)))
     }
 
-    /// The approved panel's readouts, measured with the real numeral font: 222pt and 101pt
+    /// The approved panel's readouts, measured with the real numeral font: 210pt and 97pt
     /// marked, today's 170pt and 49pt unmarked.
     @Test func theStripMeasuresThePanelsWidths() {
         let palette = MenuBarPalette(isDarkMenuBar: true)
@@ -216,8 +216,8 @@ struct MenuBarMarkRenderTests {
             MenuBarLabelRenderer.render(meters: Self.strip(), showsPercentage: percentage, palette: palette,
                                         showsMarks: marks).image.size.width
         }
-        #expect(width(true, true) == 222)
-        #expect(width(false, true) == 101)
+        #expect(width(true, true) == 210)
+        #expect(width(false, true) == 97)
         #expect(width(true, false) == 170)
         #expect(width(false, false) == 49)
     }

@@ -630,17 +630,22 @@ struct AntigravityUsageSourceProcessTests {
         let spawned = fake.argv.count
         #expect(await source.capture() == .failed(.signedOut))
         #expect(await source.capture() == .failed(.signedOut))
-        // Launch, Refresh and a phone Check Now are full refreshes: each would open another
-        // browser sign-in, so none of them runs agy either.
-        #expect(await userRequested(source, origin: .fullRefresh) == .failed(.signedOut))
-        #expect(fake.argv.count == spawned, "a poll or full refresh ran agy while signed out")
+        #expect(fake.argv.count == spawned, "a routine poll ran agy while signed out")
 
-        // The Antigravity row's own Try Again reads again.
-        try fake.hook("usage", pre: "")
-        #expect(buckets(await userRequested(source, origin: .accountAction))?.count == 4)
+        // A full refresh while still signed out re-checks with browser launches suppressed and
+        // stays signed out without letting routine polls resume.
+        #expect(await userRequested(source, origin: .fullRefresh) == .failed(.signedOut))
         #expect(fake.count(.usage) == 2)
-        #expect(buckets(await source.capture())?.count == 4)
+        let afterFullRefresh = fake.argv.count
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(fake.argv.count == afterFullRefresh, "routine poll ran agy after signed-out full refresh")
+
+        // Once the user signs back in outside Headroom, Refresh recovers automatically.
+        try fake.hook("usage", pre: "")
+        #expect(buckets(await userRequested(source, origin: .fullRefresh))?.count == 4)
         #expect(fake.count(.usage) == 3)
+        #expect(buckets(await source.capture())?.count == 4)
+        #expect(fake.count(.usage) == 4)
     }
 
     /// The check after a sign-in through Headroom clears the mark, even when a full refresh
@@ -658,7 +663,8 @@ struct AntigravityUsageSourceProcessTests {
         #expect(buckets(coalesced)?.count == 4)
     }
 
-    /// A relaunch keeps the signed-out mark, so launch's own refresh opens no second sign-in.
+    /// A relaunch keeps the signed-out mark for routine polls, while an explicit Refresh recovers
+    /// once the user has signed back into `agy` outside Headroom.
     @Test func theSignedOutMarkSurvivesARelaunch() async throws {
         let fake = try FakeAgy(privateScript: true)
         defer { fake.remove() }
@@ -669,12 +675,16 @@ struct AntigravityUsageSourceProcessTests {
 
         let spawned = fake.argv.count
         let relaunched = fake.source(deadline: 30, memory: box.memory)
-        #expect(await userRequested(relaunched, origin: .fullRefresh) == .failed(.signedOut))
         #expect(await relaunched.capture() == .failed(.signedOut))
-        #expect(fake.argv.count == spawned, "a relaunch ran agy while signed out")
+        #expect(fake.argv.count == spawned, "a routine poll after relaunch ran agy while signed out")
 
+        // A full refresh while still signed out keeps the persisted signed-out mark.
+        #expect(await userRequested(relaunched, origin: .fullRefresh) == .failed(.signedOut))
+        #expect(box.storedSignedOut)
+
+        // After signing in externally, Refresh clears the mark and reads live usage.
         try fake.hook("usage", pre: "")
-        #expect(buckets(await userRequested(relaunched, origin: .accountAction))?.count == 4)
+        #expect(buckets(await userRequested(relaunched, origin: .fullRefresh))?.count == 4)
         #expect(!box.storedSignedOut)
     }
 
@@ -715,6 +725,36 @@ struct AntigravityUsageSourceProcessTests {
         for name in AntigravityCLIUsageSource.strippedEnvironment {
             #expect(!seen.contains("\(name)="), "\(name)")
         }
+    }
+
+    /// Probes suppress browser launches (via a `no-browser` `open -> /usr/bin/false` shim ahead
+    /// of PATH plus `BROWSER=/usr/bin/false`) and disable agy's background auto-updater without
+    /// setting `SSH_CONNECTION` or writing inside the probe working folder.
+    @Test func probesSuppressBrowserLaunchesAndBackgroundUpdaterWithoutSSHConnection() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        try fake.hook("usage", pre: "env > \"$dir/usage.env\"\ncommand -v open > \"$dir/usage.open\"\n")
+        try fake.hook("credits", pre: "env > \"$dir/credits.env\"\ncommand -v open > \"$dir/credits.open\"\n")
+        let source = fake.source(environment: ["BROWSER": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"])
+        #expect(buckets(await source.capture())?.count == 4)
+
+        let noBrowserDir = await source.noBrowserBinDirectoryPath
+        let expectedOpen = (noBrowserDir as NSString).appendingPathComponent("open")
+        let linkTarget = try FileManager.default.destinationOfSymbolicLink(atPath: expectedOpen)
+        #expect(linkTarget == "/usr/bin/false")
+
+        for command in ["usage", "credits"] {
+            let envText = fake.text("\(command).env")
+            let comment = Comment(rawValue: command)
+            #expect(envText.contains("BROWSER=/usr/bin/false"), comment)
+            #expect(envText.contains("AGY_CLI_DISABLE_AUTO_UPDATE=true"), comment)
+            #expect(!envText.contains("SSH_CONNECTION="), comment)
+            #expect(fake.text("\(command).open") == expectedOpen, comment)
+        }
+
+        // The working directory itself stays empty.
+        let contents = try FileManager.default.contentsOfDirectory(atPath: fake.workingDirectory.path)
+        #expect(contents.isEmpty)
     }
 
     @Test func aSignInPromptOnTheCreditsReadIsSignedOutToo() async throws {

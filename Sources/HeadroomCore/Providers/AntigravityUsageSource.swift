@@ -84,11 +84,11 @@ public enum AntigravityCaptureFailure: Sendable, Equatable {
     /// over `/usage` can't turn every poll into a paid agent turn.
     case unsupportedClient
     /// The client printed one of its sign-in lines on stderr (`AntigravitySignInPromptScanner`),
-    /// the one positive evidence of a signed-out account. It opens an interactive Google
-    /// sign-in in the browser and waits for it, so the read is ended at the prompt. Sticky and
-    /// kept across relaunches: no read spawns the client again, not even launch, Refresh or a
-    /// phone Check Now, until a sign-in through Headroom completes or the Antigravity row's own
-    /// Try Again runs. A sign-out therefore opens at most one browser sign-in.
+    /// the one positive evidence of a signed-out account. Browser launches are suppressed via an
+    /// app-owned `open` -> `/usr/bin/false` shim ahead of `PATH` (plus `BROWSER=/usr/bin/false`),
+    /// and the read is ended at the prompt. Sticky across routine timer polls and relaunches; an
+    /// explicit user refresh (Refresh, Try Again, Check Now, or a completed Headroom sign-in)
+    /// re-checks safely with zero browser tabs so external terminal sign-ins recover automatically.
     case signedOut
     case formatChanged(AntigravityFormatStage)
     case transient(AntigravityTransientCause)
@@ -431,12 +431,18 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         }
     }
 
-    /// Only these clear the signed-out mark: the account row's Try Again (and other actions on
-    /// that one account) and the check after a sign-in through Headroom. Launch, Refresh and a
-    /// phone Check Now are full refreshes and would each open another browser sign-in.
+    /// User-initiated refreshes clear the signed-out mark so signing back into `agy` in a
+    /// terminal recovers automatically on Refresh, Try Again, Check Now, or Headroom's own
+    /// sign-in flow. Routine timer polls (`origins` empty) stay gated while signed out.
+    /// Browser launches are suppressed via `noBrowserBinDirectory` (`open -> /usr/bin/false`)
+    /// ahead of `PATH` and `BROWSER=/usr/bin/false`, so re-checking while signed out opens zero
+    /// browser tabs.
     static func clearsSignedOut(_ origins: Set<UserRefreshOrigin>) -> Bool {
-        origins.contains(.accountAction) || origins.contains(.setupCheck)
+        origins.contains(.fullRefresh) || origins.contains(.accountAction) || origins.contains(.setupCheck)
     }
+
+    static let nonInteractiveBrowser = "/usr/bin/false"
+    static let disableAutoUpdateValue = "true"
 
     private let resolveExecutable: @Sendable () -> String?
     private let resolveLoginPath: @Sendable () -> String
@@ -515,7 +521,13 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         }
         var environment = inheritedEnvironment()
         for name in Self.strippedEnvironment { environment.removeValue(forKey: name) }
-        environment["PATH"] = loginPath
+        environment["BROWSER"] = Self.nonInteractiveBrowser
+        environment["AGY_CLI_DISABLE_AUTO_UPDATE"] = Self.disableAutoUpdateValue
+        if let noBrowserDir = prepareNoBrowserBinDirectory() {
+            environment["PATH"] = "\(noBrowserDir):\(loginPath)"
+        } else {
+            environment["PATH"] = loginPath
+        }
         var preparedWorkingDirectory = false
 
         let key = Self.executableKey(for: executable)
@@ -618,6 +630,38 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         guard let modified = (try? FileManager.default.attributesOfItem(atPath: target))?[.modificationDate] as? Date
         else { return nil }
         return ExecutableKey(path: target, modified: modified)
+    }
+
+    /// Sibling directory beside `workingDirectory` holding a single `open -> /usr/bin/false`
+    /// symlink so `agy`'s macOS `exec.Command("open", url)` cannot launch a browser tab on a
+    /// signed-out probe, while leaving `workingDirectory` itself clean and never touching
+    /// Keychain or credentials.
+    var noBrowserBinDirectoryPath: String {
+        URL(fileURLWithPath: workingDirectory)
+            .deletingLastPathComponent()
+            .appendingPathComponent("AntigravityProbeNoBrowser", isDirectory: true)
+            .path
+    }
+
+    private func prepareNoBrowserBinDirectory() -> String? {
+        let dir = noBrowserBinDirectoryPath
+        let fileManager = FileManager.default
+        do {
+            try fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            let linkPath = (dir as NSString).appendingPathComponent("open")
+            if let existing = try? fileManager.destinationOfSymbolicLink(atPath: linkPath),
+               existing == Self.nonInteractiveBrowser {
+                return dir
+            }
+            if fileManager.fileExists(atPath: linkPath)
+                || (try? fileManager.attributesOfItem(atPath: linkPath)) != nil {
+                try fileManager.removeItem(atPath: linkPath)
+            }
+            try fileManager.createSymbolicLink(atPath: linkPath, withDestinationPath: Self.nonInteractiveBrowser)
+            return dir
+        } catch {
+            return nil
+        }
     }
 
     /// Creates the working directory before the first spawn of a capture, without an existence

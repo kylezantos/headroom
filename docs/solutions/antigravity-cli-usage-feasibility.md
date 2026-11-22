@@ -29,10 +29,13 @@ Each claim below is marked: (live) was observed with the real CLI on the contrib
 (source) comes from `agy changelog` or `agy help`, and (synthetic) is a fixture that was not
 printed by the CLI as-is.
 
-One known limitation, stated up front: a signed-out `agy` answers `/usage` by opening an
-interactive Google sign-in in the browser. The CLI documents no way to turn that off. Headroom
-ends the read at the prompt and stops spawning `agy` on routine polls, so a sign-out costs at
-most one browser tab (see "Sign-in" and BUGS.md).
+One known limitation, stated up front: a signed-out `agy` answers `/usage` by attempting to open an
+interactive Google sign-in via `open <url>` on macOS. Headroom suppresses that browser launch by
+prepending an app-owned `AntigravityProbeNoBrowser` folder containing a single `open -> /usr/bin/false`
+symlink onto `PATH` (alongside `BROWSER=/usr/bin/false` and `AGY_CLI_DISABLE_AUTO_UPDATE=true`),
+ends the read at the stderr sign-in prompt, and gates routine background timer polls while signed
+out. Explicit user refreshes (Refresh, Try Again, Check Now, or a completed Headroom sign-in)
+re-check safely with zero browser tabs opened (live-verified on `agy` 1.5.14; see "Sign-in").
 
 ## Verified build
 
@@ -216,19 +219,22 @@ Inferred, not observed:
 
 ## Sign-in
 
-- **A signed-out read opens a browser sign-in (live, 2026-11-16).** With an isolated empty
-  `HOME`, `agy -p "/usage"` printed "Authentication required. Please visit the URL to log in:"
-  and a Google sign-in URL on stderr, then "Waiting for authentication (timeout 60s)...". Its log
-  read "Print mode: not authenticated, trying silent auth", then "silent auth failed", then
-  "triggering interactive OAuth", and a sign-in page opened in the browser. The CLI documents no
-  way to disable this.
+- **Signed-out browser suppression and Refresh recovery (live, 2026-11-22, `agy` 1.5.14).** On
+  macOS, `agy`'s `auth.OpenBrowser` launches `open <url>` via `PATH` and ignores `BROWSER` alone.
+  Prepending an app-owned directory (`AntigravityProbeNoBrowser`, sibling to `AntigravityProbe`)
+  containing a single `open -> /usr/bin/false` symlink onto `PATH`, together with
+  `BROWSER=/usr/bin/false` and `AGY_CLI_DISABLE_AUTO_UPDATE=true` (strictly without
+  `SSH_CONNECTION`, so `agy` continues reading the user's normal macOS Keychain login), suppresses
+  Chrome tab launches (0 tabs) and disables `agy --bg-updater` (`Auto-update disabled via
+  environment variable AGY_CLI_DISABLE_AUTO_UPDATE`), while `agy` still prints its stderr sign-in
+  prompt so `AntigravitySignInPromptScanner` terminates the process group immediately.
 - Headroom watches stderr for agy's sign-in lines (`Authentication required`, `Please visit the
   URL to log in`, `Waiting for authentication`, `Error: authentication required`), ends the read
-  at once by terminating the process group, and records signed out. The mark is stored, so it
-  survives a relaunch. Launch, Refresh and a phone Check Now never spawn `agy` while it is set;
-  only the Antigravity row's Try Again or the check after a sign-in through Headroom does
-  (`UserRequestedProbeContext.origins`). So a sign-out opens at most one browser tab on its own.
-  The same holds when `/credits` shows the prompt.
+  at once by terminating the process group, and records signed out. The mark is stored, so routine
+  timer polls never spawn `agy` while it is set, even across relaunches. User-initiated refreshes
+  (`.fullRefresh`, `.accountAction`, and `.setupCheck` in `UserRequestedProbeContext.origins`)
+  re-check safely with zero browser tabs so signing back into `agy` in a terminal outside Headroom
+  recovers automatically on Refresh. The same holds when `/credits` shows the prompt.
 - The safety stop (a read that ran a turn or couldn't prove it didn't) is stored too, keyed by
   executable path, modification date and version, so a relaunch can't spawn that client again.
 - Sign-in runs `agy acp --login` in Terminal through `SetupSessionCoordinator`. `agy help acp`

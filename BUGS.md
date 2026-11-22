@@ -1541,19 +1541,23 @@ result is already discarded. A fix needs a per-home process registry in `OpenCod
 terminate passthrough in `OpenCodeUsageCaptureCache`, and a hook called off the main actor before
 `accountStorage.removeDirectories`.
 
-## Antigravity: a sign-out opens one browser sign-in (known limitation, 2026-11-16)
+## Antigravity: the signed-out no-tab shim depends on `agy` finding `open` through `PATH` (2026-11-22)
 
 Feasibility record: `docs/solutions/antigravity-cli-usage-feasibility.md`.
 
 A signed-out `agy` does not fail `-p "/usage"`. It prints "Authentication required. Please visit
 the URL to log in:" and a Google sign-in URL on stderr, opens that sign-in page in the browser and
 waits up to 60 s (seen live on 2026-11-16 with an isolated empty `HOME`, `agy` 1.5.9). The CLI
-documents no way to turn this off. Headroom ends the read at that line (or at "Waiting for
-authentication" / "Error: authentication required"), records signed out, and keeps that mark
-across relaunches. Launch, Refresh and a phone Check Now never spawn `agy` while it is set; only
-the Antigravity row's Try Again or the check after a sign-in through Headroom does. So a sign-out
-opens one browser tab, plus one per Try Again pressed while still signed out. A fix needs a
-non-interactive print mode or a read-only auth status command from `agy`.
+documents no way to turn this off. Until #255 Headroom only bounded it: one tab per sign-out, and
+Refresh could not recover after a sign-in in Terminal.
+
+Since #255 every probe puts an app-owned `open -> /usr/bin/false` link first on `PATH` (plus
+`BROWSER=/usr/bin/false`), and no tab opens (Matt Van Horn, live, `agy` 1.5.14, throwaway `HOME`,
+2026-11-22). So any user request, Refresh and launch included, reads again while signed out; timer
+polls stay stopped. Open: this holds only while `agy` launches the browser with a bare `open`. If
+a release calls `/usr/bin/open` or LaunchServices directly, each user request while signed out
+opens a tab. Re-check with a signed-out `--probe-antigravity` when `agy` changes its sign-in code.
+If the link cannot be created, the probe runs without it (no fallback to the old gate).
 
 `agy` 1.5.13 starts every stdio MCP server in `~/.gemini/config/mcp_config.json` for
 `-p "/usage"` and `-p "/credits"` too, although neither runs a turn or calls a tool (seen live
@@ -1567,14 +1571,15 @@ and Matt Van Horn's on 1.5.13):
   sign-in, but no one has run Headroom's setup handoff on a real account and seen a live reading.
   Kevin's pass did show that a Mac already signed in to the Antigravity desktop app needs no
   sign-in: `agy` loads the desktop app's Keychain login and silently refreshes an expired token
-  with no browser tab. The one-tab-while-signed-out behavior is covered by fake-`agy` tests only.
+  with no browser tab. Refresh recovering after a Terminal sign-in is covered by fake-`agy`
+  tests only.
 - **Log retention.** Each `agy` run writes a new log file (about 15 KB) under
   `~/.gemini/antigravity-cli/log/`, and each names the account's email. A poll is two runs, so
   about 576 files and 9 MB a day at the 5-minute default. Whether `agy` ever deletes old files is
   unmeasured. Kevin found `--log-file /dev/null` writes nothing and the read still succeeds.
   Before adding it to `AntigravityCommand`'s `.usage` and `.credits`, confirm on a signed-out run
   (scratch `HOME`, no subscription needed) that the sign-in lines still reach stderr: Headroom
-  detects sign-out there, and missing it would open a browser sign-in on every poll. This matches
+  detects sign-out there, and missing it would run a sign-in attempt on every poll. This matches
   the Claude probe's `--no-session-persistence`.
 - **MCP servers start on every poll** (above). Reading `/credits` less often (only on a user
   refresh, or every few polls) would halve the starts; credits only feed the plan badge. Mention

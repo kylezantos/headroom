@@ -800,11 +800,14 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
     folder (one `open -> /usr/bin/false` link) first on `PATH`, with `BROWSER=/usr/bin/false` and
     `AGY_CLI_DISABLE_AUTO_UPDATE=true`: no tab opens (live, `agy` 1.5.14, #255). Leave
     `SSH_CONNECTION` unset so `agy` keeps its Keychain login. Stderr is watched for the sign-in
-    lines: at the first the process group is killed and the account is signed out, sticky for
-    timer polls and across relaunches; any user request (launch, Refresh, Check Now, Try Again,
-    the check after the sign-in handoff) reads again. The shim holds only while `agy` finds
-    `open` through `PATH` (BUGS.md). Never add a routine path that spawns `agy` while signed out,
-    and never probe it with an isolated empty `HOME`.
+    lines: at the first the process group is killed. Because `agy`'s `keyringAuth` falls into
+    interactive OAuth on a 10 s refresh timeout even with a valid Keychain login (live, `agy`
+    1.5.15), a single routine-poll prompt after a live read is treated as transient and only a
+    second consecutive prompt confirms signed-out. Once confirmed, the account is signed out,
+    sticky for timer polls and across relaunches; any user request (launch, Refresh, Check Now,
+    Try Again, the check after the sign-in handoff) reads again. The shim holds only while `agy`
+    finds `open` through `PATH` (BUGS.md). Never add a routine path that spawns `agy` while signed
+    out, and never probe it with an isolated empty `HOME`.
   - Signed out only from that marker. Everything else unmatched, including an `ERROR` result
     that says authentication failed, is transient.
   - Map buckets by `id` prefix (`gemini-*`, `3p-*`) and `window` (`5h`, `weekly`), never by

@@ -230,11 +230,19 @@ Inferred, not observed:
   prompt so `AntigravitySignInPromptScanner` terminates the process group immediately.
 - Headroom watches stderr for agy's sign-in lines (`Authentication required`, `Please visit the
   URL to log in`, `Waiting for authentication`, `Error: authentication required`), ends the read
-  at once by terminating the process group, and records signed out. The mark is stored, so routine
-  timer polls never spawn `agy` while it is set, even across relaunches. User-initiated refreshes
-  (`.fullRefresh`, `.accountAction`, and `.setupCheck` in `UserRequestedProbeContext.origins`)
-  re-check safely with zero browser tabs so signing back into `agy` in a terminal outside Headroom
-  recovers automatically on Refresh. The same holds when `/credits` shows the prompt.
+  at once by terminating the process group, and classifies the failure. Live observation on
+  2026-11-23 (`agy` 1.5.15, `cli-20261123_075817.log`) showed that `agy`'s `keyringAuth` uses a
+  hardcoded 10 s timeout when validating/refreshing a valid Keychain token (`keyringAuth: loaded
+  token, ... expired=false` followed 10 s later by `keyringAuth: timed out after 10s, skipping
+  keyring auth` -> `Print mode: triggering interactive OAuth`). After a live read, Headroom
+  therefore treats a single routine-poll sign-in prompt as `.transient(.authenticationFailed)` so
+  the next scheduled poll recovers automatically; a second consecutive prompt (or a prompt on a
+  never-live source or explicit user refresh) confirms signed out and persists the mark. Once
+  confirmed, routine timer polls never spawn `agy` while it is set, even across relaunches.
+  User-initiated refreshes (`.fullRefresh`, `.accountAction`, and `.setupCheck` in
+  `UserRequestedProbeContext.origins`) re-check safely with zero browser tabs so signing back into
+  `agy` in a terminal outside Headroom recovers automatically on Refresh. The same holds when
+  `/credits` shows the prompt.
 - The safety stop (a read that ran a turn or couldn't prove it didn't) is stored too, keyed by
   executable path, modification date and version, so a relaunch can't spawn that client again.
 - Sign-in runs `agy acp --login` in Terminal through `SetupSessionCoordinator`. `agy help acp`

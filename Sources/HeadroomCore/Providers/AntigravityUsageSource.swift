@@ -86,9 +86,12 @@ public enum AntigravityCaptureFailure: Sendable, Equatable {
     /// The client printed one of its sign-in lines on stderr (`AntigravitySignInPromptScanner`),
     /// the one positive evidence of a signed-out account. Browser launches are suppressed via an
     /// app-owned `open` -> `/usr/bin/false` shim ahead of `PATH` (plus `BROWSER=/usr/bin/false`),
-    /// and the read is ended at the prompt. Sticky across routine timer polls and relaunches; an
-    /// explicit user refresh (Refresh, Try Again, Check Now, or a completed Headroom sign-in)
-    /// re-checks safely with zero browser tabs so external terminal sign-ins recover automatically.
+    /// and the read is ended at the prompt. After a live reading, a single routine-poll prompt is
+    /// treated as transient (`keyringAuth` falls into interactive OAuth on a 10 s network timeout
+    /// even with a valid Keychain login) and only a second consecutive prompt confirms signed-out.
+    /// Once confirmed, it is sticky across routine timer polls and relaunches; an explicit user
+    /// refresh (Refresh, Try Again, Check Now, or a completed Headroom sign-in) re-checks safely
+    /// with zero browser tabs so external terminal sign-ins recover automatically.
     case signedOut
     case formatChanged(AntigravityFormatStage)
     case transient(AntigravityTransientCause)
@@ -460,10 +463,14 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
     private var stop: Stop? {
         didSet { if stop?.stored != oldValue?.stored { memory.saveStoppedClient(stop?.stored) } }
     }
-    /// Set by a sign-in prompt. Only `clearsSignedOut` origins clear it.
+    /// Set by a confirmed sign-in prompt. Only `clearsSignedOut` origins clear it.
     private var signedOut: Bool {
         didSet { if signedOut != oldValue { memory.saveSignedOut(signedOut) } }
     }
+    /// True once this source has completed a live capture since launch (cleared on confirmed sign-out).
+    private var hasSucceeded = false
+    /// Unconfirmed routine-poll sign-in prompts seen since the last live capture.
+    private var unconfirmedSignInPrompts = 0
 
     public init(
         resolveExecutable: @escaping @Sendable () -> String? = { AntigravityCLI.resolveExecutable() },
@@ -568,23 +575,44 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         let usageCapture = AntigravityUsageClassifier.classifyUsage(usageOutput)
         guard case .usage(let usage) = usageCapture else {
             if usageCapture == .failed(.unsupportedClient) { stop = Stop(key: key, version: version) }
-            if usageCapture == .failed(.signedOut) { signedOut = true }
+            if usageCapture == .failed(.signedOut) { return handleSignInPrompt() }
             return usageCapture
         }
 
         let creditsOutput = await spawn(.credits, executable: executable, environment: environment, prepared: &preparedWorkingDirectory)
         switch AntigravityUsageClassifier.classifyCredits(creditsOutput) {
         case .balance(let credits):
+            hasSucceeded = true
+            unconfirmedSignInPrompts = 0
             return .usage(AntigravityUsage(buckets: usage.buckets, credits: credits))
         case .unavailable:
+            hasSucceeded = true
+            unconfirmedSignInPrompts = 0
             return usageCapture
         case .unsupportedClient:
             stop = Stop(key: key, version: version)
             return .failed(.unsupportedClient)
         case .signedOut:
-            signedOut = true
-            return .failed(.signedOut)
+            return handleSignInPrompt()
         }
+    }
+
+    /// `agy`'s `keyringAuth` uses a hardcoded 10 s timeout when validating or refreshing a stored
+    /// token; a single timeout falls straight into interactive OAuth and prints the sign-in line
+    /// on stderr even while the stored Keychain login is still valid (live, `agy` 1.5.15,
+    /// 2026-11-23). After a live reading, treat the first unconfirmed routine-poll sign-in prompt
+    /// as transient so the next scheduled poll self-heals automatically; a second consecutive
+    /// prompt (or an explicit user refresh / never-live source) confirms `signedOut` and stops
+    /// routine polls.
+    private func handleSignInPrompt() -> AntigravityCapture {
+        if !UserRequestedProbeContext.isUserRequested, hasSucceeded, unconfirmedSignInPrompts == 0 {
+            unconfirmedSignInPrompts = 1
+            return .failed(.transient(.authenticationFailed))
+        }
+        signedOut = true
+        hasSucceeded = false
+        unconfirmedSignInPrompts = 0
+        return .failed(.signedOut)
     }
 
     /// Resolution runs a login shell, so a routine poll reuses the last path. A user request

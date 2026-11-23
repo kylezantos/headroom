@@ -768,6 +768,47 @@ struct AntigravityUsageSourceProcessTests {
         #expect(fake.argv.count == spawned)
     }
 
+    /// `agy`'s `keyringAuth` falls into interactive OAuth when a stored-token refresh stalls past
+    /// its 10 s timeout even while Keychain is still signed in. After a live reading, a single
+    /// routine-poll sign-in prompt stays transient and recovers automatically on the next poll.
+    @Test func aSingleSignInPromptAfterALiveReadIsTransientAndRecoversOnNextRoutinePoll() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        let box = MemoryBox()
+        let source = fake.source(deadline: 30, memory: box.memory)
+        #expect(buckets(await source.capture())?.count == 4)
+
+        try fake.hook("usage", pre: "echo 'Authentication required. Please visit the URL to log in:' >&2\nsleep 60\n")
+        #expect(await source.capture() == .failed(.transient(.authenticationFailed)))
+        #expect(!box.storedSignedOut)
+
+        try fake.hook("usage", pre: "")
+        #expect(buckets(await source.capture())?.count == 4)
+        #expect(!box.storedSignedOut)
+        #expect(fake.count(.usage) == 3)
+    }
+
+    /// Two consecutive routine-poll sign-in prompts after a live reading confirm the sign-out,
+    /// persist the mark, and stop further routine polls.
+    @Test func twoConsecutiveSignInPromptsAfterALiveReadConfirmSignedOut() async throws {
+        let fake = try FakeAgy(privateScript: true)
+        defer { fake.remove() }
+        let box = MemoryBox()
+        let source = fake.source(deadline: 30, memory: box.memory)
+        #expect(buckets(await source.capture())?.count == 4)
+
+        try fake.hook("usage", pre: "echo 'Authentication required. Please visit the URL to log in:' >&2\nsleep 60\n")
+        #expect(await source.capture() == .failed(.transient(.authenticationFailed)))
+        #expect(!box.storedSignedOut)
+
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(box.storedSignedOut)
+
+        let spawned = fake.argv.count
+        #expect(await source.capture() == .failed(.signedOut))
+        #expect(fake.argv.count == spawned, "routine poll ran agy after confirmed sign-out")
+    }
+
     @Test(arguments: ["usage-one-turn", "usage-output-tokens"])
     func anAnswerThatCostATurnStopsEveryLaterSpawn(name: String) async throws {
         let fake = try FakeAgy(privateScript: true)

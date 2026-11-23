@@ -26,6 +26,25 @@ class ReleaseNotesTests(unittest.TestCase):
         self.assertIn("/Headroom-1.6-44.dmg", body)
         self.assertNotIn("<li>", body)
 
+    def test_paragraph_notes_preserve_the_fix_and_contributor_links(self):
+        html = (ROOT / "docs/release/sparkle/Headroom-1.8.2-50.html").read_text()
+        body = load("github-release").render(html, "1.8.2", "50")
+        self.assertIn("## Antigravity recovers after a temporary timeout", body)
+        self.assertIn("Headroom retries on the next scheduled check", body)
+        self.assertIn("[Matt Van Horn (@mvanhorn)](https://github.com/mvanhorn)", body)
+        self.assertIn("[Antigravity fix](https://github.com/kylezantos/headroom/pull/259)", body)
+        self.assertNotIn("<p>", body)
+
+    def test_a_heading_without_nonempty_body_content_fails_closed(self):
+        render = load("github-release").render
+        for html in [
+            "<body><h2>Notes</h2></body>",
+            "<body><h2>Notes</h2><p> </p></body>",
+            "<body><h2>Notes</h2><ul><li></li></ul></body>",
+        ]:
+            with self.subTest(html=html), self.assertRaises(ValueError):
+                render(html, "1.8.2", "50")
+
     def test_empty_or_unsupported_notes_fail_closed(self):
         render = load("github-release").render
         for html in ["<body></body>", '<body><script>Link</script></body>']:

@@ -140,6 +140,10 @@ with a strong identity.
   [true, false]`); it is older than the default-login work. The fake-CLI deadline tests
   (`ClaudeUsageCLIProbeTests`, `CopilotStatusSourceTests`, Cursor probe tests) fail under heavy
   machine load and pass serially.
+  During 1.8.2 release validation (2026-11-23), a full serial run alongside Mac/iOS builds
+  also missed the timer callback in `timerProbeDoesNotCarryTheUserRequestedFlag`
+  (`recorder.values == []`) and the popover callback (`[true]`). Keep both assertions intact;
+  the scheduler test wait needs a deterministic completion signal.
 - **A phone that predates the `k` key treats a remembered row as an ordinary stale extra.** It
   counts the row as not updated after a check-now and Siri may name it, until that phone
   updates. Recorded in the sync field contract. Accepted (Kyle, 2026-11-10) over holding

@@ -15,11 +15,15 @@ class Notes(HTMLParser):
         self.body = False
         self.parts = []
         self.link = None
+        self.content_depth = 0
+        self.has_content = False
 
     def handle_starttag(self, tag, attrs):
         if tag == "body":
             self.body = True
         elif self.body:
+            if tag in {"p", "li"}:
+                self.content_depth += 1
             if tag in {"h1", "h2", "h3"}:
                 self.parts.append("\n\n## ")
             elif tag in {"p", "ul", "ol"}:
@@ -47,6 +51,8 @@ class Notes(HTMLParser):
         if tag == "body":
             self.body = False
         elif self.body:
+            if tag in {"p", "li"}:
+                self.content_depth -= 1
             if tag in {"h1", "h2", "h3", "p", "ul", "ol"}:
                 self.parts.append("\n\n")
             elif tag in {"strong", "b"}:
@@ -65,6 +71,8 @@ class Notes(HTMLParser):
         if self.body:
             # Ignore indentation between block elements, retaining inline spaces.
             if data.strip():
+                if self.content_depth > 0:
+                    self.has_content = True
                 self.parts.append(re.sub(r"\s+", " ", data))
 
 
@@ -74,8 +82,8 @@ def render(html, version, build):
     if parser.link is not None:
         raise ValueError("Release-note link is not closed")
     notes = re.sub(r"\n{3,}", "\n\n", "".join(parser.parts)).strip()
-    if not notes.startswith("## ") or "\n- " not in notes:
-        raise ValueError("Release notes must contain a headline and a non-empty list")
+    if not notes.startswith("## ") or not parser.has_content:
+        raise ValueError("Release notes must contain a headline and non-empty paragraph or list content")
     base = "https://headroom.zantos.co"
     return (
         f"# Headroom {version} ({build})\n\n{notes}\n\n"

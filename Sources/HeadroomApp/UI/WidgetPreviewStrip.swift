@@ -7,12 +7,11 @@ import HeadroomCore
 import HeadroomWidgetSharedUI
 #endif
 
-/// L9P: the specimen at the top of Settings › Widgets & iPhone. Like the Appearance
+/// L9P → CA-S7: the specimen in Settings › Widgets & iPhone, now inside the "Widget styles"
+/// tile under its Preview control, after the real switches. Like the Appearance
 /// specimen it is not a mock — it renders the *real* small, medium, and large widget
 /// bodies (moved into `HeadroomWidgetSharedUI` for exactly this) at WidgetKit's macOS
-/// tile sizes, over the widgets' own container gradient. The
-/// three switches below it stop being abstract: you can see what "share data with
-/// widgets" produces before you decide.
+/// tile sizes, over the widgets' own container gradient, and dims when widget export is off.
 ///
 /// Inert the same three ways as `AppearanceSpecimen`: no hit testing, one collapsed
 /// accessibility element, and frozen fixture data (`DemoScreenshotData.settingsPreview…`)
@@ -21,7 +20,7 @@ struct WidgetPreviewStrip: View {
     /// Dims the tiles when widget export is off, which is what the widgets themselves do
     /// (they fall back to the "Widgets Paused" status card once the snapshot stops).
     let widgetsEnabled: Bool
-    /// R16 (widget-styles plan): the style the gallery below is previewing. Preview only —
+    /// R16 (widget-styles plan): the style the Preview control above it chooses. Preview only —
     /// each widget's own style is chosen in Edit Widget.
     var style: WidgetLayoutStyle = .default
 
@@ -29,8 +28,7 @@ struct WidgetPreviewStrip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// WidgetKit's macOS tile sizes. Anything else would make the preview a drawing of a
-    /// widget rather than a widget. Small and the tile radius and margin are shared with
-    /// `WidgetStyleGalleryPicker`, whose thumbnails are the same small tile scaled down.
+    /// widget rather than a widget.
     nonisolated static let smallSize = CGSize(width: 170, height: 170)
     nonisolated private static let mediumSize = CGSize(width: 364, height: 170)
     nonisolated private static let largeSize = CGSize(width: 364, height: 382)

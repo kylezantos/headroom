@@ -126,7 +126,7 @@ public struct ClaudeProvider: UsageProvider {
 
     private func capabilityFailure(_ capability: ProviderCapabilityState) -> UsageProviderFetchResult {
         UsageProviderFetchResult(
-            snapshot: stale(.transient("Claude CLI capability unavailable — will retry")),
+            snapshot: stale(.transient("Couldn’t find Claude Code. Headroom tries again on its next check.")),
             capability: capability
         )
     }

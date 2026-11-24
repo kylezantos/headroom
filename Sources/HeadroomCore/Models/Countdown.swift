@@ -134,6 +134,72 @@ public enum Countdown {
         updatedLabel(capturedAt: capturedAt, now: now).map { "Last read \($0)" }
     }
 
+    // MARK: - CA-P3/CA-P4: one phrase for an old reading, words for an empty one
+
+    /// CA-P3: what a stale engine row's chip, Settings status and Compact tooltip print,
+    /// where "Stale" used to stand with no age. The remembered row's `lastReadLabel` and this
+    /// are one phrase on purpose; "Not refreshed" covers a reading nothing dated.
+    public static func staleReadLabel(capturedAt: Date?, now: Date) -> String {
+        lastReadLabel(capturedAt: capturedAt, now: now) ?? notRefreshedLabel
+    }
+
+    public static let notRefreshedLabel = "Not refreshed"
+
+    /// CA-P3: the same age in the countdown's compact units ("12m ago", "2h ago", "3d ago"),
+    /// for a tag that stands where a short period chip stands (the spend row's identity line,
+    /// X5), which cannot hold "Last read 12 min ago" beside its figure. Nil without a capture
+    /// time.
+    public static func compactReadAge(capturedAt: Date?, now: Date) -> String? {
+        guard let capturedAt else { return nil }
+        let minutes = max(1, Int(max(0, now.timeIntervalSince(capturedAt)) / 60))
+        if minutes < 60 { return "\(minutes)m ago" }
+        let hours = minutes / 60
+        if hours < 24 { return "\(hours)h ago" }
+        return "\(hours / 24)d ago"
+    }
+
+    /// CA-P3: a stale window's state words in a meter's tooltip and Full's state label. It
+    /// was "Last known 14 min ago", a third name for the chip's "Last read".
+    public static func windowReadLabel(observedAt: Date?, now: Date) -> String {
+        lastReadLabel(capturedAt: observedAt, now: now) ?? "Last read"
+    }
+
+    /// CA-P3 (UX-01): why a stale engine row's chip carries an age.
+    public static let staleReadHelp = "Couldn’t refresh this account. Headroom tries again on its next check."
+
+    /// CA-P3 (UX-01): why a remembered row is not being read, per provider.
+    public static func rememberedReadHelp(for providerID: ProviderID) -> String {
+        "Not your current \(providerID.displayName) login, so Headroom isn’t reading it. "
+            + "Sign in to it again, or add it in Settings › Accounts to keep it live."
+    }
+
+    /// CA-P4 (overturns M3A′ for this one state): a window that has never held a number.
+    public static let noReadingYet = "No reading yet"
+    /// CA-P4: a retained window past its validity window; it held a number once.
+    public static let noCurrentReading = "No current reading"
+
+    /// CA-P4: "No reading yet" when nothing was ever observed for the window (Copilot after
+    /// sign-in), "No current reading" when a reading aged out. Nil while the window is not
+    /// unavailable. Never "No use yet this month": that is wrong for a zero or unlimited
+    /// entitlement, which also reads as no number.
+    public static func unavailableLabel(for window: UsageWindow) -> String? {
+        guard window.freshness.isUnavailable else { return nil }
+        return window.observedAt == nil ? noReadingYet : noCurrentReading
+    }
+
+    /// CA-P4 (UX-01): the tooltip that says why the row has no number. Without a provider it
+    /// names none rather than guessing.
+    public static func unavailableHelp(for window: UsageWindow, providerID: ProviderID?) -> String? {
+        guard window.freshness.isUnavailable else { return nil }
+        let name = providerID?.displayName
+        if window.observedAt == nil {
+            return name.map { "\($0) hasn’t reported a number for this limit yet." }
+                ?? "No number has been reported for this limit yet."
+        }
+        return name.map { "\($0) didn’t report this limit in its last check." }
+            ?? "This limit wasn’t in the last check."
+    }
+
     /// The line a remembered account shows for a window whose reset has passed (R8): when
     /// it reset, and that Headroom has not read it since. It never states a value.
     public static func resetNotReadLine(

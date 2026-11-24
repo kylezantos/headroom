@@ -1,3 +1,6 @@
+import AppKit
+import Foundation
+import HeadroomCore
 import SwiftUI
 import Testing
 @testable import Headroom
@@ -51,5 +54,63 @@ struct HeadroomMotionTests {
         #expect(HeadroomMotion.numericText(value: 12, reduceMotion: false) != .identity)
         #expect(HeadroomMotion.numericText(reduceMotion: true) == .identity)
         #expect(HeadroomMotion.numericText(reduceMotion: false) != .identity)
+    }
+    // MARK: Token hygiene (CA-F1, MOT-09)
+
+    /// CA-F1: one source for the house curve. `settle`, AppKit's window curve and the DialKit
+    /// defaults are all built from the same exposed constants, so retuning a token moves the
+    /// meters too.
+    @Test func settleTheWindowCurveAndTheTuningDefaultsShareOneSource() {
+        let curve = HeadroomMotion.houseCurve
+        #expect(curve == HeadroomMotion.BezierControlPoints(x1: 0.22, y1: 1, x2: 0.36, y2: 1))
+        #expect(HeadroomMotion.settleDuration == 0.20)
+        #expect(HeadroomMotion.valueSpringResponse == 0.3)
+        #expect(HeadroomMotion.settle == HeadroomMotion.houseCurve(duration: HeadroomMotion.settleDuration))
+        #expect(HeadroomMotion.valueSpring
+            == Animation.spring(response: HeadroomMotion.valueSpringResponse, dampingFraction: 1.0))
+
+        var p1 = [Float](repeating: 0, count: 2)
+        var p2 = [Float](repeating: 0, count: 2)
+        HeadroomMotion.windowCurve.getControlPoint(at: 1, values: &p1)
+        HeadroomMotion.windowCurve.getControlPoint(at: 2, values: &p2)
+        #expect(p1 == [Float(curve.x1), Float(curve.y1)])
+        #expect(p2 == [Float(curve.x2), Float(curve.y2)])
+
+        let tuning = HeadroomTuning()
+        #expect(tuning.settleDuration == HeadroomMotion.settleDuration)
+        #expect(tuning.valueSpringResponse == HeadroomMotion.valueSpringResponse)
+        #expect(tuning.valueSpringDamping == HeadroomMotion.valueSpringDampingFraction)
+        #expect(tuning.settle == HeadroomMotion.settle)
+        #expect(tuning.valueSpring == HeadroomMotion.valueSpring)
+    }
+
+    /// CA-F1/CA-M3: the promoted values, pinned to the literals their call sites carry.
+    /// (CA-M6's `arrivalAccountCap` was removed: the bench showed no gain and nothing read it.)
+    @Test func theRevealAndDrainTokensHoldTheirApprovedValues() {
+        #expect(HeadroomMotion.revealBlur == 1.5)
+        #expect(HeadroomMotion.revealScale == 0.97)
+        #expect(HeadroomMotion.drain == Animation.linear(duration: LoadingMotionConstants.drainDuration))
+    }
+
+    /// CA-F1 (MOT-09): `hover` and `press` were compatibility aliases with no callers. The
+    /// motion file no longer declares them and no source file reaches for them.
+    @Test func theRetiredAliasesAreGoneEverywhere() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let motion = try String(
+            contentsOf: root.appendingPathComponent("Sources/HeadroomSharedUI/HeadroomMotion.swift"), encoding: .utf8)
+        #expect(!motion.contains("static let hover ="))
+        #expect(!motion.contains("static let press ="))
+
+        let sources = root.appendingPathComponent("Sources")
+        let files = FileManager.default.enumerator(at: sources, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL }.filter { $0.pathExtension == "swift" } ?? []
+        #expect(!files.isEmpty)
+        let alias = try NSRegularExpression(pattern: #"HeadroomMotion\.(hover|press)\b(?![A-Za-z])"#)
+        for file in files {
+            let text = try String(contentsOf: file, encoding: .utf8)
+            let range = NSRange(text.startIndex..., in: text)
+            #expect(alias.firstMatch(in: text, range: range) == nil, "\(file.lastPathComponent) uses a retired alias")
+        }
     }
 }

@@ -244,3 +244,75 @@ struct RememberedAgingTests {
         #expect(compact(now.addingTimeInterval(-7 * day)) == "Reset Sep 18 10:00 AM · not read since")
     }
 }
+
+/// CA-P4 review fix: a window that held a number says "No current reading" once it turns
+/// unavailable, through every aging path. Live windows carry no `observedAt` of their own, so
+/// each path must hand the anchor it resolved to the unavailable window; only a window that
+/// never held a number (Copilot's no-reading row) says "No reading yet".
+struct AgedOutWindowLabelTests {
+    private let capturedAt = Date(timeIntervalSince1970: 2_000_000_000)
+    private let hour: TimeInterval = 60 * 60
+    private let day: TimeInterval = 24 * 60 * 60
+
+    private var fable: UsageWindow {
+        UsageWindow(kind: .other("Weekly (Fable)"), utilization: 39, resetsAt: capturedAt.addingTimeInterval(2 * hour))
+    }
+
+    private func claude(_ windows: [UsageWindow], at date: Date, freshness: Freshness = .live) -> UsageSnapshot {
+        UsageSnapshot(providerID: .claude, windows: windows, planLabel: "Max", capturedAt: date, freshness: freshness)
+    }
+
+    private func label(_ snapshot: UsageSnapshot, _ kind: WindowKind) -> String? {
+        snapshot.windows.first { $0.kind == kind }.flatMap(Countdown.unavailableLabel(for:))
+    }
+
+    @Test func launchRestoreAfterTheResetSaysNoCurrentReading() {
+        #expect(fable.observedAt == nil)
+        let restored = UsageContinuityPolicy.restoredSnapshot(
+            claude([fable], at: capturedAt), for: .claude, at: capturedAt.addingTimeInterval(3 * hour))
+        #expect(label(restored, fable.kind) == Countdown.noCurrentReading)
+        #expect(restored.windows.first?.observedAt == capturedAt)
+    }
+
+    @Test func aFailedPollAfterTheResetSaysNoCurrentReading() {
+        let merged = UsageContinuityPolicy.mergedSnapshot(
+            .stale(for: .claude, reason: .transient("blip")),
+            with: claude([fable], at: capturedAt),
+            at: capturedAt.addingTimeInterval(3 * hour))
+        #expect(label(merged, fable.kind) == Countdown.noCurrentReading)
+    }
+
+    @Test func aRetainedSubLimitPastItsResetSaysNoCurrentReading() {
+        let later = capturedAt.addingTimeInterval(3 * hour)
+        let fresh = claude([
+            UsageWindow(kind: .fiveHour, utilization: 10, resetsAt: later.addingTimeInterval(4 * hour)),
+            UsageWindow(kind: .weekly, utilization: 20, resetsAt: later.addingTimeInterval(4 * day)),
+        ], at: later)
+        let merged = UsageContinuityPolicy.mergedSnapshot(fresh, with: claude([fable], at: capturedAt), at: later)
+        #expect(label(merged, fable.kind) == Countdown.noCurrentReading)
+        // The anchor is the old reading's, never the newer capture's.
+        #expect(merged.windows.first { $0.kind == fable.kind }?.observedAt == capturedAt)
+    }
+
+    @Test func aRememberedWindowPastItsResetSaysNoCurrentReading() {
+        let aged = UsageContinuityPolicy.rememberedSnapshot(claude([fable], at: capturedAt), at: capturedAt.addingTimeInterval(3 * hour))
+        #expect(label(aged, fable.kind) == Countdown.noCurrentReading)
+    }
+
+    @Test func aRememberedCompactCellPastItsResetSaysNoCurrentReading() {
+        let weekly = UsageWindow(kind: .weekly, utilization: 40, resetsAt: capturedAt.addingTimeInterval(2 * hour))
+        let recipe = CompactAccountRowRecipe(
+            snapshot: claude([weekly], at: capturedAt, freshness: .stale(UsageContinuityPolicy.rememberedReason)),
+            meterStyle: .default, percentageMode: .remaining, now: capturedAt.addingTimeInterval(3 * hour),
+            requiresStandardSection: false, showsCodexSparkCounters: false, isRemembered: true)
+        let cell = recipe.shownWindows.first { $0.window.kind == .weekly }
+        #expect(cell.flatMap { Countdown.unavailableLabel(for: $0.window) } == Countdown.noCurrentReading)
+    }
+
+    @Test func aWindowThatNeverHeldANumberStillSaysNoReadingYet() {
+        let monthStart = capturedAt
+        let never = UsageWindow(kind: .billingPeriod(label: "Premium", duration: 30 * day), utilization: 0,
+                                resetSchedule: .unresolved(.absent), freshness: .unavailable(since: monthStart))
+        #expect(Countdown.unavailableLabel(for: never) == Countdown.noReadingYet)
+    }
+}

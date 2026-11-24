@@ -71,6 +71,24 @@ public struct MeterStyleTileMetrics: Sendable {
     /// What the three rows sit in: the Mac's titled `SettingsTile`, or nothing on the phone,
     /// whose list section is the container.
     func container() -> Container
+    /// CA-S11: the caption under a Fill swatch. Defaults to the Core label the phone prints;
+    /// the Mac passes a shorter form that fits one line at its compact swatch width.
+    func fillLabel(_ fill: GaugeFill) -> String
+    /// The Fill row's help line, which names the options by the labels shown.
+    var fillHelp: String { get }
+    /// Lines a Fill caption may take (and reserves): two for the Core labels.
+    var fillLabelLines: Int { get }
+}
+
+public extension MeterStyleTileChrome {
+    func fillLabel(_ fill: GaugeFill) -> String { fill.label }
+
+    var fillLabelLines: Int { 2 }
+
+    var fillHelp: String {
+        "Only when low keeps meters neutral until usage runs low. "
+            + "Glass and Ghost add a bright\u{00A0}end\u{00A0}cap."
+    }
 }
 
 /// Global meter controls. Every choice is deliberately rendered by `MeterGauge`
@@ -158,10 +176,7 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
             // can't carry themselves — the swatch labels say the rest — and settles the
             // spelling: "coloured" and "Color" appeared in one pair of sentences, in an app
             // that is American everywhere else.
-            chrome.help(
-                "Only when low keeps meters neutral until usage runs low. "
-                    + "Glass and Ghost add a bright\u{00A0}end\u{00A0}cap."
-            )
+            chrome.help(chrome.fillHelp)
         }
     }
 
@@ -209,12 +224,16 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
                     switch format {
                     case .full:
                         VStack(alignment: .leading, spacing: 3) {
-                            fragmentCaption
+                            fragmentCaption(shrinksToFit: false)
                             fragmentGauge(format: .full)
                         }
                     case .micro:
+                        // CA-I8 fix pass: the chip's width is fixed and the caption takes what
+                        // is left, shrinking rather than overflowing. "Weekly" (21.8pt) + 4 + a
+                        // 38pt Segmented row is 63.8, wider than the 60pt fragment on the Mac
+                        // and than the phone's narrower one.
                         HStack(spacing: 4) {
-                            fragmentCaption
+                            fragmentCaption(shrinksToFit: true)
                             fragmentGauge(format: .micro)
                         }
                     }
@@ -229,12 +248,16 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
         .accessibilityValue(isSelected ? "Selected" : "Not selected")
     }
 
-    private var fragmentCaption: some View {
-        Text("Weekly")
+    @ViewBuilder private func fragmentCaption(shrinksToFit: Bool) -> some View {
+        let caption = Text("Weekly")
             .font(.system(size: 6))
             .foregroundStyle(.secondary)
             .lineLimit(1)
-            .fixedSize()
+        if shrinksToFit {
+            caption.minimumScaleFactor(0.6).fixedSize(horizontal: false, vertical: true)
+        } else {
+            caption.fixedSize()
+        }
     }
 
     /// PA5: shape and fill ride the live selection (`MeterGauge` resolves Tube to Chip for
@@ -302,7 +325,7 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
         return Button {
             onChange(MeterStyle(format: meterStyle.format, shape: meterStyle.shape, fill: fill))
         } label: {
-            swatchBody(label: fill.label, labelLines: 2) {
+            swatchBody(label: chrome.fillLabel(fill), labelLines: chrome.fillLabelLines) {
                 // The healthy/low pair is the subject of this row, so the two fractions and
                 // severities stay literal (PA5) — only the shape they are drawn on follows
                 // the live selection. Tube is vertical, so the pair sits side by side there;
@@ -315,6 +338,7 @@ public struct MeterStyleTile<Chrome: MeterStyleTileChrome>: View {
             .modifier(chrome.selection(isSelected: isSelected))
         }
         .buttonStyle(chrome.swatchStyle)
+        // The full Core name, whatever caption the host prints (CA-S11).
         .help(fill.label)
         .accessibilityLabel("\(fill.label) fill")
         .accessibilityValue(isSelected ? "Selected" : "Not selected")

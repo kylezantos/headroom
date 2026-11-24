@@ -30,15 +30,17 @@ struct InAppDisplayTile: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
-    /// Two fixed columns on the same centers for both rows, so Percentages and Account
-    /// names line up the way Format / Shape / Fill do in the meter tile.
-    private let swatchWidth: CGFloat = 150
-    private let swatchSpacing: CGFloat = 8
+    /// Two fixed columns on the same centers for every row, so they line up the way Format /
+    /// Shape / Fill do in the meter tile. CA-S11: the window's wide swatch (150 → 160), which
+    /// spans two of the meter tile's columns exactly.
+    private let swatchWidth: CGFloat = SettingsSwatchWidth.wide
+    private let swatchSpacing: CGFloat = SettingsSwatchWidth.gap
 
-    /// R2C19/R2B1: `SettingsTile` owns the container, the title case ("In-App Display"), and
-    /// the group rhythm, so this tile can no longer drift from the two beside it.
+    /// R2C19/R2B1: `SettingsTile` owns the container, the title and the group rhythm, so this
+    /// tile can no longer drift from the two beside it. CA-S8: sentence case, like every tile
+    /// title in the window.
     var body: some View {
-        SettingsTile("In-App Display") {
+        SettingsTile("In-app display") {
             swatchRow(
                 "Percentages",
                 selection: usagePercentageMode,
@@ -106,7 +108,8 @@ struct InAppDisplayTile: View {
             swatchRow(
                 "Long account lists",
                 selection: store.expandAccountsHorizontally,
-                help: "At the height limit, expand into a second column or keep one scrolling column. Applies to Standard and Compact."
+                // CA-S9: what the choice is about, not the two options said again.
+                help: "What the popover does when your accounts no longer fit its height."
             ) {
                 expansionSwatch(horizontal: true)
                 expansionSwatch(horizontal: false)

@@ -32,13 +32,28 @@ struct CompanionStatusScreenTests {
 
     // MARK: The U10 table
 
+    /// CA-I6 (COPY-10): the four screens a widget also shows use the widget's words, in Title
+    /// Case.
     @Test func titlesMatchThePlanTable() {
-        #expect(CompanionStatusScreen.waiting.title == "Waiting for Mac")
-        #expect(CompanionStatusScreen.paused.title == "Companion Sync Paused")
+        #expect(CompanionStatusScreen.waiting.title == "Waiting for Your Mac")
+        #expect(CompanionStatusScreen.paused.title == "Sync Is Off")
         #expect(CompanionStatusScreen.iCloudUnavailable.title == "iCloud Not Available")
-        #expect(CompanionStatusScreen.unreadable.title == "Snapshot Unreadable")
-        #expect(CompanionStatusScreen.updatePhone.title == "Update Needed")
+        #expect(CompanionStatusScreen.unreadable.title == "Couldn’t Read the Data")
+        #expect(CompanionStatusScreen.updatePhone.title == "Update Headroom")
         #expect(CompanionStatusScreen.updateMac.title == "Update Headroom on your Mac")
+    }
+
+    @Test func theFourSharedTitlesAreTheWidgetCopyInTitleCase() {
+        let pairs: [(CompanionStatusScreen, WidgetStatusState)] = [
+            (.waiting, .iosWaitingForMac), (.paused, .iosDisabled),
+            (.unreadable, .iosCorrupt), (.updatePhone, .iosIncompatibleSchema),
+        ]
+        for (screen, widget) in pairs {
+            #expect(screen.title.lowercased() == widget.title.lowercased(), "\(screen)")
+            #expect(screen.title == CompanionStatusCopy.titleCased(widget.title), "\(screen)")
+        }
+        #expect(CompanionStatusCopy.titleCased("iCloud is off") == "iCloud Is Off")
+        #expect(CompanionStatusCopy.titleCased("a day in the life") == "A Day in the Life")
     }
 
     @Test func primaryActionsMatchThePlanTable() {

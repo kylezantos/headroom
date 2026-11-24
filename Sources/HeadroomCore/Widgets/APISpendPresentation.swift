@@ -197,11 +197,15 @@ public enum APISpendPresentation {
     }
 
     /// macOS popover row: the full `Freshness` still carries the typed `FailureReason`.
+    ///
+    /// `readAt` dates a retried figure's tag (CA-P3): "Last read 14 min ago" when the row's
+    /// capture time is known, "Not refreshed" otherwise.
     public static func rowStatus(
         freshness: Freshness,
         providerID: ProviderID? = nil,
         displayName: String,
-        kind: APISpendKind = .periodSpend
+        kind: APISpendKind = .periodSpend,
+        readAt: (capturedAt: Date?, now: Date)? = nil
     ) -> APISpendRowStatus {
         switch freshness {
         case .pending:
@@ -214,7 +218,8 @@ public enum APISpendPresentation {
                 sourceMessage: reason.message,
                 vendor: vendorName(from: displayName),
                 credential: .forProvider(providerID),
-                kind: kind
+                kind: kind,
+                readAt: readAt
             )
         }
     }
@@ -227,7 +232,8 @@ public enum APISpendPresentation {
         attention: APISpendAttention? = nil,
         providerID: ProviderID? = nil,
         displayName: String = "",
-        kind: APISpendKind = .periodSpend
+        kind: APISpendKind = .periodSpend,
+        readAt: (capturedAt: Date?, now: Date)? = nil
     ) -> APISpendRowStatus {
         switch freshness {
         case .pending:
@@ -240,7 +246,8 @@ public enum APISpendPresentation {
                 sourceMessage: message,
                 vendor: vendorName(from: displayName),
                 credential: .forProvider(providerID),
-                kind: kind
+                kind: kind,
+                readAt: readAt
             )
         }
     }
@@ -266,7 +273,7 @@ public enum APISpendPresentation {
 
     /// R2C8 vocabulary again, this time as the noun the missing-key line promises. A balance
     /// row's figure is money *remaining*, so "to see xAI spend" named a number the key would
-    /// never produce — the popover chip on that same row reads "Remaining balance".
+    /// never produce — the popover chip on that same row reads "Balance".
     private static func figureNoun(kind: APISpendKind) -> String {
         switch kind {
         case .periodSpend: "spend"
@@ -279,9 +286,17 @@ public enum APISpendPresentation {
         sourceMessage: String,
         vendor: String,
         credential: APISpendCredentialDescriptor,
-        kind: APISpendKind
+        kind: APISpendKind,
+        readAt: (capturedAt: Date?, now: Date)? = nil
     ) -> APISpendRowStatus {
-        switch attention {
+        // CA-P3: the account rows' phrase for an old reading, where "Stale" stood with no age.
+        // The identity-line tag takes the compact age ("2h ago"): the full phrase truncated the
+        // title beside a figure (X5's measured line).
+        let retriedLabel = readAt.map { Countdown.staleReadLabel(capturedAt: $0.capturedAt, now: $0.now) }
+            ?? Countdown.notRefreshedLabel
+        let retriedShortLabel = readAt.flatMap { Countdown.compactReadAge(capturedAt: $0.capturedAt, now: $0.now) }
+            ?? Countdown.notRefreshedLabel
+        return switch attention {
         case .missingKey:
             APISpendRowStatus(
                 badge: "Needs setup",
@@ -326,8 +341,8 @@ public enum APISpendPresentation {
             // PA3: retryable staleness is the app's problem, not the key's — the next poll may
             // clear it on its own — so it names no action the user could take.
             APISpendRowStatus(
-                badge: "Stale",
-                shortBadge: "Stale",
+                badge: retriedLabel,
+                shortBadge: retriedShortLabel,
                 tone: .neutral,
                 message: sourceMessage,
                 callToAction: nil,
@@ -404,8 +419,23 @@ public enum APISpendPresentation {
         )
     }
 
+    /// CA-S8 (COPY-12): "Balance", not "Remaining balance": the amount beside it already
+    /// ends in "left", so the chip said it twice.
     public static func contextLabel(kind: APISpendKind, periodLabel: String) -> String {
-        kind == .balance ? "Remaining balance" : periodLabel
+        kind == .balance ? "Balance" : periodLabel
+    }
+
+    /// CA-S8 (COPY-12): a card-foot call to action names its vendor whenever the card holds
+    /// more than one vendor, so a lone "Replace Key" under four rows never leaves the user
+    /// guessing which key. Core's CTAs are all "<Verb> Key", so the vendor slots in before the
+    /// noun; anything else takes a parenthetical. One vendor keeps the short label.
+    public static func cardCallToAction(_ callToAction: String, vendor: String, cardVendorCount: Int) -> String {
+        guard cardVendorCount > 1 else { return callToAction }
+        let verbAndKey = callToAction.split(separator: " ")
+        if verbAndKey.count == 2, verbAndKey[1] == "Key" {
+            return "\(verbAndKey[0]) \(vendor) Key"
+        }
+        return "\(callToAction) (\(vendor))"
     }
 
     /// The exact page where a user tops up prepaid API credits — the billing screen that

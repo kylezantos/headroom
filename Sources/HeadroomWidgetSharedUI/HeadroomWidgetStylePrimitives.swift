@@ -139,6 +139,7 @@ public struct HeadroomWidgetNumeral: View {
     private let now: Date
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     public init(_ window: WidgetWindowSummary?, size: Double, providerIsLive: Bool = true, now: Date) {
         self.window = window
@@ -152,7 +153,9 @@ public struct HeadroomWidgetNumeral: View {
             .font(HeadroomWidgetType.font(size: size, weight: .semibold, mono: true))
             .foregroundStyle(ink)
             .lineLimit(1)
-            .contentTransition(window?.displayPercentRemaining != nil ? .numericText() : .opacity)
+            // CA-F1 (MOT-10): Reduce Motion cross-fades the new number instead of rolling its
+            // digits, the gentler equivalent S2A asks for rather than a hard cut.
+            .contentTransition(window?.displayPercentRemaining != nil && !reduceMotion ? .numericText() : .opacity)
             .fixedSize()
             .layoutPriority(2)
             .widgetAccentable()
@@ -516,6 +519,7 @@ public struct HeadroomWidgetLiquidWash: View {
     @Environment(\.colorSchemeContrast) private var contrast
     @Environment(\.displayScale) private var displayScale
     @HeadroomWidgetRendering private var rendering
+    @HeadroomWidgetTypeUnit private var typeUnit
 
     public init(segments: [WidgetWashSegment], colorMode: WidgetColorMode, showsDivider: Bool) {
         self.segments = segments
@@ -545,10 +549,14 @@ public struct HeadroomWidgetLiquidWash: View {
                     Spacer(minLength: 0)
                     ZStack(alignment: .top) {
                         Rectangle().fill(body(ink))
-                        Rectangle()
-                            .fill(edge(ink))
-                            .frame(height: CGFloat(WidgetStyleMetrics.washEdgeWidth))
-                            .widgetAccentable()
+                        // CA-W1 (option A): the recipe drops the edge where it would strike
+                        // through type; the gradient body alone then shows the level.
+                        if segment.showsEdge(tileHeight: Double(geo.size.height), typeUnit: typeUnit) {
+                            Rectangle()
+                                .fill(edge(ink))
+                                .frame(height: CGFloat(WidgetStyleMetrics.washEdgeWidth))
+                                .widgetAccentable()
+                        }
                     }
                     .frame(height: height)
                 }

@@ -125,4 +125,13 @@ struct PhoneSettingsPresentationTests {
             #expect(!line.localizedCaseInsensitiveContains("connect"), "retired verb in: \(line)")
         }
     }
+
+    /// CA-I6 (COPY-10): "snapshot" is an internal name; the demo notice says what is safe.
+    @Test func theDemoNoticeNamesYourRealUsage() {
+        #expect(PhoneSettingsCopy.demoActive == "You are viewing sample data. Your real usage is unchanged.")
+        #expect(PhoneSettingsCopy.demoActiveWidgetsUnavailable.hasSuffix("Your real usage is unchanged."))
+        for line in [PhoneSettingsCopy.demoActive, PhoneSettingsCopy.demoActiveWidgetsUnavailable] {
+            #expect(!line.localizedCaseInsensitiveContains("snapshot"))
+        }
+    }
 }

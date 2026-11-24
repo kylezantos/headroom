@@ -106,6 +106,127 @@ public enum WidgetProviderSelection {
     }
 }
 
+/// CA-W1: what a Liquid Level column lays out over its wash, as the recipe already knows it.
+/// The wash is drawn in a layer of its own (KTD9), so it cannot measure the type above it;
+/// it resolves these into text bands with the tile height and Dynamic Type factor it has.
+public struct WidgetWashColumnLayout: Sendable, Equatable {
+    public let family: WidgetFamily
+    /// The hero numeral's point size (`WidgetStyleType.heroNumeral`).
+    public let heroNumeral: Double
+    /// A provider not read yet draws the one-line waiting caption instead of a hero.
+    public let isWaiting: Bool
+    /// Caption lines under the hero: one, or two when large adds the countdown.
+    public let heroCaptionLines: Int
+    /// Large's secondary rows at the fullest rung, bottom-aligned above the tail.
+    public let secondaryRows: Int
+    /// Large's tail: the footer stamp, or the spend strip in its place.
+    public let showsFooter: Bool
+    public let showsSpend: Bool
+    /// "Reset at <time>" lines: in large's tail, under the column elsewhere.
+    public let pastResetNoteLines: Int
+    /// The dimmed sentence at the foot of every family.
+    public let isDimmed: Bool
+
+    public init(
+        family: WidgetFamily, heroNumeral: Double, isWaiting: Bool = false, heroCaptionLines: Int = 1,
+        secondaryRows: Int = 0, showsFooter: Bool = false, showsSpend: Bool = false,
+        pastResetNoteLines: Int = 0, isDimmed: Bool = false
+    ) {
+        self.family = family
+        self.heroNumeral = heroNumeral
+        self.isWaiting = isWaiting
+        self.heroCaptionLines = heroCaptionLines
+        self.secondaryRows = secondaryRows
+        self.showsFooter = showsFooter
+        self.showsSpend = showsSpend
+        self.pastResetNoteLines = pastResetNoteLines
+        self.isDimmed = isDimmed
+    }
+
+    /// Every block of type in the column, as offsets from the content edge it hangs from.
+    /// Captions grow with `typeUnit`; numerals, marks and spacing stay in points (KTD8). The
+    /// numeral's band starts at its cap top: the empty line space above it is not ink.
+    public func textBands(typeUnit: Double) -> [WidgetWashTextBand] {
+        let scale = WidgetTypeScale.scale(for: family)
+        func line(_ size: Double) -> Double { WidgetTextMetrics.lineHeight(size) * typeUnit }
+        func lines(_ count: Int, _ size: Double, gap: Double) -> Double {
+            count > 0 ? Double(count) * line(size) + Double(count - 1) * gap : 0
+        }
+        let identity = max(WidgetMetrics.markSlot(for: family), line(scale.name))
+        let numeralLine = WidgetTextMetrics.lineHeight(heroNumeral)
+        let numeralCapTop = WidgetTextMetrics.capTop(heroNumeral)
+        let waitingLine = max(WidgetStyleMetrics.waitingMarkHeight, line(scale.countdown))
+        let heroCaptions = lines(heroCaptionLines, scale.countdown, gap: WidgetStyleMetrics.liquidCaptionLineGap)
+        let freshnessGap = WidgetStyleMetrics.freshnessLineGap
+
+        var bands = [WidgetWashTextBand(edge: .top, near: 0, far: identity)]
+        // The foot of the content box, upward: the dimmed sentence, then (outside large) the
+        // reset notes, each a freshness gap above the last.
+        var foot = 0.0
+        if isDimmed { foot += line(scale.footer) + freshnessGap }
+
+        if family == .large {
+            let heroTop = identity + WidgetStyleMetrics.liquidLargeHeroTop
+            bands.append(isWaiting
+                ? WidgetWashTextBand(edge: .top, near: heroTop, far: heroTop + waitingLine)
+                : WidgetWashTextBand(edge: .top, near: heroTop + numeralCapTop,
+                                     far: heroTop + numeralLine + WidgetStyleMetrics.liquidHeroCaptionGap + heroCaptions))
+            var tail = 0.0
+            if showsSpend {
+                tail += WidgetStyleMetrics.spendStripRule + line(scale.spendAmount)
+            } else if showsFooter {
+                tail += line(scale.footer)
+            }
+            if pastResetNoteLines > 0 {
+                tail += lines(pastResetNoteLines, scale.countdown, gap: WidgetStyleMetrics.liquidCaptionLineGap)
+                    + WidgetStyleMetrics.pastResetNoteGap
+            }
+            let rows = Double(secondaryRows) * WidgetStyleMetrics.liquidLargeRowHeight
+            let top = foot + tail + (rows > 0 ? WidgetStyleMetrics.liquidTailGap + rows : 0)
+            if top > 0 { bands.append(WidgetWashTextBand(edge: .bottom, near: 0, far: top)) }
+        } else {
+            if pastResetNoteLines > 0 {
+                foot += lines(pastResetNoteLines, scale.countdown, gap: WidgetStyleMetrics.liquidCaptionLineGap) + freshnessGap
+            }
+            let hero = isWaiting
+                ? waitingLine
+                : heroCaptions + WidgetStyleMetrics.liquidHeroCaptionGap + numeralLine - numeralCapTop
+            bands.append(WidgetWashTextBand(edge: .bottom, near: 0, far: foot + hero))
+        }
+        return bands
+    }
+}
+
+/// CA-W1: one block of type in a Liquid Level column, as offsets in points from the content
+/// edge it hangs from: `near` is the block's edge closest to that content edge, `far` the
+/// other, so a top band reads downward and a bottom band upward.
+public struct WidgetWashTextBand: Sendable, Equatable {
+    public enum Edge: Sendable, Equatable { case top, bottom }
+
+    public let edge: Edge
+    public let near: Double
+    public let far: Double
+
+    public init(edge: Edge, near: Double, far: Double) {
+        self.edge = edge
+        self.near = near
+        self.far = far
+    }
+
+    /// The band in tile points from the tile's top, widened by the clearance and taken across
+    /// every content inset a host may use (`WidgetStyleMetrics.washContentInset`).
+    public func span(tileHeight: Double) -> ClosedRange<Double> {
+        let inset = WidgetStyleMetrics.washContentInset
+        let clearance = WidgetStyleMetrics.washEdgeTextClearance
+        switch edge {
+        case .top:
+            return (inset.lowerBound + near - clearance)...(inset.upperBound + far + clearance)
+        case .bottom:
+            return (tileHeight - inset.upperBound - far - clearance)...(tileHeight - inset.lowerBound - near + clearance)
+        }
+    }
+}
+
 /// KTD9: one column of Liquid Level's full-bleed wash.
 public struct WidgetWashSegment: Sendable, Equatable, Identifiable {
     public let providerID: String
@@ -113,7 +234,33 @@ public struct WidgetWashSegment: Sendable, Equatable, Identifiable {
     /// The level, 0…1. Nil when the provider's primary window has no displayed value — no
     /// wash is drawn, so unavailable never looks like empty (R11).
     public let fraction: Double?
+    /// CA-W1: the type the column lays out over this wash. Nil draws the edge everywhere.
+    public let layout: WidgetWashColumnLayout?
     public var id: String { providerID }
+
+    public init(providerID: String, window: WidgetWindowSummary?, fraction: Double?, layout: WidgetWashColumnLayout? = nil) {
+        self.providerID = providerID
+        self.window = window
+        self.fraction = fraction
+        self.layout = layout
+    }
+
+    /// CA-W1 (option A): the bright surface edge is drawn only where it crosses no text band.
+    /// A 1.5pt rule through "38%" reads as a strike-through, so across a band the gradient
+    /// body alone shows the level, and the wash itself is unchanged. `tileHeight` is the
+    /// full-bleed column's height; `typeUnit` the Dynamic Type factor the captions are set at.
+    public func showsEdge(tileHeight: Double, typeUnit: Double) -> Bool {
+        guard let fraction, fraction > 0 else { return false }
+        guard let layout else { return true }
+        let edge = WidgetStyleMetrics.washEdgeWidth
+        // The same arithmetic as the wash: the liquid is never thinner than its edge.
+        let top = tileHeight - max(edge, tileHeight * fraction)
+        let bottom = top + edge
+        return !layout.textBands(typeUnit: typeUnit).contains { band in
+            let span = band.span(tileHeight: tileHeight)
+            return top < span.upperBound && bottom > span.lowerBound
+        }
+    }
 }
 
 /// KTD3: everything a widget style decides for one family, from the envelope alone.
@@ -176,26 +323,47 @@ public struct WidgetStyleRecipe: Sendable, Equatable {
             providersWithoutRows = []
         }
 
+        // U13: while dimmed, the dimmed sentence takes the footer's place and the spend strip
+        // yields to it — its amounts are as old as the meters, and KTD10 sheds spend first.
+        let showsSpend = family == .large && !envelope.apiSpendProviders.isEmpty && !freshness.isDimmed
+        let showsFooter = family == .large && !freshness.isDimmed
+        self.showsSpend = showsSpend
+        self.showsFooter = showsFooter
+        self.freshness = freshness
+        let pastResetNotes = shown.compactMap { recipe in
+            source.providers.first { $0.id == recipe.id }
+                .flatMap { freshness.pastResetNote(for: $0, namesProvider: shown.count > 1) }
+        }
+        self.pastResetNotes = pastResetNotes
+
         washSegments = style == .liquidLevel
             ? shown.map { provider in
                 // WCM5: a stale provider's wash takes the stale fill, as its rows do.
                 WidgetWashSegment(
                     providerID: provider.id,
                     window: provider.summary.freshness == .live ? provider.primary : provider.primary?.demotedToStale(),
-                    fraction: provider.primary?.displayPercentRemaining.map { min(1, max(0, $0 / 100)) }
+                    fraction: provider.primary?.displayPercentRemaining.map { min(1, max(0, $0 / 100)) },
+                    // CA-W1: the column's type, at its fullest rung (a shed row only frees room),
+                    // so the edge is dropped wherever any rung could put text.
+                    layout: WidgetWashColumnLayout(
+                        family: family,
+                        heroNumeral: WidgetStyleType.heroNumeral(style: style, family: family, providerCount: family == .small ? 1 : shown.count),
+                        isWaiting: provider.isWaiting,
+                        heroCaptionLines: family == .large && provider.primary.map(Self.printsCountdown) == true ? 2 : 1,
+                        secondaryRows: family == .large ? provider.secondary(atRung: 0).count : 0,
+                        showsFooter: showsFooter,
+                        showsSpend: showsSpend,
+                        pastResetNoteLines: pastResetNotes.count,
+                        isDimmed: freshness.isDimmed
+                    )
                 )
             }
             : []
+    }
 
-        // U13: while dimmed, the dimmed sentence takes the footer's place and the spend strip
-        // yields to it — its amounts are as old as the meters, and KTD10 sheds spend first.
-        showsSpend = family == .large && !envelope.apiSpendProviders.isEmpty && !freshness.isDimmed
-        showsFooter = family == .large && !freshness.isDimmed
-        self.freshness = freshness
-        pastResetNotes = shown.compactMap { recipe in
-            source.providers.first { $0.id == recipe.id }
-                .flatMap { freshness.pastResetNote(for: $0, namesProvider: shown.count > 1) }
-        }
+    /// Whether a window prints a countdown under the hero (`WidgetWindowText.countdown`).
+    private static func printsCountdown(_ window: WidgetWindowSummary) -> Bool {
+        !window.freshness.isUnavailable && window.resetSchedule.deadline != nil
     }
 }
 

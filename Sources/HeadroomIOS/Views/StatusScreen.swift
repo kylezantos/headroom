@@ -9,8 +9,18 @@ struct StatusScreen: View {
     let screen: CompanionStatusScreen
     var onExploreDemo: (() -> Void)?
     var onRefresh: () async -> Void
+    var onSettings: () -> Void = {}
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+    /// CA-I6: both actions share one width, so they stack as one column (IOS-06's 200pt).
+    static let actionMinWidth: CGFloat = 200
+
+    /// The Usage screen's margins (`MirrorView.margin`), so the header lands in one place.
+    private var margin: CGFloat {
+        horizontalSizeClass == .regular ? FlowingColumnsMetrics.defaultMargin : 20
+    }
 
     /// P59: the status mock's vessel height; the waiting ghost row shares the slot so the
     /// text block sits at the same height on every screen.
@@ -30,6 +40,14 @@ struct StatusScreen: View {
             .scrollBounceBehavior(.basedOnSize)
         }
         .background(HeadroomTheme.backgroundView(scheme).ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        // CA-I6: the Usage screen's own header, "Headroom" in the title's place and an empty
+        // status slot.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            PhoneScreenHeader(title: "Headroom", margin: margin, onSettings: onSettings) {
+                EmptyView()
+            }
+        }
     }
 
     private var content: some View {
@@ -51,8 +69,11 @@ struct StatusScreen: View {
             VStack(spacing: 12) {
                 primaryButton
                 if let onExploreDemo, screen.offersExploreDemo {
-                    Button(CompanionStatusCopy.exploreDemo) {
+                    Button {
                         onExploreDemo()
+                    } label: {
+                        Text(CompanionStatusCopy.exploreDemo)
+                            .frame(minWidth: Self.actionMinWidth)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.large)
@@ -112,8 +133,11 @@ private struct StatusOpenButton: View {
     @Environment(\.openURL) private var openURL
 
     var body: some View {
-        Button(action.title) {
+        Button {
             if let url { openURL(url) }
+        } label: {
+            Text(action.title)
+                .frame(minWidth: StatusScreen.actionMinWidth)
         }
         // U8 (G6): the neutral filled button, never system blue.
         .headroomProminentButton()
@@ -139,14 +163,17 @@ private struct StatusRefreshButton: View {
             Button {
                 Task { await refresh() }
             } label: {
-                if frame.isWorking {
-                    HStack(spacing: 8) {
-                        HalftonePillRow(pills: frame.pills, sloshEndedAt: endedAt)
-                        Text(CompanionStatusCopy.checking)
+                Group {
+                    if frame.isWorking {
+                        HStack(spacing: 8) {
+                            HalftonePillRow(pills: frame.pills, sloshEndedAt: endedAt)
+                            Text(CompanionStatusCopy.checking)
+                        }
+                    } else {
+                        Text(CompanionStatusCopy.refresh)
                     }
-                } else {
-                    Text(CompanionStatusCopy.refresh)
                 }
+                .frame(minWidth: StatusScreen.actionMinWidth)
             }
             // U8 (G6): the neutral filled button, never system blue.
             .headroomProminentButton()

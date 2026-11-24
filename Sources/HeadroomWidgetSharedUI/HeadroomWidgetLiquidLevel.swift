@@ -44,7 +44,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             columns(large: true)
             HeadroomWidgetStyleTail(context: context, mark: mark)
-                .padding(.top, 8)
+                .padding(.top, CGFloat(WidgetStyleMetrics.liquidTailGap))
         }
     }
 
@@ -68,7 +68,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
                                       showsStaleReason: large, mark: mark)
             if large {
                 heroBlock(provider, size: context.hero(), extra: HeadroomWidgetWindowText.countdown(provider.primary, now: context.now))
-                    .padding(.top, 10)
+                    .padding(.top, CGFloat(WidgetStyleMetrics.liquidLargeHeroTop))
                 Spacer(minLength: 4)
                 ViewThatFits(in: .vertical) {
                     ForEach(0..<provider.secondaryLadder.count, id: \.self) { rung in
@@ -79,7 +79,7 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
                                     Spacer(minLength: 4)
                                     HeadroomWidgetNumeral(window, size: context.rowNumeral, providerIsLive: live, now: context.now)
                                 }
-                                .frame(height: 26)
+                                .frame(height: CGFloat(WidgetStyleMetrics.liquidLargeRowHeight))
                             }
                         }
                     }
@@ -99,9 +99,10 @@ struct HeadroomWidgetLiquidLevel<Mark: View>: View {
         if provider.isWaiting {
             HeadroomWidgetWaitingLine(provider: provider, size: context.scale.countdown)
         } else {
-            VStack(alignment: .leading, spacing: 5) {
+            // CA-W1: the rhythm is the tokens the recipe keeps the surface edge clear of.
+            VStack(alignment: .leading, spacing: CGFloat(WidgetStyleMetrics.liquidHeroCaptionGap)) {
                 HeadroomWidgetNumeral(provider.primary, size: size, providerIsLive: context.isLive(provider), now: context.now)
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: CGFloat(WidgetStyleMetrics.liquidCaptionLineGap)) {
                     HeadroomWidgetFittingCaption(captions(provider, mediumDetail: mediumDetail), size: context.scale.countdown, ink: .label)
                     if let extra {
                         HeadroomWidgetCaption(extra, size: context.scale.countdown, ink: .countdown, mono: true)

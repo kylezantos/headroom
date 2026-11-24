@@ -25,16 +25,100 @@ public enum MenuBarLabelGeometry {
     /// How far the dot's leading edge sits *inside* the vessel's trailing edge; the rest of
     /// the diameter hangs past it.
     public static let attentionDotInset: Double = 2
+    /// CA-MB1 (KTD7): a provider mark's square optical box, 13pt so it carries about the
+    /// vessel's weight (at 11pt it read as a speck beside it).
+    public static let markBoxSize: Double = 13
+    /// The space between a mark's box and its own vessel.
+    public static let markVesselGap: Double = 3
+    /// CA-MB1: the pill-to-pill gap in front of a marked pill. The mark names its pill, so
+    /// the gap no longer has to say which numeral belongs to which vessel: 12 with
+    /// percentages (16 unmarked) and 8 icon-only. 12 stays clear of `vesselTextGap` (7), so a
+    /// numeral still groups with its own vessel. Owner review, on a real menu bar: the first
+    /// marked spacing (18 and 10) read loose.
+    public static let markedMeterGapWithPercentage: Double = 12
+    public static let markedMeterGapIconOnly: Double = 8
+
+    /// How one provider's mark sits inside its `markBoxSize` box (CA-MB1). The box, its gap
+    /// and the pill gaps never change with the provider, so the label measures the same
+    /// whichever marks it carries; only the ink inside the box does.
+    public struct MarkMetrics: Sendable, Equatable {
+        /// The ink's larger dimension in points; the other follows the artwork's
+        /// `HeadroomBrandMark.inkAspect`.
+        public let inkExtent: Double
+        /// Points the ink's centre is raised above the vessel's centre (negative lowers it).
+        public let verticalNudge: Double
+        /// Total width of a same-ink outline added around the artwork, in points (0 = none):
+        /// thickens hairline strokes that thin out at 13pt. Drawn on Retina bars only: on a
+        /// 1× bar a whole-pixel outline closes counters.
+        public let thickening: Double
+
+        public init(inkExtent: Double, verticalNudge: Double = 0, thickening: Double = 0) {
+            self.inkExtent = inkExtent
+            self.verticalNudge = verticalNudge
+            self.thickening = thickening
+        }
+
+        /// The ink's width and height for an artwork of `aspect` (width ÷ height).
+        public func inkSize(aspect: Double) -> (width: Double, height: Double) {
+            guard aspect.isFinite, aspect > 0 else { return (inkExtent, inkExtent) }
+            return aspect >= 1 ? (inkExtent, inkExtent / aspect) : (inkExtent * aspect, inkExtent)
+        }
+    }
+
+    /// The mark of a provider the table does not know: between the solid marks' 11 and the open
+    /// marks' 11.5 to 12 below, and equal to none of them, so a test can tell a fallback apart.
+    public static let defaultMarkMetrics = MarkMetrics(inkExtent: 11.25, verticalNudge: markTieLift)
+
+    /// CA-MB1: a 0.1pt lift on every mark. When an ink height and the 18pt image disagree in
+    /// pixel parity the centred mark falls on a half pixel, and the lift settles that tie one
+    /// pixel up rather than down, which is where the optical centre sits anyway.
+    public static let markTieLift: Double = 0.1
+
+    /// CA-MB1 (Nov 2026): the menu bar's own mark sizing, never the popover's
+    /// `HeadroomBrandMark.markSize`. That rule was tuned for coloured marks at popover sizes.
+    ///
+    /// CA-MB1 size parity (Kyle, 2026-11-20, overturning the first tuning's equal-weight
+    /// target): the marks are matched for perceived size, not ink weight. Equal weight shrank
+    /// the solid marks (Codex 9.5, OpenCode 10), and on a real 2× bar Codex's blob read
+    /// clearly smaller than Claude's star beside it. Now every mark's outer ink extent (the
+    /// larger of its width and height, measured at 2× at a quarter of peak alpha) sits within
+    /// 1pt of the others, and a solid round or blocky mark sits at most 0.5 to 1pt under the
+    /// open ones as optical compensation, never 2pt. Judged on 1× and 2× sheets on both bars:
+    /// - Claude 11.5: the open star sets the size.
+    /// - Codex 11: the solid blob, 0.5 under the star; side by side they read the same size.
+    /// - Cursor 11.5 (10 wide): the cube is narrow, so its height carries it.
+    /// - OpenCode 11 (8.8 wide): the solid block, 0.5 under the open marks.
+    /// - Copilot 12 (10 tall) and Antigravity 12 (11 tall): wide marks, sized by their width.
+    /// - Grok 12 with a 0.5pt outline: without it the hairline ring and slash read faint and
+    ///   small even filling the box, so they are thickened on Retina only.
+    /// Result at 2×: outer extents 11 to 12pt, weight max/min about 1.85× (Codex heaviest,
+    /// Copilot lightest), every centre within 0.25pt of the vessel's. At 1× an odd ink height
+    /// (Codex, OpenCode, Antigravity) sits half a pixel high, which `markTieLift` chooses.
+    public static func markMetrics(for providerID: String) -> MarkMetrics {
+        switch providerID {
+        case ProviderID.claude.raw: MarkMetrics(inkExtent: 11.5, verticalNudge: markTieLift)
+        case ProviderID.codex.raw: MarkMetrics(inkExtent: 11, verticalNudge: markTieLift)
+        case ProviderID.grok.raw: MarkMetrics(inkExtent: 12, verticalNudge: markTieLift, thickening: 0.5)
+        case ProviderID.cursor.raw: MarkMetrics(inkExtent: 11.5, verticalNudge: markTieLift)
+        case ProviderID.copilot.raw: MarkMetrics(inkExtent: 12, verticalNudge: markTieLift)
+        case ProviderID.opencode.raw: MarkMetrics(inkExtent: 11, verticalNudge: markTieLift)
+        case ProviderID.antigravity.raw: MarkMetrics(inkExtent: 12, verticalNudge: markTieLift)
+        default: defaultMarkMetrics
+        }
+    }
 
     /// The part of a meter this layout cannot derive on its own: whether it draws a
-    /// percentage (and how wide that text measured) and whether it carries the attention dot.
+    /// percentage (and how wide that text measured), whether it carries the attention dot,
+    /// and whether it draws its provider's mark (CA-MB1).
     public struct Item: Sendable, Equatable {
         public let textWidth: Double?
         public let needsAttention: Bool
+        public let hasMark: Bool
 
-        public init(textWidth: Double?, needsAttention: Bool) {
+        public init(textWidth: Double?, needsAttention: Bool, hasMark: Bool = false) {
             self.textWidth = textWidth
             self.needsAttention = needsAttention
+            self.hasMark = hasMark
         }
     }
 
@@ -43,10 +127,13 @@ public enum MenuBarLabelGeometry {
         public let vesselX: Double
         /// Leading edge of the percentage, when the meter draws one.
         public let textX: Double?
+        /// Leading edge of the mark's `markBoxSize` box, when the meter draws one (CA-MB1).
+        public let markX: Double?
 
-        public init(vesselX: Double, textX: Double?) {
+        public init(vesselX: Double, textX: Double?, markX: Double? = nil) {
             self.vesselX = vesselX
             self.textX = textX
+            self.markX = markX
         }
     }
 
@@ -83,7 +170,17 @@ public enum MenuBarLabelGeometry {
         placements.reserveCapacity(items.count)
 
         for item in items {
-            if cursor > 0 { cursor += gap }
+            if cursor > 0 {
+                cursor += item.hasMark
+                    ? (showsPercentage ? markedMeterGapWithPercentage : markedMeterGapIconOnly) : gap
+            }
+            // CA-MB1: the mark is measured in this pass, like the attention dot (PB5), so a
+            // drawn mark can never fall outside the image.
+            var markX: Double?
+            if item.hasMark {
+                markX = cursor
+                cursor += markBoxSize + markVesselGap
+            }
             let vesselX = cursor
             cursor += vesselWidth
             var textX: Double?
@@ -92,7 +189,7 @@ public enum MenuBarLabelGeometry {
                 textX = cursor
                 cursor += textWidth
             }
-            placements.append(Placement(vesselX: vesselX, textX: textX))
+            placements.append(Placement(vesselX: vesselX, textX: textX, markX: markX))
             extent = max(extent, cursor)
             if item.needsAttention {
                 extent = max(extent, attentionDotTrailingEdge(vesselX: vesselX))

@@ -1,19 +1,28 @@
 import AppKit
+import HeadroomCore
 import SwiftUI
+#if SWIFT_PACKAGE
+import HeadroomSharedUI
+#endif
 
-/// A raised content tile that reads as elevated on the Liquid Glass popover in **both**
-/// appearances (R-depth). The trick is that "elevation" is drawn differently per scheme:
+/// A raised content tile. Two surfaces, each with its own recipe (CA-S1, KTD4):
 ///
-/// - **Dark**: a lit top rim fading to a *dark* bottom rim over a subtle vertical fill, plus a
-///   shadow deep enough to read on the popover shell — the glassy raised-tile look.
-///   (R2C1: this used to say "fading down the perimeter", and the code faded to
-///   `white 0.06`, which measured ~50 against a 37 card on a 27 shell — the brightest
-///   boundary on the card was its *bottom* edge, so the tile read as an inlay, lit from
-///   below. The shadow made it worse by rendering nothing at all: `black 0.42` over a
-///   `#1B1B1B` shell sampled 27 on every side, identical to bare shell.)
-/// - **Light**: a brighter near-opaque fill with a soft shadow and a fine bottom-weighted
-///   hairline. A white top-rim would vanish on a light surface, so light mode leans on the
-///   shadow + fill contrast instead.
+/// - **`.glass`**, the popover's cards on the Liquid Glass shell.
+///   - **Dark** (CA-P2): one layer per job, the setup chip's CMM3 recipe at card scale. An
+///     even ring holds all four edges, a 1pt inset lip catches the light along the top and
+///     fades out down the sides, and two tight shadows seat the card on the shell. This
+///     overturns R2C1's single white 0.20 → black 0.22 gradient stroke: its top was the
+///     brightest line in the popover (rule 8 caps a dark rim at 0.15) while the sides and the
+///     bottom dissolved, a bright lid on a box with no floor.
+///   - **Light**: a near-opaque white fill with a soft shadow and a fine bottom-weighted
+///     hairline. A white top rim would vanish on a light surface, so light leans on the
+///     shadow and the fill step instead. Unchanged by CA-P2.
+/// - **`.opaque`**, Settings' tiles (CA-S1). Flat: no gradient, a translucent 1pt ring, two
+///   tight shadows in light and none in dark, where a shadow on a dark canvas renders as
+///   nothing. Settings used to inherit the glass card's R2C1 rim and gradient, which faded
+///   the light tile's foot into the pane and gave the dark tile the 0.20 lid.
+///
+/// Increase Contrast and Reduce Transparency keep their solid fill and separator stroke.
 ///
 /// Content stays a plain tile (never a second `.glassEffect`), so glass-on-glass never muddies
 /// the popover (UI-07); glass is reserved for the shell + controls.
@@ -33,58 +42,93 @@ struct RaisedTile: ViewModifier {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         let dark = scheme == .dark
         let highLegibility = reduceTransparency || NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
-        let fillColors = highLegibility ? solidFillColors : fillColors(dark: dark)
         content
-            .background(
+            .background {
+                if highLegibility {
+                    highLegibilityTile(shape: shape, dark: dark)
+                } else {
+                    switch (surface, dark) {
+                    case (.glass, true): darkGlassTile(shape: shape)
+                    case (.glass, false): lightGlassTile(shape: shape)
+                    case (.opaque, true): darkOpaqueTile(shape: shape)
+                    case (.opaque, false): lightOpaqueTile(shape: shape)
+                    }
+                }
+            }
+    }
+
+    /// CA-P2: ring, masked lip, contact shadow, ambient shadow. The lip mask is the setup
+    /// chip's (`SetupChipButtonStyle`), so it fades rather than leaving a ledge.
+    private func darkGlassTile(shape: RoundedRectangle) -> some View {
+        shape
+            .fill(LinearGradient(
+                colors: [Color.white.opacity(t.darkFillTop), Color.white.opacity(t.darkFillBottom)],
+                startPoint: .top, endPoint: .bottom))
+            .overlay {
                 shape
-                    .fill(LinearGradient(
-                        colors: fillColors,
-                        startPoint: .top, endPoint: .bottom))
-                    // R2C1: dark's shadow is 0.6 @ r10 y3, not 0.42 @ r7 y1 — the old one
-                    // measured identical to bare shell at every sample, so the card had no
-                    // shadow at all. Light is unchanged (211 shadow vs 225 shell, correct).
-                    .shadow(
-                        color: .black.opacity(dark ? t.darkShadowOpacity : (surface == .opaque ? 0.09 : t.lightShadowOpacity)),
-                        radius: dark ? t.darkShadowRadius : t.lightShadowRadius,
-                        y: dark ? t.darkShadowY : t.lightShadowY
-                    )
-            )
-            .overlay(
-                // One gradient stroke does both jobs, and after R2C1 both schemes do it the
-                // same way: a lit top edge fading to a dark bottom rim. Apple's dark grouped
-                // tables and Raycast's dark rows are built this way for the same reason —
-                // Apple §12, a bigger surface reads as thicker, lit from above.
-                shape.strokeBorder(
-                    highLegibility
-                        ? LinearGradient(colors: [Color(nsColor: .separatorColor), Color(nsColor: .separatorColor)], startPoint: .top, endPoint: .bottom)
-                        : LinearGradient(
-                            colors: dark
-                                ? [Color.white.opacity(t.darkRimTop), Color.black.opacity(t.darkRimBottom)]
-                                : [Color.white.opacity(t.lightRimTop), Color.black.opacity(t.lightRimBottom)],
-                            startPoint: .top, endPoint: .bottom),
-                    lineWidth: highLegibility ? 1.2 : 1)
-            )
+                    .inset(by: 1)
+                    .strokeBorder(Color.white.opacity(t.darkRimTop), lineWidth: 1)
+                    .mask {
+                        LinearGradient(
+                            colors: [.white, .clear],
+                            startPoint: .top,
+                            endPoint: .init(x: 0.5, y: 0.55)
+                        )
+                    }
+            }
+            .overlay(shape.strokeBorder(Color.white.opacity(t.darkRing), lineWidth: 1))
+            .shadow(color: .black.opacity(t.darkShadowOpacity), radius: t.darkShadowRadius, y: t.darkShadowY)
+            .shadow(color: .black.opacity(t.darkAmbientShadowOpacity), radius: t.darkAmbientShadowRadius, y: t.darkAmbientShadowY)
     }
 
-    private var solidFillColors: [Color] {
-        [Color(nsColor: .controlBackgroundColor), Color(nsColor: .controlBackgroundColor)]
+    private func lightGlassTile(shape: RoundedRectangle) -> some View {
+        // Near-opaque white (0.92/0.80 → 0.98/0.94, Jul 2026): with the light shell tinted,
+        // the translucent fill let the gray bleed through and the card-vs-shell step collapsed
+        // to ~6% luminance. Full-white cards on the gray shell is the System Settings idiom.
+        shape
+            .fill(LinearGradient(
+                colors: [Color.white.opacity(t.lightFillTop), Color.white.opacity(t.lightFillBottom)],
+                startPoint: .top, endPoint: .bottom))
+            .shadow(color: .black.opacity(t.lightShadowOpacity), radius: t.lightShadowRadius, y: t.lightShadowY)
+            .overlay(shape.strokeBorder(
+                LinearGradient(
+                    colors: [Color.white.opacity(t.lightRimTop), Color.black.opacity(t.lightRimBottom)],
+                    startPoint: .top, endPoint: .bottom),
+                lineWidth: 1))
     }
 
-    private func fillColors(dark: Bool) -> [Color] {
-        switch (surface, dark) {
-        case (.glass, true):
-            [Color.white.opacity(t.darkFillTop), Color.white.opacity(t.darkFillBottom)]
-        case (.glass, false):
-            // Near-opaque white (0.92/0.80 → 0.98/0.94, Jul 2026): with the light shell
-            // tinted, the translucent fill let the gray bleed through and the card-vs-shell
-            // step collapsed to ~6% luminance (dark mode's is ~36%). Full-white cards on
-            // the gray shell is the System Settings idiom; shadows + hairline stay as-is.
-            [Color.white.opacity(t.lightFillTop), Color.white.opacity(t.lightFillBottom)]
-        case (.opaque, true):
-            [Color.white.opacity(0.08), Color.white.opacity(0.05)]
-        case (.opaque, false):
-            [Color(nsColor: .controlBackgroundColor), Color(nsColor: .windowBackgroundColor).opacity(0.96)]
-        }
+    /// CA-S1: a white 0.06 panel with a 0.09 ring and nothing else. Settings' window canvas
+    /// is dark enough that any shadow under it samples as bare canvas.
+    private func darkOpaqueTile(shape: RoundedRectangle) -> some View {
+        shape
+            .fill(Color.white.opacity(HeadroomTileEdgeValues.darkOpaqueFillOpacity))
+            .overlay(shape.strokeBorder(
+                Color.white.opacity(HeadroomTileEdgeValues.darkOpaqueRingOpacity), lineWidth: 1))
+    }
+
+    /// CA-S1: a flat white panel on the grey pane, a black 0.07 ring and two tight shadows
+    /// (the audit's `0 1px 1px` at 0.05 and `0 2px 4px` at 0.04; SwiftUI's radius is half a
+    /// CSS blur).
+    private func lightOpaqueTile(shape: RoundedRectangle) -> some View {
+        shape
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .shadow(color: .black.opacity(0.05), radius: 0.5, y: 1)
+            .shadow(color: .black.opacity(0.04), radius: 2, y: 2)
+            .overlay(shape.strokeBorder(
+                Color.black.opacity(HeadroomTileEdgeValues.lightOpaqueRingOpacity), lineWidth: 1))
+    }
+
+    /// Increase Contrast / Reduce Transparency: unchanged by the craft audit, so it keeps the
+    /// literals it drew before CA-P2 retuned the dark glass shadow.
+    private func highLegibilityTile(shape: RoundedRectangle, dark: Bool) -> some View {
+        shape
+            .fill(Color(nsColor: .controlBackgroundColor))
+            .shadow(
+                color: .black.opacity(dark ? 0.6 : (surface == .opaque ? 0.09 : t.lightShadowOpacity)),
+                radius: dark ? 10 : t.lightShadowRadius,
+                y: dark ? 3 : t.lightShadowY
+            )
+            .overlay(shape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1.2))
     }
 }
 

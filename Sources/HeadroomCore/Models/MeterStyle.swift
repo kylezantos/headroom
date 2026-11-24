@@ -393,6 +393,9 @@ public struct MeterRampStops: Sendable, Equatable {
 public enum MeterFillRecipe: Sendable, Equatable {
     case none
     case staleGrey
+    /// CA-P1: a stale healthy meter in a fill mode whose live healthy meter is neutral. It
+    /// paints that neutral at `HeadroomMeterColorValues.staleNeutralScale`.
+    case staleNeutral
     case solid
     case glass
     case ghost
@@ -544,6 +547,12 @@ public enum MeterRecipe {
         return isTip ? .tip(cellFill) : .body(cellFill)
     }
 
+    /// CA-P1: the fill modes whose live healthy meter carries no hue. Only when low is the one;
+    /// Glass keeps a healthy-coloured cap and the rest paint the severity.
+    public static func livePaintsHealthyNeutral(fill: GaugeFill) -> Bool {
+        fill == .colorAsEvent
+    }
+
     public static func fillRecipe(
         fill: GaugeFill,
         severity: UsageSeverity,
@@ -553,7 +562,9 @@ public enum MeterRecipe {
         case .unavailable:
             return .none
         case .stale:
-            return .staleGrey
+            // CA-P1 (KTD5, KTD6): healthy follows the live neutral down; Low and Critical keep
+            // R2C16's hedge, and fills whose live healthy is coloured are unchanged.
+            return severity == .healthy && livePaintsHealthyNeutral(fill: fill) ? .staleNeutral : .staleGrey
         case .live:
             break
         }

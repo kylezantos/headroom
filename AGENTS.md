@@ -93,8 +93,22 @@ output. `/usage` is a free status fetch (no model call), so polling it costs no 
   `MeterGauge` is the popover's single format × shape × fill renderer; `AppComposition` is
   the one place providers are wired. Settings (Sep 2026) is a fixed-frame
   `NavigationSplitView`: `SettingsView` owns every root state and dialog, `SettingsSidebar`
-  lists the six `SettingsPane` destinations, and the stateless panes live in
+  lists the seven `SettingsPane` destinations, and the stateless panes live in
   `SettingsPanes.swift`; Appearance previews choices with an inert `AppearanceSpecimen`.
+  Since the Nov 2026 craft audit (anchors `CA-<area>`): General holds settings, then an About tile of three rows (Version, Send
+  feedback, Made by), and the sidebar's Tip Jar is the window's one ask (CA-S6, overturning
+  PR #179's combined About with a second tip-jar row). Widgets & iPhone leads with its real
+  switches in three titled tiles, "Mac widgets", "iPhone and iPad" and "Widget styles", the
+  last with a segmented "Preview" picker that sets nothing (CA-S7, revisiting L9P's
+  preview-first order). Accounts opens with the provider groups; every row has three slots
+  (identity with status as its second line, one state or one native small button, the "…"
+  menu, which leads with any second recovery action; CA-S3, overturning craft round 2's R2C11
+  and R2C6). The built-in row's badge reads "Default", its menu section "Default login" and the
+  header action "Show Default Login" (CA-S5, was "CLI login"). The account counter is hidden
+  until two short of the tested envelope and reads "Tested up to 20" at it (CA-S5, overturning
+  the multi-account plan's R15 "3 of 20" on every header). Tile titles and labels are sentence
+  case and buttons Title Case (CA-S8). Selection, links and sidebar glyphs are ink, never the
+  system accent (CA-S2); DESIGN.md rules 8 and 9 hold the tile and selection recipes.
 
 Data flow: `PollingEngine` wakes at the earliest due account → `AccountProbeScheduler`
 drains each CLI lane one probe at a time (most overdue first) and fetches the HTTP lane's
@@ -128,7 +142,8 @@ account (`CompactAccountRow`, decided by Core `CompactAccountRowRecipe`) and kee
 section for any account whose state needs an action. The plan is made when the popover closes,
 from the heights it last drew, and on an account-set change; heights never replan while it is
 open. `MenuBarExtra` grows its window with the content but never shrinks it, so `PopoverView`
-fits a narrower window itself, while it is hidden. See
+fits a narrower window itself, while it is hidden, and `PopoverWindowHeightFitter` shortens a
+too-tall one with its top edge kept (shrink-only on macOS 26, both ways on 15). See
 `docs/solutions/ui/popover-account-columns.md`.
 
 The popover meter style is one global `MeterStyle`, persisted as three independent
@@ -136,6 +151,9 @@ UserDefaults-backed preferences (format, shape, fill) and mirrored by `UsageStor
 menu-bar projections intentionally carry no style. The phone's v4 manifest does (Oct 2026): its
 display block carries meter style, percentage mode, account-name ink and the in-app Spark switch,
 which the phone follows under one "Match my Mac" switch (`PhoneDisplayPreferencesStore`, KTD11).
+While that switch is on, the phone's Settings hides the sections it governs and shows them again
+when it is off (CA-I7, overturning that plan's KTD11, which kept them visible and disabled); the
+sheet opens on Appearance, then Widgets, iPhone sync and About (CA-I1).
 
 **Widget styles (Oct 2026).** Each placed widget chooses its own **Style** (Nested Meter —
 the default — Vessel Hero, Tightest First, Liquid Level) and **Color** (Always colored, Only
@@ -241,6 +259,14 @@ Durable reasoning:
   the XCTest host). The phone's Explore Demo replays bundled `CompanionDemoVariant` fixtures
   (snapshots and a check-now receipt) and never writes iCloud or the snapshot caches. `--demo
   --demo-variant <name> --demo-screen <usage|settings|widgets>` launches a screenshot pose.
+- **One launch entrance (CA-M5).** The phone's provider cards rise in once per app launch, one
+  step per card capped at the fourth, and the meters paint their final values inside the rising
+  card; nothing else on the phone draws in at launch. Timing is Core's
+  `PhoneCardEntranceSchedule`, so the worst case is tested without a SwiftUI host. This
+  overturns that plan's KTD16 (a per-account stagger with the meters drawing in on top) and keeps
+  its once-per-launch rule. When the phone dims, the header slot shows a short "Last update
+  <time>" stamp and the full "No update from your Mac since …" sentence sits on its own line
+  under the header (CA-I2).
 
 ### Multi-account (Jul 2026)
 
@@ -392,8 +418,8 @@ provider group header also carries the subscription on/off switch (off means not
 unmanageable); removing
 an **extra** account deletes its Headroom-owned config home, while the **built-in** account can
 only be *stop-tracked* (Aug 2026): a persisted registry tombstone hides the row without touching
-the CLI's own config or login, allowed only while another account exists, undone via "Show CLI
-Account" in the provider header. Claude rows signed in to the same upstream login (matched by
+the CLI's own config or login, allowed only while another account exists, undone via "Show
+Default Login" in the provider header (it read "Show CLI Account" before CA-S5). Claude rows signed in to the same upstream login (matched by
 the default-login identity, `accountUuid` plus `organizationUuid`, metadata only, so the badge
 and the records never disagree) get a detection-only "Same login as X" badge. Rows are never
 merged in storage; the only merge is the display-only one-row rule above, between the built-in
@@ -418,7 +444,7 @@ swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixtur
 swift run Headroom --render-popover <dir> --loading-only  # pinned, offscreen loading checkpoints; native acceptance remains separate
 swift run Headroom --render-popover <dir> [--render-scenario <name>] [--account-layout standard|compact]  # one scenario (light + dark) at the popover's real column width; `--render-scenario remembered` poses remembered rows, `--render-scenario merged` the one-row merge
 swift run Headroom --demo [loading|multi-2|multi-3|multi-5|multi-7|multi-20|multi-mixed|spend-states|spend-retained|banked-resets|five-providers|six-providers|copilot-no-reading|opencode-no-go|opencode-update|opencode-limited|remembered|merged]  # fixture data; loading exercises delayed probes/spend and inert setup; multi-20 is the tested envelope; six-providers is the every-provider demo and now carries all seven providers, Antigravity included, in registry order with Antigravity directly above Copilot (five-providers stays Claude, Codex, Grok, Cursor and Copilot); opencode-no-go, opencode-update and opencode-limited pose the no-Go card, the update-required state and a limited monthly window; remembered shows a live default plus a dimmed and a fully reset remembered row for Claude and Codex, from an in-memory record store; merged shows the default login and the extra that reads the same account as one live row, beside a dimmed remembered row (mock scenario B)
-swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
+swift build -c release -Xswiftc -DHEADROOM_BENCH && .build/release/Headroom --bench-ui <popover|scroll|settings|switch|counts|scene|all> [--scenario single|multi3|multi5|multi7|multi20] [--account-layout standard|compact] [--meter-style <format>.<shape>.<fill>] [--pane <pane>] [--runs n] [--json <path>]  # offscreen perf bench: main-thread CPU, frame-by-frame probes, body counts
 # Release builds only. Without -DHEADROOM_BENCH the body counters and the Settings pane seam compile to nothing: timings still run, counts and pane switches don't. Scripts/bench-trace-summary.py slices a Time Profiler trace by its signposts.
 ./Scripts/build-app.sh             # → Headroom.app (LSUIElement), then: open Headroom.app
 Scripts/dialkit.sh [scenario]      # live-tune the popover with DialKit: inspector + demo with a pinned popover (HEADROOM_DIALKIT=1; values in HeadroomSharedUI/HeadroomTuning.swift, defaults = shipped literals)
@@ -463,6 +489,18 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   leakage). Providers never throw — they return a stale snapshot (`.stale(for:reason:)`).
 - **Reset times use the shared semantic formatter** from `UsageWindow.resetSchedule` on
   every surface. Source labels and valid IANA zones are non-visible provenance only.
+- **An old reading has one name (CA-P3, CA-P4).** A reading older than the latest check reads
+  "Last read" with its age ("Last read 14 min ago") on an account's chip in the popover, its
+  Settings status, Compact tooltips, setup cards, a meter's state label and the phone, with "Not
+  refreshed" when nothing dated it, in place of the old bare "Stale" and "Last known …"
+  (`Countdown.staleReadLabel`, `windowReadLabel`, `lastReadLabel`, with the why in
+  `staleReadHelp` / `rememberedReadHelp`). The spend row's tag follows the same rule ("Last read 2 hr
+  ago", "2h ago" in the tag slot). A window with no number says "No
+  reading yet" when nothing was ever observed (Copilot after sign-in) or "No current reading"
+  when a reading aged out (`Countdown.unavailableLabel`), never "Unavailable" or a claim about
+  use this month. Copy two surfaces print lives in Core (`Countdown`, `ProviderSignInCopy`,
+  `WidgetStatusCopy`), never as view literals; `SettingsCopy` is only for strings two Mac
+  Settings panes print. Code comments cite `CA-<area>` and name any older anchor they replace.
 - Comments cite plan/decision anchors (e.g. `KTD7`, `R12`) as WHY notes — keep those; drop
   comments that just narrate WHAT the next line does.
 - Don't commit build artifacts (`.build/`, `Headroom.app/`) — already gitignored.
@@ -793,7 +831,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   - Every capture checks `num_turns` and every token count. A nonzero one, or a `SUCCESS` result
     with no `command`, is `unsupportedClient` and sticky: no routine poll spawns `agy` again until
     its resolved path or modification date changes, and a user request runs only `--version`
-    ("Headroom paused Antigravity reads after an agy change. Contact support", **Check Now**).
+    ("Headroom paused Antigravity reads after an agy change", **Contact Support**, **Check Now**).
   - A signed-out `agy` answers `/usage` by starting an interactive Google sign-in and waiting up
     to 60 s; the CLI documents no way to turn that off. On macOS it opens the page with `open
     <url>` looked up through `PATH`, so every probe puts the app-owned `AntigravityProbeNoBrowser`
@@ -856,6 +894,23 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   The popover footer's stamp turns into a
   per-account receipt during a user refresh (`refreshProgress`, Core `RefreshReceiptPresentation`, shared with the phone's check-now line). Both come
   from the scheduler's probe and user-progress callbacks (decisions S2 and W4).
+- **Menu-bar marks (Nov 2026, CA-MB1/CA-MB2, KTD7).** A pill can carry its provider's mark, 13pt
+  and 3pt before its vessel, in the bar's ink at 0.90 (`MenuBarLabelGeometry.markBoxSize`,
+  `MenuBarPalette.markInk`). It is drawn into the same one rasterized, non-template label image
+  as the vessel and numeral, measured in the same layout pass, with no new view and no new
+  clock, so it hard-cuts with the numeral on the same poll (M10A) and never moves while a pill
+  sloshes or prints. Monochrome on purpose: severity stays the only colour in the bar. The
+  automatic summary always shows the mark of the provider it follows, whatever the preference
+  says, because one unlabeled pill that changes meaning is the worst case. Settings › Menu Bar ›
+  "Show provider marks" (`Preferences.showMenuBarMarks`, nil until chosen) governs explicit
+  pills only; unset, it is on for two or more pills and off for one (`MenuBarMarksPolicy`). The
+  preference is Mac-only: `UsageStore.setShowMenuBarMarks` never calls
+  `exportPhoneSyncSnapshot()`, and no phone, widget or companion projection reads it. In the
+  popover, the account whose reading feeds a pill carries a small vessel glyph when its
+  provider has two or more accounts (CA-MB3; `MenuBarPillSource`, the display list's main
+  account), which overturns L5D's "the first account is the menu-bar account". Every provider
+  with artwork gets a mark (all seven); Codex is re-cut on 1× bars (`openCodexPrompt`), and the
+  real menu bar look is still unaccepted (`BUGS.md`).
 - **Check-now (Oct 2026, iPhone parity U6) joins one full refresh.** `refreshAll()` keeps one
   in-flight full-refresh task (`fullRefreshStartedAt`); every other caller — popover, launch, a
   phone request — awaits it, and `lastFullRefreshCompletedAt` starts a 60 s cooldown. A phone
@@ -879,7 +934,7 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   write it only when absent and the Mac never does; never write a remembered value from memory or
   the sidecar, or a marker could carry one account's scope into another's store.
 - **Feedback is an email the user sends, never a request Headroom makes (Nov 2026).**
-  Settings › About › Send Feedback on the Mac (`FeedbackMail`; the row reads "Email ↗" like the
+  Settings › General › About › Send feedback on the Mac (`FeedbackMail`; the row reads "Email ↗" like the
   other About links, and copies the email when no mail app opens) and the iPhone About row
   open a pre-filled `mailto:` to `support@zantos.co`, which Google
   Workspace forwards into Linear's email intake. Core `FeedbackEmail` builds every email from

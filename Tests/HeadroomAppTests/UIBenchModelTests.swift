@@ -41,6 +41,20 @@ struct UIBenchModelTests {
         }
     }
 
+    /// CA-M4: the bench poses a meter style the way `--render-popover` does, so Segmented
+    /// travel can be measured; a malformed token is an error, not a silent default.
+    @Test func parsesTheMeterStyle() throws {
+        #expect(try parse("popover --scenario multi5 --meter-style full.segmented.event").meterStyle
+            == MeterStyle(format: .full, shape: .segmented, fill: .colorAsEvent))
+        #expect(try parse("counts").meterStyle == nil)
+        #expect(throws: UIBenchOptions.ParseError.invalidMeterStyle("full.segmented")) {
+            try parse("popover --meter-style full.segmented")
+        }
+        #expect(throws: UIBenchOptions.ParseError.missingValue(flag: "--meter-style")) {
+            try parse("popover --meter-style --runs 2")
+        }
+    }
+
     @Test func sectionDefaultsMatchWhatEachMeasures() throws {
         let popover = try parse("popover")
         #expect(popover.resolvedScenario == .multi5)

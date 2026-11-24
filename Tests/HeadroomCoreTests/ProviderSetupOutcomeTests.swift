@@ -110,9 +110,13 @@ import Testing
     @Test func claudeWorkspaceApprovalIsNotTheSignInAction() {
         let approval = ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation
         #expect(approval.primaryAction == .openClaudeWorkspace)
-        #expect(approval.primaryLabel == "Open Claude Workspace")
+        // CA-P9: renamed label only; the trust launch and the sign-in script stay distinct.
+        #expect(approval.primaryLabel == "Open Claude in Terminal")
         #expect(ProviderSetupOutcome.claudeLoginRequired.recoveryPresentation.primaryAction
             == .openClaudeSetup)
+        #expect(approval.primaryAction != ProviderSetupOutcome.claudeLoginRequired.recoveryPresentation.primaryAction)
+        #expect(ProviderSetupOutcome.cursorTrustRequired.recoveryPresentation.primaryLabel == "Open Cursor in Terminal")
+        #expect(ProviderSetupOutcome.cursorTrustRequired.recoveryPresentation.primaryAction == .openCursorWorkspace)
     }
 
     @Test func onlyTransientSetupOutcomesAreRetryableWithoutUserAction() {
@@ -165,7 +169,8 @@ import Testing
             (.opencodeSignedOut, "Sign in with the official OpenCode CLI", "Sign In", "Check Now"),
             (.opencodeConsoleSignInRequired, "Sign in to OpenCode Console to see Go usage", "Sign In", "Check Now"),
             (.opencodeSignInExpired, "Sign in again with the official OpenCode CLI", "Sign In Again", "Check Now"),
-            (.opencodeTransientCapture, "Couldn’t read OpenCode usage\u{00A0}—\u{00A0}will retry", "Check Now", nil),
+            (.opencodeTransientCapture,
+             "Couldn’t read OpenCode usage. Headroom tries again on its next check.", "Check Now", nil),
             (.opencodeFormatChanged,
              "Headroom can’t read OpenCode usage after an OpenCode change. Contact support",
              "Contact Support", "Check Now"),
@@ -260,7 +265,7 @@ import Testing
     /// "needs sign-in" for the same click depending on which surface rendered it, so people
     /// had to work out whether the buttons did different things.
     @Test func signingInIsNamedOneWayInEverySentenceAndButton() {
-        #expect(ProviderSetupOutcome.claudeLoginRequired.message == "Sign in with the official Claude CLI")
+        #expect(ProviderSetupOutcome.claudeLoginRequired.message == "Sign in with the official Claude Code")
         #expect(ProviderSetupOutcome.codexAuthAbsent.message == "Sign in with the official Codex CLI")
         #expect(ProviderSetupOutcome.grokAuthAbsent.message == "Sign in with the official Grok Build CLI")
         #expect(ProviderSetupOutcome.cursorAuthAbsent.message == "Sign in with the official Cursor Agent CLI")
@@ -306,11 +311,11 @@ import Testing
     /// to show usage" sat directly above **Install Claude Code** on four providers at once.
     @Test func capabilityCopyStatesTheCauseInsteadOfRestatingItsButton() {
         let absent = ProviderCapabilityState.confirmedAbsent.recoveryPresentation
-        #expect(absent?.status == "Headroom can’t find the Claude Code CLI on this Mac")
+        #expect(absent?.status == "Headroom can’t find Claude Code on this Mac")
         #expect(absent?.primaryLabel == "Install Claude Code")
         #expect(absent?.status.localizedCaseInsensitiveContains("install") == false)
 
-        #expect(ProviderSetupOutcome.claudeCLIMissing.message == "Headroom can’t find the Claude Code CLI on this Mac")
+        #expect(ProviderSetupOutcome.claudeCLIMissing.message == "Headroom can’t find Claude Code on this Mac")
         #expect(ProviderSetupOutcome.codexCLIMissing.message == "Codex CLI isn’t installed on this Mac")
         #expect(ProviderSetupOutcome.grokCLIMissing.message == "Grok Build CLI isn’t installed on this Mac")
         #expect(ProviderSetupOutcome.cursorCLIMissing.message == "Cursor Agent CLI isn’t installed on this Mac")
@@ -325,7 +330,7 @@ import Testing
     /// above them, or the reader is left to decide which half to believe.
     @Test func retainedReadingChangesOnlyTheCapabilitySentence() {
         let retained = ProviderCapabilityState.confirmedAbsent.recoveryPresentation(hasRetainedReading: true)
-        #expect(retained?.status == "Headroom can’t find the Claude Code CLI\u{00A0}—\u{00A0}showing the last reading")
+        #expect(retained?.status == "Headroom can’t find Claude Code. Showing the last reading.")
         #expect(retained?.primaryAction == .installClaudeCLI)
         #expect(retained?.secondaryAction == .checkNow)
         #expect(retained?.status != ProviderCapabilityState.confirmedAbsent.recoveryPresentation?.status)
@@ -516,7 +521,7 @@ import Testing
         #expect(waiting == .waitingForUser(.startupQuestion))
         #expect(waiting?.copy.title == "Waiting for Claude Code…")
         #expect(waiting?.copy.body
-            == "Answer Claude Code’s question in Terminal. Headroom continues as soon as Claude Code is ready.")
+            == "Answer Claude Code’s question in Terminal. Your usage shows up here when you’re done.")
         #expect(waiting?.copy.token == nil)
 
         let finished = SetupWaitingPhase.resolve(
@@ -628,6 +633,180 @@ import Testing
         #expect(!ProviderSetupOutcome.claudeCLIMissing.isNeverSignedIn)
         #expect(!ProviderSetupOutcome.codexRejectedAuth.isNeverSignedIn)
     }
+
+    /// CA-P5 (option A): the three rows Kyle approved read as one line each, with the full
+    /// sentence and label in the tooltip.
+    @Test func theApprovedRecoveryRowsEndWithTheirShortAction() {
+        let claude = ProviderSetupOutcome.claudeCLIMissing.recoveryPresentation
+        #expect(claude.shortStatus == "Claude Code not found")
+        #expect(claude.primaryShortLabel == "Install")
+        #expect(claude.appendsShortAction)
+        #expect(claude.rowHelp == "Headroom can’t find Claude Code on this Mac. Install Claude Code.")
+
+        let unreadable = ProviderSetupOutcome.codexCredentialIO.recoveryPresentation
+        #expect(unreadable.shortStatus == "Can’t read Codex sign-in")
+        #expect(unreadable.primaryShortLabel == "Check Now")
+        #expect(unreadable.appendsShortAction)
+
+        let blocked = ProviderSetupOutcome.codexPermissionDenied.recoveryPresentation
+        #expect(blocked.shortStatus == "Codex sign-in blocked")
+        #expect(blocked.primaryShortLabel == "Get Help")
+        #expect(blocked.rowHelp == "Allow Headroom to read the Codex sign-in file. Privacy & Security Help.")
+
+        // Antigravity's sentences state the cause only, so the tooltip names the action once.
+        #expect(ProviderSetupOutcome.antigravityUnsupportedClient.recoveryPresentation.rowHelp
+            == "Headroom paused Antigravity reads after an agy change. Contact Support.")
+        #expect(ProviderSetupOutcome.antigravityFormatChanged.recoveryPresentation.rowHelp
+            == "Headroom can’t read Antigravity usage after an agy change. Contact Support.")
+    }
+
+    /// CA-P5: the capability card builds its presentation outside the outcome table and
+    /// still shortens the same way, because the short forms key on the action.
+    @Test func theCapabilityCardShortensLikeTheOutcome() {
+        let absent = ProviderCapabilityState.confirmedAbsent.recoveryPresentation
+        #expect(absent?.shortStatus == "Claude Code not found")
+        #expect(absent?.primaryShortLabel == "Install")
+        let retained = ProviderCapabilityState.confirmedAbsent.recoveryPresentation(hasRetainedReading: true)
+        #expect(retained?.shortStatus == "Claude Code not found")
+        // CA-P5: its own short form, so "Couldn’t confirm where Claude Code is" no longer wraps.
+        let inconclusive = ProviderCapabilityState.inconclusive(.shellTimeout).recoveryPresentation
+        #expect(inconclusive?.shortStatus == "Can’t find Claude Code")
+        #expect(inconclusive?.primaryShortLabel == "Check Now")
+    }
+
+    /// CA-P5: a sentence that already names its action appends nothing, so a sign-in row
+    /// reads "Sign in with Claude Code" with the verb accented, as before.
+    @Test func aSentenceThatNamesItsActionAppendsNothing() {
+        for outcome in [ProviderSetupOutcome.claudeLoginRequired, .codexAuthAbsent, .grokAuthAbsent,
+                        .cursorAuthAbsent, .copilotSignedOut, .opencodeSignedOut,
+                        .codexRejectedAuth, .grokRejectedAuth, .opencodeSignInExpired,
+                        .codexMalformedAuth, .codexUnsafePermissions, .grokMalformedAuth, .grokUnsafePermissions,
+                        .cursorMCPApprovalRequired, .claudeTrustRequired, .cursorTrustRequired,
+                        .claudeStartupQuestion, .codexCallbackIncomplete, .opencodeConsoleSignInRequired,
+                        .antigravitySignedOut] {
+            #expect(!outcome.recoveryPresentation.appendsShortAction, "\(outcome)")
+        }
+        #expect(ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation.shortStatus == "Approve Headroom’s folder")
+        #expect(ProviderSetupOutcome.codexMalformedAuth.recoveryPresentation.shortStatus
+            == "Sign in again with Codex CLI")
+        #expect(ProviderSetupOutcome.claudeLoginRequired.recoveryPresentation.shortStatus == "Sign in with Claude Code")
+        #expect(ProviderSetupOutcome.codexRejectedAuth.recoveryPresentation.shortStatus
+            == "Sign in again with Codex CLI")
+    }
+
+    /// CA-P5, provider parity: every provider's missing CLI and transient read shorten the
+    /// same way, and every short action is a real, short label.
+    @Test func everyProviderShortensItsRecoveryRow() {
+        let missing: [(ProviderSetupOutcome, String)] = [
+            (.claudeCLIMissing, "Claude Code not found"), (.codexCLIMissing, "Codex CLI not found"),
+            (.grokCLIMissing, "Grok Build CLI not found"), (.cursorCLIMissing, "Cursor Agent CLI not found"),
+            (.copilotCLIMissing, "GitHub Copilot CLI not found"), (.opencodeCLIMissing, "OpenCode CLI not found"),
+            (.antigravityCLIMissing, "Antigravity CLI not found"),
+        ]
+        for (outcome, short) in missing {
+            #expect(outcome.recoveryPresentation.shortStatus == short, "\(outcome)")
+            #expect(outcome.recoveryPresentation.primaryShortLabel == "Install", "\(outcome)")
+        }
+        let transient: [(ProviderSetupOutcome, String)] = [
+            (.claudeTransientCapture, "Couldn’t read Claude"), (.grokTransientCapture, "Couldn’t read Grok"),
+            (.cursorTransientCapture, "Couldn’t read Cursor"), (.copilotLogsUnreadable, "Couldn’t read Copilot logs"),
+            (.opencodeTransientCapture, "Couldn’t read OpenCode"), (.codexSessionUnverified, "Can’t verify Codex"),
+            (.antigravityTransientCapture, "Couldn’t read Antigravity"),
+        ]
+        for (outcome, short) in transient {
+            #expect(outcome.recoveryPresentation.shortStatus == short, "\(outcome)")
+            #expect(outcome.recoveryPresentation.primaryShortLabel == "Check Now", "\(outcome)")
+        }
+        #expect(ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation.primaryShortLabel == "Approve")
+        #expect(ProviderSetupOutcome.cursorTrustRequired.recoveryPresentation.primaryShortLabel == "Approve")
+        #expect(ProviderSetupOutcome.opencodeFormatChanged.recoveryPresentation.primaryShortLabel == "Report")
+        #expect(ProviderSetupOutcome.claudeStartupQuestion.recoveryPresentation.primaryShortLabel == "Answer")
+        #expect(ProviderSetupOutcome.codexStorageMismatch.recoveryPresentation.primaryShortLabel == "Resolve")
+        #expect(ProviderSetupOutcome.codexCallbackIncomplete.recoveryPresentation.primaryShortLabel == "Reopen")
+        #expect(ProviderSetupOutcome.grokPermissionDenied.recoveryPresentation.primaryShortLabel == "Get Help")
+        #expect(ProviderSetupOutcome.opencodeUpdateRequired.recoveryPresentation.primaryShortLabel == "Learn More")
+        // Antigravity's install and update share one action; the update row keeps its verb.
+        #expect(ProviderSetupOutcome.antigravityUpdateRequired.recoveryPresentation.shortStatus == "Needs agy 1.5.9")
+        #expect(ProviderSetupOutcome.antigravityUpdateRequired.recoveryPresentation.primaryShortLabel == "Update")
+        #expect(ProviderSetupOutcome.antigravityUnsupportedClient.recoveryPresentation.shortStatus
+            == "Antigravity reads paused")
+        #expect(ProviderSetupOutcome.antigravityUnsupportedClient.recoveryPresentation.primaryShortLabel == "Report")
+        #expect(ProviderSetupOutcome.antigravityFormatChanged.recoveryPresentation.shortStatus == "Can’t read Antigravity")
+        #expect(ProviderSetupOutcome.antigravityFormatChanged.recoveryPresentation.primaryShortLabel == "Report")
+        for outcome in allSetupOutcomes {
+            let presentation = outcome.recoveryPresentation
+            #expect(!presentation.primaryShortLabel.isEmpty, "\(outcome)")
+            #expect(presentation.primaryShortLabel.count <= presentation.primaryLabel.count, "\(outcome)")
+            // One line at the popover's 11.5pt row: the sentence plus " · " and the action.
+            let line = presentation.appendsShortAction
+                ? "\(presentation.shortStatus) · \(presentation.primaryShortLabel)" : presentation.shortStatus
+            #expect(line.count <= 44, "\(outcome): \(line)")
+        }
+    }
+
+    /// CA-P9: no setup string carries the retired "reconnect", the doubled "in in" typo or
+    /// an em dash; the short forms are held to the same rules.
+    @Test func noSetupStringReconnectsDoublesInOrUsesAnEmDash() {
+        let strings = allPresentationStrings + allWaitingPhaseStrings + allSetupCardStrings
+            + allSetupOutcomes.flatMap { outcome -> [String] in
+                let presentation = outcome.recoveryPresentation
+                return [presentation.shortStatus, presentation.primaryShortLabel, presentation.rowHelp]
+            }
+        // The capability card's sentences are held to the same rules (its inconclusive sentence
+        // lost its dash in CA-P9).
+        let capability = [ProviderCapabilityState.inconclusive(.shellTimeout), .confirmedAbsent]
+            .compactMap(\.recoveryPresentation).flatMap { [$0.status, $0.shortStatus, $0.rowHelp] }
+        for text in strings + capability {
+            #expect(!text.localizedCaseInsensitiveContains("reconnect"), "\(text)")
+            #expect(!text.localizedCaseInsensitiveContains(" in in "), "\(text)")
+            #expect(!text.contains("\u{2014}"), "\(text) has an em dash")
+            #expect(!text.contains("'"), "\(text) carries a straight apostrophe")
+        }
+    }
+
+    /// CA-P9 (COPY-05): one name for the program the user installed.
+    @Test func claudeIsCalledClaudeCodeEverywhere() {
+        #expect(ProviderSignInCopy.cliName(for: .claude) == "Claude Code")
+        #expect(ProviderSignInCopy.cliProductName(for: .claude) == "Claude Code")
+        #expect(ProviderSetupOutcome.claudeTrustRequired.message == "Approve Headroom’s folder in\u{00A0}Claude\u{00A0}Code")
+        #expect(ProviderSetupOutcome.cursorTrustRequired.message == "Approve Headroom’s folder in\u{00A0}Cursor\u{00A0}Agent")
+        for text in allPresentationStrings + allSetupCardStrings {
+            #expect(!text.contains("Claude CLI"), "\(text)")
+            #expect(!text.contains("Claude Code CLI"), "\(text)")
+            #expect(!text.localizedCaseInsensitiveContains("workspace") || text.contains("Go plan"), "\(text)")
+        }
+    }
+
+    /// CA-P9 (COPY-03, COPY-04): the setup cards' strings, verbatim from the approved table.
+    @Test func theSetupCardCopyMatchesTheApprovedTable() {
+        #expect(ProviderSignInCopy.comeBackStep == "Come back. Your usage shows up here.")
+        #expect(ProviderSignInCopy.codexDeviceCodeWaitingBody
+            == "Follow the device-code steps in Terminal. Your usage shows up here when Codex confirms.")
+        #expect(ProviderSignInCopy.codexBrowserWaitingBody
+            == "Finish the ChatGPT sign-in in your browser. Your usage shows up here when Codex confirms.")
+        #expect(ProviderSignInCopy.codexSignedOutBody == "Codex signed you out. Sign in again to keep your usage current.")
+        #expect(ProviderSignInCopy.privacyNote(for: .claude)
+            == "Headroom reads the usage report from Claude Code. It never sees your password or tokens, and checking doesn’t count against your limits.")
+        #expect(ProviderSignInCopy.privacyNote(for: .codex)
+            == "You sign in with the official Codex CLI in your browser. Headroom never sees your password.")
+        #expect(ProviderSignInCopy.accountsTrustFooter
+            == "Each account signs in with its provider’s own CLI in Terminal. Headroom never sees your password.")
+        #expect(ProviderSignInCopy.defaultLoginHelp(for: .claude) == "The account Claude Code in Terminal is signed in to")
+        #expect(SetupWaitingPhase.waitingForUser(.signIn).copy.body
+            == "Finish signing in with your browser. Your usage shows up here when you’re done.")
+    }
+}
+
+/// CA-P9: the setup cards' Core-owned strings.
+private var allSetupCardStrings: [String] {
+    [ProviderSignInCopy.comeBackStep, ProviderSignInCopy.codexDeviceCodeWaitingBody,
+     ProviderSignInCopy.codexBrowserWaitingBody, ProviderSignInCopy.codexSignedOutBody,
+     ProviderSignInCopy.accountsTrustFooter]
+        + [ProviderID.claude, .codex, .grok, .cursor, .copilot, .opencode, .antigravity].flatMap { provider in
+            [ProviderSignInCopy.privacyNote(for: provider), ProviderSignInCopy.defaultLoginHelp(for: provider),
+             ProviderSignInCopy.status(for: provider), ProviderSignInCopy.shortStatus(for: provider)]
+                .compactMap { $0 }
+        }
 }
 
 /// Every user-facing string the two presentation surfaces can produce, so a copy rule

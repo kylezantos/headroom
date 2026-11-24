@@ -49,12 +49,12 @@ struct HeadroomWidgetLockScreenNestedBadge: View {
                 Spacer().frame(height: 2)
                 HeadroomWidgetLockScreenNumeral(slot.primary, size: slot.primary.numberText == "100%" ? 17 : LockScreenWidgetTokens.nestedNumeral)
                 if hasNoReading {
-                    HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
+                    HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 8.5)
                         .padding(.top, 3)
                 } else if isDemo {
                     Spacer().frame(height: 4)
                     HeadroomWidgetLockScreenNestedBars(LockScreenProviderSlot.parentOnly(slot))
-                    HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
+                    HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 8.5)
                         .padding(.top, 2)
                 } else {
                     Spacer().frame(height: 3)
@@ -78,7 +78,7 @@ struct HeadroomWidgetLockScreenVesselBadge: View {
             VStack(spacing: 0) {
                 HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.badgeMark, art: art)
                 HeadroomWidgetLockScreenHero(recipe: slot.primary, numeralSize: slot.primary.numberText == "100%" ? 14 : LockScreenWidgetTokens.vesselNumeral)
-                HeadroomWidgetLockScreenCaption(slot.primary, compact: true)
+                HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary)
                     .frame(maxWidth: 38)
             }
             .padding(.bottom, 4)
@@ -97,7 +97,7 @@ struct HeadroomWidgetLockScreenTightestGauge: View {
             art.accessoryBackground()
             HeadroomWidgetLockScreenArc(slot.primary)
             VStack(spacing: 2) {
-                HeadroomWidgetLockScreenCaption(slot.primary, compact: true, size: 8.5)
+                HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary, size: 8.5)
                     .frame(maxWidth: 36)
                 HeadroomWidgetLockScreenNumeral(slot.primary, size: LockScreenWidgetTokens.tightestNumeral)
             }
@@ -130,7 +130,7 @@ struct HeadroomWidgetLockScreenLiquidDial: View {
             VStack(spacing: 0) {
                 HeadroomWidgetLockScreenSlotMark(slot: slot, size: LockScreenWidgetTokens.liquidMark, art: art)
                 HeadroomWidgetLockScreenNumeral(slot.primary, size: numeralSize)
-                HeadroomWidgetLockScreenCaption(slot.primary, compact: true)
+                HeadroomWidgetLockScreenFittingCaption(recipe: slot.primary)
                     .frame(maxWidth: 38)
             }
             // The lower chord narrows faster than the top mark; lift the stack slightly.

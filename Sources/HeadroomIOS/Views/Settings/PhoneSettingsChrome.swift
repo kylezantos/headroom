@@ -30,8 +30,9 @@ enum PhoneSettingsStyle {
     /// The mock's `--toggle-neutral`: a switch's on-state is grey label ink, not blue (U9-A).
     /// U8: the named, contrast-tested Core value (`HeadroomControlColorValues.switchOn`).
     static func switchTint() -> Color { PhoneControlStyle.switchOn }
-    /// Controls that Match my Mac governs read as present but not choosable while it is on.
-    static let governedOpacity: Double = 0.38
+    /// CA-I8 (IOS-08): one well height for the theme, percentage and name pickers. The
+    /// five-up meter grid keeps `wellHeight` (42), which is what fits five columns.
+    static let pickerWellHeight: CGFloat = 48
 }
 
 /// `MeterStyleTile`'s chrome on the phone: native list captions and help, a neutral ring for
@@ -50,8 +51,11 @@ struct PhoneMeterStyleChrome: MeterStyleTileChrome {
             labelFont: PhoneSettingsStyle.swatchLabelFont,
             twoLineLabelHeight: PhoneSettingsStyle.twoLineLabelHeight,
             labelMinimumScaleFactor: 1,
-            // The Mac's fragment, whole: it is the subject of the swatch.
-            fragmentWidth: 60
+            // CA-I8 fix pass: the Mac's 3pt inset from the well (its 66pt well holds a 60pt
+            // fragment). At 60 here the fragment ran 1pt from the 62pt well's edge, so the
+            // selected 2pt ring cut "Weekly". The phone has no swatch padding: the well is
+            // the swatch.
+            fragmentWidth: PhoneSettingsStyle.swatchWidth - 2 * 3
         )
     }
 
@@ -81,8 +85,8 @@ struct PhoneMeterStyleChrome: MeterStyleTileChrome {
     func container() -> EmptyModifier { EmptyModifier() }
 }
 
-/// A selected swatch carries a 2pt neutral ring around its well and a heavier name; an
-/// unselected one a 1pt hairline. The ring sits on the well's own radius, so the shared tile
+/// A selected swatch carries a 2pt neutral ring around its well and primary ink on its name;
+/// an unselected one a 1pt hairline and secondary ink. The ring sits on the well's own radius, so the shared tile
 /// and the theme, percentage and name swatches all read as one picker family (PB13).
 struct PhoneSwatchSelection: ViewModifier {
     let isSelected: Bool
@@ -104,7 +108,9 @@ struct PhoneSwatchSelection: ViewModifier {
                         .frame(height: min(proxy.size.height, wellHeight))
                 }
             }
-            .fontWeight(isSelected ? .semibold : .medium)
+            // CA-I8 / F1 (MOT-08): the name keeps one weight in both states, so it never
+            // reflows during the ring's crossfade; ink and ring carry the selection.
+            .fontWeight(.medium)
             .foregroundStyle(isSelected ? Color.primary : Color.secondary)
             .contentShape(Rectangle())
             .animation(
@@ -156,7 +162,7 @@ struct PhoneSwatchPicker<Value: Hashable, Sample: View>: View {
     let title: (Value) -> String
     let accessibilityName: String
     var wellWidth: CGFloat? = nil
-    var wellHeight: CGFloat = 48
+    var wellHeight: CGFloat = PhoneSettingsStyle.pickerWellHeight
     let onSelect: (Value) -> Void
     @ViewBuilder let sample: (Value) -> Sample
 

@@ -213,6 +213,19 @@ struct PhoneExportTriggerTests {
         #expect(accounts(phone.last, "antigravity").first?.windows.map(\.kindName) == all)
     }
 
+    /// CA-MB1 (KTD7): the menu-bar marks preference is Mac-only, so choosing it never marks
+    /// the phone path dirty, whichever way it is set.
+    @Test func theMenuBarMarksPreferenceNeverReachesThePhone() async throws {
+        let (f, _) = fixture()
+        await f.store.refreshAll()
+        let before = f.phone.captures.count
+        f.store.setShowMenuBarMarks(true)
+        f.store.setShowMenuBarMarks(false)
+        f.store.setShowMenuBarMarks(true)
+        #expect(f.phone.captures.count == before)
+        #expect(f.preferences.showMenuBarMarks == true)
+    }
+
     /// KTD9 amended (Nov 2026): "Use email as account name" changes the phone's titles, so
     /// toggling it exports, and the changed titles are a structural change that forces the
     /// publisher's immediate flush (KTD8). A newly captured email reaches the phone the same

@@ -131,7 +131,7 @@ struct MirrorPresentationTests {
         let empty = account(
             "a", freshness: .stale(message: "x", needsAttention: false), attention: .retrying, windows: [])
         #expect(CompanionCardPresentation.body(for: empty, title: "Work")
-            == .attention("Couldn’t read usage\u{00A0}—\u{00A0}your Mac will retry", keepsMeters: false))
+            == .attention("Couldn’t read usage. Your Mac will try again.", keepsMeters: false))
     }
 
     @Test func pendingAccountsWaitForTheFirstReadingThenForTheMac() {

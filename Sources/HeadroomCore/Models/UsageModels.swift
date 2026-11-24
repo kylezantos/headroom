@@ -337,6 +337,14 @@ public struct UsageWindow: Sendable, Equatable {
     public var severity: UsageSeverity { UsageSeverity(percentRemaining: percentRemaining) }
 
     public func withFreshness(_ freshness: UsageWindowFreshness) -> UsageWindow {
+        withFreshness(freshness, observedAt: nil)
+    }
+
+    /// CA-P4 review fix: an aging path that resolved this window's observation anchor (its
+    /// own, else the capture that held it) passes it here, so a window that once held a
+    /// number keeps one after it turns unavailable and reads "No current reading". A live
+    /// window carries no anchor of its own; the window's own anchor always wins.
+    public func withFreshness(_ freshness: UsageWindowFreshness, observedAt anchor: Date?) -> UsageWindow {
         UsageWindow(
             kind: kind,
             utilization: utilization,
@@ -344,7 +352,7 @@ public struct UsageWindow: Sendable, Equatable {
             resetLabel: resetLabel,
             resetTimeZoneIdentifier: resetTimeZoneIdentifier,
             freshness: freshness,
-            observedAt: observedAt,
+            observedAt: observedAt ?? anchor,
             isLimited: isLimited
         )
     }

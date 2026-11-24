@@ -29,14 +29,15 @@ struct PopoverView: View {
     /// DialKit only: the pinned tuning copy has no MenuBarExtra host, so it keeps the shell.
     var isPinnedTuningCopy: Bool = false
     /// SQ1: set by the `MenuBarExtra` scene only, so harness windows (which pad and size the
-    /// popover themselves) are never refitted. Acts only where `PopoverWindowHeightFitter` is
-    /// enabled: before macOS 26.
+    /// popover themselves) are never refitted. `PopoverWindowHeightFitter` fits both ways before
+    /// macOS 26 and only shrinks on 26 (GF1).
     var fitsMenuBarWindowHeight: Bool = false
     /// Hosted sizing tests supply a fixed screen height.
     var visibleScreenHeightOverride: CGFloat? = nil
 
     @State private var popoverWindow: NSWindow?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.loadingDate) private var pinnedDate
     /// L2A: live scroll geometry for the bottom feather and the bespoke gutter indicator.
     /// SC1 (2026-10-03 perf bench): held in a model that only those two child views read.
@@ -58,11 +59,14 @@ struct PopoverView: View {
     /// open. The popover's own `TimelineView` ticks per minute, which is right for "Updated
     /// N min ago" and useless for "Waiting 45s".
     @State private var waitingClockNow: Date = .now
-    /// SQ1: fits the window's height on macOS 15; inert on 26.
+    /// SQ1: fits the window's height on macOS 15; GF1: only shrinks it on 26.
     @State private var heightFitter = PopoverWindowHeightFitter()
 
-    private static let titleFont = NSFont.systemFont(ofSize: 20, weight: .bold)
-    private static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+    /// CA-P12 (POP-13): 17 semibold, down from 20 bold. The heaviest glyphs in the popover
+    /// belonged to a word the user already knows, tying the title with the 18pt numerals; the
+    /// figures lead now. The cap-centre maths below reads this font, so it follows.
+    static let titleFont = NSFont.systemFont(ofSize: 17, weight: .semibold)
+    static let statusFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
 
     var body: some View {
         let _ = BenchCounters.hit("PopoverView")
@@ -139,6 +143,11 @@ struct PopoverView: View {
                 for: columnSlots, allowsHorizontalExpansion: store.expandAccountsHorizontally
             )
             let fragments = PopoverCardFragment.fragments(slots: columnSlots, plan: columnPlan)
+            // CA-MB3: read once per pass; every card asks it which row feeds a pill.
+            let menuBarSourceKeys = MenuBarPillSource.sourceKeys(
+                meters: store.menuBarMeters,
+                displayPrimaryKey: { store.displayPrimaryKey(for: $0) }
+            )
             // "Scroll vertically" has no second column to spill into, so the list grows to the
             // screen before it scrolls instead of stopping at the two-column cap.
             let cardsCap = store.expandAccountsHorizontally
@@ -191,8 +200,16 @@ struct PopoverView: View {
                                         providerID: id,
                                         entries: entriesByProvider[id] ?? [],
                                         anyProviderMultiAccount: anyProviderMultiAccount,
+                                        menuBarSourceKeys: menuBarSourceKeys,
                                         now: now
                                     )
+                                    // CA-P8: where each card sits in the stack, so the header
+                                    // knows when a setup card has scrolled out of view.
+                                    .onGeometryChange(for: CGRect.self) {
+                                        $0.frame(in: .named(PopoverScrollModel.cardsSpace))
+                                    } action: { [scroll] frame in
+                                        scroll.recordCardFrame(frame, fragmentID: fragment.id, providerID: id)
+                                    }
                                 } else {
                                     APISpendSectionView(store: store, now: now, onOpenSettings: openSettingsDismissingPopover)
                                         // The planner counts content inside the card's 13pt padding.
@@ -201,7 +218,9 @@ struct PopoverView: View {
                                         }
                                         // S5A: the spend tile is a sibling card, so it arrives and
                                         // leaves the same way the provider cards above it do.
-                                        .transition(.settingsReveal)
+                                        // CA-F1 (MOT-10): the reveal's Reduce Motion form, so the
+                                        // card fades in under Reduce Motion instead of cutting.
+                                        .transition(.settingsReveal(reduceMotion: reduceMotion))
                                 }
                             }
                             .layoutValue(key: PopoverColumn.self, value: fragment.column)
@@ -210,6 +229,10 @@ struct PopoverView: View {
                         }
                     }
                     .accessibilityElement(children: .contain)
+                    .coordinateSpace(.named(PopoverScrollModel.cardsSpace))
+                    .onChange(of: fragments.map(\.id)) { _, ids in
+                        scroll.pruneCardFrames(keeping: Set(ids))
+                    }
                     // M7A: the popover had no reorder animation at all, so a Make Main
                     // promotion teleported its card to the top. The stack's own layout change
                     // rides this scope. The measured `cardsHeight` below reports the final
@@ -304,7 +327,7 @@ struct PopoverView: View {
                 if let popoverWindow { planVerticalCardsHeight(under: popoverWindow) }
                 fitPopoverWindow(columns: columns.drawnPlan(for: columnSlots).columnCount)
             }
-            // SQ1: each open refits the reused window to the last ideal height (macOS 15 only).
+            // SQ1 / GF1: each open refits the reused window to the last ideal height.
             .onAppear { if fitsMenuBarWindowHeight { heightFitter.scheduleFit() } }
             // One clean system surface: Liquid Glass on Tahoe, native material on Sequoia.
             // Both paths own their full background so no redundant material muddies the host.
@@ -332,6 +355,7 @@ struct PopoverView: View {
         providerID id: ProviderID,
         entries: [ProviderAccountEntry],
         anyProviderMultiAccount: Bool,
+        menuBarSourceKeys: Set<AccountKey>,
         now: Date
     ) -> some View {
         // M5A follow-up: the popover dissolves old recipe → new recipe instead of
@@ -372,6 +396,14 @@ struct PopoverView: View {
                 accountLayout: store.accountLayout,
                 useEmailAsAccountName: store.useEmailAsAccountName,
                 showsCodexSparkCounters: store.showCodexSparkCountersInApp,
+                menuBarSourceKeys: menuBarSourceKeys,
+                // CA-P14: Stop Waiting on a never-signed-in extra can remove the account it
+                // made. The card offers it only where `UsageStore.stopWaitingRemovesAccount`
+                // holds; the removal is the one Settings runs.
+                onRemoveAccount: { account in
+                    Task { await AccountsSettingsInteractions.stopWaitingAndRemove(account, from: store) }
+                },
+                hasReadingOnRecord: { store.hasReadingOnRecord($0) },
                 showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows
             )
             .id(meterRecipeKey)
@@ -390,7 +422,9 @@ struct PopoverView: View {
         // M7A: a card that arrives rises 4pt out of a slight blur, one
         // that leaves only fades — the Settings list's vocabulary, so
         // both surfaces describe the same account change the same way.
-        .transition(.settingsReveal)
+        // CA-F1 (MOT-10): under Reduce Motion the `reorder` scope resolves to nil, so the
+        // plain reveal hard-cut a new card in; its Reduce Motion form carries its own fade.
+        .transition(.settingsReveal(reduceMotion: reduceMotion))
     }
 
     /// KTD4 / R7: one card width, or exactly two plus the gap (384 / 750 at the shipped
@@ -529,8 +563,8 @@ struct PopoverView: View {
         return settings
     }
 
-    /// The page title now outweighs the 15pt card titles so hierarchy reads top-down, and
-    /// the right slot carries one contextual status: the consolidated "Updated" stamp, or
+    /// The page title sits above the 15pt card titles so hierarchy reads top-down (CA-P12
+    /// steps it back from the numerals), and the right slot carries one contextual status: the consolidated "Updated" stamp, or
     /// the setup stage a provider card is showing below it (PA10 —
     /// `PopoverHeaderStatusText`). The gear's visible glyph stays small but its hit area is
     /// padded out to the 40×40 floor.
@@ -544,7 +578,7 @@ struct PopoverView: View {
         // the title's cap centre above the baseline.
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("Usage")
-                .font(.system(size: 20, weight: .bold))
+                .font(.system(size: 17, weight: .semibold))
                 .kerning(-0.2)
                 // SQ1: the hosting test reads where the title landed. SwiftUI builds no
                 // accessibility tree without an assistive client, so an identifier can't be found.
@@ -573,6 +607,8 @@ struct PopoverView: View {
             // keyboard-initiated action must not animate is kept by KB1: since SW1 the click
             // path crossfades, and both halves check `isKeyboardInitiated` to stay instant.
             .keyboardShortcut(",", modifiers: .command)
+            // CA-F1 (UX-05): the bare gear's shortcut, said where the pointer rests.
+            .help(PopoverShortcutHelp.settings)
             .accessibilityLabel("Settings")
             .alignmentGuide(.firstTextBaseline) { d in
                 d[VerticalAlignment.center] + gearBaselineOffset
@@ -596,8 +632,27 @@ struct PopoverView: View {
     /// scope dissolves it. The ZStack keeps both copies in one slot mid-crossfade so the
     /// header doesn't relayout under them.
     private func headerStatusSlot(now: Date, baselineOffset: CGFloat) -> some View {
-        let status = PopoverHeaderStatusResolver.setup(statusInput(now: now))
-        return ZStack(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
+        HeaderSetupStatusSlot(
+            input: statusInput(now: now),
+            setupProviderID: headerSetupProviderID,
+            scroll: scroll
+        ) { status in
+            statusSlotContent(status)
+        }
+        .alignmentGuide(.firstTextBaseline) { d in
+            d[.firstTextBaseline] + baselineOffset
+        }
+    }
+
+    /// The provider whose setup card is the header's source, if any.
+    private var headerSetupProviderID: ProviderID? {
+        if claudeGuidedSetupOutcome != nil { return .claude }
+        if codexConnectionAction != nil { return .codex }
+        return nil
+    }
+
+    private func statusSlotContent(_ status: PopoverHeaderStatus?) -> some View {
+        ZStack(alignment: Alignment(horizontal: .trailing, vertical: .firstTextBaseline)) {
             if let status {
                 statusLine(status)
             }
@@ -608,16 +663,14 @@ struct PopoverView: View {
             HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
             value: status?.kind
         )
-        .alignmentGuide(.firstTextBaseline) { d in
-            d[.firstTextBaseline] + baselineOffset
-        }
     }
 
     /// One status line, shared by the header's setup slot and the footer's freshness stamp.
     private func statusLine(_ status: PopoverHeaderStatus) -> some View {
         Text(status.text)
             .font(.system(size: 11).monospacedDigit())
-            .foregroundStyle(.tertiary)
+            // CA-P6 (POP-03): the shell's own readable status ink, shared with the footer stamp.
+            .foregroundStyle(ProviderStyle.shellStatusInk(scheme: colorScheme))
             .lineLimit(1)
             // M2A: the minute tick was a hard cut. The stamp's value only grows, so
             // `numericText(value:)` rolls the digits upward — time's own direction.
@@ -637,13 +690,13 @@ struct PopoverView: View {
         OpticalCentering.capHeightCenter(of: font)
     }
 
-    /// Measured residual on a live 2× capture: with the pure cap-centre difference the 11pt
-    /// stamp's cap centre still sat 0.75pt below the title's (the raised baseline snaps to
-    /// the pixel grid). Re-measure if either font changes.
-    private static let statusBaselineResidual: CGFloat = 0.75
-
-    private static func baselineOffsetMatchingTitle(for font: NSFont) -> CGFloat {
-        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font) + statusBaselineResidual
+    /// How far the status's baseline rises so its cap centre meets the title's, from the two
+    /// fonts' cap heights alone. CA-P12 fix pass: the 0.75pt residual measured for the old
+    /// 20pt bold title is gone; with the 17pt semibold title it lifted the status 1pt above the
+    /// title's cap centre, and the pure difference lands them on one 2× pixel row
+    /// (`PopoverHeaderAlignmentTests`).
+    static func baselineOffsetMatchingTitle(for font: NSFont) -> CGFloat {
+        inkCenterAboveBaseline(titleFont) - inkCenterAboveBaseline(font)
     }
 
     private func headerStatusTransition(_ status: PopoverHeaderStatus) -> ContentTransition {
@@ -662,14 +715,17 @@ struct PopoverView: View {
             let account = ProviderAccount.builtIn(for: .claude)
             setupText = PopoverHeaderStatusText.claude(
                 outcome: outcome,
-                isWaiting: SetupSessions.isWaiting(for: account)
+                isWaiting: SetupSessions.isWaiting(for: account),
+                phase: SetupSessions.waitingPhase(for: account)
             )
             waitingElapsed = handoffElapsed(for: account, now: now)
         } else if let action = codexConnectionAction {
             let account = ProviderAccount.builtIn(for: .codex)
             setupText = PopoverHeaderStatusText.codex(
                 action: action,
-                isWaiting: SetupSessions.isWaiting(for: account)
+                isWaiting: SetupSessions.isWaiting(for: account),
+                mode: SetupSessions.mode(for: account),
+                phase: SetupSessions.waitingPhase(for: account)
             )
             waitingElapsed = handoffElapsed(for: account, now: now)
         }
@@ -791,6 +847,9 @@ private struct RefreshFooter: View {
                                                           title: { store.refreshReceiptTitle(for: $0) })
             HStack(spacing: 10) {
                 // PA11b: native bezel owns its appearance-safe chrome and cached label.
+                // CA-P6 (option A, revisits PA11b's footer size): Refresh and Quit stay a native
+                // pair but at the small size and 11.5 medium, so the two whole-app utilities
+                // stop out-shouting the data. Resting container kept; only size and weight move.
                 Button { store.refreshNow() } label: {
                     Text("Refresh").opacity(recipe.isEnabled ? 1 : 0)
                 }
@@ -815,53 +874,140 @@ private struct RefreshFooter: View {
                 // R2M8: ⌘R follows the work, never a click-specific animation. R5 keeps
                 // it enabled during setup-only checks; KTD9 disables through spend and hold.
                 .keyboardShortcut("r", modifiers: .command)
+                // CA-F1 (UX-05): the shortcut was invisible. The tooltip names the binding that
+                // already exists; no new key is bound.
+                .help(PopoverShortcutHelp.refresh)
                 .accessibilityLabel(recipe.isEnabled ? "Refresh" : "Refreshing usage")
                 ZStack(alignment: .leading) {
                     if let receipt {
-                        receiptLine(receipt).id(receipt).transition(receiptTransition)
+                        receiptLine(receipt)
+                            .transition(ReceiptRoll.transition(reduceMotion: reduceMotion))
                     } else {
                         Text(freshness.text)
                             .font(.system(size: 11).monospacedDigit())
-                            .foregroundStyle(.tertiary)
+                            // CA-P6 (POP-03): the stamp was system tertiary at ≈2.3:1, the
+                            // faintest text in the popover on the one line that says whether
+                            // the numbers can be trusted.
+                            .foregroundStyle(ProviderStyle.shellStatusInk(scheme: scheme))
                             .lineLimit(1)
                             .contentTransition(freshness.rollValue.map {
                                 HeadroomMotion.numericText(value: $0, reduceMotion: reduceMotion)
                             } ?? .identity)
                             .id(freshness.kind)
-                            .transition(receiptTransition)
+                            .transition(ReceiptRoll.transition(reduceMotion: reduceMotion))
                     }
                 }
                 .clipped()
                 .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
                             reduceMotion: reduceMotion), value: freshness.kind)
                 .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade,
-                            reduceMotion: reduceMotion), value: receipt)
+                            reduceMotion: reduceMotion), value: receipt == nil)
                 Spacer(minLength: 0)
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }
             .buttonStyle(.bordered)
-            .controlSize(.regular)
-            .buttonBorderShape(.roundedRectangle(radius: 7))
-            .font(.system(size: 12.5, weight: .semibold))
+            .controlSize(.small)
+            .buttonBorderShape(.roundedRectangle(radius: 6))
+            .font(.system(size: 11.5, weight: .medium))
         }
     }
 
-    private var receiptTransition: AnyTransition {
-        reduceMotion ? .opacity : .asymmetric(insertion: .move(edge: .bottom).combined(with: .opacity),
-                                              removal: .move(edge: .top).combined(with: .opacity))
-    }
-
+    /// CA-M1 (MOT-01, the approved W4 roll): the receipt is two slots, name and count, each
+    /// with its own identity. "2 of 3 → 3 of 3" on one account rolls only the count's digits;
+    /// the name slot moves only when the account changes. Each slot rolls 7pt out of a 1.5pt
+    /// blur on `settle` and leaves on `partOut` (KTD8: no new exit token), so receipts landing
+    /// inside one 200ms window never stack in the clip.
     private func receiptLine(_ line: RefreshReceiptPresentation.Line) -> some View {
         HStack(spacing: 5) {
-            if line.checked {
-                Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold)).foregroundStyle(.tertiary)
+            ZStack(alignment: .leading) {
+                HStack(spacing: 5) {
+                    if line.checked {
+                        Image(systemName: "checkmark").font(.system(size: 8.5, weight: .bold)).foregroundStyle(.tertiary)
+                    }
+                    Text(line.text).foregroundStyle(.secondary)
+                }
+                .id(ReceiptRoll.nameSlotID(line))
+                .transition(ReceiptRoll.transition(reduceMotion: reduceMotion))
             }
-            Text(line.text).foregroundStyle(.secondary)
-            if let count = line.count { Text(count).foregroundStyle(.tertiary).padding(.leading, 2) }
+            if let count = line.count {
+                Text(count)
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 2)
+                    .contentTransition(ReceiptRoll.countValue(count).map {
+                        HeadroomMotion.numericText(value: $0, reduceMotion: reduceMotion)
+                    } ?? .identity)
+                    .transition(ReceiptRoll.transition(reduceMotion: reduceMotion))
+            }
         }
         .font(.system(size: 11).monospacedDigit())
         .lineLimit(1)
+        .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+                   value: ReceiptRoll.nameSlotID(line))
+        .animation(HeadroomMotion.resolved(HeadroomMotion.settle, .movement, reduceMotion: reduceMotion),
+                   value: line.count)
     }
+
+    @Environment(\.colorScheme) private var scheme
+}
+
+/// CA-M1: the receipt roll's pure parts, so slot identity is testable without a render.
+enum ReceiptRoll {
+    /// The approved W4 travel (`dist = 7` in the round-4 mock), against `.move(edge:)`'s
+    /// full line height.
+    static let distance: CGFloat = 7
+
+    /// The name slot's identity: the checkmark state and the text. The count is deliberately
+    /// not part of it, so a count change leaves the name in place.
+    static func nameSlotID(_ line: RefreshReceiptPresentation.Line) -> String {
+        "\(line.checked ? "✓" : "…")\(line.text)"
+    }
+
+    /// The count's roll value: the completed count in "2 of 3".
+    static func countValue(_ count: String) -> Double? {
+        count.split(separator: " ").first.flatMap { Double($0) }
+    }
+
+    /// Enter: rise 7pt out of the reveal blur, on the slot's `settle` scope. Leave: rise 7pt
+    /// and fade on `partOut`, carried by the removal itself so a burst of receipts each gets
+    /// out of the way in five frames. Reduce Motion keeps the fades only (S2A).
+    static func transition(reduceMotion: Bool) -> AnyTransition {
+        guard !reduceMotion else {
+            return .asymmetric(insertion: .opacity, removal: .opacity.animation(exitAnimation))
+        }
+        return .asymmetric(
+            insertion: .modifier(
+                active: ReceiptRollModifier(offset: distance, blur: HeadroomMotion.revealBlur, opacity: 0),
+                identity: ReceiptRollModifier(offset: 0, blur: 0, opacity: 1)
+            ),
+            removal: .modifier(
+                active: ReceiptRollModifier(offset: -distance, blur: 0, opacity: 0),
+                identity: ReceiptRollModifier(offset: 0, blur: 0, opacity: 1)
+            ).animation(exitAnimation)
+        )
+    }
+
+    /// KTD8: the exit reuses the 80ms part exit rather than a new token.
+    static let exitAnimation = HeadroomMotion.partOut
+}
+
+private struct ReceiptRollModifier: ViewModifier {
+    let offset: CGFloat
+    let blur: CGFloat
+    let opacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .offset(y: offset)
+            .blur(radius: blur)
+            .opacity(opacity)
+    }
+}
+
+/// CA-F1 (UX-05): the popover's two keyboard shortcuts, surfaced as tooltips on the controls
+/// that own them. Both bindings already exist (R2M8).
+enum PopoverShortcutHelp {
+    static let settings = "Settings (⌘,)"
+    static let refresh = "Refresh (⌘R)"
 }
 
 /// PA10: the popover has one status slot, and it was writing its own copy for a card it
@@ -876,18 +1022,23 @@ private struct RefreshFooter: View {
 /// Lifted out of `PopoverView` on purpose: pure string mapping, so the table is testable
 /// without standing up a store, a snapshot and a popover.
 enum PopoverHeaderStatusText {
-    static func claude(outcome: ProviderSetupOutcome, isWaiting: Bool) -> String {
-        if isWaiting {
-            return outcome == .claudeLoginRequired
-                ? "Waiting for Claude sign-in…"
-                : "Waiting for approval…"
-        }
+    /// CA-P8 (COPY-06): the waiting line is the card's own title (`claudeWaitingCopy`). It was
+    /// keyed on the outcome while the card keyed on the handoff's phase, so the two could name
+    /// approval and sign-in at once.
+    static func claude(outcome: ProviderSetupOutcome, isWaiting: Bool, phase: SetupWaitingPhase? = nil) -> String {
+        if isWaiting { return claudeWaitingCopy(phase: phase).title }
         // R2C6: one verb for one act — the untyped preset no longer says "Set up".
         return ProviderSignInCopy.header(for: .claude)
     }
 
-    static func codex(action: CodexConnectionAction, isWaiting: Bool) -> String {
-        guard !isWaiting else { return "Waiting for Codex sign-in…" }
+    /// CA-P8 (COPY-06): waiting reads the Codex card's own title (`CodexWaitingCopy`).
+    static func codex(
+        action: CodexConnectionAction,
+        isWaiting: Bool,
+        mode: SetupHandoffMode = .standard,
+        phase: SetupWaitingPhase? = nil
+    ) -> String {
+        guard !isWaiting else { return CodexWaitingCopy.title(mode: mode, phase: phase) }
         switch action {
         // R2C6: the header shares the card's vocabulary instead of "Connect"/"Reconnect".
         case .connect: return ProviderSignInCopy.header(for: .codex)
@@ -951,6 +1102,9 @@ enum PopoverHeaderStatusResolver {
         /// last checked" once nothing is live.
         var newestCheck: Date?
         var now: Date
+        /// CA-P8: whether the setup card the line speaks for is in the visible stack. While it
+        /// is, the line would only repeat the card's title.
+        var setupCardVisible: Bool = false
     }
 
     /// The header's line: only a setup stage the card below is showing. Nil otherwise — the
@@ -967,7 +1121,11 @@ enum PopoverHeaderStatusResolver {
                 rollValue: nil
             )
         }
-        if let setupText = input.setupText {
+        // CA-P8 (POP-11/COPY-06, revisits PA10): R2M12's rule applied to sign-in as well.
+        // The header and the card read "Sign in to Codex again" 40pt apart, so while the card
+        // is on screen the slot is title and gear only; the phrase returns once the card has
+        // scrolled out of the 640pt viewport.
+        if let setupText = input.setupText, !input.setupCardVisible {
             return PopoverHeaderStatus(kind: .setup, text: setupText, rollValue: nil)
         }
         return nil
@@ -1037,7 +1195,7 @@ private enum PopoverScrollIndicatorMetrics {
 
 /// One read of the scroll viewport, shared by the feather and the indicator so the two
 /// stay in step and the popover installs a single `onScrollGeometryChange`.
-private struct PopoverScrollMetrics: Equatable {
+struct PopoverScrollMetrics: Equatable {
     var offset: CGFloat = 0
     var viewport: CGFloat = 0
     var content: CGFloat = 0
@@ -1052,8 +1210,16 @@ private struct PopoverScrollMetrics: Equatable {
 /// only when the list stops or starts continuing below the cap.
 @MainActor
 @Observable
-private final class PopoverScrollModel {
+final class PopoverScrollModel {
+    /// CA-P8: the card stack's coordinate space. Frames in it ignore the scroll offset, so a
+    /// card reports its place on layout changes only, never per scroll frame.
+    nonisolated static let cardsSpace = "popoverCards"
+
     private(set) var metrics = PopoverScrollMetrics()
+    /// CA-P8: providers whose every card piece is outside the viewport. Written only when it
+    /// changes, so scrolling re-renders the header slot only when a card crosses the edge.
+    private(set) var scrolledOutProviders: Set<ProviderID> = []
+    @ObservationIgnored private var cardFrames: [String: (provider: ProviderID, frame: CGRect)] = [:]
     /// Content extends past the scroll cap and isn't scrolled to the bottom — gates the
     /// bottom fade so it never softens a fully visible last card.
     private(set) var continuesBelow = false
@@ -1068,6 +1234,31 @@ private final class PopoverScrollModel {
         if continuesBelow != metrics.continuesBelow { continuesBelow = metrics.continuesBelow }
         if continuesAbove != metrics.continuesAbove { continuesAbove = metrics.continuesAbove }
         flashIndicator(overflows: metrics.overflows)
+        refreshScrolledOut()
+    }
+
+    func recordCardFrame(_ frame: CGRect, fragmentID: String, providerID: ProviderID) {
+        cardFrames[fragmentID] = (providerID, frame)
+        refreshScrolledOut()
+    }
+
+    /// CA-P8 review fix: a fragment no longer drawn (a split card that unsplit, a provider
+    /// turned off) reports no frame again, so its last one would keep deciding the header's
+    /// status. Keep only the fragments on screen.
+    func pruneCardFrames(keeping fragmentIDs: Set<String>) {
+        let stale = cardFrames.keys.filter { !fragmentIDs.contains($0) }
+        guard !stale.isEmpty else { return }
+        for id in stale { cardFrames.removeValue(forKey: id) }
+        refreshScrolledOut()
+    }
+
+    private func refreshScrolledOut() {
+        let viewport = (top: metrics.offset, bottom: metrics.offset + metrics.viewport)
+        let pieces = cardFrames.values.map { (provider: $0.provider, minY: $0.frame.minY, maxY: $0.frame.maxY) }
+        let next = PopoverSetupCardVisibility.scrolledOutProviders(
+            pieces: pieces, viewportTop: viewport.top, viewportBottom: viewport.bottom
+        )
+        if next != scrolledOutProviders { scrolledOutProviders = next }
     }
 
     /// Appears on scroll, holds 900ms, then fades. Each geometry change restarts the hold,
@@ -1553,4 +1744,53 @@ struct PopoverCardLayoutSignature: Equatable {
     /// How many remembered windows draw a reset line. In the Full style that row is shorter
     /// than the meter it replaces, so a reset passing changes the stack's height.
     var resetLines = 0
+}
+
+
+/// CA-P8: which providers' cards sit wholly outside the scroll viewport. Pure, so "the phrase
+/// returns only once the card has scrolled out" is testable without a scroll view. An
+/// unmeasured viewport (zero height, the offscreen harness) hides nothing.
+enum PopoverSetupCardVisibility {
+    static func scrolledOutProviders(
+        pieces: [(provider: ProviderID, minY: CGFloat, maxY: CGFloat)],
+        viewportTop: CGFloat,
+        viewportBottom: CGFloat
+    ) -> Set<ProviderID> {
+        guard viewportBottom > viewportTop else { return [] }
+        var seen: Set<ProviderID> = []
+        var visible: Set<ProviderID> = []
+        for piece in pieces {
+            seen.insert(piece.provider)
+            if piece.maxY > viewportTop, piece.minY < viewportBottom { visible.insert(piece.provider) }
+        }
+        return seen.subtracting(visible)
+    }
+}
+
+/// CA-P8: the header's setup line, in a view of its own so a card crossing the viewport edge
+/// re-renders this slot and not the popover's body.
+private struct HeaderSetupStatusSlot<Content: View>: View {
+    let input: PopoverHeaderStatusResolver.Input
+    let setupProviderID: ProviderID?
+    let scroll: PopoverScrollModel
+    @ViewBuilder let content: (PopoverHeaderStatus?) -> Content
+
+    var body: some View {
+        var resolved = input
+        resolved.setupCardVisible = setupProviderID.map { !scroll.scrolledOutProviders.contains($0) } ?? false
+        return content(PopoverHeaderStatusResolver.setup(resolved))
+    }
+}
+
+/// CA-MB3: the accounts whose readings feed a menu-bar pill. An explicit pill shows its
+/// provider's main account; the automatic summary shows the main account of the provider it
+/// follows right now. Main is the display list's main (`displayPrimaryKey`), the row the
+/// popover draws first. An empty selection or a summary following nobody feeds no row.
+enum MenuBarPillSource {
+    static func sourceKeys(
+        meters: [MenuBarMeter],
+        displayPrimaryKey: (ProviderID) -> AccountKey?
+    ) -> Set<AccountKey> {
+        Set(meters.compactMap { meter in meter.providerID.flatMap(displayPrimaryKey) })
+    }
 }

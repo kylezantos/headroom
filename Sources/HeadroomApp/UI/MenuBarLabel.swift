@@ -41,6 +41,11 @@ struct MenuBarLabel: View {
     var probeEndTimes: [ProviderID: Date] = [:]
     /// The status item always draws `.standard`; a narrow Settings pill card passes `.compact`.
     var metrics: MenuBarPillMetrics = .standard
+    /// CA-MB1 (KTD7): whether explicit pills carry their provider's mark
+    /// (`UsageStore.menuBarShowsMarks`). The automatic summary is marked regardless
+    /// (`MenuBarMeter.showsMark`). Off by default. The mark is drawn into the same image as
+    /// the vessel and numeral, so it hard-cuts with them on the same poll (M10A).
+    var showsMarks = false
 
     @State private var slosh = MenuBarSlosh()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -59,7 +64,8 @@ struct MenuBarLabel: View {
                 : MenuBarSlosh.staticPresentation(for: meter))
         }, uniquingKeysWith: { _, latest in latest })
         let result = MenuBarLabelRenderer.render(meters: meters, showsPercentage: showsPercentage,
-            palette: palette, automatic: automatic, presentations: presentations, metrics: metrics)
+            palette: palette, automatic: automatic, presentations: presentations, metrics: metrics,
+            showsMarks: showsMarks)
         Image(nsImage: result.image)
             .accessibilityLabel(result.accessibilityLabel)
             .help(result.tooltip)
@@ -122,7 +128,8 @@ struct MenuBarStatusLabel: View {
             sourceAccounts: sources,
             probeEndTimes: Dictionary(uniqueKeysWithValues: sources.compactMap { provider, key in
                 ends[key].map { (provider, $0) }
-            })
+            }),
+            showsMarks: store.menuBarShowsMarks
         )
     }
 }
@@ -252,11 +259,13 @@ struct MenuBarPillMetrics: Equatable, Sendable {
         widestNumeralWidth: 33
     )
 
-    /// The widest plate this pill can draw: a single meter showing "100%", or the bare vessel.
-    func widestPillWidth(showsPercentage: Bool) -> CGFloat {
+    /// The widest plate this pill can draw: a single meter showing "100%", or the bare vessel,
+    /// plus its provider mark's box and gap when it carries one (CA-MB1).
+    func widestPillWidth(showsPercentage: Bool, showsMark: Bool = false) -> CGFloat {
         let vessel = CGFloat(MenuBarLabelGeometry.vesselWidth)
         let text = showsPercentage ? vesselTextGap + widestNumeralWidth : 0
-        return 2 * plateHorizontalPadding + vessel + text
+        let mark = showsMark ? CGFloat(MenuBarLabelGeometry.markBoxSize + MenuBarLabelGeometry.markVesselGap) : 0
+        return 2 * plateHorizontalPadding + mark + vessel + text
     }
 }
 
@@ -291,19 +300,26 @@ enum MenuBarLabelRenderer {
         palette: MenuBarPalette,
         automatic: Bool = false,
         presentations: [MenuBarSlosh.MeterKey: MenuBarSlosh.Presentation] = [:],
-        metrics: MenuBarPillMetrics = .standard
+        metrics: MenuBarPillMetrics = .standard,
+        showsMarks: Bool = false
     ) -> MenuBarLabelRenderResult {
         let numeralFont = font(for: metrics)
         let visibleMeters = meters.isEmpty ? [MenuBarMeter(summary: .neutral, fill: nil)] : meters
-        let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?) in
-            guard showsPercentage, !meter.summary.isNeutral else { return (meter, nil) }
-            return (meter, (meter.summary.text as NSString).size(withAttributes: [.font: numeralFont]))
+        let measured = visibleMeters.map { meter -> (meter: MenuBarMeter, textSize: NSSize?, mark: NSImage?) in
+            // CA-MB1/CA-MB2 (KTD7): the automatic summary is marked whatever `showsMarks`
+            // says; a provider with no artwork reserves no box.
+            let mark = meter.showsMark(explicitPillsMarked: showsMarks)
+                ? meter.providerID.flatMap { BrandIconImage.vector(for: $0, isDark: palette.isDarkMenuBar) }
+                : nil
+            guard showsPercentage, !meter.summary.isNeutral else { return (meter, nil, mark) }
+            return (meter, (meter.summary.text as NSString).size(withAttributes: [.font: numeralFont]), mark)
         }
         let layout = MenuBarLabelGeometry.layout(
             items: measured.map {
                 MenuBarLabelGeometry.Item(
                     textWidth: $0.textSize.map { Double(ceil($0.width)) },
-                    needsAttention: $0.meter.summary.needsAttention
+                    needsAttention: $0.meter.summary.needsAttention,
+                    hasMark: $0.mark != nil
                 )
             },
             showsPercentage: showsPercentage,
@@ -314,6 +330,9 @@ enum MenuBarLabelRenderer {
             flipped: false
         ) { bounds in
             for (item, placement) in zip(measured, layout.placements) {
+                if let mark = item.mark, let markX = placement.markX, let provider = item.meter.providerID {
+                    drawMark(mark, providerID: provider, boxX: bounds.minX + CGFloat(markX), palette: palette)
+                }
                 let x = bounds.minX + CGFloat(placement.vesselX)
                 let vessel = VesselGlyph.menuBarImage(
                     fill: item.meter.fill,
@@ -360,6 +379,155 @@ enum MenuBarLabelRenderer {
             accessibilityLabel: accessibilityLabel,
             tooltip: accessibilityLabel
         )
+    }
+
+    /// CA-MB1 (KTD7): one provider mark, drawn as single ink. The artwork only supplies
+    /// coverage; `sourceIn` replaces its colours (Claude's orange, Codex's gradient, the
+    /// monochrome greys) with `markInk`, so severity stays the only colour in the bar. Drawn
+    /// from the vector at the bar's backing scale, so 1× and 2× each rasterize it natively.
+    /// The ink takes the menu bar's own per-provider metrics
+    /// (`MenuBarLabelGeometry.markMetrics`, never the popover's `HeadroomBrandMark` size), is
+    /// centred on the vessel's middle (the image's vertical middle) plus the metrics' nudge,
+    /// and has its edges snapped to the pixel grid of the scale being drawn, so OpenCode's
+    /// block and Cursor's cube land crisp at 1× and the ink never leaves its box. It reads no
+    /// slosh or print state, so it never moves.
+    private static func drawMark(_ mark: NSImage, providerID: ProviderID, boxX: CGFloat, palette: MenuBarPalette) {
+        guard let context = NSGraphicsContext.current?.cgContext else { return }
+        let box = CGFloat(MenuBarLabelGeometry.markBoxSize)
+        let metrics = MenuBarLabelGeometry.markMetrics(for: providerID.raw)
+        let ink = metrics.inkSize(aspect: HeadroomBrandMark.inkAspect(for: providerID.raw))
+        let scale = max(1, abs(context.userSpaceToDeviceSpaceTransform.a))
+        // CA-MB1: the outline is Retina-only; on a 1× bar it closed Grok's ring.
+        let reach = scale >= 1.5 ? CGFloat(metrics.thickening) / 2 : 0
+        func snap(_ value: CGFloat) -> CGFloat { (value * scale).rounded() / scale }
+        let centredX = boxX + (box - CGFloat(ink.width)) / 2
+        let centredY = (height - CGFloat(ink.height)) / 2 + CGFloat(metrics.verticalNudge)
+        var minX = snap(centredX), maxX = snap(centredX + CGFloat(ink.width))
+        // Rounding may push an ink that fills its box past an edge (the outline included):
+        // slide it back inside, off the grid, rather than squash it.
+        let low = boxX + reach, high = boxX + box - reach
+        if maxX > high { minX -= maxX - high; maxX = high }
+        if minX < low { maxX = min(high, maxX + low - minX); minX = low }
+        let minY = snap(centredY), maxY = snap(centredY + CGFloat(ink.height))
+        let rect = NSRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+        context.saveGState()
+        // The resampled outline's filter tail would otherwise reach a pixel past the box.
+        context.clip(to: CGRect(x: boxX, y: 0, width: box, height: height))
+        context.beginTransparencyLayer(in: rect.insetBy(dx: -1, dy: -1), auxiliaryInfo: nil)
+        if reach > 0, let outline = outline(of: mark, providerID: providerID, isDark: palette.isDarkMenuBar,
+                                            size: rect.size, reach: reach) {
+            context.interpolationQuality = .high
+            context.draw(outline.image, in: rect.insetBy(dx: -outline.pad, dy: -outline.pad))
+        } else {
+            mark.draw(in: rect)
+        }
+        if providerID == .codex, scale < 1.5 {
+            openCodexPrompt(in: rect, context: context)
+        }
+        context.setBlendMode(.sourceIn)
+        context.setFillColor(palette.markInk.menuBarColor.cgColor)
+        context.fill(rect.insetBy(dx: -1, dy: -1))
+        context.endTransparencyLayer()
+        context.restoreGState()
+    }
+
+    /// Pixels per point the outline is built at before it is drawn down to the bar's scale.
+    private static let outlineSupersample: CGFloat = 8
+
+    /// The label is re-rasterized on every slosh frame, so each outline is built once per
+    /// provider, bar appearance and size.
+    private struct OutlineKey: Hashable {
+        let providerID: String
+        let isDark: Bool
+        let width: CGFloat
+        let height: CGFloat
+        let reach: CGFloat
+    }
+    private static var outlines: [OutlineKey: (image: CGImage, pad: CGFloat)] = [:]
+
+    private static func outline(of mark: NSImage, providerID: ProviderID, isDark: Bool, size: NSSize,
+                                reach: CGFloat) -> (image: CGImage, pad: CGFloat)? {
+        let key = OutlineKey(providerID: providerID.raw, isDark: isDark, width: size.width, height: size.height, reach: reach)
+        if let cached = outlines[key] { return cached }
+        let built = dilatedCoverage(of: mark, size: size, reach: reach)
+        outlines[key] = built
+        return built
+    }
+
+    /// CA-MB1: the artwork's coverage grown by `reach` points on every side, a same-ink
+    /// outline of `2 × reach`. Built as a true dilation (the maximum coverage within a disc)
+    /// on an 8× alpha mask and drawn down, because stacking offset copies of the artwork
+    /// compounds its antialiased edges into solid ink and thickens far more than `reach`.
+    /// `pad` is how far the returned image extends past the artwork's rect, in points.
+    private static func dilatedCoverage(of mark: NSImage, size: NSSize, reach: CGFloat) -> (image: CGImage, pad: CGFloat)? {
+        let ss = outlineSupersample
+        let radius = Int((reach * ss).rounded())
+        guard radius > 0 else { return nil }
+        let pad = radius + 1
+        let width = Int((size.width * ss).rounded()) + 2 * pad
+        let height = Int((size.height * ss).rounded()) + 2 * pad
+        // RGBA because AppKit draws nothing into an alpha-only context; only alpha is read.
+        let rgb = CGColorSpaceCreateDeviceRGB(), info = CGImageAlphaInfo.premultipliedLast.rawValue
+        guard let source = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8,
+                                     bytesPerRow: width * 4, space: rgb, bitmapInfo: info)
+        else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: source, flipped: false)
+        mark.draw(in: NSRect(x: CGFloat(pad), y: CGFloat(pad), width: CGFloat(width - 2 * pad), height: CGFloat(height - 2 * pad)))
+        NSGraphicsContext.restoreGraphicsState()
+        guard let input = source.data?.assumingMemoryBound(to: UInt8.self) else { return nil }
+        var offsets: [(Int, Int)] = []
+        for dy in -radius...radius {
+            for dx in -radius...radius where dx * dx + dy * dy <= radius * radius { offsets.append((dx, dy)) }
+        }
+        var output = [UInt8](repeating: 0, count: width * height * 4)
+        for y in 0..<height {
+            for x in 0..<width {
+                var peak: UInt8 = 0
+                for (dx, dy) in offsets {
+                    let sx = x + dx, sy = y + dy
+                    guard sx >= 0, sx < width, sy >= 0, sy < height else { continue }
+                    peak = max(peak, input[(sy * width + sx) * 4 + 3])
+                }
+                for channel in 0..<4 { output[(y * width + x) * 4 + channel] = peak }
+            }
+        }
+        let image = output.withUnsafeMutableBytes { bytes -> CGImage? in
+            CGContext(data: bytes.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                      bytesPerRow: width * 4, space: rgb, bitmapInfo: info)?.makeImage()
+        }
+        return image.map { ($0, CGFloat(pad) / ss) }
+    }
+
+    /// CA-MB1: Codex's `>_` cut-out is 0.6 artwork units wide, about 0.7pt in the 13pt slot,
+    /// so on a 1× bar it rasterizes to grey speckles and the mark reads as a plain blob. On
+    /// 1× only, the chevron and underscore are knocked out again at `codexPromptStroke`
+    /// points, the chevron opened a little wider than the artwork's (its 0.8pt depth
+    /// collapsed into a vertical bar), which keeps the prompt open as whole pixels. 2× draws
+    /// the artwork untouched. Points are the artwork's own coordinates (its viewBox is
+    /// 0.498…9.502 on both axes, y down).
+    private static let codexPromptStroke: CGFloat = 1.15
+
+    private static func openCodexPrompt(in rect: NSRect, context: CGContext) {
+        let origin = 0.498, span = 9.0039
+        func point(_ u: Double, _ v: Double) -> CGPoint {
+            CGPoint(x: rect.minX + CGFloat((u - origin) / span) * rect.width,
+                    y: rect.maxY - CGFloat((v - origin) / span) * rect.height)
+        }
+        let prompt = CGMutablePath()
+        prompt.move(to: point(2.70, 3.80))
+        prompt.addLine(to: point(3.85, 5.05))
+        prompt.addLine(to: point(2.70, 6.30))
+        prompt.move(to: point(5.27, 6.27))
+        prompt.addLine(to: point(7.09, 6.27))
+        context.saveGState()
+        context.setBlendMode(.clear)
+        context.setLineWidth(codexPromptStroke)
+        context.setLineCap(.round)
+        context.setLineJoin(.round)
+        context.addPath(prompt)
+        context.strokePath()
+        context.restoreGState()
     }
 
     private static func accessibilityLabel(for meters: [MenuBarMeter]) -> String {

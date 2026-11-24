@@ -176,14 +176,29 @@ public enum MirrorPresentation {
 public enum CompanionScreenFreshness: Equatable, Sendable {
     /// R9: the oldest live reading on screen, never the Mac's publish time.
     case stamp(FreshnessStamp)
-    /// R10: "No update from your Mac since <time>", in the stamp's own slot.
-    case dimmed(String)
+    /// R10: "No update from your Mac since <time>". CA-I2: the header slot shows only
+    /// `stamp` ("Last update <time>"); the sentence takes its own line under the header.
+    case dimmed(sentence: String, stamp: String)
 
+    /// The whole freshness statement: the stamp, or the dimmed sentence.
     public var text: String {
         switch self {
         case .stamp(let stamp): MirrorPresentation.subtitle(for: stamp)
-        case .dimmed(let line): line
+        case .dimmed(let sentence, _): sentence
         }
+    }
+
+    /// CA-I2: what the header slot beside "Usage" prints.
+    public var headerText: String {
+        switch self {
+        case .stamp: text
+        case .dimmed(_, let stamp): stamp
+        }
+    }
+
+    /// CA-I2: the full-width line under the header, present only while dimmed.
+    public var sentence: String? {
+        if case .dimmed(let sentence, _) = self { sentence } else { nil }
     }
 
     public var isDimmed: Bool {
@@ -226,7 +241,8 @@ public struct CompanionSpendRowModel: Equatable, Sendable, Identifiable {
 
     public var id: String { snapshot.providerID.raw }
 
-    public init(_ summary: WidgetAPISpendSummary) {
+    /// `now` dates a retried figure's tag (CA-P3); nil leaves it "Not refreshed".
+    public init(_ summary: WidgetAPISpendSummary, now: Date? = nil) {
         let kind = summary.semanticKind
         let freshness: Freshness = switch summary.freshness {
         case .pending: .pending
@@ -241,7 +257,7 @@ public struct CompanionSpendRowModel: Equatable, Sendable, Identifiable {
             capturedAt: summary.capturedAt, freshness: freshness)
         status = APISpendPresentation.rowStatus(
             freshness: summary.freshness, attention: summary.attention, providerID: ProviderID(summary.id),
-            displayName: summary.displayName, kind: kind)
+            displayName: summary.displayName, kind: kind, readAt: now.map { (summary.capturedAt, $0) })
         let identity = APISpendPresentation.popoverIdentity(displayName: summary.displayName)
         let context = APISpendPresentation.contextLabel(kind: kind, periodLabel: summary.periodLabel)
         title = identity.title
@@ -262,8 +278,10 @@ extension MirrorPresentation {
     ) -> CompanionScreenFreshness {
         if CompanionFreshnessRule.isDimmed(content.freshness, surface: .app, at: now) {
             let heard = CompanionFreshnessRule.lastHeardFromMac(content.freshness)
-            return .dimmed(CompanionFreshnessCopy.noUpdate(
-                since: WidgetClockText.text(for: heard, now: now, timeZone: timeZone, locale: locale)))
+            let time = WidgetClockText.text(for: heard, now: now, timeZone: timeZone, locale: locale)
+            return .dimmed(
+                sentence: CompanionFreshnessCopy.noUpdate(since: time),
+                stamp: CheckNowLinePolicy.dimmedStamp(since: time))
         }
         return .stamp(FreshnessStamp.resolve(
             stampAnchors(content, shownWindows: shownWindows, now: now), now: now))
@@ -375,5 +393,38 @@ extension CompanionCardPresentation {
     /// up-to-date Mac to update (KTD6.5).
     public static func compatibilityLine(_ content: CompanionResolvedContent) -> String? {
         content.notice == .updateMac ? CompanionCompatibilityNotice.updateMac.message : nil
+    }
+}
+
+// MARK: - CA-M5: the phone's one launch entrance
+
+/// CA-M5 (MOT-05; overturns the iOS parity plan's KTD16: a per-account stagger capped at the
+/// eighth account, 0.34 s, on top of the meters' own draw-in). The cards' rise is the launch's
+/// only motion: each card waits one step per card above it, up to four steps, and the meters
+/// paint their final values inside the rising card (they never draw in on the phone). The
+/// fifth card takes the fourth step; every card after it starts with it. Worst case, the last
+/// card starts 0.22 s after launch and settles by 0.5 s, however many accounts the Mac sends.
+public enum PhoneCardEntranceSchedule {
+    public static let duration: Double = 0.28
+    public static let stagger: Double = 0.055
+    /// The most steps a card waits: the fifth card (index 4) waits four, and every card after
+    /// it enters with it.
+    public static let staggerCap = 4
+    public static let rise: Double = 10
+
+    public static func delay(cardIndex: Int) -> Double {
+        Double(min(max(0, cardIndex), staggerCap)) * stagger
+    }
+
+    /// One delay per card on screen: provider cards in order, then the spend card. Account
+    /// counts never add delay; they are taken only so the independence is explicit.
+    public static func delays(accountCounts: [Int], hasSpendCard: Bool) -> [Double] {
+        let cards = accountCounts.count + (hasSpendCard ? 1 : 0)
+        return (0..<cards).map(delay(cardIndex:))
+    }
+
+    /// Reduce Motion keeps the fade and drops the rise (S2A).
+    public static func rise(reduceMotion: Bool) -> Double {
+        reduceMotion ? 0 : rise
     }
 }

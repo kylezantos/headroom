@@ -51,6 +51,13 @@ width and sampled its frame every 8ms with `CGWindowListCopyWindowInfo`.
 - **Fit a narrower window explicitly.** `PopoverView.fitPopoverWindow(columns:)` sets the window
   frame's width (left edge kept, shadow invalidated) when the plan narrows — on close, while the
   window is hidden, and on a narrowing while open. Widening is left to `MenuBarExtra`.
+- **Fit a shorter window too (GF1, Nov 2026).** Height has the same one-way growth. The first
+  open after launch lays out one tall column (up to the 640pt cap) before the plan turns to two
+  columns, so on macOS 26 the window kept that height and the ~620pt two-column popover sat ~70pt
+  below the menu bar, centred, on every open (also on `main` before the fix).
+  `PopoverWindowHeightFitter` runs on 26 in shrink-only mode: a window taller than the content's
+  ideal height (reported from inside layout) is shortened with its top edge kept, on the next main
+  turn and on each open; growing stays with `MenuBarExtra`. macOS 15 keeps the two-way fit (SQ1).
 - **Measure inside layout, not with geometry readers.** Account heights come from
   `ColumnItemsStack`, a leading `VStack` replacement that reports each subview's height as it
   places it. Those sizes are already computed, so the report is free; an `onGeometryChange` per

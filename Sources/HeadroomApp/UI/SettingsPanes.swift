@@ -86,6 +86,9 @@ struct GeneralSettingsPane: View {
                                     )
                                 )
                         }
+                        // CA-S10: small, so every trailing control in the window shares the
+                        // switches' height.
+                        .controlSize(.small)
                         // R2M7: `pressDown`, not the `press` compat alias, and resolved as
                         // `.movement` to match the digit roll it drives.
                         .animation(
@@ -163,26 +166,34 @@ struct SoftwareUpdatesTile: View {
         }
     }
 
+    /// CA-S6 (SET-15): label left, button right, the grammar of every other row. The button
+    /// used to lead with its status trailing, so the window's longest string sat where
+    /// controls live.
     private var checkRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
+            // Sparkle's date isn't observable, so the line re-reads it on a slow tick and
+            // picks up a check made while the pane is open.
+            TimelineView(.periodic(from: .now, by: 15)) { context in
+                Text(Self.lastCheckedLabel(softwareUpdates.lastUpdateCheckDate, now: context.date))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 12)
             Button("Check for Updates…") {
                 softwareUpdates.checkForUpdates()
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(!softwareUpdates.presentation.canCheckForUpdates)
-            Spacer(minLength: 12)
-            // Sparkle's date isn't observable, so the line re-reads it on a slow tick and
-            // picks up a check made while the pane is open.
-            TimelineView(.periodic(from: .now, by: 15)) { _ in
-                if let lastChecked = softwareUpdates.lastUpdateCheckDate {
-                    Text("Last checked \(lastChecked.formatted(date: .abbreviated, time: .shortened))")
-                        .font(SettingsType.help)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
         }
+    }
+
+    /// "Last checked Oct 8 at 10:02 AM", with the year only when it isn't this one.
+    static func lastCheckedLabel(_ date: Date?, now: Date, calendar: Calendar = .current) -> String {
+        guard let date else { return "Not checked yet" }
+        let day = calendar.isDate(date, equalTo: now, toGranularity: .year)
+            ? date.formatted(.dateTime.month(.abbreviated).day())
+            : date.formatted(.dateTime.month(.abbreviated).day().year())
+        return "Last checked \(day) at \(date.formatted(date: .omitted, time: .shortened))"
     }
 }
 
@@ -313,15 +324,17 @@ struct MenuBarSettingsPane: View {
                     displayChoices
                 }
                 ScrollView(.vertical) {
-                    SettingsTile("Your Pills") {
+                    // CA-S12 (SET-14): the tile is titled by what the arranger heads. "Your
+                    // Pills" over an "In your menu bar" group label was two headings stacked
+                    // with nothing between them.
+                    SettingsTile("In your menu bar") {
                         arranger
                         SettingsHelpText(text: "Uses each provider’s main account. Removing a pill keeps its account connected.")
                         if !isAuto {
-                            Button("Use one automatic summary pill instead…") {
+                            // CA-S8: Title Case for a button, and no ellipsis: it acts at once.
+                            SettingsInlineLink("Use Automatic Summary") {
                                 animatingPills { store.setMenuBarFillSource(.auto) }
                             }
-                            .buttonStyle(.link)
-                            .font(SettingsType.help)
                         }
                     }
                     .padding(.bottom, 20)
@@ -351,57 +364,116 @@ struct MenuBarSettingsPane: View {
                     .font(SettingsType.help)
                     .foregroundStyle(.secondary)
             }
-            ScrollView(.horizontal) {
-                HStack {
-                    Spacer(minLength: 0)
-                    // No invisible percentage-on twin: seeing the width shrink is the
-                    // point of the compact choice. Always use the production renderer.
-                    // MS2 (2026-09-25 motion audit): the old and new pill crossfade in place,
-                    // trailing-aligned, so a pill edit no longer hard-swaps the strip while
-                    // the cards below it glide.
-                    ZStack(alignment: .trailing) {
-                        MenuBarPreviewPill(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
-                            .id(MenuBarPreviewKey(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage))
-                            .transition(.opacity)
-                    }
-                    .animation(
-                        HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
-                        value: MenuBarPreviewKey(meters: store.menuBarMeters, showsPercentage: store.showMenuBarPercentage)
-                    )
+            // CA-F1 (SET-09) + CA-MB1: the strip sits on the well's trailing edge, where
+            // menu-bar items live (MS2's stated intent). Six marked pills with percentages run
+            // past the well at the standard type, and a trailing anchor then cut the first pill
+            // through its mark. So the strip steps down the way the pill cards and Display
+            // samples do: standard if it fits, the compact metrics if they fit, and only past
+            // that a scrolling strip whose leading edge fades out rather than cutting a glyph.
+            ViewThatFits(in: .horizontal) {
+                previewStrip(metrics: .standard)
+                previewStrip(metrics: .compact)
+                ScrollView(.horizontal) {
+                    previewStrip(metrics: .compact)
                 }
-                .frame(minHeight: 30)
+                .defaultScrollAnchor(.trailing)
+                .scrollIndicators(.hidden)
+                .mask {
+                    HStack(spacing: 0) {
+                        // Fully clear for the first few points, so the sliver of a pill that
+                        // sits right at the edge at rest is gone, not faintly cut.
+                        LinearGradient(
+                            stops: [.init(color: .clear, location: 0), .init(color: .clear, location: 0.3),
+                                    .init(color: .black, location: 1)],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                        .frame(width: Self.previewFadeWidth)
+                        Color.black
+                    }
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .trailing)
             .frame(height: 30)
-            .scrollIndicators(.automatic)
             .settingsPreviewWell(dark: colorScheme == .dark, verticalPadding: 6, cornerRadius: 14)
         }
+    }
+
+    /// The scrolling strip's leading fade: enough for a mark to clear before the edge.
+    private static let previewFadeWidth: CGFloat = 16
+
+    /// No invisible percentage-on twin: seeing the width shrink is the point of the compact
+    /// choice. Always the production renderer. MS2 (2026-09-25 motion audit): the old and new
+    /// pill crossfade in place, trailing-aligned, so a pill edit no longer hard-swaps the
+    /// strip while the cards below it glide.
+    private func previewStrip(metrics: MenuBarPillMetrics) -> some View {
+        let previewKey = MenuBarPreviewKey(
+            meters: store.menuBarMeters,
+            showsPercentage: store.showMenuBarPercentage,
+            showsMarks: store.menuBarShowsMarks
+        )
+        return ZStack(alignment: .trailing) {
+            MenuBarPreviewPill(
+                meters: store.menuBarMeters,
+                showsPercentage: store.showMenuBarPercentage,
+                metrics: metrics,
+                showsMarks: store.menuBarShowsMarks
+            )
+            .id(previewKey)
+            .transition(.opacity)
+        }
+        .animation(
+            HeadroomMotion.resolved(HeadroomMotion.settle, .crossfade, reduceMotion: reduceMotion),
+            value: previewKey
+        )
+        .fixedSize()
+        .frame(minHeight: 30)
     }
 
     private var percentageBinding: Binding<Bool> {
         Binding(get: { store.showMenuBarPercentage }, set: { store.setShowMenuBarPercentage($0) })
     }
 
+    /// CA-MB1 (KTD7): the switch shows what the bar draws. The automatic summary is always
+    /// marked, so in automatic mode the switch reads on and rests disabled; it governs
+    /// explicit pills only. Mac-only: the store's setter never marks the phone path dirty.
+    private var marksBinding: Binding<Bool> {
+        Binding(
+            get: { isAuto || store.menuBarShowsMarks },
+            set: { store.setShowMenuBarMarks($0) }
+        )
+    }
+
     private var displayChoices: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
             SettingsGroupLabel("Display")
-            // The Appearance swatch grid: fixed 150pt columns, not the tile's full width.
+            // CA-S11: the window's wide swatch, two compact meter columns and their gap.
             LazyVGrid(
-                columns: Array(repeating: GridItem(.fixed(150), spacing: 8, alignment: .leading), count: 2),
+                columns: Array(
+                    repeating: GridItem(.fixed(SettingsSwatchWidth.wide), spacing: SettingsSwatchWidth.gap, alignment: .leading),
+                    count: 2
+                ),
                 alignment: .leading,
-                spacing: 8
+                spacing: SettingsSwatchWidth.gap
             ) {
-                displayChoice(showsPercentage: true, title: "Pills + percentages", detail: "Exact usage at a glance")
+                displayChoice(showsPercentage: true, title: "Pills and percentages", detail: "Exact usage at a glance")
                 displayChoice(showsPercentage: false, title: "Pills only", detail: "Save menu bar space")
             }
             // SM1: the selection plate slides between the two treatments.
             .settingsSelectionGroup(value: store.showMenuBarPercentage)
             .accessibilityRepresentation {
                 Picker("Menu bar display", selection: percentageBinding) {
-                    Text("Pills + percentages").tag(true)
+                    Text("Pills and percentages").tag(true)
                     Text("Pills only").tag(false)
                 }
             }
             SettingsHelpText(text: "Short on space? Pills only is useful on laptops with a notch.")
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                SettingsSwitchRow(title: "Show provider marks", isOn: marksBinding)
+                    .disabled(isAuto)
+                SettingsHelpText(text: "Puts each provider’s logo before its pill. The automatic summary always shows the provider it follows.")
+            }
+            .padding(.top, SettingsMetrics.withinGroup)
         }
     }
 
@@ -413,7 +485,15 @@ struct MenuBarSettingsPane: View {
             // well, 5pt, a centered swatch label, 5pt padding so the r11 ring stays concentric.
             // The detail line moved to the tooltip; the help line under the grid says it too.
             VStack(spacing: 5) {
-                MenuBarPreviewPill(meters: Self.displaySamples, showsPercentage: showsPercentage)
+                MenuBarPreviewPill(
+                    meters: Self.displaySamples(automatic: isAuto),
+                    showsPercentage: showsPercentage,
+                    // CA-MB1: two marked pills with percentages run ~162pt at the standard
+                    // type, past the swatch's 150pt well; they take the pill cards' one step
+                    // down there, so the specimen stays inside its swatch.
+                    metrics: showsPercentage && store.menuBarShowsMarks && !isAuto ? .compact : .standard,
+                    showsMarks: store.menuBarShowsMarks
+                )
                     .frame(maxWidth: .infinity)
                     .frame(height: 36)
                     .background(
@@ -435,15 +515,26 @@ struct MenuBarSettingsPane: View {
 
     /// Inert examples teach the two treatments even before usage is available. Only
     /// these swatches use fixtures; the main specimen and provider cards use the store.
-    private static let displaySamples: [MenuBarMeter] = [72, 38].map { value in
-        MenuBarMeter(summary: MenuBarSummary(text: "\(value)%", providerID: nil, detail: nil, isNeutral: false),
-                     fill: Double(value) / 100)
+    /// CA-MB1/CA-MB2: each sample names its provider, so it draws the mark the bar would. In
+    /// automatic mode the bar holds one summary pill, so the samples do too, built as the
+    /// automatic summary: it is marked whatever the switch says, exactly as in the bar.
+    private static func displaySamples(automatic: Bool) -> [MenuBarMeter] {
+        if automatic {
+            return [MenuBarMeter(
+                summary: MenuBarSummary(text: "38%", providerID: .codex, detail: nil, isNeutral: false),
+                fill: 0.38,
+                isAutomaticSummary: true
+            )]
+        }
+        return [(ProviderID.claude, 72), (.codex, 38)].map { id, value in
+            MenuBarMeter(summary: MenuBarSummary(text: "\(value)%", providerID: id, detail: nil, isNeutral: false),
+                         fill: Double(value) / 100)
+        }
     }
 
     private var arranger: some View {
         VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                SettingsGroupLabel("In your menu bar")
                 if isAuto {
                     SettingsHelpText(text: "Drag a provider up to give it its own pill.")
                 } else {
@@ -630,8 +721,8 @@ struct MenuBarSettingsPane: View {
         let arriving: AnyTransition = reduceMotion
             ? .opacity
             : .opacity
-                .combined(with: .scale(scale: 0.97))
-                .combined(with: .modifier(active: PartBlur(radius: 1.5), identity: PartBlur(radius: 0)))
+                .combined(with: .scale(scale: HeadroomMotion.revealScale))
+                .combined(with: .modifier(active: PartBlur(radius: HeadroomMotion.revealBlur), identity: PartBlur(radius: 0)))
         return .asymmetric(
             insertion: arriving.animation(HeadroomMotion.partIn),
             removal: .opacity.animation(HeadroomMotion.partOut)
@@ -777,22 +868,14 @@ struct WidgetsSettingsPane: View {
     @Binding var syncToIPhoneEnabled: Bool
     var body: some View {
         let _ = BenchCounters.hit("WidgetsSettingsPane")
+        // CA-S7 (revisits L9P's preview-first order): the real switches lead, in two titled
+        // tiles, and the preview follows in its own. At the default height the iPhone switch
+        // used to sit below the fold under ~300pt of preview and a picker that set nothing.
         SettingsPaneScaffold(SettingsPane.widgets.label) {
-            // L9P: sits on the pane background above the tile, like the Appearance
-            // specimen — it is the subject of the pane, not another setting.
-            WidgetPreviewStrip(widgetsEnabled: widgetsEnabled, style: previewStyle)
-
-            // R16/KTD13: the styles a widget can take, previewed above. Choosing one here
-            // changes the preview only; each widget picks its style in Edit Widget.
-            SettingsTile("Widget style") {
-                WidgetStyleGalleryPicker(selection: $previewStyle)
-            }
-
-            SettingsTile {
-                WidgetSettingsSection(
+            SettingsTile("Mac widgets") {
+                MacWidgetSettingsSection(
                     widgetsEnabled: $widgetsEnabled,
                     showCodexSparkCountersInWidgets: $showCodexSparkCountersInWidgets,
-                    syncToIPhoneEnabled: $syncToIPhoneEnabled,
                     store: store
                 )
                 .onChange(of: widgetsEnabled) { _, newValue in
@@ -801,8 +884,22 @@ struct WidgetsSettingsPane: View {
                 .onChange(of: showCodexSparkCountersInWidgets) { _, newValue in
                     store.setShowCodexSparkCountersInWidgets(newValue)
                 }
-                .onChange(of: syncToIPhoneEnabled) { _, newValue in
-                    store.setSyncToIPhoneEnabled(newValue)
+            }
+
+            SettingsTile("iPhone and iPad") {
+                IPhoneSyncSettingsSection(syncToIPhoneEnabled: $syncToIPhoneEnabled, store: store)
+                    .onChange(of: syncToIPhoneEnabled) { _, newValue in
+                        store.setSyncToIPhoneEnabled(newValue)
+                    }
+            }
+
+            // R16/KTD13: the styles a widget can take. Choosing one changes the preview only;
+            // each widget picks its style in Edit Widget.
+            SettingsTile("Widget styles") {
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
+                    WidgetStylePreviewPicker(selection: $previewStyle)
+                    WidgetPreviewStrip(widgetsEnabled: widgetsEnabled, style: previewStyle)
+                    SettingsHelpText(text: "Each widget picks its own style in Edit Widget.")
                 }
             }
         }
@@ -877,6 +974,8 @@ struct APISpendSettingsPane: View {
                     }
                     .pickerStyle(.segmented)
                     .labelsHidden()
+                    // CA-S10: small, the switches' height down the trailing edge.
+                    .controlSize(.small)
                     // PB3: pinned, not capped — see `menuBarWindowPicker`.
                     .frame(width: SettingsMetrics.segmentedMaxWidth, alignment: .trailing)
                     .onChange(of: apiSpendPeriod) { _, newValue in
@@ -1066,8 +1165,8 @@ struct APISpendSettingsPane: View {
             }
             VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
                 SettingsHelpText(text: guidance.text)
-                Link(guidance.linkLabel, destination: guidance.url)
-                    .font(SettingsType.help)
+                // CA-S2: neutral ink, not a system-blue `Link`.
+                SettingsInlineLink(guidance.linkLabel, destination: guidance.url)
             }
         }
     }
@@ -1102,11 +1201,13 @@ struct APISpendSettingsPane: View {
         text: Binding<String>
     ) -> some View {
         HStack(spacing: 8) {
+            // CA-S10: regular, the secure field's own size. At small the Save button sat 4pt
+            // shorter than the field it commits, so the pair read as two controls.
             Button(replacing ? "Update" : "Save") {
                 onSaveKey(text.wrappedValue, provider)
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            .controlSize(.regular)
             .disabled(!Self.hasSavableKey(text.wrappedValue))
 
             if replacing {
@@ -1117,7 +1218,7 @@ struct APISpendSettingsPane: View {
                     replacingKeyProviders.remove(provider)
                 }
                 .buttonStyle(.borderless)
-                .controlSize(.small)
+                .controlSize(.regular)
                 .foregroundStyle(.secondary)
             }
         }
@@ -1125,11 +1226,12 @@ struct APISpendSettingsPane: View {
 }
 
 extension APIKeyProvider {
+    /// CA-S10: the field's label sits under its provider's header ("Anthropic API spend"), so
+    /// it no longer repeats the provider's name.
     var adminKeyTitle: String {
         switch self {
-        case .anthropic: return "Anthropic admin key"
-        case .openAI: return "OpenAI admin key"
-        case .xAI: return "xAI management key"
+        case .anthropic, .openAI: return "Admin key"
+        case .xAI: return "Management key"
         }
     }
 
@@ -1148,17 +1250,21 @@ extension APIKeyProvider {
 private struct MenuBarPreviewKey: Hashable {
     let meters: String
     let showsPercentage: Bool
+    let showsMarks: Bool
 
-    init(meters: [MenuBarMeter], showsPercentage: Bool) {
+    init(meters: [MenuBarMeter], showsPercentage: Bool, showsMarks: Bool) {
         self.meters = String(describing: meters)
         self.showsPercentage = showsPercentage
+        self.showsMarks = showsMarks
     }
 }
 
 // MARK: - About
 
-/// The combined General pane preserves About's copy and destinations without repeating
-/// the sidebar's large app mark. Uses the same tile and link rows as the other settings.
+/// CA-S6 (option A; overturns PR #179's combined About and its second tip-jar entry): three
+/// rows on one hairline list, no group labels and no tagline. The pane named General is
+/// settings first; About is what you check, not a credits page, and the sidebar's Tip Jar is
+/// the window's one ask.
 private struct AboutSettingsTile: View {
     let onSendFeedback: () async -> FeedbackMail.Outcome
 
@@ -1166,87 +1272,115 @@ private struct AboutSettingsTile: View {
     @State private var feedbackStatus: String?
 
     var body: some View {
-        SettingsTile("About Headroom", titleAccessory: {
-            Spacer(minLength: 12)
-            if let version = AppVersionLabel.plain {
-                Text("Version \(version)")
-                    .font(SettingsType.help.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-        }) {
-            SettingsHelpText(text: AboutLinks.tagline)
-
-            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
-                SettingsGroupLabel("Support")
-                VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
-                    VStack(alignment: .leading, spacing: 0) {
-                        // Feedback plan R1: reading CLI versions takes a second or two, so the
-                        // row says so; a webmail user gets the email on the clipboard instead.
-                        SettingsOutboundRow(
-                            title: "Send Feedback",
-                            destination: feedbackStatus ?? "Email",
-                            help: FeedbackEmail.address,
-                            accessibilityHint: "Opens an email in your mail app"
-                        ) {
-                            guard feedbackStatus == nil else { return }
-                            feedbackStatus = "Opening…"
-                            Task {
-                                let outcome = await onSendFeedback()
-                                feedbackStatus = outcome == .copied ? "Email copied" : nil
-                                guard outcome == .copied else { return }
-                                try? await Task.sleep(for: .seconds(4))
-                                feedbackStatus = nil
-                            }
-                        }
-                        // Webmail users have no mail app to open; the address is selectable so
-                        // they can copy it.
-                        SettingsHelpText(text: "Opens your default email app. Or email \(FeedbackEmail.address).")
+        SettingsTile("About") {
+            VStack(alignment: .leading, spacing: 0) {
+                // Hidden under `swift run`, which has no bundle version (`AppVersionLabel`).
+                if let version = AppVersionLabel.plain {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        Text("Version")
+                        Spacer(minLength: 12)
+                        Text(version)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
                             .textSelection(.enabled)
-                            .padding(.bottom, 8)
-                        Divider()
-                        SettingsLinkRow(link: AboutLinks.tipJar)
                     }
-                    SettingsHelpText(text: AboutLinks.tipJarNote)
-                }
-            }
-
-            VStack(alignment: .leading, spacing: SettingsMetrics.withinGroup) {
-                SettingsGroupLabel("Made by \(AboutLinks.makerName)")
-                SettingsLinkList(links: AboutLinks.maker)
-            }
-        }
-    }
-}
-
-/// Outbound link rows separated by hairlines: title on the leading edge, destination and an
-/// arrow on the trailing edge, the same label-left/control-right grammar as every other row.
-struct SettingsLinkList: View {
-    let links: [AboutLink]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(links) { link in
-                if link.id != links.first?.id {
+                    .padding(.vertical, 6)
                     Divider()
                 }
-                SettingsLinkRow(link: link)
+                // Feedback plan R1: reading CLI versions takes a second or two, so the row
+                // says so; a webmail user gets the email on the clipboard instead.
+                SettingsOutboundRow(
+                    title: "Send feedback",
+                    destination: feedbackStatus ?? "Email",
+                    help: FeedbackEmail.address,
+                    accessibilityHint: "Opens an email in your mail app"
+                ) {
+                    guard feedbackStatus == nil else { return }
+                    feedbackStatus = "Opening…"
+                    Task {
+                        let outcome = await onSendFeedback()
+                        feedbackStatus = outcome == .copied ? "Email copied" : nil
+                        guard outcome == .copied else { return }
+                        try? await Task.sleep(for: .seconds(4))
+                        feedbackStatus = nil
+                    }
+                }
+                // Webmail users have no mail app to open; the address is selectable so they
+                // can copy it.
+                SettingsHelpText(text: "Opens your mail app, or write to \(FeedbackEmail.address).")
+                    .textSelection(.enabled)
+                    .padding(.bottom, 8)
+                Divider()
+                makerRow
             }
         }
     }
+
+    /// "Made by Kyle Zantos" with the four profile links inline, each its own button and the
+    /// arrow only after the last.
+    private var makerRow: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text("Made by \(AboutLinks.makerName)")
+                Spacer(minLength: 12)
+                makerLinks
+            }
+            VStack(alignment: .leading, spacing: SettingsMetrics.labelToControl) {
+                Text("Made by \(AboutLinks.makerName)")
+                makerLinks
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    private var makerLinks: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 5) {
+            ForEach(AboutLinks.maker) { link in
+                if link.id != AboutLinks.maker.first?.id {
+                    Text("·")
+                        .foregroundStyle(.tertiary)
+                        .accessibilityHidden(true)
+                }
+                MakerLink(link: link, showsArrow: link.id == AboutLinks.maker.last?.id)
+            }
+        }
+        .lineLimit(1)
+        .fixedSize()
+    }
 }
 
-private struct SettingsLinkRow: View {
+/// One inline profile link on About's maker row: secondary, primary on hover (CA-S2).
+private struct MakerLink: View {
     let link: AboutLink
+    let showsArrow: Bool
+
+    @State private var isHovered = false
 
     var body: some View {
-        SettingsOutboundRow(
-            title: link.title,
-            destination: link.destination,
-            help: link.url.absoluteString,
-            accessibilityHint: "Opens in your browser"
-        ) {
+        Button {
             NSWorkspace.shared.open(link.url)
+        } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(link.title)
+                if showsArrow {
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .accessibilityHidden(true)
+                }
+            }
+            .foregroundStyle(isHovered ? .primary : .secondary)
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .onHover { inside in
+            withAnimation(inside ? HeadroomMotion.rowHoverIn : HeadroomMotion.rowHoverOut) {
+                isHovered = inside
+            }
+        }
+        .help(link.url.absoluteString)
+        .accessibilityLabel("\(link.title), \(link.destination)")
+        .accessibilityHint("Opens in your browser")
+        .accessibilityAddTraits(.isLink)
     }
 }
 

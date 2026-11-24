@@ -835,6 +835,7 @@ enum SetupSessions {
         case .cursor: "Cursor Agent"
         case .copilot: "GitHub Copilot"
         case .opencode: "OpenCode"
+        case .antigravity: "Antigravity"
         default: account.providerID.raw.capitalized
         }
     }

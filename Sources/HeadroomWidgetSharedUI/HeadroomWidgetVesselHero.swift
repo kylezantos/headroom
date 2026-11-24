@@ -91,6 +91,10 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
 
     // MARK: Large
 
+    /// CA-W3: the hero columns take the tile's spare height and the rows sit directly above
+    /// the tail, so the open space falls between the vessels and their rows rather than above
+    /// the footer. The vertical divider runs the columns' full height, from the header down to
+    /// the rows' rule (or to the tail when there are no rows).
     private var large: some View {
         let providers = context.recipe.providers
         return VStack(alignment: .leading, spacing: 0) {
@@ -102,18 +106,22 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
                                                   showsStaleReason: true, mark: mark)
                         hero(provider, size: context.hero(), extra: HeadroomWidgetWindowText.countdown(provider.primary, now: context.now))
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // The hero-to-rows gap the rows' rule used to carry, kept as the minimum.
+                    .padding(.bottom, 18)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     // R15: the column speaks its hero only; each row below is its own element.
                     .headroomWidgetProviderAccessibility(provider, windows: [provider.primary].compactMap { $0 }, now: context.now)
                 }
             }
-            .fixedSize(horizontal: false, vertical: true)
+            // The rows are offered the room first, so they keep their fullest rung (KTD10) and
+            // the hero columns stretch over whatever is left.
             ViewThatFits(in: .vertical) {
                 ForEach(0..<context.recipe.ladderRungCount, id: \.self) { rung in
                     largeRows(rung: rung)
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .top)
+            .layoutPriority(1)
             HeadroomWidgetStyleTail(context: context, mark: mark)
                 .padding(.top, 8)
         }
@@ -126,10 +134,10 @@ struct HeadroomWidgetVesselHero<Mark: View>: View {
             }
         }
         if rows.isEmpty {
-            Spacer(minLength: 0)
+            Color.clear.frame(height: 0)
         } else {
             VStack(alignment: .leading, spacing: 0) {
-                HeadroomWidgetRule().padding(.top, 18).padding(.bottom, 4)
+                HeadroomWidgetRule().padding(.bottom, 4)
                 // Keyed by provider and window: two providers each have a "fiveHour" window.
                 ForEach(rows, id: \.rowID) { row in
                     let provider = row.provider, window = row.window

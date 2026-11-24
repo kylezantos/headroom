@@ -44,6 +44,28 @@ import Testing
         #expect(line(run, phase: .spinner) != nil)
     }
 
+    /// CA-M1: "2 of 3 → 3 of 3" on one account rolls only the count; the name slot keeps
+    /// its identity, so the name does not slide away and back.
+    @Test func aCountChangeLeavesTheNameSlotInPlace() {
+        let twoOfThree = RefreshReceiptPresentation.landed(title: "Claude Work", live: true, completed: 2, total: 3)
+        let threeOfThree = RefreshReceiptPresentation.landed(title: "Claude Work", live: true, completed: 3, total: 3)
+        #expect(ReceiptRoll.nameSlotID(twoOfThree) == ReceiptRoll.nameSlotID(threeOfThree))
+        #expect(ReceiptRoll.countValue(twoOfThree.count ?? "") == 2)
+        #expect(ReceiptRoll.countValue(threeOfThree.count ?? "") == 3)
+    }
+
+    /// CA-M1: three receipts landing 60ms apart are three name slots, each removed on the
+    /// 80ms part exit (KTD8) rather than stacked, so only the last one is left. The roll
+    /// travels the approved 7pt, not a full line.
+    @Test func aBurstOfReceiptsLeavesOnlyTheLastOne() {
+        let lines = ["Claude", "Claude Work", "Codex"].enumerated().map { index, title in
+            RefreshReceiptPresentation.landed(title: title, live: true, completed: index + 1, total: 3)
+        }
+        #expect(Set(lines.map(ReceiptRoll.nameSlotID)).count == 3)
+        #expect(ReceiptRoll.exitAnimation == HeadroomMotion.partOut)
+        #expect(ReceiptRoll.distance == 7)
+    }
+
     /// U6: the phone's check-now line reuses these strings, so pin them here as the Mac
     /// footer shows them.
     @Test func sharedReceiptStringsAreTheFooterStrings() {

@@ -1498,6 +1498,95 @@ struct UsageStoreTests {
         #expect(store.menuBarMeters.count == 1)
     }
 
+    // MARK: Menu-bar marks seam (CA-MB1, CA-MB2, KTD7)
+
+    /// Every registered provider, in registry order: Antigravity sits between Cursor and Copilot.
+    private func allProviderStore(_ preferences: Preferences) -> UsageStore {
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .copilot, .opencode]
+        for surface in [UsageSurface.grokSubscription, .cursorSubscription, .copilotSubscription, .opencodeSubscription,
+                        .antigravitySubscription] {
+            preferences.setSurfaceEnabled(true, for: surface)
+        }
+        let providers: [any UsageProvider] = ids.enumerated().map { index, id in
+            StubProvider(id: id, displayName: id.raw, snapshot: .live(id, windows: [
+                UsageWindow(kind: .weekly, utilization: 10 + Double(index) * 10, resetsAt: reset),
+            ]))
+        }
+        return UsageStore(providers: providers, preferences: preferences)
+    }
+
+    @Test func everyExplicitMenuBarMeterCarriesItsProvidersID() async {
+        let preferences = freshPreferences()
+        // Six pills is the cap; Antigravity, the seventh provider, is one of them.
+        let ids: [ProviderID] = [.claude, .codex, .grok, .cursor, .antigravity, .opencode]
+        preferences.menuBarFillSource = .providers(Set(ids))
+        let store = allProviderStore(preferences)
+        await store.refreshAll()
+
+        let meters = store.menuBarMeters
+        #expect(meters.count == 6)
+        #expect(Set(meters.compactMap(\.providerID)) == Set(ids))
+        for meter in meters {
+            #expect(meter.providerID == meter.summary.providerID)
+            #expect(meter.isAutomaticSummary == false)
+        }
+    }
+
+    /// The automatic summary's meter names the provider it follows (the tightest window:
+    /// Codex at 80% used here) and is flagged automatic, so it is always marked.
+    @Test func theAutomaticSummaryMeterCarriesTheFollowedProvidersID() async {
+        let preferences = freshPreferences()
+        preferences.menuBarFillSource = .auto
+        let providers: [any UsageProvider] = [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .live(.claude, windows: [
+                UsageWindow(kind: .weekly, utilization: 20, resetsAt: reset),
+            ])),
+            StubProvider(id: .codex, displayName: "Codex", snapshot: .live(.codex, windows: [
+                UsageWindow(kind: .weekly, utilization: 80, resetsAt: reset),
+            ])),
+        ]
+        let store = UsageStore(providers: providers, preferences: preferences)
+        await store.refreshAll()
+
+        let meters = store.menuBarMeters
+        #expect(meters.count == 1)
+        #expect(meters.first?.providerID == .codex)
+        #expect(meters.first?.isAutomaticSummary == true)
+        #expect(meters.first?.showsMark(explicitPillsMarked: false) == true)
+        #expect(store.menuBarShowsMarks == false)
+    }
+
+    @Test func theStoreMirrorsTheMarksPreferenceWithItsComputedDefault() async {
+        let preferences = freshPreferences()
+        preferences.menuBarFillSource = .providers([.claude, .codex])
+        let store = allProviderStore(preferences)
+        #expect(store.menuBarMarksPreference == nil)
+        #expect(store.menuBarShowsMarks == true)
+
+        store.setMenuBarFillSource(.providers([.claude]))
+        #expect(store.menuBarShowsMarks == false)
+        store.setShowMenuBarMarks(true)
+        #expect(store.menuBarShowsMarks == true)
+        #expect(preferences.showMenuBarMarks == true)
+
+        store.setMenuBarFillSource(.providers([.claude, .codex, .grok]))
+        store.setShowMenuBarMarks(false)
+        #expect(store.menuBarShowsMarks == false)
+        await store.refreshAll()
+        #expect(store.menuBarMeters.allSatisfy { !$0.showsMark(explicitPillsMarked: store.menuBarShowsMarks) })
+
+        let reloaded = UsageStore(providers: [
+            StubProvider(id: .claude, displayName: "Claude", snapshot: .pending(for: .claude)),
+        ], preferences: preferences)
+        #expect(reloaded.menuBarMarksPreference == false)
+    }
+
+    @Test func aMeterWithNoProviderNeverShowsAMark() {
+        let neutral = MenuBarMeter(summary: .neutral, fill: nil, isAutomaticSummary: true)
+        #expect(neutral.providerID == nil)
+        #expect(neutral.showsMark(explicitPillsMarked: true) == false)
+    }
+
     @Test func widgetSelectionCanChangeIndependentlyAndExportsImmediately() {
         let preferences = freshPreferences()
         preferences.menuBarFillSource = .both

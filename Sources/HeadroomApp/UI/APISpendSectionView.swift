@@ -38,16 +38,20 @@ struct APISpendSectionView: View {
             // language — identity rows on the shared content axis, chunked by the same 22pt
             // gap the account sections use, inside the byte-identical tile.
             VStack(alignment: .leading, spacing: 0) {
-                // CMM7 (Kyle, 2026-09-10): the spend card takes the usage cards' rhythm, on
-                // the same 13pt padding and the same identity-row recipe.
-                // SP1 (Kyle, 2026-09-24): 26 is the gap between two account *blocks*. Two
-                // one-line rows 26 apart pitched 44pt against the meter rows' 31 and read as
-                // pinned to the card's top and bottom edges. Bare rows now sit one padding
-                // apart, so the card is evenly spaced; a row carrying a status sentence is a
-                // block again and keeps the account gap.
-                VStack(alignment: .leading, spacing: Self.rowGap(for: models)) {
-                    ForEach(models) { model in
-                        spendRow(model, amountWidth: amountWidth)
+                if store.accountLayout == .compact {
+                    compactBody(models)
+                } else {
+                    // CMM7 (Kyle, 2026-09-10): the spend card takes the usage cards' rhythm, on
+                    // the same 13pt padding and the same identity-row recipe.
+                    // SP1 (Kyle, 2026-09-24): 26 is the gap between two account *blocks*. Two
+                    // one-line rows 26 apart pitched 44pt against the meter rows' 31 and read as
+                    // pinned to the card's top and bottom edges. Bare rows now sit one padding
+                    // apart, so the card is evenly spaced; a row carrying a status sentence is a
+                    // block again and keeps the account gap.
+                    VStack(alignment: .leading, spacing: Self.rowGap(for: models)) {
+                        ForEach(models) { model in
+                            spendRow(model, amountWidth: amountWidth)
+                        }
                     }
                 }
                 actionRow(models)
@@ -64,6 +68,124 @@ struct APISpendSectionView: View {
     private static func rowGap(for models: [SpendRowModel]) -> CGFloat {
         let hasSentence = models.contains { $0.snapshot.freshness != .live && $0.status.message != nil }
         return hasSentence ? 26 : 13
+    }
+
+    // MARK: - Compact (CA-P11)
+
+    /// CA-P11 (POP-10): with Compact on, the spend card draws in the Compact idiom: one
+    /// header line naming the period and the direction once, then one 26pt line per vendor
+    /// with its amount at the Compact cells' size, flush on the card's 13pt edge where the
+    /// compact numerals above it end. In Standard the amounts sat 26pt inside that edge, so
+    /// adjacent cards put their figures on two columns.
+    private func compactBody(_ models: [SpendRowModel]) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            CompactSpendHeader(trailingLabel: CompactSpendLayout.headerTrailingLabel(
+                periodLabel: store.apiSpendPeriod.displayLabel(now: now),
+                kinds: models.map(\.snapshot.kind)
+            ))
+            VStack(alignment: .leading, spacing: CompactAccountRow.rowGap) {
+                ForEach(models) { model in
+                    compactSpendRow(model, mixedKinds: CompactSpendLayout.hasMixedKinds(models.map(\.snapshot.kind)))
+                }
+            }
+        }
+    }
+
+    private func compactSpendRow(_ model: SpendRowModel, mixedKinds: Bool) -> some View {
+        let snapshot = model.snapshot
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: IdentityRowMetrics.spacing) {
+                ProviderLogoView(providerID: snapshot.providerID, size: IdentityRowMetrics.markSlotWidth)
+                    .frame(width: IdentityRowMetrics.markSlotWidth, height: IdentityRowMetrics.markSlotWidth)
+                Text(model.title)
+                    .font(.system(size: CompactSpendLayout.titleSize, weight: .semibold))
+                    .kerning(IdentityRowMetrics.titleKerning)
+                    .accountTitleInk(for: snapshot.providerID)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .layoutPriority(1)
+                if snapshot.freshness != .live, let badge = model.status.shortBadge {
+                    compactStateTag(badge, tone: model.status.tone)
+                } else if let label = CompactSpendLayout.rowTag(
+                    shortBadge: nil,
+                    isLive: true,
+                    contextLabel: model.contextLabel,
+                    kind: snapshot.kind,
+                    mixedKinds: mixedKinds
+                ) {
+                    // The period chip's recipe, as the Standard row draws "Balance".
+                    Text(label)
+                        .kerning(IdentityRowMetrics.capsuleLabelKerning)
+                        .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
+                        .lineLimit(1)
+                        .identityMetadataLabel()
+                }
+                Spacer(minLength: 0)
+                if let amount = model.amount {
+                    Text(amount)
+                        .font(.system(size: CompactSpendLayout.amountSize, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(snapshot.freshness == .live ? .primary : .secondary)
+                        .lineLimit(1)
+                        .contentTransition(
+                            HeadroomMotion.numericText(value: snapshot.amount ?? 0, reduceMotion: reduceMotion)
+                        )
+                        .animation(
+                            HeadroomMotion.resolved(HeadroomMotion.valueSpring, .movement, reduceMotion: reduceMotion),
+                            value: snapshot.amount
+                        )
+                        .privacySensitive()
+                        .modifier(SpendTopUpReveal(
+                            glyph: topUpGlyph(model, revealed: hoveredTopUp == snapshot.providerID),
+                            glyphSpan: Self.topUpGlyphSpan,
+                            help: topUpHelp(for: model) ?? "",
+                            onHover: { inside in
+                                if inside {
+                                    hoveredTopUp = snapshot.providerID
+                                } else if hoveredTopUp == snapshot.providerID {
+                                    hoveredTopUp = nil
+                                }
+                            }
+                        ))
+                        .fixedSize()
+                }
+            }
+            .frame(height: CompactAccountRow.height)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(APISpendRowMetrics.accessibilityLabel(
+                snapshot: snapshot, contextLabel: model.contextLabel, amount: model.amount, status: model.status
+            ))
+            if snapshot.freshness != .live, let message = model.status.message {
+                Group {
+                    if snapshot.freshness == .pending {
+                        SpendWaitingLine(store: store, providerID: snapshot.providerID, message: message)
+                    } else {
+                        StatusSentence(text: message, severity: StatusSentenceSeverity.forSpendTone(model.status.tone))
+                    }
+                }
+                .accessibilityHidden(true)
+                .padding(.bottom, CompactSpendLayout.sentenceBottomGap)
+            }
+        }
+    }
+
+    /// The Standard row's state tag (`APISpendRow`), so "Rejected" is the same object in
+    /// both layouts: neutral tones take the stale recipe, warning and critical their ink.
+    private func compactStateTag(_ badge: String, tone: APISpendRowStatus.Tone) -> some View {
+        let ink: Color = switch tone {
+        case .quiet, .neutral: .secondary
+        case .warning: ProviderStyle.severityColor(for: .low, scheme: scheme)
+        case .critical: ProviderStyle.criticalText(scheme: scheme)
+        }
+        let neutral = tone == .quiet || tone == .neutral
+        return Text(badge)
+            .kerning(IdentityRowMetrics.capsuleLabelKerning)
+            .foregroundStyle(ink)
+            .lineLimit(1)
+            .identityCapsule(
+                fill: neutral ? IdentityCapsuleStyle.staleFill : ink.opacity(0.16),
+                horizontalPadding: 5,
+                border: neutral ? IdentityCapsuleStyle.stateBorder : nil
+            )
     }
 
     // MARK: - Row model
@@ -109,7 +231,9 @@ struct APISpendSectionView: View {
                 displayName: snapshot.displayName,
                 // The missing-key line names the figure the key unlocks, and xAI's row is a
                 // prepaid balance rather than period spend.
-                kind: snapshot.kind
+                kind: snapshot.kind,
+                // CA-P3: a retried figure's tag says how old it is.
+                readAt: (snapshot.capturedAt, now)
             ),
             title: identity.title,
             // X5: a balance row's "Remaining balance" outranks the name's qualifier — it is
@@ -242,31 +366,81 @@ struct APISpendSectionView: View {
     @ViewBuilder private func actionRow(_ models: [SpendRowModel]) -> some View {
         let actionable = models.filter { $0.showsCTA && $0.status.callToAction != nil }
         if !actionable.isEmpty {
-            let counts = actionable.reduce(into: [String: Int]()) { counts, model in
-                counts[model.status.callToAction ?? "", default: 0] += 1
-            }
+            // CA-P11: in Compact the action row starts on the names' axis past the mark, as
+            // the rows above it do.
             CardActionRow {
                 ForEach(actionable) { model in
-                    let cta = model.status.callToAction ?? ""
-                    Button(counts[cta, default: 0] > 1 ? qualified(cta, for: model) : cta, action: onOpenSettings)
+                    // CA-S8 (COPY-12): a CTA names its vendor whenever the card holds more
+                    // than one, so a lone "Replace Key" under four rows no longer leaves the
+                    // user guessing which key. Only a duplicated label used to qualify.
+                    Button(APISpendPresentation.cardCallToAction(
+                        model.status.callToAction ?? "",
+                        vendor: APISpendPresentation.vendorName(from: model.snapshot.displayName),
+                        cardVendorCount: models.count
+                    ), action: onOpenSettings)
                         .buttonStyle(SetupChipButtonStyle(size: .small))
                 }
             }
         }
     }
+}
 
-    /// Two chips reading "Add Key" side by side are indistinguishable, so a duplicated label
-    /// takes its vendor. Core's CTAs are all "<Verb> Key", so the vendor slots in before the
-    /// noun ("Replace Anthropic Key"); anything else falls back to a parenthetical.
-    /// B3T: the qualified form stays Title Case too — it is the same button, just longer.
-    /// R2B1: explicit templates instead of string surgery on the CTA.
-    private func qualified(_ cta: String, for model: SpendRowModel) -> String {
-        let vendor = APISpendPresentation.vendorName(from: model.snapshot.displayName)
-        switch cta {
-        case "Add Key": return "Add \(vendor) Key"
-        case "Replace Key": return "Replace \(vendor) Key"
-        default: return "\(cta) (\(vendor))"
+/// CA-P11: the Compact spend card's decisions, pure so the header and the row tag are testable.
+enum CompactSpendLayout {
+    /// The Compact row's title, as `CompactAccountRow`'s.
+    static let titleSize: CGFloat = 13
+    /// The Compact cells' numeral size (`UsageBarView`'s compact percent), so a spend amount
+    /// and a compact percentage read as one family on one edge.
+    static let amountSize: CGFloat = 15
+    static let sentenceBottomGap: CGFloat = 4
+
+    /// "Nov · used": the period and the direction, once for the card. A card that mixes
+    /// period spend and a prepaid balance states the period only; the balance row says
+    /// "Balance" itself.
+    static func headerTrailingLabel(periodLabel: String, kinds: [APISpendKind]) -> String {
+        guard let first = kinds.first, !hasMixedKinds(kinds) else { return periodLabel }
+        let context = APISpendPresentation.contextLabel(kind: first, periodLabel: periodLabel)
+        return "\(context) · \(APISpendPresentation.directionTerm(kind: first))"
+    }
+
+    static func hasMixedKinds(_ kinds: [APISpendKind]) -> Bool {
+        Set(kinds).count > 1
+    }
+
+    /// The tag beside a row's name: its state when it is not live, "Balance" on a balance row
+    /// the header does not already explain, nothing otherwise (the header names the period).
+    static func rowTag(shortBadge: String?, isLive: Bool, contextLabel: String, kind: APISpendKind, mixedKinds: Bool) -> String? {
+        if !isLive, let shortBadge { return shortBadge }
+        if kind == .balance, mixedKinds { return contextLabel }
+        return nil
+    }
+}
+
+/// CA-P11: the Compact spend card's one header line, in `CompactCardHeader`'s recipe: 11pt
+/// tertiary over one hairline, the trailing label flush on the amounts' edge.
+private struct CompactSpendHeader: View {
+    let trailingLabel: String
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: IdentityRowMetrics.spacing) {
+                Text("API spend")
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Text(trailingLabel)
+                    .lineLimit(1)
+            }
+            .font(.system(size: MeterSuffixColumn.size))
+            .foregroundStyle(.tertiary)
+            .frame(height: 16)
+            .padding(.bottom, 6)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Color.primary.opacity(0.08)).frame(height: 1)
+            }
+            Spacer(minLength: 0)
         }
+        .frame(height: CompactCardHeader.height)
+        .accessibilityHidden(true)
     }
 }
 

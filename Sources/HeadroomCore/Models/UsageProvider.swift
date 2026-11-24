@@ -74,7 +74,7 @@ public struct UsageProviderFetchResult: Sendable, Equatable {
     /// What a refused reading becomes once the refusal bound is reached: an ordinary
     /// transient failure, so a permanently unreadable identity file shows a stale row
     /// with normal backoff instead of retrying forever (KTD2).
-    public static let identityUnconfirmedReason = FailureReason.transient("Couldn’t confirm the account — will retry")
+    public static let identityUnconfirmedReason = FailureReason.transient("Couldn’t confirm the account. Headroom tries again on its next check.")
 
     var withoutDiscard: UsageProviderFetchResult {
         UsageProviderFetchResult(snapshot: snapshot, capability: capability)

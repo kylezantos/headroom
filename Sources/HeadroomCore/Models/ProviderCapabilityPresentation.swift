@@ -22,12 +22,17 @@ public extension ProviderCapabilityState {
         case .unknown, .discovering, .available:
             nil
         case .inconclusive:
+            // CA-P9: two sentences, no em dash; the second is the retry sentence every
+            // transient failure uses.
             .init(
-                status: "Couldn’t confirm where Claude Code is\u{00A0}—\u{00A0}will retry",
+                status: "Couldn’t confirm where Claude Code is. Headroom tries again on its next check.",
                 primaryLabel: "Check Now",
                 primaryAction: .checkNow,
                 secondaryLabel: "Open Guided Setup",
-                secondaryAction: .openClaudeSetup
+                secondaryAction: .openClaudeSetup,
+                // CA-P5: "Couldn’t confirm where Claude Code is · Check Now" wrapped. Check Now,
+                // not Install, keeps it distinct from "Claude Code not found".
+                shortStatus: "Can’t find Claude Code"
             )
         case .confirmedAbsent:
             .init(

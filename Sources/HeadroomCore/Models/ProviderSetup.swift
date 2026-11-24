@@ -13,9 +13,12 @@ public enum ProviderSignInCopy {
     public static let buttonAgain = "Sign In Again"
 
     /// The official CLI a provider's sign-in runs in, named the way its own docs name it.
+    ///
+    /// CA-P9 (COPY-05): Claude's is "Claude Code", the product the user installed. "Claude CLI"
+    /// and "Claude Code CLI" named one program two ways on neighbouring rows.
     public static func cliName(for providerID: ProviderID) -> String {
         switch providerID {
-        case .claude: "Claude CLI"
+        case .claude: "Claude Code"
         case .codex: "Codex CLI"
         case .grok: "Grok Build CLI"
         case .cursor: "Cursor Agent CLI"
@@ -24,16 +27,23 @@ public enum ProviderSignInCopy {
         }
     }
 
-    /// The name install and discovery copy uses. Claude's command ships inside the Claude
-    /// Code product, so "not installed" has to name the product a user would go and get;
-    /// the sign-in sentence names the command they run.
+    /// The name install and discovery copy uses. CA-P9: Claude's sign-in and install copy now
+    /// both say "Claude Code", so the two names agree; the accessor stays so install rows keep
+    /// one place to name the product a user would go and get.
     public static func cliProductName(for providerID: ProviderID) -> String {
-        providerID == .claude ? "Claude Code CLI" : cliName(for: providerID)
+        cliName(for: providerID)
     }
 
     /// The account-state sentence shared by the popover card and the Settings account row.
     public static func status(for providerID: ProviderID, again: Bool = false) -> String {
         "\(again ? "Sign in again" : "Sign in") with the official \(cliName(for: providerID))"
+    }
+
+    /// CA-P5: the one-line recovery row's form of `status`, without "the official", which
+    /// wrapped "Sign in with the official Claude Code" onto two lines at 295pt. It still
+    /// contains the verb, so the row accents it and appends nothing.
+    public static func shortStatus(for providerID: ProviderID, again: Bool = false) -> String {
+        "\(again ? "Sign in again" : "Sign in") with \(cliName(for: providerID))"
     }
 
     /// PA10's one-line popover header, derived from the same state the card switches on.
@@ -61,14 +71,64 @@ public enum ProviderSignInCopy {
     /// `hasRetainedReading` is true when the card is still showing numbers from an earlier
     /// capture. A "can't find the CLI" sentence above three live-looking percentages leaves
     /// the reader to decide which one to believe, so the sentence reconciles them itself.
+    ///
+    /// CA-P9: two sentences instead of an em dash, and "Claude Code" without "the".
     public static func cliMissing(for providerID: ProviderID, hasRetainedReading: Bool = false) -> String {
         let name = cliProductName(for: providerID)
         if hasRetainedReading {
-            return "Headroom can’t find the \(name)\u{00A0}—\u{00A0}showing the last reading"
+            return "Headroom can’t find \(name). Showing the last reading."
         }
         return providerID == .claude
-            ? "Headroom can’t find the \(name) on this Mac"
+            ? "Headroom can’t find \(name) on this Mac"
             : "\(name) isn’t installed on this Mac"
+    }
+
+    /// CA-P5: the one-line recovery row's form of `cliMissing` ("Claude Code not found ·
+    /// Install"). The full sentence stays in the row's tooltip.
+    public static func cliMissingShort(for providerID: ProviderID) -> String {
+        "\(cliProductName(for: providerID)) not found"
+    }
+
+    // MARK: CA-P9 setup card copy (COPY-03, COPY-04)
+    //
+    // R2C6 retired "connect", but the cards still said "reconnects"; "signing in in" read as a
+    // typo; the em-dash steps were the one AI tell in plain copy. Each line now says what the
+    // user will see. They live beside the sign-in sentences so the cards and Settings cannot
+    // word the same promise three ways again.
+
+    /// The last step of the Claude and Codex sign-in cards.
+    public static let comeBackStep = "Come back. Your usage shows up here."
+    /// The Codex waiting card when the login is the device code.
+    public static let codexDeviceCodeWaitingBody =
+        "Follow the device-code steps in Terminal. Your usage shows up here when Codex confirms."
+    /// The Codex waiting card when the login is in the browser.
+    public static let codexBrowserWaitingBody =
+        "Finish the ChatGPT sign-in in your browser. Your usage shows up here when Codex confirms."
+    /// The Codex re-auth card's body. "Quick" over-promised a device-code or SSO sign-in.
+    public static let codexSignedOutBody = "Codex signed you out. Sign in again to keep your usage current."
+
+    /// CA-P9 (COPY-04): one shape for the privacy promise. The claims stay different on
+    /// purpose: Codex reads a token file, Claude does not. Nil for a provider whose card
+    /// prints no note.
+    public static func privacyNote(for providerID: ProviderID) -> String? {
+        switch providerID {
+        case .claude:
+            "Headroom reads the usage report from Claude Code. It never sees your password or tokens, "
+                + "and checking doesn’t count against your limits."
+        case .codex:
+            "You sign in with the official Codex CLI in your browser. Headroom never sees your password."
+        default:
+            nil
+        }
+    }
+
+    /// CA-S4 (COPY-04): Settings › Accounts' one trust sentence, in the cards' shape.
+    public static let accountsTrustFooter =
+        "Each account signs in with its provider’s own CLI in Terminal. Headroom never sees your password."
+
+    /// CA-S5 (COPY-11): the built-in row's "Default" badge tooltip.
+    public static func defaultLoginHelp(for providerID: ProviderID) -> String {
+        "The account \(cliProductName(for: providerID)) in Terminal is signed in to"
     }
 }
 
@@ -213,19 +273,23 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     // R2C6: the sign-in sentences come from `ProviderSignInCopy`. The "— reconnect" tails
     // became "— sign in again" for the same reason: they are the prose half of a button
     // that now reads "Sign In Again".
+    //
+    // CA-P9: no em dashes. A cause and its consequence are two sentences now ("Couldn’t read
+    // Claude usage. Headroom tries again on its next check."), the retry sentence in the words
+    // the stale chip's tooltip uses (CA-P3), and "workspace" is the folder the CLI asks about.
     public var message: String {
         switch self {
         case .claudeCLIMissing: ProviderSignInCopy.cliMissing(for: .claude)
         case .claudeLoginRequired: ProviderSignInCopy.status(for: .claude)
-        case .claudeTrustRequired: "Approve Headroom’s workspace in\u{00A0}the\u{00A0}Claude\u{00A0}CLI"
+        case .claudeTrustRequired: "Approve Headroom’s folder in\u{00A0}Claude\u{00A0}Code"
         case .claudeUnknownUI: "Claude opened an unrecognized setup screen"
         case .claudeStartupQuestion: "Claude Code is waiting on a one-time question"
-        case .claudeTransientCapture: "Couldn’t read Claude usage\u{00A0}—\u{00A0}will retry"
+        case .claudeTransientCapture: Self.retrying("Couldn’t read Claude usage")
         case .codexCLIMissing: ProviderSignInCopy.cliMissing(for: .codex)
         case .codexAuthAbsent: ProviderSignInCopy.status(for: .codex)
         case .codexPermissionDenied: "Allow Headroom to read the Codex sign-in file"
-        case .codexUnsafePermissions: "Codex sign-in isn’t stored privately\u{00A0}—\u{00A0}sign in again"
-        case .codexMalformedAuth: "Codex sign-in data is unreadable\u{00A0}—\u{00A0}sign in again"
+        case .codexUnsafePermissions: "Codex sign-in isn’t stored privately. Sign in again to fix it."
+        case .codexMalformedAuth: "Codex sign-in data is unreadable. Sign in again to fix it."
         case .codexCredentialIO: "Couldn’t read Codex sign-in data"
         // R2C6: the canonical re-auth state, so it carries the re-auth sentence verbatim;
         // the two diagnostic siblings above keep their cause and take only the new tail.
@@ -236,20 +300,20 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .grokCLIMissing: ProviderSignInCopy.cliMissing(for: .grok)
         case .grokAuthAbsent: ProviderSignInCopy.status(for: .grok)
         case .grokPermissionDenied: "Allow Headroom to read the Grok sign-in file"
-        case .grokUnsafePermissions: "Grok sign-in isn’t stored privately\u{00A0}—\u{00A0}sign in again"
-        case .grokMalformedAuth: "Grok sign-in data is unreadable\u{00A0}—\u{00A0}sign in again"
+        case .grokUnsafePermissions: "Grok sign-in isn’t stored privately. Sign in again to fix it."
+        case .grokMalformedAuth: "Grok sign-in data is unreadable. Sign in again to fix it."
         case .grokCredentialIO: "Couldn’t read Grok sign-in data"
         case .grokRejectedAuth: ProviderSignInCopy.status(for: .grok, again: true)
-        case .grokTransientCapture: "Couldn’t read Grok usage\u{00A0}—\u{00A0}will retry"
+        case .grokTransientCapture: Self.retrying("Couldn’t read Grok usage")
         case .cursorCLIMissing: ProviderSignInCopy.cliMissing(for: .cursor)
         case .cursorAuthAbsent: ProviderSignInCopy.status(for: .cursor)
-        case .cursorTrustRequired: "Approve Headroom’s workspace in the Cursor Agent CLI"
+        case .cursorTrustRequired: "Approve Headroom’s folder in\u{00A0}Cursor\u{00A0}Agent"
         case .cursorMCPApprovalRequired: "Review Cursor Agent’s external tools"
         case .cursorUnknownUI: "Cursor Agent opened an unrecognized screen"
-        case .cursorTransientCapture: "Couldn’t read Cursor usage\u{00A0}—\u{00A0}will retry"
+        case .cursorTransientCapture: Self.retrying("Couldn’t read Cursor usage")
         case .copilotCLIMissing: ProviderSignInCopy.cliMissing(for: .copilot)
         case .copilotSignedOut: ProviderSignInCopy.status(for: .copilot)
-        case .copilotLogsUnreadable: "Couldn’t read Copilot session logs\u{00A0}—\u{00A0}will retry"
+        case .copilotLogsUnreadable: Self.retrying("Couldn’t read Copilot session logs")
         // KTD21's copy table.
         case .opencodeCLIMissing: ProviderSignInCopy.cliMissing(for: .opencode)
         case .opencodeUpdateRequired: "Go usage needs OpenCode 2.2 or newer"
@@ -257,13 +321,85 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
         case .opencodeConsoleSignInRequired: "Sign in to OpenCode Console to see Go usage"
         case .opencodeSignInExpired: ProviderSignInCopy.status(for: .opencode, again: true)
         case .opencodeFormatChanged: "Headroom can’t read OpenCode usage after an OpenCode change. Contact support"
-        case .opencodeTransientCapture: "Couldn’t read OpenCode usage\u{00A0}—\u{00A0}will retry"
+        case .opencodeTransientCapture: Self.retrying("Couldn’t read OpenCode usage")
         case .antigravityCLIMissing: ProviderSignInCopy.cliMissing(for: .antigravity)
         case .antigravityUpdateRequired: "Antigravity usage needs agy\u{00A0}1.5.9 or newer"
-        case .antigravityUnsupportedClient: "Headroom paused Antigravity reads after an agy change. Contact support"
+        // CA-P9 (R2C7): the sentence states the cause and the Contact Support button beside it
+        // names the act; "… Contact support" read twice over the button and in the tooltip.
+        case .antigravityUnsupportedClient: "Headroom paused Antigravity reads after an agy change"
         case .antigravitySignedOut: ProviderSignInCopy.status(for: .antigravity)
-        case .antigravityFormatChanged: "Headroom can’t read Antigravity usage after an agy change. Contact support"
-        case .antigravityTransientCapture: "Couldn’t read Antigravity usage\u{00A0}—\u{00A0}will retry"
+        case .antigravityFormatChanged: "Headroom can’t read Antigravity usage after an agy change"
+        case .antigravityTransientCapture: Self.retrying("Couldn’t read Antigravity usage")
+        }
+    }
+
+    /// CA-P9/CA-P3: a transient failure's two sentences, the second the stale chip's own.
+    private static func retrying(_ cause: String) -> String {
+        "\(cause). Headroom tries again on its next check."
+    }
+
+    /// CA-P5: the one-line recovery row's sentence, short enough that the row's appended
+    /// action fits beside it ("Claude Code not found · Install"). `message` stays the full
+    /// sentence for Settings and the row's tooltip.
+    var shortMessage: String {
+        switch self {
+        case .claudeLoginRequired: ProviderSignInCopy.shortStatus(for: .claude)
+        case .codexAuthAbsent: ProviderSignInCopy.shortStatus(for: .codex)
+        case .grokAuthAbsent: ProviderSignInCopy.shortStatus(for: .grok)
+        case .cursorAuthAbsent: ProviderSignInCopy.shortStatus(for: .cursor)
+        case .copilotSignedOut: ProviderSignInCopy.shortStatus(for: .copilot)
+        case .opencodeSignedOut: ProviderSignInCopy.shortStatus(for: .opencode)
+        // CA-P5: an unreadable or exposed sign-in file has the rejected sign-in's fix, and its
+        // cause ("…is unreadable · Sign In Again") wrapped at the 384pt column. The cause
+        // stays in the tooltip (`rowHelp`).
+        case .codexRejectedAuth, .codexMalformedAuth, .codexUnsafePermissions:
+            ProviderSignInCopy.shortStatus(for: .codex, again: true)
+        case .grokRejectedAuth, .grokMalformedAuth, .grokUnsafePermissions:
+            ProviderSignInCopy.shortStatus(for: .grok, again: true)
+        case .opencodeSignInExpired: ProviderSignInCopy.shortStatus(for: .opencode, again: true)
+        case .claudeCLIMissing: ProviderSignInCopy.cliMissingShort(for: .claude)
+        // CA-P5: a verb-first sentence already names its act, so nothing is appended
+        // ("Approve" opens Terminal, where the CLI asks about the folder).
+        case .claudeTrustRequired, .cursorTrustRequired: "Approve Headroom’s folder"
+        // CA-P5: the card already names Claude or Cursor; "Claude showed an unknown screen ·
+        // Check Now" wrapped. The tooltip keeps the product and the cause.
+        case .claudeUnknownUI, .cursorUnknownUI: "Unrecognized screen"
+        case .claudeStartupQuestion: "Answer Claude Code’s question"
+        // CA-P5: one transient family, "Couldn’t read <provider>"; the word "usage" was what
+        // pushed these onto a second line.
+        case .claudeTransientCapture: "Couldn’t read Claude"
+        case .codexCLIMissing: ProviderSignInCopy.cliMissingShort(for: .codex)
+        case .codexPermissionDenied: "Codex sign-in blocked"
+        case .codexCredentialIO: "Can’t read Codex sign-in"
+        case .codexSessionUnverified: "Can’t verify Codex"
+        case .codexStorageMismatch: "Codex login is elsewhere"
+        case .codexCallbackIncomplete: "Reopen Codex sign-in"
+        case .grokCLIMissing: ProviderSignInCopy.cliMissingShort(for: .grok)
+        case .grokPermissionDenied: "Grok sign-in blocked"
+        case .grokCredentialIO: "Can’t read Grok sign-in"
+        case .grokTransientCapture: "Couldn’t read Grok"
+        case .cursorCLIMissing: ProviderSignInCopy.cliMissingShort(for: .cursor)
+        case .cursorMCPApprovalRequired: "Review Cursor Agent’s tools"
+        case .cursorTransientCapture: "Couldn’t read Cursor"
+        case .copilotCLIMissing: ProviderSignInCopy.cliMissingShort(for: .copilot)
+        case .copilotLogsUnreadable: "Couldn’t read Copilot logs"
+        case .opencodeCLIMissing: ProviderSignInCopy.cliMissingShort(for: .opencode)
+        case .opencodeUpdateRequired: "Needs OpenCode 2.2"
+        case .opencodeConsoleSignInRequired: "Sign in to OpenCode Console"
+        // "Can’t" (it stays broken until Headroom updates) against the transient "Couldn’t".
+        case .opencodeFormatChanged: "Can’t read OpenCode"
+        case .opencodeTransientCapture: "Couldn’t read OpenCode"
+        case .antigravityCLIMissing: ProviderSignInCopy.cliMissingShort(for: .antigravity)
+        // CA-P5: "Needs agy 1.5.9 · Update", OpenCode's shape; the full sentence names the floor.
+        case .antigravityUpdateRequired: "Needs agy 1.5.9"
+        // CA-P5: Headroom stopped running `agy` on purpose, so the row says paused, not
+        // "Can’t read" (which is the format change) or "Couldn’t read" (the transient one).
+        case .antigravityUnsupportedClient: "Antigravity reads paused"
+        case .antigravitySignedOut: ProviderSignInCopy.shortStatus(for: .antigravity)
+        case .antigravityFormatChanged: "Can’t read Antigravity"
+        case .antigravityTransientCapture: "Couldn’t read Antigravity"
+        // CA-P5: no default. Every outcome now has a one-line form, so a new outcome has to
+        // choose one (and `RecoveryRowBudgetTests` measures it).
         }
     }
 
@@ -306,6 +442,10 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
     /// every surface. "Connect Codex", "Connect Grok", "Connect Cursor", "Reconnect …" and
     /// "Open Claude Setup" were five names for those two acts.
     public var recoveryPresentation: ProviderRecoveryPresentation {
+        fullRecoveryPresentation.withShortStatus(shortMessage)
+    }
+
+    private var fullRecoveryPresentation: ProviderRecoveryPresentation {
         switch self {
         case .claudeCLIMissing:
             // R7: mirrors the capability presentation — install guidance plus a fresh
@@ -320,7 +460,10 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
             // KTD5 (2026-09-19 sign-in plan): approval is its own handoff purpose. Sharing
             // Sign In's action staged the sign-in script, which exits on an already
             // signed-in account before the approval prompt can appear (AE3).
-            .init(status: message, primaryLabel: "Open Claude Workspace", primaryAction: .openClaudeWorkspace,
+            // CA-P9: a label change only. The button still stages the `.trust` interactive
+            // launch, a different script from Sign In's (AGENTS.md); "workspace" was
+            // Headroom's word, and the CLI asks about a folder.
+            .init(status: message, primaryLabel: "Open Claude in Terminal", primaryAction: .openClaudeWorkspace,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .claudeStartupQuestion:
@@ -385,7 +528,8 @@ public enum ProviderSetupOutcome: Sendable, Equatable, Hashable {
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .cursorTrustRequired:
-            .init(status: message, primaryLabel: "Open Cursor Workspace", primaryAction: .openCursorWorkspace,
+            // CA-P9: label only; the trust launch is unchanged.
+            .init(status: message, primaryLabel: "Open Cursor in Terminal", primaryAction: .openCursorWorkspace,
                   secondaryLabel: "Check Now", secondaryAction: .checkNow,
                   automaticPolicy: .boundedChecksAfterHandoff)
         case .cursorMCPApprovalRequired:
@@ -497,9 +641,12 @@ public extension UsageSnapshot.PlanStatus {
     func recoveryPresentation(for providerID: ProviderID) -> ProviderRecoveryPresentation? {
         switch (self, providerID) {
         case (.noActivePlan, .opencode):
+            // CA-P5: "No Go plan on this workspace · See Go Plans" wrapped; the card is the
+            // workspace's own, and the tooltip keeps the full sentence.
             .init(status: "No Go plan on this workspace", primaryLabel: "See Go Plans",
                   primaryAction: .seeOpenCodeGoPlans,
-                  secondaryLabel: "Check Now", secondaryAction: .checkNow)
+                  secondaryLabel: "Check Now", secondaryAction: .checkNow,
+                  shortStatus: "No Go plan here")
         default:
             nil
         }
@@ -518,6 +665,8 @@ public struct ProviderRecoveryPresentation: Sendable, Equatable {
     public let secondaryLabel: String?
     public let secondaryAction: SetupRecoveryAction?
     public let automaticPolicy: SetupAutomaticPolicy
+    /// CA-P5: an explicit one-line form of `status`; nil derives one (`shortStatus`).
+    private let shortStatusOverride: String?
 
     public init(
         status: String,
@@ -525,7 +674,8 @@ public struct ProviderRecoveryPresentation: Sendable, Equatable {
         primaryAction: SetupRecoveryAction,
         secondaryLabel: String? = nil,
         secondaryAction: SetupRecoveryAction? = nil,
-        automaticPolicy: SetupAutomaticPolicy = .none
+        automaticPolicy: SetupAutomaticPolicy = .none,
+        shortStatus: String? = nil
     ) {
         self.status = status
         self.primaryLabel = primaryLabel
@@ -533,6 +683,90 @@ public struct ProviderRecoveryPresentation: Sendable, Equatable {
         self.secondaryLabel = secondaryLabel
         self.secondaryAction = secondaryAction
         self.automaticPolicy = automaticPolicy
+        self.shortStatusOverride = shortStatus
+    }
+
+    func withShortStatus(_ shortStatus: String?) -> ProviderRecoveryPresentation {
+        .init(status: status, primaryLabel: primaryLabel, primaryAction: primaryAction,
+              secondaryLabel: secondaryLabel, secondaryAction: secondaryAction,
+              automaticPolicy: automaticPolicy, shortStatus: shortStatus ?? shortStatusOverride)
+    }
+
+    /// CA-P5 (option A): the action a one-line recovery row appends after its sentence, as in
+    /// "Claude Code not found · Install". Keyed on the action, so presentations built outside
+    /// `ProviderSetupOutcome` (the capability card's) shorten the same way. Sign In, Sign In
+    /// Again and Check Now are already short and keep R2C6's one verb.
+    public var primaryShortLabel: String {
+        switch primaryAction {
+        // CA-P5: Antigravity's install and update share one action (both open the CLI's
+        // page), so the update row keeps its own verb.
+        case .installAntigravityCLI where primaryLabel.hasPrefix("Update"): "Update"
+        case .installClaudeCLI, .installCodexCLI, .installGrokCLI, .installCursorAgent,
+             .installCopilotCLI, .installOpenCodeCLI, .installAntigravityCLI:
+            "Install"
+        case .showPrivacyGuidance: "Get Help"
+        // CA-P5: the act the Terminal launch is for; "Approve Headroom’s folder · Open
+        // Terminal" wrapped, and the row's Terminal glyph already says where it opens.
+        case .openClaudeWorkspace, .openCursorWorkspace: "Approve"
+        // CA-P5: opens the pre-filled support email; "Contact Support" pushed the row onto two
+        // lines.
+        case .contactSupport: "Report"
+        case .answerClaudeQuestion: "Answer"
+        case .resolveCodexStorage: "Resolve"
+        case .reviewCursorTools: "Review"
+        case .updateOpenCode: "Learn More"
+        case .reconnectCodex where primaryLabel != ProviderSignInCopy.buttonAgain: "Reopen"
+        default: primaryLabel
+        }
+    }
+
+    /// CA-P5 (option A): the sentence a one-line recovery row prints before " · " and its
+    /// short action. An install action reads "<product> not found"; otherwise the explicit
+    /// short form, or the status's first sentence.
+    public var shortStatus: String {
+        if let shortStatusOverride { return shortStatusOverride }
+        if let provider = primaryAction.installsCLI {
+            return ProviderSignInCopy.cliMissingShort(for: provider)
+        }
+        return Self.firstSentence(of: status)
+    }
+
+    /// CA-P5: true when the row has to append `primaryShortLabel`, because its sentence does
+    /// not already contain the action ("Sign in with the official Codex CLI" does).
+    public var appendsShortAction: Bool {
+        shortStatus.range(of: primaryShortLabel, options: [.caseInsensitive, .diacriticInsensitive]) == nil
+    }
+
+    /// CA-P5: the one-line row's tooltip, the full sentence and the full label it shortens:
+    /// "Headroom can’t find Claude Code on this Mac. Install Claude Code."
+    public var rowHelp: String {
+        let sentence = status.hasSuffix(".") ? status : status + "."
+        return "\(sentence) \(primaryLabel)."
+    }
+
+    /// The text up to the first sentence break. A legacy "cause\u{00A0}—\u{00A0}consequence"
+    /// counts as one, so a status not yet rewritten still shortens to its cause.
+    static func firstSentence(of text: String) -> String {
+        let breaks = [". ", "\u{00A0}—\u{00A0}", " — "]
+        let end = breaks.compactMap { text.range(of: $0)?.lowerBound }.min() ?? text.endIndex
+        let first = String(text[..<end])
+        return first.hasSuffix(".") ? String(first.dropLast()) : first
+    }
+}
+
+extension SetupRecoveryAction {
+    /// The provider whose CLI an install action fetches, or nil for every other action.
+    var installsCLI: ProviderID? {
+        switch self {
+        case .installClaudeCLI: .claude
+        case .installCodexCLI: .codex
+        case .installGrokCLI: .grok
+        case .installCursorAgent: .cursor
+        case .installCopilotCLI: .copilot
+        case .installOpenCodeCLI: .opencode
+        case .installAntigravityCLI: .antigravity
+        default: nil
+        }
     }
 }
 

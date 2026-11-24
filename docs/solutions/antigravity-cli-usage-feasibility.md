@@ -87,7 +87,7 @@ Otherwise the capture fails as `unsupportedClient`, and the failure is sticky: n
 again until its resolved path or modification date changes. A user request runs only the local
 `--version` print, and clears the stop only if the version changed (the one way to notice a
 version swapped behind an unchanged file). The card reads "Headroom paused Antigravity reads
-after an agy change. Contact support" with **Check Now**. This guards against a future CLI change,
+after an agy change" with **Contact Support** and **Check Now**. This guards against a future CLI change,
 or a user skill that takes over `/usage`, turning every poll into a paid agent turn. Fixtures
 `usage-one-turn` and `usage-output-tokens` (derived from the live capture) pin it.
 

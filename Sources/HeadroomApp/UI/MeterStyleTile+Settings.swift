@@ -7,7 +7,7 @@ import HeadroomCore
 /// U12: `MeterStyleTile` moved to `HeadroomSharedUI` so the phone draws the same swatches. The
 /// Mac keeps its call site (`MeterStyleTile(meterStyle:onChange:)` in `SettingsPanes`) and its
 /// look: this chrome passes the Settings window's own vocabulary back in, and its container
-/// still puts the rows in a `SettingsTile` titled "Meter Style" (R2C19/R2B1: one container,
+/// still puts the rows in a `SettingsTile` titled "Meter style" (R2C19/R2B1: one container,
 /// one title policy).
 struct MacSettingsMeterStyleChrome: MeterStyleTileChrome {
     /// The numbers the tile always drew: five 76pt columns on 8pt gaps (L12B), a 26pt well over
@@ -16,8 +16,8 @@ struct MacSettingsMeterStyleChrome: MeterStyleTileChrome {
         MeterStyleTileMetrics(
             rowSpacing: SettingsMetrics.groupToGroup,
             captionSpacing: SettingsMetrics.labelToStackedControl,
-            swatchWidth: 76,
-            swatchSpacing: 8,
+            swatchWidth: SettingsSwatchWidth.compact,
+            swatchSpacing: SettingsSwatchWidth.gap,
             swatchPadding: 5,
             wellHeight: 26,
             wellCornerRadius: 6,
@@ -47,6 +47,27 @@ struct MacSettingsMeterStyleChrome: MeterStyleTileChrome {
 
     var swatchStyle: SettingsSwatchButtonStyle { SettingsSwatchButtonStyle() }
 
+    /// CA-S11: a Settings-only caption that fits one line in a 76pt swatch. "Always colored"
+    /// and "Only when low" wrapped to two, the only two-line captions in the window. The full
+    /// Core name stays in each swatch's help tag and VoiceOver label, and the phone keeps
+    /// printing it.
+    func fillLabel(_ fill: GaugeFill) -> String {
+        switch fill {
+        case .solid: "Always"
+        case .glass: "Glass"
+        case .ghost: "Ghost"
+        case .colorAsEvent: "When low"
+        case .hueRamp: "Fade"
+        }
+    }
+
+    var fillLabelLines: Int { 1 }
+
+    var fillHelp: String {
+        "When low keeps meters neutral until usage runs low. "
+            + "Glass and Ghost add a bright\u{00A0}end\u{00A0}cap."
+    }
+
     func container() -> MacMeterStyleTileContainer { MacMeterStyleTileContainer() }
 }
 
@@ -62,7 +83,8 @@ extension MeterStyleTile where Chrome == MacSettingsMeterStyleChrome {
 /// children.
 struct MacMeterStyleTileContainer: ViewModifier {
     func body(content: Content) -> some View {
-        SettingsTile("Meter Style") { content }
+        // CA-S8: sentence case, like every tile title in the window.
+        SettingsTile("Meter style") { content }
     }
 }
 

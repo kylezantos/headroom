@@ -53,6 +53,13 @@ public enum CheckNowLinePolicy {
             .min()
     }
 
+    /// CA-I2 (revisits "Approved F"'s 190pt slot): once the app dims, the header slot keeps
+    /// only this short stamp, the widgets' own words (CA-W4), and the full "No update from
+    /// your Mac since …" sentence gets its own line under the header, where it never clips.
+    public static func dimmedStamp(since time: String) -> String {
+        "Last update \(time)"
+    }
+
     /// A launch (or the first update of a session) adopts a stored request only while it is
     /// still open, so yesterday's "Just now" or timeout never greets a fresh launch.
     public static func resumesAtLaunch(_ status: CheckNowStatus) -> Bool {

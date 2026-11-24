@@ -1,3 +1,4 @@
+import AppKit
 import HeadroomCore
 import SwiftUI
 import Testing
@@ -619,11 +620,12 @@ struct RememberedRowPresentationTests {
         #expect(AccountSectionContent(freshness: .live, kind: .remembered, planRecovery: presentation) == .meters)
     }
 
-    /// D2: the approved row shows what the click does, after the sentence.
+    /// D2, made one line by CA-P5: the row still shows what the click does, after " · ", and
+    /// its tooltip keeps the whole sentence.
     @Test func theNoPlanRowShowsItsActionAfterTheSentence() throws {
         let presentation = try #require(UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: .opencode))
-        #expect(PlanStatusActionRow.message(for: presentation) == "No Go plan on this workspace. See\u{00A0}Go\u{00A0}Plans")
-        #expect(PlanStatusActionRow.rowLabel(for: presentation) == "See\u{00A0}Go\u{00A0}Plans")
+        #expect(CardRowAction<EmptyView>.oneLineText(for: presentation) == "No Go plan here · See Go Plans")
+        #expect(presentation.rowHelp == "No Go plan on this workspace. See Go Plans.")
     }
 
     @Test func voiceOverSaysLastReadAndWhenForARememberedRow() {
@@ -734,12 +736,13 @@ struct CardRowActionTests {
     @Test func terminalHandoffsWebPagesAndRereadsEachGetTheirOwnGlyph() {
         for action in [SetupRecoveryAction.openClaudeSetup, .connectCodex, .reconnectCodex, .connectGrok,
                        .reconnectGrok, .connectCursor, .openClaudeWorkspace, .openCursorWorkspace,
-                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot, .connectOpenCode] {
+                       .reviewCursorTools, .resolveCodexStorage, .connectCopilot, .connectOpenCode,
+                       .connectAntigravity] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "apple.terminal")
         }
         for action in [SetupRecoveryAction.installClaudeCLI, .installCodexCLI, .installGrokCLI,
                        .installCursorAgent, .installCopilotCLI, .showPrivacyGuidance,
-                       .installOpenCodeCLI, .updateOpenCode, .seeOpenCodeGoPlans] {
+                       .installOpenCodeCLI, .updateOpenCode, .seeOpenCodeGoPlans, .installAntigravityCLI] {
             #expect(SetupSessions.recoveryRoute(for: action).systemImage == "globe")
         }
         // Device code is the alternative beside a Terminal sign-in, so it can't share its glyph.
@@ -790,5 +793,240 @@ struct APISpendRowAccessibilityTests {
         #expect(APISpendRowMetrics.accessibilityLabel(
             snapshot: snapshot(.stale(.needsReauth("x"))), contextLabel: "Oct", amount: nil, status: status
         ) == "Anthropic API, Oct, Key rejected, The key was rejected")
+    }
+}
+
+/// CA-P5 (option A): a recovery row names its action on its one line.
+@MainActor
+@Suite(.sharedAppState)
+struct RecoveryRowTextTests {
+    @Test func aSentenceWithoutItsVerbEndsWithItsShortAction() {
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.claudeCLIMissing.recoveryPresentation)
+            == "Claude Code not found · Install")
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.codexStorageMismatch.recoveryPresentation)
+            == "Codex login is elsewhere · Resolve")
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.codexPermissionDenied.recoveryPresentation)
+            == "Codex sign-in blocked · Get Help")
+        #expect(CardRowAction<EmptyView>.oneLineText(for: ProviderSetupOutcome.claudeTrustRequired.recoveryPresentation)
+            == "Approve Headroom’s folder")
+        let capability = ProviderCapabilityState.confirmedAbsent.recoveryPresentation
+        #expect(capability.map { CardRowAction<EmptyView>.oneLineText(for: $0) } == "Claude Code not found · Install")
+    }
+
+    /// "Sign in with Claude Code" already names its act, so nothing is appended; on every
+    /// provider the sign-in rows drop "the official", which wrapped them onto two lines.
+    @Test func aSentenceThatContainsItsVerbIsUnchanged() {
+        for (outcome, provider) in [
+            (ProviderSetupOutcome.claudeLoginRequired, ProviderID.claude), (.codexAuthAbsent, .codex),
+            (.grokAuthAbsent, .grok), (.cursorAuthAbsent, .cursor), (.copilotSignedOut, .copilot),
+            (.opencodeSignedOut, .opencode),
+        ] {
+            let presentation = outcome.recoveryPresentation
+            #expect(!presentation.appendsShortAction)
+            #expect(CardRowAction<EmptyView>.oneLineText(for: presentation) == ProviderSignInCopy.shortStatus(for: provider))
+        }
+    }
+
+    /// A failure sentence of the session's own, Try Again and the untyped Sign In keep their
+    /// sentence; only the typed recovery the chip answers takes the one-line form.
+    @Test func onlyTheTypedRecoveryTakesTheOneLineForm() {
+        let presentation = ProviderSetupOutcome.claudeLoginRequired.recoveryPresentation
+        let primary = SetupRowChip.recovery(presentation.primaryAction, label: presentation.primaryLabel)
+        #expect(AccountSectionView.oneLinePresentation(presentation, primary: primary, hasFailureMessage: false) != nil)
+        #expect(AccountSectionView.oneLinePresentation(presentation, primary: primary, hasFailureMessage: true) == nil)
+        #expect(AccountSectionView.oneLinePresentation(presentation, primary: .tryAgain, hasFailureMessage: false) == nil)
+        #expect(AccountSectionView.oneLinePresentation(nil, primary: .signIn, hasFailureMessage: false) == nil)
+    }
+}
+
+/// CA-P14 (UX-02) and CA-S8 (COPY-09): the Stop Waiting dialog.
+@MainActor
+@Suite(.sharedAppState)
+struct StopWaitingConfirmationTests {
+    private let extra = ProviderAccount(id: AccountID("added-\(UUID().uuidString)"), providerID: .claude,
+                                        label: "Account 3", isBuiltIn: false)
+
+    private func entry(_ account: ProviderAccount, freshness: Freshness, windows: [UsageWindow] = []) -> ProviderAccountEntry {
+        ProviderAccountEntry(account: account, snapshot: UsageSnapshot(
+            providerID: account.providerID, windows: windows, planLabel: nil, capturedAt: nil, freshness: freshness))
+    }
+
+    @Test func aNeverSignedInExtraIsRemovedOnConfirmAndKeptOnKeepWaiting() {
+        let dialog = StopWaitingConfirmation(accountLabel: extra.label, prompt: .signIn, removesAccount: true)
+        #expect(dialog.title == "Stop adding this account?")
+        #expect(dialog.confirmLabel == "Remove Account")
+        #expect(dialog.message.contains("removes Account 3"))
+        var stopped: [AccountKey] = [], removed: [AccountKey] = []
+        dialog.perform(.keepWaiting, for: extra, stop: { stopped.append($0.key) }, remove: { removed.append($0.key) })
+        #expect(stopped.isEmpty && removed.isEmpty)
+        // The removal owns the stop (`stopWaitingAndRemove`), so the wait is cancelled once.
+        dialog.perform(.confirm, for: extra, stop: { stopped.append($0.key) }, remove: { removed.append($0.key) })
+        #expect(stopped.isEmpty && removed == [extra.key])
+    }
+
+    @Test func aPreviouslySignedInAccountKeepsTodaysDialog() {
+        let dialog = StopWaitingConfirmation(accountLabel: "Work", prompt: .signIn, removesAccount: false)
+        #expect(dialog.title == "Stop waiting for sign-in?")
+        #expect(dialog.confirmLabel == "Stop Waiting")
+        #expect(dialog.accessibilityLabel == "Stop waiting for sign-in for Work")
+        var removed = 0
+        var stopped = 0
+        dialog.perform(.confirm, for: extra, stop: { _ in stopped += 1 }, remove: { _ in removed += 1 })
+        #expect(removed == 0 && stopped == 1)
+        #expect(StopWaitingConfirmation(accountLabel: "Work", prompt: .workspaceApproval, removesAccount: false).title
+            == "Stop waiting for approval?")
+    }
+
+    @Test func onlyAnExtraThatNeverReadOffersRemoval() {
+        let preset = Freshness.stale(.notLoggedIn(UsageStore.finishSignInMessage))
+        // A pending snapshot is no evidence of a never-finished sign-in (one rule with Settings).
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .pending), hasReadingOnRecord: false))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: preset), hasReadingOnRecord: false))
+        #expect(stopWaitingRemovesAccount(entry(extra, freshness: .stale(.providerSetup(.claudeLoginRequired))), hasReadingOnRecord: false))
+        #expect(!stopWaitingRemovesAccount(entry(.builtIn(for: .claude), freshness: .pending), hasReadingOnRecord: false))
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: .live), hasReadingOnRecord: false))
+        let retained = [UsageWindow(kind: .weekly, utilization: 60, resetSchedule: .unresolved(.absent))]
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: preset, windows: retained), hasReadingOnRecord: false))
+        // CA-P14 review fix: an extra with a reading on record keeps today's dialog.
+        #expect(!stopWaitingRemovesAccount(entry(extra, freshness: preset), hasReadingOnRecord: true))
+    }
+}
+
+/// CA-P5: every provider × state recovery row fits one line at the 384pt column, measured in
+/// the row's own fonts against the room the row actually has. The full sentence stays in the
+/// tooltip (`rowHelp`).
+@MainActor
+@Suite(.sharedAppState)
+struct RecoveryRowBudgetTests {
+    private static let outcomes: [ProviderSetupOutcome] = [
+        .claudeCLIMissing, .claudeLoginRequired, .claudeTrustRequired, .claudeUnknownUI, .claudeStartupQuestion,
+        .claudeTransientCapture, .codexCLIMissing, .codexAuthAbsent, .codexPermissionDenied, .codexUnsafePermissions,
+        .codexMalformedAuth, .codexCredentialIO, .codexRejectedAuth, .codexSessionUnverified, .codexStorageMismatch,
+        .codexCallbackIncomplete, .grokCLIMissing, .grokAuthAbsent, .grokPermissionDenied, .grokUnsafePermissions,
+        .grokMalformedAuth, .grokCredentialIO, .grokRejectedAuth, .grokTransientCapture, .cursorCLIMissing,
+        .cursorAuthAbsent, .cursorTrustRequired, .cursorMCPApprovalRequired, .cursorUnknownUI, .cursorTransientCapture,
+        .copilotCLIMissing, .copilotSignedOut, .copilotLogsUnreadable, .opencodeCLIMissing, .opencodeUpdateRequired,
+        .opencodeSignedOut, .opencodeConsoleSignInRequired, .opencodeSignInExpired, .opencodeFormatChanged,
+        .opencodeTransientCapture, .antigravityCLIMissing, .antigravityUpdateRequired,
+        .antigravityUnsupportedClient, .antigravitySignedOut, .antigravityFormatChanged,
+        .antigravityTransientCapture,
+    ]
+
+    private static var presentations: [(String, ProviderRecoveryPresentation)] {
+        outcomes.map { ("\($0)", $0.recoveryPresentation) }
+            + [ProviderCapabilityState.inconclusive(.shellTimeout), .confirmedAbsent].compactMap { state in
+                state.recoveryPresentation.map { ("capability \(state)", $0) }
+            }
+            + [("capability absent, retained", ProviderCapabilityState.confirmedAbsent
+                .recoveryPresentation(hasRetainedReading: true)!)]
+            + [("OpenCode no Go plan", UsageSnapshot.PlanStatus.noActivePlan.recoveryPresentation(for: .opencode)!)]
+    }
+
+    /// The text's room inside a `CardRowAction` on a 346pt card: the card's padding, the row's
+    /// title-axis insets, the button's padding, glyph column and gap, the two HStack gaps
+    /// around its Spacer, the ↗ (with its gap) when the row opens elsewhere, and the trailing
+    /// `CardRowGlyphButton` (a 12pt glyph in 7pt padding) with the row's 4pt gap.
+    private static func budget(opensElsewhere: Bool, hasSecondary: Bool) -> CGFloat {
+        let metrics = AccountColumnsMetrics.popover
+        let row = CGFloat(metrics.columnWidth - 2 * metrics.cardPadding)
+            - CardRowMetrics.titleAxisInset - IdentityRowMetrics.contentTrailingInset
+        var text = row - CardRowMetrics.leadingPadding - CardRowMetrics.glyphColumn - CardRowMetrics.glyphGap
+            - CardRowMetrics.glyphGap - CardRowMetrics.trailingPadding
+        if opensElsewhere {
+            let arrow = NSImage(systemSymbolName: "arrow.up.forward", accessibilityDescription: nil)?
+                .withSymbolConfiguration(.init(pointSize: 9, weight: .semibold))?.size.width ?? 10
+            text -= CardRowMetrics.glyphGap + arrow
+        }
+        if hasSecondary { text -= 4 + 12 + 2 * 7 }
+        return text
+    }
+
+    /// The row in its fonts: 11.5 medium, the accented verb and the appended action semibold.
+    private static func width(of presentation: ProviderRecoveryPresentation) -> CGFloat {
+        let medium = NSFont.systemFont(ofSize: CardRowMetrics.fontSize, weight: .medium)
+        let semibold = NSFont.systemFont(ofSize: CardRowMetrics.fontSize, weight: .semibold)
+        let line = NSMutableAttributedString(string: presentation.shortStatus, attributes: [.font: medium])
+        let verb = (presentation.shortStatus as NSString).range(
+            of: presentation.primaryShortLabel, options: [.caseInsensitive, .diacriticInsensitive])
+        if verb.location != NSNotFound { line.addAttribute(.font, value: semibold, range: verb) }
+        if presentation.appendsShortAction {
+            line.append(NSAttributedString(string: CardRowMetrics.actionSeparator, attributes: [.font: medium]))
+            line.append(NSAttributedString(string: presentation.primaryShortLabel, attributes: [.font: semibold]))
+        }
+        return line.size().width
+    }
+
+    @Test func everyRecoveryRowFitsOneLineAtTheColumn() {
+        for (name, presentation) in Self.presentations {
+            let budget = Self.budget(
+                opensElsewhere: SetupSessions.recoveryRoute(for: presentation.primaryAction) != .checkNow,
+                hasSecondary: presentation.secondaryLabel != nil && presentation.secondaryAction != nil
+            )
+            let width = Self.width(of: presentation)
+            #expect(width <= budget, "\(name): “\(CardRowAction<EmptyView>.oneLineText(for: presentation))” is \(width)pt, room \(budget)pt")
+            // The tooltip still carries the full sentence and label it shortens.
+            #expect(presentation.rowHelp.contains(presentation.primaryLabel), "\(name)")
+        }
+    }
+
+    /// A row that ever outgrows its line breaks only before its action: each phrase is glued
+    /// with no-break spaces and the "·" stays on the sentence.
+    @Test func aRowThatWrapsBreaksOnlyAtTheSeparator() {
+        let text = CardRowAction<EmptyView>.rowText("Can’t read OpenCode", verb: "Report", appending: "Report",
+                                                    ink: .primary, gluesPhrases: true)
+        let plain = String(text.characters)
+        #expect(plain == "Can’t\u{00A0}read\u{00A0}OpenCode\u{00A0}· Report")
+        #expect(plain.filter { $0 == " " }.count == 1)
+        let unglued = String(CardRowAction<EmptyView>.rowText("Sign in with Claude Code", verb: "Sign In",
+                                                              appending: nil, ink: .primary).characters)
+        #expect(unglued == "Sign in with Claude Code")
+    }
+}
+
+/// CA-P12 fix pass: the header's status line rises by the cap-height difference alone, so its
+/// cap centre lands on the title's. Rendered offscreen at 2× from the header's own fonts and
+/// alignment guide, with cap-only glyphs so descenders cannot skew the ink box.
+@MainActor
+@Suite(.sharedAppState)
+struct PopoverHeaderAlignmentTests {
+    private static func inkCapCentres(scale: CGFloat) throws -> (title: CGFloat, status: CGFloat) {
+        let offset = PopoverView.baselineOffsetMatchingTitle(for: PopoverView.statusFont)
+        let view = HStack(alignment: .firstTextBaseline, spacing: 20) {
+            Text("H").font(.system(size: 17, weight: .semibold)).kerning(-0.2)
+            Text("H").font(.system(size: 11).monospacedDigit())
+                .alignmentGuide(.firstTextBaseline) { d in d[.firstTextBaseline] + offset }
+        }
+        .padding(10)
+        .background(Color.white)
+        .foregroundStyle(Color.black)
+        let renderer = ImageRenderer(content: view)
+        renderer.scale = scale
+        let image = try #require(renderer.cgImage)
+        let width = image.width, height = image.height
+        let context = try #require(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        let pixels = try #require(context.data).assumingMemoryBound(to: UInt8.self)
+        func inked(_ x: Int, _ y: Int) -> Bool { pixels[(y * width + x) * 4] < 128 }
+        var columns: [ClosedRange<Int>] = []
+        var start: Int?
+        for x in 0..<width {
+            let hasInk = (0..<height).contains { inked(x, $0) }
+            if hasInk, start == nil { start = x }
+            if !hasInk, let first = start { columns.append(first...(x - 1)); start = nil }
+        }
+        let glyphs = try #require(columns.count == 2 ? columns : nil)
+        func centre(_ range: ClosedRange<Int>) -> CGFloat {
+            let rows = (0..<height).filter { y in range.contains { inked($0, y) } }
+            return CGFloat(rows.first! + rows.last! + 1) / 2 / scale
+        }
+        return (centre(glyphs[0]), centre(glyphs[1]))
+    }
+
+    @Test func theStatusCapCentreMeetsTheTitles() throws {
+        let centres = try Self.inkCapCentres(scale: 2)
+        // One 2× pixel row of tolerance for rasterisation.
+        #expect(abs(centres.status - centres.title) <= 0.5, "\(centres)")
     }
 }

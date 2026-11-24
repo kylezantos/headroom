@@ -478,6 +478,29 @@ public enum HeadroomControlColorValues {
     }
 }
 
+/// CA-S1 / CA-P2: the edge values of the Mac's raised tiles, kept in Core so the DESIGN rule 8
+/// ceiling (never a rim above white 0.15 in dark) is a test, not a review note. The popover
+/// card's dark edge reads these through `HeadroomTuning`'s defaults; Settings' flat tile
+/// reads them directly. Light glass and the Increase Contrast branch keep their own values.
+public enum HeadroomTileEdgeValues {
+    /// DESIGN rule 8.
+    public static let darkRimCeiling: Double = 0.15
+
+    /// CA-P2: the dark card edge, rebuilt on the setup chip's CMM3 layers. An even ring all
+    /// round replaces R2C1's white 0.20 → black 0.22 gradient stroke, whose bright top was the
+    /// only edge that read and whose dark bottom vanished into the shell.
+    public static let darkGlassRingOpacity: Double = 0.07
+    /// CA-P2: the 1pt inset lip, faded out down the sides by the chip's own mask.
+    public static let darkGlassLipOpacity: Double = 0.10
+
+    /// CA-S1: Settings' tile is flat. Dark draws a white 0.06 fill and a 0.09 ring and no
+    /// shadow, which a dark canvas cannot show; light draws `controlBackgroundColor` with a
+    /// black 0.07 ring and two tight shadows.
+    public static let darkOpaqueFillOpacity: Double = 0.06
+    public static let darkOpaqueRingOpacity: Double = 0.09
+    public static let lightOpaqueRingOpacity: Double = 0.07
+}
+
 /// The ramp's dark-scheme start is mixed against different meter surfaces. Light mode
 /// uses the same white mix on both because both reference surfaces are light neutrals.
 public enum MeterRampSurface: Sendable {
@@ -523,12 +546,17 @@ public enum HeadroomMeterColorValues {
     // Body ≈ black @ 0.24, end stop ≈ black @ 0.36; the amber is untouched. These are the
     // starting values from the decision, tuned from live `--demo multi-4` captures.
     // `BrandColorValuesTests` pins the ordering, not the literals.
+    //
+    // CA-P10: dark stepped 0.22/0.11 → 0.36/0.24. The dark neutral measured ≈1.5:1 against
+    // its track where light's measured ≈2.1:1, so at 32×5pt a dark 91% and 64% looked alike.
+    // The gradient's middle now clears 2:1 in dark and still sits under every severity fill.
+    // These also paint the Glass fill's body.
     public static func glassA(dark: Bool) -> HeadroomTint {
-        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.22 : 0.24)
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.36 : 0.24)
     }
 
     public static func glassB(dark: Bool) -> HeadroomTint {
-        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.11 : 0.36)
+        HeadroomTint(color: dark ? .white : .black, opacity: dark ? 0.24 : 0.36)
     }
 
     public static func glassRim(dark: Bool) -> HeadroomTint {
@@ -625,6 +653,34 @@ public enum HeadroomMeterColorValues {
     /// severity lightness and hue and drops to 35% of its chroma — the dim the numeral takes
     /// is unchanged, and `.unavailable` (which paints no fill at all) is untouched.
     public static let staleFillChromaScale: Double = 0.35
+
+    /// CA-P1 (KTD5): how much of the live neutral a stale healthy meter keeps, in the fill
+    /// modes where a live healthy meter is neutral (`MeterRecipe.livePaintsHealthyNeutral`).
+    /// R2C16's chroma hedge has no chroma to scale there, so it returned the healthy green and
+    /// the stale row became the only green bar on the card. The widget's `staleNeutralFill`
+    /// was measured and rejected for the popover: 1.1:1 on the dark track, louder than live in
+    /// light. Half alpha sits between the track and the live fill in both schemes, and
+    /// follows any retune of the live tokens at the same ratio.
+    public static let staleNeutralScale: Double = 0.5
+
+    /// CA-P1: the stale halves of the continuous neutral gradient (`glassA` → `glassB`).
+    public static func staleGlassA(dark: Bool) -> HeadroomTint {
+        staleNeutral(glassA(dark: dark))
+    }
+
+    public static func staleGlassB(dark: Bool) -> HeadroomTint {
+        staleNeutral(glassB(dark: dark))
+    }
+
+    /// CA-P1: the stale segmented neutral. Every lit cell takes it, tip included, the way
+    /// `.staleGrey` cells do: a dim is not dimmed again.
+    public static func staleTickGlass(dark: Bool) -> HeadroomTint {
+        staleNeutral(tickGlass(dark: dark))
+    }
+
+    private static func staleNeutral(_ live: HeadroomTint) -> HeadroomTint {
+        HeadroomTint(color: live.color, opacity: live.opacity * staleNeutralScale)
+    }
 
     /// The fill a `.stale` meter paints for `severity`. See `staleFillChromaScale`.
     public static func staleFill(

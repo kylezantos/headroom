@@ -38,7 +38,8 @@ final class SettingsSheetUITests: XCTestCase {
         app.launchArguments = ["--demo", "--demo-screen", "settings"]
         app.launch()
         XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 8))
-        XCTAssertTrue(app.buttons["headroom.about.mac"].exists)
+        // CA-I1: the sheet opens on Appearance; About is last.
+        XCTAssertTrue(element("headroom.settings.specimen").exists)
         for _ in 0..<8 {
             XCTAssertFalse(app.staticTexts["Demo"].exists)
             XCTAssertFalse(app.staticTexts["Reminders"].exists)
@@ -60,6 +61,49 @@ final class SettingsSheetUITests: XCTestCase {
         XCTAssertTrue(dimmed.label.hasPrefix("No update from your Mac since "), dimmed.label)
     }
 
+    /// CA-I7: with Match my Mac on, the four sections it governs are absent; turning it off
+    /// reveals them, enabled. CA-I8: a swatch's name keeps its width when selected.
+    func testMatchMyMacHidesWhatItGovernsAndSwatchNamesKeepTheirWidth() {
+        app = XCUIApplication()
+        app.launchArguments = ["--demo", "--demo-screen", "settings"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["Appearance"].exists, "Settings opens on Appearance (CA-I1)")
+
+        let match = app.switches["headroom.settings.matchMac"]
+        scrollTo(match)
+        let wasOn = (match.value as? String) == "1"
+        if !wasOn { match.switches.firstMatch.tap() }
+        let left = app.buttons["Left percentages"]
+        let spark = app.switches["Show Codex Spark rows"]
+        for _ in 0..<6 {
+            XCTAssertFalse(left.exists, "Percentages shows while Match my Mac is on")
+            XCTAssertFalse(spark.exists, "the Spark switch shows while Match my Mac is on")
+            XCTAssertFalse(app.staticTexts["Meter style"].exists)
+            XCTAssertFalse(app.staticTexts["Account names"].exists)
+            app.swipeUp()
+        }
+
+        scrollTo(match, upward: true)
+        match.switches.firstMatch.tap()
+        scrollTo(left)
+        XCTAssertTrue(left.isHittable)
+        XCTAssertTrue(left.isEnabled)
+        let used = app.buttons["Used percentages"]
+        let leftName = left.staticTexts["Left"]
+        // A lookup miss reads a zero width both times and would pass the comparison below.
+        XCTAssertTrue(leftName.exists, "the Left swatch's name was not found")
+        let selectedWidth = leftName.frame.width
+        used.tap()
+        XCTAssertEqual(leftName.frame.width, selectedWidth, accuracy: 0.5, "the name changed weight")
+        left.tap()
+        scrollTo(spark)
+        XCTAssertTrue(spark.isEnabled)
+
+        scrollTo(match, upward: true)
+        if wasOn { match.switches.firstMatch.tap() }
+    }
+
     /// Capture pass (U12 verification), skipped unless the runner sets HEADROOM_CAPTURE
     /// (`TEST_RUNNER_HEADROOM_CAPTURE=1 xcodebuild test …`). Scrolls the sheet top to bottom
     /// with Match my Mac off, attaching a screenshot per screen for overflow review.
@@ -75,18 +119,39 @@ final class SettingsSheetUITests: XCTestCase {
         let match = app.switches["headroom.settings.matchMac"]
         scrollTo(match)
         let matchWasOn = (match.value as? String) == "1"
-        if matchWasOn { match.switches.firstMatch.tap() }
-        app.swipeDown()
-        app.swipeDown()
-
-        for index in 0..<14 {
-            attach("settings-\(index)")
-            if app.buttons["GitHub"].isHittable { break }
-            app.swipeUp(velocity: .slow)
+        // CA-I7: the sheet differs with Match my Mac on and off, so capture both.
+        if matchWasOn {
+            toTop()
+            capturePass("match-on")
+            scrollTo(match, upward: true)
+            match.switches.firstMatch.tap()
         }
+        toTop()
+        capturePass("match-off")
 
         scrollTo(match, upward: true)
         if matchWasOn { match.switches.firstMatch.tap() }
+    }
+
+    /// CA-I1: About is last now, so a pass runs until the sheet stops scrolling rather than
+    /// until the maker's links appear.
+    private func capturePass(_ name: String) {
+        var previous: Data?
+        for index in 0..<14 {
+            let shot = XCUIScreen.main.screenshot()
+            if shot.pngRepresentation == previous { break }
+            previous = shot.pngRepresentation
+            attach("settings-\(name)-\(index)", shot)
+            app.swipeUp(velocity: .slow)
+        }
+    }
+
+    /// A status-bar tap scrolls the list to its top without the downward swipe that would
+    /// dismiss the sheet.
+    private func toTop() {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.01)).tap()
+        sleep(1)
+        XCTAssertTrue(app.navigationBars["Settings"].exists, "the sheet was dismissed")
     }
 
     // MARK: Helpers
@@ -122,8 +187,8 @@ final class SettingsSheetUITests: XCTestCase {
         }
     }
 
-    private func attach(_ name: String) {
-        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+    private func attach(_ name: String, _ screenshot: XCUIScreenshot = XCUIScreen.main.screenshot()) {
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)

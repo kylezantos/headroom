@@ -30,8 +30,8 @@ and polling never sends a model prompt or spends your allowance.
   1.5.9 or newer reports the Gemini and Claude & GPT quota pools, each with 5-hour and weekly
   windows, plus any AI-credits balance. Headroom reads only `/usage` and `/credits` and checks
   that each answer used no model turn or tokens. “Show 5-hour windows” in Settings → Appearance
-  applies across the popover, menu bar, widgets, iPhone and reminders. A signed-out read can open
-  one Google sign-in tab; Headroom then waits for the row’s Try Again or a sign-in through
+  applies across the popover, menu bar, widgets, iPhone and reminders. A signed-out read opens no
+  sign-in page; Headroom then waits for Refresh, the row’s Try Again or a sign-in through
   Headroom. The CLI starts configured MCP servers and writes its own local logs during checks.
   Headroom reads no Antigravity credential or Keychain item. These are Antigravity allowances,
   not Gemini app, Gemini CLI or Gemini API usage.

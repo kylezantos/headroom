@@ -84,11 +84,14 @@ public enum AntigravityCaptureFailure: Sendable, Equatable {
     /// over `/usage` can't turn every poll into a paid agent turn.
     case unsupportedClient
     /// The client printed one of its sign-in lines on stderr (`AntigravitySignInPromptScanner`),
-    /// the one positive evidence of a signed-out account. It opens an interactive Google
-    /// sign-in in the browser and waits for it, so the read is ended at the prompt. Sticky and
-    /// kept across relaunches: no read spawns the client again, not even launch, Refresh or a
-    /// phone Check Now, until a sign-in through Headroom completes or the Antigravity row's own
-    /// Try Again runs. A sign-out therefore opens at most one browser sign-in.
+    /// the one positive evidence of a signed-out account. Browser launches are suppressed via an
+    /// app-owned `open` -> `/usr/bin/false` shim ahead of `PATH` (plus `BROWSER=/usr/bin/false`),
+    /// and the read is ended at the prompt. After a live reading, a single routine-poll prompt is
+    /// treated as transient (`keyringAuth` falls into interactive OAuth on a 10 s network timeout
+    /// even with a valid Keychain login) and only a second consecutive prompt confirms signed-out.
+    /// Once confirmed, it is sticky across routine timer polls and relaunches; an explicit user
+    /// refresh (Refresh, Try Again, Check Now, or a completed Headroom sign-in) re-checks safely
+    /// with zero browser tabs so external terminal sign-ins recover automatically.
     case signedOut
     case formatChanged(AntigravityFormatStage)
     case transient(AntigravityTransientCause)
@@ -431,12 +434,18 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         }
     }
 
-    /// Only these clear the signed-out mark: the account row's Try Again (and other actions on
-    /// that one account) and the check after a sign-in through Headroom. Launch, Refresh and a
-    /// phone Check Now are full refreshes and would each open another browser sign-in.
+    /// User-initiated refreshes clear the signed-out mark so signing back into `agy` in a
+    /// terminal recovers automatically on Refresh, Try Again, Check Now, or Headroom's own
+    /// sign-in flow. Routine timer polls (`origins` empty) stay gated while signed out.
+    /// Browser launches are suppressed via `noBrowserBinDirectory` (`open -> /usr/bin/false`)
+    /// ahead of `PATH` and `BROWSER=/usr/bin/false`, so re-checking while signed out opens zero
+    /// browser tabs.
     static func clearsSignedOut(_ origins: Set<UserRefreshOrigin>) -> Bool {
-        origins.contains(.accountAction) || origins.contains(.setupCheck)
+        origins.contains(.fullRefresh) || origins.contains(.accountAction) || origins.contains(.setupCheck)
     }
+
+    static let nonInteractiveBrowser = "/usr/bin/false"
+    static let disableAutoUpdateValue = "true"
 
     private let resolveExecutable: @Sendable () -> String?
     private let resolveLoginPath: @Sendable () -> String
@@ -454,10 +463,14 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
     private var stop: Stop? {
         didSet { if stop?.stored != oldValue?.stored { memory.saveStoppedClient(stop?.stored) } }
     }
-    /// Set by a sign-in prompt. Only `clearsSignedOut` origins clear it.
+    /// Set by a confirmed sign-in prompt. Only `clearsSignedOut` origins clear it.
     private var signedOut: Bool {
         didSet { if signedOut != oldValue { memory.saveSignedOut(signedOut) } }
     }
+    /// True once this source has completed a live capture since launch (cleared on confirmed sign-out).
+    private var hasSucceeded = false
+    /// Unconfirmed routine-poll sign-in prompts seen since the last live capture.
+    private var unconfirmedSignInPrompts = 0
 
     public init(
         resolveExecutable: @escaping @Sendable () -> String? = { AntigravityCLI.resolveExecutable() },
@@ -515,7 +528,13 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         }
         var environment = inheritedEnvironment()
         for name in Self.strippedEnvironment { environment.removeValue(forKey: name) }
-        environment["PATH"] = loginPath
+        environment["BROWSER"] = Self.nonInteractiveBrowser
+        environment["AGY_CLI_DISABLE_AUTO_UPDATE"] = Self.disableAutoUpdateValue
+        if let noBrowserDir = prepareNoBrowserBinDirectory() {
+            environment["PATH"] = "\(noBrowserDir):\(loginPath)"
+        } else {
+            environment["PATH"] = loginPath
+        }
         var preparedWorkingDirectory = false
 
         let key = Self.executableKey(for: executable)
@@ -556,23 +575,44 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         let usageCapture = AntigravityUsageClassifier.classifyUsage(usageOutput)
         guard case .usage(let usage) = usageCapture else {
             if usageCapture == .failed(.unsupportedClient) { stop = Stop(key: key, version: version) }
-            if usageCapture == .failed(.signedOut) { signedOut = true }
+            if usageCapture == .failed(.signedOut) { return handleSignInPrompt() }
             return usageCapture
         }
 
         let creditsOutput = await spawn(.credits, executable: executable, environment: environment, prepared: &preparedWorkingDirectory)
         switch AntigravityUsageClassifier.classifyCredits(creditsOutput) {
         case .balance(let credits):
+            hasSucceeded = true
+            unconfirmedSignInPrompts = 0
             return .usage(AntigravityUsage(buckets: usage.buckets, credits: credits))
         case .unavailable:
+            hasSucceeded = true
+            unconfirmedSignInPrompts = 0
             return usageCapture
         case .unsupportedClient:
             stop = Stop(key: key, version: version)
             return .failed(.unsupportedClient)
         case .signedOut:
-            signedOut = true
-            return .failed(.signedOut)
+            return handleSignInPrompt()
         }
+    }
+
+    /// `agy`'s `keyringAuth` uses a hardcoded 10 s timeout when validating or refreshing a stored
+    /// token; a single timeout falls straight into interactive OAuth and prints the sign-in line
+    /// on stderr even while the stored Keychain login is still valid (live, `agy` 1.5.15,
+    /// 2026-11-23). After a live reading, treat the first unconfirmed routine-poll sign-in prompt
+    /// as transient so the next scheduled poll self-heals automatically; a second consecutive
+    /// prompt (or an explicit user refresh / never-live source) confirms `signedOut` and stops
+    /// routine polls.
+    private func handleSignInPrompt() -> AntigravityCapture {
+        if !UserRequestedProbeContext.isUserRequested, hasSucceeded, unconfirmedSignInPrompts == 0 {
+            unconfirmedSignInPrompts = 1
+            return .failed(.transient(.authenticationFailed))
+        }
+        signedOut = true
+        hasSucceeded = false
+        unconfirmedSignInPrompts = 0
+        return .failed(.signedOut)
     }
 
     /// Resolution runs a login shell, so a routine poll reuses the last path. A user request
@@ -618,6 +658,38 @@ public actor AntigravityCLIUsageSource: AntigravityUsageSource {
         guard let modified = (try? FileManager.default.attributesOfItem(atPath: target))?[.modificationDate] as? Date
         else { return nil }
         return ExecutableKey(path: target, modified: modified)
+    }
+
+    /// Sibling directory beside `workingDirectory` holding a single `open -> /usr/bin/false`
+    /// symlink so `agy`'s macOS `exec.Command("open", url)` cannot launch a browser tab on a
+    /// signed-out probe, while leaving `workingDirectory` itself clean and never touching
+    /// Keychain or credentials.
+    var noBrowserBinDirectoryPath: String {
+        URL(fileURLWithPath: workingDirectory)
+            .deletingLastPathComponent()
+            .appendingPathComponent("AntigravityProbeNoBrowser", isDirectory: true)
+            .path
+    }
+
+    private func prepareNoBrowserBinDirectory() -> String? {
+        let dir = noBrowserBinDirectoryPath
+        let fileManager = FileManager.default
+        do {
+            try fileManager.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            let linkPath = (dir as NSString).appendingPathComponent("open")
+            if let existing = try? fileManager.destinationOfSymbolicLink(atPath: linkPath),
+               existing == Self.nonInteractiveBrowser {
+                return dir
+            }
+            if fileManager.fileExists(atPath: linkPath)
+                || (try? fileManager.attributesOfItem(atPath: linkPath)) != nil {
+                try fileManager.removeItem(atPath: linkPath)
+            }
+            try fileManager.createSymbolicLink(atPath: linkPath, withDestinationPath: Self.nonInteractiveBrowser)
+            return dir
+        } catch {
+            return nil
+        }
     }
 
     /// Creates the working directory before the first spawn of a capture, without an existence

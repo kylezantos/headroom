@@ -437,7 +437,7 @@ xcodebuild -project Headroom.xcodeproj -scheme HeadroomIOS -destination 'platfor
 # --deps-only unpacks the Sparkle XCFramework the project references (package resolution alone doesn't); the pinned derived data avoids a cached "no XCFramework found" build description.
 # Without the maintainer's Apple team (contributors, CI), append CODE_SIGNING_ALLOWED=NO to both xcodebuild commands: the app tests and the iOS build pass unsigned. `.github/workflows/ci.yml` runs all three checks on the `xcode-27` runner.
 swift run Headroom --probe-claude  # diagnostic: prints live parsed /usage windows
-swift run Headroom --probe-antigravity  # one Antigravity read through agy's no-turn /usage and /credits: parsed rows, credits badge, or the outcome name only. On a signed-out agy it opens one browser sign-in; see docs/solutions/antigravity-cli-usage-feasibility.md
+swift run Headroom --probe-antigravity  # one Antigravity read through agy's no-turn /usage and /credits: parsed rows, credits badge, or the outcome name only. On a signed-out agy it prints antigravitySignedOut and the no-op `open` shim keeps the sign-in page closed; see docs/solutions/antigravity-cli-usage-feasibility.md
 swift run Headroom --probe-opencode [--opencode-home <dir>] [--opencode-executable <path>]  # one OpenCode usage read: parsed windows or the outcome name only. Without --opencode-home it reads the built-in default home (a 2.x client migrates a 1.x home one way: never run it bare on a home that must stay 1.x). --opencode-executable is DEBUG-only and needs --opencode-home; see docs/solutions/opencode-cli-usage-feasibility.md
 Headroom.app/Contents/MacOS/Headroom --dump-phone-sync  # what the Mac published for the phone: key names, sizes, ladder level (signed bundle only; `swift run` has no KVS entitlement)
 swift run Headroom --render-widgets <dir> [--widget-style <id>] [--widget-fixture <name>] [--widget-quick] [--widget-transparent]  # headless widget-style renders + overflow sweep; --widget-transparent renders on transparent backgrounds at 4× for compositing
@@ -832,12 +832,20 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
     with no `command`, is `unsupportedClient` and sticky: no routine poll spawns `agy` again until
     its resolved path or modification date changes, and a user request runs only `--version`
     ("Headroom paused Antigravity reads after an agy change", **Contact Support**, **Check Now**).
-  - A signed-out `agy` answers `/usage` by opening an interactive Google sign-in in the browser
-    and waiting up to 60 s; the CLI documents no way to turn that off. Stderr is watched only for
-    `Authentication required`: at that marker the process group is killed and the account is
-    signed out, sticky until a user request (Refresh, Check Now, or the check after the sign-in
-    handoff). So a sign-out costs at most one browser tab (BUGS.md). Never add a routine path
-    that spawns `agy` while signed out, and never probe it with an isolated empty `HOME`.
+  - A signed-out `agy` answers `/usage` by starting an interactive Google sign-in and waiting up
+    to 60 s; the CLI documents no way to turn that off. On macOS it opens the page with `open
+    <url>` looked up through `PATH`, so every probe puts the app-owned `AntigravityProbeNoBrowser`
+    folder (one `open -> /usr/bin/false` link) first on `PATH`, with `BROWSER=/usr/bin/false` and
+    `AGY_CLI_DISABLE_AUTO_UPDATE=true`: no tab opens (live, `agy` 1.5.14, #255). Leave
+    `SSH_CONNECTION` unset so `agy` keeps its Keychain login. Stderr is watched for the sign-in
+    lines: at the first the process group is killed. Because `agy`'s `keyringAuth` falls into
+    interactive OAuth on a 10 s refresh timeout even with a valid Keychain login (live, `agy`
+    1.5.15), a single routine-poll prompt after a live read is treated as transient and only a
+    second consecutive prompt confirms signed-out. Once confirmed, the account is signed out,
+    sticky for timer polls and across relaunches; any user request (launch, Refresh, Check Now,
+    Try Again, the check after the sign-in handoff) reads again. The shim holds only while `agy`
+    finds `open` through `PATH` (BUGS.md). Never add a routine path that spawns `agy` while signed
+    out, and never probe it with an isolated empty `HOME`.
   - Signed out only from that marker. Everything else unmatched, including an `ERROR` result
     that says authentication failed, is transient.
   - Map buckets by `id` prefix (`gemini-*`, `3p-*`) and `window` (`5h`, `weekly`), never by

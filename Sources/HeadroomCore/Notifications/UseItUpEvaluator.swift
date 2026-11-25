@@ -11,16 +11,20 @@ public struct UseItUpSettings: Sendable, Equatable {
     public var showCodexSparkCounters: Bool
     /// Mirrors `UsageStore.showsAntigravityFiveHourWindows` the same way.
     public var showsAntigravityFiveHourWindows: Bool
+    /// Mirrors `UsageStore.antigravityGPUCreditsMode` so replaced rows never fire reminders.
+    public var antigravityGPUCreditsMode: AntigravityGPUCreditsMode
 
     public init(
         isEnabled: Bool, rules: [ReminderRule], scope: Set<ReminderScope>, showCodexSparkCounters: Bool,
-        showsAntigravityFiveHourWindows: Bool = true
+        showsAntigravityFiveHourWindows: Bool = true,
+        antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off
     ) {
         self.isEnabled = isEnabled
         self.rules = rules
         self.scope = scope
         self.showCodexSparkCounters = showCodexSparkCounters
         self.showsAntigravityFiveHourWindows = showsAntigravityFiveHourWindows
+        self.antigravityGPUCreditsMode = antigravityGPUCreditsMode
     }
 }
 
@@ -56,7 +60,8 @@ public enum UseItUpEvaluator {
 
         let windows = AntigravityFiveHourWindows.visibleWindows(
             snapshot.windows, providerID: snapshot.providerID,
-            showsFiveHourWindows: settings.showsAntigravityFiveHourWindows)
+            showsFiveHourWindows: settings.showsAntigravityFiveHourWindows,
+            gpuCreditsMode: settings.antigravityGPUCreditsMode)
         return windows.compactMap { window in
             // AE4: a live snapshot can still carry a retained stale model row.
             guard window.freshness.isLive,

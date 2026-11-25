@@ -15,32 +15,83 @@ public struct AntigravityProvider: UsageProvider {
     public let reusesCachedStatusOnTimerProbes = true
 
     private let source: any AntigravityUsageSource
+    private let gpuCreditsSource: (any AntigravityGPUCreditsSource)?
+    private let gpuCreditsMode: @Sendable () -> AntigravityGPUCreditsMode
+    private let colabTier: @Sendable () -> ColabComputeTier
+    private let gpuCreditsRefillDay: @Sendable () -> Int?
     private let locale: Locale
+    private let calendar: Calendar
     private let now: @Sendable () -> Date
 
     public init(
         source: any AntigravityUsageSource,
+        gpuCreditsSource: (any AntigravityGPUCreditsSource)? = nil,
+        gpuCreditsMode: @escaping @Sendable () -> AntigravityGPUCreditsMode = { .off },
+        colabTier: @escaping @Sendable () -> ColabComputeTier = { .aiUltra },
+        gpuCreditsRefillDay: @escaping @Sendable () -> Int? = { nil },
         locale: Locale = .current,
+        calendar: Calendar = .current,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.source = source
+        self.gpuCreditsSource = gpuCreditsSource
+        self.gpuCreditsMode = gpuCreditsMode
+        self.colabTier = colabTier
+        self.gpuCreditsRefillDay = gpuCreditsRefillDay
         self.locale = locale
+        self.calendar = calendar
         self.now = now
     }
 
     public func fetchSnapshot() async -> UsageSnapshot {
         switch await source.capture() {
         case .usage(let usage):
+            let capturedAt = now()
+            var resultWindows = Self.windows(for: usage.buckets)
+            if gpuCreditsMode() != .off,
+               let gpuCreditsSource,
+               case .balance(let credits) = await gpuCreditsSource.capture()
+            {
+                resultWindows.append(
+                    Self.gpuCreditsWindow(
+                        credits: credits,
+                        tier: colabTier(),
+                        refillDay: gpuCreditsRefillDay(),
+                        now: capturedAt,
+                        calendar: calendar
+                    )
+                )
+            }
             return UsageSnapshot(
                 providerID: id,
-                windows: Self.windows(for: usage.buckets),
+                windows: resultWindows,
                 planLabel: creditsLabel(usage.credits),
-                capturedAt: now(),
+                capturedAt: capturedAt,
                 freshness: .live
             )
         case .failed(let failure):
             return .stale(for: id, reason: failure.failureReason)
         }
+    }
+
+    static func gpuCreditsWindow(
+        credits: AntigravityGPUCredits,
+        tier: ColabComputeTier,
+        refillDay: Int?,
+        now: Date,
+        calendar: Calendar = .current
+    ) -> UsageWindow {
+        let capacity = max(1, tier.threeMonthCapacity)
+        let remainingFraction = min(1, max(0, credits.balanceUnits / capacity))
+        let utilization = min(100, max(0, (1 - remainingFraction) * 100))
+        let nextRefill = refillDay.flatMap {
+            AntigravityGPUCreditsWindow.nextMonthlyRefillDate(day: $0, after: now, calendar: calendar)
+        }
+        return UsageWindow(
+            kind: AntigravityGPUCreditsWindow.windowKind,
+            utilization: utilization,
+            resetSchedule: nextRefill.map(ResetSchedule.scheduled) ?? .unresolved(.absent)
+        )
     }
 
     /// The row a bucket becomes. These labels are stored window IDs and must never change.

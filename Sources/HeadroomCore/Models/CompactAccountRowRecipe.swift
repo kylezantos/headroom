@@ -145,6 +145,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         requiresStandardSection: Bool,
         showsCodexSparkCounters: Bool,
         showsAntigravityFiveHourWindows: Bool = true,
+        antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off,
         isRemembered: Bool = false,
         lastReadAt: Date? = nil,
         timeZone: TimeZone = .current,
@@ -161,7 +162,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
         var windows = Self.visibleWindows(
             in: snapshot,
             showsCodexSparkCounters: showsCodexSparkCounters,
-            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+            showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
+            antigravityGPUCreditsMode: antigravityGPUCreditsMode
         )
         if isRemembered {
             // U8 (R8): a cell past its reset prints no number, even before the aging pass
@@ -318,6 +320,7 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     /// `windowKind`), so this compiles where the provider itself does not (iOS).
     private static func antigravityPool(of kind: WindowKind) -> String? {
         guard case .other(let label) = kind else { return nil }
+        if label == AntigravityGPUCreditsWindow.storedLabel { return AntigravityGPUCreditsWindow.shortLabel }
         return AntigravityRowLabels.parse(label)?.pool.rawValue
     }
 
@@ -338,12 +341,14 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     static func visibleWindows(
         in snapshot: UsageSnapshot,
         showsCodexSparkCounters: Bool,
-        showsAntigravityFiveHourWindows: Bool = true
+        showsAntigravityFiveHourWindows: Bool = true,
+        antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off
     ) -> [UsageWindow] {
         let ordered = AntigravityFiveHourWindows.visibleWindows(
             snapshot.fiveHourFirst().windows,
             providerID: snapshot.providerID,
-            showsFiveHourWindows: showsAntigravityFiveHourWindows
+            showsFiveHourWindows: showsAntigravityFiveHourWindows,
+            gpuCreditsMode: antigravityGPUCreditsMode
         )
         guard snapshot.providerID == .codex, !showsCodexSparkCounters else { return ordered }
         return ordered.filter { !$0.kind.isCodexSparkCounter }
@@ -391,7 +396,8 @@ public struct CompactAccountRowRecipe: Sendable, Equatable {
     /// Cursor's "Other" is its other pool; tooltips and VoiceOver name each row in full.
     /// Nil for any other label.
     public static func antigravityShortLabel(_ label: String) -> String? {
-        AntigravityRowLabels.parse(label).map { AntigravityRowLabels.short($0.pool, $0.window) }
+        if label == AntigravityGPUCreditsWindow.storedLabel { return AntigravityGPUCreditsWindow.shortLabel }
+        return AntigravityRowLabels.parse(label).map { AntigravityRowLabels.short($0.pool, $0.window) }
     }
 
     // MARK: - Tooltip and VoiceOver

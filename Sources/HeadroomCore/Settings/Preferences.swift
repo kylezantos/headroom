@@ -31,6 +31,9 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
         static let showCodexSparkCountersInApp = "showCodexSparkCountersInApp"
         static let showCodexSparkCountersInWidgets = "showCodexSparkCountersInWidgets"
         static let showsAntigravityFiveHourWindows = "showsAntigravityFiveHourWindows"
+        static let antigravityGPUCreditsMode = "antigravityGPUCreditsMode"
+        static let antigravityColabTier = "antigravityColabTier"
+        static let antigravityGPUCreditsRefillDay = "antigravityGPUCreditsRefillDay"
         static let antigravityStoppedClient = "antigravityStoppedClient"
         static let antigravitySignedOut = "antigravitySignedOut"
         static let syncToIPhoneEnabled = "syncToIPhoneEnabled"
@@ -288,6 +291,46 @@ public struct Preferences: @unchecked Sendable { // UserDefaults is thread-safe
             return defaults.bool(forKey: Key.showsAntigravityFiveHourWindows)
         }
         nonmutating set { defaults.set(newValue, forKey: Key.showsAntigravityFiveHourWindows) }
+    }
+
+    /// Default **off**: never spawns `colab` until the user opts in to showing Colab GPU
+    /// compute-unit credits inside the Antigravity card (either replacing Other · Weekly or
+    /// adding a row).
+    public var antigravityGPUCreditsMode: AntigravityGPUCreditsMode {
+        get {
+            guard let raw = defaults.string(forKey: Key.antigravityGPUCreditsMode),
+                  let mode = AntigravityGPUCreditsMode(rawValue: raw)
+            else { return .off }
+            return mode
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.antigravityGPUCreditsMode) }
+    }
+
+    /// Colab monthly allotment tier used for the 90-day (3-month) tank denominator.
+    public var antigravityColabTier: ColabComputeTier {
+        get {
+            guard let raw = defaults.string(forKey: Key.antigravityColabTier),
+                  let tier = ColabComputeTier(rawValue: raw)
+            else { return .aiUltra }
+            return tier
+        }
+        nonmutating set { defaults.set(newValue.rawValue, forKey: Key.antigravityColabTier) }
+    }
+
+    /// Optional monthly refill day (`1...31`) powering the countdown next to GPU Credits.
+    public var antigravityGPUCreditsRefillDay: Int? {
+        get {
+            guard defaults.object(forKey: Key.antigravityGPUCreditsRefillDay) != nil else { return nil }
+            let day = defaults.integer(forKey: Key.antigravityGPUCreditsRefillDay)
+            return (1...31).contains(day) ? day : nil
+        }
+        nonmutating set {
+            if let day = newValue, (1...31).contains(day) {
+                defaults.set(day, forKey: Key.antigravityGPUCreditsRefillDay)
+            } else {
+                defaults.removeObject(forKey: Key.antigravityGPUCreditsRefillDay)
+            }
+        }
     }
 
     /// The Antigravity safety stop (`AntigravityCaptureFailure.unsupportedClient`), encoded by

@@ -136,7 +136,8 @@ struct PopoverView: View {
                     capabilityStatus: store.providerCapabilities[id],
                     accountLayout: store.accountLayout,
                     showsCodexSparkCounters: store.showCodexSparkCountersInApp,
-                    showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows
+                    showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows,
+                    antigravityGPUCreditsMode: store.antigravityGPUCreditsMode
                 )
             } + (store.apiSpendProviderOrder.isEmpty ? [] : [PopoverColumnSlot.spend])
             let columnPlan = columns.drawnPlan(
@@ -404,7 +405,8 @@ struct PopoverView: View {
                     Task { await AccountsSettingsInteractions.stopWaitingAndRemove(account, from: store) }
                 },
                 hasReadingOnRecord: { store.hasReadingOnRecord($0) },
-                showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows
+                showsAntigravityFiveHourWindows: store.showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: store.antigravityGPUCreditsMode
             )
             .id(meterRecipeKey)
             .transition(.opacity)

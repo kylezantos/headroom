@@ -27,6 +27,9 @@ struct InAppDisplayTile: View {
     @Binding var accountLayout: AccountLayout
     @Binding var showCodexSparkCountersInApp: Bool
     @Binding var showsAntigravityFiveHourWindows: Bool
+    @Binding var antigravityGPUCreditsMode: AntigravityGPUCreditsMode
+    @Binding var antigravityColabTier: ColabComputeTier
+    @Binding var antigravityGPUCreditsRefillDay: Int?
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -143,6 +146,48 @@ struct InAppDisplayTile: View {
                 .onChange(of: showsAntigravityFiveHourWindows) { _, newValue in
                     store.setShowsAntigravityFiveHourWindows(newValue)
                 }
+
+                VStack(alignment: .leading, spacing: SettingsMetrics.labelToStackedControl) {
+                    SettingsGroupLabel(Self.antigravityGPUCreditsTitle)
+
+                    Picker(Self.antigravityGPUCreditsTitle, selection: $antigravityGPUCreditsMode) {
+                        ForEach(AntigravityGPUCreditsMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .onChange(of: antigravityGPUCreditsMode) { _, newValue in
+                        store.setAntigravityGPUCreditsMode(newValue)
+                    }
+
+                    SettingsHelpText(text: Self.antigravityGPUCreditsHelp)
+                }
+
+                if antigravityGPUCreditsMode != .off {
+                    HStack(spacing: 12) {
+                        Picker("Colab plan", selection: $antigravityColabTier) {
+                            ForEach(ColabComputeTier.allCases) { tier in
+                                Text(tier.label).tag(tier)
+                            }
+                        }
+                        .onChange(of: antigravityColabTier) { _, newValue in
+                            store.setAntigravityColabTier(newValue)
+                        }
+                    }
+
+                    HStack(spacing: 12) {
+                        Picker("Monthly refill day", selection: $antigravityGPUCreditsRefillDay) {
+                            Text("Not set").tag(Optional<Int>.none)
+                            ForEach(1...31, id: \.self) { day in
+                                Text(Self.ordinalDay(day)).tag(Optional(day))
+                            }
+                        }
+                        .onChange(of: antigravityGPUCreditsRefillDay) { _, newValue in
+                            store.setAntigravityGPUCreditsRefillDay(newValue)
+                        }
+                    }
+                }
             }
         }
     }
@@ -150,6 +195,15 @@ struct InAppDisplayTile: View {
     static let antigravityFiveHourTitle = "Show 5-hour windows"
     static let antigravityFiveHourHelp =
         "Antigravity’s Gemini and Other 5-hour limits, everywhere they appear: the popover, menu bar, widgets, iPhone and reminders. When off, they still show if no weekly limit has a number."
+    static let antigravityGPUCreditsTitle = "Antigravity GPU credits"
+    static let antigravityGPUCreditsHelp =
+        "Reads your Google Colab compute-unit balance via the official colab CLI and shows remaining percentage against your 3-month (90-day) tank. Replace Other · Weekly falls back to Other · Weekly if Colab is unavailable."
+
+    private static func ordinalDay(_ day: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter.string(from: NSNumber(value: day)) ?? "\(day)"
+    }
 
     private var columns: [GridItem] {
         Array(

@@ -243,6 +243,7 @@
 		5036E1FD85821EC2297B9BD5 /* UsageLeftIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E4AC3EE1854DC187847EF4 /* UsageLeftIntent.swift */; };
 		506CBB0E409822DF4C35BF67 /* opencode-dark.svg in Resources */ = {isa = PBXBuildFile; fileRef = 643CAAB84FE1664F464691AC /* opencode-dark.svg */; };
 		5116532FC9BE6318359AE489 /* ProviderStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E6FF1909CDDFAD43F6C9736 /* ProviderStyle.swift */; };
+		526E894471FD89BE8F45A968 /* AntigravityGPUCreditsSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB77C92C92C41459DB1F975D /* AntigravityGPUCreditsSource.swift */; };
 		5272B3EA7F8B4ED5D53400F9 /* HeadroomIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F2BA95A68FD38EC52A36418 /* HeadroomIOSApp.swift */; };
 		52FF20A5986892ACF05975A4 /* OpenCodeCompositionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06774567BEEB1F8575CD66F0 /* OpenCodeCompositionTests.swift */; };
 		53B77969880F815EE3C2FDC8 /* IdentityRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137A0387F87A7EB3FE66ED83 /* IdentityRow.swift */; };
@@ -1039,6 +1040,7 @@
 		B955B2ECFF3179BCB6716FDB /* PhoneRefreshPillRecipe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneRefreshPillRecipe.swift; sourceTree = "<group>"; };
 		B9A62B3CF647A963A2EFB71F /* NotificationsSettingsPaneTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationsSettingsPaneTests.swift; sourceTree = "<group>"; };
 		BAE8A6670D6A569D5C511C66 /* HeadroomWidgetLockScreenCircles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetLockScreenCircles.swift; sourceTree = "<group>"; };
+		BB77C92C92C41459DB1F975D /* AntigravityGPUCreditsSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AntigravityGPUCreditsSource.swift; sourceTree = "<group>"; };
 		BB8F7D28425B1FFC3629ABFA /* AccountsSettingsInteractionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountsSettingsInteractionTests.swift; sourceTree = "<group>"; };
 		BC3C91ACBBAB69FFE4528EA3 /* HeadroomWidgetNestedMeter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeadroomWidgetNestedMeter.swift; sourceTree = "<group>"; };
 		BC72650074DF603E5975284C /* PopoverWindowHeightFitTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PopoverWindowHeightFitTests.swift; sourceTree = "<group>"; };
@@ -1771,6 +1773,7 @@
 				F7339860B2F91C83B1108CED /* AccountStorage.swift */,
 				8B16C47E373B50FF0722668B /* AntigravityConnection.swift */,
 				EC9CE9C61C3E9ED27BF015A0 /* AntigravityDTOs.swift */,
+				BB77C92C92C41459DB1F975D /* AntigravityGPUCreditsSource.swift */,
 				739E1CD9313187883934822A /* AntigravityProvider.swift */,
 				DC6D8DDBC01FCFDC7B99FAED /* AntigravityUsageSource.swift */,
 				A4523C40238BDDB31A5B2AE5 /* APISpendProviders.swift */,
@@ -2014,13 +2017,13 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4686BFD5F1855F6871F8CA0A /* Headroom */,
-				71A0FDABF6671DF982650C4D /* HeadroomAppTests */,
 				1242A11BA0C089079D3D5B63 /* HeadroomCore */,
-				8A35218B45756EA77DE418B8 /* HeadroomIOS */,
-				C1B112F25CE09AC079C3235E /* HeadroomIOSUITests */,
-				DD46551C62005B09395760AD /* HeadroomIOSWidgets */,
+				4686BFD5F1855F6871F8CA0A /* Headroom */,
 				93DE6A93AAC5A7A492EA2991 /* HeadroomWidgets */,
+				8A35218B45756EA77DE418B8 /* HeadroomIOS */,
+				DD46551C62005B09395760AD /* HeadroomIOSWidgets */,
+				C1B112F25CE09AC079C3235E /* HeadroomIOSUITests */,
+				71A0FDABF6671DF982650C4D /* HeadroomAppTests */,
 			);
 		};
 /* End PBXProject section */
@@ -2158,6 +2161,7 @@
 				4B4C9CAB4F37C267CE7FAF7E /* AccountStorage.swift in Sources */,
 				5A40EA8685741CD9AD7DFA21 /* AntigravityConnection.swift in Sources */,
 				CD866B9B32EAA9DF03A2D9A2 /* AntigravityDTOs.swift in Sources */,
+				526E894471FD89BE8F45A968 /* AntigravityGPUCreditsSource.swift in Sources */,
 				27A8B7284ACAE8FB51663FD0 /* AntigravityProvider.swift in Sources */,
 				54D9EB00D982E100D9436AFC /* AntigravityRowLabels.swift in Sources */,
 				B1AA44471B7C876050CCD875 /* AntigravityUsageSource.swift in Sources */,

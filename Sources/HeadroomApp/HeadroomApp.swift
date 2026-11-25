@@ -1595,7 +1595,14 @@ enum AppComposition {
         builtInClaudeWorkspace _: URL
     ) -> any UsageProvider {
         guard account.isBuiltIn else { return UnavailableAccountProvider(account: account) }
-        return AntigravityProvider(source: antigravityUsageSource)
+        let preferences = Preferences(defaults: launchDefaults)
+        return AntigravityProvider(
+            source: antigravityUsageSource,
+            gpuCreditsSource: ColabCLIGPUCreditsSource(),
+            gpuCreditsMode: { preferences.antigravityGPUCreditsMode },
+            colabTier: { preferences.antigravityColabTier },
+            gpuCreditsRefillDay: { preferences.antigravityGPUCreditsRefillDay }
+        )
     }
 
     private static func apiSpendProviders(credentials: CredentialStore) -> [any APISpendProvider] {

@@ -12,6 +12,9 @@ public struct PlanCapsule: View {
     public let bankedResets: Int?
     public let isCritical: Bool
     public let isRevealing: Bool
+    /// 1C: the identity row owns hover, because whether the capsule is open decides where
+    /// the chips after it sit (`PlanCapsuleRunGeometry`).
+    public let isHovering: Bool
     /// KTD3: the phone's one type unit, threaded through label, kerning, bead and capsule.
     public var scale: CGFloat = 1
 
@@ -20,16 +23,17 @@ public struct PlanCapsule: View {
         bankedResets: Int?,
         isCritical: Bool,
         isRevealing: Bool,
+        isHovering: Bool = false,
         scale: CGFloat = 1
     ) {
         self.planDisplayName = planDisplayName
         self.bankedResets = bankedResets
         self.isCritical = isCritical
         self.isRevealing = isRevealing
+        self.isHovering = isHovering
         self.scale = scale
     }
 
-    @State private var isHovering = false
     /// Stays true for the frame that leaves Critical or reveal, so that close uses
     /// `settle` rather than the hover-out curve (KTD8).
     @State private var lastWasAttention = false
@@ -61,7 +65,6 @@ public struct PlanCapsule: View {
         }
         .foregroundStyle(ProviderStyle.planLabelInk(scheme: scheme))
         .identityMetadataLabel(scale: scale)
-        .onHover { isHovering = $0 }
         .animation(resolved(animation, .crossfade), value: presentation.visibleLabel)
         .animation(resolved(animation, .movement), value: presentation.state)
         .onChange(of: isCritical || isRevealing) { _, active in
@@ -72,7 +75,7 @@ public struct PlanCapsule: View {
     private var animation: Animation {
         if isCritical || isRevealing { return HeadroomMotion.valueSpring }
         if lastWasAttention && !isHovering { return HeadroomMotion.settle }
-        return isHovering ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut
+        return isHovering ? HeadroomMotion.capsuleOpen : HeadroomMotion.capsuleClose
     }
 
     private func resolved(_ animation: Animation, _ kind: HeadroomMotion.Kind) -> Animation? {

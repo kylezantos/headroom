@@ -299,34 +299,35 @@ struct MenuBarPillSourceTests {
         )
     }
 
-    private func flagged(_ meters: [MenuBarMeter], key: AccountKey, accounts: Int) -> Bool {
+    private func flagged(_ meters: [MenuBarMeter], key: AccountKey) -> Bool {
         IdentityRowText.feedsMenuBar(
-            isPillSource: MenuBarPillSource.sourceKeys(meters: meters, displayPrimaryKey: mains).contains(key),
-            providerAccountCount: accounts
+            isPillSource: MenuBarPillSource.sourceKeys(meters: meters, displayPrimaryKey: mains).contains(key)
         )
     }
 
     @Test func withClaudeInTheMenuBarOnlyItsMainAccountIsFlagged() {
         let meters = [meter(.claude), meter(.codex)]
-        #expect(flagged(meters, key: claudeMain, accounts: 2))
-        #expect(!flagged(meters, key: claudeWork, accounts: 2))
+        #expect(flagged(meters, key: claudeMain))
+        #expect(!flagged(meters, key: claudeWork))
     }
 
     @Test func withClaudeOutOfTheMenuBarNoClaudeAccountIsFlagged() {
         let meters = [meter(.codex)]
-        #expect(!flagged(meters, key: claudeMain, accounts: 2))
-        #expect(!flagged(meters, key: claudeWork, accounts: 2))
+        #expect(!flagged(meters, key: claudeMain))
+        #expect(!flagged(meters, key: claudeWork))
     }
 
     @Test func automaticModeFlagsTheFollowedProvidersMainAccount() {
-        #expect(flagged([meter(.claude, automatic: true)], key: claudeMain, accounts: 2))
-        #expect(!flagged([meter(.codex, automatic: true)], key: claudeMain, accounts: 2))
+        #expect(flagged([meter(.claude, automatic: true)], key: claudeMain))
+        #expect(!flagged([meter(.codex, automatic: true)], key: claudeMain))
         #expect(MenuBarPillSource.sourceKeys(meters: [meter(nil, automatic: true)], displayPrimaryKey: mains).isEmpty)
     }
 
-    /// One account: the glyph would be noise.
-    @Test func aProviderWithOneAccountIsNeverFlagged() {
-        #expect(!flagged([meter(.claude)], key: claudeMain, accounts: 1))
+    /// MB4: a provider's only account is flagged too, since a user can leave providers out of
+    /// the menu bar; one left out is not.
+    @Test func aProviderWithOneAccountIsFlaggedOnlyWhenInTheMenuBar() {
+        #expect(flagged([meter(.claude)], key: claudeMain))
+        #expect(!flagged([meter(.codex)], key: claudeMain))
     }
 }
 

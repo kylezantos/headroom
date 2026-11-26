@@ -906,9 +906,10 @@ in Terminal and never owns the browser callback, token refresh, or auth-file wri
   pills only; unset, it is on for two or more pills and off for one (`MenuBarMarksPolicy`). The
   preference is Mac-only: `UsageStore.setShowMenuBarMarks` never calls
   `exportPhoneSyncSnapshot()`, and no phone, widget or companion projection reads it. In the
-  popover, the account whose reading feeds a pill carries a small vessel glyph when its
-  provider has two or more accounts (CA-MB3; `MenuBarPillSource`, the display list's main
-  account), which overturns L5D's "the first account is the menu-bar account". Every provider
+  popover, the account whose reading feeds a pill carries a small vessel glyph (CA-MB3;
+  `MenuBarPillSource`, the display list's main account), which overturns L5D's "the first
+  account is the menu-bar account". A provider's only account carries it too (MB4, Nov 2026,
+  overturning CA-MB3's two-account minimum): providers can be left out of the menu bar. Every provider
   with artwork gets a mark (all seven); Codex is re-cut on 1× bars (`openCodexPrompt`), and the
   real menu bar look is still unaccepted (`BUGS.md`).
 - **Check-now (Oct 2026, iPhone parity U6) joins one full refresh.** `refreshAll()` keeps one

@@ -28,7 +28,7 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// every account row beneath it, so "✳ Claude" sat 7pt above "✳ Personal". A nested
     /// account row hides its mark and keeps the slot, so the title column never shifts.
     public var showsMark: Bool = true
-    /// CA-MB3: this row's reading feeds a menu-bar pill (`IdentityRowText.feedsMenuBar`), so
+    /// CA-MB3/MB4: this row's reading feeds a menu-bar pill (`IdentityRowText.feedsMenuBar`), so
     /// it draws `MenuBarSourceGlyph`. Separate from `isMenuBarAccount`: a main account whose
     /// provider is not in the menu bar is still the main account. False draws none.
     public var showsMenuBarSourceGlyph: Bool = false
@@ -118,6 +118,11 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
     /// no "did this Text truncate" signal, so the rendered width is compared against the
     /// string's intrinsic width in the same font.
     @State private var titleIsTruncated = false
+    /// 1C: hover lives here, not in `PlanCapsule`, because it also decides where the chips
+    /// after the capsule sit.
+    @State private var capsuleIsHovered = false
+    /// 1C: the pending open, so leaving before `capsuleHoverIntent` cancels it.
+    @State private var capsuleHoverIntent: Task<Void, Never>?
 
     @ViewBuilder public var body: some View {
         let email = normalizedEmail
@@ -139,39 +144,26 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
                 Color.clear.frame(width: markSlot, height: markSlot)
             }
             titleView
-            if planDisplayName != nil || (bankedResets ?? 0) > 0 {
-                planCapsule
-            }
-            // CMM9 (Kyle): the state chips sit *next to* the plan pill, leading-aligned,
-            // rather than pushed to the row's trailing edge — one chip run reading
-            // "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
-            if let lastReadLabel {
-                // U8: a remembered row's one state chip; it replaces "Stale" rather than
-                // joining it, so the row says what it is once.
-                stateTag(lastReadLabel)
-                    // CA-P3 (UX-01): the chip says why nothing reads the account. Nested
-                    // help wins on macOS, so the row's own tooltip is untouched elsewhere.
-                    .help(Countdown.rememberedReadHelp(for: providerID))
-                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
-                    .accessibilityHidden(containsControls)
-            } else if isStale {
-                staleTag
-                    // RM1: the freshness scope around it is `.movement`, so the tag keeps
-                    // its fade under Reduce Motion on its own.
-                    .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
-                    // U8: in a containing row the title already says "Stale".
-                    .accessibilityHidden(containsControls)
-            }
-            if showsConnectedChip {
-                ConnectedChip(scale: scale)
-                    .transition(.connectedChip(reduceMotion: reduceMotion))
-            }
-            if showsMenuBarSourceGlyph {
-                // CA-MB3: which account feeds the pill, said where the user looks when they
-                // wonder. Hosts set it only when the provider has two or more accounts
-                // (`IdentityRowText.feedsMenuBar`), so one account draws none.
-                MenuBarSourceGlyph(scale: scale)
-                    .accessibilityHidden(true)
+            if hasPlanCapsule {
+                // 1C: the capsule and the chips after it are one run, so a hover-opened
+                // capsule can open over the chips instead of pushing the name into "…".
+                PlanCapsuleRunLayout(
+                    spacing: tuning.markGap * scale,
+                    overlaysRun: capsuleOverlaysRun
+                ) {
+                    closedCapsuleSizer
+                    HStack(spacing: tuning.markGap * scale) { chipRun }
+                        .opacity(capsuleOverlaysRun ? 0 : 1)
+                        .allowsHitTesting(!capsuleOverlaysRun)
+                        // Opacity only, so it keeps its timing under Reduce Motion (S2A).
+                        .animation(
+                            capsuleOverlaysRun ? HeadroomMotion.capsuleRunOut : HeadroomMotion.capsuleRunIn,
+                            value: capsuleOverlaysRun
+                        )
+                    planCapsule
+                }
+            } else {
+                chipRun
             }
             if showsPersistentEmail, let email {
                 Text(email)
@@ -198,6 +190,71 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
         ))
     }
 
+    /// The state chips that follow the plan capsule. CMM9 (Kyle): they sit *next to* the plan
+    /// pill, leading-aligned, rather than pushed to the row's trailing edge — one chip run
+    /// reading "Work · Pro · Stale" in order, not a tier on the left and a warning on the right.
+    @ViewBuilder private var chipRun: some View {
+        if let lastReadLabel {
+            // U8: a remembered row's one state chip; it replaces "Stale" rather than
+            // joining it, so the row says what it is once.
+            stateTag(lastReadLabel)
+                // CA-P3 (UX-01): the chip says why nothing reads the account. Nested
+                // help wins on macOS, so the row's own tooltip is untouched elsewhere.
+                .help(Countdown.rememberedReadHelp(for: providerID))
+                .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+                .accessibilityHidden(containsControls)
+        } else if isStale {
+            staleTag
+                // RM1: the freshness scope around it is `.movement`, so the tag keeps
+                // its fade under Reduce Motion on its own.
+                .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+                // U8: in a containing row the title already says "Stale".
+                .accessibilityHidden(containsControls)
+        }
+        if showsConnectedChip {
+            ConnectedChip(scale: scale)
+                .transition(.connectedChip(reduceMotion: reduceMotion))
+        }
+        if showsMenuBarSourceGlyph {
+            // CA-MB3: which account feeds the pill, said where the user looks when they
+            // wonder (`IdentityRowText.feedsMenuBar`); since MB4 a provider's only account
+            // carries it too.
+            MenuBarSourceGlyph(scale: scale)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var hasPlanCapsule: Bool {
+        planDisplayName != nil || (bankedResets ?? 0) > 0
+    }
+
+    /// 1C: only a hover opens the capsule over the run. Attention (Critical, the first-show
+    /// reveal, the phone's tap) can hold it open, so it keeps pushing and the run stays read.
+    private var capsuleOverlaysRun: Bool {
+        PlanCapsulePresentation.resolve(
+            planDisplayName: planDisplayName,
+            bankedResets: bankedResets,
+            isHovering: capsuleIsHovered,
+            isCritical: isCritical,
+            isRevealing: isRevealing
+        ).motionCause == .hover
+    }
+
+    /// 1C: the closed capsule's width, laid out but never drawn, so the run keeps its place
+    /// while the live capsule opens over it.
+    private var closedCapsuleSizer: some View {
+        PlanCapsule(
+            planDisplayName: planDisplayName,
+            bankedResets: bankedResets,
+            isCritical: false,
+            isRevealing: false,
+            scale: scale
+        )
+        .hidden()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     /// U8: a row whose title or capsule is a control (the phone) keeps those controls as their
     /// own accessibility elements, so each one is reachable and does only its own job; the
     /// title carries the row's identity phrase. A display-only row (the Mac) stays one
@@ -212,8 +269,28 @@ public struct IdentityRow<Mark: View, Accessory: View>: View {
             bankedResets: bankedResets,
             isCritical: isCritical,
             isRevealing: isRevealing,
+            isHovering: capsuleIsHovered,
             scale: scale
         )
+        .onHover { hovering in
+            capsuleHoverIntent?.cancel()
+            guard hovering else {
+                capsuleIsHovered = false
+                return
+            }
+            // 1C: open only once the pointer has settled on the pill.
+            capsuleHoverIntent = Task { @MainActor in
+                try? await Task.sleep(for: HeadroomMotion.capsuleHoverIntent)
+                guard !Task.isCancelled else { return }
+                capsuleIsHovered = true
+            }
+        }
+        // 1C: the popover's views outlive a close, and a close under the pointer sends no
+        // hover-out, so a capsule left open would keep hiding the chips on the next open.
+        .onDisappear {
+            capsuleHoverIntent?.cancel()
+            capsuleIsHovered = false
+        }
         if let onPlanCapsuleTap {
             Button(action: onPlanCapsuleTap) {
                 capsule
@@ -552,11 +629,12 @@ public enum IdentityRowText {
     /// The stale chip's words when a host passes no read age.
     public static let staleFallbackLabel = "Stale"
 
-    /// CA-MB3: whether a row carries the menu-bar source glyph. Only the account that feeds
-    /// a pill, and only when its provider has two or more accounts: with one, the glyph is
-    /// noise. Hosts pass the result as `showsMenuBarSourceGlyph`.
-    public static func feedsMenuBar(isPillSource: Bool, providerAccountCount: Int) -> Bool {
-        isPillSource && providerAccountCount >= 2
+    /// CA-MB3: whether a row carries the menu-bar source glyph: the account that feeds a pill.
+    /// MB4 (Kyle, 2026-11-25) dropped CA-MB3's two-account minimum: someone can leave providers
+    /// out of the menu bar, so a single-account provider's row says whether it is in there too.
+    /// Hosts pass the result as `showsMenuBarSourceGlyph`.
+    public static func feedsMenuBar(isPillSource: Bool) -> Bool {
+        isPillSource
     }
 
     /// L5D: the row the "Main account" tooltip line, VoiceOver phrase and Compact label name:

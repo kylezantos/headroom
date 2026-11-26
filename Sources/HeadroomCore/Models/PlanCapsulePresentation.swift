@@ -104,3 +104,40 @@ extension PlanCapsulePresentation {
         }
     }
 }
+
+/// 1C (Kyle, 2026-11-24): where the chips after the plan capsule sit (the stale or "Last
+/// read" chip, Connected, the menu-bar source glyph). Before this, a hover-opened
+/// "Business · 3 resets" pushed them right, and because every capsule is fixed width the
+/// account name was the only thing left to give: "Work" became "…". Now a hover-opened
+/// capsule opens *over* the run, which stays where the closed capsule put it and fades out
+/// underneath. The row reserves only what the open capsule needs past the run's end, so the
+/// name gives way only when the open capsule is wider than the capsule and the run together.
+///
+/// Hover only. A capsule opened by attention (Critical, the first-show reveal, the phone's
+/// tap) can stay open, so it still pushes the run and keeps it readable.
+public enum PlanCapsuleRunGeometry {
+    /// Where the run starts, measured from the capsule's leading edge.
+    public static func runOffset(
+        closedWidth: Double,
+        liveWidth: Double,
+        spacing: Double,
+        overlaysRun: Bool
+    ) -> Double {
+        (overlaysRun ? closedWidth : liveWidth) + spacing
+    }
+
+    /// The width the capsule and its run take in the row. An empty run takes no spacing.
+    public static func width(
+        closedWidth: Double,
+        liveWidth: Double,
+        runWidth: Double,
+        spacing: Double,
+        overlaysRun: Bool
+    ) -> Double {
+        guard runWidth > 0 else { return liveWidth }
+        let runEnd = runOffset(
+            closedWidth: closedWidth, liveWidth: liveWidth, spacing: spacing, overlaysRun: overlaysRun
+        ) + runWidth
+        return max(runEnd, liveWidth)
+    }
+}

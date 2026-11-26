@@ -34,6 +34,13 @@ struct PopoverColumnSlot: Equatable {
 /// and a layout preference change. The U1 spike found the popover's view state survives close
 /// and reopen, and that a width change made on open shows the old width for ~116ms first, so the
 /// plan for the next open is made as the popover closes, from the heights it last drew.
+///
+/// GF2 (Kyle, 2026-11-24: the first open "flashes the vertical list first, then switches to the
+/// horizontal"). After a launch the model had no heights, so the first open drew one column,
+/// measured, and redrew as two. The heights are now saved on every close
+/// (`PopoverColumnHeightsStore`) and loaded on the first draw, which plans from them before the
+/// first frame. Saved heights are only a starting point: the open's own measurements replace
+/// them, and the next close replans from those as before.
 @MainActor
 @Observable
 final class PopoverPlanModel {
@@ -49,17 +56,36 @@ final class PopoverPlanModel {
     @ObservationIgnored private var layout: AccountLayout?
     private var allowsHorizontalExpansion = true
     private var metrics: AccountColumnsMetrics { Self.metrics(for: layout ?? .standard) }
+    @ObservationIgnored private let savedHeights: @MainActor (PopoverHeightsKey) -> [String: Double]
+    @ObservationIgnored private let saveHeights: @MainActor ([String: Double], PopoverHeightsKey) -> Void
+    @ObservationIgnored private var hasSeeded = false
+    /// The meter format the heights were drawn in, so they are saved under the right key.
+    @ObservationIgnored private var format: GaugeFormat = MeterStyle.default.format
 
-    init(cap: Double) {
+    init(
+        cap: Double,
+        savedHeights: @escaping @MainActor (PopoverHeightsKey) -> [String: Double] = { _ in [:] },
+        saveHeights: @escaping @MainActor ([String: Double], PopoverHeightsKey) -> Void = { _, _ in }
+    ) {
         self.cap = cap
+        self.savedHeights = savedHeights
+        self.saveHeights = saveHeights
     }
 
     /// What to draw for `slots`: the plan, carried across an account-set change until the new
     /// items have been measured.
     func drawnPlan(
-        for slots: [PopoverColumnSlot], allowsHorizontalExpansion: Bool = true
+        for slots: [PopoverColumnSlot],
+        allowsHorizontalExpansion: Bool = true,
+        layout: AccountLayout = .standard,
+        format: GaugeFormat = MeterStyle.default.format,
+        estimatedHeights: () -> [String: Double] = { [:] }
     ) -> AccountColumnsPlan {
         _ = drawnRevision
+        self.format = format
+        seedIfNeeded(slots: slots, allowsHorizontalExpansion: allowsHorizontalExpansion,
+                     key: PopoverHeightsKey(layout: layout, format: format),
+                     estimatedHeights: estimatedHeights)
         // The preference can draw before onChange runs, including when new rows have
         // not reported heights yet. Never carry a former two-column plan in vertical-only mode.
         return Self.drawn(self.allowsHorizontalExpansion && allowsHorizontalExpansion ? plan : nil, for: slots)
@@ -98,6 +124,43 @@ final class PopoverPlanModel {
     func popoverDidClose() {
         generation += 1
         replanIfNeeded()
+        saveHeights(heights, PopoverHeightsKey(layout: layout ?? .standard, format: format))
+    }
+
+    /// GF2: the first draw takes the heights saved at the last close and plans from them, so the
+    /// first open already has its columns. A slot with no saved height (a new install, an
+    /// account added since) takes `PopoverHeightEstimate`'s instead. An estimate can never
+    /// flash: a made plan holds while the popover is open (R6), so the worst a wrong one does
+    /// is lay out one open less well, and the close replans from what was really drawn.
+    ///
+    /// Only observation-ignored state changes here, and no revision moves: the body is
+    /// mid-pass, and it reads the plan right after this returns. The observed expansion
+    /// preference is left for its `onChange` to set; the plan is made with the value the body
+    /// passed, so that handler's replan draws the same columns. A pass with no slots yet does
+    /// not use up the seed.
+    private func seedIfNeeded(
+        slots newSlots: [PopoverColumnSlot],
+        allowsHorizontalExpansion: Bool,
+        key: PopoverHeightsKey,
+        estimatedHeights: () -> [String: Double]
+    ) {
+        guard !hasSeeded, !newSlots.isEmpty else { return }
+        hasSeeded = true
+        guard plan == nil, self.layout == nil else { return }
+        let saved = savedHeights(key)
+        let estimates = estimatedHeights()
+        let ids = newSlots.map(\.id) + newSlots.compactMap(\.headerID)
+        for id in ids where heights[id] == nil {
+            if let height = saved[id] ?? estimates[id] { heights[id] = height }
+        }
+        slots = newSlots
+        slotIDs = newSlots.map(\.id)
+        self.layout = key.layout
+        guard needsReplan, let items = measuredItems() else { return }
+        plan = AccountColumnsPlanner.plan(
+            items: items, cap: cap, generation: generation, previous: nil,
+            allowsHorizontalExpansion: allowsHorizontalExpansion, metrics: metrics
+        )
     }
 
     /// A different layout draws different heights and a different account gap, so it opens a new
@@ -201,5 +264,78 @@ struct PopoverCardFragment: Identifiable, Equatable {
                 column: fragment.column
             )
         }
+    }
+}
+
+/// GF2: which saved heights apply. Layout and meter format both change how tall a row draws
+/// (Full rows are 17pt taller per window than Micro).
+struct PopoverHeightsKey: Hashable {
+    let layout: AccountLayout
+    let format: GaugeFormat
+
+    var defaultsKey: String { "\(layout.rawValue).\(format.rawValue)" }
+}
+
+/// GF2: the popover's measured content heights, saved per layout and format on every close so the
+/// first open after a launch plans its columns before it draws. Keys are column slot IDs
+/// (account keys, whole-card and spend IDs), which survive a relaunch. Demos, the render and
+/// bench harnesses and the XCTest host keep them in memory only, so a fixture's heights never
+/// seed the user's real popover.
+@MainActor
+enum PopoverColumnHeightsStore {
+    private static let keyPrefix = "popoverColumnHeights.v1."
+    private static var inMemory: [PopoverHeightsKey: [String: Double]] = [:]
+    private static let persists = !AppComposition.usesInertPhoneSync()
+
+    static func load(_ key: PopoverHeightsKey) -> [String: Double] {
+        guard persists else { return inMemory[key] ?? [:] }
+        return (UserDefaults.standard.dictionary(forKey: keyPrefix + key.defaultsKey) as? [String: Double]) ?? [:]
+    }
+
+    static func save(_ heights: [String: Double], _ key: PopoverHeightsKey) {
+        guard persists else {
+            inMemory[key] = heights
+            return
+        }
+        UserDefaults.standard.set(heights, forKey: keyPrefix + key.defaultsKey)
+    }
+}
+
+/// GF2: a first-open stand-in for a slot nobody has measured yet, from the heights the popover
+/// draws (measured 2026-11-25 with `--render-popover` across multi-7, six-providers,
+/// banked-resets and multi-mixed). Standard sections grow by one meter row per window: 31pt in
+/// Micro and 48pt in Full. A Compact row is one line; an account showing a state instead of
+/// meters (sign-in, setup) is a short sentence block. It only has to pick the right column
+/// count; it never draws anything.
+@MainActor
+enum PopoverHeightEstimate {
+    static let stateBlock: Double = 51
+    static let compactRow: Double = 26
+    static let compactStateBlock: Double = 73
+    /// A reading still pending at launch is estimated as two meter rows.
+    static let pendingWindows = 2
+
+    static func account(windows: Int, layout: AccountLayout, format: GaugeFormat) -> Double {
+        switch layout {
+        case .compact:
+            return windows > 0 ? compactRow : compactStateBlock
+        case .standard:
+            guard windows > 0 else { return stateBlock }
+            return format == .full ? 11 + 48 * Double(windows) : 13 + 31 * Double(windows)
+        }
+    }
+
+    /// A card that does not split: its accounts stacked one account gap apart.
+    static func card(windows: [Int], layout: AccountLayout, format: GaugeFormat) -> Double {
+        guard !windows.isEmpty else { return stateBlock }
+        let gap = PopoverPlanModel.metrics(for: layout).accountGap
+        return windows.map { account(windows: $0, layout: layout, format: format) }.reduce(0, +)
+            + gap * Double(windows.count - 1)
+    }
+
+    /// The spend card: 51pt for two providers in Standard, 82pt in Compact.
+    static func spend(providers: Int, layout: AccountLayout) -> Double {
+        let perRow: Double = layout == .compact ? 41 : 25.5
+        return perRow * Double(max(providers, 1))
     }
 }

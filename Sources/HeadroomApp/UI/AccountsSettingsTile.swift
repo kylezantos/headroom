@@ -90,6 +90,10 @@ struct AccountsSettingsTile: View {
     /// CA-S3: the row whose name is showing its rename field; at rest a name is a label
     /// that truncates with an ellipsis.
     @State private var editingLabel: AccountKey?
+    /// 2A: the row whose rename just landed, showing "Saved" for a moment.
+    @State private var savedLabel: AccountKey?
+    /// 2A: each confirmation's own token, so an earlier rename's timer never hides a later one.
+    @State private var savedToken = 0
     /// CA-M3: rows whose removal succeeded, held in their slot while their vessel drains.
     @State private var drainingRows: [ProviderID: [SettingsAccountDrainingRow]] = [:]
     @FocusState private var focusedLabel: AccountKey?
@@ -205,6 +209,15 @@ struct AccountsSettingsTile: View {
             // CA-S3: the field gives way to the truncating label once it loses focus.
             if let previous, previous == editingLabel, current != previous { editingLabel = nil }
         }
+        // 2A: a click anywhere outside the field saves. Focus loss already commits, but on
+        // macOS a click on blank window space (or a button) never takes focus from a text
+        // field, so before this the field just stayed open.
+        // Also active while a field is shown but focus never landed on it (a lost race with
+        // the menu closing), or that field could never be dismissed.
+        .modifier(OutsideClickEndsEditing(isActive: focusedLabel != nil || editingLabel != nil) {
+            focusedLabel = nil
+            editingLabel = nil
+        })
         // R12: leaving Accounts — pane switch or window close — commits a typed rename
         // instead of discarding it. Focus loss already commits, but ⌘W tears the tile
         // down without moving focus first.
@@ -625,12 +638,16 @@ struct AccountsSettingsTile: View {
                             .truncationMode(.tail)
                             .padding(.horizontal, 6).padding(.vertical, 3)
                             .background(
-                                Color.primary.opacity(isEditingLabel ? 0.06 : 0),
-                                in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                Color.primary.opacity(isEditingLabel ? RenameFieldStyle.hoverFill : 0),
+                                in: RoundedRectangle(cornerRadius: RenameFieldStyle.cornerRadius, style: .continuous)
                             )
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    // 2A (Kyle, 2026-11-24): say "editable" before the click — a text cursor
+                    // and the gutter pencil join the fill, which alone read as a hover.
+                    .pointerStyle(.horizontalText)
+                    .overlay(alignment: .leading) { renamePencil(visible: isEditingLabel) }
                     // R2M10/S3A: the approach fill, opacity only, so it keeps its timing under
                     // Reduce Motion.
                     .animation(
@@ -648,43 +665,7 @@ struct AccountsSettingsTile: View {
                     .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
                     .accessibilityHint("Renames this account")
                 } else {
-                    // Quiet at rest, but the affordance reveals on approach: a hover/focus fill
-                    // marks the label as editable (impeccable audit P1 — a plain field that
-                    // renders identically to static text hides the rename feature entirely).
-                    TextField("Account name", text: labelBinding(for: account))
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 13))
-                        .focused($focusedLabel, equals: account.key)
-                        .onSubmit { commitLabel(for: row) }
-                        .padding(.horizontal, 6).padding(.vertical, 3)
-                        .background(
-                            Color.primary.opacity(isEditingLabel ? 0.06 : 0),
-                            in: RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        )
-                        // R2M10/S3A: the fill's whole job is to reveal on approach, and it was the
-                        // one hover in the app that snapped both ways — the only one outside a
-                        // button style. Opacity only, so it keeps its timing under Reduce Motion.
-                        .animation(
-                            HeadroomMotion.resolved(
-                                isEditingLabel ? HeadroomMotion.hoverIn : HeadroomMotion.hoverOut,
-                                .crossfade,
-                                reduceMotion: reduceMotion
-                            ),
-                            value: isEditingLabel
-                        )
-                        .onHover { hovering in
-                            hoveredLabel = hovering ? account.key : (hoveredLabel == account.key ? nil : hoveredLabel)
-                        }
-                        // The rename field keeps its editing width; it scrolls a long name.
-                        .frame(width: AccountRowMetrics.nameWidth, alignment: .leading)
-                        .onAppear {
-                            Task { @MainActor in
-                                await Task.yield()
-                                if editingLabel == account.key { focusedLabel = account.key }
-                            }
-                        }
-                        .help("Click to rename this account")
-                        .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
+                    renameField(row)
                 }
                 // CA-S3 (SET-01): the tags sit on the identity's first line, so they never
                 // float mid-row between the name and the trailing column.
@@ -704,6 +685,15 @@ struct AccountsSettingsTile: View {
                         help: "This row is signed in to the same Claude account as \(original). You can remove one without signing out of the other.",
                         accessibilityLabel: "\(store.desktopAccountName(for: account)) uses the same login as \(original)"
                     )
+                }
+                if savedLabel == account.key {
+                    // 2A: the rename landed. Fades in, holds, fades out; never pulses.
+                    Label("Saved", systemImage: "checkmark")
+                        .font(.system(size: 11))
+                        .labelStyle(RenameSavedLabelStyle())
+                        .foregroundStyle(.secondary)
+                        .transition(HeadroomMotion.fade(HeadroomMotion.settle, reduceMotion: reduceMotion))
+                        .accessibilityHidden(true)
                 }
             }
             .lineLimit(1)
@@ -890,7 +880,10 @@ struct AccountsSettingsTile: View {
             isBuiltIn: account.isBuiltIn,
             isRemembered: row.isRemembered,
             builtInActions: AccountsSettingsInteractions.builtInRowActions(for: account, in: store),
-            promotion: AccountsSettingsInteractions.promotionState(for: row, in: store)
+            promotion: AccountsSettingsInteractions.promotionState(for: row, in: store),
+            // 2A: the field's second door, for anyone who never hovers the name. An email
+            // standing in for the name has nothing to rename.
+            offersRename: !(store.useEmailAsAccountName && context.email != nil)
         )
         if sections.isEmpty {
             Color.clear
@@ -948,6 +941,8 @@ struct AccountsSettingsTile: View {
                     return nil
                 } ?? "\(lead.label) for \(store.desktopAccountName(for: account))"
             )
+        case .rename:
+            Button("Rename…") { beginRename(account.key) }
         case .makeMain:
             Button("Make Main") { makeMain(account) }
         case .signOutAndSetUpAgain:
@@ -1152,6 +1147,60 @@ struct AccountsSettingsTile: View {
 
     // MARK: - Rename plumbing
 
+    /// 2A (Kyle, 2026-11-24): the rename field. It starts at the name's own width and grows
+    /// as you type, so the tags after it never jump (it was a fixed 158pt). Return, Tab or
+    /// a click anywhere else saves; Esc puts the name back. Ink ring, never the accent (CA-S2).
+    @ViewBuilder private func renameField(_ row: DisplayAccount) -> some View {
+        let account = row.account
+        let text = labelBinding(for: account)
+        Text(text.wrappedValue.isEmpty ? "Account name" : text.wrappedValue)
+            .font(.system(size: 13))
+            .lineLimit(1)
+            // Room for the caret at the end of the name.
+            .padding(.trailing, 2)
+            .hidden()
+            .frame(minWidth: RenameFieldStyle.minWidth, alignment: .leading)
+            .overlay(alignment: .leading) {
+                TextField("Account name", text: text)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 13))
+                    .focused($focusedLabel, equals: account.key)
+                    // Losing focus commits (`onChange(of: focusedLabel)`), so Return and a
+                    // click away save the same way.
+                    .onSubmit { focusedLabel = nil }
+                    .onExitCommand { cancelRename(account.key) }
+            }
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(
+                Color(nsColor: .textBackgroundColor),
+                in: RoundedRectangle(cornerRadius: RenameFieldStyle.cornerRadius, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: RenameFieldStyle.cornerRadius, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(RenameFieldStyle.ringOpacity), lineWidth: 1)
+            }
+            .overlay(alignment: .leading) { renamePencil(visible: true) }
+            .onAppear {
+                Task { @MainActor in
+                    await Task.yield()
+                    if editingLabel == account.key { focusedLabel = account.key }
+                }
+            }
+            .help("Return or click away to save, Esc to cancel")
+            .accessibilityLabel("\(store.desktopAccountName(for: account)) account name")
+    }
+
+    /// 2A: a pencil in the row's empty leading gutter, so showing it moves nothing.
+    private func renamePencil(visible: Bool) -> some View {
+        Image(systemName: "pencil")
+            .font(.system(size: 10, weight: .medium))
+            .foregroundStyle(.secondary)
+            .offset(x: -RenameFieldStyle.pencilGutterOffset)
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
     private func labelBinding(for account: ProviderAccount) -> Binding<String> {
         Binding(
             get: {
@@ -1187,8 +1236,28 @@ struct AccountsSettingsTile: View {
 
     private func commitLabel(for row: DisplayAccount) {
         guard let draft = labelDrafts[row.key] else { return }
-        AccountsSettingsInteractions.commitLabel(draft, for: row, in: store)
+        let renamed = AccountsSettingsInteractions.commitLabel(draft, for: row, in: store)
         labelDrafts[row.key] = nil
+        if renamed { confirmSaved(row.key) }
+    }
+
+    /// 2A: Esc leaves the name as it was. Dropping the draft first means the focus-loss
+    /// commit that follows finds nothing to save.
+    private func cancelRename(_ key: AccountKey) {
+        labelDrafts[key] = nil
+        focusedLabel = nil
+    }
+
+    /// 2A: "Saved" fades in beside the tags, holds, then fades out.
+    private func confirmSaved(_ key: AccountKey) {
+        savedToken &+= 1
+        let token = savedToken
+        withAnimation(HeadroomMotion.settle) { savedLabel = key }
+        Task { @MainActor in
+            try? await Task.sleep(for: RenameFieldStyle.savedHold)
+            guard savedToken == token else { return }
+            withAnimation(HeadroomMotion.settle) { savedLabel = nil }
+        }
     }
 
     private var removalDialogPresented: Binding<Bool> {
@@ -1266,8 +1335,6 @@ enum AccountRowMetrics {
     static let trailingMinWidth: CGFloat = 96
     /// The `•••` glyph's 22pt frame plus `HoverButtonStyle`'s 2pt each side.
     static let menuSlotWidth: CGFloat = 26
-    /// The rename field's width while editing. At rest a name takes the row's free width.
-    static let nameWidth: CGFloat = 158
     /// 16pt + the field's 6pt inner pad lands the label text at the 22pt provider-name axis.
     static let leadingInset: CGFloat = 16
 }

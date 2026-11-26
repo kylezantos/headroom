@@ -269,8 +269,8 @@ struct AccountSectionView: View {
     /// L5D: the provider's main row when it has two or more accounts
     /// (`IdentityRowText.isMainAccountRow`): the "Main account" tooltip and VoiceOver phrase.
     let isMenuBarAccount: Bool
-    /// CA-MB3: the account whose reading feeds a menu-bar pill, when its provider has two or
-    /// more accounts (`IdentityRowText.feedsMenuBar`); its identity row carries the glyph.
+    /// CA-MB3/MB4: the account whose reading feeds a menu-bar pill
+    /// (`IdentityRowText.feedsMenuBar`); its identity row carries the glyph.
     var showsMenuBarSourceGlyph: Bool = false
     let showsStopWaiting: Bool
     /// CA-P14: set for a never-signed-in extra, so its Stop Waiting can remove the account.

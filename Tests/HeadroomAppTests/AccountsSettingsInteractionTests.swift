@@ -2850,6 +2850,26 @@ extension AccountsSettingsInteractionTests {
                                       builtInActions: .unavailable, promotion: .primary).isEmpty)
     }
 
+    /// 2A: Rename… follows the lead on every renameable row, including a built-in row with
+    /// no other actions, and never joins a pending removal's menu.
+    @Test func renameFollowsTheLeadOnEveryRenameableRow() {
+        #expect(Slots.rowMenuSections(lead: nil, isBuiltIn: false, isRemembered: false,
+                                      builtInActions: .unavailable, promotion: .available, offersRename: true)
+                == [[.rename], [.makeMain], [.removeAccount(destructive: true)]])
+        #expect(Slots.rowMenuSections(lead: .tryAgainSetup, isBuiltIn: false, isRemembered: false,
+                                      builtInActions: .unavailable, promotion: .unavailable, offersRename: true)
+                == [[.lead(.tryAgainSetup)], [.rename], [.removeAccount(destructive: true)]])
+        #expect(Slots.rowMenuSections(lead: nil, isBuiltIn: true, isRemembered: false,
+                                      builtInActions: .unavailable, promotion: .primary, offersRename: true)
+                == [[.rename]])
+        #expect(Slots.rowMenuSections(lead: nil, isBuiltIn: false, isRemembered: true,
+                                      builtInActions: .unavailable, promotion: .unavailable, offersRename: true)
+                == [[.rename], [.removeAccount(destructive: false)]])
+        #expect(Slots.rowMenuSections(lead: .cancelRemoval, isBuiltIn: false, isRemembered: false,
+                                      builtInActions: .unavailable, promotion: .available, offersRename: true)
+                == [[.lead(.cancelRemoval)]])
+    }
+
     @Test func aProviderSwitchedOffStillOffersSignInButHidesFetchState() {
         var off = input(.stale, provider: .cursor)
         off.hidesStatus = true

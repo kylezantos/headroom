@@ -43,6 +43,101 @@ struct PopoverColumnsSizingTests {
         #expect(plan.itemIDs.first == "claude/0")
     }
 
+    /// GF2: heights saved at the last close plan the first open's columns before it draws, so
+    /// it never shows one column and then two.
+    @Test func savedHeightsPlanTheFirstDrawBeforeAnyMeasurement() {
+        let all = slots(.claude, 7) + slots(.codex, 1)
+        let saved = Dictionary(uniqueKeysWithValues: all.map { ($0.id, 74.0) })
+        var asked: [PopoverHeightsKey] = []
+        let model = PopoverPlanModel(cap: 640, savedHeights: { key in
+            asked.append(key)
+            return saved
+        })
+        #expect(model.drawnPlan(for: all, layout: .standard).columnCount == 2)
+        #expect(model.plan?.columnCount == 2)
+        #expect(asked == [PopoverHeightsKey(layout: .standard, format: .micro)])
+        // The onChange handlers that run after the first pass find nothing to change.
+        model.update(slots: all)
+        model.setLayout(.standard)
+        model.setAllowsHorizontalExpansion(true)
+        #expect(model.drawnPlan(for: all, layout: .standard).columnCount == 2)
+        #expect(asked == [PopoverHeightsKey(layout: .standard, format: .micro)])
+    }
+
+    /// GF2: a new install has no saved heights; the estimate plans the first draw instead.
+    @Test func estimatesPlanTheFirstDrawWhenNothingWasSaved() async {
+        let all = slots(.claude, 7) + slots(.codex, 1)
+        let model = PopoverPlanModel(cap: 640)
+        let estimate = PopoverHeightEstimate.account(windows: 2, layout: .standard, format: .micro)
+        #expect(model.drawnPlan(for: all, layout: .standard, estimatedHeights: {
+            Dictionary(uniqueKeysWithValues: all.map { ($0.id, estimate) })
+        }).columnCount == 2)
+        // Real heights replace the estimate but never replan while the popover is open (R6).
+        await measure(model, all, height: 30)
+        #expect(model.drawnPlan(for: all).columnCount == 2)
+        model.popoverDidClose()
+        #expect(model.drawnPlan(for: all).columnCount == 1)
+    }
+
+    /// A saved height wins over the estimate; a slot with neither waits for its measurement.
+    @Test func savedHeightsWinAndAnUnknownSlotWaits() async {
+        let all = slots(.claude, 7) + slots(.codex, 1)
+        let saved = Dictionary(uniqueKeysWithValues: all.dropLast().map { ($0.id, 74.0) })
+        let model = PopoverPlanModel(cap: 640, savedHeights: { _ in saved })
+        #expect(model.drawnPlan(for: all, layout: .standard, estimatedHeights: { [:] }).columnCount == 1)
+        model.update(slots: all)
+        model.record(74, for: all.last!.id)
+        await afterLayout()
+        #expect(model.plan?.columnCount == 2)
+    }
+
+    /// The estimate reproduces the heights the popover drew in the 2026-11-25 renders.
+    @Test func theEstimateMatchesMeasuredSectionHeights() {
+        let micro = (1...4).map { PopoverHeightEstimate.account(windows: $0, layout: .standard, format: .micro) }
+        #expect(micro == [44, 75, 106, 137])
+        let full = (1...4).map { PopoverHeightEstimate.account(windows: $0, layout: .standard, format: .full) }
+        #expect(full == [59, 107, 155, 203])
+        #expect(PopoverHeightEstimate.account(windows: 0, layout: .standard, format: .micro) == 51)
+        #expect(PopoverHeightEstimate.account(windows: 3, layout: .compact, format: .micro) == 26)
+        #expect(PopoverHeightEstimate.account(windows: 0, layout: .compact, format: .micro) == 73)
+        #expect(PopoverHeightEstimate.spend(providers: 2, layout: .standard) == 51)
+        #expect(PopoverHeightEstimate.spend(providers: 2, layout: .compact) == 82)
+    }
+
+    @Test func closingSavesTheHeightsForTheLayoutAndFormatItDrew() async {
+        var saved: [PopoverHeightsKey: [String: Double]] = [:]
+        let model = PopoverPlanModel(cap: 640, saveHeights: { heights, key in saved[key] = heights })
+        let all = slots(.claude, 3)
+        _ = model.drawnPlan(for: all, layout: .compact, format: .full)
+        model.update(slots: all)
+        model.setLayout(.compact)
+        await measure(model, all, height: 30)
+        model.popoverDidClose()
+        #expect(saved[PopoverHeightsKey(layout: .compact, format: .full)]
+                == Dictionary(uniqueKeysWithValues: all.map { ($0.id, 30.0) }))
+        #expect(saved.count == 1)
+    }
+
+    /// A first pass with no slots yet leaves the seed for the pass that has them.
+    @Test func anEmptyFirstPassDoesNotUseUpTheSeed() {
+        let all = slots(.claude, 7) + slots(.codex, 1)
+        let saved = Dictionary(uniqueKeysWithValues: all.map { ($0.id, 74.0) })
+        let model = PopoverPlanModel(cap: 640, savedHeights: { _ in saved })
+        #expect(model.drawnPlan(for: []).columnCount == 1)
+        #expect(model.drawnPlan(for: all).columnCount == 2)
+    }
+
+    /// Vertical-only: the seed plans one column without writing the observed preference.
+    @Test func seedingInVerticalOnlyModePlansOneColumn() {
+        let all = slots(.claude, 20)
+        let saved = Dictionary(uniqueKeysWithValues: all.map { ($0.id, 74.0) })
+        let model = PopoverPlanModel(cap: 640, savedHeights: { _ in saved })
+        #expect(model.drawnPlan(for: all, allowsHorizontalExpansion: false).columnCount == 1)
+        #expect(model.plan?.columnCount == 1)
+        model.setAllowsHorizontalExpansion(false)
+        #expect(model.drawnPlan(for: all, allowsHorizontalExpansion: false).columnCount == 1)
+    }
+
     @Test func expansionCanBeSwitchedWithoutNewHeightReports() async {
         let model = PopoverPlanModel(cap: 640)
         let all = slots(.claude, 20)
@@ -395,7 +490,7 @@ struct PopoverColumnsSizingTests {
         defer { hosted.teardown() }
         #expect(hosted.size.width == 384)
         let scroll = try! #require(hosted.scroll)
-        let expectedViewport: CGFloat = visibleScreenHeight == 700 ? 551 : 900
+        let expectedViewport: CGFloat = visibleScreenHeight == 700 ? 547 : 900
         #expect(abs(scroll.viewport - expectedViewport) < 0.5)
         #expect(scroll.content > scroll.viewport)
         store.setExpandAccountsHorizontally(true)
@@ -459,8 +554,8 @@ struct PopoverColumnsSizingTests {
 
     @Test func verticalOnlyCapUsesScreenSpaceUpTo900Points() {
         #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 300) == 300)
-        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 700) == 551)
-        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1000) == 851)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 700) == 547)
+        #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1000) == 847)
         #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: 1440) == 900)
         #expect(PopoverCardMetrics.verticalCardsHeightCap(visibleScreenHeight: nil) == 640)
     }

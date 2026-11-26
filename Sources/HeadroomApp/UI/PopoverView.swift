@@ -52,7 +52,11 @@ struct PopoverView: View {
     @State private var cardsHeight: CGFloat = 0
     /// KTD3 / KTD10: the one- or two-column plan. Heights reach it outside observation; the
     /// body reads only the resolved plan.
-    @State private var columns = PopoverPlanModel(cap: Double(PopoverCardMetrics.cardsHeightCap))
+    @State private var columns = PopoverPlanModel(
+        cap: Double(PopoverCardMetrics.cardsHeightCap),
+        savedHeights: PopoverColumnHeightsStore.load,
+        saveHeights: PopoverColumnHeightsStore.save
+    )
     /// Planned with the columns on close and kept for the next open.
     @State private var plannedVerticalCardsHeightCap: CGFloat?
     /// R2M12: second-resolution "now" for the waiting clock, driven only while a handoff is
@@ -77,6 +81,35 @@ struct PopoverView: View {
     /// KTD8: one provider's card rows, engine rows then visible remembered rows, each with
     /// the snapshot it draws. A remembered row's is its aged last reading (KTD10), so this
     /// does no aging of its own.
+    /// GF2: every slot's first-open stand-in height, keyed as `ProviderCardView.columnSlots`
+    /// keys them: each account, each provider's whole card, its capability header, and spend.
+    static func estimatedSlotHeights(
+        providerOrder: [ProviderID],
+        entriesByProvider: [ProviderID: [ProviderAccountEntry]],
+        spendProviders: Int,
+        layout: AccountLayout,
+        format: GaugeFormat
+    ) -> [String: Double] {
+        var heights: [String: Double] = [:]
+        for id in providerOrder {
+            // A pending reading has no windows yet but will draw meters: count the two most
+            // providers show, rather than a short state block.
+            let windows = (entriesByProvider[id] ?? []).map { entry in
+                entry.snapshot.freshness == .pending && entry.snapshot.windows.isEmpty
+                    ? PopoverHeightEstimate.pendingWindows : entry.snapshot.windows.count
+            }
+            for (entry, count) in zip(entriesByProvider[id] ?? [], windows) {
+                heights[entry.account.key.description] = PopoverHeightEstimate.account(
+                    windows: count, layout: layout, format: format)
+            }
+            heights[ProviderCardView.wholeCardSlotID(id)] = PopoverHeightEstimate.card(
+                windows: windows, layout: layout, format: format)
+            heights[ProviderCardView.capabilityHeaderID(id)] = PopoverHeightEstimate.stateBlock
+        }
+        heights[PopoverColumnSlot.spendID] = PopoverHeightEstimate.spend(providers: spendProviders, layout: layout)
+        return heights
+    }
+
     static func accountEntries(for providerID: ProviderID, in store: UsageStore) -> [ProviderAccountEntry] {
         let rows = store.displayAccounts(for: providerID)
         // U8: read once per provider, and only when it has a remembered row to tag.
@@ -140,7 +173,19 @@ struct PopoverView: View {
                 )
             } + (store.apiSpendProviderOrder.isEmpty ? [] : [PopoverColumnSlot.spend])
             let columnPlan = columns.drawnPlan(
-                for: columnSlots, allowsHorizontalExpansion: store.expandAccountsHorizontally
+                for: columnSlots, allowsHorizontalExpansion: store.expandAccountsHorizontally,
+                layout: store.accountLayout,
+                format: store.meterStyle.format,
+                // GF2: read once, on the first draw, and only for slots never measured.
+                estimatedHeights: {
+                    Self.estimatedSlotHeights(
+                        providerOrder: store.providerOrder,
+                        entriesByProvider: entriesByProvider,
+                        spendProviders: store.apiSpendProviderOrder.count,
+                        layout: store.accountLayout,
+                        format: store.meterStyle.format
+                    )
+                }
             )
             let fragments = PopoverCardFragment.fragments(slots: columnSlots, plan: columnPlan)
             // CA-MB3: read once per pass; every card asks it which row feeds a pill.
@@ -850,6 +895,8 @@ private struct RefreshFooter: View {
                 // CA-P6 (option A, revisits PA11b's footer size): Refresh and Quit stay a native
                 // pair but at the small size and 11.5 medium, so the two whole-app utilities
                 // stop out-shouting the data. Resting container kept; only size and weight move.
+                // Footer size (Kyle, 2026-11-24: "a touch too small"): back to the regular
+                // control size at 12pt, one step up from CA-P6, still medium weight.
                 Button { store.refreshNow() } label: {
                     Text("Refresh").opacity(recipe.isEnabled ? 1 : 0)
                 }
@@ -906,9 +953,9 @@ private struct RefreshFooter: View {
                 Button("Quit") { NSApplication.shared.terminate(nil) }
             }
             .buttonStyle(.bordered)
-            .controlSize(.small)
+            .controlSize(.regular)
             .buttonBorderShape(.roundedRectangle(radius: 6))
-            .font(.system(size: 11.5, weight: .medium))
+            .font(.system(size: 12, weight: .medium))
         }
     }
 
@@ -1166,7 +1213,9 @@ enum PopoverCardMetrics {
     static let verticalCardsHeightMin: CGFloat = 300
     /// The header, footer and shell padding around the card list (765pt shell, 640pt list),
     /// plus a little air above the Dock edge.
-    static let popoverChromeHeight: CGFloat = 125 + 24
+    /// Footer size (2026-11-24): the regular-size footer buttons stand 4pt taller than the
+    /// small ones they replaced (16pt to 20pt in the render), so the chrome grew by 4.
+    static let popoverChromeHeight: CGFloat = 129 + 24
 
     /// Vertical-only layout: scroll at the space on screen or 900pt, whichever is smaller. An
     /// unknown screen keeps the two-column cap.

@@ -510,6 +510,8 @@ enum AccountsSettingsInteractions {
 
     enum RowMenuItem: Equatable {
         case lead(RowMenuLead)
+        /// 2A: opens the same inline field a click on the name does.
+        case rename
         case makeMain
         case signOutAndSetUpAgain
         case stopTracking
@@ -519,16 +521,21 @@ enum AccountsSettingsInteractions {
     /// CA-S3: the menu every row ends with, in sections a divider separates. The secondary
     /// recovery action, when there is one, is its first item. Empty means the slot is held
     /// open but draws nothing, so the trailing edge stays put.
+    ///
+    /// 2A: Rename… sits right after the lead, in its own section, on every row whose name
+    /// can be renamed (not while an email stands in for it).
     nonisolated static func rowMenuSections(
         lead: RowMenuLead?,
         isBuiltIn: Bool,
         isRemembered: Bool,
         builtInActions: BuiltInRowActions,
-        promotion: PromotionState
+        promotion: PromotionState,
+        offersRename: Bool = false
     ) -> [[RowMenuItem]] {
         if lead == .cancelRemoval { return [[.lead(.cancelRemoval)]] }
         var sections: [[RowMenuItem]] = []
         if let lead { sections.append([.lead(lead)]) }
+        if offersRename { sections.append([.rename]) }
         if isRemembered {
             // R11: a remembered row's removal only hides it, so it is not destructive.
             sections.append([.removeAccount(destructive: false)])

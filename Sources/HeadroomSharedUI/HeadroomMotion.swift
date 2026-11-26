@@ -122,6 +122,28 @@ public enum HeadroomMotion {
     public static let partIn = houseCurve(duration: 0.16).delay(0.03)
     public static let partOut = houseCurve(duration: 0.08)
 
+    /// 1C (Kyle, 2026-11-24: the prototype's close "a bit long and not quite snappy"). A
+    /// hover-opened plan capsule opens over the chips after it. On close the capsule collapses
+    /// on `capsuleClose` rather than `hoverOut`'s 180ms spring (this capsule only; S3A's slower
+    /// hover-out stays everywhere else), and the chips return on `capsuleRunIn`, held back
+    /// so they arrive as the capsule clears them. The house curve has landed most of the
+    /// collapse by then.
+    ///
+    /// 1C open (Kyle, same day: `hoverIn`'s 120ms open was "too snappy … inelegant", then the
+    /// house curve at 180ms "still a bit too snappy/reactive"). The house curve lands ~80% of
+    /// its change in the first third, which reads as a jump at any length, so the open uses
+    /// the plain `ease` curve `rowHoverIn` uses, over 260ms, and waits `capsuleHoverIntent`
+    /// before it starts, so a pointer passing over the pill on its way somewhere else opens
+    /// nothing. The chips fade on 160ms of the same curve, still quicker than the capsule that
+    /// covers them, so the two never draw over each other.
+    public static let capsuleHoverIntent: Duration = .milliseconds(120)
+    public static let capsuleOpen = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.26)
+    /// Close (Kyle, 2026-11-24: `quickSettle`'s 120ms "just slightly too fast"): 150ms, with
+    /// the chips' return held back 10ms more to match.
+    public static let capsuleClose = houseCurve(duration: 0.15)
+    public static let capsuleRunOut = Animation.timingCurve(0.25, 0.1, 0.25, 1, duration: 0.16)
+    public static let capsuleRunIn = houseCurve(duration: 0.15).delay(0.06)
+
     // MARK: Reveal geometry (CA-F1, MOT-09)
 
     /// CA-F1: the blur a revealed part resolves out of (the Settings reveal and the menu-bar

@@ -360,6 +360,8 @@ struct ProviderCardView: View {
                         for: primaryEntry,
                         recipe: recipe,
                         isMenuBarAccount: false,
+                        // MB4: Compact's single-account row says it too.
+                        showsMenuBarSourceGlyph: singleAccountFeedsMenuBar(primaryEntry),
                         providerAccounts: entries.map(\.account),
                         columns: columns
                     )
@@ -512,8 +514,8 @@ struct ProviderCardView: View {
         entries.count > 1 && !drawnAccounts(entries: entries, presentation: presentation).isEmpty
     }
 
-    private static func wholeCardSlotID(_ providerID: ProviderID) -> String { "card:\(providerID.raw)" }
-    private static func capabilityHeaderID(_ providerID: ProviderID) -> String { "header:\(providerID.raw)" }
+    static func wholeCardSlotID(_ providerID: ProviderID) -> String { "card:\(providerID.raw)" }
+    static func capabilityHeaderID(_ providerID: ProviderID) -> String { "header:\(providerID.raw)" }
 
     private func announceSetupStateIfNeeded() {
         guard announcesAccessibilityEvents, isFirstFragment else { return }
@@ -1053,12 +1055,9 @@ struct ProviderCardView: View {
     }
 
     /// CA-MB3 (MB-F; overturns L5D's "first account is the menu-bar account" for the glyph):
-    /// the row whose reading feeds a pill, said only when its provider has two or more accounts.
+    /// the row whose reading feeds a pill. MB4: single-account providers too.
     private func feedsMenuBar(_ account: ProviderAccount) -> Bool {
-        IdentityRowText.feedsMenuBar(
-            isPillSource: menuBarSourceKeys.contains(account.key),
-            providerAccountCount: entries.count
-        )
+        IdentityRowText.feedsMenuBar(isPillSource: menuBarSourceKeys.contains(account.key))
     }
 
     /// Single-account reveal. Multi-account cards leave this to each `AccountSectionView`
@@ -1203,6 +1202,7 @@ struct ProviderCardView: View {
             email: identity.email,
             showsPersistentEmail: identity.showsPersistentEmail,
             showsConnectedChip: showsConnectedChip,
+            showsMenuBarSourceGlyph: singleAccountFeedsMenuBar(entry),
             bankedResets: entry?.snapshot.bankedResets,
             isCritical: entry?.snapshot.hasLiveCriticalResettableWindow ?? false,
             isRevealing: isRevealingBankedResets,
@@ -1210,6 +1210,12 @@ struct ProviderCardView: View {
             staleReadAge: entry.map { IdentityRowReadAge(capturedAt: $0.snapshot.capturedAt, now: now) },
             loadingAccessory: { loadingForAccount(account.key) }
         )
+    }
+
+    /// MB4: a single-account card's header row is its account's row, so it carries the glyph
+    /// when that account feeds a pill.
+    private func singleAccountFeedsMenuBar(_ entry: ProviderAccountEntry?) -> Bool {
+        feedsMenuBar(entry?.account ?? primaryAccount)
     }
 
     /// SL1 (2026-09-25 motion audit): live and stale share one bars slot. As separate `switch`

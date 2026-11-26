@@ -52,11 +52,10 @@ import Testing
 
     // MARK: CA-MB3: the menu-bar source glyph
 
-    @Test func theMenuBarGlyphNeedsTwoOrMoreAccounts() {
-        #expect(IdentityRowText.feedsMenuBar(isPillSource: true, providerAccountCount: 2))
-        #expect(IdentityRowText.feedsMenuBar(isPillSource: true, providerAccountCount: 7))
-        #expect(!IdentityRowText.feedsMenuBar(isPillSource: true, providerAccountCount: 1))
-        #expect(!IdentityRowText.feedsMenuBar(isPillSource: false, providerAccountCount: 3))
+    /// MB4: any account that feeds a pill carries the glyph, a provider's only account included.
+    @Test func theMenuBarGlyphMarksEveryPillSource() {
+        #expect(IdentityRowText.feedsMenuBar(isPillSource: true))
+        #expect(!IdentityRowText.feedsMenuBar(isPillSource: false))
         #expect(IdentityRowText.menuBarSourceHelp == "Shown in the menu bar")
     }
 

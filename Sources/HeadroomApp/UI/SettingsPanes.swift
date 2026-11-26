@@ -211,6 +211,9 @@ struct AppearanceSettingsPane: View {
     @Binding var accountLayout: AccountLayout
     @Binding var showCodexSparkCountersInApp: Bool
     @Binding var showsAntigravityFiveHourWindows: Bool
+    @Binding var antigravityGPUCreditsMode: AntigravityGPUCreditsMode
+    @Binding var antigravityColabTier: ColabComputeTier
+    @Binding var antigravityGPUCreditsRefillDay: Int?
     let onAppearanceChange: (AppearancePreference) -> Void
     let onMeterStyleChange: (MeterStyle) -> Void
 
@@ -258,7 +261,10 @@ struct AppearanceSettingsPane: View {
                 accountTitleInk: $accountTitleInk,
                 accountLayout: $accountLayout,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
-                showsAntigravityFiveHourWindows: $showsAntigravityFiveHourWindows
+                showsAntigravityFiveHourWindows: $showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: $antigravityGPUCreditsMode,
+                antigravityColabTier: $antigravityColabTier,
+                antigravityGPUCreditsRefillDay: $antigravityGPUCreditsRefillDay
             )
         }
     }

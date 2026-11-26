@@ -58,6 +58,9 @@ struct SettingsView: View {
     @State private var showCodexSparkCountersInApp = true
     @State private var showCodexSparkCountersInWidgets = false
     @State private var showsAntigravityFiveHourWindows = true
+    @State private var antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off
+    @State private var antigravityColabTier: ColabComputeTier = .aiUltra
+    @State private var antigravityGPUCreditsRefillDay: Int? = nil
     @State private var syncToIPhoneEnabled = false
     @State private var launchAtLogin = false
     @State private var apiSpendPeriod: APISpendPeriod = .currentMonth
@@ -290,6 +293,9 @@ struct SettingsView: View {
                 accountLayout: $accountLayout,
                 showCodexSparkCountersInApp: $showCodexSparkCountersInApp,
                 showsAntigravityFiveHourWindows: $showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: $antigravityGPUCreditsMode,
+                antigravityColabTier: $antigravityColabTier,
+                antigravityGPUCreditsRefillDay: $antigravityGPUCreditsRefillDay,
                 onAppearanceChange: { newValue in
                     preferences.appearancePreference = newValue
                     // Repaint the AppKit windows (this Settings window + the popover panel);
@@ -467,6 +473,9 @@ struct SettingsView: View {
         showCodexSparkCountersInApp = store.showCodexSparkCountersInApp
         showCodexSparkCountersInWidgets = store.showCodexSparkCountersInWidgets
         showsAntigravityFiveHourWindows = store.showsAntigravityFiveHourWindows
+        antigravityGPUCreditsMode = store.antigravityGPUCreditsMode
+        antigravityColabTier = store.antigravityColabTier
+        antigravityGPUCreditsRefillDay = store.antigravityGPUCreditsRefillDay
         syncToIPhoneEnabled = store.syncToIPhoneEnabled
         apiSpendPeriod = store.apiSpendPeriod
         launchAtLogin = launchControl.isEnabled

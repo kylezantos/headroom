@@ -320,6 +320,8 @@ struct ProviderCardView: View {
     var hasReadingOnRecord: (AccountKey) -> Bool = { _ in true }
     /// Antigravity's "Show 5-hour windows" switch, for the same reason.
     var showsAntigravityFiveHourWindows: Bool = true
+    /// Antigravity's optional Colab GPU credits mode (`Off` / `Replace Other · Weekly` / `Add`).
+    var antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showsConnectedChip = false
@@ -439,7 +441,8 @@ struct ProviderCardView: View {
         capabilityStatus: ProviderCapabilityStatus?,
         accountLayout: AccountLayout = .standard,
         showsCodexSparkCounters: Bool = false,
-        showsAntigravityFiveHourWindows: Bool = true
+        showsAntigravityFiveHourWindows: Bool = true,
+        antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off
     ) -> [PopoverColumnSlot] {
         let presentation = capabilityPresentation(providerID: providerID, entries: entries, capabilityStatus: capabilityStatus)
         guard splitsByAccount(entries: entries, presentation: presentation) else {
@@ -450,7 +453,8 @@ struct ProviderCardView: View {
             && compactColumns(
                 entries: entries,
                 showsCodexSparkCounters: showsCodexSparkCounters,
-                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: antigravityGPUCreditsMode
             ) != nil
         return drawnAccounts(entries: entries, presentation: presentation).enumerated().map { index, entry in
             PopoverColumnSlot(
@@ -468,7 +472,8 @@ struct ProviderCardView: View {
     static func compactColumns(
         entries: [ProviderAccountEntry],
         showsCodexSparkCounters: Bool,
-        showsAntigravityFiveHourWindows: Bool = true
+        showsAntigravityFiveHourWindows: Bool = true,
+        antigravityGPUCreditsMode: AntigravityGPUCreditsMode = .off
     ) -> [WindowKind]? {
         let recipes = entries.map { entry in
             CompactAccountRowRecipe(
@@ -478,7 +483,8 @@ struct ProviderCardView: View {
                 now: Date(),
                 requiresStandardSection: compactRowNeedsStandardSection(entry.account),
                 showsCodexSparkCounters: showsCodexSparkCounters,
-                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: antigravityGPUCreditsMode
             )
         }.filter { !$0.fallsBackToStandard }
         guard !recipes.isEmpty else { return nil }
@@ -899,7 +905,8 @@ struct ProviderCardView: View {
             ? Self.compactColumns(
                 entries: entries,
                 showsCodexSparkCounters: showsCodexSparkCounters,
-                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: antigravityGPUCreditsMode
             )
             : nil
         return VStack(alignment: .leading, spacing: 0) {
@@ -955,6 +962,7 @@ struct ProviderCardView: View {
             requiresStandardSection: compactRowNeedsStandardSection(entry.account),
             showsCodexSparkCounters: showsCodexSparkCounters,
             showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
+            antigravityGPUCreditsMode: antigravityGPUCreditsMode,
             isRemembered: entry.isRemembered,
             lastReadAt: entry.lastReadAt
         )

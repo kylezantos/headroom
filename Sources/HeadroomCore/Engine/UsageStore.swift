@@ -141,6 +141,10 @@ public final class UsageStore {
     public private(set) var showCodexSparkCountersInWidgets: Bool
     /// Antigravity's "Show 5-hour windows" switch, one value for every surface.
     public private(set) var showsAntigravityFiveHourWindows: Bool
+    /// Antigravity's optional Colab GPU credits mode (`Off` / `Replace Other · Weekly` / `Add`).
+    public private(set) var antigravityGPUCreditsMode: AntigravityGPUCreditsMode
+    public private(set) var antigravityColabTier: ColabComputeTier
+    public private(set) var antigravityGPUCreditsRefillDay: Int?
     /// KTD14: notification preferences, mirrored so the Notifications pane edits through
     /// the store the way `meterStyle` does.
     public private(set) var useItUpRemindersEnabled: Bool
@@ -381,6 +385,9 @@ public final class UsageStore {
         self.showCodexSparkCountersInApp = preferences.showCodexSparkCountersInApp
         self.showCodexSparkCountersInWidgets = preferences.showCodexSparkCountersInWidgets
         self.showsAntigravityFiveHourWindows = preferences.showsAntigravityFiveHourWindows
+        self.antigravityGPUCreditsMode = preferences.antigravityGPUCreditsMode
+        self.antigravityColabTier = preferences.antigravityColabTier
+        self.antigravityGPUCreditsRefillDay = preferences.antigravityGPUCreditsRefillDay
         self.useItUpRemindersEnabled = preferences.useItUpRemindersEnabled
         self.bankedResetNotificationsEnabled = preferences.bankedResetNotificationsEnabled
         self.reminderRules = preferences.reminderRules
@@ -816,7 +823,8 @@ public final class UsageStore {
                 from: snapshot(for: id),
                 shouldShow: showCodexSparkCountersInApp
             ),
-            showsFiveHourWindows: showsAntigravityFiveHourWindows
+            showsFiveHourWindows: showsAntigravityFiveHourWindows,
+            gpuCreditsMode: antigravityGPUCreditsMode
         ).fiveHourFirst().windows
     }
 
@@ -838,6 +846,37 @@ public final class UsageStore {
         showsAntigravityFiveHourWindows = enabled
         exportWidgetSnapshot()
         exportPhoneSyncSnapshot()
+    }
+
+    public func setAntigravityGPUCreditsMode(_ mode: AntigravityGPUCreditsMode) {
+        guard antigravityGPUCreditsMode != mode else { return }
+        let wasOff = antigravityGPUCreditsMode == .off
+        preferences.antigravityGPUCreditsMode = mode
+        antigravityGPUCreditsMode = mode
+        exportWidgetSnapshot()
+        exportPhoneSyncSnapshot()
+        if wasOff && mode != .off && providerOrder.contains(.antigravity) {
+            refreshProviderNow(.antigravity)
+        }
+    }
+
+    public func setAntigravityColabTier(_ tier: ColabComputeTier) {
+        guard antigravityColabTier != tier else { return }
+        preferences.antigravityColabTier = tier
+        antigravityColabTier = tier
+        if antigravityGPUCreditsMode != .off && providerOrder.contains(.antigravity) {
+            refreshProviderNow(.antigravity)
+        }
+    }
+
+    public func setAntigravityGPUCreditsRefillDay(_ day: Int?) {
+        let normalized = day.flatMap { (1...31).contains($0) ? $0 : nil }
+        guard antigravityGPUCreditsRefillDay != normalized else { return }
+        preferences.antigravityGPUCreditsRefillDay = normalized
+        antigravityGPUCreditsRefillDay = normalized
+        if antigravityGPUCreditsMode != .off && providerOrder.contains(.antigravity) {
+            refreshProviderNow(.antigravity)
+        }
     }
 
     public func setUseItUpRemindersEnabled(_ enabled: Bool) {
@@ -1281,7 +1320,8 @@ public final class UsageStore {
                 rules: reminderRules,
                 scope: reminderScope,
                 showCodexSparkCounters: showCodexSparkCountersInApp,
-                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows
+                showsAntigravityFiveHourWindows: showsAntigravityFiveHourWindows,
+                antigravityGPUCreditsMode: antigravityGPUCreditsMode
             ),
             bankedResetsEnabled: bankedResetNotificationsEnabled
         )
@@ -1399,7 +1439,8 @@ public final class UsageStore {
                     from: snapshot(for: key),
                     shouldShow: preferences.showCodexSparkCountersInApp
                 ),
-                showsFiveHourWindows: preferences.showsAntigravityFiveHourWindows
+                showsFiveHourWindows: preferences.showsAntigravityFiveHourWindows,
+                gpuCreditsMode: preferences.antigravityGPUCreditsMode
             )
         )
     }
@@ -1459,6 +1500,7 @@ public final class UsageStore {
             widgetProviderSelection: resolvedWidgetProviderSelection(),
             showsCodexSparkCounters: preferences.showCodexSparkCountersInWidgets,
             showsAntigravityFiveHourWindows: preferences.showsAntigravityFiveHourWindows,
+            antigravityGPUCreditsMode: preferences.antigravityGPUCreditsMode,
             apiSpendSnapshots: apiSpendSnapshots,
             apiSpendProviderOrder: apiSpendProviderOrder,
             generatedAt: generatedAt
